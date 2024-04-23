@@ -1,0 +1,580 @@
+{
+  "Action": "fail",
+  "Test": "TestBannedUserCannotSendJoin"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room/event_with_mismatched_state_key"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room/invite_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room/join_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room/leave_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room/non-state_membership_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendKnockViaSendKnockInMSC3787Room/regular_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1/leave_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonJoinViaSendJoinV1/regular_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2/leave_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonJoinViaSendJoinV2/regular_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock/event_with_mismatched_state_key"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock/invite_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock/join_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock/leave_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock/non-state_membership_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestCannotSendNonKnockViaSendKnock/regular_event"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummary"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummaryJoinRules"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummary/max_depth"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummary/pagination"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummary/query_whole_graph"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummary/redact_link"
+}
+{
+  "Action": "fail",
+  "Test": "TestClientSpacesSummary/suggested_only"
+}
+{
+  "Action": "fail",
+  "Test": "TestDeviceListsUpdateOverFederation"
+}
+{
+  "Action": "fail",
+  "Test": "TestDeviceListsUpdateOverFederation/good_connectivity"
+}
+{
+  "Action": "fail",
+  "Test": "TestDeviceListsUpdateOverFederation/interrupted_connectivity"
+}
+{
+  "Action": "fail",
+  "Test": "TestDeviceListsUpdateOverFederationOnRoomJoin"
+}
+{
+  "Action": "fail",
+  "Test": "TestDeviceListsUpdateOverFederation/stopped_server"
+}
+{
+  "Action": "fail",
+  "Test": "TestEventAuth"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationKeyUploadQuery"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationKeyUploadQuery/Can_claim_remote_one_time_key_using_POST"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationKeyUploadQuery/Can_query_remote_device_keys_using_POST"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationRejectInvite"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationRoomsInvite"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationRoomsInvite/Parallel"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationRoomsInvite/Parallel/Invited_user_can_reject_invite_over_federation"
+}
+{
+  "Action": "fail",
+  "Test": "TestFederationRoomsInvite/Parallel/Invited_user_can_reject_invite_over_federation_several_times"
+}
+{
+  "Action": "fail",
+  "Test": "TestGetMissingEventsGapFilling"
+}
+{
+  "Action": "fail",
+  "Test": "TestInboundCanReturnMissingEvents"
+}
+{
+  "Action": "fail",
+  "Test": "TestInboundCanReturnMissingEvents/Inbound_federation_can_return_missing_events_for_invited_visibility"
+}
+{
+  "Action": "fail",
+  "Test": "TestInboundCanReturnMissingEvents/Inbound_federation_can_return_missing_events_for_joined_visibility"
+}
+{
+  "Action": "fail",
+  "Test": "TestInboundCanReturnMissingEvents/Inbound_federation_can_return_missing_events_for_shared_visibility"
+}
+{
+  "Action": "fail",
+  "Test": "TestInboundCanReturnMissingEvents/Inbound_federation_can_return_missing_events_for_world_readable_visibility"
+}
+{
+  "Action": "fail",
+  "Test": "TestInboundFederationRejectsEventsWithRejectedAuthEvents"
+}
+{
+  "Action": "fail",
+  "Test": "TestJoinFederatedRoomFromApplicationServiceBridgeUser"
+}
+{
+  "Action": "fail",
+  "Test": "TestJoinFederatedRoomFromApplicationServiceBridgeUser/join_remote_federated_room_as_application_service_user"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/federation"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/federation/can_paginate_after_getting_remote_event_from_timestamp_to_event_endpoint"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/federation/looking_backwards,_should_be_able_to_find_event_that_was_sent_before_we_joined"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/federation/looking_forwards,_should_be_able_to_find_event_that_was_sent_before_we_joined"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/federation/when_looking_backwards_before_the_room_was_created,_should_be_able_to_find_event_that_was_imported"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_find_event_after_given_timestmap"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_find_event_before_given_timestmap"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_find_next_event_topologically_after_given_timestmap_when_all_message_timestamps_are_the_same"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_find_next_event_topologically_before_given_timestamp_when_all_message_timestamps_are_the_same"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_find_nothing_before_the_earliest_timestmap"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_not_be_able_to_query_a_private_room_you_are_not_a_member_of"
+}
+{
+  "Action": "fail",
+  "Test": "TestJumpToDateEndpoint/parallel/should_not_be_able_to_query_a_public_room_you_are_not_a_member_of"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_can_knock_on_a_room_without_a_reason"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_can_knock_on_a_room_without_a_reason#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_cannot_knock_on_a_room_they_are_already_in"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_cannot_knock_on_a_room_they_are_already_in#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_cannot_knock_on_a_room_they_are_already_invited_to"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_cannot_knock_on_a_room_they_are_already_invited_to#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_in_the_room_can_reject_a_knock"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_in_the_room_can_reject_a_knock#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_that_has_already_knocked_is_allowed_to_knock_again_on_the_same_room"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_that_has_already_knocked_is_allowed_to_knock_again_on_the_same_room#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_that_has_knocked_on_a_local_room_can_rescind_their_knock_and_then_knock_again"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_that_is_banned_from_a_room_cannot_knock_on_it"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/A_user_that_is_banned_from_a_room_cannot_knock_on_it#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Attempting_to_join_a_room_with_join_rule_'knock'_without_an_invite_should_fail"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Attempting_to_join_a_room_with_join_rule_'knock'_without_an_invite_should_fail#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_can_knock_on_a_room_without_a_reason"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_can_knock_on_a_room_without_a_reason#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_cannot_knock_on_a_room_they_are_already_in"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_cannot_knock_on_a_room_they_are_already_in#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_cannot_knock_on_a_room_they_are_already_invited_to"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_cannot_knock_on_a_room_they_are_already_invited_to#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_in_the_room_can_accept_a_knock"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_in_the_room_can_accept_a_knock#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_in_the_room_can_reject_a_knock"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_in_the_room_can_reject_a_knock#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_that_has_already_knocked_is_allowed_to_knock_again_on_the_same_room"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_that_has_already_knocked_is_allowed_to_knock_again_on_the_same_room#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_that_has_knocked_on_a_local_room_can_rescind_their_knock_and_then_knock_again"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_that_is_banned_from_a_room_cannot_knock_on_it"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/A_user_that_is_banned_from_a_room_cannot_knock_on_it#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Knocking_on_a_room_with_a_join_rule_other_than_'knock'_should_fail"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Knocking_on_a_room_with_a_join_rule_other_than_'knock'_should_fail#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Knocking_on_a_room_with_join_rule_'knock'_should_succeed"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Knocking_on_a_room_with_join_rule_'knock'_should_succeed#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Users_in_the_room_see_a_user's_membership_update_when_they_knock"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockingInMSC3787Room/Users_in_the_room_see_a_user's_membership_update_when_they_knock#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/Knocking_on_a_room_with_a_join_rule_other_than_'knock'_should_fail"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/Knocking_on_a_room_with_a_join_rule_other_than_'knock'_should_fail#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/Knocking_on_a_room_with_join_rule_'knock'_should_succeed"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/Knocking_on_a_room_with_join_rule_'knock'_should_succeed#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/Users_in_the_room_see_a_user's_membership_update_when_they_knock"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnocking/Users_in_the_room_see_a_user's_membership_update_when_they_knock#01"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockRoomsInPublicRoomsDirectory"
+}
+{
+  "Action": "fail",
+  "Test": "TestKnockRoomsInPublicRoomsDirectoryInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/ASCII"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/ASCII/Can_download_file_'name;with;semicolons'"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/ASCII/Can_download_file_'name_with_spaces'"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/Unicode"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/Unicode/Can_download_specifying_a_different_Unicode_file_name"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/Unicode/Can_download_with_Unicode_file_name_locally"
+}
+{
+  "Action": "fail",
+  "Test": "TestMediaFilenames/Parallel/Unicode/Can_download_with_Unicode_file_name_over_federation"
+}
+{
+  "Action": "fail",
+  "Test": "TestNetworkPartitionOrdering"
+}
+{
+  "Action": "fail",
+  "Test": "TestOutboundFederationIgnoresMissingEventWithBadJSONForRoomVersion6"
+}
+{
+  "Action": "fail",
+  "Test": "TestRemotePresence"
+}
+{
+  "Action": "fail",
+  "Test": "TestRemotePresence/Presence_changes_are_also_reported_to_remote_room_members"
+}
+{
+  "Action": "fail",
+  "Test": "TestRemotePresence/Presence_changes_to_UNAVAILABLE_are_reported_to_remote_room_members"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsLocalJoin"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsLocalJoinInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsLocalJoinInMSC3787Room/Join_should_succeed_when_joined_to_allowed_room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsLocalJoin/Join_should_succeed_when_joined_to_allowed_room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoin"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoinFailOver"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoinFailOverInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoinInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoinInMSC3787Room/Join_should_succeed_when_joined_to_allowed_room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoin/Join_should_succeed_when_joined_to_allowed_room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoinLocalUser"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsRemoteJoinLocalUserInMSC3787Room"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsSpacesSummaryFederation"
+}
+{
+  "Action": "fail",
+  "Test": "TestRestrictedRoomsSpacesSummaryLocal"
+}
+{
+  "Action": "fail",
+  "Test": "TestToDeviceMessagesOverFederation"
+}
+{
+  "Action": "fail",
+  "Test": "TestToDeviceMessagesOverFederation/interrupted_connectivity"
+}
+{
+  "Action": "fail",
+  "Test": "TestUnbanViaInvite"
+}
+{
+  "Action": "fail",
+  "Test": "TestUnknownEndpoints"
+}
+{
+  "Action": "fail",
+  "Test": "TestUnknownEndpoints/Key_endpoints"
+}
+{
+  "Action": "fail",
+  "Test": "TestUnrejectRejectedEvents"
+}
