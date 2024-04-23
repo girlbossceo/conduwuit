@@ -91,7 +91,7 @@ Additional info about deploying Conduit can be found [here](generic.md).
 
 ### Build
 
-To build the Conduit image with docker-compose, you first need to open and modify the `docker-compose.yml` file. There you need to comment the `image:` option and uncomment the `build:` option. Then call docker-compose with:
+To build the Conduit image with docker-compose, you first need to open and modify the `docker-compose.yml` file. There you need to comment the `image:` option and uncomment the `build:` option. Then call docker compose with:
 
 ```bash
 docker-compose up
