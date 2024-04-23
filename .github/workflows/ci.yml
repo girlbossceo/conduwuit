@@ -35,16 +35,18 @@ jobs:
             - name: Install Nix
               uses: DeterminateSystems/nix-installer-action@main
 
+            - name: Enable Cachix binary cache
+              run: |
+                  nix-env -iA cachix -f https://cachix.org/api/v1/install
+                  cachix use crane
+                  cachix use nix-community
+
             - name: Configure Magic Nix Cache
               uses: DeterminateSystems/magic-nix-cache-action@main
 
             - name: Apply Nix binary cache configuration
               run: |
-                  nix-env -iA cachix -f https://cachix.org/api/v1/install
-                  cachix use crane
-                  cachix use nix-community
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-                  experimental-features = nix-command flakes
                   extra-substituters = https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
                   extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
                   EOF
