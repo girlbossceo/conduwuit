@@ -122,6 +122,7 @@ jobs:
 
             - name: Reuse build environment
               run: |
+                  touch $HOME/.direnvrc
                   source $HOME/.direnvrc
                   direnv allow
  
