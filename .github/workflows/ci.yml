@@ -94,7 +94,7 @@ jobs:
 
             - name: Extract build environment
               run: |
-                  tar -xzf nix-store.tar.gz -C /
+                  tar -xzf environment.tar.gz -C /
 
             - name: Sync repository
               uses: actions/checkout@v4
