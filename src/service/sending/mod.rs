@@ -86,12 +86,12 @@ impl Service {
 
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
 	pub(crate) fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
-		let destination = Destination::Push(user.to_owned(), pushkey);
+		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEventType::Pdu(pdu_id.to_owned());
 		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&destination, event.clone())])?;
+		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.sender
-			.send((destination, event, keys.into_iter().next().unwrap()))
+			.send((dest, event, keys.into_iter().next().unwrap()))
 			.unwrap();
 
 		Ok(())
@@ -99,12 +99,12 @@ impl Service {
 
 	#[tracing::instrument(skip(self))]
 	pub(crate) fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
-		let destination = Destination::Appservice(appservice_id);
+		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEventType::Pdu(pdu_id);
 		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&destination, event.clone())])?;
+		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.sender
-			.send((destination, event, keys.into_iter().next().unwrap()))
+			.send((dest, event, keys.into_iter().next().unwrap()))
 			.unwrap();
 
 		Ok(())
@@ -137,8 +137,8 @@ impl Service {
 				.map(|(o, e)| (o, e.clone()))
 				.collect::<Vec<_>>(),
 		)?;
-		for ((destination, event), key) in requests.into_iter().zip(keys) {
-			self.sender.send((destination.clone(), event, key)).unwrap();
+		for ((dest, event), key) in requests.into_iter().zip(keys) {
+			self.sender.send((dest.clone(), event, key)).unwrap();
 		}
 
 		Ok(())
@@ -146,12 +146,12 @@ impl Service {
 
 	#[tracing::instrument(skip(self, server, serialized))]
 	pub(crate) fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
-		let destination = Destination::Normal(server.to_owned());
+		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
-		let keys = self.db.queue_requests(&[(&destination, event.clone())])?;
+		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.sender
-			.send((destination, event, keys.into_iter().next().unwrap()))
+			.send((dest, event, keys.into_iter().next().unwrap()))
 			.unwrap();
 
 		Ok(())
@@ -184,8 +184,8 @@ impl Service {
 				.map(|(o, e)| (o, e.clone()))
 				.collect::<Vec<_>>(),
 		)?;
-		for ((destination, event), key) in requests.into_iter().zip(keys) {
-			self.sender.send((destination.clone(), event, key)).unwrap();
+		for ((dest, event), key) in requests.into_iter().zip(keys) {
+			self.sender.send((dest.clone(), event, key)).unwrap();
 		}
 
 		Ok(())
@@ -207,9 +207,9 @@ impl Service {
 	pub(crate) fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
 		let requests = servers.into_iter().map(Destination::Normal);
 
-		for destination in requests {
+		for dest in requests {
 			self.sender
-				.send((destination, SendingEventType::Flush, Vec::<u8>::new()))
+				.send((dest, SendingEventType::Flush, Vec::<u8>::new()))
 				.unwrap();
 		}
 
@@ -282,13 +282,13 @@ impl Service {
 		// Retry requests we could not finish yet
 		if self.startup_netburst {
 			let mut initial_transactions = HashMap::<Destination, Vec<SendingEventType>>::new();
-			for (key, destination, event) in self.db.active_requests().filter_map(Result::ok) {
-				let entry = initial_transactions.entry(destination.clone()).or_default();
+			for (key, dest, event) in self.db.active_requests().filter_map(Result::ok) {
+				let entry = initial_transactions.entry(dest.clone()).or_default();
 
 				if self.startup_netburst_keep >= 0
 					&& entry.len() >= usize::try_from(self.startup_netburst_keep).unwrap()
 				{
-					warn!("Dropping unsent event {:?} {:?}", destination, String::from_utf8_lossy(&key),);
+					warn!("Dropping unsent event {:?} {:?}", dest, String::from_utf8_lossy(&key),);
 					self.db.delete_active_request(key)?;
 					continue;
 				}
@@ -296,9 +296,9 @@ impl Service {
 				entry.push(event);
 			}
 
-			for (destination, events) in initial_transactions {
-				current_transaction_status.insert(destination.clone(), TransactionStatus::Running);
-				futures.push(handle_events(destination.clone(), events));
+			for (dest, events) in initial_transactions {
+				current_transaction_status.insert(dest.clone(), TransactionStatus::Running);
+				futures.push(send_events(dest.clone(), events));
 			}
 		}
 
@@ -306,30 +306,30 @@ impl Service {
 			tokio::select! {
 				Some(response) = futures.next() => {
 					match response {
-						Ok(destination) => {
+						Ok(dest) => {
 							let _cork = services().globals.db.cork();
-							self.db.delete_all_active_requests_for(&destination)?;
+							self.db.delete_all_active_requests_for(&dest)?;
 
 							// Find events that have been added since starting the last request
 							let new_events = self
 								.db
-								.queued_requests(&destination)
+								.queued_requests(&dest)
 								.filter_map(Result::ok)
 								.take(30).collect::<Vec<_>>();
 
 							if !new_events.is_empty() {
 								// Insert pdus we found
 								self.db.mark_as_active(&new_events)?;
-								futures.push(handle_events(
-									destination.clone(),
+								futures.push(send_events(
+									dest.clone(),
 									new_events.into_iter().map(|(event, _)| event).collect(),
 								));
 							} else {
-								current_transaction_status.remove(&destination);
+								current_transaction_status.remove(&dest);
 							}
 						}
-						Err((destination, _)) => {
-							current_transaction_status.entry(destination).and_modify(|e| *e = match e {
+						Err((dest, _)) => {
+							current_transaction_status.entry(dest).and_modify(|e| *e = match e {
 								TransactionStatus::Running => TransactionStatus::Failed(1, Instant::now()),
 								TransactionStatus::Retrying(n) => TransactionStatus::Failed(*n+1, Instant::now()),
 								TransactionStatus::Failed(_, _) => {
@@ -342,13 +342,13 @@ impl Service {
 				},
 
 				event = receiver.recv_async() => {
-					if let Ok((destination, event, key)) = event {
+					if let Ok((dest, event, key)) = event {
 						if let Ok(Some(events)) = self.select_events(
-							&destination,
+							&dest,
 							vec![(event, key)],
 							&mut current_transaction_status,
 						) {
-							futures.push(handle_events(destination, events));
+							futures.push(send_events(dest, events));
 						}
 					}
 				}
@@ -356,14 +356,14 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, destination, new_events, current_transaction_status))]
+	#[tracing::instrument(skip(self, dest, new_events, current_transaction_status))]
 	fn select_events(
 		&self,
-		destination: &Destination,
+		dest: &Destination,
 		new_events: Vec<(SendingEventType, Vec<u8>)>, // Events we want to send: event and full key
 		current_transaction_status: &mut HashMap<Destination, TransactionStatus>,
 	) -> Result<Option<Vec<SendingEventType>>> {
-		let (allow, retry) = self.select_events_current(destination.clone(), current_transaction_status)?;
+		let (allow, retry) = self.select_events_current(dest.clone(), current_transaction_status)?;
 
 		// Nothing can be done for this remote, bail out.
 		if !allow {
@@ -376,7 +376,7 @@ impl Service {
 		// Must retry any previous transaction for this remote.
 		if retry {
 			self.db
-				.active_requests_for(destination)
+				.active_requests_for(dest)
 				.filter_map(Result::ok)
 				.for_each(|(_, e)| events.push(e));
 
@@ -393,7 +393,7 @@ impl Service {
 		}
 
 		// Add EDU's into the transaction
-		if let Destination::Normal(server_name) = destination {
+		if let Destination::Normal(server_name) = dest {
 			if let Ok((select_edus, last_count)) = self.select_edus(server_name) {
 				events.extend(select_edus.into_iter().map(SendingEventType::Edu));
 				self.db.set_latest_educount(server_name, last_count)?;
@@ -403,13 +403,13 @@ impl Service {
 		Ok(Some(events))
 	}
 
-	#[tracing::instrument(skip(self, destination, current_transaction_status))]
+	#[tracing::instrument(skip(self, dest, current_transaction_status))]
 	fn select_events_current(
-		&self, destination: Destination, current_transaction_status: &mut HashMap<Destination, TransactionStatus>,
+		&self, dest: Destination, current_transaction_status: &mut HashMap<Destination, TransactionStatus>,
 	) -> Result<(bool, bool)> {
 		let (mut allow, mut retry) = (true, false);
 		current_transaction_status
-			.entry(destination)
+			.entry(dest)
 			.and_modify(|e| match e {
 				TransactionStatus::Failed(tries, time) => {
 					// Fail if a request has failed recently (exponential backoff)
@@ -595,21 +595,17 @@ pub(crate) fn select_edus_receipts(
 	Ok(true)
 }
 
-async fn handle_events(
-	destination: Destination, events: Vec<SendingEventType>,
-) -> Result<Destination, (Destination, Error)> {
-	match destination {
-		Destination::Appservice(ref id) => handle_events_destination_appservice(&destination, id, events).await,
-		Destination::Push(ref userid, ref pushkey) => {
-			handle_events_destination_push(&destination, userid, pushkey, events).await
-		},
-		Destination::Normal(ref server) => handle_events_destination_normal(&destination, server, events).await,
+async fn send_events(dest: Destination, events: Vec<SendingEventType>) -> Result<Destination, (Destination, Error)> {
+	match dest {
+		Destination::Normal(ref server) => send_events_dest_normal(&dest, server, events).await,
+		Destination::Appservice(ref id) => send_events_dest_appservice(&dest, id, events).await,
+		Destination::Push(ref userid, ref pushkey) => send_events_dest_push(&dest, userid, pushkey, events).await,
 	}
 }
 
-#[tracing::instrument(skip(destination, events))]
-async fn handle_events_destination_appservice(
-	destination: &Destination, id: &String, events: Vec<SendingEventType>,
+#[tracing::instrument(skip(dest, events))]
+async fn send_events_dest_appservice(
+	dest: &Destination, id: &String, events: Vec<SendingEventType>,
 ) -> Result<Destination, (Destination, Error)> {
 	let mut pdu_jsons = Vec::new();
 
@@ -621,10 +617,10 @@ async fn handle_events_destination_appservice(
 						.rooms
 						.timeline
 						.get_pdu_from_id(pdu_id)
-						.map_err(|e| (destination.clone(), e))?
+						.map_err(|e| (dest.clone(), e))?
 						.ok_or_else(|| {
 							(
-								destination.clone(),
+								dest.clone(),
 								Error::bad_database("[Appservice] Event in servernameevent_data not found in db."),
 							)
 						})?
@@ -647,7 +643,7 @@ async fn handle_events_destination_appservice(
 			.await
 			.ok_or_else(|| {
 				(
-					destination.clone(),
+					dest.clone(),
 					Error::bad_database("[Appservice] Could not load registration from db."),
 				)
 			})?,
@@ -667,18 +663,18 @@ async fn handle_events_destination_appservice(
 	)
 	.await
 	{
-		Ok(_) => Ok(destination.clone()),
-		Err(e) => Err((destination.clone(), e)),
-	};
+		Ok(_) => Ok(dest.clone()),
+		Err(e) => Err((dest.clone(), e)),
+	}
 
 	drop(permit);
 
 	response
 }
 
-#[tracing::instrument(skip(destination, events))]
-async fn handle_events_destination_push(
-	destination: &Destination, userid: &OwnedUserId, pushkey: &String, events: Vec<SendingEventType>,
+#[tracing::instrument(skip(dest, events))]
+async fn send_events_dest_push(
+	dest: &Destination, userid: &OwnedUserId, pushkey: &String, events: Vec<SendingEventType>,
 ) -> Result<Destination, (Destination, Error)> {
 	let mut pdus = Vec::new();
 
@@ -690,10 +686,10 @@ async fn handle_events_destination_push(
 						.rooms
 						.timeline
 						.get_pdu_from_id(pdu_id)
-						.map_err(|e| (destination.clone(), e))?
+						.map_err(|e| (dest.clone(), e))?
 						.ok_or_else(|| {
 							(
-								destination.clone(),
+								dest.clone(),
 								Error::bad_database("[Push] Event in servernamevent_datas not found in db."),
 							)
 						})?,
@@ -719,7 +715,7 @@ async fn handle_events_destination_push(
 		let Some(pusher) = services()
 			.pusher
 			.get_pusher(userid, pushkey)
-			.map_err(|e| (destination.clone(), e))?
+			.map_err(|e| (dest.clone(), e))?
 		else {
 			continue;
 		};
@@ -735,7 +731,7 @@ async fn handle_events_destination_push(
 			.rooms
 			.user
 			.notification_count(userid, &pdu.room_id)
-			.map_err(|e| (destination.clone(), e))?
+			.map_err(|e| (dest.clone(), e))?
 			.try_into()
 			.expect("notification count can't go that high");
 
@@ -745,18 +741,18 @@ async fn handle_events_destination_push(
 			.pusher
 			.send_push_notice(userid, unread, &pusher, rules_for_user, &pdu)
 			.await
-			.map(|_response| destination.clone())
-			.map_err(|e| (destination.clone(), e));
+			.map(|_response| dest.clone())
+			.map_err(|e| (dest.clone(), e));
 
 		drop(permit);
 	}
 
-	Ok(destination.clone())
+	Ok(dest.clone())
 }
 
-#[tracing::instrument(skip(destination, events), name = "")]
-async fn handle_events_destination_normal(
-	destination: &Destination, dest: &OwnedServerName, events: Vec<SendingEventType>,
+#[tracing::instrument(skip(dest, events), name = "")]
+async fn send_events_dest_normal(
+	dest: &Destination, server_name: &OwnedServerName, events: Vec<SendingEventType>,
 ) -> Result<Destination, (Destination, Error)> {
 	let mut edu_jsons = Vec::new();
 	let mut pdu_jsons = Vec::new();
@@ -770,11 +766,16 @@ async fn handle_events_destination_normal(
 						.rooms
 						.timeline
 						.get_pdu_json_from_id(pdu_id)
-						.map_err(|e| (destination.clone(), e))?
+						.map_err(|e| (dest.clone(), e))?
 						.ok_or_else(|| {
-							error!("event not found: {dest} {pdu_id:?}");
+							error!(
+								dest = ?dest,
+								server_name = ?server_name,
+								pdu_id = ?pdu_id,
+								"event not found"
+							);
 							(
-								destination.clone(),
+								dest.clone(),
 								Error::bad_database("[Normal] Event in servernamevent_datas not found in db."),
 							)
 						})?,
@@ -796,7 +797,7 @@ async fn handle_events_destination_normal(
 	let client = &services().globals.client.sender;
 	let response = send::send_request(
 		client,
-		dest,
+		server_name,
 		send_transaction_message::v1::Request {
 			origin: services().globals.server_name().to_owned(),
 			pdus: pdu_jsons,
@@ -821,9 +822,9 @@ async fn handle_events_destination_normal(
 				warn!("error for {} from remote: {:?}", pdu.0, pdu.1);
 			}
 		}
-		destination.clone()
+		dest.clone()
 	})
-	.map_err(|e| (destination.clone(), e));
+	.map_err(|e| (dest.clone(), e));
 
 	drop(permit);
 
