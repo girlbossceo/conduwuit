@@ -172,8 +172,10 @@ pub(crate) struct Config {
 	#[serde(default)]
 	pub(crate) well_known: WellKnownConfig,
 	#[serde(default)]
+	#[cfg(feature = "perf_measurements")]
 	pub(crate) allow_jaeger: bool,
 	#[serde(default)]
+	#[cfg(feature = "perf_measurements")]
 	pub(crate) tracing_flame: bool,
 	#[serde(default)]
 	pub(crate) proxy: ProxyConfig,
