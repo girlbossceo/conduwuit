@@ -32,14 +32,13 @@ jobs:
             - name: Sync repository
               uses: actions/checkout@v4
 
-            - name: Set up `/nix/store` cache
+            - name: Retrieve persistent `/nix/store`
               uses: actions/cache@v3
               with:
                   path: /nix/store
-                  key: ${{ runner.os }}-nix-store-${{ hashFiles('flake.lock') }}
+                  key: ${{ runner.os }}-nix-store }}
                   restore-keys: |
-                      ${{ runner.os }}-nix-store-
-
+                      ${{ runner.os }}-nix-store
             - name: Install Nix (with flakes and nix-command enabled)
               uses: cachix/install-nix-action@v26
               with:
@@ -63,12 +62,15 @@ jobs:
                   echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
                   echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
 
+            - name: Set up Nix magic cache
+              uses: DeterminateSystems/magic-nix-cache-action@v4
+
             - name: Install and activate `direnv`
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
                   nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
 
-            - name: Populate `/nix/store`
+            - name: Update `/nix/store`
               run: |
                   nix develop --command true
                   direnv allow
@@ -77,9 +79,25 @@ jobs:
               run: |
                   direnv exec . engage
 
+            - name: Pre-build x86_64 dependencies
+              run: >
+                  bin/nix-build-and-cache
+                  .#rocksdb-static-x86_64-unknown-linux-musl
+                  .#conduit-deps-static-x86_64-unknown-linux-musl
+
+            - name: Pre-build aarch64 dependencies
+              run: >
+                  bin/nix-build-and-cache
+                  .#rocksdb-static-aarch64-unknown-linux-musl
+                  .#conduit-deps-static-aarch64-unknown-linux-musl
+
             - name: Build static targets
-              run: |
-                  bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl .#static-x86_64-unknown-linux-musl-jemalloc .#static-aarch64-unknown-linux-musl .#static-aarch64-unknown-linux-musl-jemalloc
+              run: >
+                  bin/nix-build-and-cache
+                  .#static-x86_64-unknown-linux-musl
+                  .#static-x86_64-unknown-linux-musl-jemalloc
+                  .#static-aarch64-unknown-linux-musl
+                  .#static-aarch64-unknown-linux-musl-jemalloc
 
             - name: Organise and prepare static outputs
               run: |
@@ -152,8 +170,12 @@ jobs:
                   if-no-files-found: error
 
             - name: Build OCI image targets
-              run: |
-                  bin/nix-build-and-cache .#oci-image-x86_64-unknown-linux-musl .#oci-image-x86_64-unknown-linux-musl-jemalloc .#oci-image-aarch64-unknown-linux-musl .#oci-image-aarch64-unknown-linux-musl-jemalloc
+              run: >
+                  bin/nix-build-and-cache
+                  .#oci-image-x86_64-unknown-linux-musl
+                  .#oci-image-x86_64-unknown-linux-musl-jemalloc
+                  .#oci-image-aarch64-unknown-linux-musl
+                  .#oci-image-aarch64-unknown-linux-musl-jemalloc
 
             - name: Organise OCI image outputs
               run: |
