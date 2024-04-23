@@ -17,6 +17,8 @@ rust-version = "1.75.0"
 
 
 [dependencies]
+hot-lib-reloader = { version = "^0.6", optional = true }
+
 # Used for secure identifiers
 rand = "0.8.5"
 
@@ -371,6 +373,8 @@ perf_measurements = [
     "opentelemetry-jaeger",
 ]
 
+hot_reload = ["dep:hot-lib-reloader"]
+
 hardened_malloc = ["hardened_malloc-rs"]
 
 # client/server interopability hacks
@@ -378,14 +382,6 @@ hardened_malloc = ["hardened_malloc-rs"]
 ## element has various non-spec compliant behaviour
 element_hacks = []
 
-
-[[bin]]
-name = "conduit"
-path = "src/main.rs"
-
-[lib]
-name = "conduit"
-path = "src/lib.rs"
 
 [package.metadata.deb]
 name = "matrix-conduit"

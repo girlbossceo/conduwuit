@@ -23,35 +23,35 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
 	#[cfg(feature = "sqlite")]
 	#[error("There was a problem with the connection to the sqlite database: {source}")]
-	SqliteError {
+	Sqlite {
 		#[from]
 		source: rusqlite::Error,
 	},
 	#[cfg(feature = "rocksdb")]
 	#[error("There was a problem with the connection to the rocksdb database: {source}")]
-	RocksDbError {
+	RocksDb {
 		#[from]
 		source: rust_rocksdb::Error,
 	},
 	#[error("Could not generate an image.")]
-	ImageError {
+	Image {
 		#[from]
 		source: image::error::ImageError,
 	},
 	#[error("Could not connect to server: {source}")]
-	ReqwestError {
+	Reqwest {
 		#[from]
 		source: reqwest::Error,
 	},
 	#[error("Could build regular expression: {source}")]
-	RegexError {
+	Regex {
 		#[from]
 		source: regex::Error,
 	},
 	#[error("{0}")]
-	FederationError(OwnedServerName, RumaError),
+	Federation(OwnedServerName, RumaError),
 	#[error("Could not do this io: {source}")]
-	IoError {
+	Io {
 		#[from]
 		source: std::io::Error,
 	},
@@ -69,17 +69,17 @@ pub enum Error {
 	#[error("{0}")]
 	Conflict(&'static str), // This is only needed for when a room alias already exists
 	#[error("{0}")]
-	ExtensionError(#[from] axum::extract::rejection::ExtensionRejection),
+	Extension(#[from] axum::extract::rejection::ExtensionRejection),
 	#[error("{0}")]
-	PathError(#[from] axum::extract::rejection::PathRejection),
+	Path(#[from] axum::extract::rejection::PathRejection),
 	#[error("from {0}: {1}")]
-	RedactionError(OwnedServerName, ruma::canonical_json::RedactionError),
+	Redaction(OwnedServerName, ruma::canonical_json::RedactionError),
 	#[error("{0} in {1}")]
 	InconsistentRoomState(&'static str, ruma::OwnedRoomId),
 	#[error("{0}")]
 	AdminCommand(&'static str),
 	#[error("{0}")]
-	Error(String),
+	Err(String),
 }
 
 impl Error {
@@ -100,7 +100,7 @@ impl Error {
 			return RumaResponse(UiaaResponse::AuthResponse(uiaainfo.clone()));
 		}
 
-		if let Self::FederationError(origin, error) = self {
+		if let Self::Federation(origin, error) = self {
 			let mut error = error.clone();
 			error.body = ErrorBody::Standard {
 				kind: error.error_kind().unwrap_or(&Unknown).clone(),
@@ -153,7 +153,7 @@ impl Error {
 
 	/// Returns the Matrix error code / error kind
 	pub fn error_code(&self) -> ErrorKind {
-		if let Self::FederationError(_, error) = self {
+		if let Self::Federation(_, error) = self {
 			return error.error_kind().unwrap_or(&Unknown).clone();
 		}
 
@@ -169,14 +169,14 @@ impl Error {
 
 		match self {
 			#[cfg(feature = "sqlite")]
-			Self::SqliteError {
+			Self::Sqlite {
 				..
 			} => db_error,
 			#[cfg(feature = "rocksdb")]
-			Self::RocksDbError {
+			Self::RocksDb {
 				..
 			} => db_error,
-			Self::IoError {
+			Self::Io {
 				..
 			} => db_error,
 			Self::BadConfig {
