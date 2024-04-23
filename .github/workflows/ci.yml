@@ -32,6 +32,14 @@ jobs:
             - name: Sync repository
               uses: actions/checkout@v4
 
+            - name: Set up `/nix/store` cache
+              uses: actions/cache@v3
+              with:
+                  path: /nix/store
+                  key: ${{ runner.os }}-nix-store-${{ hashFiles('flake.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-nix-store-
+
             - name: Install Nix (with flakes and nix-command enabled)
               uses: cachix/install-nix-action@v26
               with:
@@ -59,13 +67,13 @@ jobs:
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
                   nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
-            
+
             - name: Populate `/nix/store`
               run: |
                   nix develop --command true
                   direnv allow
 
-            - name: Perform continuous integration
+            - name: Run CI tests
               run: |
                   direnv exec . engage
 
@@ -86,56 +94,56 @@ jobs:
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl-jemalloc.deb
                   mv target/debian/*.deb target/
                   rm -rf target/debian
-            
+
             - name: Upload static-x86_64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: static-x86_64-unknown-linux-musl
                   path: target/static-x86_64-unknown-linux-musl
                   if-no-files-found: error
-            
+
             - name: Upload static-x86_64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: static-x86_64-unknown-linux-musl-jemalloc
                   path: target/static-x86_64-unknown-linux-musl-jemalloc
                   if-no-files-found: error
-            
+
             - name: Upload static-aarch64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: static-aarch64-unknown-linux-musl
                   path: target/static-aarch64-unknown-linux-musl
                   if-no-files-found: error
-            
+
             - name: Upload static-aarch64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: static-aarch64-unknown-linux-musl-jemalloc
                   path: target/static-aarch64-unknown-linux-musl-jemalloc
                   if-no-files-found: error
-            
+
             - name: Upload deb x86_64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: x86_64-unknown-linux-musl.deb
                   path: target/x86_64-unknown-linux-musl.deb
                   if-no-files-found: error
-            
+
             - name: Upload deb x86_64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: x86_64-unknown-linux-musl-jemalloc.deb
                   path: target/x86_64-unknown-linux-musl-jemalloc.deb
                   if-no-files-found: error
-            
+
             - name: Upload deb aarch64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: aarch64-unknown-linux-musl.deb
                   path: target/aarch64-unknown-linux-musl.deb
                   if-no-files-found: error
-            
+
             - name: Upload deb aarch64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
@@ -161,7 +169,7 @@ jobs:
                   path: oci-image-x86_64-unknown-linux-musl.tar.gz
                   if-no-files-found: error
                   compression-level: 0
-            
+
             - name: Upload OCI image x86_64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
@@ -169,7 +177,7 @@ jobs:
                   path: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
                   if-no-files-found: error
                   compression-level: 0
-            
+
             - name: Upload OCI image aarch64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
@@ -177,7 +185,7 @@ jobs:
                   path: oci-image-aarch64-unknown-linux-musl.tar.gz
                   if-no-files-found: error
                   compression-level: 0
-            
+
             - name: Upload OCI image aarch64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
