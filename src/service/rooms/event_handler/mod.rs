@@ -25,6 +25,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{
+	debug_info,
 	service::{pdu, Arc, BTreeMap, HashMap, Result},
 	services, Error, PduEvent,
 };
@@ -70,7 +71,7 @@ impl Service {
 	///     room, if not soft fail it
 	#[tracing::instrument(skip(self, origin, value, is_timeline_event, pub_key_map), name = "pdu")]
 	pub(crate) async fn handle_incoming_pdu<'a>(
-		&self, origin: &'a ServerName, event_id: &'a EventId, room_id: &'a RoomId,
+		&self, origin: &'a ServerName, room_id: &'a RoomId, event_id: &'a EventId,
 		value: BTreeMap<String, CanonicalJsonValue>, is_timeline_event: bool,
 		pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<Option<Vec<u8>>> {
@@ -647,9 +648,9 @@ impl Service {
 
 		// Event has passed all auth/stateres checks
 		drop(state_lock);
-		debug!(
+		debug_info!(
 			elapsed = ?timer.elapsed(),
-			"Appended incoming pdu",
+			"Accepted",
 		);
 
 		Ok(pdu_id)

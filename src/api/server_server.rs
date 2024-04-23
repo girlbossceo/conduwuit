@@ -49,10 +49,11 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use crate::{
 	api::client_server::{self, claim_keys_helper, get_keys_helper},
+	debug_error,
 	service::pdu::{gen_event_id_canonical_json, PduBuilder},
 	services, utils, Error, PduEvent, Result, Ruma,
 };
@@ -155,10 +156,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 		&body.room_network,
 	)
 	.await
-	.map_err(|e| {
-		warn!("Failed to return our /publicRooms: {e}");
-		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
-	})?;
+	.map_err(|_| Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list."))?;
 
 	Ok(get_public_rooms_filtered::v1::Response {
 		chunk: response.chunk,
@@ -189,10 +187,7 @@ pub(crate) async fn get_public_rooms_route(
 		&body.room_network,
 	)
 	.await
-	.map_err(|e| {
-		warn!("Failed to return our /publicRooms: {e}");
-		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
-	})?;
+	.map_err(|_| Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list."))?;
 
 	Ok(get_public_rooms::v1::Response {
 		chunk: response.chunk,
@@ -308,7 +303,7 @@ pub(crate) async fn send_transaction_message_route(
 			services()
 				.rooms
 				.event_handler
-				.handle_incoming_pdu(sender_servername, &event_id, &room_id, value, true, &pub_key_map)
+				.handle_incoming_pdu(sender_servername, &room_id, &event_id, value, true, &pub_key_map)
 				.await
 				.map(|_| ()),
 		);
@@ -390,7 +385,7 @@ pub(crate) async fn send_transaction_message_route(
 								.readreceipt_update(&user_id, &room_id, event)?;
 						} else {
 							// TODO fetch missing events
-							debug!("No known event ids in read receipt: {:?}", user_updates);
+							debug_error!("No known event ids in read receipt: {:?}", user_updates);
 						}
 					}
 				}
@@ -453,7 +448,7 @@ pub(crate) async fn send_transaction_message_route(
 									target_device_id,
 									&ev_type.to_string(),
 									event.deserialize_as().map_err(|e| {
-										warn!("To-Device event is invalid: {event:?} {e}");
+										error!("To-Device event is invalid: {event:?} {e}");
 										Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
 									})?,
 								)?;
@@ -532,10 +527,7 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 		.rooms
 		.timeline
 		.get_pdu_json(&body.event_id)?
-		.ok_or_else(|| {
-			warn!("Event not found, event ID: {:?}", &body.event_id);
-			Error::BadRequest(ErrorKind::NotFound, "Event not found.")
-		})?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
 
 	let room_id_str = event
 		.get("room_id")
@@ -577,8 +569,6 @@ pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) ->
 		.sender_servername
 		.as_ref()
 		.expect("server is authenticated");
-
-	debug!("Got backfill request from: {}", sender_servername);
 
 	if !services()
 		.rooms
@@ -671,11 +661,7 @@ pub(crate) async fn get_missing_events_route(
 				.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
 			if event_room_id != body.room_id {
-				warn!(
-					"Evil event detected: Event {} found while searching in room {}",
-					queued_events[i], body.room_id
-				);
-				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Evil event detected"));
+				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event from wrong room"));
 			}
 
 			if body.earliest_events.contains(&queued_events[i]) {
@@ -743,10 +729,7 @@ pub(crate) async fn get_event_authorization_route(
 		.rooms
 		.timeline
 		.get_pdu_json(&body.event_id)?
-		.ok_or_else(|| {
-			warn!("Event not found, event ID: {:?}", &body.event_id);
-			Error::BadRequest(ErrorKind::NotFound, "Event not found.")
-		})?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
 
 	let room_id_str = event
 		.get("room_id")
@@ -827,12 +810,12 @@ pub(crate) async fn get_room_state_route(
 	Ok(get_room_state::v1::Response {
 		auth_chain: auth_chain_ids
 			.filter_map(|id| {
-				if let Some(json) = services().rooms.timeline.get_pdu_json(&id).ok()? {
-					Some(PduEvent::convert_to_outgoing_federation_event(json))
-				} else {
-					error!("Could not find event json for {id} in db.");
-					None
-				}
+				services()
+					.rooms
+					.timeline
+					.get_pdu_json(&id)
+					.ok()?
+					.map(PduEvent::convert_to_outgoing_federation_event)
 			})
 			.collect(),
 		pdus,
@@ -961,10 +944,8 @@ pub(crate) async fn create_join_event_template_route(
 	let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
 		.as_ref()
 		.map(|join_rules_event| {
-			serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
-				warn!("Invalid join rules event: {}", e);
-				Error::bad_database("Invalid join rules event in db.")
-			})
+			serde_json::from_str(join_rules_event.content.get())
+				.map_err(|_| Error::bad_database("Invalid join rules event in db."))
 		})
 		.transpose()?;
 
@@ -1150,10 +1131,7 @@ async fn create_join_event(
 		&mut value,
 		&room_version_id,
 	)
-	.map_err(|e| {
-		warn!("Failed to sign event: {e}");
-		Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event.")
-	})?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
@@ -1184,7 +1162,7 @@ async fn create_join_event(
 	let pdu_id: Vec<u8> = services()
 		.rooms
 		.event_handler
-		.handle_incoming_pdu(&origin, &event_id, room_id, value.clone(), true, &pub_key_map)
+		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true, &pub_key_map)
 		.await?
 		.ok_or(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1294,11 +1272,6 @@ pub(crate) async fn create_join_event_v2_route(
 		.forbidden_remote_server_names
 		.contains(sender_servername)
 	{
-		warn!(
-			"Server {sender_servername} tried joining room ID {} who has a server name that is globally forbidden. \
-			 Rejecting.",
-			&body.room_id,
-		);
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"Server is banned on this homeserver.",
@@ -1408,7 +1381,6 @@ pub(crate) async fn create_leave_event_template_route(
 			pdu_json.remove("event_id");
 		},
 		_ => {
-			warn!("Unexpected or unsupported room version {room_version_id}");
 			return Err(Error::BadRequest(
 				ErrorKind::BadJson,
 				"Unexpected or unsupported room version found",
@@ -1468,7 +1440,7 @@ async fn create_leave_event(sender_servername: &ServerName, room_id: &RoomId, pd
 	let pdu_id: Vec<u8> = services()
 		.rooms
 		.event_handler
-		.handle_incoming_pdu(&origin, &event_id, room_id, value, true, &pub_key_map)
+		.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
 		.await?
 		.ok_or(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1555,11 +1527,6 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 			.forbidden_remote_server_names
 			.contains(&server.to_owned())
 		{
-			warn!(
-				"Received federated/remote invite from server {sender_servername} for room ID {} which has a banned \
-				 server name. Rejecting.",
-				body.room_id
-			);
 			return Err(Error::BadRequest(
 				ErrorKind::forbidden(),
 				"Server is banned on this homeserver.",
@@ -1589,10 +1556,8 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 		}
 	}
 
-	let mut signed_event = utils::to_canonical_object(&body.event).map_err(|e| {
-		error!("Failed to convert invite event to canonical JSON: {}", e);
-		Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid.")
-	})?;
+	let mut signed_event = utils::to_canonical_object(&body.event)
+		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid."))?;
 
 	ruma::signatures::hash_and_sign_event(
 		services().globals.server_name().as_str(),
@@ -1632,10 +1597,6 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
 
 	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(&invited_user)? {
-		info!(
-			"Received remote invite from server {} for room {} and for user {invited_user}, but room is banned by us.",
-			&sender_servername, &body.room_id
-		);
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
@@ -1643,11 +1604,6 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	}
 
 	if services().globals.block_non_admin_invites() && !services().users.is_admin(&invited_user)? {
-		info!(
-			"Received remote invite from server {} for room {} and for user {invited_user} who is not an admin, but \
-			 \"block_non_admin_invites\" is enabled, rejecting.",
-			&sender_servername, &body.room_id
-		);
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"This server does not allow room invites.",
@@ -1661,10 +1617,8 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 
 	event.insert("event_id".to_owned(), "$placeholder".into());
 
-	let pdu: PduEvent = serde_json::from_value(event.into()).map_err(|e| {
-		warn!("Invalid invite event: {}", e);
-		Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event.")
-	})?;
+	let pdu: PduEvent = serde_json::from_value(event.into())
+		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event."))?;
 
 	invite_state.push(pdu.to_stripped_state_event());
 

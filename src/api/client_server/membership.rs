@@ -1281,7 +1281,7 @@ pub(crate) async fn join_room_by_id_helper(
 				services()
 					.rooms
 					.event_handler
-					.handle_incoming_pdu(&remote_server, &signed_event_id, room_id, signed_value, true, &pub_key_map)
+					.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true, &pub_key_map)
 					.await?;
 			} else {
 				return Err(error);
@@ -1538,7 +1538,7 @@ pub(crate) async fn invite_helper(
 		let pdu_id: Vec<u8> = services()
 			.rooms
 			.event_handler
-			.handle_incoming_pdu(&origin, &event_id, room_id, value, true, &pub_key_map)
+			.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
 			.await?
 			.ok_or(Error::BadRequest(
 				ErrorKind::InvalidParam,

@@ -437,7 +437,7 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 			Ok(())
 		},
 		_ => {
-			error!("{e}");
+			error!("DNS {e}");
 			Err(Error::Err(e.to_string()))
 		},
 	}
