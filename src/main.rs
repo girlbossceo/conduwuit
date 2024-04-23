@@ -22,7 +22,7 @@ use config::Config;
 use database::KeyValueDatabase;
 use http::{
 	header::{self, HeaderName},
-	Method, StatusCode,
+	Method, StatusCode, Uri,
 };
 #[cfg(unix)]
 use ruma::api::client::{
@@ -40,10 +40,10 @@ use tower_http::{
 	catch_panic::CatchPanicLayer,
 	classify::ServerErrorsFailureClass,
 	cors::{self, CorsLayer},
-	trace::TraceLayer,
+	trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 	ServiceBuilderExt as _,
 };
-use tracing::{debug, error, info, warn, Span};
+use tracing::{debug, error, info, trace, warn, Level, Span};
 use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
 use utils::{
 	clap,
@@ -306,11 +306,11 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 		.layer(
 			TraceLayer::new_for_http()
 				.make_span_with(tracing_span::<_>)
-				.on_failure(|error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
-					debug_info!("response failed: {error:?}, latency: {latency:?}");
-				}),
+				.on_failure(DefaultOnFailure::new().level(Level::ERROR))
+				.on_request(DefaultOnRequest::new().level(Level::TRACE))
+				.on_response(DefaultOnResponse::new().level(Level::DEBUG)),
 		)
-		.layer(axum::middleware::from_fn(request_handler))
+		.layer(axum::middleware::from_fn(request_handle))
 		.layer(cors_layer(server))
 		.layer(DefaultBodyLimit::max(
 			server
@@ -334,40 +334,67 @@ async fn build(server: &Server) -> io::Result<axum::routing::IntoMakeService<Rou
 	}
 }
 
+#[tracing::instrument(skip_all, name = "spawn")]
 async fn request_spawn(
 	req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
 	if services().globals.shutdown.load(atomic::Ordering::Relaxed) {
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
-	tokio::spawn(next.run(req))
-		.await
-		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+
+	let fut = next.run(req);
+	let task = tokio::spawn(fut);
+	task.await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-async fn request_handler(
+#[tracing::instrument(skip_all, name = "handle")]
+async fn request_handle(
 	req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
 	let method = req.method().clone();
 	let uri = req.uri().clone();
-	let inner = next.run(req).await;
-	if inner.status() == StatusCode::METHOD_NOT_ALLOWED {
-		if uri.path().contains("_matrix/") {
-			warn!("Method not allowed: {method} {uri}");
-		} else {
-			info!("Method not allowed: {method} {uri}");
-		}
-		return Ok(RumaResponse(UiaaResponse::MatrixError(RumaError {
-			body: ErrorBody::Standard {
-				kind: ErrorKind::Unrecognized,
-				message: "M_UNRECOGNIZED: Method not allowed for endpoint".to_owned(),
-			},
-			status_code: StatusCode::METHOD_NOT_ALLOWED,
-		}))
-		.into_response());
-	}
+	let result = next.run(req).await;
+	request_result(&method, &uri, result)
+}
 
-	Ok(inner)
+fn request_result(
+	method: &Method, uri: &Uri, result: axum::response::Response,
+) -> Result<axum::response::Response, StatusCode> {
+	request_result_log(method, uri, &result);
+	match result.status() {
+		StatusCode::METHOD_NOT_ALLOWED => request_result_403(method, uri, &result),
+		_ => Ok(result),
+	}
+}
+
+#[allow(clippy::unnecessary_wraps)]
+fn request_result_403(
+	_method: &Method, _uri: &Uri, result: &axum::response::Response,
+) -> Result<axum::response::Response, StatusCode> {
+	let error = UiaaResponse::MatrixError(RumaError {
+		status_code: result.status(),
+		body: ErrorBody::Standard {
+			kind: ErrorKind::Unrecognized,
+			message: "M_UNRECOGNIZED: Method not allowed for endpoint".to_owned(),
+		},
+	});
+
+	Ok(RumaResponse(error).into_response())
+}
+
+fn request_result_log(method: &Method, uri: &Uri, result: &axum::response::Response) {
+	let status = result.status();
+	let reason = status.canonical_reason().unwrap_or("Unknown Reason");
+	let code = status.as_u16();
+	if status.is_server_error() {
+		error!(method = ?method, uri = ?uri, "{code} {reason}");
+	} else if status.is_client_error() {
+		debug_error!(method = ?method, uri = ?uri, "{code} {reason}");
+	} else if status.is_redirection() {
+		debug!(method = ?method, uri = ?uri, "{code} {reason}");
+	} else {
+		trace!(method = ?method, uri = ?uri, "{code} {reason}");
+	}
 }
 
 fn cors_layer(_server: &Server) -> CorsLayer {
@@ -435,9 +462,9 @@ fn tracing_span<T>(request: &http::Request<T>) -> Span {
 
 	if let Some(path) = path {
 		let path = path.as_str();
-		tracing::info_span!("handle", %path, %uri)
+		tracing::info_span!("router:", %path, %uri)
 	} else {
-		tracing::info_span!("handle", %uri)
+		tracing::info_span!("router:", %uri)
 	}
 }
 

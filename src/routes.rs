@@ -8,7 +8,6 @@ use axum::{
 };
 use http::{Method, Uri};
 use ruma::api::{client::error::ErrorKind, IncomingRequest};
-use tracing::{info, warn};
 
 use crate::{
 	api::{client_server, server_server},
@@ -231,13 +230,7 @@ pub(crate) fn routes(config: &Config) -> Router {
 	}
 }
 
-async fn not_found(uri: Uri) -> impl IntoResponse {
-	if uri.path().contains("_matrix/") {
-		warn!("Not found: {uri}");
-	} else {
-		info!("Not found: {uri}");
-	}
-
+async fn not_found(_uri: Uri) -> impl IntoResponse {
 	Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request")
 }
 
