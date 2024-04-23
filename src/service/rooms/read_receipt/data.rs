@@ -21,8 +21,14 @@ pub(crate) trait Data: Send + Sync {
 	fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()>;
 
 	/// Returns the private read marker.
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>>;
 
 	/// Returns the count of the last typing update in this room.
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
 }

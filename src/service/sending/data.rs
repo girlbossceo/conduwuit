@@ -11,6 +11,9 @@ pub(crate) trait Data: Send + Sync {
 	fn active_requests_for(&self, destination: &Destination) -> SendingEventTypeIter<'_>;
 	fn delete_active_request(&self, key: Vec<u8>) -> Result<()>;
 	fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()>;
+
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn delete_all_requests_for(&self, destination: &Destination) -> Result<()>;
 	fn queue_requests(&self, requests: &[(&Destination, SendingEventType)]) -> Result<Vec<Vec<u8>>>;
 	fn queued_requests<'a>(

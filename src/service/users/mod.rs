@@ -337,6 +337,8 @@ impl Service {
 			.add_one_time_key(user_id, device_id, one_time_key_key, one_time_key_value)
 	}
 
+	// TODO: use this ?
+	#[allow(dead_code)]
 	pub(crate) fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
 		self.db.last_one_time_keys_update(user_id)
 	}

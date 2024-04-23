@@ -459,6 +459,8 @@ impl Service {
 
 	pub(crate) async fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> { self.db.get_url_preview(url) }
 
+	/// TODO: use this?
+	#[allow(dead_code)]
 	pub(crate) async fn remove_url_preview(&self, url: &str) -> Result<()> {
 		// TODO: also remove the downloaded image
 		self.db.remove_url_preview(url)

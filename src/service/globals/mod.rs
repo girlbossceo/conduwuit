@@ -207,6 +207,8 @@ impl Service<'_> {
 
 	pub(crate) fn cleanup(&self) -> Result<()> { self.db.cleanup() }
 
+	/// TODO: use this?
+	#[allow(dead_code)]
 	pub(crate) fn flush(&self) -> Result<()> { self.db.flush() }
 
 	pub(crate) fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }
@@ -231,10 +233,6 @@ impl Service<'_> {
 		self.config.allow_public_room_directory_over_federation
 	}
 
-	pub(crate) fn allow_public_room_directory_without_auth(&self) -> bool {
-		self.config.allow_public_room_directory_without_auth
-	}
-
 	pub(crate) fn allow_device_name_federation(&self) -> bool { self.config.allow_device_name_federation }
 
 	pub(crate) fn allow_room_creation(&self) -> bool { self.config.allow_room_creation }
@@ -253,8 +251,6 @@ impl Service<'_> {
 
 	pub(crate) fn dns_resolver(&self) -> &TokioAsyncResolver { &self.resolver.resolver }
 
-	pub(crate) fn query_all_nameservers(&self) -> bool { self.config.query_all_nameservers }
-
 	pub(crate) fn actual_destinations(&self) -> &Arc<RwLock<resolver::WellKnownMap>> { &self.resolver.destinations }
 
 	pub(crate) fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
@@ -268,8 +264,6 @@ impl Service<'_> {
 	pub(crate) fn turn_username(&self) -> &String { &self.config.turn_username }
 
 	pub(crate) fn turn_secret(&self) -> &String { &self.config.turn_secret }
-
-	pub(crate) fn auto_join_rooms(&self) -> &[OwnedRoomId] { &self.config.auto_join_rooms }
 
 	pub(crate) fn allow_profile_lookup_federation_requests(&self) -> bool {
 		self.config.allow_profile_lookup_federation_requests
@@ -309,45 +303,17 @@ impl Service<'_> {
 
 	pub(crate) fn allow_outgoing_presence(&self) -> bool { self.config.allow_outgoing_presence }
 
-	pub(crate) fn presence_idle_timeout_s(&self) -> u64 { self.config.presence_idle_timeout_s }
-
-	pub(crate) fn presence_offline_timeout_s(&self) -> u64 { self.config.presence_offline_timeout_s }
-
 	pub(crate) fn allow_incoming_read_receipts(&self) -> bool { self.config.allow_incoming_read_receipts }
 
 	pub(crate) fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
-
-	pub(crate) fn rocksdb_log_level(&self) -> &String { &self.config.rocksdb_log_level }
-
-	pub(crate) fn rocksdb_max_log_file_size(&self) -> usize { self.config.rocksdb_max_log_file_size }
-
-	pub(crate) fn rocksdb_log_time_to_roll(&self) -> usize { self.config.rocksdb_log_time_to_roll }
-
-	pub(crate) fn rocksdb_optimize_for_spinning_disks(&self) -> bool { self.config.rocksdb_optimize_for_spinning_disks }
-
-	pub(crate) fn rocksdb_parallelism_threads(&self) -> usize { self.config.rocksdb_parallelism_threads }
-
-	pub(crate) fn rocksdb_compression_algo(&self) -> &String { &self.config.rocksdb_compression_algo }
-
-	pub(crate) fn rocksdb_compression_level(&self) -> i32 { self.config.rocksdb_compression_level }
-
-	pub(crate) fn rocksdb_bottommost_compression_level(&self) -> i32 {
-		self.config.rocksdb_bottommost_compression_level
-	}
 
 	pub(crate) fn prevent_media_downloads_from(&self) -> &[OwnedServerName] {
 		&self.config.prevent_media_downloads_from
 	}
 
-	pub(crate) fn forbidden_remote_server_names(&self) -> &[OwnedServerName] {
-		&self.config.forbidden_remote_server_names
-	}
-
 	pub(crate) fn forbidden_remote_room_directory_server_names(&self) -> &[OwnedServerName] {
 		&self.config.forbidden_remote_room_directory_server_names
 	}
-
-	pub(crate) fn ip_range_denylist(&self) -> &[String] { &self.config.ip_range_denylist }
 
 	pub(crate) fn well_known_support_page(&self) -> &Option<Url> { &self.config.well_known.support_page }
 
