@@ -1183,7 +1183,7 @@ impl Service {
 		services()
 			.rooms
 			.event_handler
-			.handle_incoming_pdu(origin, &event_id, &room_id, value, false, pub_key_map)
+			.handle_incoming_pdu(origin, &room_id, &event_id, value, false, pub_key_map)
 			.await?;
 
 		let value = self.get_pdu_json(&event_id)?.expect("We just created it");
