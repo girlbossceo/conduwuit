@@ -55,16 +55,10 @@ jobs:
                   echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
                   echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
 
-            - name: Install `direnv` and `nix-direnv`
-              run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
-
-            - name: Populate `/nix/store`
-              run: nix develop --command true
-
-            - name: Package build environment for Artifact
+            - name: Populate `/nix/store` and package environment
               run: |
-                  touch $HOME/.direnvrc
-                  sudo tar -czf environment.tar.gz /nix/store ~/.cargo /etc/nix/nix.conf $HOME/.direnvrc
+                  nix develop --command true
+                  sudo tar -czf environment.tar.gz /nix/store ~/.cargo /etc/nix/nix.conf
 
             - name: Store build environment
               uses: actions/upload-artifact@v4
@@ -99,6 +93,32 @@ jobs:
 
             - name: Sync repository
               uses: actions/checkout@v4
+
+            - name: Install Nix (with flakes and nix-command enabled)
+              uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-unstable
+                  extra_nix_config: |
+                      experimental-features = nix-command flakes
+                      extra-substituters = https://nix-community.cachix.org
+                      extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+                      extra-substituters = https://crane.cachix.org
+                      extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
+                      extra-substituters = https://nix.computer.surgery/conduit
+                      extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
+                      extra-substituters = https://attic.kennel.juneis.dog/conduit
+                      extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+                      extra-substituters = https://attic.kennel.juneis.dog/conduwuit
+                      extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+
+            - name: Add alternative Nix binary caches if specified
+              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+              run: |
+                  echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
+                  echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
+
+            - name: Install `direnv` and `nix-direnv`
+              run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
 
             - name: Reuse build environment
               run: |
