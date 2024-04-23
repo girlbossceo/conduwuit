@@ -88,14 +88,12 @@ impl Resolve for Resolver {
 
 impl Resolve for Hooked {
 	fn resolve(&self, name: Name) -> Resolving {
-		self.overrides
-			.read()
-			.unwrap()
-			.get(name.as_str())
-			.map_or_else(
-				|| resolve_to_reqwest(self.resolver.clone(), name),
-				|(override_name, port)| cached_to_reqwest(override_name, *port),
-			)
+		let addr_port = self.overrides.read().unwrap().get(name.as_str()).cloned();
+		if let Some((addr, port)) = addr_port {
+			cached_to_reqwest(&addr, port)
+		} else {
+			resolve_to_reqwest(self.resolver.clone(), name)
+		}
 	}
 }
 
