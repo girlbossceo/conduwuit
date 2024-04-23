@@ -74,7 +74,7 @@ jobs:
 
             - name: Build x86_64 static with hmalloc
               run: |
-                  bin/nix-build-and-cache -A static-x86_64-unknown-linux-musl --out-link target/release/static-x86_64-unknown-linux-musl
+                  bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl --out-link target/release/static-x86_64-unknown-linux-musl
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl.deb
 
             - name: Upload static-x86_64-unknown-linux-musl
@@ -93,7 +93,7 @@ jobs:
 
             - name: Build x86_64 static with jemalloc
               run: |
-                  bin/nix-build-and-cache -A static-x86_64-unknown-linux-musl-jemalloc --out-link target/release/static-x86_64-unknown-linux-musl-jemalloc
+                  bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl-jemalloc --out-link target/release/static-x86_64-unknown-linux-musl-jemalloc
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl-jemalloc.deb
 
             - name: Upload static-x86_64-unknown-linux-musl-jemalloc
@@ -112,15 +112,31 @@ jobs:
 
             - name: Build x86_64 OCI with hmalloc
               run: |
-                  bin/nix-build-and-cache -A oci-image-x86_64-unknown-linux-musl --out-link oci-image-x86_64-unknown-linux-musl.tar.gz
+                  bin/nix-build-and-cache .#oci-image-x86_64-unknown-linux-musl --out-link oci-image-x86_64-unknown-linux-musl.tar.gz
+
+            - name: Upload OCI image x86_64-unknown-linux-musl
+              uses: actions/upload-artifact@v4
+              with:
+                  name: oci-image-x86_64-unknown-linux-musl.tar.gz
+                  path: oci-image-x86_64-unknown-linux-musl.tar.gz
+                  if-no-files-found: error
+                  compression-level: 0
 
             - name: Build x86_64 OCI with jemalloc
               run: |
-                  bin/nix-build-and-cache -A oci-image-x86_64-unknown-linux-musl-jemalloc --out-link oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  bin/nix-build-and-cache .#oci-image-x86_64-unknown-linux-musl-jemalloc --out-link oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+
+            - name: Upload OCI image x86_64-unknown-linux-musl-jemalloc
+              uses: actions/upload-artifact@v4
+              with:
+                  name: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  path: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  if-no-files-found: error
+                  compression-level: 0
 
             - name: Build aarch64 static with hmalloc
               run: |
-                  bin/nix-build-and-cache -A static-aarch64-unknown-linux-musl --out-link target/release/static-aarch64-unknown-linux-musl
+                  bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl --out-link target/release/static-aarch64-unknown-linux-musl
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl.deb
 
             - name: Upload static-aarch64-unknown-linux-musl
@@ -139,7 +155,7 @@ jobs:
 
             - name: Build aarch64 static with jemalloc
               run: |
-                  bin/nix-build-and-cache -A static-aarch64-unknown-linux-musl-jemalloc --out-link target/release/static-aarch64-unknown-linux-musl-jemalloc
+                  bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl-jemalloc --out-link target/release/static-aarch64-unknown-linux-musl-jemalloc
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl-jemalloc.deb
 
             - name: Upload static-aarch64-unknown-linux-musl-jemalloc
@@ -158,27 +174,7 @@ jobs:
 
             - name: Build aarch64 OCI with hmalloc
               run: |
-                  bin/nix-build-and-cache -A oci-image-aarch64-unknown-linux-musl --out-link oci-image-aarch64-unknown-linux-musl.tar.gz
-
-            - name: Build aarch64 OCI with jemalloc
-              run: |
-                  bin/nix-build-and-cache -A oci-image-aarch64-unknown-linux-musl-jemalloc --out-link oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
-
-            - name: Upload OCI image x86_64-unknown-linux-musl
-              uses: actions/upload-artifact@v4
-              with:
-                  name: oci-image-x86_64-unknown-linux-musl.tar.gz
-                  path: oci-image-x86_64-unknown-linux-musl.tar.gz
-                  if-no-files-found: error
-                  compression-level: 0
-
-            - name: Upload OCI image x86_64-unknown-linux-musl-jemalloc
-              uses: actions/upload-artifact@v4
-              with:
-                  name: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
-                  path: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
-                  if-no-files-found: error
-                  compression-level: 0
+                  bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl --out-link oci-image-aarch64-unknown-linux-musl.tar.gz
 
             - name: Upload OCI image aarch64-unknown-linux-musl
               uses: actions/upload-artifact@v4
@@ -187,6 +183,10 @@ jobs:
                   path: oci-image-aarch64-unknown-linux-musl.tar.gz
                   if-no-files-found: error
                   compression-level: 0
+
+            - name: Build aarch64 OCI with jemalloc
+              run: |
+                  bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl-jemalloc --out-link oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
 
             - name: Upload OCI image aarch64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
