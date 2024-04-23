@@ -5,10 +5,10 @@ use rust_rocksdb::WriteBatchWithTransaction;
 use super::{watchers::Watchers, Engine, KeyValueDatabaseEngine, KvTree};
 use crate::{utils, Result};
 
-pub(super) struct RocksDbEngineTree<'a> {
-	pub db: Arc<Engine>,
-	pub name: &'a str,
-	pub watchers: Watchers,
+pub(crate) struct RocksDbEngineTree<'a> {
+	pub(crate) db: Arc<Engine>,
+	pub(crate) name: &'a str,
+	pub(crate) watchers: Watchers,
 }
 
 impl RocksDbEngineTree<'_> {

@@ -14,7 +14,7 @@ use crate::{services, Error, Result, Ruma};
 /// # `PUT /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Sets some account data for the sender user.
-pub async fn set_global_account_data_route(
+pub(crate) async fn set_global_account_data_route(
 	body: Ruma<set_global_account_data::v3::Request>,
 ) -> Result<set_global_account_data::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -40,7 +40,7 @@ pub async fn set_global_account_data_route(
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Sets some room account data for the sender user.
-pub async fn set_room_account_data_route(
+pub(crate) async fn set_room_account_data_route(
 	body: Ruma<set_room_account_data::v3::Request>,
 ) -> Result<set_room_account_data::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -66,7 +66,7 @@ pub async fn set_room_account_data_route(
 /// # `GET /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
 /// Gets some account data for the sender user.
-pub async fn get_global_account_data_route(
+pub(crate) async fn get_global_account_data_route(
 	body: Ruma<get_global_account_data::v3::Request>,
 ) -> Result<get_global_account_data::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -88,7 +88,7 @@ pub async fn get_global_account_data_route(
 /// # `GET /_matrix/client/r0/user/{userId}/rooms/{roomId}/account_data/{type}`
 ///
 /// Gets some room account data for the sender user.
-pub async fn get_room_account_data_route(
+pub(crate) async fn get_room_account_data_route(
 	body: Ruma<get_room_account_data::v3::Request>,
 ) -> Result<get_room_account_data::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");

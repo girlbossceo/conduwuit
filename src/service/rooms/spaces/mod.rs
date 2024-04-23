@@ -34,22 +34,22 @@ use tracing::{debug, error, warn};
 
 use crate::{debug_info, services, Error, Result};
 
-pub struct CachedSpaceHierarchySummary {
+pub(crate) struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
 }
 
-pub enum SummaryAccessibility {
+enum SummaryAccessibility {
 	Accessible(Box<SpaceHierarchyParentSummary>),
 	Inaccessible,
 }
 
-pub struct Arena {
+struct Arena {
 	nodes: Vec<Node>,
 	max_depth: usize,
 	first_untraversed: Option<NodeId>,
 }
 
-pub struct Node {
+struct Node {
 	parent: Option<NodeId>,
 	// Next meaning:
 	//   -->
@@ -60,13 +60,13 @@ pub struct Node {
 	// v
 	// o o o o
 	first_child: Option<NodeId>,
-	pub room_id: OwnedRoomId,
-	pub via: Vec<OwnedServerName>,
+	room_id: OwnedRoomId,
+	via: Vec<OwnedServerName>,
 	traversed: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, PartialOrd)]
-pub struct NodeId {
+struct NodeId {
 	index: usize,
 }
 
@@ -288,14 +288,14 @@ impl Display for PagnationToken {
 /// Identifier used to check if rooms are accessible
 ///
 /// None is used if you want to return the room, no matter if accessible or not
-pub enum Identifier<'a> {
+enum Identifier<'a> {
 	UserId(&'a UserId),
 	ServerName(&'a ServerName),
 	None,
 }
 
-pub struct Service {
-	pub roomid_spacehierarchy_cache: Mutex<LruCache<OwnedRoomId, Option<CachedSpaceHierarchySummary>>>,
+pub(crate) struct Service {
+	pub(crate) roomid_spacehierarchy_cache: Mutex<LruCache<OwnedRoomId, Option<CachedSpaceHierarchySummary>>>,
 }
 
 // Here because cannot implement `From` across ruma-federation-api and
@@ -338,7 +338,7 @@ impl Service {
 	///
 	///Panics if the room does not exist, so a check if the room exists should
 	/// be done
-	pub async fn get_federation_hierarchy(
+	pub(crate) async fn get_federation_hierarchy(
 		&self, room_id: &RoomId, server_name: &ServerName, suggested_only: bool,
 	) -> Result<federation::space::get_hierarchy::v1::Response> {
 		match self
@@ -649,7 +649,7 @@ impl Service {
 		})
 	}
 
-	pub async fn get_client_hierarchy(
+	pub(crate) async fn get_client_hierarchy(
 		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, skip: usize, max_depth: usize,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {

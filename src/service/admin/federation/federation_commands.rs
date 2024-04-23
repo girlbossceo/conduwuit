@@ -4,17 +4,17 @@ use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName};
 
 use crate::{services, utils::HtmlEscape, Result};
 
-pub(super) async fn disable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn disable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	services().rooms.metadata.disable_room(&room_id, true)?;
 	Ok(RoomMessageEventContent::text_plain("Room disabled."))
 }
 
-pub(super) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	services().rooms.metadata.disable_room(&room_id, false)?;
 	Ok(RoomMessageEventContent::text_plain("Room enabled."))
 }
 
-pub(super) async fn incoming_federeation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn incoming_federeation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let map = services().globals.roomid_federationhandletime.read().await;
 	let mut msg = format!("Handling {} incoming pdus:\n", map.len());
 
@@ -25,7 +25,7 @@ pub(super) async fn incoming_federeation(_body: Vec<&str>) -> Result<RoomMessage
 	Ok(RoomMessageEventContent::text_plain(&msg))
 }
 
-pub(super) async fn fetch_support_well_known(
+pub(crate) async fn fetch_support_well_known(
 	_body: Vec<&str>, server_name: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	let response = services()

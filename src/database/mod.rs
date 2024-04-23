@@ -1,14 +1,14 @@
-pub(crate) mod cork;
-pub(crate) mod key_value;
-pub(crate) mod kvengine;
-pub(crate) mod kvtree;
+mod cork;
+mod key_value;
+mod kvengine;
+mod kvtree;
 mod migrations;
 
 #[cfg(feature = "rocksdb")]
-pub(crate) mod rocksdb;
+mod rocksdb;
 
 #[cfg(feature = "sqlite")]
-pub mod sqlite;
+mod sqlite;
 
 #[cfg(any(feature = "sqlite", feature = "rocksdb"))]
 pub(crate) mod watchers;
@@ -44,149 +44,149 @@ use crate::{
 	SERVICES,
 };
 
-pub struct KeyValueDatabase {
+pub(crate) struct KeyValueDatabase {
 	db: Arc<dyn KeyValueDatabaseEngine>,
 
-	//pub globals: globals::Globals,
-	pub(super) global: Arc<dyn KvTree>,
-	pub(super) server_signingkeys: Arc<dyn KvTree>,
+	//pub(crate) globals: globals::Globals,
+	pub(crate) global: Arc<dyn KvTree>,
+	pub(crate) server_signingkeys: Arc<dyn KvTree>,
 
-	pub(super) roomid_inviteviaservers: Arc<dyn KvTree>,
+	pub(crate) roomid_inviteviaservers: Arc<dyn KvTree>,
 
-	//pub users: users::Users,
-	pub(super) userid_password: Arc<dyn KvTree>,
-	pub(super) userid_displayname: Arc<dyn KvTree>,
-	pub(super) userid_avatarurl: Arc<dyn KvTree>,
-	pub(super) userid_blurhash: Arc<dyn KvTree>,
-	pub(super) userdeviceid_token: Arc<dyn KvTree>,
-	pub(super) userdeviceid_metadata: Arc<dyn KvTree>, // This is also used to check if a device exists
-	pub(super) userid_devicelistversion: Arc<dyn KvTree>, // DevicelistVersion = u64
-	pub(super) token_userdeviceid: Arc<dyn KvTree>,
+	//pub(crate) users: users::Users,
+	pub(crate) userid_password: Arc<dyn KvTree>,
+	pub(crate) userid_displayname: Arc<dyn KvTree>,
+	pub(crate) userid_avatarurl: Arc<dyn KvTree>,
+	pub(crate) userid_blurhash: Arc<dyn KvTree>,
+	pub(crate) userdeviceid_token: Arc<dyn KvTree>,
+	pub(crate) userdeviceid_metadata: Arc<dyn KvTree>, // This is also used to check if a device exists
+	pub(crate) userid_devicelistversion: Arc<dyn KvTree>, // DevicelistVersion = u64
+	pub(crate) token_userdeviceid: Arc<dyn KvTree>,
 
-	pub(super) onetimekeyid_onetimekeys: Arc<dyn KvTree>, // OneTimeKeyId = UserId + DeviceKeyId
-	pub(super) userid_lastonetimekeyupdate: Arc<dyn KvTree>, // LastOneTimeKeyUpdate = Count
-	pub(super) keychangeid_userid: Arc<dyn KvTree>,       // KeyChangeId = UserId/RoomId + Count
-	pub(super) keyid_key: Arc<dyn KvTree>,                // KeyId = UserId + KeyId (depends on key type)
-	pub(super) userid_masterkeyid: Arc<dyn KvTree>,
-	pub(super) userid_selfsigningkeyid: Arc<dyn KvTree>,
-	pub(super) userid_usersigningkeyid: Arc<dyn KvTree>,
+	pub(crate) onetimekeyid_onetimekeys: Arc<dyn KvTree>, // OneTimeKeyId = UserId + DeviceKeyId
+	pub(crate) userid_lastonetimekeyupdate: Arc<dyn KvTree>, // LastOneTimeKeyUpdate = Count
+	pub(crate) keychangeid_userid: Arc<dyn KvTree>,       // KeyChangeId = UserId/RoomId + Count
+	pub(crate) keyid_key: Arc<dyn KvTree>,                // KeyId = UserId + KeyId (depends on key type)
+	pub(crate) userid_masterkeyid: Arc<dyn KvTree>,
+	pub(crate) userid_selfsigningkeyid: Arc<dyn KvTree>,
+	pub(crate) userid_usersigningkeyid: Arc<dyn KvTree>,
 
-	pub(super) userfilterid_filter: Arc<dyn KvTree>, // UserFilterId = UserId + FilterId
-	pub(super) todeviceid_events: Arc<dyn KvTree>,   // ToDeviceId = UserId + DeviceId + Count
-	pub(super) userid_presenceid: Arc<dyn KvTree>,   // UserId => Count
-	pub(super) presenceid_presence: Arc<dyn KvTree>, // Count + UserId => Presence
+	pub(crate) userfilterid_filter: Arc<dyn KvTree>, // UserFilterId = UserId + FilterId
+	pub(crate) todeviceid_events: Arc<dyn KvTree>,   // ToDeviceId = UserId + DeviceId + Count
+	pub(crate) userid_presenceid: Arc<dyn KvTree>,   // UserId => Count
+	pub(crate) presenceid_presence: Arc<dyn KvTree>, // Count + UserId => Presence
 
-	//pub uiaa: uiaa::Uiaa,
-	pub(super) userdevicesessionid_uiaainfo: Arc<dyn KvTree>, // User-interactive authentication
-	pub(super) userdevicesessionid_uiaarequest:
+	//pub(crate) uiaa: uiaa::Uiaa,
+	pub(crate) userdevicesessionid_uiaainfo: Arc<dyn KvTree>, // User-interactive authentication
+	pub(crate) userdevicesessionid_uiaarequest:
 		RwLock<BTreeMap<(OwnedUserId, OwnedDeviceId, String), CanonicalJsonValue>>,
 
-	//pub edus: RoomEdus,
-	pub(super) readreceiptid_readreceipt: Arc<dyn KvTree>, // ReadReceiptId = RoomId + Count + UserId
-	pub(super) roomuserid_privateread: Arc<dyn KvTree>,    // RoomUserId = Room + User, PrivateRead = Count
-	pub(super) roomuserid_lastprivatereadupdate: Arc<dyn KvTree>, // LastPrivateReadUpdate = Count
+	//pub(crate) edus: RoomEdus,
+	pub(crate) readreceiptid_readreceipt: Arc<dyn KvTree>, // ReadReceiptId = RoomId + Count + UserId
+	pub(crate) roomuserid_privateread: Arc<dyn KvTree>,    // RoomUserId = Room + User, PrivateRead = Count
+	pub(crate) roomuserid_lastprivatereadupdate: Arc<dyn KvTree>, // LastPrivateReadUpdate = Count
 
-	//pub rooms: rooms::Rooms,
-	pub(super) pduid_pdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
-	pub(super) eventid_pduid: Arc<dyn KvTree>,
-	pub(super) roomid_pduleaves: Arc<dyn KvTree>,
-	pub(super) alias_roomid: Arc<dyn KvTree>,
-	pub(super) aliasid_alias: Arc<dyn KvTree>, // AliasId = RoomId + Count
-	pub(super) publicroomids: Arc<dyn KvTree>,
+	//pub(crate) rooms: rooms::Rooms,
+	pub(crate) pduid_pdu: Arc<dyn KvTree>, // PduId = ShortRoomId + Count
+	pub(crate) eventid_pduid: Arc<dyn KvTree>,
+	pub(crate) roomid_pduleaves: Arc<dyn KvTree>,
+	pub(crate) alias_roomid: Arc<dyn KvTree>,
+	pub(crate) aliasid_alias: Arc<dyn KvTree>, // AliasId = RoomId + Count
+	pub(crate) publicroomids: Arc<dyn KvTree>,
 
-	pub(super) threadid_userids: Arc<dyn KvTree>, // ThreadId = RoomId + Count
+	pub(crate) threadid_userids: Arc<dyn KvTree>, // ThreadId = RoomId + Count
 
-	pub(super) tokenids: Arc<dyn KvTree>, // TokenId = ShortRoomId + Token + PduIdCount
+	pub(crate) tokenids: Arc<dyn KvTree>, // TokenId = ShortRoomId + Token + PduIdCount
 
 	/// Participating servers in a room.
-	pub(super) roomserverids: Arc<dyn KvTree>, // RoomServerId = RoomId + ServerName
-	pub(super) serverroomids: Arc<dyn KvTree>, // ServerRoomId = ServerName + RoomId
+	pub(crate) roomserverids: Arc<dyn KvTree>, // RoomServerId = RoomId + ServerName
+	pub(crate) serverroomids: Arc<dyn KvTree>, // ServerRoomId = ServerName + RoomId
 
-	pub(super) userroomid_joined: Arc<dyn KvTree>,
-	pub(super) roomuserid_joined: Arc<dyn KvTree>,
-	pub(super) roomid_joinedcount: Arc<dyn KvTree>,
-	pub(super) roomid_invitedcount: Arc<dyn KvTree>,
-	pub(super) roomuseroncejoinedids: Arc<dyn KvTree>,
-	pub(super) userroomid_invitestate: Arc<dyn KvTree>, // InviteState = Vec<Raw<Pdu>>
-	pub(super) roomuserid_invitecount: Arc<dyn KvTree>, // InviteCount = Count
-	pub(super) userroomid_leftstate: Arc<dyn KvTree>,
-	pub(super) roomuserid_leftcount: Arc<dyn KvTree>,
+	pub(crate) userroomid_joined: Arc<dyn KvTree>,
+	pub(crate) roomuserid_joined: Arc<dyn KvTree>,
+	pub(crate) roomid_joinedcount: Arc<dyn KvTree>,
+	pub(crate) roomid_invitedcount: Arc<dyn KvTree>,
+	pub(crate) roomuseroncejoinedids: Arc<dyn KvTree>,
+	pub(crate) userroomid_invitestate: Arc<dyn KvTree>, // InviteState = Vec<Raw<Pdu>>
+	pub(crate) roomuserid_invitecount: Arc<dyn KvTree>, // InviteCount = Count
+	pub(crate) userroomid_leftstate: Arc<dyn KvTree>,
+	pub(crate) roomuserid_leftcount: Arc<dyn KvTree>,
 
-	pub(super) disabledroomids: Arc<dyn KvTree>, // Rooms where incoming federation handling is disabled
+	pub(crate) disabledroomids: Arc<dyn KvTree>, // Rooms where incoming federation handling is disabled
 
-	pub(super) bannedroomids: Arc<dyn KvTree>, // Rooms where local users are not allowed to join
+	pub(crate) bannedroomids: Arc<dyn KvTree>, // Rooms where local users are not allowed to join
 
-	pub(super) lazyloadedids: Arc<dyn KvTree>, // LazyLoadedIds = UserId + DeviceId + RoomId + LazyLoadedUserId
+	pub(crate) lazyloadedids: Arc<dyn KvTree>, // LazyLoadedIds = UserId + DeviceId + RoomId + LazyLoadedUserId
 
-	pub(super) userroomid_notificationcount: Arc<dyn KvTree>, // NotifyCount = u64
-	pub(super) userroomid_highlightcount: Arc<dyn KvTree>,    // HightlightCount = u64
-	pub(super) roomuserid_lastnotificationread: Arc<dyn KvTree>, // LastNotificationRead = u64
+	pub(crate) userroomid_notificationcount: Arc<dyn KvTree>, // NotifyCount = u64
+	pub(crate) userroomid_highlightcount: Arc<dyn KvTree>,    // HightlightCount = u64
+	pub(crate) roomuserid_lastnotificationread: Arc<dyn KvTree>, // LastNotificationRead = u64
 
 	/// Remember the current state hash of a room.
-	pub(super) roomid_shortstatehash: Arc<dyn KvTree>,
-	pub(super) roomsynctoken_shortstatehash: Arc<dyn KvTree>,
+	pub(crate) roomid_shortstatehash: Arc<dyn KvTree>,
+	pub(crate) roomsynctoken_shortstatehash: Arc<dyn KvTree>,
 	/// Remember the state hash at events in the past.
-	pub(super) shorteventid_shortstatehash: Arc<dyn KvTree>,
-	pub(super) statekey_shortstatekey: Arc<dyn KvTree>, /* StateKey = EventType + StateKey, ShortStateKey =
+	pub(crate) shorteventid_shortstatehash: Arc<dyn KvTree>,
+	pub(crate) statekey_shortstatekey: Arc<dyn KvTree>, /* StateKey = EventType + StateKey, ShortStateKey =
 	                                                     * Count */
-	pub(super) shortstatekey_statekey: Arc<dyn KvTree>,
+	pub(crate) shortstatekey_statekey: Arc<dyn KvTree>,
 
-	pub(super) roomid_shortroomid: Arc<dyn KvTree>,
+	pub(crate) roomid_shortroomid: Arc<dyn KvTree>,
 
-	pub(super) shorteventid_eventid: Arc<dyn KvTree>,
-	pub(super) eventid_shorteventid: Arc<dyn KvTree>,
+	pub(crate) shorteventid_eventid: Arc<dyn KvTree>,
+	pub(crate) eventid_shorteventid: Arc<dyn KvTree>,
 
-	pub(super) statehash_shortstatehash: Arc<dyn KvTree>,
-	pub(super) shortstatehash_statediff: Arc<dyn KvTree>, /* StateDiff = parent (or 0) +
+	pub(crate) statehash_shortstatehash: Arc<dyn KvTree>,
+	pub(crate) shortstatehash_statediff: Arc<dyn KvTree>, /* StateDiff = parent (or 0) +
 	                                                       * (shortstatekey+shorteventid++) + 0_u64 +
 	                                                       * (shortstatekey+shorteventid--) */
 
-	pub(super) shorteventid_authchain: Arc<dyn KvTree>,
+	pub(crate) shorteventid_authchain: Arc<dyn KvTree>,
 
 	/// RoomId + EventId -> outlier PDU.
 	/// Any pdu that has passed the steps 1-8 in the incoming event
 	/// /federation/send/txn.
-	pub(super) eventid_outlierpdu: Arc<dyn KvTree>,
-	pub(super) softfailedeventids: Arc<dyn KvTree>,
+	pub(crate) eventid_outlierpdu: Arc<dyn KvTree>,
+	pub(crate) softfailedeventids: Arc<dyn KvTree>,
 
 	/// ShortEventId + ShortEventId -> ().
-	pub(super) tofrom_relation: Arc<dyn KvTree>,
+	pub(crate) tofrom_relation: Arc<dyn KvTree>,
 	/// RoomId + EventId -> Parent PDU EventId.
-	pub(super) referencedevents: Arc<dyn KvTree>,
+	pub(crate) referencedevents: Arc<dyn KvTree>,
 
-	//pub account_data: account_data::AccountData,
-	pub(super) roomuserdataid_accountdata: Arc<dyn KvTree>, // RoomUserDataId = Room + User + Count + Type
-	pub(super) roomusertype_roomuserdataid: Arc<dyn KvTree>, // RoomUserType = Room + User + Type
+	//pub(crate) account_data: account_data::AccountData,
+	pub(crate) roomuserdataid_accountdata: Arc<dyn KvTree>, // RoomUserDataId = Room + User + Count + Type
+	pub(crate) roomusertype_roomuserdataid: Arc<dyn KvTree>, // RoomUserType = Room + User + Type
 
-	//pub media: media::Media,
-	pub(super) mediaid_file: Arc<dyn KvTree>, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
-	pub(super) url_previews: Arc<dyn KvTree>,
-	pub(super) mediaid_user: Arc<dyn KvTree>,
-	//pub key_backups: key_backups::KeyBackups,
-	pub(super) backupid_algorithm: Arc<dyn KvTree>, // BackupId = UserId + Version(Count)
-	pub(super) backupid_etag: Arc<dyn KvTree>,      // BackupId = UserId + Version(Count)
-	pub(super) backupkeyid_backup: Arc<dyn KvTree>, // BackupKeyId = UserId + Version + RoomId + SessionId
+	//pub(crate) media: media::Media,
+	pub(crate) mediaid_file: Arc<dyn KvTree>, // MediaId = MXC + WidthHeight + ContentDisposition + ContentType
+	pub(crate) url_previews: Arc<dyn KvTree>,
+	pub(crate) mediaid_user: Arc<dyn KvTree>,
+	//pub(crate) key_backups: key_backups::KeyBackups,
+	pub(crate) backupid_algorithm: Arc<dyn KvTree>, // BackupId = UserId + Version(Count)
+	pub(crate) backupid_etag: Arc<dyn KvTree>,      // BackupId = UserId + Version(Count)
+	pub(crate) backupkeyid_backup: Arc<dyn KvTree>, // BackupKeyId = UserId + Version + RoomId + SessionId
 
-	//pub transaction_ids: transaction_ids::TransactionIds,
-	pub(super) userdevicetxnid_response: Arc<dyn KvTree>, /* Response can be empty (/sendToDevice) or the event id
+	//pub(crate) transaction_ids: transaction_ids::TransactionIds,
+	pub(crate) userdevicetxnid_response: Arc<dyn KvTree>, /* Response can be empty (/sendToDevice) or the event id
 	                                                       * (/send) */
-	//pub sending: sending::Sending,
-	pub(super) servername_educount: Arc<dyn KvTree>, // EduCount: Count of last EDU sync
-	pub(super) servernameevent_data: Arc<dyn KvTree>, /* ServernameEvent = (+ / $)SenderKey / ServerName / UserId +
+	//pub(crate) sending: sending::Sending,
+	pub(crate) servername_educount: Arc<dyn KvTree>, // EduCount: Count of last EDU sync
+	pub(crate) servernameevent_data: Arc<dyn KvTree>, /* ServernameEvent = (+ / $)SenderKey / ServerName / UserId +
 	                                                  * PduId / Id (for edus), Data = EDU content */
-	pub(super) servercurrentevent_data: Arc<dyn KvTree>, /* ServerCurrentEvents = (+ / $)ServerName / UserId + PduId
+	pub(crate) servercurrentevent_data: Arc<dyn KvTree>, /* ServerCurrentEvents = (+ / $)ServerName / UserId + PduId
 	                                                      * / Id (for edus), Data = EDU content */
 
-	//pub appservice: appservice::Appservice,
-	pub(super) id_appserviceregistrations: Arc<dyn KvTree>,
+	//pub(crate) appservice: appservice::Appservice,
+	pub(crate) id_appserviceregistrations: Arc<dyn KvTree>,
 
-	//pub pusher: pusher::PushData,
-	pub(super) senderkey_pusher: Arc<dyn KvTree>,
+	//pub(crate) pusher: pusher::PushData,
+	pub(crate) senderkey_pusher: Arc<dyn KvTree>,
 
-	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[u64]>>>,
-	pub(super) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
-	pub(super) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
-	pub(super) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
+	pub(crate) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[u64]>>>,
+	pub(crate) our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
+	pub(crate) appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
+	pub(crate) lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 #[derive(Deserialize)]
@@ -203,7 +203,7 @@ struct CheckForUpdatesResponse {
 impl KeyValueDatabase {
 	/// Load an existing database or create a new one.
 	#[allow(clippy::too_many_lines)]
-	pub async fn load_or_create(
+	pub(crate) async fn load_or_create(
 		config: Config,
 		tracing_reload_handler: tracing_subscriber::reload::Handle<
 			tracing_subscriber::EnvFilter,
@@ -545,7 +545,7 @@ impl KeyValueDatabase {
 	}
 
 	#[allow(dead_code)]
-	pub fn flush(&self) -> Result<()> {
+	fn flush(&self) -> Result<()> {
 		let start = std::time::Instant::now();
 
 		let res = self.db.flush();

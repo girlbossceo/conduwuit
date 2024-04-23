@@ -487,6 +487,7 @@ elided_lifetimes_in_paths = "warn"
 macro_use_extern_crate = "warn"
 single_use_lifetimes = "warn"
 unsafe_op_in_unsafe_fn = "warn"
+unreachable_pub = "warn"
 
 # not in rust 1.75.0 (doesn't break CI but won't check for it)
 unit_bindings = "warn"
@@ -495,7 +496,6 @@ unit_bindings = "warn"
 unused_braces = "allow"
 
 # some sadness
-unreachable_pub = "allow"
 missing_docs = "allow"
 
 

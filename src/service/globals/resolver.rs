@@ -14,19 +14,19 @@ use tracing::error;
 
 use crate::{service::sending::FedDest, Config, Error};
 
-pub type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
-pub type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
+pub(crate) type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
+type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 
-pub struct Resolver {
-	pub destinations: Arc<RwLock<WellKnownMap>>, // actual_destination, host
-	pub overrides: Arc<StdRwLock<TlsNameMap>>,
-	pub resolver: Arc<TokioAsyncResolver>,
-	pub hooked: Arc<Hooked>,
+pub(crate) struct Resolver {
+	pub(crate) destinations: Arc<RwLock<WellKnownMap>>, // actual_destination, host
+	pub(crate) overrides: Arc<StdRwLock<TlsNameMap>>,
+	pub(crate) resolver: Arc<TokioAsyncResolver>,
+	pub(crate) hooked: Arc<Hooked>,
 }
 
-pub struct Hooked {
-	pub overrides: Arc<StdRwLock<TlsNameMap>>,
-	pub resolver: Arc<TokioAsyncResolver>,
+pub(crate) struct Hooked {
+	pub(crate) overrides: Arc<StdRwLock<TlsNameMap>>,
+	pub(crate) resolver: Arc<TokioAsyncResolver>,
 }
 
 impl Resolver {

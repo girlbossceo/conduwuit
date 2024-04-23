@@ -54,10 +54,10 @@ mod routes;
 mod service;
 mod utils;
 
-pub static SERVICES: RwLock<Option<&'static Services<'static>>> = RwLock::new(None);
+pub(crate) static SERVICES: RwLock<Option<&'static Services<'static>>> = RwLock::new(None);
 
 #[must_use]
-pub fn services() -> &'static Services<'static> {
+pub(crate) fn services() -> &'static Services<'static> {
 	SERVICES
 		.read()
 		.unwrap()

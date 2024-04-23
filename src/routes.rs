@@ -15,7 +15,7 @@ use crate::{
 	Config, Error, Result, Ruma, RumaResponse,
 };
 
-pub fn routes(config: &Config) -> Router {
+pub(crate) fn routes(config: &Config) -> Router {
 	let router = Router::new()
 		.ruma_route(client_server::get_supported_versions_route)
 		.ruma_route(client_server::get_register_available_route)
@@ -266,7 +266,7 @@ impl RouterExt for Router {
 	}
 }
 
-pub trait RumaHandler<T> {
+pub(crate) trait RumaHandler<T> {
 	// Can't transform to a handler without boxing or relying on the nightly-only
 	// impl-trait-in-traits feature. Moving a small amount of extra logic into the
 	// trait allows bypassing both.

@@ -4,7 +4,7 @@ use crate::{PduEvent, Result};
 
 type PduEventIterResult<'a> = Result<Box<dyn Iterator<Item = Result<(u64, PduEvent)>> + 'a>>;
 
-pub trait Data: Send + Sync {
+pub(crate) trait Data: Send + Sync {
 	fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
 	) -> PduEventIterResult<'a>;

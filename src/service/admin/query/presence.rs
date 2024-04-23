@@ -4,7 +4,7 @@ use super::Presence;
 use crate::{services, Result};
 
 /// All the getters and iterators in key_value/presence.rs
-pub(super) async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
+pub(crate) async fn presence(subcommand: Presence) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Presence::GetPresence {
 			user_id,

@@ -14,7 +14,9 @@ use crate::{services, utils::HtmlEscape, Error, Result, Ruma};
 /// # `POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`
 ///
 /// Reports an inappropriate event to homeserver admins
-pub async fn report_event_route(body: Ruma<report_content::v3::Request>) -> Result<report_content::v3::Response> {
+pub(crate) async fn report_event_route(
+	body: Ruma<report_content::v3::Request>,
+) -> Result<report_content::v3::Response> {
 	// user authentication
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

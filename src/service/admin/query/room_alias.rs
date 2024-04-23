@@ -4,7 +4,7 @@ use super::RoomAlias;
 use crate::{services, Result};
 
 /// All the getters and iterators in src/database/key_value/rooms/alias.rs
-pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEventContent> {
+pub(crate) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		RoomAlias::ResolveLocalAlias {
 			alias,

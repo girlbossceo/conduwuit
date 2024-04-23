@@ -29,7 +29,7 @@ use crate::{services, utils, Error, Result, Ruma};
 /// - Adds one time keys
 /// - If there are no device keys yet: Adds device keys (TODO: merge with
 ///   existing keys?)
-pub async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> Result<upload_keys::v3::Response> {
+pub(crate) async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> Result<upload_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -68,7 +68,7 @@ pub async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> Result<u
 /// - Gets master keys, self-signing keys, user signing keys and device keys.
 /// - The master and self-signing keys contain signatures that the user is
 ///   allowed to see
-pub async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<get_keys::v3::Response> {
+pub(crate) async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<get_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let response = get_keys_helper(
@@ -85,7 +85,7 @@ pub async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<get_key
 /// # `POST /_matrix/client/r0/keys/claim`
 ///
 /// Claims one-time keys
-pub async fn claim_keys_route(body: Ruma<claim_keys::v3::Request>) -> Result<claim_keys::v3::Response> {
+pub(crate) async fn claim_keys_route(body: Ruma<claim_keys::v3::Request>) -> Result<claim_keys::v3::Response> {
 	let response = claim_keys_helper(&body.one_time_keys).await?;
 
 	Ok(response)
@@ -96,7 +96,7 @@ pub async fn claim_keys_route(body: Ruma<claim_keys::v3::Request>) -> Result<cla
 /// Uploads end-to-end key information for the sender user.
 ///
 /// - Requires UIAA to verify password
-pub async fn upload_signing_keys_route(
+pub(crate) async fn upload_signing_keys_route(
 	body: Ruma<upload_signing_keys::v3::Request>,
 ) -> Result<upload_signing_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -147,7 +147,7 @@ pub async fn upload_signing_keys_route(
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
 ///
 /// Uploads end-to-end key signatures from the sender user.
-pub async fn upload_signatures_route(
+pub(crate) async fn upload_signatures_route(
 	body: Ruma<upload_signatures::v3::Request>,
 ) -> Result<upload_signatures::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -193,7 +193,9 @@ pub async fn upload_signatures_route(
 /// previous sync token.
 ///
 /// - TODO: left users
-pub async fn get_key_changes_route(body: Ruma<get_key_changes::v3::Request>) -> Result<get_key_changes::v3::Response> {
+pub(crate) async fn get_key_changes_route(
+	body: Ruma<get_key_changes::v3::Request>,
+) -> Result<get_key_changes::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let mut device_list_updates = HashSet::new();

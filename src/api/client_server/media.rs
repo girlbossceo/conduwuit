@@ -24,7 +24,7 @@ const MXC_LENGTH: usize = 32;
 /// # `GET /_matrix/media/v3/config`
 ///
 /// Returns max upload size.
-pub async fn get_media_config_route(
+pub(crate) async fn get_media_config_route(
 	_body: Ruma<get_media_config::v3::Request>,
 ) -> Result<get_media_config::v3::Response> {
 	Ok(get_media_config::v3::Response {
@@ -39,7 +39,7 @@ pub async fn get_media_config_route(
 /// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// Returns max upload size.
-pub async fn get_media_config_v1_route(
+pub(crate) async fn get_media_config_v1_route(
 	_body: Ruma<get_media_config::v3::Request>,
 ) -> Result<RumaResponse<get_media_config::v3::Response>> {
 	Ok(get_media_config::v3::Response {
@@ -51,7 +51,7 @@ pub async fn get_media_config_v1_route(
 /// # `GET /_matrix/media/v3/preview_url`
 ///
 /// Returns URL preview.
-pub async fn get_media_preview_route(
+pub(crate) async fn get_media_preview_route(
 	body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<get_media_preview::v3::Response> {
 	let url = &body.url;
@@ -95,7 +95,7 @@ pub async fn get_media_preview_route(
 /// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// Returns URL preview.
-pub async fn get_media_preview_v1_route(
+pub(crate) async fn get_media_preview_v1_route(
 	body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<RumaResponse<get_media_preview::v3::Response>> {
 	let url = &body.url;
@@ -138,7 +138,9 @@ pub async fn get_media_preview_v1_route(
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
-pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Result<create_content::v3::Response> {
+pub(crate) async fn create_content_route(
+	body: Ruma<create_content::v3::Request>,
+) -> Result<create_content::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let mxc = format!(
@@ -179,7 +181,7 @@ pub async fn create_content_route(body: Ruma<create_content::v3::Request>) -> Re
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
-pub async fn create_content_v1_route(
+pub(crate) async fn create_content_v1_route(
 	body: Ruma<create_content::v3::Request>,
 ) -> Result<RumaResponse<create_content::v3::Response>> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -214,7 +216,7 @@ pub async fn create_content_v1_route(
 }
 
 /// helper method to fetch remote media from other servers over federation
-pub async fn get_remote_content(
+pub(crate) async fn get_remote_content(
 	mxc: &str, server_name: &ruma::ServerName, media_id: String, allow_redirect: bool, timeout_ms: Duration,
 ) -> Result<get_content::v3::Response, Error> {
 	// we'll lie to the client and say the blocked server's media was not found and
@@ -267,7 +269,7 @@ pub async fn get_remote_content(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<get_content::v3::Response> {
+pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<get_content::v3::Response> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
@@ -310,7 +312,7 @@ pub async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<g
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub async fn get_content_v1_route(
+pub(crate) async fn get_content_v1_route(
 	body: Ruma<get_content::v3::Request>,
 ) -> Result<RumaResponse<get_content::v3::Response>> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
@@ -352,7 +354,7 @@ pub async fn get_content_v1_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub async fn get_content_as_filename_route(
+pub(crate) async fn get_content_as_filename_route(
 	body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<get_content_as_filename::v3::Response> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
@@ -404,7 +406,7 @@ pub async fn get_content_as_filename_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub async fn get_content_as_filename_v1_route(
+pub(crate) async fn get_content_as_filename_v1_route(
 	body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<RumaResponse<get_content_as_filename::v3::Response>> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
@@ -454,7 +456,7 @@ pub async fn get_content_as_filename_v1_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub async fn get_content_thumbnail_route(
+pub(crate) async fn get_content_thumbnail_route(
 	body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<get_content_thumbnail::v3::Response> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
@@ -545,7 +547,7 @@ pub async fn get_content_thumbnail_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub async fn get_content_thumbnail_v1_route(
+pub(crate) async fn get_content_thumbnail_v1_route(
 	body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<RumaResponse<get_content_thumbnail::v3::Response>> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);

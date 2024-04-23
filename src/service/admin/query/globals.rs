@@ -4,7 +4,7 @@ use super::Globals;
 use crate::{services, Result};
 
 /// All the getters and iterators from src/database/key_value/globals.rs
-pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventContent> {
+pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Globals::DatabaseVersion => {
 			let timer = tokio::time::Instant::now();

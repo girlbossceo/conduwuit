@@ -5,7 +5,7 @@ use tokio::sync::MutexGuard;
 
 use crate::Result;
 
-pub trait Data: Send + Sync {
+pub(crate) trait Data: Send + Sync {
 	/// Returns the last state hash key added to the db for the given room.
 	fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>>;
 

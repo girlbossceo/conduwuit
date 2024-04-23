@@ -4,7 +4,7 @@ use super::Sending;
 use crate::{service::sending::Destination, services, Result};
 
 /// All the getters and iterators in key_value/sending.rs
-pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventContent> {
+pub(crate) async fn sending(subcommand: Sending) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Sending::ActiveRequests => {
 			let timer = tokio::time::Instant::now();

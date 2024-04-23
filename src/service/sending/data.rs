@@ -6,7 +6,7 @@ use crate::Result;
 type OutgoingSendingIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, Destination, SendingEventType)>> + 'a>;
 type SendingEventTypeIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEventType)>> + 'a>;
 
-pub trait Data: Send + Sync {
+pub(crate) trait Data: Send + Sync {
 	fn active_requests(&self) -> OutgoingSendingIter<'_>;
 	fn active_requests_for(&self, destination: &Destination) -> SendingEventTypeIter<'_>;
 	fn delete_active_request(&self, key: Vec<u8>) -> Result<()>;

@@ -20,7 +20,7 @@ use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
 /// Updates the displayname.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-pub async fn set_displayname_route(
+pub(crate) async fn set_displayname_route(
 	body: Ruma<set_display_name::v3::Request>,
 ) -> Result<set_display_name::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -102,7 +102,7 @@ pub async fn set_displayname_route(
 ///
 /// - If user is on another server and we do not have a local copy already
 /// fetch displayname over federation
-pub async fn get_displayname_route(
+pub(crate) async fn get_displayname_route(
 	body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
 	if body.user_id.server_name() != services().globals.server_name() {
@@ -157,7 +157,9 @@ pub async fn get_displayname_route(
 /// Updates the `avatar_url` and `blurhash`.
 ///
 /// - Also makes sure other users receive the update using presence EDUs
-pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Result<set_avatar_url::v3::Response> {
+pub(crate) async fn set_avatar_url_route(
+	body: Ruma<set_avatar_url::v3::Request>,
+) -> Result<set_avatar_url::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	services()
@@ -242,7 +244,9 @@ pub async fn set_avatar_url_route(body: Ruma<set_avatar_url::v3::Request>) -> Re
 ///
 /// - If user is on another server and we do not have a local copy already
 /// fetch `avatar_url` and blurhash over federation
-pub async fn get_avatar_url_route(body: Ruma<get_avatar_url::v3::Request>) -> Result<get_avatar_url::v3::Response> {
+pub(crate) async fn get_avatar_url_route(
+	body: Ruma<get_avatar_url::v3::Request>,
+) -> Result<get_avatar_url::v3::Response> {
 	if body.user_id.server_name() != services().globals.server_name() {
 		// Create and update our local copy of the user
 		if let Ok(response) = services()
@@ -298,7 +302,7 @@ pub async fn get_avatar_url_route(body: Ruma<get_avatar_url::v3::Request>) -> Re
 ///
 /// - If user is on another server and we do not have a local copy already,
 /// fetch profile over federation.
-pub async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> Result<get_profile::v3::Response> {
+pub(crate) async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> Result<get_profile::v3::Response> {
 	if body.user_id.server_name() != services().globals.server_name() {
 		// Create and update our local copy of the user
 		if let Ok(response) = services()

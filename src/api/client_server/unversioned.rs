@@ -24,7 +24,7 @@ use crate::{services, Error, Result, Ruma};
 ///
 /// Note: Unstable features are used while developing new features. Clients
 /// should avoid using unstable features in their stable releases
-pub async fn get_supported_versions_route(
+pub(crate) async fn get_supported_versions_route(
 	_body: Ruma<get_supported_versions::Request>,
 ) -> Result<get_supported_versions::Response> {
 	let resp = get_supported_versions::Response {
@@ -60,7 +60,9 @@ pub async fn get_supported_versions_route(
 /// # `GET /.well-known/matrix/client`
 ///
 /// Returns the .well-known URL if it is configured, otherwise returns 404.
-pub async fn well_known_client(_body: Ruma<discover_homeserver::Request>) -> Result<discover_homeserver::Response> {
+pub(crate) async fn well_known_client(
+	_body: Ruma<discover_homeserver::Request>,
+) -> Result<discover_homeserver::Response> {
 	let client_url = match services().globals.well_known_client() {
 		Some(url) => url.to_string(),
 		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
@@ -81,7 +83,7 @@ pub async fn well_known_client(_body: Ruma<discover_homeserver::Request>) -> Res
 /// # `GET /.well-known/matrix/support`
 ///
 /// Server support contact and support page of a homeserver's domain.
-pub async fn well_known_support(_body: Ruma<discover_support::Request>) -> Result<discover_support::Response> {
+pub(crate) async fn well_known_support(_body: Ruma<discover_support::Request>) -> Result<discover_support::Response> {
 	let support_page = services()
 		.globals
 		.well_known_support_page()
@@ -131,7 +133,7 @@ pub async fn well_known_support(_body: Ruma<discover_support::Request>) -> Resul
 ///
 /// Endpoint provided by sliding sync proxy used by some clients such as Element
 /// Web as a non-standard health check.
-pub async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
+pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 	let server_url = match services().globals.well_known_client() {
 		Some(url) => url.to_string(),
 		None => match services().globals.well_known_server() {
@@ -155,7 +157,7 @@ pub async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 ///
 /// Conduwuit-specific API to get the server version, results akin to
 /// `/_matrix/federation/v1/version`
-pub async fn conduwuit_server_version() -> Result<impl IntoResponse> {
+pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
 	let version = match option_env!("CONDUIT_VERSION_EXTRA") {
 		Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
 		None => env!("CARGO_PKG_VERSION").to_owned(),

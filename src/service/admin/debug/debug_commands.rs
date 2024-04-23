@@ -10,7 +10,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{api::server_server::parse_incoming_pdu, services, utils::HtmlEscape, Error, PduEvent, Result};
 
-pub(super) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
 	if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
 		let room_id_str = event
@@ -36,7 +36,7 @@ pub(super) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> 
 	}
 }
 
-pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let string = body[1..body.len() - 1].join("\n");
 		match serde_json::from_str(&string) {
@@ -62,7 +62,7 @@ pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent
 	}
 }
 
-pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let mut outlier = false;
 	let mut pdu_json = services()
 		.rooms
@@ -100,7 +100,7 @@ pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<
 	}
 }
 
-pub(super) async fn get_remote_pdu_list(
+pub(crate) async fn get_remote_pdu_list(
 	body: Vec<&str>, server: Box<ServerName>, force: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
@@ -138,7 +138,7 @@ pub(super) async fn get_remote_pdu_list(
 	))
 }
 
-pub(super) async fn get_remote_pdu(
+pub(crate) async fn get_remote_pdu(
 	_body: Vec<&str>, event_id: Box<EventId>, server: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
@@ -228,7 +228,7 @@ pub(super) async fn get_remote_pdu(
 	}
 }
 
-pub(super) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	let room_state = services()
 		.rooms
 		.state_accessor
@@ -261,7 +261,7 @@ pub(super) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Re
 	))
 }
 
-pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
 	if server == services().globals.server_name() {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to send federation requests to ourselves.",
@@ -305,7 +305,7 @@ pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<Ro
 	}
 }
 
-pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	// Force E2EE device list updates for all users
 	for user_id in services().users.iter().filter_map(Result::ok) {
 		services().users.mark_device_key_update(&user_id)?;
@@ -315,7 +315,7 @@ pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMe
 	))
 }
 
-pub(super) async fn change_log_level(
+pub(crate) async fn change_log_level(
 	_body: Vec<&str>, filter: Option<String>, reset: bool,
 ) -> Result<RoomMessageEventContent> {
 	if reset {
@@ -376,7 +376,7 @@ pub(super) async fn change_log_level(
 	Ok(RoomMessageEventContent::text_plain("No log level was specified."))
 }
 
-pub(super) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let string = body[1..body.len() - 1].join("\n");
 		match serde_json::from_str(&string) {
@@ -399,7 +399,7 @@ pub(super) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent
 	}
 }
 
-pub(super) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let string = body[1..body.len() - 1].join("\n");
 		match serde_json::from_str(&string) {

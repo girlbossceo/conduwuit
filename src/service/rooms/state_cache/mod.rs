@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-pub use data::Data;
+pub(crate) use data::Data;
 use itertools::Itertools;
 use ruma::{
 	events::{
@@ -23,15 +23,15 @@ use crate::{service::appservice::RegistrationInfo, services, Error, Result};
 
 mod data;
 
-pub struct Service {
-	pub db: &'static dyn Data,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
 }
 
 impl Service {
 	/// Update current membership data.
 	#[tracing::instrument(skip(self, last_state))]
 	#[allow(clippy::too_many_arguments)]
-	pub fn update_membership(
+	pub(crate) fn update_membership(
 		&self, room_id: &RoomId, user_id: &UserId, membership_event: RoomMemberEventContent, sender: &UserId,
 		last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>, invite_via: Option<Vec<OwnedServerName>>,
 		update_joined_count: bool,
@@ -210,43 +210,43 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
-	pub fn update_joined_count(&self, room_id: &RoomId) -> Result<()> { self.db.update_joined_count(room_id) }
+	pub(crate) fn update_joined_count(&self, room_id: &RoomId) -> Result<()> { self.db.update_joined_count(room_id) }
 
 	#[tracing::instrument(skip(self, room_id))]
-	pub fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>> {
+	pub(crate) fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>> {
 		self.db.get_our_real_users(room_id)
 	}
 
 	#[tracing::instrument(skip(self, room_id, appservice))]
-	pub fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
+	pub(crate) fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
 		self.db.appservice_in_room(room_id, appservice)
 	}
 
 	/// Makes a user forget a room.
 	#[tracing::instrument(skip(self))]
-	pub fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> { self.db.forget(room_id, user_id) }
+	pub(crate) fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> { self.db.forget(room_id, user_id) }
 
 	/// Returns an iterator of all servers participating in this room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_servers<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + 'a {
+	pub(crate) fn room_servers<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + 'a {
 		self.db.room_servers(room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
+	pub(crate) fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
 		self.db.server_in_room(server, room_id)
 	}
 
 	/// Returns an iterator of all rooms a server participates in (as far as we
 	/// know).
 	#[tracing::instrument(skip(self))]
-	pub fn server_rooms<'a>(&'a self, server: &ServerName) -> impl Iterator<Item = Result<OwnedRoomId>> + 'a {
+	pub(crate) fn server_rooms<'a>(&'a self, server: &ServerName) -> impl Iterator<Item = Result<OwnedRoomId>> + 'a {
 		self.db.server_rooms(server)
 	}
 
 	/// Returns true if server can see user by sharing at least one room.
 	#[tracing::instrument(skip(self))]
-	pub fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> Result<bool> {
+	pub(crate) fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> Result<bool> {
 		Ok(self
 			.server_rooms(server)
 			.filter_map(Result::ok)
@@ -255,7 +255,7 @@ impl Service {
 
 	/// Returns true if user_a and user_b share at least one room.
 	#[tracing::instrument(skip(self))]
-	pub fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> Result<bool> {
+	pub(crate) fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> Result<bool> {
 		// Minimize number of point-queries by iterating user with least nr rooms
 		let (a, b) = if self.rooms_joined(user_a).count() < self.rooms_joined(user_b).count() {
 			(user_a, user_b)
@@ -271,88 +271,104 @@ impl Service {
 
 	/// Returns an iterator over all joined members of a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_members<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
+	pub(crate) fn room_members<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
 		self.db.room_members(room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> { self.db.room_joined_count(room_id) }
+	pub(crate) fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
+		self.db.room_joined_count(room_id)
+	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> { self.db.room_invited_count(room_id) }
+	pub(crate) fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
+		self.db.room_invited_count(room_id)
+	}
 
 	/// Returns an iterator over all User IDs who ever joined a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_useroncejoined<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
+	pub(crate) fn room_useroncejoined<'a>(
+		&'a self, room_id: &RoomId,
+	) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
 		self.db.room_useroncejoined(room_id)
 	}
 
 	/// Returns an iterator over all invited members of a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_members_invited<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
+	pub(crate) fn room_members_invited<'a>(
+		&'a self, room_id: &RoomId,
+	) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
 		self.db.room_members_invited(room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
+	pub(crate) fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		self.db.get_invite_count(room_id, user_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
+	pub(crate) fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		self.db.get_left_count(room_id, user_id)
 	}
 
 	/// Returns an iterator over all rooms this user joined.
 	#[tracing::instrument(skip(self))]
-	pub fn rooms_joined<'a>(&'a self, user_id: &UserId) -> impl Iterator<Item = Result<OwnedRoomId>> + 'a {
+	pub(crate) fn rooms_joined<'a>(&'a self, user_id: &UserId) -> impl Iterator<Item = Result<OwnedRoomId>> + 'a {
 		self.db.rooms_joined(user_id)
 	}
 
 	/// Returns an iterator over all rooms a user was invited to.
 	#[tracing::instrument(skip(self))]
-	pub fn rooms_invited<'a>(
+	pub(crate) fn rooms_invited<'a>(
 		&'a self, user_id: &UserId,
 	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a {
 		self.db.rooms_invited(user_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn invite_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
+	pub(crate) fn invite_state(
+		&self, user_id: &UserId, room_id: &RoomId,
+	) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
 		self.db.invite_state(user_id, room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn left_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
+	pub(crate) fn left_state(
+		&self, user_id: &UserId, room_id: &RoomId,
+	) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
 		self.db.left_state(user_id, room_id)
 	}
 
 	/// Returns an iterator over all rooms a user left.
 	#[tracing::instrument(skip(self))]
-	pub fn rooms_left<'a>(
+	pub(crate) fn rooms_left<'a>(
 		&'a self, user_id: &UserId,
 	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a {
 		self.db.rooms_left(user_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(crate) fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		self.db.once_joined(user_id, room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> { self.db.is_joined(user_id, room_id) }
+	pub(crate) fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+		self.db.is_joined(user_id, room_id)
+	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(crate) fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		self.db.is_invited(user_id, room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> { self.db.is_left(user_id, room_id) }
+	pub(crate) fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+		self.db.is_left(user_id, room_id)
+	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
+	pub(crate) fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
 		self.db.servers_invite_via(room_id)
 	}
 
@@ -361,7 +377,7 @@ impl Service {
 	///
 	/// See <https://spec.matrix.org/v1.10/appendices/#routing>
 	#[tracing::instrument(skip(self))]
-	pub fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
+	pub(crate) fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
 		let most_powerful_user_server = services()
 			.rooms
 			.state_accessor

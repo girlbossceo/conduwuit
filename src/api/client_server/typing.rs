@@ -5,7 +5,7 @@ use crate::{services, utils, Error, Result, Ruma};
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///
 /// Sets the typing state of the sender user.
-pub async fn create_typing_event_route(
+pub(crate) async fn create_typing_event_route(
 	body: Ruma<create_typing_event::v3::Request>,
 ) -> Result<create_typing_event::v3::Response> {
 	use create_typing_event::v3::Typing;

@@ -5,7 +5,7 @@ use ruma::api::client::relations::{
 use crate::{services, Result, Ruma};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}/{eventType}`
-pub async fn get_relating_events_with_rel_type_and_event_type_route(
+pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
 	body: Ruma<get_relating_events_with_rel_type_and_event_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type_and_event_type::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -35,7 +35,7 @@ pub async fn get_relating_events_with_rel_type_and_event_type_route(
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}`
-pub async fn get_relating_events_with_rel_type_route(
+pub(crate) async fn get_relating_events_with_rel_type_route(
 	body: Ruma<get_relating_events_with_rel_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -65,7 +65,7 @@ pub async fn get_relating_events_with_rel_type_route(
 }
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}`
-pub async fn get_relating_events_route(
+pub(crate) async fn get_relating_events_route(
 	body: Ruma<get_relating_events::v1::Request>,
 ) -> Result<get_relating_events::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");

@@ -31,7 +31,7 @@ use crate::{services, Error, Result, Ruma};
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-pub async fn get_public_rooms_filtered_route(
+pub(crate) async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
 	if let Some(server) = &body.server {
@@ -68,7 +68,7 @@ pub async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-pub async fn get_public_rooms_route(
+pub(crate) async fn get_public_rooms_route(
 	body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
 	if let Some(server) = &body.server {
@@ -110,7 +110,7 @@ pub async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 ///
 /// - TODO: Access control checks
-pub async fn set_room_visibility_route(
+pub(crate) async fn set_room_visibility_route(
 	body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -153,7 +153,7 @@ pub async fn set_room_visibility_route(
 /// # `GET /_matrix/client/r0/directory/list/room/{roomId}`
 ///
 /// Gets the visibility of a given room in the room directory.
-pub async fn get_room_visibility_route(
+pub(crate) async fn get_room_visibility_route(
 	body: Ruma<get_room_visibility::v3::Request>,
 ) -> Result<get_room_visibility::v3::Response> {
 	if !services().rooms.metadata.exists(&body.room_id)? {
