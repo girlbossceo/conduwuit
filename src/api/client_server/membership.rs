@@ -967,7 +967,7 @@ pub(crate) async fn join_room_by_id_helper(
 				.add_pdu_outlier(&event_id, &value)?;
 		}
 
-		info!("Running send_join auth check");
+		debug!("Running send_join auth check");
 
 		let auth_check = state_res::event_auth::auth_check(
 			&state_res::RoomVersion::new(&room_version_id).expect("room version is supported"),
@@ -991,11 +991,11 @@ pub(crate) async fn join_room_by_id_helper(
 		)
 		.map_err(|e| {
 			warn!("Auth check failed: {e}");
-			Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed")
+			Error::BadRequest(ErrorKind::forbidden(), "Auth check failed")
 		})?;
 
 		if !auth_check {
-			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Auth check failed"));
+			return Err(Error::BadRequest(ErrorKind::forbidden(), "Auth check failed"));
 		}
 
 		info!("Saving state from send_join");
