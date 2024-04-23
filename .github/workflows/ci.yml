@@ -94,7 +94,7 @@ jobs:
 
             - name: Extract build environment
               run: |
-                  tar -xzf environment.tar.gz -C /
+                  sudo tar -xzf environment.tar.gz -C /
 
             - name: Sync repository
               uses: actions/checkout@v4
