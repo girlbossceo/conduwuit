@@ -82,72 +82,70 @@ jobs:
 
             - name: Organise and prepare static outputs
               run: |
-                  mkdir -p target/debian
-                  sudo mv result/bin/conduit target/static-x86_64-unknown-linux-musl
+                  mkdir -p target/release target/debian
+                  sudo mv result/bin/conduit target/release/static-x86_64-unknown-linux-musl
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl.deb
-                  sudo mv result-1/bin/conduit target/static-x86_64-unknown-linux-musl-jemalloc
+                  sudo mv result-1/bin/conduit target/release/static-x86_64-unknown-linux-musl-jemalloc
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl-jemalloc.deb
-                  sudo mv result-2/bin/conduit target/static-aarch64-unknown-linux-musl
+                  sudo mv result-2/bin/conduit target/release/static-aarch64-unknown-linux-musl
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl.deb
-                  sudo mv result-3/bin/conduit target/static-aarch64-unknown-linux-musl-jemalloc
+                  sudo mv result-3/bin/conduit target/release/static-aarch64-unknown-linux-musl-jemalloc
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl-jemalloc.deb
-                  mv target/debian/*.deb target/
-                  rm -rf target/debian
 
             - name: Upload static-x86_64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: static-x86_64-unknown-linux-musl
-                  path: target/static-x86_64-unknown-linux-musl
+                  path: target/release/static-x86_64-unknown-linux-musl
                   if-no-files-found: error
 
             - name: Upload static-x86_64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: static-x86_64-unknown-linux-musl-jemalloc
-                  path: target/static-x86_64-unknown-linux-musl-jemalloc
+                  path: target/release/static-x86_64-unknown-linux-musl-jemalloc
                   if-no-files-found: error
 
             - name: Upload static-aarch64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: static-aarch64-unknown-linux-musl
-                  path: target/static-aarch64-unknown-linux-musl
+                  path: target/release/static-aarch64-unknown-linux-musl
                   if-no-files-found: error
 
             - name: Upload static-aarch64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: static-aarch64-unknown-linux-musl-jemalloc
-                  path: target/static-aarch64-unknown-linux-musl-jemalloc
+                  path: target/release/static-aarch64-unknown-linux-musl-jemalloc
                   if-no-files-found: error
 
             - name: Upload deb x86_64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: x86_64-unknown-linux-musl.deb
-                  path: target/x86_64-unknown-linux-musl.deb
+                  path: target/debian/x86_64-unknown-linux-musl.deb
                   if-no-files-found: error
 
             - name: Upload deb x86_64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: x86_64-unknown-linux-musl-jemalloc.deb
-                  path: target/x86_64-unknown-linux-musl-jemalloc.deb
+                  path: target/debian/x86_64-unknown-linux-musl-jemalloc.deb
                   if-no-files-found: error
 
             - name: Upload deb aarch64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
                   name: aarch64-unknown-linux-musl.deb
-                  path: target/aarch64-unknown-linux-musl.deb
+                  path: target/debian/aarch64-unknown-linux-musl.deb
                   if-no-files-found: error
 
             - name: Upload deb aarch64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
                   name: aarch64-unknown-linux-musl-jemalloc.deb
-                  path: target/aarch64-unknown-linux-musl-jemalloc.deb
+                  path: target/debian/aarch64-unknown-linux-musl-jemalloc.deb
                   if-no-files-found: error
 
             - name: Build OCI image targets
