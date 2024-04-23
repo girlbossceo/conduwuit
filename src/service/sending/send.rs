@@ -116,7 +116,7 @@ where
 
 	debug!("Got {status:?} for {method} {url}");
 	if !status.is_success() {
-		return Err(Error::FederationError(
+		return Err(Error::Federation(
 			destination.to_owned(),
 			RumaError::from_http_response(http_response),
 		));
@@ -423,7 +423,7 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 		},
 		_ => {
 			error!("{e}");
-			Err(Error::Error(e.to_string()))
+			Err(Error::Err(e.to_string()))
 		},
 	}
 }

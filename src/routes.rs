@@ -6,13 +6,14 @@ use axum::{
 	routing::{any, get, on, post, MethodFilter},
 	Router,
 };
-use conduit::{
-	api::{client_server, server_server},
-	Config, Error, Result, Ruma, RumaResponse,
-};
 use http::{Method, Uri};
 use ruma::api::{client::error::ErrorKind, IncomingRequest};
 use tracing::{info, warn};
+
+use crate::{
+	api::{client_server, server_server},
+	Config, Error, Result, Ruma, RumaResponse,
+};
 
 pub fn routes(config: &Config) -> Router {
 	let router = Router::new()
@@ -208,6 +209,9 @@ pub fn routes(config: &Config) -> Router {
 			.ruma_route(server_server::get_event_authorization_route)
 			.ruma_route(server_server::get_room_state_route)
 			.ruma_route(server_server::get_room_state_ids_route)
+			.ruma_route(server_server::create_leave_event_template_route)
+			.ruma_route(server_server::create_leave_event_v1_route)
+			.ruma_route(server_server::create_leave_event_v2_route)
 			.ruma_route(server_server::create_join_event_template_route)
 			.ruma_route(server_server::create_join_event_v1_route)
 			.ruma_route(server_server::create_join_event_v2_route)

@@ -61,7 +61,7 @@ impl PduEvent {
 		let mut content = serde_json::from_str(self.content.get())
 			.map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
 		redact_content_in_place(&mut content, &room_version_id, self.kind.to_string())
-			.map_err(|e| Error::RedactionError(self.sender.server_name().to_owned(), e))?;
+			.map_err(|e| Error::Redaction(self.sender.server_name().to_owned(), e))?;
 
 		self.unsigned = Some(
 			to_raw_value(&json!({

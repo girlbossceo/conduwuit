@@ -544,6 +544,7 @@ impl KeyValueDatabase {
 		}
 	}
 
+	#[allow(dead_code)]
 	pub fn flush(&self) -> Result<()> {
 		let start = std::time::Instant::now();
 

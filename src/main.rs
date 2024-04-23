@@ -3,8 +3,13 @@ use std::fs::Permissions; // not unix specific, just only for UNIX sockets stuff
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _; /* not unix specific, just only for UNIX sockets stuff and *nix
                                              * container checks */
+// Not async due to services() being used in many closures, and async closures
+// are not stable as of writing This is the case for every other occurence of
+// sync Mutex/RwLock, except for database related ones
+use std::sync::RwLock;
 use std::{any::Any, io, net::SocketAddr, sync::atomic, time::Duration};
 
+use api::ruma_wrapper::{Ruma, RumaResponse};
 use axum::{
 	extract::{DefaultBodyLimit, MatchedPath},
 	response::IntoResponse,
@@ -13,7 +18,8 @@ use axum::{
 use axum_server::{bind, bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 #[cfg(feature = "axum_dual_protocol")]
 use axum_server_dual_protocol::ServerExt;
-pub use conduit::*; // Re-export everything from the library crate
+use config::Config;
+use database::KeyValueDatabase;
 use http::{
 	header::{self, HeaderName},
 	Method, StatusCode,
@@ -23,6 +29,7 @@ use ruma::api::client::{
 	error::{Error as RumaError, ErrorBody, ErrorKind},
 	uiaa::UiaaResponse,
 };
+use service::{pdu::PduEvent, Services};
 use tokio::{
 	signal,
 	sync::oneshot::{self, Sender},
@@ -37,8 +44,25 @@ use tower_http::{
 };
 use tracing::{debug, error, info, warn, Level};
 use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
+use utils::error::{Error, Result};
 
+mod api;
+mod clap;
+mod config;
+mod database;
 mod routes;
+mod service;
+mod utils;
+
+pub static SERVICES: RwLock<Option<&'static Services<'static>>> = RwLock::new(None);
+
+#[must_use]
+pub fn services() -> &'static Services<'static> {
+	SERVICES
+		.read()
+		.unwrap()
+		.expect("SERVICES should be initialized when this is called")
+}
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
 #[global_allocator]
@@ -71,17 +95,17 @@ fn main() -> Result<(), Error> {
 async fn async_main(server: &Server) -> Result<(), Error> {
 	if let Err(error) = start(server).await {
 		error!("Critical error starting server: {error}");
-		return Err(Error::Error(format!("{error}")));
+		return Err(Error::Err(format!("{error}")));
 	}
 
 	if let Err(error) = run(server).await {
 		error!("Critical error running server: {error}");
-		return Err(Error::Error(format!("{error}")));
+		return Err(Error::Err(format!("{error}")));
 	}
 
 	if let Err(error) = stop(server).await {
 		error!("Critical error stopping server: {error}");
-		return Err(Error::Error(format!("{error}")));
+		return Err(Error::Err(format!("{error}")));
 	}
 
 	Ok(())
