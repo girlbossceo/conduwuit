@@ -17,7 +17,7 @@ use crate::{debug_info, debug_warn, services, Error, Result, Ruma};
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
-pub async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result<create_alias::v3::Response> {
+pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result<create_alias::v3::Response> {
 	if body.room_alias.server_name() != services().globals.server_name() {
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
@@ -72,7 +72,7 @@ pub async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result
 ///
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
-pub async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
+pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
 	if body.room_alias.server_name() != services().globals.server_name() {
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
@@ -118,7 +118,7 @@ pub async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result
 /// # `GET /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Resolve an alias locally or over federation.
-pub async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Result<get_alias::v3::Response> {
+pub(crate) async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Result<get_alias::v3::Response> {
 	get_alias_helper(body.body.room_alias, None).await
 }
 

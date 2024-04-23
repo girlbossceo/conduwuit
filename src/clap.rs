@@ -22,12 +22,12 @@ fn version() -> String {
 /// Commandline arguments
 #[derive(Parser, Debug)]
 #[clap(version = version(), about, long_about = None)]
-pub struct Args {
+pub(crate) struct Args {
 	#[arg(short, long)]
 	/// Optional argument to the path of a conduwuit config TOML file
-	pub config: Option<PathBuf>,
+	pub(crate) config: Option<PathBuf>,
 }
 
 /// Parse commandline arguments into structured data
 #[must_use]
-pub fn parse() -> Args { Args::parse() }
+pub(crate) fn parse() -> Args { Args::parse() }

@@ -4,18 +4,18 @@ use std::{
 	sync::Arc,
 };
 
-pub use data::Data;
+pub(crate) use data::Data;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
 use tracing::{debug, error, warn};
 
 use crate::{services, Error, Result};
 
-pub struct Service {
-	pub db: &'static dyn Data,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
 }
 
 impl Service {
-	pub async fn event_ids_iter<'a>(
+	pub(crate) async fn event_ids_iter<'a>(
 		&self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {
 		let mut starting_events: Vec<&EventId> = Vec::with_capacity(starting_events_.len());
@@ -30,7 +30,7 @@ impl Service {
 			.filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
 	}
 
-	pub async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
+	pub(crate) async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
 		const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
 
@@ -165,18 +165,18 @@ impl Service {
 		Ok(found)
 	}
 
-	pub fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+	pub(crate) fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
 		self.db.get_cached_eventid_authchain(key)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) -> Result<()> {
+	pub(crate) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) -> Result<()> {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) -> Result<()> {
+	pub(crate) fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) -> Result<()> {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
 	}

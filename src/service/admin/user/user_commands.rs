@@ -10,7 +10,7 @@ use crate::{
 	services, utils, Result,
 };
 
-pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match services().users.list_local_users() {
 		Ok(users) => {
 			let mut msg = format!("Found {} local user account(s):\n", users.len());
@@ -21,7 +21,7 @@ pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	}
 }
 
-pub(super) async fn create(
+pub(crate) async fn create(
 	_body: Vec<&str>, username: String, password: Option<String>,
 ) -> Result<RoomMessageEventContent> {
 	let password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
@@ -119,7 +119,7 @@ pub(super) async fn create(
 	)))
 }
 
-pub(super) async fn deactivate(
+pub(crate) async fn deactivate(
 	_body: Vec<&str>, leave_rooms: bool, user_id: String,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
@@ -168,7 +168,7 @@ pub(super) async fn deactivate(
 	}
 }
 
-pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
+pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
 	let user_id =
 		match UserId::parse_with_server_name(username.as_str().to_lowercase(), services().globals.server_name()) {
@@ -210,7 +210,7 @@ pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result
 	}
 }
 
-pub(super) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bool) -> Result<RoomMessageEventContent> {
+pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bool) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
 
@@ -292,7 +292,7 @@ pub(super) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 	}
 }
 
-pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
+pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
 	let user_id =
 		match UserId::parse_with_server_name(user_id.as_str().to_lowercase(), services().globals.server_name()) {

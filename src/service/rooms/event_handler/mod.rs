@@ -29,8 +29,8 @@ use crate::{
 	services, Error, PduEvent,
 };
 
-pub mod signing_keys;
-pub struct Service;
+mod signing_keys;
+pub(crate) struct Service;
 
 // We use some AsyncRecursiveType hacks here so we can call async funtion
 // recursively.
@@ -425,7 +425,7 @@ impl Service {
 		})
 	}
 
-	pub async fn upgrade_outlier_to_timeline_pdu(
+	pub(crate) async fn upgrade_outlier_to_timeline_pdu(
 		&self, incoming_pdu: Arc<PduEvent>, val: BTreeMap<String, CanonicalJsonValue>, create_event: &PduEvent,
 		origin: &ServerName, room_id: &RoomId, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<Option<Vec<u8>>> {
@@ -746,7 +746,7 @@ impl Service {
 	// TODO: if we know the prev_events of the incoming event we can avoid the
 	// request and build the state from a known point and resolve if > 1 prev_event
 	#[tracing::instrument(skip_all, name = "state")]
-	pub async fn state_at_incoming_degree_one(
+	pub(crate) async fn state_at_incoming_degree_one(
 		&self, incoming_pdu: &Arc<PduEvent>,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		let prev_event = &*incoming_pdu.prev_events[0];
@@ -794,7 +794,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip_all, name = "state")]
-	pub async fn state_at_incoming_resolved(
+	pub(crate) async fn state_at_incoming_resolved(
 		&self, incoming_pdu: &Arc<PduEvent>, room_id: &RoomId, room_version_id: &RoomVersionId,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		debug!("Calculating state at event using state res");
@@ -1275,7 +1275,7 @@ impl Service {
 
 	/// Returns Ok if the acl allows the server
 	#[tracing::instrument(skip_all)]
-	pub fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
+	pub(crate) fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
 		let acl_event = if let Some(acl) =
 			services()
 				.rooms

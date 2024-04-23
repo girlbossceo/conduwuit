@@ -38,7 +38,7 @@ use crate::{debug_error, debug_info, debug_warn, services, Error, Result};
 /// # }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FedDest {
+pub(crate) enum FedDest {
 	Literal(SocketAddr),
 	Named(String, String),
 }

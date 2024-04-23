@@ -1,6 +1,6 @@
 use crate::Result;
 
-pub trait Data: Send + Sync {
+pub(crate) trait Data: Send + Sync {
 	fn create_file_metadata(
 		&self, sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
 		content_type: Option<&str>,

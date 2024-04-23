@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::KeyValueDatabaseEngine;
 
-pub struct Cork {
+pub(crate) struct Cork {
 	db: Arc<dyn KeyValueDatabaseEngine>,
 	flush: bool,
 	sync: bool,

@@ -7,7 +7,7 @@ use std::{
 };
 
 use base64::{engine::general_purpose, Engine as _};
-pub use data::Data;
+pub(crate) use data::Data;
 use federation::transactions::send_transaction_message;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
@@ -30,19 +30,19 @@ use tracing::{error, warn};
 
 use crate::{service::presence::Presence, services, utils::calculate_hash, Config, Error, PduEvent, Result};
 
-pub mod appservice;
-pub mod data;
-pub mod send;
-pub use send::FedDest;
+mod appservice;
+mod data;
+mod send;
+pub(crate) use send::FedDest;
 
 const SELECT_EDU_LIMIT: usize = 16;
 
-pub struct Service {
-	pub db: &'static dyn Data,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
 
 	/// The state for a given state hash.
-	pub(super) maximum_requests: Arc<Semaphore>,
-	pub sender: loole::Sender<(Destination, SendingEventType, Vec<u8>)>,
+	pub(crate) maximum_requests: Arc<Semaphore>,
+	pub(crate) sender: loole::Sender<(Destination, SendingEventType, Vec<u8>)>,
 	receiver: Mutex<loole::Receiver<(Destination, SendingEventType, Vec<u8>)>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
@@ -50,7 +50,7 @@ pub struct Service {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Destination {
+pub(crate) enum Destination {
 	Appservice(String),
 	Push(OwnedUserId, String), // user and pushkey
 	Normal(OwnedServerName),
@@ -58,7 +58,7 @@ pub enum Destination {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[allow(clippy::module_name_repetitions)]
-pub enum SendingEventType {
+pub(crate) enum SendingEventType {
 	Pdu(Vec<u8>), // pduid
 	Edu(Vec<u8>), // pdu json
 	Flush,        // none
@@ -71,7 +71,7 @@ enum TransactionStatus {
 }
 
 impl Service {
-	pub fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
+	pub(crate) fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
 		let (sender, receiver) = loole::unbounded();
 		Arc::new(Self {
 			db,
@@ -85,7 +85,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
-	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
+	pub(crate) fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let destination = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEventType::Pdu(pdu_id.to_owned());
 		let _cork = services().globals.db.cork()?;
@@ -98,7 +98,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
+	pub(crate) fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let destination = Destination::Appservice(appservice_id);
 		let event = SendingEventType::Pdu(pdu_id);
 		let _cork = services().globals.db.cork()?;
@@ -111,7 +111,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, pdu_id))]
-	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
+	pub(crate) fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
 		let servers = services()
 			.rooms
 			.state_cache
@@ -123,7 +123,9 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers, pdu_id))]
-	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
+	pub(crate) fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(
+		&self, servers: I, pdu_id: &[u8],
+	) -> Result<()> {
 		let requests = servers
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEventType::Pdu(pdu_id.to_owned())))
@@ -143,7 +145,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, server, serialized))]
-	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
+	pub(crate) fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
 		let destination = Destination::Normal(server.to_owned());
 		let event = SendingEventType::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
@@ -156,7 +158,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, serialized))]
-	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
+	pub(crate) fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
 		let servers = services()
 			.rooms
 			.state_cache
@@ -168,7 +170,9 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers, serialized))]
-	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
+	pub(crate) fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(
+		&self, servers: I, serialized: Vec<u8>,
+	) -> Result<()> {
 		let requests = servers
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEventType::Edu(serialized.clone())))
@@ -188,7 +192,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
-	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
+	pub(crate) fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers = services()
 			.rooms
 			.state_cache
@@ -200,7 +204,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers))]
-	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
+	pub(crate) fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
 		let requests = servers.into_iter().map(Destination::Normal);
 
 		for destination in requests {
@@ -215,7 +219,7 @@ impl Service {
 	/// Cleanup event data
 	/// Used for instance after we remove an appservice registration
 	#[tracing::instrument(skip(self))]
-	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
+	pub(crate) fn cleanup_events(&self, appservice_id: String) -> Result<()> {
 		self.db
 			.delete_all_requests_for(&Destination::Appservice(appservice_id))?;
 
@@ -223,7 +227,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, request), name = "request")]
-	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+	pub(crate) async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug,
 	{
@@ -245,7 +249,7 @@ impl Service {
 	///
 	/// Only returns None if there is no url specified in the appservice
 	/// registration file
-	pub async fn send_appservice_request<T>(
+	pub(crate) async fn send_appservice_request<T>(
 		&self, registration: Registration, request: T,
 	) -> Result<Option<T::IncomingResponse>>
 	where
@@ -258,7 +262,7 @@ impl Service {
 		response
 	}
 
-	pub fn start_handler(self: &Arc<Self>) {
+	pub(crate) fn start_handler(self: &Arc<Self>) {
 		let self2 = Arc::clone(self);
 		tokio::spawn(async move {
 			self2
@@ -430,7 +434,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, server_name))]
-	pub fn select_edus(&self, server_name: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
+	pub(crate) fn select_edus(&self, server_name: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
 		// u64: count of last edu
 		let since = self.db.get_latest_educount(server_name)?;
 		let mut events = Vec::new();
@@ -481,7 +485,7 @@ impl Service {
 
 /// Look for presence
 #[tracing::instrument(skip(server_name, since, max_edu_count, events))]
-pub fn select_edus_presence(
+pub(crate) fn select_edus_presence(
 	server_name: &ServerName, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
 ) -> Result<bool> {
 	// Look for presence updates for this server
@@ -526,7 +530,7 @@ pub fn select_edus_presence(
 
 /// Look for read receipts in this room
 #[tracing::instrument(skip(room_id, since, max_edu_count, events))]
-pub fn select_edus_receipts(
+pub(crate) fn select_edus_receipts(
 	room_id: &RoomId, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
 ) -> Result<bool> {
 	for r in services()
@@ -828,7 +832,7 @@ async fn handle_events_destination_normal(
 
 impl Destination {
 	#[tracing::instrument(skip(self))]
-	pub fn get_prefix(&self) -> Vec<u8> {
+	pub(crate) fn get_prefix(&self) -> Vec<u8> {
 		let mut prefix = match self {
 			Destination::Appservice(server) => {
 				let mut p = b"+".to_vec();

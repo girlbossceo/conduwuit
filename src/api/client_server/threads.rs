@@ -3,7 +3,7 @@ use ruma::api::client::{error::ErrorKind, threads::get_threads};
 use crate::{services, Error, Result, Ruma};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/threads`
-pub async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> Result<get_threads::v1::Response> {
+pub(crate) async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> Result<get_threads::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	// Use limit or else 10, with maximum 100

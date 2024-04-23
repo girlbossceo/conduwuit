@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-pub use data::Data;
+pub(crate) use data::Data;
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -24,28 +24,30 @@ use tracing::{error, warn};
 
 use crate::{service::pdu::PduBuilder, services, Error, PduEvent, Result};
 
-pub struct Service {
-	pub db: &'static dyn Data,
-	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
-	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
+	pub(crate) server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
+	pub(crate) user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
 }
 
 impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self))]
-	pub async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
+	pub(crate) async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
 		self.db.state_full_ids(shortstatehash).await
 	}
 
-	pub async fn state_full(&self, shortstatehash: u64) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	pub(crate) async fn state_full(
+		&self, shortstatehash: u64,
+	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		self.db.state_full(shortstatehash).await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self))]
-	pub fn state_get_id(
+	pub(crate) fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
 		self.db.state_get_id(shortstatehash, event_type, state_key)
@@ -53,7 +55,7 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
-	pub fn state_get(
+	pub(crate) fn state_get(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
 		self.db.state_get(shortstatehash, event_type, state_key)
@@ -88,7 +90,9 @@ impl Service {
 	/// Whether a server is allowed to see an event through federation, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, origin, room_id, event_id))]
-	pub fn server_can_see_event(&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
+	pub(crate) fn server_can_see_event(
+		&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId,
+	) -> Result<bool> {
 		let Some(shortstatehash) = self.pdu_shortstatehash(event_id)? else {
 			return Ok(true);
 		};
@@ -151,7 +155,7 @@ impl Service {
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, user_id, room_id, event_id))]
-	pub fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
+	pub(crate) fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		let Some(shortstatehash) = self.pdu_shortstatehash(event_id)? else {
 			return Ok(true);
 		};
@@ -210,7 +214,7 @@ impl Service {
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, user_id, room_id))]
-	pub fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(crate) fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let currently_member = services().rooms.state_cache.is_joined(user_id, room_id)?;
 
 		let history_visibility = self
@@ -232,18 +236,22 @@ impl Service {
 	}
 
 	/// Returns the state hash for this pdu.
-	pub fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> { self.db.pdu_shortstatehash(event_id) }
+	pub(crate) fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> {
+		self.db.pdu_shortstatehash(event_id)
+	}
 
 	/// Returns the full room state.
 	#[tracing::instrument(skip(self))]
-	pub async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	pub(crate) async fn room_state_full(
+		&self, room_id: &RoomId,
+	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		self.db.room_state_full(room_id).await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self))]
-	pub fn room_state_get_id(
+	pub(crate) fn room_state_get_id(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
 		self.db.room_state_get_id(room_id, event_type, state_key)
@@ -252,13 +260,13 @@ impl Service {
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self))]
-	pub fn room_state_get(
+	pub(crate) fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
 		self.db.room_state_get(room_id, event_type, state_key)
 	}
 
-	pub fn get_name(&self, room_id: &RoomId) -> Result<Option<String>> {
+	pub(crate) fn get_name(&self, room_id: &RoomId) -> Result<Option<String>> {
 		services()
 			.rooms
 			.state_accessor
@@ -268,7 +276,7 @@ impl Service {
 			})
 	}
 
-	pub fn get_avatar(&self, room_id: &RoomId) -> Result<ruma::JsOption<RoomAvatarEventContent>> {
+	pub(crate) fn get_avatar(&self, room_id: &RoomId) -> Result<ruma::JsOption<RoomAvatarEventContent>> {
 		services()
 			.rooms
 			.state_accessor
@@ -279,7 +287,7 @@ impl Service {
 			})
 	}
 
-	pub fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<RoomMemberEventContent>> {
+	pub(crate) fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<RoomMemberEventContent>> {
 		services()
 			.rooms
 			.state_accessor
@@ -290,7 +298,7 @@ impl Service {
 			})
 	}
 
-	pub async fn user_can_invite(
+	pub(crate) async fn user_can_invite(
 		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &MutexGuard<'_, ()>,
 	) -> Result<bool> {
 		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))

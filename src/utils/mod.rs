@@ -37,7 +37,7 @@ pub(crate) fn increment(old: Option<&[u8]>) -> Vec<u8> {
 	number.to_be_bytes().to_vec()
 }
 
-pub fn generate_keypair() -> Vec<u8> {
+pub(crate) fn generate_keypair() -> Vec<u8> {
 	let mut value = random_string(8).as_bytes().to_vec();
 	value.push(0xFF);
 	value.extend_from_slice(
@@ -47,25 +47,25 @@ pub fn generate_keypair() -> Vec<u8> {
 }
 
 /// Parses the bytes into an u64.
-pub fn u64_from_bytes(bytes: &[u8]) -> Result<u64, std::array::TryFromSliceError> {
+pub(crate) fn u64_from_bytes(bytes: &[u8]) -> Result<u64, std::array::TryFromSliceError> {
 	let array: [u8; 8] = bytes.try_into()?;
 	Ok(u64::from_be_bytes(array))
 }
 
 /// Parses the bytes into a string.
-pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::string::FromUtf8Error> {
+pub(crate) fn string_from_bytes(bytes: &[u8]) -> Result<String, std::string::FromUtf8Error> {
 	String::from_utf8(bytes.to_vec())
 }
 
 /// Parses a `OwnedUserId` from bytes.
-pub fn user_id_from_bytes(bytes: &[u8]) -> Result<OwnedUserId> {
+pub(crate) fn user_id_from_bytes(bytes: &[u8]) -> Result<OwnedUserId> {
 	OwnedUserId::try_from(
 		string_from_bytes(bytes).map_err(|_| Error::bad_database("Failed to parse string from bytes"))?,
 	)
 	.map_err(|_| Error::bad_database("Failed to parse user id from bytes"))
 }
 
-pub fn random_string(length: usize) -> String {
+pub(crate) fn random_string(length: usize) -> String {
 	thread_rng()
 		.sample_iter(&rand::distributions::Alphanumeric)
 		.take(length)
@@ -74,7 +74,7 @@ pub fn random_string(length: usize) -> String {
 }
 
 /// Calculate a new hash for the given password
-pub fn calculate_password_hash(password: &str) -> Result<String, argon2::password_hash::Error> {
+pub(crate) fn calculate_password_hash(password: &str) -> Result<String, argon2::password_hash::Error> {
 	let salt = SaltString::generate(thread_rng());
 	services()
 		.globals
@@ -84,7 +84,7 @@ pub fn calculate_password_hash(password: &str) -> Result<String, argon2::passwor
 }
 
 #[tracing::instrument(skip(keys))]
-pub fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> {
+pub(crate) fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> {
 	// We only hash the pdu's event ids, not the whole pdu
 	let bytes = keys.join(&0xFF);
 	let hash = digest::digest(&digest::SHA256, &bytes);

@@ -2,7 +2,7 @@ use ruma::{api::appservice::Registration, events::room::message::RoomMessageEven
 
 use crate::{service::admin::escape_html, services, Result};
 
-pub(super) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let appservice_config = body[1..body.len() - 1].join("\n");
 		let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
@@ -26,7 +26,7 @@ pub(super) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent>
 	}
 }
 
-pub(super) async fn unregister(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
+pub(crate) async fn unregister(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
 	match services()
 		.appservice
 		.unregister_appservice(&appservice_identifier)
@@ -39,7 +39,7 @@ pub(super) async fn unregister(_body: Vec<&str>, appservice_identifier: String) 
 	}
 }
 
-pub(super) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
+pub(crate) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
 	match services()
 		.appservice
 		.get_registration(&appservice_identifier)
@@ -59,7 +59,7 @@ pub(super) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Res
 	}
 }
 
-pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let appservices = services().appservice.iter_ids().await;
 	let output = format!("Appservices ({}): {}", appservices.len(), appservices.join(", "));
 	Ok(RoomMessageEventContent::text_plain(output))

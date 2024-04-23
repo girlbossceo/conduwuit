@@ -4,7 +4,7 @@ use super::Users;
 use crate::{services, Result};
 
 /// All the getters and iterators in key_value/users.rs
-pub(super) async fn users(subcommand: Users) -> Result<RoomMessageEventContent> {
+pub(crate) async fn users(subcommand: Users) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Users::Iter => {
 			let timer = tokio::time::Instant::now();

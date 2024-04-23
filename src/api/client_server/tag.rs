@@ -15,7 +15,7 @@ use crate::{services, Error, Result, Ruma};
 /// Adds a tag to the room.
 ///
 /// - Inserts the tag into the tag event of the room account data.
-pub async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<create_tag::v3::Response> {
+pub(crate) async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<create_tag::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let event = services()
@@ -53,7 +53,7 @@ pub async fn update_tag_route(body: Ruma<create_tag::v3::Request>) -> Result<cre
 /// Deletes a tag from the room.
 ///
 /// - Removes the tag from the tag event of the room account data.
-pub async fn delete_tag_route(body: Ruma<delete_tag::v3::Request>) -> Result<delete_tag::v3::Response> {
+pub(crate) async fn delete_tag_route(body: Ruma<delete_tag::v3::Request>) -> Result<delete_tag::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let event = services()
@@ -88,7 +88,7 @@ pub async fn delete_tag_route(body: Ruma<delete_tag::v3::Request>) -> Result<del
 /// Returns tags on the room.
 ///
 /// - Gets the tag event of the room account data.
-pub async fn get_tags_route(body: Ruma<get_tags::v3::Request>) -> Result<get_tags::v3::Response> {
+pub(crate) async fn get_tags_route(body: Ruma<get_tags::v3::Request>) -> Result<get_tags::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let event = services()

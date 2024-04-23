@@ -2,7 +2,7 @@ mod data;
 
 use std::{sync::Arc, time::Duration};
 
-pub use data::Data;
+pub(crate) use data::Data;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
@@ -18,15 +18,17 @@ use crate::{services, utils, Config, Error, Result};
 /// Represents data required to be kept in order to implement the presence
 /// specification.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Presence {
-	pub state: PresenceState,
-	pub currently_active: bool,
-	pub last_active_ts: u64,
-	pub status_msg: Option<String>,
+pub(crate) struct Presence {
+	state: PresenceState,
+	currently_active: bool,
+	last_active_ts: u64,
+	status_msg: Option<String>,
 }
 
 impl Presence {
-	pub fn new(state: PresenceState, currently_active: bool, last_active_ts: u64, status_msg: Option<String>) -> Self {
+	pub(crate) fn new(
+		state: PresenceState, currently_active: bool, last_active_ts: u64, status_msg: Option<String>,
+	) -> Self {
 		Self {
 			state,
 			currently_active,
@@ -35,21 +37,21 @@ impl Presence {
 		}
 	}
 
-	pub fn from_json_bytes_to_event(bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
+	pub(crate) fn from_json_bytes_to_event(bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
 		let presence = Self::from_json_bytes(bytes)?;
 		presence.to_presence_event(user_id)
 	}
 
-	pub fn from_json_bytes(bytes: &[u8]) -> Result<Self> {
+	pub(crate) fn from_json_bytes(bytes: &[u8]) -> Result<Self> {
 		serde_json::from_slice(bytes).map_err(|_| Error::bad_database("Invalid presence data in database"))
 	}
 
-	pub fn to_json_bytes(&self) -> Result<Vec<u8>> {
+	pub(crate) fn to_json_bytes(&self) -> Result<Vec<u8>> {
 		serde_json::to_vec(self).map_err(|_| Error::bad_database("Could not serialize Presence to JSON"))
 	}
 
 	/// Creates a PresenceEvent from available data.
-	pub fn to_presence_event(&self, user_id: &UserId) -> Result<PresenceEvent> {
+	pub(crate) fn to_presence_event(&self, user_id: &UserId) -> Result<PresenceEvent> {
 		let now = utils::millis_since_unix_epoch();
 		let last_active_ago = if self.currently_active {
 			None
@@ -71,15 +73,15 @@ impl Presence {
 	}
 }
 
-pub struct Service {
-	pub db: &'static dyn Data,
-	pub timer_sender: loole::Sender<(OwnedUserId, Duration)>,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
+	pub(crate) timer_sender: loole::Sender<(OwnedUserId, Duration)>,
 	timer_receiver: Mutex<loole::Receiver<(OwnedUserId, Duration)>>,
 	timeout_remote_users: bool,
 }
 
 impl Service {
-	pub fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
+	pub(crate) fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
 		let (timer_sender, timer_receiver) = loole::unbounded();
 
 		Arc::new(Self {
@@ -90,7 +92,7 @@ impl Service {
 		})
 	}
 
-	pub fn start_handler(self: &Arc<Self>) {
+	pub(crate) fn start_handler(self: &Arc<Self>) {
 		let self_ = Arc::clone(self);
 		tokio::spawn(async move {
 			self_
@@ -101,7 +103,7 @@ impl Service {
 	}
 
 	/// Returns the latest presence event for the given user.
-	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
+	pub(crate) fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
 		if let Some((_, presence)) = self.db.get_presence(user_id)? {
 			Ok(Some(presence))
 		} else {
@@ -111,7 +113,7 @@ impl Service {
 
 	/// Pings the presence of the given user in the given room, setting the
 	/// specified state.
-	pub fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
+	pub(crate) fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
 		const REFRESH_TIMEOUT: u64 = 60 * 25 * 1000;
 
 		let last_presence = self.db.get_presence(user_id)?;
@@ -140,7 +142,7 @@ impl Service {
 	}
 
 	/// Adds a presence event which will be saved until a new event replaces it.
-	pub fn set_presence(
+	pub(crate) fn set_presence(
 		&self, user_id: &UserId, state: &PresenceState, currently_active: Option<bool>, last_active_ago: Option<UInt>,
 		status_msg: Option<String>,
 	) -> Result<()> {
@@ -170,11 +172,14 @@ impl Service {
 	}
 
 	/// Removes the presence record for the given user from the database.
-	pub fn remove_presence(&self, user_id: &UserId) -> Result<()> { self.db.remove_presence(user_id) }
+	///
+	/// TODO: Why is this not used?
+	#[allow(dead_code)]
+	pub(crate) fn remove_presence(&self, user_id: &UserId) -> Result<()> { self.db.remove_presence(user_id) }
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
-	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)>> {
+	pub(crate) fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)>> {
 		self.db.presence_since(since)
 	}
 

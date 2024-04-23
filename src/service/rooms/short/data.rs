@@ -4,7 +4,7 @@ use ruma::{events::StateEventType, EventId, RoomId};
 
 use crate::Result;
 
-pub trait Data: Send + Sync {
+pub(crate) trait Data: Send + Sync {
 	fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64>;
 
 	fn multi_get_or_create_shorteventid(&self, event_id: &[&EventId]) -> Result<Vec<u64>>;

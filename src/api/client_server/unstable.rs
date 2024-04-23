@@ -12,7 +12,7 @@ use crate::{services, Error, Result, Ruma};
 /// TODO: Implement pagination, currently this just returns everything
 ///
 /// An implementation of [MSC2666](https://github.com/matrix-org/matrix-spec-proposals/pull/2666)
-pub async fn get_mutual_rooms_route(
+pub(crate) async fn get_mutual_rooms_route(
 	body: Ruma<mutual_rooms::unstable::Request>,
 ) -> Result<mutual_rooms::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");

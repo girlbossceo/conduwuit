@@ -45,7 +45,7 @@ use crate::{api::client_server::invite_helper, service::pdu::PduBuilder, service
 /// - Send events listed in initial state
 /// - Send events implied by `name` and `topic`
 /// - Send invite events
-pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<create_room::v3::Response> {
+pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<create_room::v3::Response> {
 	use create_room::v3::RoomPreset;
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -603,7 +603,9 @@ pub async fn create_room_route(body: Ruma<create_room::v3::Request>) -> Result<c
 ///
 /// - You have to currently be joined to the room (TODO: Respect history
 ///   visibility)
-pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Result<get_room_event::v3::Response> {
+pub(crate) async fn get_room_event_route(
+	body: Ruma<get_room_event::v3::Request>,
+) -> Result<get_room_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let event = services()
@@ -640,7 +642,7 @@ pub async fn get_room_event_route(body: Ruma<get_room_event::v3::Request>) -> Re
 ///
 /// - Only users joined to the room are allowed to call this, or if
 ///   `history_visibility` is world readable in the room
-pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<aliases::v3::Response> {
+pub(crate) async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<aliases::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	if !services()
@@ -674,7 +676,7 @@ pub async fn get_room_aliases_route(body: Ruma<aliases::v3::Request>) -> Result<
 /// - Transfers some state events
 /// - Moves local aliases
 /// - Modifies old room power levels to prevent users from speaking
-pub async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result<upgrade_room::v3::Response> {
+pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) -> Result<upgrade_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	if !services()

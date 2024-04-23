@@ -31,7 +31,7 @@ use crate::{
 /// - Tries to send the event into the room, auth rules will determine if it is
 ///   allowed
 /// - If event is new `canonical_alias`: Rejects if alias is incorrect
-pub async fn send_state_event_for_key_route(
+pub(crate) async fn send_state_event_for_key_route(
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<send_state_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -59,7 +59,7 @@ pub async fn send_state_event_for_key_route(
 /// - Tries to send the event into the room, auth rules will determine if it is
 ///   allowed
 /// - If event is new `canonical_alias`: Rejects if alias is incorrect
-pub async fn send_state_event_for_empty_key_route(
+pub(crate) async fn send_state_event_for_empty_key_route(
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<RumaResponse<send_state_event::v3::Response>> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -86,7 +86,7 @@ pub async fn send_state_event_for_empty_key_route(
 ///
 /// - If not joined: Only works if current room history visibility is world
 ///   readable
-pub async fn get_state_events_route(
+pub(crate) async fn get_state_events_route(
 	body: Ruma<get_state_events::v3::Request>,
 ) -> Result<get_state_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -122,7 +122,7 @@ pub async fn get_state_events_route(
 ///
 /// - If not joined: Only works if current room history visibility is world
 ///   readable
-pub async fn get_state_events_for_key_route(
+pub(crate) async fn get_state_events_for_key_route(
 	body: Ruma<get_state_events_for_key::v3::Request>,
 ) -> Result<get_state_events_for_key::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -177,7 +177,7 @@ pub async fn get_state_events_for_key_route(
 ///
 /// - If not joined: Only works if current room history visibility is world
 ///   readable
-pub async fn get_state_events_for_empty_key_route(
+pub(crate) async fn get_state_events_for_empty_key_route(
 	body: Ruma<get_state_events_for_key::v3::Request>,
 ) -> Result<RumaResponse<get_state_events_for_key::v3::Response>> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");

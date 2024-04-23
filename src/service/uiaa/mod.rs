@@ -1,7 +1,7 @@
 mod data;
 
 use argon2::{PasswordHash, PasswordVerifier};
-pub use data::Data;
+pub(crate) use data::Data;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -13,13 +13,13 @@ use tracing::error;
 
 use crate::{api::client_server::SESSION_ID_LENGTH, services, utils, Error, Result};
 
-pub struct Service {
-	pub db: &'static dyn Data,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
 }
 
 impl Service {
 	/// Creates a new Uiaa session. Make sure the session token is unique.
-	pub fn create(
+	pub(crate) fn create(
 		&self, user_id: &UserId, device_id: &DeviceId, uiaainfo: &UiaaInfo, json_body: &CanonicalJsonValue,
 	) -> Result<()> {
 		self.db.set_uiaa_request(
@@ -37,7 +37,7 @@ impl Service {
 		)
 	}
 
-	pub fn try_auth(
+	pub(crate) fn try_auth(
 		&self, user_id: &UserId, device_id: &DeviceId, auth: &AuthData, uiaainfo: &UiaaInfo,
 	) -> Result<(bool, UiaaInfo)> {
 		let mut uiaainfo = auth.session().map_or_else(
@@ -135,7 +135,7 @@ impl Service {
 		Ok((true, uiaainfo))
 	}
 
-	pub fn get_uiaa_request(
+	pub(crate) fn get_uiaa_request(
 		&self, user_id: &UserId, device_id: &DeviceId, session: &str,
 	) -> Option<CanonicalJsonValue> {
 		self.db.get_uiaa_request(user_id, device_id, session)

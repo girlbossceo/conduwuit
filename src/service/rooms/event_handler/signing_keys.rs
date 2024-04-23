@@ -367,7 +367,7 @@ impl super::Service {
 	/// Search the DB for the signing keys of the given server, if we don't have
 	/// them fetch them from the server and save to our DB.
 	#[tracing::instrument(skip_all)]
-	pub async fn fetch_signing_keys_for_server(
+	pub(crate) async fn fetch_signing_keys_for_server(
 		&self, origin: &ServerName, signature_ids: Vec<String>,
 	) -> Result<BTreeMap<String, Base64>> {
 		let contains_all_ids = |keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));

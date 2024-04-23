@@ -3,7 +3,7 @@ use tracing::{debug, info};
 
 use crate::{service::admin::MxcUri, services, Result};
 
-pub(super) async fn delete(
+pub(crate) async fn delete(
 	_body: Vec<&str>, mxc: Option<Box<MxcUri>>, event_id: Option<Box<EventId>>,
 ) -> Result<RoomMessageEventContent> {
 	if event_id.is_some() && mxc.is_some() {
@@ -137,7 +137,7 @@ pub(super) async fn delete(
 	))
 }
 
-pub(super) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let mxc_list = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
 
@@ -159,7 +159,7 @@ pub(super) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventConte
 	))
 }
 
-pub(super) async fn delete_past_remote_media(_body: Vec<&str>, duration: String) -> Result<RoomMessageEventContent> {
+pub(crate) async fn delete_past_remote_media(_body: Vec<&str>, duration: String) -> Result<RoomMessageEventContent> {
 	let deleted_count = services()
 		.media
 		.delete_all_remote_media_at_after_time(duration)

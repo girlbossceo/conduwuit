@@ -9,7 +9,7 @@ use crate::Result;
 type AnySyncEphemeralRoomEventIter<'a> =
 	Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
 
-pub trait Data: Send + Sync {
+pub(crate) trait Data: Send + Sync {
 	/// Replaces the previous read receipt.
 	fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()>;
 

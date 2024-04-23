@@ -23,24 +23,24 @@ pub(crate) mod transaction_ids;
 pub(crate) mod uiaa;
 pub(crate) mod users;
 
-pub struct Services<'a> {
-	pub appservice: appservice::Service,
-	pub pusher: pusher::Service,
-	pub rooms: rooms::Service,
-	pub transaction_ids: transaction_ids::Service,
-	pub uiaa: uiaa::Service,
-	pub users: users::Service,
-	pub account_data: account_data::Service,
-	pub presence: Arc<presence::Service>,
-	pub admin: Arc<admin::Service>,
-	pub globals: globals::Service<'a>,
-	pub key_backups: key_backups::Service,
-	pub media: media::Service,
-	pub sending: Arc<sending::Service>,
+pub(crate) struct Services<'a> {
+	pub(crate) appservice: appservice::Service,
+	pub(crate) pusher: pusher::Service,
+	pub(crate) rooms: rooms::Service,
+	pub(crate) transaction_ids: transaction_ids::Service,
+	pub(crate) uiaa: uiaa::Service,
+	pub(crate) users: users::Service,
+	pub(crate) account_data: account_data::Service,
+	pub(crate) presence: Arc<presence::Service>,
+	pub(crate) admin: Arc<admin::Service>,
+	pub(crate) globals: globals::Service<'a>,
+	pub(crate) key_backups: key_backups::Service,
+	pub(crate) media: media::Service,
+	pub(crate) sending: Arc<sending::Service>,
 }
 
 impl Services<'_> {
-	pub fn build<
+	pub(crate) fn build<
 		D: appservice::Data
 			+ pusher::Data
 			+ rooms::Data

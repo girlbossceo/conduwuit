@@ -30,7 +30,7 @@ use crate::Result;
 /// `ordinary.onion`, `matrix.myspecial.onion`, but not `hello.myspecial.onion`.
 #[derive(Clone, Default, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyConfig {
+pub(crate) enum ProxyConfig {
 	#[default]
 	None,
 	Global {
@@ -40,7 +40,7 @@ pub enum ProxyConfig {
 	ByDomain(Vec<PartialProxyConfig>),
 }
 impl ProxyConfig {
-	pub fn to_proxy(&self) -> Result<Option<Proxy>> {
+	pub(crate) fn to_proxy(&self) -> Result<Option<Proxy>> {
 		Ok(match self.clone() {
 			ProxyConfig::None => None,
 			ProxyConfig::Global {
@@ -55,7 +55,7 @@ impl ProxyConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct PartialProxyConfig {
+pub(crate) struct PartialProxyConfig {
 	#[serde(deserialize_with = "crate::utils::deserialize_from_str")]
 	url: Url,
 	#[serde(default)]
@@ -64,7 +64,7 @@ pub struct PartialProxyConfig {
 	exclude: Vec<WildCardedDomain>,
 }
 impl PartialProxyConfig {
-	pub fn for_url(&self, url: &Url) -> Option<&Url> {
+	pub(crate) fn for_url(&self, url: &Url) -> Option<&Url> {
 		let domain = url.domain()?;
 		let mut included_because = None; // most specific reason it was included
 		let mut excluded_because = None; // most specific reason it was excluded

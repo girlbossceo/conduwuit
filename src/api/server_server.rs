@@ -60,7 +60,7 @@ use crate::{
 /// # `GET /_matrix/federation/v1/version`
 ///
 /// Get version information on this server.
-pub async fn get_server_version_route(
+pub(crate) async fn get_server_version_route(
 	_body: Ruma<get_server_version::v1::Request>,
 ) -> Result<get_server_version::v1::Response> {
 	let version = match option_env!("CONDUIT_VERSION_EXTRA") {
@@ -85,7 +85,7 @@ pub async fn get_server_version_route(
 /// forever.
 // Response type for this endpoint is Json because we need to calculate a
 // signature for the response
-pub async fn get_server_keys_route() -> Result<impl IntoResponse> {
+pub(crate) async fn get_server_keys_route() -> Result<impl IntoResponse> {
 	let mut verify_keys: BTreeMap<OwnedServerSigningKeyId, VerifyKey> = BTreeMap::new();
 	verify_keys.insert(
 		format!("ed25519:{}", services().globals.keypair().version())
@@ -132,12 +132,12 @@ pub async fn get_server_keys_route() -> Result<impl IntoResponse> {
 /// - Matrix does not support invalidating public keys, so the key returned by
 ///   this will be valid
 /// forever.
-pub async fn get_server_keys_deprecated_route() -> impl IntoResponse { get_server_keys_route().await }
+pub(crate) async fn get_server_keys_deprecated_route() -> impl IntoResponse { get_server_keys_route().await }
 
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-pub async fn get_public_rooms_filtered_route(
+pub(crate) async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
 	if !services()
@@ -171,7 +171,7 @@ pub async fn get_public_rooms_filtered_route(
 /// # `GET /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-pub async fn get_public_rooms_route(
+pub(crate) async fn get_public_rooms_route(
 	body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
 	if !services()
@@ -202,7 +202,7 @@ pub async fn get_public_rooms_route(
 	})
 }
 
-pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
+pub(crate) fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
 	let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
 		warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
 		Error::BadServerResponse("Invalid PDU in server response")
@@ -231,7 +231,7 @@ pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, Canonical
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
-pub async fn send_transaction_message_route(
+pub(crate) async fn send_transaction_message_route(
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
 	let sender_servername = body
@@ -522,7 +522,7 @@ pub async fn send_transaction_message_route(
 ///
 /// - Only works if a user of this server is currently invited or joined the
 ///   room
-pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_event::v1::Response> {
+pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_event::v1::Response> {
 	let sender_servername = body
 		.sender_servername
 		.as_ref()
@@ -572,7 +572,7 @@ pub async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_e
 ///
 /// Retrieves events from before the sender joined the room, if the room's
 /// history visibility allows.
-pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result<get_backfill::v1::Response> {
+pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result<get_backfill::v1::Response> {
 	let sender_servername = body
 		.sender_servername
 		.as_ref()
@@ -635,7 +635,7 @@ pub async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result
 /// # `POST /_matrix/federation/v1/get_missing_events/{roomId}`
 ///
 /// Retrieves events that the sender is missing.
-pub async fn get_missing_events_route(
+pub(crate) async fn get_missing_events_route(
 	body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
 	let sender_servername = body
@@ -718,7 +718,7 @@ pub async fn get_missing_events_route(
 /// Retrieves the auth chain for a given event.
 ///
 /// - This does not include the event itself
-pub async fn get_event_authorization_route(
+pub(crate) async fn get_event_authorization_route(
 	body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
 	let sender_servername = body
@@ -773,7 +773,9 @@ pub async fn get_event_authorization_route(
 /// # `GET /_matrix/federation/v1/state/{roomId}`
 ///
 /// Retrieves the current state of the room.
-pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Result<get_room_state::v1::Response> {
+pub(crate) async fn get_room_state_route(
+	body: Ruma<get_room_state::v1::Request>,
+) -> Result<get_room_state::v1::Response> {
 	let sender_servername = body
 		.sender_servername
 		.as_ref()
@@ -840,7 +842,7 @@ pub async fn get_room_state_route(body: Ruma<get_room_state::v1::Request>) -> Re
 /// # `GET /_matrix/federation/v1/state_ids/{roomId}`
 ///
 /// Retrieves the current state of the room.
-pub async fn get_room_state_ids_route(
+pub(crate) async fn get_room_state_ids_route(
 	body: Ruma<get_room_state_ids::v1::Request>,
 ) -> Result<get_room_state_ids::v1::Response> {
 	let sender_servername = body
@@ -891,7 +893,7 @@ pub async fn get_room_state_ids_route(
 /// # `GET /_matrix/federation/v1/make_join/{roomId}/{userId}`
 ///
 /// Creates a join template.
-pub async fn create_join_event_template_route(
+pub(crate) async fn create_join_event_template_route(
 	body: Ruma<prepare_join_event::v1::Request>,
 ) -> Result<prepare_join_event::v1::Response> {
 	if !services().rooms.metadata.exists(&body.room_id)? {
@@ -1224,7 +1226,7 @@ async fn create_join_event(
 /// # `PUT /_matrix/federation/v1/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
-pub async fn create_join_event_v1_route(
+pub(crate) async fn create_join_event_v1_route(
 	body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
 	let sender_servername = body
@@ -1278,7 +1280,7 @@ pub async fn create_join_event_v1_route(
 /// # `PUT /_matrix/federation/v2/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
-pub async fn create_join_event_v2_route(
+pub(crate) async fn create_join_event_v2_route(
 	body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
 	let sender_servername = body
@@ -1338,7 +1340,7 @@ pub async fn create_join_event_v2_route(
 /// # `PUT /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
 ///
 /// Creates a leave template.
-pub async fn create_leave_event_template_route(
+pub(crate) async fn create_leave_event_template_route(
 	body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
 	let sender_servername = body
@@ -1490,7 +1492,7 @@ async fn create_leave_event(sender_servername: &ServerName, room_id: &RoomId, pd
 /// # `PUT /_matrix/federation/v1/send_leave/{roomId}/{eventId}`
 ///
 /// Submits a signed leave event.
-pub async fn create_leave_event_v1_route(
+pub(crate) async fn create_leave_event_v1_route(
 	body: Ruma<create_leave_event::v1::Request>,
 ) -> Result<create_leave_event::v1::Response> {
 	let sender_servername = body
@@ -1506,7 +1508,7 @@ pub async fn create_leave_event_v1_route(
 /// # `PUT /_matrix/federation/v2/send_leave/{roomId}/{eventId}`
 ///
 /// Submits a signed leave event.
-pub async fn create_leave_event_v2_route(
+pub(crate) async fn create_leave_event_v2_route(
 	body: Ruma<create_leave_event::v2::Request>,
 ) -> Result<create_leave_event::v2::Response> {
 	let sender_servername = body
@@ -1522,7 +1524,7 @@ pub async fn create_leave_event_v2_route(
 /// # `PUT /_matrix/federation/v2/invite/{roomId}/{eventId}`
 ///
 /// Invites a remote user to a room.
-pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Result<create_invite::v2::Response> {
+pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Result<create_invite::v2::Response> {
 	let sender_servername = body
 		.sender_servername
 		.as_ref()
@@ -1692,7 +1694,7 @@ pub async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Resu
 /// # `GET /_matrix/federation/v1/user/devices/{userId}`
 ///
 /// Gets information on all devices of the user.
-pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<get_devices::v1::Response> {
+pub(crate) async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<get_devices::v1::Response> {
 	if body.user_id.server_name() != services().globals.server_name() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -1746,7 +1748,7 @@ pub async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<g
 /// # `GET /_matrix/federation/v1/query/directory`
 ///
 /// Resolve a room alias to a room id.
-pub async fn get_room_information_route(
+pub(crate) async fn get_room_information_route(
 	body: Ruma<get_room_information::v1::Request>,
 ) -> Result<get_room_information::v1::Response> {
 	let room_id = services()
@@ -1786,7 +1788,7 @@ pub async fn get_room_information_route(
 ///
 ///
 /// Gets information on a profile.
-pub async fn get_profile_information_route(
+pub(crate) async fn get_profile_information_route(
 	body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
 	if !services()
@@ -1837,7 +1839,7 @@ pub async fn get_profile_information_route(
 /// # `POST /_matrix/federation/v1/user/keys/query`
 ///
 /// Gets devices and identity keys for the given users.
-pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_keys::v1::Response> {
+pub(crate) async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_keys::v1::Response> {
 	if body
 		.device_keys
 		.iter()
@@ -1867,7 +1869,7 @@ pub async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_key
 /// # `POST /_matrix/federation/v1/user/keys/claim`
 ///
 /// Claims one-time keys.
-pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<claim_keys::v1::Response> {
+pub(crate) async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<claim_keys::v1::Response> {
 	if body
 		.one_time_keys
 		.iter()
@@ -1889,7 +1891,9 @@ pub async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<cla
 /// # `GET /.well-known/matrix/server`
 ///
 /// Returns the .well-known URL if it is configured, otherwise returns 404.
-pub async fn well_known_server(_body: Ruma<discover_homeserver::Request>) -> Result<discover_homeserver::Response> {
+pub(crate) async fn well_known_server(
+	_body: Ruma<discover_homeserver::Request>,
+) -> Result<discover_homeserver::Response> {
 	Ok(discover_homeserver::Response {
 		server: match services().globals.well_known_server() {
 			Some(server_name) => server_name.to_owned(),
@@ -1902,7 +1906,7 @@ pub async fn well_known_server(_body: Ruma<discover_homeserver::Request>) -> Res
 ///
 /// Gets the space tree in a depth-first manner to locate child rooms of a given
 /// space.
-pub async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
+pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
 	let sender_servername = body
 		.sender_servername
 		.as_ref()

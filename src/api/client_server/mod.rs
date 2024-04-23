@@ -34,50 +34,50 @@ mod unversioned;
 mod user_directory;
 mod voip;
 
-pub use account::*;
-pub use alias::*;
-pub use backup::*;
-pub use capabilities::*;
-pub use config::*;
-pub use context::*;
-pub use device::*;
-pub use directory::*;
-pub use filter::*;
-pub use keys::*;
-pub use media::*;
-pub use membership::*;
-pub use message::*;
-pub use presence::*;
-pub use profile::*;
-pub use push::*;
-pub use read_marker::*;
-pub use redact::*;
-pub use relations::*;
-pub use report::*;
-pub use room::*;
-pub use search::*;
-pub use session::*;
-pub use space::*;
-pub use state::*;
-pub use sync::*;
-pub use tag::*;
-pub use thirdparty::*;
-pub use threads::*;
-pub use to_device::*;
-pub use typing::*;
-pub use unstable::*;
-pub use unversioned::*;
-pub use user_directory::*;
-pub use voip::*;
+pub(crate) use account::*;
+pub(crate) use alias::*;
+pub(crate) use backup::*;
+pub(crate) use capabilities::*;
+pub(crate) use config::*;
+pub(crate) use context::*;
+pub(crate) use device::*;
+pub(crate) use directory::*;
+pub(crate) use filter::*;
+pub(crate) use keys::*;
+pub(crate) use media::*;
+pub(crate) use membership::*;
+pub(crate) use message::*;
+pub(crate) use presence::*;
+pub(crate) use profile::*;
+pub(crate) use push::*;
+pub(crate) use read_marker::*;
+pub(crate) use redact::*;
+pub(crate) use relations::*;
+pub(crate) use report::*;
+pub(crate) use room::*;
+pub(crate) use search::*;
+pub(crate) use session::*;
+pub(crate) use space::*;
+pub(crate) use state::*;
+pub(crate) use sync::*;
+pub(crate) use tag::*;
+pub(crate) use thirdparty::*;
+pub(crate) use threads::*;
+pub(crate) use to_device::*;
+pub(crate) use typing::*;
+pub(crate) use unstable::*;
+pub(crate) use unversioned::*;
+pub(crate) use user_directory::*;
+pub(crate) use voip::*;
 
 /// generated device ID length
-pub const DEVICE_ID_LENGTH: usize = 10;
+const DEVICE_ID_LENGTH: usize = 10;
 
 /// generated user access token length
-pub const TOKEN_LENGTH: usize = 32;
+const TOKEN_LENGTH: usize = 32;
 
 /// generated user session ID length
-pub const SESSION_ID_LENGTH: usize = 32;
+pub(crate) const SESSION_ID_LENGTH: usize = 32;
 
 /// auto-generated password length
-pub const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
+pub(crate) const AUTO_GEN_PASSWORD_LENGTH: usize = 25;

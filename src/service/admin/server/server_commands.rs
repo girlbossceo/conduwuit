@@ -2,12 +2,12 @@ use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{services, Result};
 
-pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
 	Ok(RoomMessageEventContent::text_plain(format!("{}", services().globals.config)))
 }
 
-pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let response1 = services().memory_usage().await;
 	let response2 = services().globals.db.memory_usage();
 
@@ -16,19 +16,19 @@ pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	)))
 }
 
-pub(super) async fn clear_database_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
+pub(crate) async fn clear_database_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
 	services().globals.db.clear_caches(amount);
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }
 
-pub(super) async fn clear_service_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
+pub(crate) async fn clear_service_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
 	services().clear_caches(amount).await;
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }
 
-pub(super) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let result = services().globals.db.backup_list()?;
 
 	if result.is_empty() {
@@ -38,7 +38,7 @@ pub(super) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	}
 }
 
-pub(super) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if !cfg!(feature = "rocksdb") {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Only RocksDB supports online backups in conduwuit.",
@@ -59,7 +59,7 @@ pub(super) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEvent
 	Ok(RoomMessageEventContent::text_plain(&result))
 }
 
-pub(super) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if !cfg!(feature = "rocksdb") {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Only RocksDB supports listing files in conduwuit.",

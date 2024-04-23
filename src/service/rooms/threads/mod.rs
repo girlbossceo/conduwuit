@@ -2,7 +2,7 @@ mod data;
 
 use std::collections::BTreeMap;
 
-pub use data::Data;
+pub(crate) use data::Data;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
 	events::relation::BundledThread,
@@ -12,18 +12,18 @@ use serde_json::json;
 
 use crate::{services, Error, PduEvent, Result};
 
-pub struct Service {
-	pub db: &'static dyn Data,
+pub(crate) struct Service {
+	pub(crate) db: &'static dyn Data,
 }
 
 impl Service {
-	pub fn threads_until<'a>(
+	pub(crate) fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
 	) -> Result<impl Iterator<Item = Result<(u64, PduEvent)>> + 'a> {
 		self.db.threads_until(user_id, room_id, until, include)
 	}
 
-	pub fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
+	pub(crate) fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
 		let root_id = &services()
 			.rooms
 			.timeline

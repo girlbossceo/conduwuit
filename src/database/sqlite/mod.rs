@@ -20,8 +20,8 @@ thread_local! {
 }
 
 struct PreparedStatementIterator<'a> {
-	pub iterator: Box<dyn Iterator<Item = TupleOfBytes> + 'a>,
-	pub _statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
+	iterator: Box<dyn Iterator<Item = TupleOfBytes> + 'a>,
+	_statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
 }
 
 impl Iterator for PreparedStatementIterator<'_> {
@@ -77,7 +77,7 @@ impl Engine {
 			.get_or(|| Self::prepare_conn(&self.path, self.cache_size_per_thread).unwrap())
 	}
 
-	pub fn flush_wal(self: &Arc<Self>) -> Result<()> {
+	fn flush_wal(self: &Arc<Self>) -> Result<()> {
 		self.write_lock()
 			.pragma_update(Some(Main), "wal_checkpoint", "RESTART")?;
 		Ok(())
@@ -130,7 +130,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn cleanup(&self) -> Result<()> { self.flush_wal() }
 }
 
-pub struct SqliteTable {
+struct SqliteTable {
 	engine: Arc<Engine>,
 	name: String,
 	watchers: Watchers,
@@ -154,7 +154,7 @@ impl SqliteTable {
 		Ok(())
 	}
 
-	pub fn iter_with_guard<'a>(&'a self, guard: &'a Connection) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
+	fn iter_with_guard<'a>(&'a self, guard: &'a Connection) -> Box<dyn Iterator<Item = TupleOfBytes> + 'a> {
 		let statement = Box::leak(Box::new(
 			guard
 				.prepare(&format!("SELECT key, value FROM {} ORDER BY key ASC", &self.name))

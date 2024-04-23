@@ -34,7 +34,7 @@ const RANDOM_USER_ID_LENGTH: usize = 10;
 ///
 /// Note: This will not reserve the username, so the username might become
 /// invalid when trying to register
-pub async fn get_register_available_route(
+pub(crate) async fn get_register_available_route(
 	body: Ruma<get_username_availability::v3::Request>,
 ) -> Result<get_username_availability::v3::Response> {
 	// Validate user id
@@ -82,7 +82,7 @@ pub async fn get_register_available_route(
 /// - If `inhibit_login` is false: Creates a device and returns device id and
 ///   access_token
 #[allow(clippy::doc_markdown)]
-pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
+pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
 	if !services().globals.allow_registration() && body.appservice_info.is_none() {
 		info!(
 			"Registration disabled and request not from known appservice, rejecting registration attempt for username \
@@ -406,7 +406,9 @@ pub async fn register_route(body: Ruma<register::v3::Request>) -> Result<registe
 ///   last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-pub async fn change_password_route(body: Ruma<change_password::v3::Request>) -> Result<change_password::v3::Response> {
+pub(crate) async fn change_password_route(
+	body: Ruma<change_password::v3::Request>,
+) -> Result<change_password::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -469,7 +471,7 @@ pub async fn change_password_route(body: Ruma<change_password::v3::Request>) -> 
 /// Get `user_id` of the sender user.
 ///
 /// Note: Also works for Application Services
-pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3::Response> {
+pub(crate) async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let device_id = body.sender_device.clone();
 
@@ -491,7 +493,7 @@ pub async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoami::v3:
 /// - Forgets all to-device events
 /// - Triggers device list updates
 /// - Removes ability to log in again
-pub async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Result<deactivate::v3::Response> {
+pub(crate) async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Result<deactivate::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -546,7 +548,7 @@ pub async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Result<dea
 /// Get a list of third party identifiers associated with this account.
 ///
 /// - Currently always returns empty list
-pub async fn third_party_route(body: Ruma<get_3pids::v3::Request>) -> Result<get_3pids::v3::Response> {
+pub(crate) async fn third_party_route(body: Ruma<get_3pids::v3::Request>) -> Result<get_3pids::v3::Response> {
 	let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	Ok(get_3pids::v3::Response::new(Vec::new()))
@@ -559,7 +561,7 @@ pub async fn third_party_route(body: Ruma<get_3pids::v3::Request>) -> Result<get
 ///
 /// - 403 signals that The homeserver does not allow the third party identifier
 ///   as a contact option.
-pub async fn request_3pid_management_token_via_email_route(
+pub(crate) async fn request_3pid_management_token_via_email_route(
 	_body: Ruma<request_3pid_management_token_via_email::v3::Request>,
 ) -> Result<request_3pid_management_token_via_email::v3::Response> {
 	Err(Error::BadRequest(
@@ -575,7 +577,7 @@ pub async fn request_3pid_management_token_via_email_route(
 ///
 /// - 403 signals that The homeserver does not allow the third party identifier
 ///   as a contact option.
-pub async fn request_3pid_management_token_via_msisdn_route(
+pub(crate) async fn request_3pid_management_token_via_msisdn_route(
 	_body: Ruma<request_3pid_management_token_via_msisdn::v3::Request>,
 ) -> Result<request_3pid_management_token_via_msisdn::v3::Response> {
 	Err(Error::BadRequest(

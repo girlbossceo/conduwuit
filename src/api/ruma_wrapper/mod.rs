@@ -7,14 +7,13 @@ use crate::{service::appservice::RegistrationInfo, Error};
 mod axum;
 
 /// Extractor for Ruma request structs
-pub struct Ruma<T> {
-	pub body: T,
-	pub sender_user: Option<OwnedUserId>,
-	pub sender_device: Option<OwnedDeviceId>,
-	pub sender_servername: Option<OwnedServerName>,
-	// This is None when body is not a valid string
-	pub json_body: Option<CanonicalJsonValue>,
-	pub appservice_info: Option<RegistrationInfo>,
+pub(crate) struct Ruma<T> {
+	pub(crate) body: T,
+	pub(crate) sender_user: Option<OwnedUserId>,
+	pub(crate) sender_device: Option<OwnedDeviceId>,
+	pub(crate) sender_servername: Option<OwnedServerName>,
+	pub(crate) json_body: Option<CanonicalJsonValue>, // This is None when body is not a valid string
+	pub(crate) appservice_info: Option<RegistrationInfo>,
 }
 
 impl<T> Deref for Ruma<T> {
@@ -24,7 +23,7 @@ impl<T> Deref for Ruma<T> {
 }
 
 #[derive(Clone)]
-pub struct RumaResponse<T>(pub T);
+pub(crate) struct RumaResponse<T>(pub(crate) T);
 
 impl<T> From<T> for RumaResponse<T> {
 	fn from(t: T) -> Self { Self(t) }

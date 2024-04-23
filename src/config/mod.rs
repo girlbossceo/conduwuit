@@ -30,323 +30,323 @@ mod proxy;
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(transparent)]
-pub struct ListeningPort {
+struct ListeningPort {
 	#[serde(with = "either::serde_untagged")]
-	pub ports: Either<u16, Vec<u16>>,
+	ports: Either<u16, Vec<u16>>,
 }
 
 /// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
-pub struct Config {
+pub(crate) struct Config {
 	/// [`IpAddr`] conduwuit will listen on (can be IPv4 or IPv6)
 	#[serde(default = "default_address")]
-	pub address: IpAddr,
+	pub(crate) address: IpAddr,
 	/// default TCP port(s) conduwuit will listen on
 	#[serde(default = "default_port")]
-	pub port: ListeningPort,
-	pub tls: Option<TlsConfig>,
-	pub unix_socket_path: Option<PathBuf>,
+	port: ListeningPort,
+	pub(crate) tls: Option<TlsConfig>,
+	pub(crate) unix_socket_path: Option<PathBuf>,
 	#[serde(default = "default_unix_socket_perms")]
-	pub unix_socket_perms: u32,
-	pub server_name: OwnedServerName,
+	pub(crate) unix_socket_perms: u32,
+	pub(crate) server_name: OwnedServerName,
 	#[serde(default = "default_database_backend")]
-	pub database_backend: String,
-	pub database_path: PathBuf,
-	pub database_backup_path: Option<PathBuf>,
+	pub(crate) database_backend: String,
+	pub(crate) database_path: PathBuf,
+	pub(crate) database_backup_path: Option<PathBuf>,
 	#[serde(default = "default_database_backups_to_keep")]
-	pub database_backups_to_keep: i16,
+	pub(crate) database_backups_to_keep: i16,
 	#[serde(default = "default_db_cache_capacity_mb")]
-	pub db_cache_capacity_mb: f64,
+	pub(crate) db_cache_capacity_mb: f64,
 	#[serde(default = "default_new_user_displayname_suffix")]
-	pub new_user_displayname_suffix: String,
+	pub(crate) new_user_displayname_suffix: String,
 	#[serde(default)]
-	pub allow_check_for_updates: bool,
+	pub(crate) allow_check_for_updates: bool,
 
 	#[serde(default = "default_pdu_cache_capacity")]
-	pub pdu_cache_capacity: u32,
+	pub(crate) pdu_cache_capacity: u32,
 	#[serde(default = "default_conduit_cache_capacity_modifier")]
-	pub conduit_cache_capacity_modifier: f64,
+	pub(crate) conduit_cache_capacity_modifier: f64,
 	#[serde(default = "default_auth_chain_cache_capacity")]
-	pub auth_chain_cache_capacity: u32,
+	pub(crate) auth_chain_cache_capacity: u32,
 	#[serde(default = "default_shorteventid_cache_capacity")]
-	pub shorteventid_cache_capacity: u32,
+	pub(crate) shorteventid_cache_capacity: u32,
 	#[serde(default = "default_eventidshort_cache_capacity")]
-	pub eventidshort_cache_capacity: u32,
+	pub(crate) eventidshort_cache_capacity: u32,
 	#[serde(default = "default_shortstatekey_cache_capacity")]
-	pub shortstatekey_cache_capacity: u32,
+	pub(crate) shortstatekey_cache_capacity: u32,
 	#[serde(default = "default_statekeyshort_cache_capacity")]
-	pub statekeyshort_cache_capacity: u32,
+	pub(crate) statekeyshort_cache_capacity: u32,
 	#[serde(default = "default_server_visibility_cache_capacity")]
-	pub server_visibility_cache_capacity: u32,
+	pub(crate) server_visibility_cache_capacity: u32,
 	#[serde(default = "default_user_visibility_cache_capacity")]
-	pub user_visibility_cache_capacity: u32,
+	pub(crate) user_visibility_cache_capacity: u32,
 	#[serde(default = "default_stateinfo_cache_capacity")]
-	pub stateinfo_cache_capacity: u32,
+	pub(crate) stateinfo_cache_capacity: u32,
 	#[serde(default = "default_roomid_spacehierarchy_cache_capacity")]
-	pub roomid_spacehierarchy_cache_capacity: u32,
+	pub(crate) roomid_spacehierarchy_cache_capacity: u32,
 
 	#[serde(default = "default_cleanup_second_interval")]
-	pub cleanup_second_interval: u32,
+	pub(crate) cleanup_second_interval: u32,
 
 	#[serde(default = "default_dns_cache_entries")]
-	pub dns_cache_entries: u32,
+	pub(crate) dns_cache_entries: u32,
 	#[serde(default = "default_dns_min_ttl")]
-	pub dns_min_ttl: u64,
+	pub(crate) dns_min_ttl: u64,
 	#[serde(default = "default_dns_min_ttl_nxdomain")]
-	pub dns_min_ttl_nxdomain: u64,
+	pub(crate) dns_min_ttl_nxdomain: u64,
 	#[serde(default = "default_dns_attempts")]
-	pub dns_attempts: u16,
+	pub(crate) dns_attempts: u16,
 	#[serde(default = "default_dns_timeout")]
-	pub dns_timeout: u64,
+	pub(crate) dns_timeout: u64,
 	#[serde(default = "true_fn")]
-	pub dns_tcp_fallback: bool,
+	pub(crate) dns_tcp_fallback: bool,
 	#[serde(default = "true_fn")]
-	pub query_all_nameservers: bool,
+	pub(crate) query_all_nameservers: bool,
 
 	#[serde(default = "default_max_request_size")]
-	pub max_request_size: u32,
+	pub(crate) max_request_size: u32,
 	#[serde(default = "default_max_concurrent_requests")]
-	pub max_concurrent_requests: u16,
+	pub(crate) max_concurrent_requests: u16,
 	#[serde(default = "default_max_fetch_prev_events")]
-	pub max_fetch_prev_events: u16,
+	pub(crate) max_fetch_prev_events: u16,
 
 	#[serde(default = "default_request_conn_timeout")]
-	pub request_conn_timeout: u64,
+	pub(crate) request_conn_timeout: u64,
 	#[serde(default = "default_request_timeout")]
-	pub request_timeout: u64,
+	pub(crate) request_timeout: u64,
 	#[serde(default = "default_request_total_timeout")]
-	pub request_total_timeout: u64,
+	pub(crate) request_total_timeout: u64,
 	#[serde(default = "default_request_idle_timeout")]
-	pub request_idle_timeout: u64,
+	pub(crate) request_idle_timeout: u64,
 	#[serde(default = "default_request_idle_per_host")]
-	pub request_idle_per_host: u16,
+	pub(crate) request_idle_per_host: u16,
 	#[serde(default = "default_well_known_conn_timeout")]
-	pub well_known_conn_timeout: u64,
+	pub(crate) well_known_conn_timeout: u64,
 	#[serde(default = "default_well_known_timeout")]
-	pub well_known_timeout: u64,
+	pub(crate) well_known_timeout: u64,
 	#[serde(default = "default_federation_timeout")]
-	pub federation_timeout: u64,
+	pub(crate) federation_timeout: u64,
 	#[serde(default = "default_federation_idle_timeout")]
-	pub federation_idle_timeout: u64,
+	pub(crate) federation_idle_timeout: u64,
 	#[serde(default = "default_federation_idle_per_host")]
-	pub federation_idle_per_host: u16,
+	pub(crate) federation_idle_per_host: u16,
 	#[serde(default = "default_sender_timeout")]
-	pub sender_timeout: u64,
+	pub(crate) sender_timeout: u64,
 	#[serde(default = "default_sender_idle_timeout")]
-	pub sender_idle_timeout: u64,
+	pub(crate) sender_idle_timeout: u64,
 	#[serde(default = "default_sender_retry_backoff_limit")]
-	pub sender_retry_backoff_limit: u64,
+	pub(crate) sender_retry_backoff_limit: u64,
 	#[serde(default = "default_appservice_timeout")]
-	pub appservice_timeout: u64,
+	pub(crate) appservice_timeout: u64,
 	#[serde(default = "default_appservice_idle_timeout")]
-	pub appservice_idle_timeout: u64,
+	pub(crate) appservice_idle_timeout: u64,
 	#[serde(default = "default_pusher_idle_timeout")]
-	pub pusher_idle_timeout: u64,
+	pub(crate) pusher_idle_timeout: u64,
 
 	#[serde(default)]
-	pub allow_registration: bool,
+	pub(crate) allow_registration: bool,
 	#[serde(default)]
-	pub yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse: bool,
-	pub registration_token: Option<String>,
+	pub(crate) yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse: bool,
+	pub(crate) registration_token: Option<String>,
 	#[serde(default = "true_fn")]
-	pub allow_encryption: bool,
+	pub(crate) allow_encryption: bool,
 	#[serde(default = "true_fn")]
-	pub allow_federation: bool,
+	pub(crate) allow_federation: bool,
 	#[serde(default)]
-	pub allow_public_room_directory_over_federation: bool,
+	pub(crate) allow_public_room_directory_over_federation: bool,
 	#[serde(default)]
-	pub allow_public_room_directory_without_auth: bool,
+	pub(crate) allow_public_room_directory_without_auth: bool,
 	#[serde(default)]
-	pub lockdown_public_room_directory: bool,
+	pub(crate) lockdown_public_room_directory: bool,
 	#[serde(default)]
-	pub allow_device_name_federation: bool,
+	pub(crate) allow_device_name_federation: bool,
 	#[serde(default = "true_fn")]
-	pub allow_profile_lookup_federation_requests: bool,
+	pub(crate) allow_profile_lookup_federation_requests: bool,
 	#[serde(default = "true_fn")]
-	pub allow_room_creation: bool,
+	pub(crate) allow_room_creation: bool,
 	#[serde(default = "true_fn")]
-	pub allow_unstable_room_versions: bool,
+	pub(crate) allow_unstable_room_versions: bool,
 	#[serde(default = "default_default_room_version")]
-	pub default_room_version: RoomVersionId,
+	pub(crate) default_room_version: RoomVersionId,
 	#[serde(default)]
-	pub well_known: WellKnownConfig,
+	pub(crate) well_known: WellKnownConfig,
 	#[serde(default)]
-	pub allow_jaeger: bool,
+	pub(crate) allow_jaeger: bool,
 	#[serde(default)]
-	pub tracing_flame: bool,
+	pub(crate) tracing_flame: bool,
 	#[serde(default)]
-	pub proxy: ProxyConfig,
-	pub jwt_secret: Option<String>,
+	pub(crate) proxy: ProxyConfig,
+	pub(crate) jwt_secret: Option<String>,
 	#[serde(default = "default_trusted_servers")]
-	pub trusted_servers: Vec<OwnedServerName>,
+	pub(crate) trusted_servers: Vec<OwnedServerName>,
 	#[serde(default = "true_fn")]
-	pub query_trusted_key_servers_first: bool,
+	pub(crate) query_trusted_key_servers_first: bool,
 	#[serde(default = "default_log")]
-	pub log: String,
+	pub(crate) log: String,
 	#[serde(default)]
-	pub turn_username: String,
+	pub(crate) turn_username: String,
 	#[serde(default)]
-	pub turn_password: String,
+	pub(crate) turn_password: String,
 	#[serde(default = "Vec::new")]
-	pub turn_uris: Vec<String>,
+	pub(crate) turn_uris: Vec<String>,
 	#[serde(default)]
-	pub turn_secret: String,
+	pub(crate) turn_secret: String,
 	#[serde(default = "default_turn_ttl")]
-	pub turn_ttl: u64,
+	pub(crate) turn_ttl: u64,
 
 	#[serde(default = "Vec::new")]
-	pub auto_join_rooms: Vec<OwnedRoomId>,
+	pub(crate) auto_join_rooms: Vec<OwnedRoomId>,
 
 	#[serde(default = "default_rocksdb_log_level")]
-	pub rocksdb_log_level: String,
+	pub(crate) rocksdb_log_level: String,
 	#[serde(default)]
-	pub rocksdb_log_stderr: bool,
+	pub(crate) rocksdb_log_stderr: bool,
 	#[serde(default = "default_rocksdb_max_log_file_size")]
-	pub rocksdb_max_log_file_size: usize,
+	pub(crate) rocksdb_max_log_file_size: usize,
 	#[serde(default = "default_rocksdb_log_time_to_roll")]
-	pub rocksdb_log_time_to_roll: usize,
+	pub(crate) rocksdb_log_time_to_roll: usize,
 	#[serde(default)]
-	pub rocksdb_optimize_for_spinning_disks: bool,
+	pub(crate) rocksdb_optimize_for_spinning_disks: bool,
 	#[serde(default = "default_rocksdb_parallelism_threads")]
-	pub rocksdb_parallelism_threads: usize,
+	pub(crate) rocksdb_parallelism_threads: usize,
 	#[serde(default = "default_rocksdb_max_log_files")]
-	pub rocksdb_max_log_files: usize,
+	pub(crate) rocksdb_max_log_files: usize,
 	#[serde(default = "default_rocksdb_compression_algo")]
-	pub rocksdb_compression_algo: String,
+	pub(crate) rocksdb_compression_algo: String,
 	#[serde(default = "default_rocksdb_compression_level")]
-	pub rocksdb_compression_level: i32,
+	pub(crate) rocksdb_compression_level: i32,
 	#[serde(default = "default_rocksdb_bottommost_compression_level")]
-	pub rocksdb_bottommost_compression_level: i32,
+	pub(crate) rocksdb_bottommost_compression_level: i32,
 	#[serde(default)]
-	pub rocksdb_bottommost_compression: bool,
+	pub(crate) rocksdb_bottommost_compression: bool,
 	#[serde(default = "default_rocksdb_recovery_mode")]
-	pub rocksdb_recovery_mode: u8,
+	pub(crate) rocksdb_recovery_mode: u8,
 	#[serde(default)]
-	pub rocksdb_repair: bool,
+	pub(crate) rocksdb_repair: bool,
 	#[serde(default)]
-	pub rocksdb_read_only: bool,
+	pub(crate) rocksdb_read_only: bool,
 	#[serde(default)]
-	pub rocksdb_periodic_cleanup: bool,
+	pub(crate) rocksdb_periodic_cleanup: bool,
 
-	pub emergency_password: Option<String>,
+	pub(crate) emergency_password: Option<String>,
 
 	#[serde(default = "default_notification_push_path")]
-	pub notification_push_path: String,
+	pub(crate) notification_push_path: String,
 
 	#[serde(default = "true_fn")]
-	pub allow_local_presence: bool,
+	pub(crate) allow_local_presence: bool,
 	#[serde(default = "true_fn")]
-	pub allow_incoming_presence: bool,
+	pub(crate) allow_incoming_presence: bool,
 	#[serde(default = "true_fn")]
-	pub allow_outgoing_presence: bool,
+	pub(crate) allow_outgoing_presence: bool,
 	#[serde(default = "default_presence_idle_timeout_s")]
-	pub presence_idle_timeout_s: u64,
+	pub(crate) presence_idle_timeout_s: u64,
 	#[serde(default = "default_presence_offline_timeout_s")]
-	pub presence_offline_timeout_s: u64,
+	pub(crate) presence_offline_timeout_s: u64,
 	#[serde(default = "true_fn")]
-	pub presence_timeout_remote_users: bool,
+	pub(crate) presence_timeout_remote_users: bool,
 
 	#[serde(default = "true_fn")]
-	pub allow_incoming_read_receipts: bool,
+	pub(crate) allow_incoming_read_receipts: bool,
 	#[serde(default = "true_fn")]
-	pub allow_outgoing_read_receipts: bool,
+	pub(crate) allow_outgoing_read_receipts: bool,
 
 	#[serde(default = "true_fn")]
-	pub allow_outgoing_typing: bool,
+	pub(crate) allow_outgoing_typing: bool,
 	#[serde(default = "true_fn")]
-	pub allow_incoming_typing: bool,
+	pub(crate) allow_incoming_typing: bool,
 	#[serde(default = "default_typing_federation_timeout_s")]
-	pub typing_federation_timeout_s: u64,
+	pub(crate) typing_federation_timeout_s: u64,
 	#[serde(default = "default_typing_client_timeout_min_s")]
-	pub typing_client_timeout_min_s: u64,
+	pub(crate) typing_client_timeout_min_s: u64,
 	#[serde(default = "default_typing_client_timeout_max_s")]
-	pub typing_client_timeout_max_s: u64,
+	pub(crate) typing_client_timeout_max_s: u64,
 
 	#[serde(default)]
-	pub zstd_compression: bool,
+	pub(crate) zstd_compression: bool,
 	#[serde(default)]
-	pub gzip_compression: bool,
+	pub(crate) gzip_compression: bool,
 	#[serde(default)]
-	pub brotli_compression: bool,
+	pub(crate) brotli_compression: bool,
 
 	#[serde(default)]
-	pub allow_guest_registration: bool,
+	pub(crate) allow_guest_registration: bool,
 	#[serde(default)]
-	pub log_guest_registrations: bool,
+	pub(crate) log_guest_registrations: bool,
 	#[serde(default)]
-	pub allow_guests_auto_join_rooms: bool,
+	pub(crate) allow_guests_auto_join_rooms: bool,
 
 	#[serde(default = "Vec::new")]
-	pub prevent_media_downloads_from: Vec<OwnedServerName>,
+	pub(crate) prevent_media_downloads_from: Vec<OwnedServerName>,
 	#[serde(default = "Vec::new")]
-	pub forbidden_remote_server_names: Vec<OwnedServerName>,
+	pub(crate) forbidden_remote_server_names: Vec<OwnedServerName>,
 	#[serde(default = "Vec::new")]
-	pub forbidden_remote_room_directory_server_names: Vec<OwnedServerName>,
+	pub(crate) forbidden_remote_room_directory_server_names: Vec<OwnedServerName>,
 
 	#[serde(default = "default_ip_range_denylist")]
-	pub ip_range_denylist: Vec<String>,
+	pub(crate) ip_range_denylist: Vec<String>,
 
 	#[serde(default = "Vec::new")]
-	pub url_preview_domain_contains_allowlist: Vec<String>,
+	pub(crate) url_preview_domain_contains_allowlist: Vec<String>,
 	#[serde(default = "Vec::new")]
-	pub url_preview_domain_explicit_allowlist: Vec<String>,
+	pub(crate) url_preview_domain_explicit_allowlist: Vec<String>,
 	#[serde(default = "Vec::new")]
-	pub url_preview_domain_explicit_denylist: Vec<String>,
+	pub(crate) url_preview_domain_explicit_denylist: Vec<String>,
 	#[serde(default = "Vec::new")]
-	pub url_preview_url_contains_allowlist: Vec<String>,
+	pub(crate) url_preview_url_contains_allowlist: Vec<String>,
 	#[serde(default = "default_url_preview_max_spider_size")]
-	pub url_preview_max_spider_size: usize,
+	pub(crate) url_preview_max_spider_size: usize,
 	#[serde(default)]
-	pub url_preview_check_root_domain: bool,
+	pub(crate) url_preview_check_root_domain: bool,
 
 	#[serde(default = "RegexSet::empty")]
 	#[serde(with = "serde_regex")]
-	pub forbidden_alias_names: RegexSet,
+	pub(crate) forbidden_alias_names: RegexSet,
 
 	#[serde(default = "RegexSet::empty")]
 	#[serde(with = "serde_regex")]
-	pub forbidden_usernames: RegexSet,
+	pub(crate) forbidden_usernames: RegexSet,
 
 	#[serde(default = "true_fn")]
-	pub startup_netburst: bool,
+	pub(crate) startup_netburst: bool,
 	#[serde(default = "default_startup_netburst_keep")]
-	pub startup_netburst_keep: i64,
+	pub(crate) startup_netburst_keep: i64,
 
 	#[serde(default)]
-	pub block_non_admin_invites: bool,
+	pub(crate) block_non_admin_invites: bool,
 
 	#[serde(default)]
-	pub sentry: bool,
+	pub(crate) sentry: bool,
 	#[serde(default)]
-	pub sentry_send_server_name: bool,
+	pub(crate) sentry_send_server_name: bool,
 	#[serde(default = "default_sentry_traces_sample_rate")]
-	pub sentry_traces_sample_rate: f32,
+	pub(crate) sentry_traces_sample_rate: f32,
 
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
-	pub catchall: BTreeMap<String, IgnoredAny>,
+	catchall: BTreeMap<String, IgnoredAny>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct TlsConfig {
-	pub certs: String,
-	pub key: String,
+pub(crate) struct TlsConfig {
+	pub(crate) certs: String,
+	pub(crate) key: String,
 	#[serde(default)]
 	/// Whether to listen and allow for HTTP and HTTPS connections (insecure!)
 	/// Only works / does something if the `axum_dual_protocol` feature flag was
 	/// built
-	pub dual_protocol: bool,
+	pub(crate) dual_protocol: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-pub struct WellKnownConfig {
-	pub client: Option<Url>,
-	pub server: Option<OwnedServerName>,
-	pub support_page: Option<Url>,
-	pub support_role: Option<ContactRole>,
-	pub support_email: Option<String>,
-	pub support_mxid: Option<OwnedUserId>,
+pub(crate) struct WellKnownConfig {
+	pub(crate) client: Option<Url>,
+	pub(crate) server: Option<OwnedServerName>,
+	pub(crate) support_page: Option<Url>,
+	pub(crate) support_role: Option<ContactRole>,
+	pub(crate) support_email: Option<String>,
+	pub(crate) support_mxid: Option<OwnedUserId>,
 }
 
 const DEPRECATED_KEYS: &[&str] = &[
@@ -361,7 +361,7 @@ const DEPRECATED_KEYS: &[&str] = &[
 
 impl Config {
 	/// Initialize config
-	pub fn new(path: Option<PathBuf>) -> Result<Self, Error> {
+	pub(crate) fn new(path: Option<PathBuf>) -> Result<Self, Error> {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())
@@ -389,7 +389,7 @@ impl Config {
 
 	/// Iterates over all the keys in the config file and warns if there is a
 	/// deprecated key specified
-	pub fn warn_deprecated(&self) {
+	pub(crate) fn warn_deprecated(&self) {
 		debug!("Checking for deprecated config keys");
 		let mut was_deprecated = false;
 		for key in self
@@ -411,7 +411,7 @@ impl Config {
 
 	/// iterates over all the catchall keys (unknown config options) and warns
 	/// if there are any.
-	pub fn warn_unknown_key(&self) {
+	pub(crate) fn warn_unknown_key(&self) {
 		debug!("Checking for unknown config keys");
 		for key in self
 			.catchall
@@ -439,7 +439,7 @@ impl Config {
 	}
 
 	#[must_use]
-	pub fn get_bind_addrs(&self) -> Vec<SocketAddr> {
+	pub(crate) fn get_bind_addrs(&self) -> Vec<SocketAddr> {
 		match &self.port.ports {
 			Left(port) => {
 				// Left is only 1 value, so make a vec with 1 value only
@@ -459,7 +459,7 @@ impl Config {
 		}
 	}
 
-	pub fn check(&self) -> Result<(), Error> { check(self) }
+	pub(crate) fn check(&self) -> Result<(), Error> { check(self) }
 }
 
 impl fmt::Display for Config {
