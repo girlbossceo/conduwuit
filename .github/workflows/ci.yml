@@ -58,153 +58,135 @@ jobs:
             - name: Populate `/nix/store` and package environment
               run: |
                   nix develop --command true
-                  sudo tar -czf environment.tar.gz /nix/store ~/.cargo /etc/nix/nix.conf
 
-            - name: Store build environment
-              uses: actions/upload-artifact@v4
-              with:
-                  name: build-environment
-                  path: environment.tar.gz
-
-    build_and_package:
-        needs: setup
-        name: Build and Package
-        runs-on: ubuntu-latest
-        strategy:
-            max-parallel: 8
-            matrix:
-                target:
-                    [
-                        "x86_64-unknown-linux-musl",
-                        "x86_64-unknown-linux-musl-jemalloc",
-                        "aarch64-unknown-linux-musl",
-                        "aarch64-unknown-linux-musl-jemalloc",
-                    ]
-
-        steps:
-            - name: Download build environment
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-environment
-
-            - name: Extract build environment
+            - name: Install and activate `direnv`
               run: |
-                  sudo tar -xzf environment.tar.gz -C /
-
-            - name: Sync repository
-              uses: actions/checkout@v4
-
-            - name: Install Nix (with flakes and nix-command enabled)
-              uses: cachix/install-nix-action@v26
-              with:
-                  nix_path: nixpkgs=channel:nixos-unstable
-                  extra_nix_config: |
-                      experimental-features = nix-command flakes
-                      extra-substituters = https://nix-community.cachix.org
-                      extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-                      extra-substituters = https://crane.cachix.org
-                      extra-trusted-public-keys = crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
-                      extra-substituters = https://nix.computer.surgery/conduit
-                      extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduit
-                      extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
-                      extra-substituters = https://attic.kennel.juneis.dog/conduwuit
-                      extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
-
-            - name: Add alternative Nix binary caches if specified
-              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
-              run: |
-                  echo "extra-substituters = ${{ env.ATTIC_ENDPOINT }}" >> /etc/nix/nix.conf
-                  echo "extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}" >> /etc/nix/nix.conf
-
-            - name: Install `direnv` and `nix-direnv`
-              run: nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
-
-            - name: Reuse build environment
-              run: |
+                  nix-env -f "<nixpkgs>" -iA direnv -iA nix-direnv
                   touch $HOME/.direnvrc
                   source $HOME/.direnvrc
                   direnv allow
- 
-            - name: Build static ${{ matrix.target }}
-              run: |
-                  ./bin/nix-build-and-cache .#static-${{ matrix.target }}
-                  mkdir -p target/release
-                  cp -v -f result/bin/conduit target/release
 
-            - name: Upload static ${{ matrix.target }}
+            - name: Build static targets
+              run: |
+                  /bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl .#static-x86_64-unknown-linux-musl-jemalloc .#static-aarch64-unknown-linux-musl .#static-aarch64-unknown-linux-musl-jemalloc
+
+            - name: Organise and prepare static outputs
+              run: |
+                  mkdir -p target/debian
+                  mv result/bin/conduit target/static-x86_64-unknown-linux-musl
+                  direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl.deb
+                  mv result-1/bin/conduit target/static-x86_64-unknown-linux-musl-jemalloc
+                  direnv exec . cargo deb --no-build --no-strip --output target/debian/x86_64-unknown-linux-musl-jemalloc.deb
+                  mv result-2/bin/conduit target/static-aarch64-unknown-linux-musl
+                  direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl.deb
+                  mv result-3/bin/conduit target/static-aarch64-unknown-linux-musl-jemalloc
+                  direnv exec . cargo deb --no-build --no-strip --output target/debian/aarch64-unknown-linux-musl-jemalloc.deb
+                  mv target/debian/*.deb target/
+                  rm -rf target/debian
+            
+            - name: Upload static-x86_64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
-                  name: static-${{ matrix.target }}
-                  path: result/bin/conduit
+                  name: static-x86_64-unknown-linux-musl
+                  path: target/static-x86_64-unknown-linux-musl
                   if-no-files-found: error
-
-            - name: Build deb ${{ matrix.target }}
-              run: |
-                  direnv exec . cargo deb --no-build --no-strip --output target/debian/${{ matrix.target }}.deb
-
-            - name: Upload deb ${{ matrix.target }}
+            
+            - name: Upload static-x86_64-unknown-linux-musl-jemalloc
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{ matrix.target }}.deb
-                  path: target/debian/${{ matrix.target }}.deb
+                  name: static-x86_64-unknown-linux-musl-jemalloc
+                  path: target/static-x86_64-unknown-linux-musl-jemalloc
                   if-no-files-found: error
+            
+            - name: Upload static-aarch64-unknown-linux-musl
+              uses: actions/upload-artifact@v4
+              with:
+                  name: static-aarch64-unknown-linux-musl
+                  path: target/static-aarch64-unknown-linux-musl
+                  if-no-files-found: error
+            
+            - name: Upload static-aarch64-unknown-linux-musl-jemalloc
+              uses: actions/upload-artifact@v4
+              with:
+                  name: static-aarch64-unknown-linux-musl-jemalloc
+                  path: target/static-aarch64-unknown-linux-musl-jemalloc
+                  if-no-files-found: error
+            
+            - name: Upload deb x86_64-unknown-linux-musl
+              uses: actions/upload-artifact@v4
+              with:
+                  name: x86_64-unknown-linux-musl.deb
+                  path: target/x86_64-unknown-linux-musl.deb
+                  if-no-files-found: error
+            
+            - name: Upload deb x86_64-unknown-linux-musl-jemalloc
+              uses: actions/upload-artifact@v4
+              with:
+                  name: x86_64-unknown-linux-musl-jemalloc.deb
+                  path: target/x86_64-unknown-linux-musl-jemalloc.deb
+                  if-no-files-found: error
+            
+            - name: Upload deb aarch64-unknown-linux-musl
+              uses: actions/upload-artifact@v4
+              with:
+                  name: aarch64-unknown-linux-musl.deb
+                  path: target/aarch64-unknown-linux-musl.deb
+                  if-no-files-found: error
+            
+            - name: Upload deb aarch64-unknown-linux-musl-jemalloc
+              uses: actions/upload-artifact@v4
+              with:
+                  name: aarch64-unknown-linux-musl-jemalloc.deb
+                  path: target/aarch64-unknown-linux-musl-jemalloc.deb
+                  if-no-files-found: error
+
+            - name: Build OCI images
+              run: |
+                  /bin/nix-build-and-cache .#oci-image-x86_64-unknown-linux-musl .#oci-image-x86_64-unknown-linux-musl-jemalloc .#oci-image-aarch64-unknown-linux-musl .#oci-image-aarch64-unknown-linux-musl-jemalloc
+
+            - name: Organise OCI outputs
+              run: |
+                  mv result oci-image-x86_64-unknown-linux-musl.tar.gz
+                  mv result-1 oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  mv result-2 oci-image-aarch64-unknown-linux-musl.tar.gz
+                  mv result-3 oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
 
             - name: Build OCI for ${{ matrix.target }}
               run: |
                   ./bin/nix-build-and-cache .#oci-image-${{ matrix.target }}
                   cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
-            - name: Upload OCI ${{ matrix.target }}
+            - name: Upload OCI image x86_64-unknown-linux-musl
               uses: actions/upload-artifact@v4
               with:
-                  name: oci-image-${{ matrix.target }}
-                  path: oci-image-${{ matrix.target }}.tar.gz
+                  name: oci-image-x86_64-unknown-linux-musl.tar.gz
+                  path: oci-image-x86_64-unknown-linux-musl.tar.gz
                   if-no-files-found: error
-                  # don't compress again
                   compression-level: 0
-
-    cleanup_artifacts:
-        name: Cleanup build environment artifact
-        needs: build_and_package
-        runs-on: ubuntu-latest
-        steps:
-            - name: Fetch artifact ID
-              id: get-artifact
-              uses: actions/github-script@v6
-              with:
-                  script: |
-                    const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        run_id: ${{ github.run_id }}
-                    });
-                    const artifact = artifacts.data.artifacts.find(artifact => artifact.name === 'build-environment');
-                    if (!artifact) {
-                      throw new Error('Artifact build-environment not found');
-                    }
-                    return artifact.id;
             
-            - name: Delete artifact
-              uses: actions/github-script@v6
+            - name: Upload OCI image x86_64-unknown-linux-musl-jemalloc
+              uses: actions/upload-artifact@v4
               with:
-                  script: |
-                    await github.rest.actions.deleteArtifact({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        artifact_id: ${{ steps.get-artifact.outputs.result }}
-                    });
-
-    docker-push:
-        needs: build_and_package
-        name: Publish to Docker Registries
-        runs-on: ubuntu-latest
-        if: github.event_name != 'pull_request'
-        steps:
-            - name: Download OCI Images Artifacts
-              uses: actions/download-artifact@v4
+                  name: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  path: oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  if-no-files-found: error
+                  compression-level: 0
+            
+            - name: Upload OCI image aarch64-unknown-linux-musl
+              uses: actions/upload-artifact@v4
               with:
-                  merge-multiple: true
+                  name: oci-image-aarch64-unknown-linux-musl.tar.gz
+                  path: oci-image-aarch64-unknown-linux-musl.tar.gz
+                  if-no-files-found: error
+                  compression-level: 0
+            
+            - name: Upload OCI image aarch64-unknown-linux-musl-jemalloc
+              uses: actions/upload-artifact@v4
+              with:
+                  name: oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
+                  path: oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
+                  if-no-files-found: error
+                  compression-level: 0
 
             - name: Load OCI Images and tag
               run: |
