@@ -17,6 +17,8 @@ pub(crate) trait Data: Send + Sync {
 
 	fn get_all_media_keys(&self) -> Result<Vec<Vec<u8>>>;
 
+	// TODO: use this
+	#[allow(dead_code)]
 	fn remove_url_preview(&self, url: &str) -> Result<()>;
 
 	fn set_url_preview(&self, url: &str, data: &super::UrlPreviewData, timestamp: std::time::Duration) -> Result<()>;

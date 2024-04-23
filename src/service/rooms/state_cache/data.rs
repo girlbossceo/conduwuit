@@ -47,6 +47,9 @@ pub(crate) trait Data: Send + Sync {
 	fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>>;
 
 	/// Returns an iterator over all User IDs who ever joined a room.
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn room_useroncejoined<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
 	/// Returns an iterator over all invited members of a room.
@@ -83,5 +86,8 @@ pub(crate) trait Data: Send + Sync {
 
 	/// Add the given servers the list to accept or decline invites via for a
 	/// given room.
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> Result<()>;
 }

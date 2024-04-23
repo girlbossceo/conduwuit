@@ -153,6 +153,9 @@ impl Service {
 	*/
 
 	/// Returns the version of a room, if known
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	pub(crate) fn get_room_version(&self, room_id: &RoomId) -> Result<Option<RoomVersionId>> {
 		let create_event = services()
 			.rooms
@@ -188,6 +191,9 @@ impl Service {
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	pub(crate) fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.db.get_non_outlier_pdu(event_id)
 	}

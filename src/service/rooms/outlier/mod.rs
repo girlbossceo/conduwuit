@@ -16,6 +16,9 @@ impl Service {
 	}
 
 	/// Returns the pdu from the outlier tree.
+	///
+	/// TODO: use this?
+	#[allow(dead_code)]
 	pub(crate) fn get_pdu_outlier(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.db.get_outlier_pdu(event_id)
 	}

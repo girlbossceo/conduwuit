@@ -18,9 +18,15 @@ pub(crate) trait Data: Send + Sync {
 	#[allow(unused_qualifications)] // async traits
 	async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()>;
 	fn cleanup(&self) -> Result<()>;
+
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn flush(&self) -> Result<()>;
 	fn cork(&self) -> Result<Cork>;
 	fn cork_and_flush(&self) -> Result<Cork>;
+
+	/// TODO: use this?
+	#[allow(dead_code)]
 	fn cork_and_sync(&self) -> Result<Cork>;
 	fn memory_usage(&self) -> String;
 	fn clear_caches(&self, amount: u32);
