@@ -161,6 +161,38 @@ jobs:
                   # don't compress again
                   compression-level: 0
 
+    cleanup_artifacts:
+        name: Cleanup build environment artifact
+        needs: build_and_package
+        runs-on: ubuntu-latest
+        steps:
+            - name: Fetch artifact ID
+              id: get-artifact
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                    const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        run_id: ${{ github.run_id }}
+                    });
+                    const artifact = artifacts.data.artifacts.find(artifact => artifact.name === 'build-environment');
+                    if (!artifact) {
+                      throw new Error('Artifact build-environment not found');
+                    }
+                    return artifact.id;
+            
+            - name: Delete artifact
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                    await github.rest.actions.deleteArtifact({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        artifact_id: ${{ steps.get-artifact.outputs.result }},
+                        archive_format: 'zip'
+                    });
+
     docker-push:
         needs: build_and_package
         name: Publish to Docker Registries
