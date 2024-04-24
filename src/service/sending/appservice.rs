@@ -1,4 +1,4 @@
-use std::{fmt::Debug, mem, time::Duration};
+use std::{fmt::Debug, mem};
 
 use bytes::BytesMut;
 use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
@@ -25,8 +25,7 @@ where
 		.map_err(|e| {
 			warn!("Failed to find destination {}: {}", destination, e);
 			Error::BadServerResponse("Invalid destination")
-		})
-		.unwrap()
+		})?
 		.map(BytesMut::freeze);
 
 	let mut parts = http_request.uri().clone().into_parts();
@@ -44,9 +43,7 @@ where
 	);
 	*http_request.uri_mut() = parts.try_into().expect("our manipulation is always valid");
 
-	let mut reqwest_request = reqwest::Request::try_from(http_request)?;
-
-	*reqwest_request.timeout_mut() = Some(Duration::from_secs(120));
+	let reqwest_request = reqwest::Request::try_from(http_request)?;
 
 	let url = reqwest_request.url().clone();
 
@@ -89,6 +86,8 @@ where
 			url,
 			utils::string_from_bytes(&body)
 		);
+
+		return Err(Error::BadServerResponse("Appservice returned unsuccessful HTTP response"));
 	}
 
 	let response = T::IncomingResponse::try_from_http_response(
@@ -99,6 +98,6 @@ where
 
 	response.map(Some).map_err(|_| {
 		warn!("Appservice returned invalid response bytes {}\n{}", destination, url);
-		Error::BadServerResponse("Server returned bad response.")
+		Error::BadServerResponse("Appservice returned bad/invalid response")
 	})
 }
