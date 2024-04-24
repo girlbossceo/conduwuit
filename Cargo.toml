@@ -158,11 +158,9 @@ features = ["jpeg", "png", "gif", "webp"]
 [dependencies.log]
 version = "0.4.21"
 default-features = false
-features = ["max_level_trace", "release_max_level_info"]
 [dependencies.tracing]
 version = "0.1.40"
 default-features = false
-features = ["max_level_trace", "release_max_level_info"]
 [dependencies.tracing-subscriber]
 version = "0.3.18"
 features = ["env-filter"]
@@ -348,6 +346,7 @@ default = [
     "gzip_compression",
     "brotli_compression",
     "zstd_compression",
+    "release_max_log_level",
 ]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
@@ -376,6 +375,17 @@ perf_measurements = [
 hot_reload = ["dep:hot-lib-reloader"]
 
 hardened_malloc = ["hardened_malloc-rs"]
+
+# increases performance, reduces build times, and reduces binary size by not compiling or
+# genreating code for log level filters that users will generally not use (debug and trace) only in release builds
+#
+# the expense is obviously losing those log level filters for usage at runtime. debug builds will still have all log levels
+release_max_log_level = [
+    "tracing/max_level_trace",
+    "tracing/release_max_level_info",
+    "log/max_level_trace",
+    "log/release_max_level_info",
+]
 
 # developer feature useful only in debug builds.
 release_log_level = []
