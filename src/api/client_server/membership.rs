@@ -1150,7 +1150,7 @@ pub(crate) async fn join_room_by_id_helper(
 		if !restriction_rooms.is_empty()
 			&& servers
 				.iter()
-				.all(|s| *s != services().globals.server_name())
+				.any(|s| *s != services().globals.server_name())
 		{
 			info!(
 				"We couldn't do the join locally, maybe federation can help to satisfy the restricted join \
