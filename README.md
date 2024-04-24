@@ -3,7 +3,7 @@
 [![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
 
 <!-- ANCHOR: catchphrase -->
-### a well maintained fork of [Conduit](https://conduit.rs/)
+### a well maintained hard fork of [Conduit](https://conduit.rs/)
 <!-- ANCHOR_END: catchphrase -->
 
 Visit the [Conduwuit documentation](https://conduwuit.puppyirl.gay/) for more information.
@@ -29,11 +29,11 @@ An official conduwuit server ran by me is available at transfem.dev ([element.tr
 
 #### What is the current status?
 
-conduwuit is a fork of Conduit which is in beta, meaning you can join and participate in most
+conduwuit is a hard fork of Conduit which is in beta, meaning you can join and participate in most
 Matrix rooms, but not all features are supported and you might run into bugs
 from time to time.
 
-#### Why does this fork exist? Why don't you contribute back upstream?
+#### Why does this hard fork exist? Why don't you contribute back upstream?
 
 I now intend on contributing back as time and mental energy sees fit, but my fork still exists as a way to:
 - avoid unnecessary Matrix and general developer politics
