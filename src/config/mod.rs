@@ -106,8 +106,6 @@ pub(crate) struct Config {
 
 	#[serde(default = "default_max_request_size")]
 	pub(crate) max_request_size: u32,
-	#[serde(default = "default_max_concurrent_requests")]
-	pub(crate) max_concurrent_requests: u16,
 	#[serde(default = "default_max_fetch_prev_events")]
 	pub(crate) max_fetch_prev_events: u16,
 
@@ -511,7 +509,6 @@ impl fmt::Display for Config {
 			("DNS fallback to TCP", &self.dns_tcp_fallback.to_string()),
 			("Query all nameservers", &self.query_all_nameservers.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
-			("Maximum concurrent requests", &self.max_concurrent_requests.to_string()),
 			("Sender retry backoff limit", &self.sender_retry_backoff_limit.to_string()),
 			("Request connect timeout", &self.request_conn_timeout.to_string()),
 			("Request timeout", &self.request_timeout.to_string()),
@@ -876,8 +873,6 @@ fn default_dns_timeout() -> u64 { 10 }
 fn default_max_request_size() -> u32 {
 	20 * 1024 * 1024 // Default to 20 MB
 }
-
-fn default_max_concurrent_requests() -> u16 { 500 }
 
 fn default_request_conn_timeout() -> u64 { 10 }
 

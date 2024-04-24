@@ -83,21 +83,6 @@ port = 6167
 # likely need this to be 0.0.0.0.
 address = "127.0.0.1"
 
-# How many requests conduwuit sends to other servers at the same time concurrently. Default is 500
-# Note that because conduwuit is very fast unlike other homeserver implementations, setting this too
-# high could inadvertently result in ratelimits kicking in, or overloading lower-end homeservers out there.
-#
-# A valid use-case for enabling this is if you have a significant amount of overall federation activity
-# such as many rooms joined/tracked, and many servers in the true destination cache caused by that. Upon
-# rebooting conduwuit, depending on how fast your resources are, client and incoming federation requests
-# may timeout or be "stalled" for a period of time due to hitting the max concurrent requests limit from
-# refreshing federation/destination caches and such.
-#
-# If you have a lot of active users on your homeserver, you will definitely need to raise this.
-#
-# No this will not speed up room joins.
-#max_concurrent_requests = 500
-
 # Max request size for file uploads
 max_request_size = 20_000_000 # in bytes
 

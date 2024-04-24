@@ -25,7 +25,7 @@ use ruma::{
 	events::{push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
 	push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, ServerName, UInt, UserId,
 };
-use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
 
 use crate::{service::presence::Presence, services, utils::calculate_hash, Config, Error, PduEvent, Result};
@@ -39,7 +39,6 @@ pub(crate) struct Service {
 	pub(crate) db: &'static dyn Data,
 
 	/// The state for a given state hash.
-	pub(crate) maximum_requests: Arc<Semaphore>,
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
 	startup_netburst: bool,
@@ -91,7 +90,6 @@ impl Service {
 			db,
 			sender,
 			receiver: Mutex::new(receiver),
-			maximum_requests: Arc::new(Semaphore::new(config.max_concurrent_requests as usize)),
 			startup_netburst: config.startup_netburst,
 			startup_netburst_keep: config.startup_netburst_keep,
 		})
@@ -245,10 +243,7 @@ impl Service {
 		T: OutgoingRequest + Debug,
 	{
 		let client = &services().globals.client.federation;
-		let permit = self.maximum_requests.acquire().await;
-		let response = send::send(client, dest, request).await;
-		drop(permit);
-		response
+		send::send(client, dest, request).await
 	}
 
 	/// Sends a request to an appservice
@@ -261,11 +256,7 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug,
 	{
-		let permit = self.maximum_requests.acquire().await;
-		let response = appservice::send_request(registration, request).await;
-		drop(permit);
-
-		response
+		appservice::send_request(registration, request).await
 	}
 
 	/// Cleanup event data
@@ -670,10 +661,8 @@ async fn send_events_dest_appservice(dest: &Destination, id: &String, events: Ve
 		}
 	}
 
-	let permit = services().sending.maximum_requests.acquire().await;
-
 	debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
-	let response = match appservice::send_request(
+	match appservice::send_request(
 		services()
 			.appservice
 			.get_registration(id)
@@ -702,11 +691,7 @@ async fn send_events_dest_appservice(dest: &Destination, id: &String, events: Ve
 	{
 		Ok(_) => Ok(dest.clone()),
 		Err(e) => Err((dest.clone(), e)),
-	};
-
-	drop(permit);
-
-	response
+	}
 }
 
 #[tracing::instrument(skip(dest, events))]
@@ -772,16 +757,12 @@ async fn send_events_dest_push(
 			.try_into()
 			.expect("notification count can't go that high");
 
-		let permit = services().sending.maximum_requests.acquire().await;
-
 		let _response = services()
 			.pusher
 			.send_push_notice(userid, unread, &pusher, rules_for_user, &pdu)
 			.await
 			.map(|_response| dest.clone())
 			.map_err(|e| (dest.clone(), e));
-
-		drop(permit);
 	}
 
 	Ok(dest.clone())
@@ -830,10 +811,9 @@ async fn send_events_dest_normal(
 		}
 	}
 
-	let permit = services().sending.maximum_requests.acquire().await;
 	let client = &services().globals.client.sender;
 	debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty transaction");
-	let response = send::send(
+	send::send(
 		client,
 		server_name,
 		send_transaction_message::v1::Request {
@@ -862,11 +842,7 @@ async fn send_events_dest_normal(
 		}
 		dest.clone()
 	})
-	.map_err(|e| (dest.clone(), e));
-
-	drop(permit);
-
-	response
+	.map_err(|e| (dest.clone(), e))
 }
 
 impl Destination {
