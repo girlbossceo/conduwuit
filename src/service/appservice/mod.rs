@@ -152,6 +152,7 @@ impl Service {
 	///
 	/// * `service_name` - the name you send to register the service previously
 	pub(crate) async fn unregister_appservice(&self, service_name: &str) -> Result<()> {
+		// removes the appservice registration info
 		services()
 			.appservice
 			.registration_info
@@ -160,7 +161,14 @@ impl Service {
 			.remove(service_name)
 			.ok_or_else(|| crate::Error::AdminCommand("Appservice not found"))?;
 
-		self.db.unregister_appservice(service_name)
+		// remove the appservice from the database
+		self.db.unregister_appservice(service_name)?;
+
+		// deletes all active requests for the appservice if there are any so we stop
+		// sending to the URL
+		services().sending.cleanup_events(service_name.to_owned())?;
+
+		Ok(())
 	}
 
 	pub(crate) async fn get_registration(&self, id: &str) -> Option<Registration> {
