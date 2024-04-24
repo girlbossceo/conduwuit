@@ -2,29 +2,33 @@ use std::{fmt::Debug, mem};
 
 use bytes::BytesMut;
 use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
-use tracing::warn;
+use tracing::{trace, warn};
 
-use crate::{services, utils, Error, Result};
+use crate::{debug_error, services, utils, Error, Result};
 
 /// Sends a request to an appservice
 ///
-/// Only returns None if there is no url specified in the appservice
+/// Only returns Ok(None) if there is no url specified in the appservice
 /// registration file
 pub(crate) async fn send_request<T>(registration: Registration, request: T) -> Result<Option<T::IncomingResponse>>
 where
 	T: OutgoingRequest + Debug,
 {
-	let Some(destination) = registration.url else {
+	let Some(dest) = registration.url else {
 		return Ok(None);
 	};
 
+	trace!("Appservice URL \"{dest}\", Appservice ID: {}", registration.id);
+
 	let hs_token = registration.hs_token.as_str();
 
+	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
+
 	let mut http_request = request
-		.try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(hs_token), &[MatrixVersion::V1_0])
+		.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(hs_token), &VERSIONS)
 		.map_err(|e| {
-			warn!("Failed to find destination {}: {}", destination, e);
-			Error::BadServerResponse("Invalid destination")
+			warn!("Failed to find destination {dest}: {e}");
+			Error::BadServerResponse("Invalid appservice destination")
 		})?
 		.map(BytesMut::freeze);
 
@@ -45,8 +49,6 @@ where
 
 	let reqwest_request = reqwest::Request::try_from(http_request)?;
 
-	let url = reqwest_request.url().clone();
-
 	let mut response = services()
 		.globals
 		.client
@@ -54,10 +56,7 @@ where
 		.execute(reqwest_request)
 		.await
 		.map_err(|e| {
-			warn!(
-				"Could not send request to appservice {} at {}: {}",
-				registration.id, destination, e
-			);
+			warn!("Could not send request to appservice \"{}\" at {dest}: {e}", registration.id);
 			e
 		})?;
 
@@ -73,19 +72,14 @@ where
 			.expect("http::response::Builder is usable"),
 	);
 
-	let body = response.bytes().await.unwrap_or_else(|e| {
-		warn!("server error: {}", e);
-		Vec::new().into()
-	}); // TODO: handle timeout
+	let body = response.bytes().await?; // TODO: handle timeout
 
 	if !status.is_success() {
 		warn!(
-			"Appservice returned bad response {} {}\n{}\n{:?}",
-			destination,
-			status,
-			url,
-			utils::string_from_bytes(&body)
+			"Appservice \"{}\" returned unsuccessful HTTP response {status} at {dest}",
+			registration.id
 		);
+		debug_error!("Appservice response bytes: {:?}", utils::string_from_bytes(&body));
 
 		return Err(Error::BadServerResponse("Appservice returned unsuccessful HTTP response"));
 	}
@@ -96,8 +90,8 @@ where
 			.expect("reqwest body is valid http body"),
 	);
 
-	response.map(Some).map_err(|_| {
-		warn!("Appservice returned invalid response bytes {}\n{}", destination, url);
+	response.map(Some).map_err(|e| {
+		warn!("Appservice \"{}\" returned invalid response bytes {dest}: {e}", registration.id);
 		Error::BadServerResponse("Appservice returned bad/invalid response")
 	})
 }
