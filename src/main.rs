@@ -459,7 +459,7 @@ fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
 	let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
 		path.as_str()
 	} else {
-		&request.uri().to_string()
+		request.uri().path()
 	};
 
 	tracing::info_span!("router:", %path)
