@@ -5,7 +5,7 @@ use ruma::{
 	RoomId, RoomVersionId, ServerName,
 };
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::{api::server_server::parse_incoming_pdu, services, utils::HtmlEscape, Error, PduEvent, Result};
@@ -245,7 +245,7 @@ pub(crate) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Re
 	}
 
 	let json_text = serde_json::to_string_pretty(&room_state).map_err(|e| {
-		error!("Failed converting room state vector in our database to pretty JSON: {e}");
+		warn!("Failed converting room state vector in our database to pretty JSON: {e}");
 		Error::bad_database(
 			"Failed to convert room state events to pretty JSON, possible invalid room state events in our database",
 		)
@@ -297,7 +297,7 @@ pub(crate) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<Ro
 			)))
 		},
 		Err(e) => {
-			error!("Failed sending federation request to specified server from ping debug command: {e}");
+			warn!("Failed sending federation request to specified server from ping debug command: {e}");
 			Ok(RoomMessageEventContent::text_plain(format!(
 				"Failed sending federation request to specified server:\n\n{e}",
 			)))

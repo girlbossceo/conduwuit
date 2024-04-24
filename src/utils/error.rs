@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, fmt};
 
 use http::StatusCode;
 use ruma::{
@@ -9,13 +9,13 @@ use ruma::{
 	OwnedServerName,
 };
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::error;
 use ErrorKind::{
 	Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed, ThreepidDenied,
 	TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated, WrongRoomKeysVersion,
 };
 
-use crate::RumaResponse;
+use crate::{debug_info, RumaResponse};
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -92,9 +92,7 @@ impl Error {
 		error!("BadConfig: {}", message);
 		Self::BadConfig(message.to_owned())
 	}
-}
 
-impl Error {
 	pub(crate) fn to_response(&self) -> RumaResponse<UiaaResponse> {
 		if let Self::Uiaa(uiaainfo) = self {
 			return RumaResponse(UiaaResponse::AuthResponse(uiaainfo.clone()));
@@ -103,7 +101,7 @@ impl Error {
 		if let Self::Federation(origin, error) = self {
 			let mut error = error.clone();
 			error.body = ErrorBody::Standard {
-				kind: error.error_kind().unwrap_or(&Unknown).clone(),
+				kind: error.error_kind().unwrap_or_else(|| &Unknown).clone(),
 				message: format!("Answer from {origin}: {error}"),
 			};
 			return RumaResponse(UiaaResponse::MatrixError(error));
@@ -141,7 +139,7 @@ impl Error {
 			_ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
 		};
 
-		debug!("Returning an error: {status_code}: {message}");
+		debug_info!("Returning an error: {status_code}: {message}");
 		RumaResponse(UiaaResponse::MatrixError(RumaError {
 			body: ErrorBody::Standard {
 				kind,
@@ -154,7 +152,7 @@ impl Error {
 	/// Returns the Matrix error code / error kind
 	pub(crate) fn error_code(&self) -> ErrorKind {
 		if let Self::Federation(_, error) = self {
-			return error.error_kind().unwrap_or(&Unknown).clone();
+			return error.error_kind().unwrap_or_else(|| &Unknown).clone();
 		}
 
 		match self {
@@ -179,12 +177,6 @@ impl Error {
 			Self::Io {
 				..
 			} => db_error,
-			Self::BadConfig {
-				..
-			} => db_error,
-			Self::BadDatabase {
-				..
-			} => db_error,
 			_ => self.to_string(),
 		}
 	}
@@ -198,6 +190,6 @@ impl axum::response::IntoResponse for Error {
 	fn into_response(self) -> axum::response::Response { self.to_response().into_response() }
 }
 
-impl std::fmt::Debug for Error {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self) }
+impl fmt::Debug for Error {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self) }
 }
