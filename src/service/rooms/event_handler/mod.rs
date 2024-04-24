@@ -25,7 +25,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{
-	debug_info,
+	debug_error, debug_info,
 	service::{pdu, Arc, BTreeMap, HashMap, Result},
 	services, Error, PduEvent,
 };
@@ -1103,7 +1103,7 @@ impl Service {
 							events_all.insert(next_id);
 						},
 						Err(e) => {
-							warn!("Failed to fetch event {next_id}: {e}");
+							debug_error!("Failed to fetch event {next_id}: {e}");
 							back_off((*next_id).to_owned()).await;
 						},
 					}
