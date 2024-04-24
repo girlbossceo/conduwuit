@@ -25,8 +25,8 @@ permissions:
     contents: read
 
 jobs:
-    setup:
-        name: Prepare environment
+    tests:
+        name: Prepare and test
         runs-on: ubuntu-latest
         steps:
             - name: Sync repository
@@ -76,7 +76,8 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-latest
-        needs: setup
+        needs: tests
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         strategy:
             matrix:
                 include:
@@ -131,18 +132,19 @@ jobs:
                   mkdir -p target/release
                   cp -v -f result/bin/conduit target/release/
                   direnv exec . cargo deb --no-build --no-strip --output target/debian/${{ matrix.target }}.deb
+                  mv target/release/conduit static-${{ matrix.target }}
 
             - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
                   name: static-${{ matrix.target }}
-                  path: result/bin/conduit
+                  path: static-${{ matrix.target }}
                   if-no-files-found: error
 
             - name: Upload deb ${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{ matrix.target }}.deb
+                  name: deb-${{ matrix.target }}
                   path: target/debian/${{ matrix.target }}.deb
                   if-no-files-found: error
 
@@ -154,7 +156,7 @@ jobs:
             - name: Upload OCI image ${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
-                  name: oci-image-${{ matrix.target }}.tar.gz
+                  name: oci-image-${{ matrix.target }}
                   path: oci-image-${{ matrix.target }}.tar.gz
                   if-no-files-found: error
                   compression-level: 0
@@ -170,6 +172,7 @@ jobs:
 
             - name: Load OCI Images and tag
               run: |
+                  mv oci-image-*/*.tar.gz .
                   ID_AARCH64=$(docker load -i oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz | sed -n 's/Loaded image: \(.*\)/\1/p')
                   docker tag $ID_AARCH64 conduwuit:${{ github.sha }}-aarch64-jemalloc
                   ID_X86_64=$(docker load -i oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz | sed -n 's/Loaded image: \(.*\)/\1/p')
@@ -190,7 +193,7 @@ jobs:
               env:
                   GITHUB_USERNAME: ${{ github.repository_owner }}
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              if: ${{ (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
+              if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && (github.event_name != 'pull_request') && (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
               run: |
                   REPO_GHCR="ghcr.io/${{ github.repository }}"
                   SHA_TAG="${{ github.ref_name }}-${{ github.sha }}"
@@ -223,7 +226,7 @@ jobs:
               env:
                   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
                   DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-              if: ${{ (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
+              if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && (github.event_name != 'pull_request') && (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   REPO_DOCKER="docker.io/${{ github.repository }}"
                   SHA_TAG="${{ github.ref_name }}-${{ github.sha }}"
