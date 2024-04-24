@@ -166,9 +166,6 @@ jobs:
         runs-on: ubuntu-latest
         needs: build
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
-        permissions:
-            packages: write
-            contents: read
         steps:
             - name: Download artifacts
               uses: actions/download-artifact@v4
@@ -196,11 +193,11 @@ jobs:
               env:
                   GITHUB_USERNAME: ${{ github.repository_owner }}
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  REPO_GHCR: "ghcr.io/${{ github.repository }}"
+                  SHA_TAG: "${{ github.ref_name }}-${{ github.sha }}"
+                  BRANCH_TAG: ${{ github.ref_name }}
               if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && (github.event_name != 'pull_request') && (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
               run: |
-                  REPO_GHCR="ghcr.io/${{ github.repository }}"
-                  SHA_TAG="${{ github.ref_name }}-${{ github.sha }}"
-                  BRANCH_TAG="${{ github.ref_name }}"
                   if [ "$BRANCH_TAG" == "main" ]; then
                   BRANCH_TAG="latest"
                   fi
