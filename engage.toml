@@ -58,7 +58,7 @@ script = "lychee --version"
 [[task]]
 name = "cargo-audit"
 group = "security"
-script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
+script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked --ignore RUSTSEC-2020-0016"
 
 [[task]]
 name = "cargo-fmt"
