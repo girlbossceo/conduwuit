@@ -15,7 +15,7 @@ use ErrorKind::{
 	TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated, WrongRoomKeysVersion,
 };
 
-use crate::{debug_info, RumaResponse};
+use crate::RumaResponse;
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -139,7 +139,6 @@ impl Error {
 			_ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
 		};
 
-		debug_info!("Returning an error: {status_code}: {message}");
 		RumaResponse(UiaaResponse::MatrixError(RumaError {
 			body: ErrorBody::Standard {
 				kind,

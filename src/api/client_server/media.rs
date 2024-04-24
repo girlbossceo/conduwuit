@@ -10,10 +10,11 @@ use ruma::api::client::{
 		get_media_preview,
 	},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 use webpage::HTML;
 
 use crate::{
+	debug_warn,
 	service::media::{FileMeta, UrlPreviewData},
 	services, utils, Error, Result, Ruma, RumaResponse,
 };
@@ -324,17 +325,14 @@ pub(crate) async fn get_content_thumbnail_route(
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-		// we'll lie to the client and say the blocked server's media was not found and
-		// log. the client has no way of telling anyways so this is a security bonus.
 		if services()
 			.globals
 			.prevent_media_downloads_from()
 			.contains(&body.server_name.clone())
 		{
-			info!(
-				"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
-				mxc
-			);
+			// we'll lie to the client and say the blocked server's media was not found and
+			// log. the client has no way of telling anyways so this is a security bonus.
+			debug_warn!("Received request for media `{}` on blocklisted server", mxc);
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
 		}
 
@@ -402,17 +400,14 @@ pub(crate) async fn get_content_thumbnail_v1_route(
 async fn get_remote_content(
 	mxc: &str, server_name: &ruma::ServerName, media_id: String, allow_redirect: bool, timeout_ms: Duration,
 ) -> Result<get_content::v3::Response, Error> {
-	// we'll lie to the client and say the blocked server's media was not found and
-	// log. the client has no way of telling anyways so this is a security bonus.
 	if services()
 		.globals
 		.prevent_media_downloads_from()
 		.contains(&server_name.to_owned())
 	{
-		info!(
-			"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
-			mxc
-		);
+		// we'll lie to the client and say the blocked server's media was not found and
+		// log. the client has no way of telling anyways so this is a security bonus.
+		debug_warn!("Received request for media `{}` on blocklisted server", mxc);
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
 	}
 
