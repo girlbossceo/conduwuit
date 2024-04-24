@@ -9,6 +9,10 @@ pub(crate) fn check(config: &Config) -> Result<(), Error> {
 	config.warn_deprecated();
 	config.warn_unknown_key();
 
+	if config.sentry && config.sentry_endpoint.is_none() {
+		return Err(Error::bad_config("Sentry cannot be enabled without an endpoint set"));
+	}
+
 	if cfg!(feature = "hardened_malloc") && cfg!(feature = "jemalloc") {
 		warn!(
 			"hardened_malloc and jemalloc were built together, this causes neither to be used. Conduwuit will still \
@@ -87,8 +91,8 @@ pub(crate) fn check(config: &Config) -> Result<(), Error> {
 		return Err(Error::bad_config("Registration token was specified but is empty (\"\")"));
 	}
 
-	if config.max_request_size < 16384 {
-		return Err(Error::bad_config("Max request size is less than 16KB. Please increase it."));
+	if config.max_request_size < 5120000 {
+		return Err(Error::bad_config("Max request size is less than 5MB. Please increase it."));
 	}
 
 	// check if user specified valid IP CIDR ranges on startup

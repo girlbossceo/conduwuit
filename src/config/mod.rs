@@ -320,6 +320,8 @@ pub(crate) struct Config {
 
 	#[serde(default)]
 	pub(crate) sentry: bool,
+	#[serde(default = "default_sentry_endpoint")]
+	pub(crate) sentry_endpoint: Option<Url>,
 	#[serde(default)]
 	pub(crate) sentry_send_server_name: bool,
 	#[serde(default = "default_sentry_traces_sample_rate")]
@@ -997,6 +999,12 @@ fn default_url_preview_max_spider_size() -> usize {
 }
 
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }
+
+fn default_sentry_endpoint() -> Option<Url> {
+	Url::parse("https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536")
+		.unwrap()
+		.into()
+}
 
 fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
 
