@@ -665,7 +665,7 @@ async fn send_events_dest_appservice(
 	{
 		Ok(_) => Ok(dest.clone()),
 		Err(e) => Err((dest.clone(), e)),
-	}
+	};
 
 	drop(permit);
 
