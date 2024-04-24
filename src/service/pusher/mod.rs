@@ -22,7 +22,7 @@ use ruma::{
 };
 use tracing::{info, trace, warn};
 
-use crate::{services, Error, PduEvent, Result};
+use crate::{debug_info, services, Error, PduEvent, Result};
 
 pub(crate) struct Service {
 	pub(crate) db: &'static dyn Data,
@@ -43,18 +43,18 @@ impl Service {
 		self.db.get_pushkeys(sender)
 	}
 
-	#[tracing::instrument(skip(self, destination, request))]
-	pub(crate) async fn send_request<T>(&self, destination: &str, request: T) -> Result<T::IncomingResponse>
+	#[tracing::instrument(skip(self, dest, request))]
+	pub(crate) async fn send_request<T>(&self, dest: &str, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug,
 	{
-		let destination = destination.replace(services().globals.notification_push_path(), "");
+		let dest = dest.replace(services().globals.notification_push_path(), "");
 
 		let http_request = request
-			.try_into_http_request::<BytesMut>(&destination, SendAccessToken::IfRequired(""), &[MatrixVersion::V1_0])
+			.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(""), &[MatrixVersion::V1_0])
 			.map_err(|e| {
-				warn!("Failed to find destination {}: {}", destination, e);
-				Error::BadServerResponse("Invalid destination")
+				warn!("Failed to find destination {dest} for push gateway: {e}");
+				Error::BadServerResponse("Invalid push gateway destination")
 			})?
 			.map(BytesMut::freeze);
 
@@ -63,9 +63,7 @@ impl Service {
 		// TODO: we could keep this very short and let expo backoff do it's thing...
 		//*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
 
-		let url = reqwest_request.url().clone();
-
-		if let Some(url_host) = url.host_str() {
+		if let Some(url_host) = reqwest_request.url().host_str() {
 			trace!("Checking request URL for IP");
 			if let Ok(ip) = IPAddress::parse(url_host) {
 				if !services().globals.valid_cidr_range(&ip) {
@@ -105,19 +103,13 @@ impl Service {
 						.expect("http::response::Builder is usable"),
 				);
 
-				let body = response.bytes().await.unwrap_or_else(|e| {
-					warn!("server error {}", e);
-					Vec::new().into()
-				}); // TODO: handle timeout
+				let body = response.bytes().await?; // TODO: handle timeout
 
 				if !status.is_success() {
-					info!(
-						"Push gateway returned bad response {} {}\n{}\n{:?}",
-						destination,
-						status,
-						url,
-						crate::utils::string_from_bytes(&body)
-					);
+					info!("Push gateway {dest} returned unsuccessful HTTP response ({status})");
+					debug_info!("Push gateway response body: {:?}", crate::utils::string_from_bytes(&body));
+
+					return Err(Error::BadServerResponse("Push gateway returned unsuccessful response"));
 				}
 
 				let response = T::IncomingResponse::try_from_http_response(
@@ -125,13 +117,13 @@ impl Service {
 						.body(body)
 						.expect("reqwest body is valid http body"),
 				);
-				response.map_err(|_| {
-					info!("Push gateway returned invalid response bytes {}\n{}", destination, url);
-					Error::BadServerResponse("Push gateway returned bad response.")
+				response.map_err(|e| {
+					warn!("Push gateway {dest} returned invalid response bytes: {e}");
+					Error::BadServerResponse("Push gateway returned bad/invalid response")
 				})
 			},
 			Err(e) => {
-				warn!("Could not send request to pusher {}: {}", destination, e);
+				warn!("Could not send request to pusher {dest}: {e}");
 				Err(e.into())
 			},
 		}
