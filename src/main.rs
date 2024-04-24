@@ -397,7 +397,7 @@ fn request_result_log(method: &Method, uri: &Uri, result: &axum::response::Respo
 }
 
 fn cors_layer(_server: &Server) -> CorsLayer {
-	let methods = [
+	const METHODS: [Method; 6] = [
 		Method::GET,
 		Method::HEAD,
 		Method::POST,
@@ -406,9 +406,9 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 		Method::OPTIONS,
 	];
 
-	let headers = [
+	let headers: [HeaderName; 5] = [
 		header::ORIGIN,
-		HeaderName::from_static("x-requested-with"),
+		HeaderName::from_lowercase(b"x-requested-with").unwrap(),
 		header::CONTENT_TYPE,
 		header::ACCEPT,
 		header::AUTHORIZATION,
@@ -416,7 +416,7 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 
 	CorsLayer::new()
 		.allow_origin(cors::Any)
-		.allow_methods(methods)
+		.allow_methods(METHODS)
 		.allow_headers(headers)
 		.max_age(Duration::from_secs(86400))
 }
@@ -529,7 +529,11 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 #[cfg(feature = "sentry_telemetry")]
 fn init_sentry(config: &Config) -> sentry::ClientInitGuard {
 	sentry::init((
-		"https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536",
+		config
+			.sentry_endpoint
+			.as_ref()
+			.expect("init_sentry should only be called if sentry is enabled and this is not None")
+			.as_str(),
 		sentry::ClientOptions {
 			release: sentry::release_name!(),
 			traces_sample_rate: config.sentry_traces_sample_rate,

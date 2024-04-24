@@ -34,11 +34,16 @@
 # Defaults to `matrix.org`
 # trusted_servers = ["matrix.org"]
 
-# Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
-# Conduwuit's Sentry reporting endpoint is o4506996327251968.ingest.us.sentry.io
+# Sentry.io crash/panic reporting, performance monitoring/metrics, etc. This is NOT enabled by default.
+# conduwuit's default Sentry reporting endpoint is o4506996327251968.ingest.us.sentry.io
 #
-# Defaults to false
+# Defaults to *false*
 #sentry = false
+
+# Sentry reporting URL if a custom one is desired
+#
+# Defaults to conduwuit's default Sentry endpoint: "https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536"
+#sentry_endpoint = ""
 
 # Report your Conduwuit server_name in Sentry.io crash reports and metrics
 #
