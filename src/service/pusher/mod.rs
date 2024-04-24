@@ -60,9 +60,6 @@ impl Service {
 
 		let reqwest_request = reqwest::Request::try_from(http_request)?;
 
-		// TODO: we could keep this very short and let expo backoff do it's thing...
-		//*reqwest_request.timeout_mut() = Some(Duration::from_secs(5));
-
 		if let Some(url_host) = reqwest_request.url().host_str() {
 			trace!("Checking request URL for IP");
 			if let Ok(ip) = IPAddress::parse(url_host) {
