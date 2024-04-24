@@ -38,12 +38,11 @@ use tokio::{
 use tower::ServiceBuilder;
 use tower_http::{
 	catch_panic::CatchPanicLayer,
-	classify::ServerErrorsFailureClass,
 	cors::{self, CorsLayer},
 	trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 	ServiceBuilderExt as _,
 };
-use tracing::{debug, error, info, trace, warn, Level, Span};
+use tracing::{debug, error, info, trace, warn, Level};
 use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
 use utils::{
 	clap,
@@ -456,16 +455,14 @@ fn compression_layer(server: &Server) -> tower_http::compression::CompressionLay
 	compression_layer
 }
 
-fn tracing_span<T>(request: &http::Request<T>) -> Span {
-	let path = request.extensions().get::<MatchedPath>();
-	let uri = &request.uri().to_string();
-
-	if let Some(path) = path {
-		let path = path.as_str();
-		tracing::info_span!("router:", %path, %uri)
+fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
+	let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
+		path.as_str()
 	} else {
-		tracing::info_span!("router:", %uri)
-	}
+		&request.uri().to_string()
+	};
+
+	tracing::info_span!("router:", %path)
 }
 
 /// Non-async initializations
