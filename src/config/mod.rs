@@ -368,12 +368,21 @@ impl Config {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())
 				.merge(Env::prefixed("CONDUIT_").global())
+				.merge(Env::prefixed("CONDUWUIT_").global())
+		} else if let Some(config_file_arg) = Env::var("CONDUWUIT_CONFIG") {
+			Figment::new()
+				.merge(Toml::file(config_file_arg).nested())
+				.merge(Env::prefixed("CONDUIT_").global())
+				.merge(Env::prefixed("CONDUWUIT_").global())
 		} else if let Some(config_file_arg) = path {
 			Figment::new()
 				.merge(Toml::file(config_file_arg).nested())
 				.merge(Env::prefixed("CONDUIT_").global())
+				.merge(Env::prefixed("CONDUWUIT_").global())
 		} else {
-			Figment::new().merge(Env::prefixed("CONDUIT_").global())
+			Figment::new()
+				.merge(Env::prefixed("CONDUIT_").global())
+				.merge(Env::prefixed("CONDUWUIT_").global())
 		};
 
 		let config = match raw_config.extract::<Config>() {
