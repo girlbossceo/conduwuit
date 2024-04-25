@@ -41,9 +41,9 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let mut col_cache = HashMap::new();
 		col_cache.insert("primary".to_owned(), Cache::new_lru_cache(col_cache_capacity_bytes));
 
-		let db_env = Env::new()?;
+		let mut db_env = Env::new()?;
 		let row_cache = Cache::new_lru_cache(row_cache_capacity_bytes);
-		let db_opts = db_options(config, &db_env, &row_cache, col_cache.get("primary").expect("cache"));
+		let db_opts = db_options(config, &mut db_env, &row_cache, col_cache.get("primary").expect("cache"));
 
 		let load_time = std::time::Instant::now();
 		if config.rocksdb_repair {
