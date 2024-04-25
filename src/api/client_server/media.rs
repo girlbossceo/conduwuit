@@ -40,12 +40,9 @@ pub(crate) async fn get_media_config_route(
 ///
 /// Returns max upload size.
 pub(crate) async fn get_media_config_v1_route(
-	_body: Ruma<get_media_config::v3::Request>,
+	body: Ruma<get_media_config::v3::Request>,
 ) -> Result<RumaResponse<get_media_config::v3::Response>> {
-	Ok(get_media_config::v3::Response {
-		upload_size: services().globals.max_request_size().into(),
-	}
-	.into())
+	get_media_config_route(body).await.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/preview_url`
@@ -98,38 +95,7 @@ pub(crate) async fn get_media_preview_route(
 pub(crate) async fn get_media_preview_v1_route(
 	body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<RumaResponse<get_media_preview::v3::Response>> {
-	let url = &body.url;
-	if !url_preview_allowed(url) {
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "URL is not allowed to be previewed"));
-	}
-
-	match get_url_preview(url).await {
-		Ok(preview) => {
-			let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
-				error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
-				Error::BadRequest(
-					ErrorKind::LimitExceeded {
-						retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
-					},
-					"Failed to generate a URL preview, try again later.",
-				)
-			})?;
-
-			Ok(get_media_preview::v3::Response::from_raw_value(res).into())
-		},
-		Err(e) => {
-			warn!("Failed to generate a URL preview: {e}");
-
-			// there doesn't seem to be an agreed-upon error code in the spec.
-			// the only response codes in the preview_url spec page are 200 and 429.
-			Err(Error::BadRequest(
-				ErrorKind::LimitExceeded {
-					retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
-				},
-				"Failed to generate a URL preview, try again later.",
-			))
-		},
-	}
+	get_media_preview_route(body).await.map(RumaResponse)
 }
 
 /// # `POST /_matrix/media/v3/upload`
@@ -184,81 +150,7 @@ pub(crate) async fn create_content_route(
 pub(crate) async fn create_content_v1_route(
 	body: Ruma<create_content::v3::Request>,
 ) -> Result<RumaResponse<create_content::v3::Response>> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	let mxc = format!(
-		"mxc://{}/{}",
-		services().globals.server_name(),
-		utils::random_string(MXC_LENGTH)
-	);
-
-	services()
-		.media
-		.create(
-			Some(sender_user.clone()),
-			mxc.clone(),
-			body.filename
-				.as_ref()
-				.map(|filename| "inline; filename=".to_owned() + filename)
-				.as_deref(),
-			body.content_type.as_deref(),
-			&body.file,
-		)
-		.await?;
-
-	let content_uri = mxc.into();
-
-	Ok(create_content::v3::Response {
-		content_uri,
-		blurhash: None,
-	}
-	.into())
-}
-
-/// helper method to fetch remote media from other servers over federation
-pub(crate) async fn get_remote_content(
-	mxc: &str, server_name: &ruma::ServerName, media_id: String, allow_redirect: bool, timeout_ms: Duration,
-) -> Result<get_content::v3::Response, Error> {
-	// we'll lie to the client and say the blocked server's media was not found and
-	// log. the client has no way of telling anyways so this is a security bonus.
-	if services()
-		.globals
-		.prevent_media_downloads_from()
-		.contains(&server_name.to_owned())
-	{
-		info!(
-			"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
-			mxc
-		);
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
-	}
-
-	let content_response = services()
-		.sending
-		.send_federation_request(
-			server_name,
-			get_content::v3::Request {
-				allow_remote: true,
-				server_name: server_name.to_owned(),
-				media_id,
-				timeout_ms,
-				allow_redirect,
-			},
-		)
-		.await?;
-
-	services()
-		.media
-		.create(
-			None,
-			mxc.to_owned(),
-			content_response.content_disposition.as_deref(),
-			content_response.content_type.as_deref(),
-			&content_response.file,
-		)
-		.await?;
-
-	Ok(content_response)
+	create_content_route(body).await.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}`
@@ -315,35 +207,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 pub(crate) async fn get_content_v1_route(
 	body: Ruma<get_content::v3::Request>,
 ) -> Result<RumaResponse<get_content::v3::Response>> {
-	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
-
-	if let Some(FileMeta {
-		content_disposition,
-		content_type,
-		file,
-	}) = services().media.get(mxc.clone()).await?
-	{
-		Ok(get_content::v3::Response {
-			file,
-			content_type,
-			content_disposition,
-			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
-		}
-		.into())
-	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-		let remote_content_response = get_remote_content(
-			&mxc,
-			&body.server_name,
-			body.media_id.clone(),
-			body.allow_redirect,
-			body.timeout_ms,
-		)
-		.await?;
-		Ok(remote_content_response.into())
-	} else {
-		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
-	}
+	get_content_route(body).await.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}/{fileName}`
@@ -409,43 +273,7 @@ pub(crate) async fn get_content_as_filename_route(
 pub(crate) async fn get_content_as_filename_v1_route(
 	body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<RumaResponse<get_content_as_filename::v3::Response>> {
-	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
-
-	if let Some(FileMeta {
-		content_type,
-		file,
-		..
-	}) = services().media.get(mxc.clone()).await?
-	{
-		Ok(get_content_as_filename::v3::Response {
-			file,
-			content_type,
-			content_disposition: Some(format!("inline; filename={}", body.filename)),
-			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
-		}
-		.into())
-	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-		let remote_content_response = get_remote_content(
-			&mxc,
-			&body.server_name,
-			body.media_id.clone(),
-			body.allow_redirect,
-			body.timeout_ms,
-		)
-		.await?;
-
-		Ok(get_content_as_filename::v3::Response {
-			content_disposition: Some(format!("inline: filename={}", body.filename)),
-			content_type: remote_content_response.content_type,
-			file: remote_content_response.file,
-			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
-		}
-		.into())
-	} else {
-		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
-	}
+	get_content_as_filename_route(body).await.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/thumbnail/{serverName}/{mediaId}`
@@ -550,81 +378,52 @@ pub(crate) async fn get_content_thumbnail_route(
 pub(crate) async fn get_content_thumbnail_v1_route(
 	body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<RumaResponse<get_content_thumbnail::v3::Response>> {
-	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+	get_content_thumbnail_route(body).await.map(RumaResponse)
+}
 
-	if let Some(FileMeta {
-		content_type,
-		file,
-		..
-	}) = services()
-		.media
-		.get_thumbnail(
-			mxc.clone(),
-			body.width
-				.try_into()
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
-			body.height
-				.try_into()
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
-		)
-		.await?
+async fn get_remote_content(
+	mxc: &str, server_name: &ruma::ServerName, media_id: String, allow_redirect: bool, timeout_ms: Duration,
+) -> Result<get_content::v3::Response, Error> {
+	// we'll lie to the client and say the blocked server's media was not found and
+	// log. the client has no way of telling anyways so this is a security bonus.
+	if services()
+		.globals
+		.prevent_media_downloads_from()
+		.contains(&server_name.to_owned())
 	{
-		Ok(get_content_thumbnail::v3::Response {
-			file,
-			content_type,
-			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
-		}
-		.into())
-	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-		// we'll lie to the client and say the blocked server's media was not found and
-		// log. the client has no way of telling anyways so this is a security bonus.
-		if services()
-			.globals
-			.prevent_media_downloads_from()
-			.contains(&body.server_name.clone())
-		{
-			info!(
-				"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
-				mxc
-			);
-			return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
-		}
-
-		let get_thumbnail_response = services()
-			.sending
-			.send_federation_request(
-				&body.server_name,
-				get_content_thumbnail::v3::Request {
-					allow_remote: body.allow_remote,
-					height: body.height,
-					width: body.width,
-					method: body.method.clone(),
-					server_name: body.server_name.clone(),
-					media_id: body.media_id.clone(),
-					timeout_ms: body.timeout_ms,
-					allow_redirect: body.allow_redirect,
-				},
-			)
-			.await?;
-
-		services()
-			.media
-			.upload_thumbnail(
-				None,
-				mxc,
-				None,
-				get_thumbnail_response.content_type.as_deref(),
-				body.width.try_into().expect("all UInts are valid u32s"),
-				body.height.try_into().expect("all UInts are valid u32s"),
-				&get_thumbnail_response.file,
-			)
-			.await?;
-
-		Ok(get_thumbnail_response.into())
-	} else {
-		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+		info!(
+			"Received request for remote media `{}` but server is in our media server blocklist. Returning 404.",
+			mxc
+		);
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
 	}
+
+	let content_response = services()
+		.sending
+		.send_federation_request(
+			server_name,
+			get_content::v3::Request {
+				allow_remote: true,
+				server_name: server_name.to_owned(),
+				media_id,
+				timeout_ms,
+				allow_redirect,
+			},
+		)
+		.await?;
+
+	services()
+		.media
+		.create(
+			None,
+			mxc.to_owned(),
+			content_response.content_disposition.as_deref(),
+			content_response.content_type.as_deref(),
+			&content_response.file,
+		)
+		.await?;
+
+	Ok(content_response)
 }
 
 async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPreviewData> {
