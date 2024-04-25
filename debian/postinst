@@ -3,26 +3,26 @@ set -e
 
 . /usr/share/debconf/confmodule
 
-CONDUIT_DATABASE_PATH=/var/lib/matrix-conduit/
+CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit/
 
 case "$1" in
   configure)
-    # Create the `_matrix-conduit` user if it does not exist yet.
-    if ! getent passwd _matrix-conduit > /dev/null ; then
-      echo 'Adding system user for the Conduwuit Matrix homeserver' 1>&2
+    # Create the `_conduwuit` user if it does not exist yet.
+    if ! getent passwd _conduwuit > /dev/null ; then
+      echo 'Adding system user for the conduwuit Matrix homeserver' 1>&2
       adduser --system --group --quiet \
-        --home "$CONDUIT_DATABASE_PATH" \
+        --home "$CONDUWUIT_DATABASE_PATH" \
         --disabled-login \
         --shell "/usr/sbin/nologin" \
         --force-badname \
-        _matrix-conduit
+        _conduwuit
     fi
 
     # Create the database path if it does not exist yet and fix up ownership
     # and permissions.
-    mkdir -p "$CONDUIT_DATABASE_PATH"
-    chown _matrix-conduit:_matrix-conduit -R "$CONDUIT_DATABASE_PATH"
-    chmod 700 "$CONDUIT_DATABASE_PATH"
+    mkdir -p "$CONDUWUIT_DATABASE_PATH"
+    chown _conduwuit:_conduwuit -R "$CONDUWUIT_DATABASE_PATH"
+    chmod 700 "$CONDUWUIT_DATABASE_PATH"
     ;;
 esac
 

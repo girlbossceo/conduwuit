@@ -5,13 +5,13 @@ set -e
 . /usr/share/debconf/confmodule
 
 # Ask for the Matrix homeserver name, address and port.
-db_input high matrix-conduit/hostname || true
+db_input high conduwuit/hostname || true
 db_go
 
-db_input low matrix-conduit/address || true
+db_input low conduwuit/address || true
 db_go
 
-db_input medium matrix-conduit/port || true
+db_input medium conduwuit/port || true
 db_go
 
 exit 0
