@@ -181,15 +181,18 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-		let remote_content_response = get_remote_content(
+		get_remote_content(
 			&mxc,
 			&body.server_name,
 			body.media_id.clone(),
 			body.allow_redirect,
 			body.timeout_ms,
 		)
-		.await?;
-		Ok(remote_content_response)
+		.await
+		.map_err(|e| {
+			debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
+			Error::BadRequest(ErrorKind::NotFound, "Remote media error.")
+		})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
 	}
@@ -240,22 +243,27 @@ pub(crate) async fn get_content_as_filename_route(
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
-		let remote_content_response = get_remote_content(
+		match get_remote_content(
 			&mxc,
 			&body.server_name,
 			body.media_id.clone(),
 			body.allow_redirect,
 			body.timeout_ms,
 		)
-		.await?;
-
-		Ok(get_content_as_filename::v3::Response {
-			content_disposition: Some(format!("inline: filename={}", body.filename)),
-			content_type: remote_content_response.content_type,
-			file: remote_content_response.file,
-			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-		})
+		.await
+		{
+			Ok(remote_content_response) => Ok(get_content_as_filename::v3::Response {
+				content_disposition: Some(format!("inline: filename={}", body.filename)),
+				content_type: remote_content_response.content_type,
+				file: remote_content_response.file,
+				cross_origin_resource_policy: Some("cross-origin".to_owned()),
+				cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+			}),
+			Err(e) => {
+				debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
+				Err(Error::BadRequest(ErrorKind::NotFound, "Remote media error."))
+			},
+		}
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
 	}
@@ -330,7 +338,7 @@ pub(crate) async fn get_content_thumbnail_route(
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
 		}
 
-		let get_thumbnail_response = services()
+		match services()
 			.sending
 			.send_federation_request(
 				&body.server_name,
@@ -345,22 +353,29 @@ pub(crate) async fn get_content_thumbnail_route(
 					allow_redirect: body.allow_redirect,
 				},
 			)
-			.await?;
+			.await
+		{
+			Ok(get_thumbnail_response) => {
+				services()
+					.media
+					.upload_thumbnail(
+						None,
+						mxc,
+						None,
+						get_thumbnail_response.content_type.as_deref(),
+						body.width.try_into().expect("all UInts are valid u32s"),
+						body.height.try_into().expect("all UInts are valid u32s"),
+						&get_thumbnail_response.file,
+					)
+					.await?;
 
-		services()
-			.media
-			.upload_thumbnail(
-				None,
-				mxc,
-				None,
-				get_thumbnail_response.content_type.as_deref(),
-				body.width.try_into().expect("all UInts are valid u32s"),
-				body.height.try_into().expect("all UInts are valid u32s"),
-				&get_thumbnail_response.file,
-			)
-			.await?;
-
-		Ok(get_thumbnail_response)
+				Ok(get_thumbnail_response)
+			},
+			Err(e) => {
+				debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
+				Err(Error::BadRequest(ErrorKind::NotFound, "Remote media error."))
+			},
+		}
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
 	}
