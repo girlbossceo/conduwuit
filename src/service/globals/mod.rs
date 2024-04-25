@@ -25,7 +25,7 @@ use ruma::{
 	DeviceId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
 	RoomVersionId, ServerName, UserId,
 };
-use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock, Semaphore};
+use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock};
 use tracing::{error, info, trace};
 use tracing_subscriber::{EnvFilter, Registry};
 use url::Url;
@@ -57,7 +57,6 @@ pub(crate) struct Service<'a> {
 	pub(crate) bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub(crate) bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub(crate) bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
-	pub(crate) servername_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, Arc<Semaphore>>>>,
 	pub(crate) sync_receivers: RwLock<HashMap<(OwnedUserId, OwnedDeviceId), SyncHandle>>,
 	pub(crate) roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
 	pub(crate) roomid_mutex_state: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
@@ -161,7 +160,6 @@ impl Service<'_> {
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			servername_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			roomid_mutex_state: RwLock::new(HashMap::new()),
 			roomid_mutex_insert: RwLock::new(HashMap::new()),
 			roomid_mutex_federation: RwLock::new(HashMap::new()),
