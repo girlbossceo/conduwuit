@@ -6,7 +6,7 @@ use std::{
 use lru_cache::LruCache;
 use tokio::sync::{broadcast, Mutex, RwLock};
 
-use crate::{Config, Result};
+use crate::{Config, LogLevelReloadHandles, Result};
 
 pub(crate) mod account_data;
 pub(crate) mod admin;
@@ -55,11 +55,7 @@ impl Services<'_> {
 			+ sending::Data
 			+ 'static,
 	>(
-		db: &'static D, config: &Config,
-		tracing_reload_handle: tracing_subscriber::reload::Handle<
-			tracing_subscriber::EnvFilter,
-			tracing_subscriber::Registry,
-		>,
+		db: &'static D, config: &Config, tracing_reload_handle: LogLevelReloadHandles,
 	) -> Result<Self> {
 		Ok(Self {
 			appservice: appservice::Service::build(db)?,
