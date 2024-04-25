@@ -165,82 +165,57 @@ jobs:
         name: Publish Docker manifests
         runs-on: ubuntu-latest
         needs: build
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.event_name != 'pull_request'
         steps:
-            - name: Download artifacts
-              uses: actions/download-artifact@v4
-
-            - name: Load OCI Images and tag
-              run: |
-                  mv oci-image-*/*.tar.gz .
-                  ID_AARCH64=$(docker load -i oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz | sed -n 's/Loaded image: \(.*\)/\1/p')
-                  docker tag $ID_AARCH64 conduwuit:${{ github.sha }}-aarch64-jemalloc
-                  ID_X86_64=$(docker load -i oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz | sed -n 's/Loaded image: \(.*\)/\1/p')
-                  docker tag $ID_X86_64 conduwuit:${{ github.sha }}-x86_64-jemalloc
-
             - name: Login to GitHub Container Registry
               uses: docker/login-action@v3
-              env:
-                  GITHUB_USERNAME: ${{ github.repository_owner }}
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              if: ${{ (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
               with:
                   registry: ghcr.io
-                  username: ${{ github.repository_owner }}
+                  username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Create and push combined manifest to GitHub
-              env:
-                  GITHUB_USERNAME: ${{ github.repository_owner }}
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  REPO_GHCR: "ghcr.io/${{ github.repository }}"
-                  SHA_TAG: "${{ github.ref_name }}-${{ github.sha }}"
-                  BRANCH_TAG: ${{ github.ref_name }}
-              if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && (github.event_name != 'pull_request') && (env.GITHUB_USERNAME != '') && (env.GITHUB_TOKEN != '') }}
-              run: |
-                  if [ "$BRANCH_TAG" == "main" ]; then
-                  BRANCH_TAG="latest"
-                  fi
-
-                  docker manifest create $REPO_GHCR:$SHA_TAG \
-                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
-                  docker manifest push $REPO_GHCR:$SHA_TAG
-
-                  docker manifest create $REPO_GHCR:$BRANCH_TAG \
-                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
-                  docker manifest push $REPO_GHCR:$BRANCH_TAG
 
             - name: Login to Docker Hub
               uses: docker/login-action@v3
-              env:
-                  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-                  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-              if: ${{ (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               with:
-                  username: ${{ env.DOCKER_USERNAME }}
-                  password: ${{ env.DOCKERHUB_TOKEN }}
+                  registry: docker.io
+                  username: ${{ vars.DOCKER_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            - name: Create and push combined manifest to Docker Hub
+            - name: Download artifacts
+              uses: actions/download-artifact@v4
+
+            - name: Create and push manifests to GitHub and Docker Hub
               env:
-                  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-                  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-              if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && (github.event_name != 'pull_request') && (env.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
+                  BRANCH_TAG: ${{ github.ref_name }}
               run: |
-                  REPO_DOCKER="docker.io/${{ github.repository }}"
-                  SHA_TAG="${{ github.ref_name }}-${{ github.sha }}"
-                  BRANCH_TAG="${{ github.ref_name }}"
+                  mv oci-image-*/oci-image-*.tar.gz .
+                  docker load -i oci-image-aarch64-unknown-linux-musl-jemalloc.tar.gz
+                  docker tag $(docker images -q conduit:main) conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  docker load -i oci-image-x86_64-unknown-linux-musl-jemalloc.tar.gz
+                  docker tag $(docker images -q conduit:main) conduwuit:${{ github.sha }}-x86_64-jemalloc
+
                   if [ "$BRANCH_TAG" == "main" ]; then
-                  BRANCH_TAG="latest"
+                      BRANCH_TAG="latest"
                   fi
 
-                  docker manifest create $REPO_DOCKER:$SHA_TAG \
-                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
-                  docker manifest push $REPO_DOCKER:$SHA_TAG
+                  # Creating and pushing for GitHub Container Registry
+                  docker manifest create ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }} \
+                      --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                      --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  docker manifest push ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
 
-                  docker manifest create $REPO_DOCKER:$BRANCH_TAG \
-                  --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
-                  --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
-                  docker manifest push $REPO_DOCKER:$BRANCH_TAG
+                  docker manifest create ghcr.io/${{ github.repository }}:$BRANCH_TAG \
+                      --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                      --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  docker manifest push ghcr.io/${{ github.repository }}:$BRANCH_TAG
+
+                  # Creating and pushing for Docker Hub
+                  docker manifest create docker.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }} \
+                      --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                      --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  docker manifest push docker.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
+
+                  docker manifest create docker.io/${{ github.repository }}:$BRANCH_TAG \
+                      --amend conduwuit:${{ github.sha }}-x86_64-jemalloc \
+                      --amend conduwuit:${{ github.sha }}-aarch64-jemalloc
+                  docker manifest push docker.io/${{ github.repository }}:$BRANCH_TAG
