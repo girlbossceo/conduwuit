@@ -40,8 +40,8 @@ use tokio::time::{interval, Instant};
 use tracing::{debug, error, warn};
 
 use crate::{
-	database::migrations::migrations, service::rooms::timeline::PduCount, services, Config, Error, Result, Services,
-	SERVICES,
+	database::migrations::migrations, service::rooms::timeline::PduCount, services, Config, Error,
+	LogLevelReloadHandles, Result, Services, SERVICES,
 };
 
 pub(crate) struct KeyValueDatabase {
@@ -203,13 +203,7 @@ struct CheckForUpdatesResponse {
 impl KeyValueDatabase {
 	/// Load an existing database or create a new one.
 	#[allow(clippy::too_many_lines)]
-	pub(crate) async fn load_or_create(
-		config: Config,
-		tracing_reload_handler: tracing_subscriber::reload::Handle<
-			tracing_subscriber::EnvFilter,
-			tracing_subscriber::Registry,
-		>,
-	) -> Result<()> {
+	pub(crate) async fn load_or_create(config: Config, tracing_reload_handler: LogLevelReloadHandles) -> Result<()> {
 		Self::check_db_setup(&config)?;
 
 		if !Path::new(&config.database_path).exists() {

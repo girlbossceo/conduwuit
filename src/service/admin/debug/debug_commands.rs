@@ -331,7 +331,7 @@ pub(crate) async fn change_log_level(
 		match services()
 			.globals
 			.tracing_reload_handle
-			.modify(|filter| *filter = old_filter_layer)
+			.reload(&old_filter_layer)
 		{
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
@@ -360,7 +360,7 @@ pub(crate) async fn change_log_level(
 		match services()
 			.globals
 			.tracing_reload_handle
-			.modify(|filter| *filter = new_filter_layer)
+			.reload(&new_filter_layer)
 		{
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain("Successfully changed log level"));
