@@ -21,6 +21,9 @@ use crate::{
 /// generated MXC ID (`media-id`) length
 const MXC_LENGTH: usize = 32;
 
+/// Cache control for immutable objects
+const CACHE_CONTROL_IMMUTABLE: &str = "public, max-age=31536000, immutable";
+
 /// # `GET /_matrix/media/v3/config`
 ///
 /// Returns max upload size.
@@ -175,7 +178,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 			content_type,
 			content_disposition,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
+			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		let remote_content_response = get_remote_content(
@@ -234,7 +237,7 @@ pub(crate) async fn get_content_as_filename_route(
 			content_type,
 			content_disposition: Some(format!("inline; filename={}", body.filename)),
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
+			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		let remote_content_response = get_remote_content(
@@ -251,7 +254,7 @@ pub(crate) async fn get_content_as_filename_route(
 			content_type: remote_content_response.content_type,
 			file: remote_content_response.file,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
+			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -310,7 +313,7 @@ pub(crate) async fn get_content_thumbnail_route(
 			file,
 			content_type,
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
-			cache_control: Some("public, max-age=31536000, immutable".to_owned()),
+			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
 		// we'll lie to the client and say the blocked server's media was not found and
