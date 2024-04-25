@@ -27,10 +27,9 @@ use ruma::{
 };
 use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock};
 use tracing::{error, info, trace};
-use tracing_subscriber::{EnvFilter, Registry};
 use url::Url;
 
-use crate::{services, Config, Result};
+use crate::{services, Config, LogLevelReloadHandles, Result};
 
 mod client;
 mod data;
@@ -45,7 +44,7 @@ type SyncHandle = (
 pub(crate) struct Service<'a> {
 	pub(crate) db: &'static dyn Data,
 
-	pub(crate) tracing_reload_handle: tracing_subscriber::reload::Handle<EnvFilter, Registry>,
+	pub(crate) tracing_reload_handle: LogLevelReloadHandles,
 	pub(crate) config: Config,
 	pub(crate) cidr_range_denylist: Vec<IPAddress>,
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
@@ -99,8 +98,7 @@ impl Default for RotationHandler {
 
 impl Service<'_> {
 	pub(crate) fn load(
-		db: &'static dyn Data, config: &Config,
-		tracing_reload_handle: tracing_subscriber::reload::Handle<EnvFilter, Registry>,
+		db: &'static dyn Data, config: &Config, tracing_reload_handle: LogLevelReloadHandles,
 	) -> Result<Self> {
 		let keypair = db.load_keypair();
 

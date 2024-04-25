@@ -18,6 +18,8 @@ rust-version = "1.75.0"
 
 
 [dependencies]
+console-subscriber = { version = "0.1", optional = true }
+
 hot-lib-reloader = { version = "^0.6", optional = true }
 
 # Used for secure identifiers
@@ -338,6 +340,18 @@ hardened_malloc-rs = { version = "0.1.2", optional = true, features = [
 #hardened_malloc-rs = { optional = true, features = ["static","clang","light"], path = "../hardened_malloc-rs", default-features = false }
 
 
+# backport of [https://github.com/tokio-rs/tracing/pull/2956] to the 0.1.x branch of tracing.
+# we can switch back to upstream if #2956 is merged and backported in the upstream repo.
+[patch.crates-io.tracing-subscriber]
+git = "https://github.com/Benjamin-L/tracing"
+branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
+[patch.crates-io.tracing]
+git = "https://github.com/Benjamin-L/tracing"
+branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
+[patch.crates-io.tracing-core]
+git = "https://github.com/Benjamin-L/tracing"
+branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
+
 [features]
 default = [
     "backend_rocksdb",
@@ -372,6 +386,10 @@ perf_measurements = [
     "opentelemetry_sdk",
     "opentelemetry-jaeger",
 ]
+
+# enable the tokio_console server
+# incompatible with release_max_log_level
+tokio_console = ["console-subscriber", "tokio/tracing"]
 
 hot_reload = ["dep:hot-lib-reloader"]
 
