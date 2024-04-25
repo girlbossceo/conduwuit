@@ -4,8 +4,8 @@ After=network-online.target
 
 [Service]
 DynamicUser=yes
-User=_matrix-conduit
-Group=_matrix-conduit
+User=_conduwuit
+Group=_conduwuit
 Type=notify
 
 AmbientCapabilities=
@@ -44,9 +44,9 @@ StateDirectory=matrix-conduit
 RuntimeDirectory=conduit
 RuntimeDirectoryMode=0750
 
-Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
+Environment="CONDUIT_CONFIG=/etc/conduwuit/conduwuit.toml"
 
-ExecStart=/usr/sbin/matrix-conduit
+ExecStart=/usr/sbin/conduwuit
 Restart=on-failure
 RestartSec=5
 

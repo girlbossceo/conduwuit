@@ -2,11 +2,11 @@
 /// In release-mode it becomes DEBUG level, and possibly subject to elision.
 ///
 /// Release-mode can be simulated in debug-mode builds by enabling the feature
-/// 'release_log_level'.
+/// 'dev_release_log_level'.
 #[macro_export]
 macro_rules! debug_event {
 	( $level:expr, $($x:tt)+ ) => {
-		if cfg!(debug_assertions) && cfg!(not(feature = "release_log_level")) {
+		if cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level")) {
 			tracing::event!( $level, $($x)+ );
 		} else {
 			tracing::debug!( $($x)+ );
