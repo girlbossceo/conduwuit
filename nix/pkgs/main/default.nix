@@ -10,6 +10,7 @@
 , stdenv
 
 # Options
+, default_features ? true
 , features ? []
 , profile ? "release"
 }:
@@ -57,6 +58,9 @@ craneLib.buildPackage rec {
   ++ lib.optionals stdenv.isDarwin [ libiconv ];
 
   cargoExtraArgs = ""
+    + lib.optionalString
+      (!default_features)
+      "--no-default-features "
     + lib.optionalString
       (features != [])
       "--features " + (builtins.concatStringsSep "," features);
