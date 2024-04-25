@@ -14,7 +14,7 @@ use super::Config;
 /// resulting value. Note that we require special per-column options on some
 /// columns, therefor columns should only be opened after passing this result
 /// through cf_options().
-pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cache: &Cache) -> Options {
+pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_cache: &Cache) -> Options {
 	let mut opts = Options::default();
 
 	// Logging
@@ -30,6 +30,9 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cach
 	opts.set_max_background_jobs(threads.try_into().unwrap());
 	opts.set_max_subcompactions(threads.try_into().unwrap());
 	opts.set_max_file_opening_threads(0);
+	if config.rocksdb_compaction_prio_idle {
+		env.lower_thread_pool_cpu_priority();
+	}
 
 	// IO
 	opts.set_manual_wal_flush(true);
@@ -40,6 +43,9 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache, col_cach
 		opts.set_skip_checking_sst_file_sizes_on_db_open(true);
 		opts.set_skip_stats_update_on_db_open(true);
 		//opts.set_max_file_opening_threads(threads.try_into().unwrap());
+	}
+	if config.rocksdb_compaction_ioprio_idle {
+		env.lower_thread_pool_io_priority();
 	}
 
 	// Blocks

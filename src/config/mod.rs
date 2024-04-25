@@ -228,6 +228,10 @@ pub(crate) struct Config {
 	pub(crate) rocksdb_read_only: bool,
 	#[serde(default)]
 	pub(crate) rocksdb_periodic_cleanup: bool,
+	#[serde(default)]
+	pub(crate) rocksdb_compaction_prio_idle: bool,
+	#[serde(default = "true_fn")]
+	pub(crate) rocksdb_compaction_ioprio_idle: bool,
 
 	pub(crate) emergency_password: Option<String>,
 
@@ -706,9 +710,22 @@ impl fmt::Display for Config {
 			),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string()),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB Repair Mode", &self.rocksdb_repair.to_string()),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string()),
+			#[cfg(feature = "rocksdb")]
 			("RocksDB Periodic Cleanup", &self.rocksdb_periodic_cleanup.to_string()),
+			#[cfg(feature = "rocksdb")]
+			(
+				"RocksDB Compaction Idle Priority",
+				&self.rocksdb_compaction_prio_idle.to_string(),
+			),
+			#[cfg(feature = "rocksdb")]
+			(
+				"RocksDB Compaction Idle IOPriority",
+				&self.rocksdb_compaction_ioprio_idle.to_string(),
+			),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {
