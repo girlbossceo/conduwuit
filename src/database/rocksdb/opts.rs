@@ -175,9 +175,12 @@ fn set_logging_defaults(opts: &mut Options, config: &Config) {
 
 fn set_compression_defaults(opts: &mut Options, config: &Config) {
 	let rocksdb_compression_algo = match config.rocksdb_compression_algo.as_ref() {
+		"snappy" => DBCompressionType::Snappy,
 		"zlib" => DBCompressionType::Zlib,
-		"lz4" => DBCompressionType::Lz4,
 		"bz2" => DBCompressionType::Bz2,
+		"lz4" => DBCompressionType::Lz4,
+		"lz4hc" => DBCompressionType::Lz4hc,
+		"none" => DBCompressionType::None,
 		_ => DBCompressionType::Zstd,
 	};
 
