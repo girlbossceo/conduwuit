@@ -3,11 +3,19 @@ name: CI and Artifacts
 on:
     pull_request:
     push:
+        # documentation workflow deals with this
+        paths-ignore:
+          - '*.md'
+          - 'docs/**'
         branches:
             - main
             - dev
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
+
+concurrency:
+    group: ${{ github.head_ref || github.ref_name }}
+    cancel-in-progress: true
 
 env:
     # Required to make some things output color
