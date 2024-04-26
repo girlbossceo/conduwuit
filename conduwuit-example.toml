@@ -620,6 +620,11 @@ allow_profile_lookup_federation_requests = true
 #
 #allow_outgoing_presence = true
 
+# Config option to enable the presence idle timer for remote users. Disabling is offered as an optimization for
+# servers participating in many large rooms or when resources are limited. Disabling it may cause incorrect
+# presence states (i.e. stuck online) to be seen for some remote users. Defaults to true.
+#presence_timeout_remote_users = true
+
 # Config option to control how many seconds before presence updates that you are idle. Defaults to 5 minutes.
 #presence_idle_timeout_s = 300
 
