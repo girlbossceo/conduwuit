@@ -3,10 +3,18 @@ name: CI and Artifacts
 on:
     pull_request:
     push:
-        # documentation workflow deals with this
+        # documentation workflow deals with this or is not relevant for this workflow
         paths-ignore:
           - '*.md'
+          - 'conduwuit-example.toml'
+          - 'book.toml'
+          - '.gitlab-ci.yml'
+          - '.gitignore'
+          - 'renovate.json'
           - 'docs/**'
+          - 'debian/**'
+          - 'docker/**'
+          - 'test_results/**'
         branches:
             - main
             - dev
