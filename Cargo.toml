@@ -343,13 +343,13 @@ hardened_malloc-rs = { version = "0.1.2", optional = true, features = [
 # backport of [https://github.com/tokio-rs/tracing/pull/2956] to the 0.1.x branch of tracing.
 # we can switch back to upstream if #2956 is merged and backported in the upstream repo.
 [patch.crates-io.tracing-subscriber]
-git = "https://github.com/Benjamin-L/tracing"
+git = "https://github.com/girlbossceo/tracing"
 branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
 [patch.crates-io.tracing]
-git = "https://github.com/Benjamin-L/tracing"
+git = "https://github.com/girlbossceo/tracing"
 branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
 [patch.crates-io.tracing-core]
-git = "https://github.com/Benjamin-L/tracing"
+git = "https://github.com/girlbossceo/tracing"
 branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
 
 [features]
