@@ -79,7 +79,7 @@ async-trait = "0.1.80"
 
 lru-cache = "0.1.2"
 
-proc-macro2 = "=1.0.79"
+proc-macro2 = "=1.0.81"
 
 # standard date and time tools
 [dependencies.chrono]
