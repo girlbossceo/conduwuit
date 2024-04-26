@@ -1,6 +1,7 @@
 [package]
+# TODO: when can we rename to conduwuit?
 name = "conduit"
-description = "a cool hard fork of Conduit, a Matrix homeserver written in Rust"
+description = "a very cool fork of Conduit, a Matrix homeserver written in Rust"
 license = "Apache-2.0"
 authors = [
     "strawberry <strawberry@puppygock.gay>",
