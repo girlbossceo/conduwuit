@@ -1,13 +1,14 @@
 # conduwuit
 
-[![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
+`main` / stable: [![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
+
+`dev`: [![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
 
 <!-- ANCHOR: catchphrase -->
-### a well maintained hard fork of [Conduit](https://conduit.rs/)
+### a very cool, featureful fork of [Conduit](https://conduit.rs/)
 <!-- ANCHOR_END: catchphrase -->
 
 Visit the [Conduwuit documentation](https://conduwuit.puppyirl.gay/) for more information.
-Alternatively you can open [docs/introduction.md](docs/introduction.md) in this repository.
 
 <!-- ANCHOR: body -->
 #### What is Matrix?
@@ -33,18 +34,6 @@ conduwuit is a hard fork of Conduit which is in beta, meaning you can join and p
 Matrix rooms, but not all features are supported and you might run into bugs
 from time to time.
 
-#### Why does this hard fork exist? Why don't you contribute back upstream?
-
-I now intend on contributing back as time and mental energy sees fit, but my fork still exists as a way to:
-- avoid unnecessary Matrix and general developer politics
-- avoid bikeshedding unnecessary or irrelevant things in upstream MRs
-- Fast tracked bug fixes, performance improvements, security improvements, and new features
-- Have early access to MRs that may not be suitable/acceptable for Conduit (e.g. too niche, too advanced for general users, only being blocked due to pending on contributor actions that we can fix ourselves downstream, pending Matrix spec stuff, etc)
-- Support unspecced or WIP features
-- Have official support for other OS's like Windows, macOS, and BSD.
-- Have a **stable** testing ground for some MRs or new features and bug fixes
-
-And various other reasons that may not be listed here.
 <!-- ANCHOR_END: body -->
 
 <!-- ANCHOR: footer -->
@@ -75,7 +64,7 @@ No official conduwuit logo exists. Original repo and Matrix room picture was fro
 
 #### Is it conduwuit or Conduwuit?
 
-Both.
+Both, but I prefer conduwuit.
 
 #### Mirrors of conduwuit
 

@@ -87,7 +87,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 
 ## Maintenance/Stability:
 - GitLab CI ported to GitHub Actions
-- Repo is mirrored to GitHub, GitLab, git.gay, and Codeberg
+- Repo is mirrored to GitHub, GitLab, git.gay, sourcehut, and Codeberg (see README.md for their links)
 - Extensively revamp the example config to be extremely helpful and useful to both new users and power users
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
 - Add a **lot** of other clippy and rustc lints and a rustfmt.toml file
