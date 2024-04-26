@@ -22,47 +22,47 @@ $ sudo apt install libclang-dev build-essential
 # RHEL
 $ sudo dnf install clang
 ```
-Then, `cd` into the source tree of conduit-next and run:
+Then, `cd` into the source tree of conduwuit and run:
 ```bash
 $ cargo build --release
 ```
 
-## Adding a Conduit user
+## Adding a conduwuit user
 
-While Conduit can run as any user it is usually better to use dedicated users for different services. This also allows
+While conduwuit can run as any user it is usually better to use dedicated users for different services. This also allows
 you to make sure that the file permissions are correctly set up.
 
-In Debian or RHEL, you can use this command to create a Conduit user:
+In Debian or RHEL, you can use this command to create a conduwuit user:
 
 ```bash
-sudo adduser --system conduit --group --disabled-login --no-create-home
+sudo adduser --system conduwuit --group --disabled-login --no-create-home
 ```
 
 ## Forwarding ports in the firewall or the router
 
-Conduit uses the ports 443 and 8448 both of which need to be open in the firewall.
+conduwuit uses the ports 443 and 8448 both of which need to be open in the firewall.
 
-If Conduit runs behind a router or in a container and has a different public IP address than the host system these public ports need to be forwarded directly or indirectly to the port mentioned in the config.
+If conduwuit runs behind a router or in a container and has a different public IP address than the host system these public ports need to be forwarded directly or indirectly to the port mentioned in the config.
 
 ## Setting up a systemd service
 
-Now we'll set up a systemd service for Conduit, so it's easy to start/stop Conduit and set it to autostart when your
+Now we'll set up a systemd service for conduwuit, so it's easy to start/stop conduwuit and set it to autostart when your
 server reboots. Simply paste the default systemd service you can find below into
-`/etc/systemd/system/conduit.service`.
+`/etc/systemd/system/conduwuit.service`.
 
 ```systemd
 [Unit]
-Description=Conduwuit Matrix Server
+Description=conduwuit Matrix Server
 After=network.target
 
 [Service]
-Environment="CONDUIT_CONFIG=/etc/matrix-conduit/conduit.toml"
-User=conduit
-Group=conduit
-RuntimeDirectory=conduit
+Environment="CONDUWUIT_CONFIG=/etc/conduwuit/conduwuit.toml"
+User=conduwuit
+Group=conduwuit
+RuntimeDirectory=conduwuit
 RuntimeDirectoryMode=0750
 Restart=always
-ExecStart=/usr/local/bin/matrix-conduit
+ExecStart=/usr/local/bin/conduwuit
 
 [Install]
 WantedBy=multi-user.target
@@ -74,30 +74,30 @@ Finally, run
 $ sudo systemctl daemon-reload
 ```
 
-## Creating the Conduit configuration file
+## Creating the conduwuit configuration file
 
-Now we need to create the Conduit's config file in `/etc/conduwuit/conduwuit.toml`. Paste this in **and take a moment
-to read it. You need to change at least the server name.**  
+Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. Paste this in **and take a moment
+to read it. You need to change at least the server name.**
 RocksDB (`rocksdb`) is the only supported database backend. SQLite only exists for historical reasons and is not recommended. Any performance issues, storage issues, database issues, etc will not be assisted if using SQLite and you will be asked to migrate to RocksDB first.
 
 See the following example config at [conduwuit-example.toml](../configuration.md)
 
 ## Setting the correct file permissions
 
-As we are using a Conduit specific user we need to allow it to read the config. To do that you can run this command on
+As we are using a conduwuit specific user we need to allow it to read the config. To do that you can run this command on
 Debian or RHEL:
 
 ```bash
-sudo chown -R root:root /etc/matrix-conduit
-sudo chmod 755 /etc/matrix-conduit
+sudo chown -R root:root /etc/conduwuit
+sudo chmod 755 /etc/conduwuit
 ```
 
 If you use the default database path you also need to run this:
 
 ```bash
-sudo mkdir -p /var/lib/matrix-conduit/
-sudo chown -R conduit:conduit /var/lib/matrix-conduit/
-sudo chmod 700 /var/lib/matrix-conduit/
+sudo mkdir -p /var/lib/conduwuit/
+sudo chown -R conduwuit:conduwuit /var/lib/conduwuit/
+sudo chmod 700 /var/lib/conduwuit/
 ```
 
 ## Setting up the Reverse Proxy
@@ -114,7 +114,7 @@ your.server.name, your.server.name:8448 {
         reverse_proxy 127.0.0.1:6167
 
         # UNIX socket
-        #reverse_proxy unix//run/conduit/conduit.sock
+        #reverse_proxy unix//run/conduwuit/conduwuit.sock
 }
 ```
 
@@ -126,16 +126,16 @@ $ sudo systemctl enable caddy
 
 ## You're done!
 
-Now you can start Conduit with:
+Now you can start conduwuit with:
 
 ```bash
-$ sudo systemctl start conduit
+$ sudo systemctl start conduwuit
 ```
 
 Set it to start automatically when your system boots with:
 
 ```bash
-$ sudo systemctl enable conduit
+$ sudo systemctl enable conduwuit
 ```
 
 ## How do I know it works?
