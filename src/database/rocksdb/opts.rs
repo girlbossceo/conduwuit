@@ -22,7 +22,7 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 
 	// Processing
 	let threads = if config.rocksdb_parallelism_threads == 0 {
-		num_cpus::get() // max cores if user specified 0
+		std::cmp::max(2, num_cpus::get()) // max cores if user specified 0
 	} else {
 		config.rocksdb_parallelism_threads
 	};
