@@ -129,9 +129,9 @@ artifacts:
 
 .push-oci-image:
   stage: publish
-  image: docker:26.0.2
+  image: docker:26.1.0
   services:
-    - docker:26.0.2-dind
+    - docker:26.1.0-dind
   variables:
     IMAGE_SUFFIX_AMD64: amd64
     IMAGE_SUFFIX_ARM64V8: arm64v8
