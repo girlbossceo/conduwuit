@@ -74,7 +74,7 @@ jobs:
               if: success() || failure()
               run: |
                   if [ ${{ job.status }} == 'success' ]; then
-                      echo '# ✅' >> $GITHUB_STEP_SUMMARY
+                      echo '# ✅ completed suwuccessfully' >> $GITHUB_STEP_SUMMARY
                   else
                       echo '```' >> $GITHUB_STEP_SUMMARY
                       tail -n 20 test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
