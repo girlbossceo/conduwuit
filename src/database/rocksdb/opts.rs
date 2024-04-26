@@ -222,7 +222,7 @@ fn set_for_random_small(opts: &mut Options, config: &Config) {
 }
 
 fn set_for_sequential_small(opts: &mut Options, config: &Config) {
-	set_for_random(opts, config);
+	set_for_sequential(opts, config);
 
 	opts.set_write_buffer_size(1024 * 512);
 	opts.set_target_file_size_base(1024 * 512);
