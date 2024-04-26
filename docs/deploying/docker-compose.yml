@@ -32,7 +32,6 @@ services:
             CONDUIT_ALLOW_FEDERATION: 'true'
             CONDUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
             CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
-            #CONDUIT_MAX_CONCURRENT_REQUESTS: 400
             #CONDUIT_LOG: warn,state_res=warn
             CONDUIT_ADDRESS: 0.0.0.0
             #CONDUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above

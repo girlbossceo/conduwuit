@@ -306,7 +306,7 @@ features = ["bundled"]
 
 # used only by rusqlite
 [dependencies.parking_lot]
-version = "0.12.1"
+version = "0.12.2"
 optional = true
 
 # used only by rusqlite
