@@ -20,7 +20,7 @@ rust-version = "1.75.0"
 [dependencies]
 console-subscriber = { version = "0.1", optional = true }
 
-hot-lib-reloader = { version = "^0.6", optional = true }
+hot-lib-reloader = { version = "^0.7", optional = true }
 
 # Used for secure identifiers
 rand = "0.8.5"
@@ -80,8 +80,6 @@ url = { version = "2", features = ["serde"] }
 async-trait = "0.1.80"
 
 lru-cache = "0.1.2"
-
-proc-macro2 = "=1.0.79"
 
 # standard date and time tools
 [dependencies.chrono]
