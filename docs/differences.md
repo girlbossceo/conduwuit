@@ -19,6 +19,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Add support for caching DNS results with hickory-dns / hickory-resolver in conduwuit (not a replacement for a proper resolver cache, but still far better than nothing)
 - Overall significant database, Client-Server, and federation performance and latency improvements (check out the ping room leaderboards if you don't believe me :>)
 - Add config options for RocksDB compression and bottommost compression, including choosing the algorithm and compression level
+- Use [loole](https://github.com/mahdi-shojaee/loole) MPSC channels instead of tokio MPSC channels for huge performance boosts in sending channels (mainly relevant for federation) and presence channels
 
 
 ## General Fixes:
@@ -34,10 +35,15 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Make `CONDUIT_CONFIG` optional, relevant for container users that configure only by environment variables and no longer need to set `CONDUIT_CONFIG` to an empty string.
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
 - Add missing `destination` key to all `X-Matrix` `Authorization` requests (spec compliance issue)
+- Resolve and remove some "features" from upstream that result in concurrency hazards, exponential backoff issues, or arbitrary performance limiters
+- Find more servers for outbound federation `/hierarchy` requests instead of just the room ID server name
+- Support for suggesting servers to join through at `/_matrix/client/v3/directory/room/{roomAlias}`
+- Support for suggesting servers to join through us at `/_matrix/federation/v1/query/directory`
 
 
 ## Moderation:
 - (Also see [Admin Room](#admin-room) for all the admin commands pertaining to moderation, there's a lot!)
+- Add support for room banning/blocking by ID using admin command
 - Add support for serving `support` well-known from `[well_known.support]` (MSC1929)
 - Config option to forbid publishing rooms to the room directory (`lockdown_public_room_directory`) except for admins
 - Admin commands to delete room aliases and unpublish rooms from our room directory
@@ -81,6 +87,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 
 ## Maintenance/Stability:
 - GitLab CI ported to GitHub Actions
+- Repo is mirrored to GitHub, GitLab, git.gay, and Codeberg
 - Extensively revamp the example config to be extremely helpful and useful to both new users and power users
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
 - Add a **lot** of other clippy and rustc lints and a rustfmt.toml file
@@ -89,10 +96,10 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy) and other unnecessary code or overhead
 - webp support for images
 - Add cargo audit support to CI
+- CI tests with all features
 - Add timestamp by commit date support to building OCI images for keeping image build reproducibility and still have a meaningful "last modified date" for OCI image metadata
 - Update rusqlite/sqlite (not that you should be using it)
-- Startup check if conduwuit running in a container and is listening on 127.0.0.1
-- Bump
+- Startup check if conduwuit running in a container and is listening on 127.0.0.1 (generally containers are using NAT networking and 0.0.0.0 is the intended listening address)
 
 
 ## Admin Room:
@@ -119,7 +126,6 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 ## Misc:
 - Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
-- Support for suggesting servers to join at `/_matrix/client/v3/directory/room/{roomAlias}`
 - Add **optional** feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long)
 - Send a User-Agent on all of our requests
 - Send `avatar_url` on invite room membership events/changes
@@ -130,6 +136,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Config option to change Conduit's behaviour of homeserver key fetching (`query_trusted_key_servers_first`). This option sets whether conduwuit will query trusted notary key servers first before the individual homeserver(s), or vice versa which may help in joining certain rooms.
 - Implement unstable MSC2666 support for querying mutual rooms with a user
 - Assume well-knowns are broken if they exceed past 10000 characters.
-- Add support for the Matrix spec compliance test suite [Complement](https://github.com/matrix-org/complement/)
+- Add support for the Matrix spec compliance test suite [Complement](https://github.com/matrix-org/complement/) via the Nix flake and various other fixes for it
 - Add support for listening on both HTTP and HTTPS if using direct TLS with conduwuit for usecases such as Complement
+- Interest in supporting other operating systems such as macOS, BSDs, and Windows, and getting them added into CI and doing builds for them
 - No cryptocurrency donations allowed, conduwuit is fully maintained by independent queer maintainers, and with a strong priority on inclusitivity and comfort for protected groups 🏳️‍⚧️
