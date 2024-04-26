@@ -1,6 +1,6 @@
 [book]
 title = "conduwuit"
-description = "conduwuit, which is a fork of Conduit, is a simple, fast and reliable chat server for the Matrix protocol"
+description = "conduwuit, which is a well-maintained fork of Conduit, is a simple, fast and reliable chat server for the Matrix protocol"
 language = "en"
 multilingual = false
 src = "docs"
