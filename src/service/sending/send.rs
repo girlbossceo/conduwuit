@@ -433,7 +433,8 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 		ResolveErrorKind::NoRecordsFound {
 			..
 		} => {
-			debug_warn!("{e}");
+			// Raise to debug_warn if we can find out the result wasn't from cache
+			debug!("{e}");
 			Ok(())
 		},
 		_ => {
