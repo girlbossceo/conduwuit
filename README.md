@@ -71,7 +71,7 @@ If you run into any question, feel free to
 
 #### Logo
 
-No official conduwuit logo exists. Repo and Matrix room picture is from bran (<3). Banner image is directly from [this cohost post](https://cohost.org/RatBaby/post/1028290-finally-a-flag-for).
+No official conduwuit logo exists. Original repo and Matrix room picture was from bran (<3). Current banner image and logo is directly from [this cohost post](https://cohost.org/RatBaby/post/1028290-finally-a-flag-for).
 
 #### Is it conduwuit or Conduwuit?
 
