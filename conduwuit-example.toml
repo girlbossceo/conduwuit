@@ -482,7 +482,9 @@ allow_profile_lookup_federation_requests = true
 # Minimum time-to-live in seconds for NXDOMAIN entries in the DNS cache. This value is critical for
 # the server to federate efficiently. NXDOMAIN's are assumed to not be returning to the federation
 # and aggressively cached rather than constantly rechecked.
-#dns_min_ttl_nxdomain = 86400
+#
+# Defaults to 3 days as these are *very rarely* false negatives.
+#dns_min_ttl_nxdomain = 259200
 
 # The number of seconds to wait for a reply to a DNS query. Please note that recursive queries can
 # take up to several seconds for some domains, so this value should not be too low.

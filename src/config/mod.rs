@@ -515,8 +515,8 @@ impl fmt::Display for Config {
 			),
 			("Cleanup interval in seconds", &self.cleanup_second_interval.to_string()),
 			("DNS cache entry limit", &self.dns_cache_entries.to_string()),
-			("DNS minimum ttl", &self.dns_min_ttl.to_string()),
-			("DNS minimum nxdomain ttl", &self.dns_min_ttl_nxdomain.to_string()),
+			("DNS minimum TTL", &self.dns_min_ttl.to_string()),
+			("DNS minimum NXDOMAIN TTL", &self.dns_min_ttl_nxdomain.to_string()),
 			("DNS attempts", &self.dns_attempts.to_string()),
 			("DNS timeout", &self.dns_timeout.to_string()),
 			("DNS fallback to TCP", &self.dns_tcp_fallback.to_string()),
@@ -890,7 +890,7 @@ fn default_dns_cache_entries() -> u32 { 12288 }
 
 fn default_dns_min_ttl() -> u64 { 60 * 180 }
 
-fn default_dns_min_ttl_nxdomain() -> u64 { 60 * 60 * 24 }
+fn default_dns_min_ttl_nxdomain() -> u64 { 60 * 60 * 24 * 3 }
 
 fn default_dns_attempts() -> u16 { 10 }
 
