@@ -515,7 +515,7 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 			.enable_io()
 			.enable_time()
 			.thread_name("conduwuit:worker")
-			.worker_threads(num_cpus::get())
+			.worker_threads(std::cmp::max(2, num_cpus::get()))
 			.build()
 			.unwrap(),
 
