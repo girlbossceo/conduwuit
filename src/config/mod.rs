@@ -886,7 +886,7 @@ fn default_cleanup_second_interval() -> u32 {
 	1800 // every 30 minutes
 }
 
-fn default_dns_cache_entries() -> u32 { 12288 }
+fn default_dns_cache_entries() -> u32 { 32768 }
 
 fn default_dns_min_ttl() -> u64 { 60 * 180 }
 
