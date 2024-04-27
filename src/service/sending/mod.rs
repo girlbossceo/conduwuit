@@ -12,8 +12,8 @@ use crate::{services, Config, Error, Result};
 
 mod appservice;
 mod data;
-mod send;
-mod sender;
+pub(crate) mod send;
+pub(crate) mod sender;
 pub(crate) use send::FedDest;
 
 pub(crate) struct Service {

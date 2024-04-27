@@ -25,7 +25,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 				.try_into()
 				.expect("#admins:server_name is a valid alias name");
 
-			if let Some(admin_room_id) = Service::get_admin_room()? {
+			if let Some(admin_room_id) = Service::get_admin_room().await? {
 				if room.to_string().eq(&admin_room_id) || room.to_string().eq(&admin_room_alias) {
 					return Ok(RoomMessageEventContent::text_plain("Not allowed to ban the admin room."));
 				}
@@ -190,7 +190,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 				for &room in &rooms_s {
 					match <&RoomOrAliasId>::try_from(room) {
 						Ok(room_alias_or_id) => {
-							if let Some(admin_room_id) = Service::get_admin_room()? {
+							if let Some(admin_room_id) = Service::get_admin_room().await? {
 								if room.to_owned().eq(&admin_room_id) || room.to_owned().eq(&admin_room_alias) {
 									info!("User specified admin room in bulk ban list, ignoring");
 									continue;
