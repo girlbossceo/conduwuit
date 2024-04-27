@@ -453,3 +453,7 @@ pub(crate) async fn resolve_true_destination(
 		"Actual destination: {actual_dest:?} | Hostname URI: {hostname_uri}"
 	)))
 }
+
+pub(crate) fn memory_stats() -> RoomMessageEventContent {
+	RoomMessageEventContent::text_html("HTML only".to_owned(), crate::alloc::memory_stats())
+}

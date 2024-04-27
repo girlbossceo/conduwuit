@@ -49,6 +49,7 @@ use utils::{
 	error::{Error, Result},
 };
 
+mod alloc;
 mod api;
 mod config;
 mod database;
@@ -65,14 +66,6 @@ pub(crate) fn services() -> &'static Services<'static> {
 		.unwrap()
 		.expect("SERVICES should be initialized when this is called")
 }
-
-#[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
-#[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
-
-#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
-#[global_allocator]
-static GLOBAL: hardened_malloc_rs::HardenedMalloc = hardened_malloc_rs::HardenedMalloc;
 
 struct Server {
 	config: Config,
