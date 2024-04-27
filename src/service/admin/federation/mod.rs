@@ -1,7 +1,9 @@
 use clap::Subcommand;
-use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName};
+use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
 
-use self::federation_commands::{disable_room, enable_room, fetch_support_well_known, incoming_federeation};
+use self::federation_commands::{
+	disable_room, enable_room, fetch_support_well_known, incoming_federeation, remote_user_in_rooms,
+};
 use crate::Result;
 
 pub(crate) mod federation_commands;
@@ -34,6 +36,11 @@ pub(crate) enum FederationCommand {
 	FetchSupportWellKnown {
 		server_name: Box<ServerName>,
 	},
+
+	/// - Lists all the rooms we share/track with the specified *remote* user
+	RemoteUserInRooms {
+		user_id: Box<UserId>,
+	},
 }
 
 pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -48,5 +55,8 @@ pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Resu
 		FederationCommand::FetchSupportWellKnown {
 			server_name,
 		} => fetch_support_well_known(body, server_name).await?,
+		FederationCommand::RemoteUserInRooms {
+			user_id,
+		} => remote_user_in_rooms(body, user_id).await?,
 	})
 }

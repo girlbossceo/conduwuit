@@ -1,6 +1,5 @@
 use std::{fmt::Write as _, sync::Arc};
 
-use itertools::Itertools;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, UserId};
 use tracing::{error, info, warn};
 
@@ -318,8 +317,6 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 		.rooms_joined(&user_id)
 		.filter_map(Result::ok)
 		.map(|room_id| get_room_info(&room_id))
-		.sorted_unstable()
-		.dedup()
 		.collect();
 
 	if rooms.is_empty() {
