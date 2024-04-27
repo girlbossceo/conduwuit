@@ -26,11 +26,12 @@ pub(crate) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventCont
 }
 
 pub(crate) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let response1 = services().memory_usage().await;
-	let response2 = services().globals.db.memory_usage();
+	let response0 = services().memory_usage().await;
+	let response1 = services().globals.db.memory_usage();
+	let response2 = crate::alloc::memory_usage();
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Services:\n{response1}\n\nDatabase:\n{response2}"
+		"Services:\n{response0}\n\nDatabase:\n{response1}\nAllocator:\n{response2}"
 	)))
 }
 

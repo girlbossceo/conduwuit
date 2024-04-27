@@ -3,7 +3,7 @@ use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, Serv
 
 use self::debug_commands::{
 	change_log_level, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_remote_pdu_list,
-	get_room_state, parse_pdu, ping, resolve_true_destination, sign_json, verify_json,
+	get_room_state, memory_stats, parse_pdu, ping, resolve_true_destination, sign_json, verify_json,
 };
 use crate::Result;
 
@@ -117,6 +117,9 @@ pub(crate) enum DebugCommand {
 		#[arg(short, long)]
 		no_cache: bool,
 	},
+
+	/// - Print extended memory usage
+	MemoryStats,
 }
 
 pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -153,5 +156,6 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 			server_name,
 			no_cache,
 		} => resolve_true_destination(body, server_name, no_cache).await?,
+		DebugCommand::MemoryStats => memory_stats(),
 	})
 }
