@@ -37,7 +37,7 @@ buildDepsOnlyEnv =
   });
 
 buildPackageEnv = {
-  CONDUWUIT_VERSION_EXTRA = inputs.self.shortRev or inputs.self.dirtyShortRev;
+  CONDUWUIT_VERSION_EXTRA = inputs.self.shortRev or inputs.self.dirtyShortRev or "";
 } // buildDepsOnlyEnv;
 
 commonAttrs = {
