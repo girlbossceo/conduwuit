@@ -127,7 +127,7 @@ impl Service {
 		let conduit_user = UserId::parse(format!("@conduit:{}", services().globals.server_name()))
 			.expect("@conduit:server_name is valid");
 
-		if let Ok(Some(conduit_room)) = Self::get_admin_room() {
+		if let Ok(Some(conduit_room)) = Self::get_admin_room().await {
 			loop {
 				tokio::select! {
 						event = receiver.recv_async() => {
@@ -201,15 +201,17 @@ impl Service {
 		Ok(())
 	}
 
-	pub(crate) fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
+	pub(crate) async fn process_message(&self, room_message: String, event_id: Arc<EventId>) {
 		self.sender
-			.send(AdminRoomEvent::ProcessMessage(room_message, event_id))
+			.send_async(AdminRoomEvent::ProcessMessage(room_message, event_id))
+			.await
 			.unwrap();
 	}
 
-	pub(crate) fn send_message(&self, message_content: RoomMessageEventContent) {
+	pub(crate) async fn send_message(&self, message_content: RoomMessageEventContent) {
 		self.sender
-			.send(AdminRoomEvent::SendMessage(message_content))
+			.send_async(AdminRoomEvent::SendMessage(message_content))
+			.await
 			.unwrap();
 	}
 
@@ -621,7 +623,7 @@ impl Service {
 	///
 	/// Errors are propagated from the database, and will have None if there is
 	/// no admin room
-	pub(crate) fn get_admin_room() -> Result<Option<OwnedRoomId>> {
+	pub(crate) async fn get_admin_room() -> Result<Option<OwnedRoomId>> {
 		let admin_room_alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
 			.try_into()
 			.expect("#admins:server_name is a valid alias name");
@@ -636,7 +638,7 @@ impl Service {
 	///
 	/// In conduit, this is equivalent to granting admin privileges.
 	pub(crate) async fn make_user_admin(&self, user_id: &UserId, displayname: String) -> Result<()> {
-		if let Some(room_id) = Self::get_admin_room()? {
+		if let Some(room_id) = Self::get_admin_room().await? {
 			let mutex_state = Arc::clone(
 				services()
 					.globals

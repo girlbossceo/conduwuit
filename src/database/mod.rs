@@ -372,7 +372,8 @@ impl KeyValueDatabase {
 						.send_message(RoomMessageEventContent::text_plain(
 							"The Conduit account emergency password is set! Please unset it as soon as you finish \
 							 admin account recovery!",
-						));
+						))
+						.await;
 				}
 			},
 			Err(e) => {
@@ -473,7 +474,8 @@ impl KeyValueDatabase {
 					.send_message(RoomMessageEventContent::text_plain(format!(
 						"@room: the following is a message from the conduwuit puppy. it was sent on '{}':\n\n{}",
 						update.date, update.message
-					)));
+					)))
+					.await;
 			}
 		}
 		services()

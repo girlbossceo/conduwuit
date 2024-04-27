@@ -294,7 +294,8 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 			.admin
 			.send_message(RoomMessageEventContent::notice_plain(format!(
 				"New user \"{user_id}\" registered on this server."
-			)));
+			)))
+			.await;
 	}
 
 	// log in conduit admin channel if a guest registered
@@ -310,27 +311,30 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 					.send_message(RoomMessageEventContent::notice_plain(format!(
 						"Guest user \"{user_id}\" with device display name `{device_display_name}` registered on this \
 						 server."
-					)));
+					)))
+					.await;
 			} else {
 				services()
 					.admin
 					.send_message(RoomMessageEventContent::notice_plain(format!(
 						"Guest user \"{user_id}\" with no device display name registered on this server.",
-					)));
+					)))
+					.await;
 			}
 		} else {
 			services()
 				.admin
 				.send_message(RoomMessageEventContent::notice_plain(format!(
 					"Guest user \"{user_id}\" with no device display name registered on this server.",
-				)));
+				)))
+				.await;
 		}
 	}
 
 	// If this is the first real user, grant them admin privileges except for guest
 	// users Note: the server user, @conduit:servername, is generated first
 	if !is_guest {
-		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
+		if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
 			if services()
 				.rooms
 				.state_cache
@@ -461,7 +465,8 @@ pub(crate) async fn change_password_route(
 		.admin
 		.send_message(RoomMessageEventContent::notice_plain(format!(
 			"User {sender_user} changed their password."
-		)));
+		)))
+		.await;
 
 	Ok(change_password::v3::Response {})
 }
@@ -536,7 +541,8 @@ pub(crate) async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Res
 		.admin
 		.send_message(RoomMessageEventContent::notice_plain(format!(
 			"User {sender_user} deactivated their account."
-		)));
+		)))
+		.await;
 
 	Ok(deactivate::v3::Response {
 		id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

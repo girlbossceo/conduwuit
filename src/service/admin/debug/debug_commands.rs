@@ -8,7 +8,10 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use tracing_subscriber::EnvFilter;
 
-use crate::{api::server_server::parse_incoming_pdu, services, utils::HtmlEscape, Error, PduEvent, Result};
+use crate::{
+	api::server_server::parse_incoming_pdu, service::sending::send::resolve_actual_dest, services, utils::HtmlEscape,
+	Error, PduEvent, Result,
+};
 
 pub(crate) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
@@ -427,4 +430,26 @@ pub(crate) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventConte
 			"Expected code block in command body. Add --help for details.",
 		))
 	}
+}
+
+pub(crate) async fn resolve_true_destination(
+	_body: Vec<&str>, server_name: Box<ServerName>, no_cache: bool,
+) -> Result<RoomMessageEventContent> {
+	if !services().globals.config.allow_federation {
+		return Ok(RoomMessageEventContent::text_plain(
+			"Federation is disabled on this homeserver.",
+		));
+	}
+
+	if server_name == services().globals.config.server_name {
+		return Ok(RoomMessageEventContent::text_plain(
+			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for fetching local PDUs.",
+		));
+	}
+
+	let (actual_dest, hostname_uri) = resolve_actual_dest(&server_name, no_cache, true).await?;
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Actual destination: {actual_dest:?} | Hostname URI: {hostname_uri}"
+	)))
 }

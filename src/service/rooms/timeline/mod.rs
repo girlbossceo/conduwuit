@@ -512,9 +512,12 @@ impl Service {
 					// the administrator can execute commands as conduit
 					let from_conduit = pdu.sender == server_user && services().globals.emergency_password().is_none();
 
-					if let Some(admin_room) = service::admin::Service::get_admin_room()? {
+					if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
 						if to_conduit && !from_conduit && admin_room == pdu.room_id {
-							services().admin.process_message(body, pdu.event_id.clone());
+							services()
+								.admin
+								.process_message(body, pdu.event_id.clone())
+								.await;
 						}
 					}
 				}
@@ -815,7 +818,7 @@ impl Service {
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
 
-		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
+		if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
 			if admin_room == room_id {
 				match pdu.event_type() {
 					TimelineEventType::RoomEncryption => {

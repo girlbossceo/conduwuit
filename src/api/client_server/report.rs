@@ -97,7 +97,8 @@ pub(crate) async fn report_event_route(
 				body.score.unwrap_or_else(|| ruma::Int::from(0)),
 				HtmlEscape(body.reason.as_deref().unwrap_or(""))
 			),
-		));
+		))
+		.await;
 
 	// even though this is kinda security by obscurity, let's still make a small
 	// random delay sending a successful response per spec suggestion regarding
