@@ -336,6 +336,18 @@ allow_profile_lookup_federation_requests = true
 # messages without any attempt at redelivery.
 #startup_netburst_keep = 50
 
+# If the 'perf_measurements' feature is enabled, enables collecting folded stack trace profile of tracing spans using
+# tracing_flame. The resulting profile can be visualized with inferno[1], speedscope[2], or a number of other tools.
+# [1]: https://github.com/jonhoo/inferno
+# [2]: www.speedscope.app
+# tracing_flame = false
+
+# If 'tracing_flame' is enabled, sets a filter for which events will be included in the profile.
+# Supported syntax is documented at https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+# tracing_flame_filter = "trace,h2=off"
+
+# If 'tracing_flame' is enabled, set the path to write the generated profile.
+# tracing_flame_output_path = "./tracing.folded"
 
 ### Generic database options
 
