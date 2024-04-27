@@ -6,10 +6,9 @@ use ruma::{
 	OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use tokio::sync::{broadcast, RwLock};
-use tracing::debug;
 
 use crate::{
-	services,
+	debug_info, services,
 	utils::{self, user_id::user_is_local},
 	Result,
 };
@@ -26,7 +25,7 @@ impl Service {
 	/// Sets a user as typing until the timeout timestamp is reached or
 	/// roomtyping_remove is called.
 	pub(crate) async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
-		debug!("typing add {:?} in {:?} timeout:{:?}", user_id, room_id, timeout);
+		debug_info!("typing started {:?} in {:?} timeout:{:?}", user_id, room_id, timeout);
 		// update clients
 		self.typing
 			.write()
@@ -50,7 +49,7 @@ impl Service {
 
 	/// Removes a user from typing before the timeout is reached.
 	pub(crate) async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		debug!("typing remove {:?} in {:?}", user_id, room_id);
+		debug_info!("typing stopped {:?} in {:?}", user_id, room_id);
 		// update clients
 		self.typing
 			.write()
@@ -107,7 +106,7 @@ impl Service {
 			let typing = &mut self.typing.write().await;
 			let room = typing.entry(room_id.to_owned()).or_default();
 			for user in &removable {
-				debug!("typing maintain remove {:?} in {:?}", &user, room_id);
+				debug_info!("typing timeout {:?} in {:?}", &user, room_id);
 				room.remove(user);
 			}
 			// update clients

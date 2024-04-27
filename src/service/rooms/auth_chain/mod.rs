@@ -30,6 +30,7 @@ impl Service {
 			.filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
 	}
 
+	#[tracing::instrument(skip_all)]
 	pub(crate) async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
 		const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
