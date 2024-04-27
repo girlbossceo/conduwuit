@@ -196,6 +196,7 @@ jobs:
             GHCR_AMD64: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-amd64
             GHCR_TAG: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
             GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (github.ref == 'refs/heads/main' && 'latest') || github.ref_name }}
+            DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         steps:
             - name: Login to GitHub Container Registry
               uses: docker/login-action@v3
@@ -205,6 +206,7 @@ jobs:
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Login to Docker Hub
+              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               uses: docker/login-action@v3
               with:
                   registry: docker.io
@@ -220,6 +222,7 @@ jobs:
                   mv oci-image-aarch64-*-jemalloc/*.tar.gz oci-image-arm64v8.tar.gz
 
             - name: Load and push amd64 image
+              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker load -i oci-image-amd64.tar.gz
                   docker tag $(docker images -q conduit:main) ${{ env.DOCKER_AMD64 }}
@@ -228,6 +231,7 @@ jobs:
                   docker push ${{ env.GHCR_AMD64 }}
 
             - name: Load and push arm64 image
+              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker load -i oci-image-arm64v8.tar.gz
                   docker tag $(docker images -q conduit:main) ${{ env.DOCKER_ARM64 }}
@@ -243,6 +247,7 @@ jobs:
                   docker manifest create ${{ env.GHCR_BRANCH }} --amend ${{ env.GHCR_ARM64 }} --amend ${{ env.GHCR_AMD64 }}
 
             - name: Push manifests to Docker registries
+              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker manifest push ${{ env.DOCKER_TAG }}
                   docker manifest push ${{ env.DOCKER_BRANCH }}
@@ -250,6 +255,7 @@ jobs:
                   docker manifest push ${{ env.GHCR_BRANCH }}
 
             - name: Add Image Links to Job Summary
+              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   echo "- \`docker pull ${{ env.DOCKER_TAG }}\`" >> $GITHUB_STEP_SUMMARY
                   echo "- \`docker pull ${{ env.GHCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
