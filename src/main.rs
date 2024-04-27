@@ -617,7 +617,10 @@ fn init_tracing(config: &Config) -> LogLevelReloadHandles {
 	#[cfg(feature = "perf_measurements")]
 	let subscriber = {
 		let flame_layer = if config.tracing_flame {
-			let flame_filter = EnvFilter::new("trace,h2=off");
+			let flame_filter = match EnvFilter::try_new(&config.tracing_flame_filter) {
+				Ok(flame_filter) => flame_filter,
+				Err(e) => panic!("tracing_flame_filter config value is invalid: {e}"),
+			};
 
 			// TODO: actually preserve this guard until exit: https://docs.rs/tracing-flame/latest/tracing_flame/struct.FlameLayer.html#dropping-and-flushing
 			let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
