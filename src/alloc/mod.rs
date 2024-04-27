@@ -1,20 +1,25 @@
-pub(crate) mod hardened;
-pub(crate) mod je;
+//! Integration with allocators
 
-#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
-pub(crate) fn memory_usage() -> String { hardened::memory_usage() }
-
+// jemalloc
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
-pub(crate) fn memory_usage() -> String { je::memory_usage() }
-
-#[cfg(any(target_env = "msvc", all(not(feature = "jemalloc"), not(feature = "hardened_malloc"))))]
-pub(crate) fn memory_usage() -> String { String::default() }
-
-#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
-pub(crate) fn memory_stats() -> String { hardened::memory_stats() }
-
+mod je;
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
-pub(crate) fn memory_stats() -> String { je::memory_stats() }
+pub(crate) use je::{memory_stats, memory_usage};
 
-#[cfg(any(target_env = "msvc", all(not(feature = "jemalloc"), not(feature = "hardened_malloc"))))]
-pub(crate) fn memory_stats() -> String { String::default() }
+// hardened_malloc
+#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
+mod hardened;
+#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
+pub(crate) use hardened::{memory_stats, memory_usage};
+
+// default, enabled when none or multiple of the above are enabled
+#[cfg(any(
+	not(any(feature = "jemalloc", feature = "hardened_malloc")),
+	all(feature = "jemalloc", feature = "hardened_malloc"),
+))]
+mod default;
+#[cfg(any(
+	not(any(feature = "jemalloc", feature = "hardened_malloc")),
+	all(feature = "jemalloc", feature = "hardened_malloc"),
+))]
+pub(crate) use default::{memory_stats, memory_usage};

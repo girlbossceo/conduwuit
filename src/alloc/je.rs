@@ -1,6 +1,3 @@
-#![cfg(all(not(target_env = "msvc"), feature = "jemalloc", not(feature = "hardened_malloc")))]
-#![allow(dead_code)]
-
 use std::ffi::{c_char, c_void};
 
 use tikv_jemalloc_ctl as mallctl;
@@ -9,8 +6,6 @@ use tikv_jemallocator as jemalloc;
 
 #[global_allocator]
 static JEMALLOC: jemalloc::Jemalloc = jemalloc::Jemalloc;
-
-pub(crate) fn version() -> &'static str { mallctl::version::read().expect("version string") }
 
 pub(crate) fn memory_usage() -> String {
 	use mallctl::stats;
