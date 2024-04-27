@@ -221,9 +221,9 @@ pub(crate) async fn resolve_actual_dest(
 	if admin_room_caller {
 		services()
 			.admin
-			.send_message(RoomMessageEventContent::notice_plain(format!(
-				"Checking for 1: IP literal with provided or default port"
-			)))
+			.send_message(RoomMessageEventContent::notice_plain(
+				"Checking for 1: IP literal with provided or default port",
+			))
 			.await;
 	}
 
@@ -313,9 +313,9 @@ pub(crate) async fn resolve_actual_dest(
 							if admin_room_caller {
 								services()
 									.admin
-									.send_message(RoomMessageEventContent::notice_plain(format!(
-										"Checking for 3.2: Hostname with port in .well-known file"
-									)))
+									.send_message(RoomMessageEventContent::notice_plain(
+										"Checking for 3.2: Hostname with port in .well-known file",
+									))
 									.await;
 							}
 
