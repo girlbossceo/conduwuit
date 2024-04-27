@@ -178,6 +178,9 @@ pub(crate) struct Config {
 	#[serde(default = "default_tracing_flame_filter")]
 	#[cfg(feature = "perf_measurements")]
 	pub(crate) tracing_flame_filter: String,
+	#[serde(default = "default_tracing_flame_output_path")]
+	#[cfg(feature = "perf_measurements")]
+	pub(crate) tracing_flame_output_path: String,
 	#[serde(default)]
 	pub(crate) proxy: ProxyConfig,
 	pub(crate) jwt_secret: Option<String>,
@@ -939,6 +942,9 @@ fn default_max_fetch_prev_events() -> u16 { 100_u16 }
 
 #[cfg(feature = "perf_measurements")]
 fn default_tracing_flame_filter() -> String { "trace,h2=off".to_owned() }
+
+#[cfg(feature = "perf_measurements")]
+fn default_tracing_flame_output_path() -> String { "./tracing.folded".to_owned() }
 
 fn default_trusted_servers() -> Vec<OwnedServerName> { vec![OwnedServerName::try_from("matrix.org").unwrap()] }
 
