@@ -473,7 +473,7 @@ allow_profile_lookup_federation_requests = true
 # Maximum entries stored in DNS memory-cache. The size of an entry may vary so please take care if
 # raising this value excessively. Only decrease this when using an external DNS cache. Please note
 # that systemd does *not* count as an external cache, even when configured to do so.
-#dns_cache_entries = 12288
+#dns_cache_entries = 32768
 
 # Minimum time-to-live in seconds for entries in the DNS cache. The default may appear high to most
 # administrators; this is by design. Only decrease this if you are using an external DNS cache.
