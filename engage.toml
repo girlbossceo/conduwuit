@@ -80,7 +80,15 @@ RUSTDOCFLAGS="-D warnings" cargo doc \
 [[task]]
 name = "cargo-clippy"
 group = "lints"
-script = "cargo clippy --workspace --all-targets --all-features --color=always -- -D warnings"
+script = """
+cargo clippy \
+    --workspace \
+    --all-targets \
+    --all-features \
+    --color=always \
+    -- \
+    -D warnings
+"""
 
 [[task]]
 name = "lychee"
