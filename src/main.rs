@@ -49,7 +49,7 @@ use utils::{
 	error::{Error, Result},
 };
 
-mod alloc;
+pub(crate) mod alloc;
 mod api;
 mod config;
 mod database;
