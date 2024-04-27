@@ -630,7 +630,13 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 				Err(e) => panic!("tracing_flame_filter config value is invalid: {e}"),
 			};
 
-			let (flame_layer, flame_guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+			let (flame_layer, flame_guard) =
+				match tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path) {
+					Ok(ok) => ok,
+					Err(e) => {
+						panic!("failed to initialize tracing-flame: {e}");
+					},
+				};
 			let flame_layer = flame_layer
 				.with_empty_samples(false)
 				.with_filter(flame_filter);
