@@ -2,6 +2,24 @@ use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{services, Result};
 
+pub(crate) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let seconds = services()
+		.globals
+		.started
+		.elapsed()
+		.expect("standard duration")
+		.as_secs();
+	let result = format!(
+		"up {} days, {} hours, {} minutes, {} seconds.",
+		seconds / 86400,
+		(seconds % 86400) / 60 / 60,
+		(seconds % 3600) / 60,
+		seconds % 60,
+	);
+
+	Ok(RoomMessageEventContent::notice_html(String::new(), result))
+}
+
 pub(crate) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
 	Ok(RoomMessageEventContent::text_plain(format!("{}", services().globals.config)))
