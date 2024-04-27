@@ -5,13 +5,16 @@ use ruma::events::room::message::RoomMessageEventContent;
 
 use self::server_commands::{
 	backup_database, clear_database_caches, clear_service_caches, list_backups, list_database_files, memory_usage,
-	show_config,
+	show_config, uptime,
 };
 use crate::Result;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 pub(crate) enum ServerCommand {
+	/// - Time elapsed since startup
+	Uptime,
+
 	/// - Show configuration values
 	ShowConfig,
 
@@ -43,6 +46,7 @@ pub(crate) enum ServerCommand {
 
 pub(crate) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
+		ServerCommand::Uptime => uptime(body).await?,
 		ServerCommand::ShowConfig => show_config(body).await?,
 		ServerCommand::MemoryUsage => memory_usage(body).await?,
 		ServerCommand::ClearDatabaseCaches {

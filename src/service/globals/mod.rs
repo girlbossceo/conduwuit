@@ -7,7 +7,7 @@ use std::{
 		atomic::{self, AtomicBool},
 		Arc,
 	},
-	time::Instant,
+	time::{Instant, SystemTime},
 };
 
 use argon2::Argon2;
@@ -63,7 +63,7 @@ pub(crate) struct Service<'a> {
 	pub(crate) roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
 	pub(crate) stateres_mutex: Arc<Mutex<()>>,
 	pub(crate) rotate: RotationHandler,
-
+	pub(crate) started: SystemTime,
 	pub(crate) shutdown: AtomicBool,
 	pub(crate) argon: Argon2<'a>,
 }
@@ -165,6 +165,7 @@ impl Service<'_> {
 			stateres_mutex: Arc::new(Mutex::new(())),
 			sync_receivers: RwLock::new(HashMap::new()),
 			rotate: RotationHandler::new(),
+			started: SystemTime::now(),
 			shutdown: AtomicBool::new(false),
 			argon,
 		};
