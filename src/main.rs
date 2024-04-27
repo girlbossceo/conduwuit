@@ -476,24 +476,7 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 		None
 	};
 
-	let tracing_reload_handle;
-
-	#[cfg(feature = "perf_measurements")]
-	{
-		tracing_reload_handle = if config.allow_jaeger {
-			init_tracing_jaeger(&config)
-		} else if config.tracing_flame {
-			#[cfg(feature = "perf_measurements")]
-			init_tracing_flame(&config)
-		} else {
-			init_tracing_sub(&config)
-		};
-	};
-
-	#[cfg(not(feature = "perf_measurements"))]
-	{
-		tracing_reload_handle = init_tracing_sub(&config);
-	};
+	let tracing_reload_handle = init_tracing(&config);
 
 	config.check()?;
 
@@ -596,7 +579,10 @@ impl LogLevelReloadHandles {
 	}
 }
 
-fn init_tracing_sub(config: &Config) -> LogLevelReloadHandles {
+// clippy thinks the filter_layer clones are redundant if the next usage is
+// behind a disabled feature.
+#[allow(clippy::redundant_clone)]
+fn init_tracing(config: &Config) -> LogLevelReloadHandles {
 	let registry = Registry::default();
 	let fmt_layer = tracing_subscriber::fmt::Layer::new();
 	let filter_layer = match EnvFilter::try_new(&config.log) {
@@ -623,9 +609,44 @@ fn init_tracing_sub(config: &Config) -> LogLevelReloadHandles {
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
 		let sentry_layer = sentry_tracing::layer();
-		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(filter_layer);
+		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(filter_layer.clone());
 		reload_handles.push(Box::new(sentry_reload_handle));
 		subscriber.with(sentry_layer.with_filter(sentry_reload_filter))
+	};
+
+	#[cfg(feature = "perf_measurements")]
+	let subscriber = {
+		let flame_layer = if config.tracing_flame {
+			let flame_filter = EnvFilter::new("trace,h2=off");
+
+			// TODO: actually preserve this guard until exit: https://docs.rs/tracing-flame/latest/tracing_flame/struct.FlameLayer.html#dropping-and-flushing
+			let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+			Some(
+				flame_layer
+					.with_empty_samples(false)
+					.with_filter(flame_filter),
+			)
+		} else {
+			None
+		};
+
+		let jaeger_layer = if config.allow_jaeger {
+			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+			let tracer = opentelemetry_jaeger::new_agent_pipeline()
+				.with_auto_split_batch(true)
+				.with_service_name("conduwuit")
+				.install_batch(opentelemetry_sdk::runtime::Tokio)
+				.unwrap();
+			let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+			let (jaeger_reload_filter, jaeger_reload_handle) = reload::Layer::new(filter_layer);
+			reload_handles.push(Box::new(jaeger_reload_handle));
+			Some(telemetry.with_filter(jaeger_reload_filter))
+		} else {
+			None
+		};
+
+		subscriber.with(flame_layer).with(jaeger_layer)
 	};
 
 	tracing::subscriber::set_global_default(subscriber).unwrap();
@@ -637,51 +658,6 @@ fn init_tracing_sub(config: &Config) -> LogLevelReloadHandles {
 	);
 
 	LogLevelReloadHandles::new(reload_handles)
-}
-
-#[cfg(feature = "perf_measurements")]
-fn init_tracing_jaeger(config: &Config) -> LogLevelReloadHandles {
-	opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-	let tracer = opentelemetry_jaeger::new_agent_pipeline()
-		.with_auto_split_batch(true)
-		.with_service_name("conduwuit")
-		.install_batch(opentelemetry_sdk::runtime::Tokio)
-		.unwrap();
-	let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-	let filter_layer = match EnvFilter::try_new(&config.log) {
-		Ok(s) => s,
-		Err(e) => {
-			eprintln!("It looks like your log config is invalid. The following error occurred: {e}");
-			EnvFilter::try_new("warn").unwrap()
-		},
-	};
-
-	let (reload_filter, reload_handle) = reload::Layer::new(filter_layer);
-
-	let subscriber = Registry::default().with(reload_filter).with(telemetry);
-
-	tracing::subscriber::set_global_default(subscriber).unwrap();
-
-	LogLevelReloadHandles::new(vec![Box::new(reload_handle)])
-}
-
-// TODO: tokio-console here?
-#[cfg(feature = "perf_measurements")]
-fn init_tracing_flame(_config: &Config) -> LogLevelReloadHandles {
-	let registry = Registry::default();
-	let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
-	let flame_layer = flame_layer.with_empty_samples(false);
-
-	let filter_layer = EnvFilter::new("trace,h2=off");
-
-	let (reload_filter, reload_handle) = reload::Layer::new(filter_layer);
-
-	let subscriber = registry.with(reload_filter).with(flame_layer);
-
-	tracing::subscriber::set_global_default(subscriber).unwrap();
-
-	LogLevelReloadHandles::new(vec![Box::new(reload_handle)])
 }
 
 // This is needed for opening lots of file descriptors, which tends to
