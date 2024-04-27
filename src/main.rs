@@ -7,7 +7,7 @@ use std::os::unix::fs::PermissionsExt as _; /* not unix specific, just only for 
 // are not stable as of writing This is the case for every other occurence of
 // sync Mutex/RwLock, except for database related ones
 use std::sync::{Arc, RwLock};
-use std::{any::Any, io, net::SocketAddr, sync::atomic, time::Duration};
+use std::{any::Any, fs, io, net::SocketAddr, sync::atomic, time::Duration};
 
 use api::ruma_wrapper::{Ruma, RumaResponse};
 use axum::{
@@ -83,6 +83,8 @@ struct Server {
 
 	#[cfg(feature = "sentry_telemetry")]
 	_sentry_guard: Option<sentry::ClientInitGuard>,
+
+	_tracing_flame_guard: TracingFlameGuard,
 }
 
 fn main() -> Result<(), Error> {
@@ -476,7 +478,7 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 		None
 	};
 
-	let tracing_reload_handle = init_tracing(&config);
+	let (tracing_reload_handle, tracing_flame_guard) = init_tracing(&config);
 
 	config.check()?;
 
@@ -506,6 +508,7 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 
 		#[cfg(feature = "sentry_telemetry")]
 		_sentry_guard: sentry_guard,
+		_tracing_flame_guard: tracing_flame_guard,
 	})
 }
 
@@ -579,10 +582,15 @@ impl LogLevelReloadHandles {
 	}
 }
 
+#[cfg(feature = "perf_measurements")]
+type TracingFlameGuard = Option<tracing_flame::FlushGuard<io::BufWriter<fs::File>>>;
+#[cfg(not(feature = "perf_measurements"))]
+type TracingFlameGuard = ();
+
 // clippy thinks the filter_layer clones are redundant if the next usage is
 // behind a disabled feature.
 #[allow(clippy::redundant_clone)]
-fn init_tracing(config: &Config) -> LogLevelReloadHandles {
+fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 	let registry = Registry::default();
 	let fmt_layer = tracing_subscriber::fmt::Layer::new();
 	let filter_layer = match EnvFilter::try_new(&config.log) {
@@ -615,22 +623,20 @@ fn init_tracing(config: &Config) -> LogLevelReloadHandles {
 	};
 
 	#[cfg(feature = "perf_measurements")]
-	let subscriber = {
-		let flame_layer = if config.tracing_flame {
+	let (subscriber, flame_guard) = {
+		let (flame_layer, flame_guard) = if config.tracing_flame {
 			let flame_filter = match EnvFilter::try_new(&config.tracing_flame_filter) {
 				Ok(flame_filter) => flame_filter,
 				Err(e) => panic!("tracing_flame_filter config value is invalid: {e}"),
 			};
 
-			// TODO: actually preserve this guard until exit: https://docs.rs/tracing-flame/latest/tracing_flame/struct.FlameLayer.html#dropping-and-flushing
-			let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
-			Some(
-				flame_layer
-					.with_empty_samples(false)
-					.with_filter(flame_filter),
-			)
+			let (flame_layer, flame_guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+			let flame_layer = flame_layer
+				.with_empty_samples(false)
+				.with_filter(flame_filter);
+			(Some(flame_layer), Some(flame_guard))
 		} else {
-			None
+			(None, None)
 		};
 
 		let jaeger_layer = if config.allow_jaeger {
@@ -649,8 +655,12 @@ fn init_tracing(config: &Config) -> LogLevelReloadHandles {
 			None
 		};
 
-		subscriber.with(flame_layer).with(jaeger_layer)
+		let subscriber = subscriber.with(flame_layer).with(jaeger_layer);
+		(subscriber, flame_guard)
 	};
+
+	#[cfg(not(feature = "perf_measurements"))]
+	let flame_guard = ();
 
 	tracing::subscriber::set_global_default(subscriber).unwrap();
 
@@ -660,7 +670,7 @@ fn init_tracing(config: &Config) -> LogLevelReloadHandles {
 		 needs access to trace-level events. 'release_max_log_level' must be disabled to use tokio-console."
 	);
 
-	LogLevelReloadHandles::new(reload_handles)
+	(LogLevelReloadHandles::new(reload_handles), flame_guard)
 }
 
 // This is needed for opening lots of file descriptors, which tends to
