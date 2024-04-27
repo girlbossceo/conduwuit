@@ -7,7 +7,7 @@ use std::os::unix::fs::PermissionsExt as _; /* not unix specific, just only for 
 // are not stable as of writing This is the case for every other occurence of
 // sync Mutex/RwLock, except for database related ones
 use std::sync::{Arc, RwLock};
-use std::{any::Any, fs, io, net::SocketAddr, sync::atomic, time::Duration};
+use std::{any::Any, io, net::SocketAddr, sync::atomic, time::Duration};
 
 use api::ruma_wrapper::{Ruma, RumaResponse};
 use axum::{
@@ -576,7 +576,7 @@ impl LogLevelReloadHandles {
 }
 
 #[cfg(feature = "perf_measurements")]
-type TracingFlameGuard = Option<tracing_flame::FlushGuard<io::BufWriter<fs::File>>>;
+type TracingFlameGuard = Option<tracing_flame::FlushGuard<io::BufWriter<std::fs::File>>>;
 #[cfg(not(feature = "perf_measurements"))]
 type TracingFlameGuard = ();
 
@@ -659,6 +659,7 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 	};
 
 	#[cfg(not(feature = "perf_measurements"))]
+	#[cfg_attr(not(feature = "perf_measurements"), allow(clippy::let_unit_value))]
 	let flame_guard = ();
 
 	tracing::subscriber::set_global_default(subscriber).unwrap();
