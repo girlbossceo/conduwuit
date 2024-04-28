@@ -369,7 +369,12 @@ default = [
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
 rocksdb = ["rust-rocksdb"]
-jemalloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl", "tikv-jemallocator", "rust-rocksdb/jemalloc"]
+jemalloc = [
+    "tikv-jemalloc-sys",
+    "tikv-jemalloc-ctl",
+    "tikv-jemallocator",
+    "rust-rocksdb/jemalloc",
+]
 jemalloc_prof = ["tikv-jemalloc-sys/profiling"]
 sqlite = ["rusqlite", "parking_lot", "thread_local"]
 systemd = ["sd-notify"]
