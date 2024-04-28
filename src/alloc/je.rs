@@ -31,11 +31,12 @@ pub(crate) fn memory_stats() -> String {
 	let opaque: *mut c_void = &mut str as *mut _ as *mut c_void;
 	let opts_p: *const c_char = std::ffi::CString::new(opts_s).expect("cstring").into_raw() as *const c_char;
 
-	// SAFETY: calls malloc_stats_print() with our string instance which must remain in this frame.
+	// SAFETY: calls malloc_stats_print() with our string instance which must remain
+	// in this frame. https://docs.rs/tikv-jemalloc-sys/latest/tikv_jemalloc_sys/fn.malloc_stats_print.html
 	unsafe { ffi::malloc_stats_print(Some(malloc_stats_cb), opaque, opts_p) };
 
 	str.truncate(MAX_LENGTH);
-	format!("<code>{str}</code>")
+	format!("<pre><code>{str}</code></pre>")
 }
 
 extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
