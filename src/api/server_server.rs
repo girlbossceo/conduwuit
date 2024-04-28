@@ -55,7 +55,9 @@ use crate::{
 	api::client_server::{self, claim_keys_helper, get_keys_helper},
 	debug_error,
 	service::pdu::{gen_event_id_canonical_json, PduBuilder},
-	services, utils, Error, PduEvent, Result, Ruma,
+	services,
+	utils::{self, user_id::user_is_local},
+	Error, PduEvent, Result, Ruma,
 };
 
 /// # `GET /_matrix/federation/v1/version`
@@ -978,7 +980,7 @@ pub(crate) async fn create_join_event_template_route(
 						.state_cache
 						.room_members(&body.room_id)
 						.filter_map(Result::ok)
-						.filter(|user| user.server_name() == services().globals.server_name())
+						.filter(|user| user_is_local(user))
 						.collect();
 
 					let mut auth_user = None;

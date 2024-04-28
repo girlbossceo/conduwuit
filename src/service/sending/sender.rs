@@ -23,7 +23,12 @@ use ruma::{
 use tracing::{debug, error, warn};
 
 use super::{appservice, send, Destination, Msg, SendingEvent, Service};
-use crate::{service::presence::Presence, services, utils::calculate_hash, Error, PduEvent, Result};
+use crate::{
+	service::presence::Presence,
+	services,
+	utils::{calculate_hash, user_id::user_is_local},
+	Error, PduEvent, Result,
+};
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -244,7 +249,7 @@ impl Service {
 					.users
 					.keys_changed(room_id.as_ref(), since, None)
 					.filter_map(Result::ok)
-					.filter(|user_id| user_id.server_name() == services().globals.server_name()),
+					.filter(|user_id| user_is_local(user_id)),
 			);
 
 			if services().globals.allow_outgoing_read_receipts()

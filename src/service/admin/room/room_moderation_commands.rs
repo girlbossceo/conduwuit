@@ -9,7 +9,9 @@ use super::RoomModerationCommand;
 use crate::{
 	api::client_server::{get_alias_helper, leave_room},
 	service::admin::{escape_html, Service},
-	services, Result,
+	services,
+	utils::user_id::user_is_local,
+	Result,
 };
 
 pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -102,11 +104,10 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 					.room_members(&room_id)
 					.filter_map(|user| {
 						user.ok().filter(|local_user| {
-							local_user.server_name() == services().globals.server_name()
+							user_is_local(local_user)
                             // additional wrapped check here is to avoid adding remote users
                             // who are in the admin room to the list of local users (would fail auth check)
-                            && (local_user.server_name()
-                                == services().globals.server_name()
+                            && (user_is_local(local_user)
                                 && services()
                                     .users
                                     .is_admin(local_user)

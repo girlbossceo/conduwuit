@@ -8,7 +8,11 @@ use ruma::{
 use tokio::sync::{broadcast, RwLock};
 use tracing::debug;
 
-use crate::{services, utils, Result};
+use crate::{
+	services,
+	utils::{self, user_id::user_is_local},
+	Result,
+};
 
 pub(crate) struct Service {
 	pub(crate) typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>, // u64 is unix timestamp of timeout
@@ -37,7 +41,7 @@ impl Service {
 		_ = self.typing_update_sender.send(room_id.to_owned());
 
 		// update federation
-		if user_id.server_name() == services().globals.server_name() {
+		if user_is_local(user_id) {
 			self.federation_send(room_id, user_id, true)?;
 		}
 
@@ -61,7 +65,7 @@ impl Service {
 		_ = self.typing_update_sender.send(room_id.to_owned());
 
 		// update federation
-		if user_id.server_name() == services().globals.server_name() {
+		if user_is_local(user_id) {
 			self.federation_send(room_id, user_id, false)?;
 		}
 
@@ -115,7 +119,7 @@ impl Service {
 
 			// update federation
 			for user in removable {
-				if user.server_name() == services().globals.server_name() {
+				if user_is_local(&user) {
 					self.federation_send(room_id, &user, false)?;
 				}
 			}
@@ -154,10 +158,7 @@ impl Service {
 	}
 
 	fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
-		debug_assert!(
-			user_id.server_name() == services().globals.server_name(),
-			"tried to broadcast typing status of remote user",
-		);
+		debug_assert!(user_is_local(user_id), "tried to broadcast typing status of remote user",);
 		if !services().globals.config.allow_outgoing_typing {
 			return Ok(());
 		}

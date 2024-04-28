@@ -34,7 +34,9 @@ use tracing::{debug, error, info, trace, warn};
 use super::get_alias_helper;
 use crate::{
 	service::pdu::{gen_event_id_canonical_json, PduBuilder},
-	services, utils, Error, PduEvent, Result, Ruma,
+	services,
+	utils::{self, server_name::server_is_ours, user_id::user_is_local},
+	Error, PduEvent, Result, Ruma,
 };
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/join`
@@ -1088,7 +1090,7 @@ pub(crate) async fn join_room_by_id_helper(
 			.state_cache
 			.room_members(room_id)
 			.filter_map(Result::ok)
-			.filter(|user| user.server_name() == services().globals.server_name())
+			.filter(|user| user_is_local(user))
 			.collect::<Vec<OwnedUserId>>();
 
 		let mut authorized_user: Option<OwnedUserId> = None;
@@ -1150,7 +1152,7 @@ pub(crate) async fn join_room_by_id_helper(
 		if !restriction_rooms.is_empty()
 			&& servers
 				.iter()
-				.any(|s| *s != services().globals.server_name())
+				.any(|server_name| !server_is_ours(server_name))
 		{
 			info!(
 				"We couldn't do the join locally, maybe federation can help to satisfy the restricted join \
@@ -1303,7 +1305,7 @@ async fn make_join_request(
 	let mut incompatible_room_version_count = 0;
 
 	for remote_server in servers {
-		if remote_server == services().globals.server_name() {
+		if server_is_ours(remote_server) {
 			continue;
 		}
 		info!("Asking {remote_server} for make_join ({make_join_counter})");
@@ -1436,7 +1438,7 @@ pub(crate) async fn invite_helper(
 		));
 	}
 
-	if user_id.server_name() != services().globals.server_name() {
+	if !user_is_local(user_id) {
 		let (pdu, pdu_json, invite_room_state) = {
 			let mutex_state = Arc::clone(
 				services()
