@@ -21,14 +21,17 @@ pub(crate) fn memory_usage() -> String {
 	)
 }
 
+#[allow(clippy::ptr_as_ptr)]
 pub(crate) fn memory_stats() -> String {
 	const MAX_LENGTH: usize = 65536 - 4096;
 
 	let opts_s = "d";
-	let mut str: String = String::new();
+	let mut str = String::new();
 
 	let opaque: *mut c_void = &mut str as *mut _ as *mut c_void;
 	let opts_p: *const c_char = std::ffi::CString::new(opts_s).expect("cstring").into_raw() as *const c_char;
+
+	// SAFETY: calls malloc_stats_print() with our string instance which must remain in this frame.
 	unsafe { ffi::malloc_stats_print(Some(malloc_stats_cb), opaque, opts_p) };
 
 	str.truncate(MAX_LENGTH);
@@ -36,8 +39,12 @@ pub(crate) fn memory_stats() -> String {
 }
 
 extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
-	let res: &mut String = unsafe { std::mem::transmute::<*mut c_void, &mut String>(opaque) };
+	// SAFETY: we have to trust the opaque points to our String
+	let res: &mut String = unsafe { &mut *opaque.cast::<String>() };
+
+	// SAFETY: we have to trust the string is null terminated.
 	let msg = unsafe { std::ffi::CStr::from_ptr(msg) };
+
 	let msg = String::from_utf8_lossy(msg.to_bytes());
 	res.push_str(msg.as_ref());
 }
