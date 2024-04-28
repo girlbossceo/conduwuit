@@ -16,11 +16,17 @@ edition = "2021"
 # See also `rust-toolchain.toml`
 rust-version = "1.76.0"
 
+# for hot lib reload
+[workspace]
+members = ["lib"]
 
 [dependencies]
 console-subscriber = { version = "0.1", optional = true }
 
+# for hot lib reload
 hot-lib-reloader = { version = "^0.7", optional = true }
+lib = { path = "lib", optional = true }
+#no-mangle-if-debug = { version = "*" }
 
 # Used for secure identifiers
 rand = "0.8.5"
@@ -400,7 +406,7 @@ perf_measurements = [
 # incompatible with release_max_log_level
 tokio_console = ["console-subscriber", "tokio/tracing"]
 
-hot_reload = ["dep:hot-lib-reloader"]
+hot_reload = ["dep:hot-lib-reloader", "lib"]
 
 hardened_malloc = ["hardened_malloc-rs"]
 
