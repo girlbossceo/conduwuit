@@ -5,3 +5,6 @@ edition = "2021"
 
 [lib]
 crate-type = ["rlib", "dylib"]
+
+# cargo watch -w hot_lib -x 'build -p hot_lib'
+# ^this will rebuild upon cargo detecting any changes
