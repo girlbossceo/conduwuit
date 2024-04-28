@@ -18,7 +18,7 @@ use crate::{debug_error, Result};
 #[hot_lib_reloader::hot_module(dylib = "lib")]
 mod hot_lib_funcs {
 	// these will be functions from lib.rs, so `use hot_lib_funcs::test_command;`
-	hot_functions_from_file!("lib/src/lib.rs");
+	hot_functions_from_file!("hot_lib/src/lib.rs");
 }
 
 #[cfg_attr(test, derive(Debug))]
