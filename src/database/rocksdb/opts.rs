@@ -36,8 +36,10 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 
 	// IO
 	opts.set_manual_wal_flush(true);
-	opts.set_use_direct_reads(true);
-	opts.set_use_direct_io_for_flush_and_compaction(true);
+	if config.rocksdb_direct_io {
+		opts.set_use_direct_reads(true);
+		opts.set_use_direct_io_for_flush_and_compaction(true);
+	}
 	if config.rocksdb_optimize_for_spinning_disks {
 		// speeds up opening DB on hard drives
 		opts.set_skip_checking_sst_file_sizes_on_db_open(true);

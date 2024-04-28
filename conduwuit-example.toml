@@ -384,6 +384,10 @@ allow_profile_lookup_federation_requests = true
 # Defaults to false
 #rocksdb_optimize_for_spinning_disks = false
 
+# Enables direct-io to increase database performance. This is enabled by default. Set this option to false if the
+# database resides on a filesystem which does not support direct-io.
+#rocksdb_direct_io = true
+
 # RocksDB log level. This is not the same as conduwuit's log level. This is the log level for the RocksDB engine/library
 # which show up in your database folder/path as `LOG` files. Defaults to error. conduwuit will typically log RocksDB errors as normal.
 #rocksdb_log_level = "error"

@@ -218,6 +218,8 @@ pub(crate) struct Config {
 	pub(crate) rocksdb_log_time_to_roll: usize,
 	#[serde(default)]
 	pub(crate) rocksdb_optimize_for_spinning_disks: bool,
+	#[serde(default = "true_fn")]
+	pub(crate) rocksdb_direct_io: bool,
 	#[serde(default = "default_rocksdb_parallelism_threads")]
 	pub(crate) rocksdb_parallelism_threads: usize,
 	#[serde(default = "default_rocksdb_max_log_files")]
@@ -702,6 +704,8 @@ impl fmt::Display for Config {
 				"RocksDB database optimize for spinning disks",
 				&self.rocksdb_optimize_for_spinning_disks.to_string(),
 			),
+			#[cfg(feature = "rocksdb")]
+			("RocksDB Direct-IO", &self.rocksdb_direct_io.to_string()),
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Parallelism Threads", &self.rocksdb_parallelism_threads.to_string()),
 			#[cfg(feature = "rocksdb")]
