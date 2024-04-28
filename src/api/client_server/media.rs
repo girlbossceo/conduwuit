@@ -16,7 +16,9 @@ use webpage::HTML;
 use crate::{
 	debug_warn,
 	service::media::{FileMeta, UrlPreviewData},
-	services, utils, Error, Result, Ruma, RumaResponse,
+	services,
+	utils::{self, server_name::server_is_ours},
+	Error, Result, Ruma, RumaResponse,
 };
 
 /// generated MXC ID (`media-id`) length
@@ -181,7 +183,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
-	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+	} else if !server_is_ours(&body.server_name) && body.allow_remote {
 		get_remote_content(
 			&mxc,
 			&body.server_name,
@@ -243,7 +245,7 @@ pub(crate) async fn get_content_as_filename_route(
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
-	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+	} else if !server_is_ours(&body.server_name) && body.allow_remote {
 		match get_remote_content(
 			&mxc,
 			&body.server_name,
@@ -324,7 +326,7 @@ pub(crate) async fn get_content_thumbnail_route(
 			cross_origin_resource_policy: Some("cross-origin".to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
-	} else if &*body.server_name != services().globals.server_name() && body.allow_remote {
+	} else if !server_is_ours(&body.server_name) && body.allow_remote {
 		if services()
 			.globals
 			.prevent_media_downloads_from()

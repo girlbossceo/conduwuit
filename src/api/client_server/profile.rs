@@ -13,7 +13,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 
-use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
+use crate::{service::pdu::PduBuilder, services, utils::user_id::user_is_local, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
 ///
@@ -105,7 +105,7 @@ pub(crate) async fn set_displayname_route(
 pub(crate) async fn get_displayname_route(
 	body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
-	if body.user_id.server_name() != services().globals.server_name() {
+	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
 		if let Ok(response) = services()
 			.sending
@@ -247,7 +247,7 @@ pub(crate) async fn set_avatar_url_route(
 pub(crate) async fn get_avatar_url_route(
 	body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
-	if body.user_id.server_name() != services().globals.server_name() {
+	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
 		if let Ok(response) = services()
 			.sending
@@ -303,7 +303,7 @@ pub(crate) async fn get_avatar_url_route(
 /// - If user is on another server and we do not have a local copy already,
 /// fetch profile over federation.
 pub(crate) async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> Result<get_profile::v3::Response> {
-	if body.user_id.server_name() != services().globals.server_name() {
+	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
 		if let Ok(response) = services()
 			.sending

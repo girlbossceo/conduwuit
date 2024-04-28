@@ -458,7 +458,7 @@ pub(crate) async fn claim_keys_helper(
 	let mut get_over_federation = BTreeMap::new();
 
 	for (user_id, map) in one_time_keys_input {
-		if user_id.server_name() != services().globals.server_name() {
+		if !user_is_local(user_id) {
 			get_over_federation
 				.entry(user_id.server_name())
 				.or_insert_with(Vec::new)

@@ -293,7 +293,7 @@ fn select_edus_presence(
 	for (user_id, count, presence_bytes) in services().presence.presence_since(since) {
 		*max_edu_count = cmp::max(count, *max_edu_count);
 
-		if user_id.server_name() != services().globals.server_name() {
+		if !user_is_local(&user_id) {
 			continue;
 		}
 
@@ -341,7 +341,7 @@ fn select_edus_receipts(
 		let (user_id, count, read_receipt) = r?;
 		*max_edu_count = cmp::max(count, *max_edu_count);
 
-		if user_id.server_name() != services().globals.server_name() {
+		if !user_is_local(&user_id) {
 			continue;
 		}
 

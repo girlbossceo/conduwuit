@@ -19,7 +19,7 @@ use ruma::{
 };
 use tracing::{error, warn};
 
-use crate::{service::appservice::RegistrationInfo, services, Error, Result};
+use crate::{service::appservice::RegistrationInfo, services, utils::user_id::user_is_local, Error, Result};
 
 mod data;
 
@@ -43,7 +43,7 @@ impl Service {
 		// TODO: use futures to update remote profiles without blocking the membership
 		// update
 		#[allow(clippy::collapsible_if)]
-		if user_id.server_name() != services().globals.server_name() {
+		if !user_is_local(user_id) {
 			if !services().users.exists(user_id)? {
 				services().users.create(user_id, None)?;
 			}

@@ -41,7 +41,9 @@ use crate::{
 		appservice::NamespaceRegex,
 		pdu::{EventHash, PduBuilder},
 	},
-	services, utils, Error, PduEvent, Result,
+	services,
+	utils::{self, server_name::server_is_ours},
+	Error, PduEvent, Result,
 };
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -852,8 +854,7 @@ impl Service {
 								.state_cache
 								.room_members(room_id)
 								.filter_map(Result::ok)
-								.filter(|m| m.server_name() == server_name)
-								.filter(|m| m != target)
+								.filter(|m| server_is_ours(m.server_name()) && m != target)
 								.count();
 							if count < 2 {
 								warn!("Last admin cannot leave from admins room");
@@ -878,8 +879,7 @@ impl Service {
 								.state_cache
 								.room_members(room_id)
 								.filter_map(Result::ok)
-								.filter(|m| m.server_name() == server_name)
-								.filter(|m| m != target)
+								.filter(|m| server_is_ours(m.server_name()) && m != target)
 								.count();
 							if count < 2 {
 								warn!("Last admin cannot be banned in admins room");
@@ -1059,8 +1059,9 @@ impl Service {
 				.state_cache
 				.room_servers(room_id)
 				.filter_map(Result::ok)
-				.filter(|server| services().globals.trusted_servers().contains(server))
-				.filter(|server| server != services().globals.server_name()),
+				.filter(|server_name| {
+					services().globals.trusted_servers().contains(server_name) && !server_is_ours(server_name)
+				}),
 		);
 
 		// add server names from room aliases on the room ID
@@ -1071,16 +1072,16 @@ impl Service {
 			.collect::<Result<Vec<_>, _>>();
 		if let Ok(aliases) = &room_aliases {
 			for alias in aliases {
-				if alias.server_name() != services().globals.server_name() {
+				if !server_is_ours(alias.server_name()) {
 					servers.push(alias.server_name().to_owned());
 				}
 			}
 		}
 
 		// add room ID server name for backfill server
-		if let Some(server) = room_id.server_name() {
-			if server != services().globals.server_name() {
-				servers.push(server.to_owned());
+		if let Some(server_name) = room_id.server_name() {
+			if !server_is_ours(server_name) {
+				servers.push(server_name.to_owned());
 			}
 		}
 
@@ -1102,7 +1103,7 @@ impl Service {
 				.iter()
 				.filter(|(_, level)| **level > power_levels.users_default)
 				.map(|(user_id, _)| user_id.server_name())
-				.filter(|server| server != &services().globals.server_name())
+				.filter(|server_name| !server_is_ours(server_name))
 				.map(ToOwned::to_owned),
 		);
 
@@ -1110,7 +1111,7 @@ impl Service {
 		if let Some(server_index) = servers
 			.clone()
 			.into_iter()
-			.position(|server| server == services().globals.server_name())
+			.position(|server_name| server_is_ours(&server_name))
 		{
 			servers.remove(server_index);
 		}
