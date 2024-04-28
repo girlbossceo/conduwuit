@@ -20,7 +20,9 @@ use tracing::{error, log::warn};
 
 use crate::{
 	service::{self, pdu::PduBuilder},
-	services, Error, Result, Ruma, RumaResponse,
+	services,
+	utils::server_name::server_is_ours,
+	Error, Result, Ruma, RumaResponse,
 };
 
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
@@ -279,7 +281,7 @@ async fn send_state_event_for_key_helper(
 				}
 
 				for alias in aliases {
-					if alias.server_name() != services().globals.server_name()
+					if !server_is_ours(alias.server_name())
 						|| services()
                         .rooms
                         .alias

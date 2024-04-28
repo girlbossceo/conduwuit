@@ -8,7 +8,7 @@ use ruma::{
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use crate::{services, Config, Error, Result};
+use crate::{services, utils::server_name::server_is_ours, Config, Error, Result};
 
 mod appservice;
 mod data;
@@ -93,7 +93,7 @@ impl Service {
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
+			.filter(|server_name| !server_is_ours(server_name));
 
 		self.send_pdu_servers(servers, pdu_id)
 	}
@@ -144,7 +144,7 @@ impl Service {
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
+			.filter(|server_name| !server_is_ours(server_name));
 
 		self.send_edu_servers(servers, serialized)
 	}
@@ -183,7 +183,7 @@ impl Service {
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.filter(|server| &**server != services().globals.server_name());
+			.filter(|server_name| !server_is_ours(server_name));
 
 		self.flush_servers(servers)
 	}

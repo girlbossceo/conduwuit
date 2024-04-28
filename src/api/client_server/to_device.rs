@@ -8,7 +8,7 @@ use ruma::{
 	to_device::DeviceIdOrAllDevices,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{services, utils::user_id::user_is_local, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/sendToDevice/{eventType}/{txnId}`
 ///
@@ -30,7 +30,7 @@ pub(crate) async fn send_event_to_device_route(
 
 	for (target_user_id, map) in &body.messages {
 		for (target_device_id_maybe, event) in map {
-			if target_user_id.server_name() != services().globals.server_name() {
+			if !user_is_local(target_user_id) {
 				let mut map = BTreeMap::new();
 				map.insert(target_device_id_maybe.clone(), event.clone());
 				let mut messages = BTreeMap::new();

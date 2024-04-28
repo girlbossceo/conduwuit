@@ -56,7 +56,7 @@ use crate::{
 	debug_error,
 	service::pdu::{gen_event_id_canonical_json, PduBuilder},
 	services,
-	utils::{self, user_id::user_is_local},
+	utils::{self, server_name::server_is_ours, user_id::user_is_local},
 	Error, PduEvent, Result, Ruma,
 };
 
@@ -1456,7 +1456,7 @@ async fn create_leave_event(sender_servername: &ServerName, room_id: &RoomId, pd
 		.state_cache
 		.room_servers(room_id)
 		.filter_map(Result::ok)
-		.filter(|server| &**server != services().globals.server_name());
+		.filter(|server| !server_is_ours(server));
 
 	services().sending.send_pdu_servers(servers, &pdu_id)?;
 
@@ -1651,7 +1651,7 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 ///
 /// Gets information on all devices of the user.
 pub(crate) async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> Result<get_devices::v1::Response> {
-	if body.user_id.server_name() != services().globals.server_name() {
+	if !user_is_local(&body.user_id) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Tried to access user from other server.",
@@ -1757,7 +1757,7 @@ pub(crate) async fn get_profile_information_route(
 		));
 	}
 
-	if body.user_id.server_name() != services().globals.server_name() {
+	if !server_is_ours(body.user_id.server_name()) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"User does not belong to this server",
@@ -1796,11 +1796,7 @@ pub(crate) async fn get_profile_information_route(
 ///
 /// Gets devices and identity keys for the given users.
 pub(crate) async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<get_keys::v1::Response> {
-	if body
-		.device_keys
-		.iter()
-		.any(|(u, _)| u.server_name() != services().globals.server_name())
-	{
+	if body.device_keys.iter().any(|(u, _)| !user_is_local(u)) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"User does not belong to this server.",
@@ -1826,11 +1822,7 @@ pub(crate) async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<
 ///
 /// Claims one-time keys.
 pub(crate) async fn claim_keys_route(body: Ruma<claim_keys::v1::Request>) -> Result<claim_keys::v1::Response> {
-	if body
-		.one_time_keys
-		.iter()
-		.any(|(u, _)| u.server_name() != services().globals.server_name())
-	{
+	if body.one_time_keys.iter().any(|(u, _)| !user_is_local(u)) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Tried to access user from other server.",

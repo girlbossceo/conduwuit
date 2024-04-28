@@ -24,7 +24,7 @@ use ruma::{
 };
 use tracing::{error, info, warn};
 
-use crate::{services, Error, Result, Ruma};
+use crate::{services, utils::server_name::server_is_ours, Error, Result, Ruma};
 
 /// # `POST /_matrix/client/v3/publicRooms`
 ///
@@ -173,7 +173,7 @@ pub(crate) async fn get_room_visibility_route(
 pub(crate) async fn get_public_rooms_filtered_helper(
 	server: Option<&ServerName>, limit: Option<UInt>, since: Option<&str>, filter: &Filter, _network: &RoomNetwork,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
-	if let Some(other_server) = server.filter(|server| *server != services().globals.server_name().as_str()) {
+	if let Some(other_server) = server.filter(|server_name| !server_is_ours(server_name)) {
 		let response = services()
 			.sending
 			.send_federation_request(
