@@ -20,7 +20,11 @@ use serde_json::json;
 use tracing::debug;
 
 use super::SESSION_ID_LENGTH;
-use crate::{services, utils, Error, Result, Ruma};
+use crate::{
+	services,
+	utils::{self, user_id::user_is_local},
+	Error, Result, Ruma,
+};
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
@@ -260,7 +264,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 	for (user_id, device_ids) in device_keys_input {
 		let user_id: &UserId = user_id;
 
-		if user_id.server_name() != services().globals.server_name() {
+		if !user_is_local(user_id) {
 			get_over_federation
 				.entry(user_id.server_name())
 				.or_insert_with(Vec::new)

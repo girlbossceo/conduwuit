@@ -18,7 +18,9 @@ use tracing::{error, info, warn};
 use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
 	api::client_server::{self, join_room_by_id_helper},
-	service, services, utils, Error, Result, Ruma,
+	service, services,
+	utils::{self, user_id::user_is_local},
+	Error, Result, Ruma,
 };
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
@@ -40,7 +42,7 @@ pub(crate) async fn get_register_available_route(
 	// Validate user id
 	let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), services().globals.server_name())
 		.ok()
-		.filter(|user_id| !user_id.is_historical() && user_id.server_name() == services().globals.server_name())
+		.filter(|user_id| !user_id.is_historical() && user_is_local(user_id))
 		.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 	// Check if username is creative enough
@@ -125,9 +127,7 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 			let proposed_user_id =
 				UserId::parse_with_server_name(username.to_lowercase(), services().globals.server_name())
 					.ok()
-					.filter(|user_id| {
-						!user_id.is_historical() && user_id.server_name() == services().globals.server_name()
-					})
+					.filter(|user_id| !user_id.is_historical() && user_is_local(user_id))
 					.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 			if services().users.exists(&proposed_user_id)? {

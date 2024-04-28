@@ -24,7 +24,6 @@ use http::{
 	header::{self, HeaderName},
 	Method, StatusCode, Uri,
 };
-#[cfg(unix)]
 use ruma::api::client::{
 	error::{Error as RumaError, ErrorBody, ErrorKind},
 	uiaa::UiaaResponse,

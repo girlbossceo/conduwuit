@@ -1,6 +1,8 @@
 pub(crate) mod clap;
 pub(crate) mod debug;
 pub(crate) mod error;
+pub(crate) mod server_name;
+pub(crate) mod user_id;
 
 use std::{
 	cmp,

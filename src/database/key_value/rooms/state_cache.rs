@@ -11,7 +11,9 @@ use tracing::error;
 use crate::{
 	database::KeyValueDatabase,
 	service::{self, appservice::RegistrationInfo},
-	services, utils, Error, Result,
+	services,
+	utils::{self, user_id::user_is_local},
+	Error, Result,
 };
 
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
@@ -149,9 +151,7 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 
 		for joined in self.room_members(room_id).filter_map(Result::ok) {
 			joined_servers.insert(joined.server_name().to_owned());
-			if joined.server_name() == services().globals.server_name()
-				&& !services().users.is_deactivated(&joined).unwrap_or(true)
-			{
+			if user_is_local(&joined) && !services().users.is_deactivated(&joined).unwrap_or(true) {
 				real_users.insert(joined);
 			}
 			joinedcount += 1;

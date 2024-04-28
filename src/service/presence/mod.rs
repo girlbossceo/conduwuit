@@ -13,7 +13,11 @@ use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::sleep};
 use tracing::{debug, error};
 
-use crate::{services, utils, Config, Error, Result};
+use crate::{
+	services,
+	utils::{self, user_id::user_is_local},
+	Config, Error, Result,
+};
 
 /// Represents data required to be kept in order to implement the presence
 /// specification.
@@ -154,7 +158,7 @@ impl Service {
 		self.db
 			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)?;
 
-		if self.timeout_remote_users || user_id.server_name() == services().globals.server_name() {
+		if self.timeout_remote_users || user_is_local(user_id) {
 			let timeout = match presence_state {
 				PresenceState::Online => services().globals.config.presence_idle_timeout_s,
 				_ => services().globals.config.presence_offline_timeout_s,

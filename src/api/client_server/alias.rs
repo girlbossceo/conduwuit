@@ -12,13 +12,13 @@ use ruma::{
 };
 use tracing::debug;
 
-use crate::{debug_info, debug_warn, services, Error, Result, Ruma};
+use crate::{debug_info, debug_warn, services, utils::server_name::server_is_ours, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
 pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result<create_alias::v3::Response> {
-	if body.room_alias.server_name() != services().globals.server_name() {
+	if !server_is_ours(body.room_alias.server_name()) {
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
 
@@ -73,7 +73,7 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
 pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
-	if body.room_alias.server_name() != services().globals.server_name() {
+	if !server_is_ours(body.room_alias.server_name()) {
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}
 
@@ -126,7 +126,7 @@ pub(crate) async fn get_alias_helper(
 	room_alias: OwnedRoomAliasId, servers: Option<Vec<OwnedServerName>>,
 ) -> Result<get_alias::v3::Response> {
 	debug!("get_alias_helper servers: {servers:?}");
-	if room_alias.server_name() != services().globals.server_name()
+	if !server_is_ours(room_alias.server_name())
 		&& (!servers
 			.as_ref()
 			.is_some_and(|servers| servers.contains(&services().globals.server_name().to_owned()))
@@ -204,7 +204,7 @@ pub(crate) async fn get_alias_helper(
 			// room alias server first
 			if let Some(server_index) = servers
 				.iter()
-				.position(|server| server == services().globals.server_name())
+				.position(|server_name| server_is_ours(server_name))
 			{
 				servers.remove(server_index);
 				servers.insert(0, services().globals.server_name().to_owned());
@@ -277,7 +277,7 @@ pub(crate) async fn get_alias_helper(
 	// insert our server as the very first choice if in list
 	if let Some(server_index) = servers
 		.iter()
-		.position(|server| server == services().globals.server_name())
+		.position(|server_name| server_is_ours(server_name))
 	{
 		servers.remove(server_index);
 		servers.insert(0, services().globals.server_name().to_owned());
