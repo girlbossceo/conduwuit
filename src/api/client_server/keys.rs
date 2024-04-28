@@ -75,24 +75,20 @@ pub(crate) async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> R
 pub(crate) async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<get_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let response = get_keys_helper(
+	get_keys_helper(
 		Some(sender_user),
 		&body.device_keys,
 		|u| u == sender_user,
 		true, // Always allow local users to see device names of other local users
 	)
-	.await?;
-
-	Ok(response)
+	.await
 }
 
 /// # `POST /_matrix/client/r0/keys/claim`
 ///
 /// Claims one-time keys
 pub(crate) async fn claim_keys_route(body: Ruma<claim_keys::v3::Request>) -> Result<claim_keys::v3::Response> {
-	let response = claim_keys_helper(&body.one_time_keys).await?;
-
-	Ok(response)
+	claim_keys_helper(&body.one_time_keys).await
 }
 
 /// # `POST /_matrix/client/r0/keys/device_signing/upload`
@@ -262,8 +258,6 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 	let mut get_over_federation = HashMap::new();
 
 	for (user_id, device_ids) in device_keys_input {
-		let user_id: &UserId = user_id;
-
 		if !user_is_local(user_id) {
 			get_over_federation
 				.entry(user_id.server_name())
@@ -322,7 +316,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 		{
 			self_signing_keys.insert(user_id.to_owned(), self_signing_key);
 		}
-		if Some(user_id) == sender_user {
+		if user_id == sender_user.expect("user is authenticated") {
 			if let Some(user_signing_key) = services().users.get_user_signing_key(user_id)? {
 				user_signing_keys.insert(user_id.to_owned(), user_signing_key);
 			}
