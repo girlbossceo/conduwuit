@@ -258,6 +258,8 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 	let mut get_over_federation = HashMap::new();
 
 	for (user_id, device_ids) in device_keys_input {
+		let user_id: &UserId = user_id;
+
 		if !user_is_local(user_id) {
 			get_over_federation
 				.entry(user_id.server_name())
@@ -316,7 +318,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 		{
 			self_signing_keys.insert(user_id.to_owned(), self_signing_key);
 		}
-		if user_id == sender_user.expect("user is authenticated") {
+		if Some(user_id) == sender_user {
 			if let Some(user_signing_key) = services().users.get_user_signing_key(user_id)? {
 				user_signing_keys.insert(user_id.to_owned(), user_signing_key);
 			}
