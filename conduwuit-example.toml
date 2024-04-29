@@ -514,6 +514,12 @@ allow_profile_lookup_federation_requests = true
 # The default is to query one nameserver and stop (false).
 #query_all_nameservers = true
 
+# Enables using *only* TCP for querying your specified nameservers instead of UDP.
+#
+# You very likely do *not* want this. hickory-resolver already falls back to TCP on UDP errors.
+# Defaults to false
+#query_over_tcp_only = false
+
 # DNS A/AAAA record lookup strategy
 #
 # Takes a number of one of the following options:

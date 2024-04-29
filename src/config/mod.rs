@@ -103,6 +103,8 @@ pub(crate) struct Config {
 	pub(crate) dns_tcp_fallback: bool,
 	#[serde(default = "true_fn")]
 	pub(crate) query_all_nameservers: bool,
+	#[serde(default)]
+	pub(crate) query_over_tcp_only: bool,
 	#[serde(default = "default_ip_lookup_strategy")]
 	pub(crate) ip_lookup_strategy: u8,
 
