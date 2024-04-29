@@ -26,10 +26,7 @@ use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::{error, warn};
 
-use self::fsck::FsckCommand;
-#[cfg(feature = "hot_reload")]
-#[allow(unused_imports)]
-use self::test_cmd::TestCommands;
+use self::{fsck::FsckCommand, tester::TesterCommands};
 use super::pdu::PduBuilder;
 use crate::{
 	service::admin::{
@@ -47,9 +44,7 @@ pub(crate) mod media;
 pub(crate) mod query;
 pub(crate) mod room;
 pub(crate) mod server;
-#[cfg(feature = "hot_reload")]
-#[allow(unused_imports)]
-pub(crate) mod test_cmd;
+pub(crate) mod tester;
 pub(crate) mod user;
 
 const PAGE_SIZE: usize = 100;
@@ -94,9 +89,8 @@ enum AdminCommand {
 	/// - Query all the database getters and iterators
 	Fsck(FsckCommand),
 
-	#[cfg(feature = "hot_reload")]
 	#[command(subcommand)]
-	Test(TestCommands),
+	Tester(TesterCommands),
 }
 
 #[derive(Debug)]
@@ -314,8 +308,7 @@ impl Service {
 			AdminCommand::Debug(command) => debug::process(command, body).await?,
 			AdminCommand::Query(command) => query::process(command, body).await?,
 			AdminCommand::Fsck(command) => fsck::process(command, body).await?,
-			#[cfg(feature = "hot_reload")]
-			AdminCommand::Test(command) => test_cmd::process(command, body).await?,
+			AdminCommand::Tester(command) => tester::process(command, body).await?,
 		};
 
 		Ok(reply_message_content)

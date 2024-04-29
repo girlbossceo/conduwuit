@@ -16,19 +16,11 @@ edition = "2021"
 # See also `rust-toolchain.toml`
 rust-version = "1.76.0"
 
-# for hot lib reload
-[workspace]
-members = ["hot_lib"]
-
 [dependencies]
 console-subscriber = { version = "0.1", optional = true }
 
 # for hot lib reload
-# see https://github.com/rksm/hot-lib-reloader-rs?tab=readme-ov-file#usage for more details if you are a dev
 hot-lib-reloader = { version = "^0.7", optional = true }
-hot_lib = { path = "hot_lib", optional = true }
-# not sure if we need this, will anyone be using hot lib reload on release profile?
-#no-mangle-if-debug = { version = "*" }
 
 # Used for secure identifiers
 rand = "0.8.5"
@@ -408,7 +400,7 @@ perf_measurements = [
 # incompatible with release_max_log_level
 tokio_console = ["console-subscriber", "tokio/tracing"]
 
-hot_reload = ["dep:hot-lib-reloader", "hot_lib"]
+hot_reload = ["dep:hot-lib-reloader"]
 
 hardened_malloc = ["hardened_malloc-rs"]
 
