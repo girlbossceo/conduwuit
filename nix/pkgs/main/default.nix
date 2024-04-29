@@ -20,6 +20,7 @@ craneLib.buildPackage rec {
     root = inputs.self;
     include = [
       "src"
+      "hot_lib"
       "Cargo.toml"
       "Cargo.lock"
     ];
