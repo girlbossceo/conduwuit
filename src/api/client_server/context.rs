@@ -188,14 +188,12 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		}
 	}
 
-	let resp = get_context::v3::Response {
+	Ok(get_context::v3::Response {
 		start: Some(start_token),
 		end: Some(end_token),
 		events_before,
 		event: Some(base_event),
 		events_after,
 		state,
-	};
-
-	Ok(resp)
+	})
 }
