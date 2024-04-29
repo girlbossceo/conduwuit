@@ -74,6 +74,7 @@ impl Resolver {
 			4 => hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4,
 			_ => hickory_resolver::config::LookupIpStrategy::Ipv4thenIpv6,
 		};
+		opts.authentic_data = false;
 
 		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
 		let overrides = Arc::new(StdRwLock::new(TlsNameMap::new()));
