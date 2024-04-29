@@ -103,6 +103,8 @@ pub(crate) struct Config {
 	pub(crate) dns_tcp_fallback: bool,
 	#[serde(default = "true_fn")]
 	pub(crate) query_all_nameservers: bool,
+	#[serde(default = "default_ip_lookup_strategy")]
+	pub(crate) ip_lookup_strategy: u8,
 
 	#[serde(default = "default_max_request_size")]
 	pub(crate) max_request_size: u32,
@@ -901,6 +903,8 @@ fn default_dns_min_ttl_nxdomain() -> u64 { 60 * 60 * 24 * 3 }
 fn default_dns_attempts() -> u16 { 10 }
 
 fn default_dns_timeout() -> u64 { 10 }
+
+fn default_ip_lookup_strategy() -> u8 { 5 }
 
 fn default_max_request_size() -> u32 {
 	20 * 1024 * 1024 // Default to 20 MB

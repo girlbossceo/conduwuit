@@ -67,6 +67,13 @@ impl Resolver {
 		opts.num_concurrent_reqs = 1;
 		opts.shuffle_dns_servers = true;
 		opts.rotate = true;
+		opts.ip_strategy = match config.ip_lookup_strategy {
+			1 => hickory_resolver::config::LookupIpStrategy::Ipv4Only,
+			2 => hickory_resolver::config::LookupIpStrategy::Ipv6Only,
+			3 => hickory_resolver::config::LookupIpStrategy::Ipv4AndIpv6,
+			4 => hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4,
+			_ => hickory_resolver::config::LookupIpStrategy::Ipv4thenIpv6,
+		};
 
 		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
 		let overrides = Arc::new(StdRwLock::new(TlsNameMap::new()));

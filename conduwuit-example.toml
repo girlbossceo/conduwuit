@@ -514,6 +514,21 @@ allow_profile_lookup_federation_requests = true
 # The default is to query one nameserver and stop (false).
 #query_all_nameservers = true
 
+# DNS A/AAAA record lookup strategy
+#
+# Takes a number of one of the following options:
+# 1 - Ipv4Only (Only query for A records, no AAAA/IPv6)
+# 2 - Ipv6Only (Only query for AAAA records, no A/IPv4)
+# 3 - Ipv4AndIpv6 (Query for A and AAAA records in parallel, uses whatever returns a successful response first)
+# 4 - Ipv6thenIpv4 (Query for AAAA record, if that fails then query the A record)
+# 5 - Ipv4thenIpv6 (Query for A record, if that fails then query the AAAA record)
+#
+# If you don't have IPv6 networking, then for better performance it may be suitable to set this to Ipv4Only (1) as
+# you will never ever use the AAAA record contents even if the AAAA record is successful instead of the A record.
+#
+# Defaults to 5 - Ipv4ThenIpv6 as this is the most compatible and IPv4 networking is currently the most prevalent.
+#ip_lookup_strategy = 5
+
 
 ### Request Timeouts, Connection Timeouts, and Connection Pooling
 
