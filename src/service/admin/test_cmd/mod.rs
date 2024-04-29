@@ -1,5 +1,5 @@
 //! test commands generally used for hot lib reloadable functions.
-//! see https://github.com/rksm/hot-lib-reloader-rs?tab=readme-ov-file#usage for more details if you are a dev
+//! see <https://github.com/rksm/hot-lib-reloader-rs?tab=readme-ov-file#usage> for more details if you are a dev
 
 //#[cfg(not(feature = "hot_reload"))]
 //#[allow(unused_imports)]
