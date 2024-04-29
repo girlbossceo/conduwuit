@@ -567,7 +567,6 @@ dependencies = [
  "hickory-resolver",
  "hmac",
  "hot-lib-reloader",
- "hot_lib",
  "http 1.1.0",
  "http-body-util",
  "hyper 1.3.1",
@@ -1346,10 +1345,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "hot_lib"
-version = "0.1.0"
 
 [[package]]
 name = "html5ever"
