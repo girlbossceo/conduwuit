@@ -81,8 +81,14 @@ public/
 # macOS
 .DS_Store
 
+# VS Code
+.vscode/
+
 # Zed
 .zed/
 
 # idk where you're coming from, but i'm tired of you
 rustc-ice-*
+
+# complement test logs are huge
+tests/test_results/complement/test_logs.jsonl
