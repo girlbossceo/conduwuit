@@ -287,7 +287,7 @@ fn init(args: clap::Args) -> Result<Server, Error> {
 		database_path = ?config.database_path,
 		log_levels = ?config.log,
 		"{}",
-		env!("CARGO_PKG_VERSION"),
+		utils::conduwuit_version(),
 	);
 
 	#[cfg(unix)]

@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use reqwest::redirect;
 
-use crate::{service::globals::resolver, Config, Result};
+use crate::{service::globals::resolver, utils::conduwuit_version, Config, Result};
 
 pub(crate) struct Client {
 	pub(crate) default: reqwest::Client,
@@ -87,10 +87,7 @@ impl Client {
 	}
 
 	fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
-		let version = match option_env!("CONDUIT_VERSION_EXTRA") {
-			Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
-			None => env!("CARGO_PKG_VERSION").to_owned(),
-		};
+		let version = conduwuit_version();
 
 		let mut builder = reqwest::Client::builder()
 			.hickory_dns(true)
