@@ -26,7 +26,7 @@ use serde::Deserialize;
 use tracing::{debug, error, trace, warn};
 
 use super::{Ruma, RumaResponse};
-use crate::{service::appservice::RegistrationInfo, services, Error, Result};
+use crate::{debug_warn, service::appservice::RegistrationInfo, services, Error, Result};
 
 enum Token {
 	Appservice(Box<RegistrationInfo>),
@@ -317,8 +317,8 @@ where
 
 		trace!("{:?} {:?} {:?}", http_request.method(), http_request.uri(), json_body);
 		let body = T::try_from_http_request(http_request, &path_params).map_err(|e| {
-			warn!("try_from_http_request failed: {e:?}\nPath parameters: {path_params:?}",);
-			debug!("JSON body: {:?}", json_body);
+			warn!("try_from_http_request failed: {e:?}",);
+			debug_warn!("JSON body: {:?}", json_body);
 			Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
 		})?;
 
