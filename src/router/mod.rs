@@ -5,8 +5,6 @@ use axum::{
 	response::IntoResponse,
 	Router,
 };
-#[cfg(feature = "axum_dual_protocol")]
-use axum_server_dual_protocol::ServerExt;
 use http::{
 	header::{self, HeaderName},
 	Method, StatusCode, Uri,
