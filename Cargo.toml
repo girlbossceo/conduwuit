@@ -73,7 +73,7 @@ http-body-util = "0.1.1"
 loole = "0.3.0"
 
 # Validating urls in config, was already a transitive dependency
-url = { version = "2", features = ["serde"] }
+url = { version = "2.5.0", features = ["serde"] }
 
 async-trait = "0.1.80"
 
