@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use ruma::api::client::discovery::get_capabilities::{
-	self, Capabilities, ChangePasswordCapability, RoomVersionStability, RoomVersionsCapability, SetAvatarUrlCapability,
-	SetDisplayNameCapability, ThirdPartyIdChangesCapability,
+	self, Capabilities, RoomVersionStability, RoomVersionsCapability, ThirdPartyIdChangesCapability,
 };
 
 use crate::{services, Result, Ruma};
@@ -22,22 +21,10 @@ pub(crate) async fn get_capabilities_route(
 		available.insert(room_version.clone(), RoomVersionStability::Stable);
 	}
 
-	let mut capabilities = Capabilities::new();
+	let mut capabilities = Capabilities::default();
 	capabilities.room_versions = RoomVersionsCapability {
 		default: services().globals.default_room_version(),
 		available,
-	};
-
-	capabilities.change_password = ChangePasswordCapability {
-		enabled: true,
-	};
-
-	capabilities.set_avatar_url = SetAvatarUrlCapability {
-		enabled: true,
-	};
-
-	capabilities.set_displayname = SetDisplayNameCapability {
-		enabled: true,
 	};
 
 	// conduit does not implement 3PID stuff
