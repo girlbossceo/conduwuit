@@ -52,7 +52,7 @@ pub(crate) async fn get_latest_backup_info_route(
 	let (version, algorithm) = services()
 		.key_backups
 		.get_latest_backup(sender_user)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Key backup does not exist."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Key backup does not exist."))?;
 
 	Ok(get_latest_backup_info::v3::Response {
 		algorithm,
@@ -62,7 +62,7 @@ pub(crate) async fn get_latest_backup_info_route(
 	})
 }
 
-/// # `GET /_matrix/client/r0/room_keys/version`
+/// # `GET /_matrix/client/v3/room_keys/version/{version}`
 ///
 /// Get information about an existing backup.
 pub(crate) async fn get_backup_info_route(
@@ -72,7 +72,7 @@ pub(crate) async fn get_backup_info_route(
 	let algorithm = services()
 		.key_backups
 		.get_backup(sender_user, &body.version)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Key backup does not exist."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Key backup does not exist."))?;
 
 	Ok(get_backup_info::v3::Response {
 		algorithm,
@@ -274,10 +274,7 @@ pub(crate) async fn get_backup_keys_for_session_route(
 	let key_data = services()
 		.key_backups
 		.get_session(sender_user, &body.version, &body.room_id, &body.session_id)?
-		.ok_or(Error::BadRequest(
-			ErrorKind::NotFound,
-			"Backup key not found for this user's session.",
-		))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Backup key not found for this user's session."))?;
 
 	Ok(get_backup_keys_for_session::v3::Response {
 		key_data,
