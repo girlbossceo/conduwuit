@@ -8,38 +8,29 @@ use ruma::{
 		},
 		federation,
 	},
-	OwnedRoomAliasId, OwnedServerName,
+	OwnedRoomAliasId, OwnedRoomId, OwnedServerName,
 };
 use tracing::debug;
 
-use crate::{debug_info, debug_warn, services, utils::server_name::server_is_ours, Error, Result, Ruma};
+use crate::{
+	debug_info, debug_warn, service::appservice::RegistrationInfo, services, utils::server_name::server_is_ours, Error,
+	Result, Ruma,
+};
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
 pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result<create_alias::v3::Response> {
-	if !server_is_ours(body.room_alias.server_name()) {
-		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
-	}
+	alias_checks(&body.room_alias, &body.appservice_info).await?;
 
+	// this isn't apart of alias_checks or delete alias route because we should
+	// allow removing forbidden room aliases
 	if services()
 		.globals
 		.forbidden_alias_names()
 		.is_match(body.room_alias.alias())
 	{
 		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias is forbidden."));
-	}
-
-	if let Some(ref info) = body.appservice_info {
-		if !info.aliases.is_match(body.room_alias.as_str()) {
-			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
-		}
-	} else if services()
-		.appservice
-		.is_exclusive_alias(&body.room_alias)
-		.await
-	{
-		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
 	}
 
 	if services()
@@ -73,9 +64,7 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 /// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
 pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
-	if !server_is_ours(body.room_alias.server_name()) {
-		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
-	}
+	alias_checks(&body.room_alias, &body.appservice_info).await?;
 
 	if services()
 		.rooms
@@ -84,18 +73,6 @@ pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) ->
 		.is_none()
 	{
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
-	}
-
-	if let Some(ref info) = body.appservice_info {
-		if !info.aliases.is_match(body.room_alias.as_str()) {
-			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
-		}
-	} else if services()
-		.appservice
-		.is_exclusive_alias(&body.room_alias)
-		.await
-	{
-		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
 	}
 
 	if services()
@@ -180,41 +157,15 @@ pub(crate) async fn get_alias_helper(
 		if let Ok(response) = response {
 			let room_id = response.room_id;
 
-			let mut servers = response.servers;
+			let mut pre_servers = response.servers;
+			// since the room alis server responded, insert it into the list
+			pre_servers.push(room_alias.server_name().into());
 
-			// since the room alias server_name responded, insert it into the list
-			servers.push(room_alias.server_name().into());
-
-			// find active servers in room state cache to suggest
-			servers.extend(
-				services()
-					.rooms
-					.state_cache
-					.room_servers(&room_id)
-					.filter_map(Result::ok),
+			let servers = room_available_servers(&room_id, &room_alias, &Some(pre_servers));
+			debug_warn!(
+				"room alias servers from federation response for room ID {room_id} and room alias {room_alias}: \
+				 {servers:?}"
 			);
-
-			servers.sort_unstable();
-			servers.dedup();
-
-			// shuffle list of servers randomly after sort and dedupe
-			servers.shuffle(&mut rand::thread_rng());
-
-			// prefer the very first server to be ourselves if available, else prefer the
-			// room alias server first
-			if let Some(server_index) = servers
-				.iter()
-				.position(|server_name| server_is_ours(server_name))
-			{
-				servers.remove(server_index);
-				servers.insert(0, services().globals.server_name().to_owned());
-			} else if let Some(alias_server_index) = servers
-				.iter()
-				.position(|server| server == room_alias.server_name())
-			{
-				servers.remove(alias_server_index);
-				servers.insert(0, room_alias.server_name().into());
-			}
 
 			return Ok(get_alias::v3::Response::new(room_id, servers));
 		}
@@ -260,13 +211,29 @@ pub(crate) async fn get_alias_helper(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found."));
 	};
 
+	let servers = room_available_servers(&room_id, &room_alias, &None);
+
+	debug_warn!("room alias servers for room ID {room_id} and room alias {room_alias}");
+
+	Ok(get_alias::v3::Response::new(room_id, servers))
+}
+
+fn room_available_servers(
+	room_id: &OwnedRoomId, room_alias: &OwnedRoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
+) -> Vec<OwnedServerName> {
 	// find active servers in room state cache to suggest
 	let mut servers: Vec<OwnedServerName> = services()
 		.rooms
 		.state_cache
-		.room_servers(&room_id)
+		.room_servers(room_id)
 		.filter_map(Result::ok)
 		.collect();
+
+	// push any servers we want in the list already (e.g. responded remote alias
+	// servers, room alias server itself)
+	if let Some(pre_servers) = pre_servers {
+		servers.extend(pre_servers.clone());
+	};
 
 	servers.sort_unstable();
 	servers.dedup();
@@ -274,14 +241,39 @@ pub(crate) async fn get_alias_helper(
 	// shuffle list of servers randomly after sort and dedupe
 	servers.shuffle(&mut rand::thread_rng());
 
-	// insert our server as the very first choice if in list
+	// insert our server as the very first choice if in list, else check if we can
+	// prefer the room alias server first
 	if let Some(server_index) = servers
 		.iter()
 		.position(|server_name| server_is_ours(server_name))
 	{
 		servers.remove(server_index);
 		servers.insert(0, services().globals.server_name().to_owned());
+	} else if let Some(alias_server_index) = servers
+		.iter()
+		.position(|server| server == room_alias.server_name())
+	{
+		servers.remove(alias_server_index);
+		servers.insert(0, room_alias.server_name().into());
 	}
 
-	Ok(get_alias::v3::Response::new(room_id, servers))
+	servers
+}
+
+async fn alias_checks(room_alias: &OwnedRoomAliasId, appservice_info: &Option<RegistrationInfo>) -> Result<()> {
+	if !server_is_ours(room_alias.server_name()) {
+		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
+	}
+
+	if let Some(ref info) = appservice_info {
+		if !info.aliases.is_match(room_alias.as_str()) {
+			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+		}
+	}
+
+	if services().appservice.is_exclusive_alias(room_alias).await {
+		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
+	}
+
+	Ok(())
 }
