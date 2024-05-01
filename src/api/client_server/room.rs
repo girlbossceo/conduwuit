@@ -21,13 +21,18 @@ use ruma::{
 		StateEventType, TimelineEventType,
 	},
 	int,
-	serde::JsonObject,
-	CanonicalJsonObject, CanonicalJsonValue, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, RoomVersionId,
+	serde::{JsonObject, Raw},
+	CanonicalJsonObject, Int, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
-use crate::{api::client_server::invite_helper, debug_warn, service::pdu::PduBuilder, services, Error, Result, Ruma};
+use crate::{
+	api::client_server::invite_helper,
+	debug_info, debug_warn,
+	service::{appservice::RegistrationInfo, pdu::PduBuilder},
+	services, Error, Result, Ruma,
+};
 
 /// Recommended transferable state events list from the spec
 const TRANSFERABLE_STATE_EVENTS: &[StateEventType; 9] = &[
@@ -70,55 +75,11 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room creation has been disabled."));
 	}
 
-	let room_id: OwnedRoomId;
-
-	// checks if the user specified an explicit (custom) room_id to be created with
-	// in request body. falls back to normal generated room ID if not specified.
-	if let Some(CanonicalJsonValue::Object(json_body)) = &body.json_body {
-		match json_body.get("room_id") {
-			Some(custom_room_id) => {
-				let custom_room_id_s = custom_room_id.to_string();
-
-				// do some checks on the custom room ID similar to room aliases
-				if custom_room_id_s.contains(':') {
-					return Err(Error::BadRequest(
-						ErrorKind::InvalidParam,
-						"Custom room ID contained `:` which is not allowed. Please note that this expects a \
-						 localpart, not the full room ID.",
-					));
-				} else if custom_room_id_s.contains(char::is_whitespace) {
-					return Err(Error::BadRequest(
-						ErrorKind::InvalidParam,
-						"Custom room ID contained spaces which is not valid.",
-					));
-				} else if custom_room_id_s.len() > 255 {
-					return Err(Error::BadRequest(ErrorKind::InvalidParam, "Custom room ID is too long."));
-				}
-
-				// apply forbidden room alias checks to custom room IDs too
-				if services()
-					.globals
-					.forbidden_alias_names()
-					.is_match(&custom_room_id_s)
-				{
-					return Err(Error::BadRequest(ErrorKind::Unknown, "Custom room ID is forbidden."));
-				}
-
-				let full_room_id = "!".to_owned()
-					+ &custom_room_id_s.replace('"', "")
-					+ ":" + services().globals.server_name().as_ref();
-				debug!("Full room ID: {}", full_room_id);
-
-				room_id = RoomId::parse(full_room_id).map_err(|e| {
-					info!("User attempted to create room with custom room ID but failed parsing: {}", e);
-					Error::BadRequest(ErrorKind::InvalidParam, "Custom room ID could not be parsed")
-				})?;
-			},
-			None => room_id = RoomId::new(services().globals.server_name()),
-		}
+	let room_id: OwnedRoomId = if let Some(custom_room_id) = &body.room_id {
+		custom_room_id_check(custom_room_id)?
 	} else {
-		room_id = RoomId::new(services().globals.server_name());
-	}
+		RoomId::new(&services().globals.config.server_name)
+	};
 
 	// check if room ID doesn't already exist instead of erroring on auth check
 	if services().rooms.short.get_shortroomid(&room_id)?.is_some() {
@@ -141,74 +102,11 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 	);
 	let state_lock = mutex_state.lock().await;
 
-	let alias: Option<OwnedRoomAliasId> = body
-		.room_alias_name
-		.as_ref()
-		.map_or(Ok(None), |localpart| {
-			// Basic checks on the room alias validity
-			if localpart.contains(':') {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Room alias contained `:` which is not allowed. Please note that this expects a localpart, not \
-					 the full room alias.",
-				));
-			} else if localpart.contains(char::is_whitespace) {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Room alias contained spaces which is not a valid room alias.",
-				));
-			} else if localpart.len() > 255 {
-				// there is nothing spec-wise saying to check the limit of this,
-				// however absurdly long room aliases are guaranteed to be unreadable or done
-				// maliciously. there is no reason a room alias should even exceed 100
-				// characters as is. generally in spec, 255 is matrix's fav number
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Room alias is excessively long, clients may not be able to handle this. Please shorten it.",
-				));
-			} else if localpart.contains('"') {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Room alias contained `\"` which is not allowed.",
-				));
-			}
-
-			// check if room alias is forbidden
-			if services()
-				.globals
-				.forbidden_alias_names()
-				.is_match(localpart)
-			{
-				return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias name is forbidden."));
-			}
-
-			let alias =
-				RoomAliasId::parse(format!("#{}:{}", localpart, services().globals.server_name())).map_err(|e| {
-					warn!("Failed to parse room alias for room ID {}: {e}", room_id);
-					Error::BadRequest(ErrorKind::InvalidParam, "Invalid room alias specified.")
-				})?;
-
-			if services()
-				.rooms
-				.alias
-				.resolve_local_alias(&alias)?
-				.is_some()
-			{
-				Err(Error::BadRequest(ErrorKind::RoomInUse, "Room alias already exists."))
-			} else {
-				Ok(Some(alias))
-			}
-		})?;
-
-	if let Some(ref alias) = alias {
-		if let Some(ref info) = body.appservice_info {
-			if !info.aliases.is_match(alias.as_str()) {
-				return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
-			}
-		} else if services().appservice.is_exclusive_alias(alias).await {
-			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
-		}
-	}
+	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
+		Some(room_alias_check(alias, &body.appservice_info).await?)
+	} else {
+		None
+	};
 
 	let room_version = match body.room_version.clone() {
 		Some(room_version) => {
@@ -296,7 +194,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 			};
 			let mut content = serde_json::from_str::<CanonicalJsonObject>(
 				to_raw_value(&content)
-					.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"))?
+					.expect("we just created this as content was None")
 					.get(),
 			)
 			.unwrap();
@@ -304,22 +202,11 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 				"room_version".into(),
 				json!(room_version.as_str())
 					.try_into()
-					.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"))?,
+					.expect("we just created this as content was None"),
 			);
 			content
 		},
 	};
-
-	// Validate creation content
-	if serde_json::from_str::<CanonicalJsonObject>(
-		to_raw_value(&content)
-			.expect("Invalid creation content")
-			.get(),
-	)
-	.is_err()
-	{
-		return Err(Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"));
-	}
 
 	// 1. The room create event
 	services()
@@ -384,39 +271,8 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 		}
 	}
 
-	let mut power_levels_content = serde_json::to_value(RoomPowerLevelsEventContent {
-		users,
-		..Default::default()
-	})
-	.expect("event is valid, we just created it");
-
-	// secure proper defaults of sensitive/dangerous permissions that moderators
-	// (power level 50) should not have easy access to
-	power_levels_content["events"]["m.room.power_levels"] = serde_json::to_value(100).expect("100 is valid Value");
-	power_levels_content["events"]["m.room.server_acl"] = serde_json::to_value(100).expect("100 is valid Value");
-	power_levels_content["events"]["m.room.tombstone"] = serde_json::to_value(100).expect("100 is valid Value");
-	power_levels_content["events"]["m.room.encryption"] = serde_json::to_value(100).expect("100 is valid Value");
-	power_levels_content["events"]["m.room.history_visibility"] =
-		serde_json::to_value(100).expect("100 is valid Value");
-
-	// synapse does this too. clients do not expose these permissions. it prevents
-	// default users from calling public rooms, for obvious reasons.
-	if body.visibility == room::Visibility::Public {
-		power_levels_content["events"]["m.call.invite"] = serde_json::to_value(50).expect("50 is valid Value");
-		power_levels_content["events"]["org.matrix.msc3401.call"] =
-			serde_json::to_value(50).expect("50 is valid Value");
-		power_levels_content["events"]["org.matrix.msc3401.call.member"] =
-			serde_json::to_value(50).expect("50 is valid Value");
-	}
-
-	if let Some(power_level_content_override) = &body.power_level_content_override {
-		let json: JsonObject = serde_json::from_str(power_level_content_override.json().get())
-			.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override."))?;
-
-		for (key, value) in json {
-			power_levels_content[key] = value;
-		}
-	}
+	let power_levels_content =
+		default_power_levels_content(&body.power_level_content_override, &body.visibility, users)?;
 
 	services()
 		.rooms
@@ -973,5 +829,156 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 	// Return the replacement room id
 	Ok(upgrade_room::v3::Response {
 		replacement_room,
+	})
+}
+
+/// creates the power_levels_content for the PDU builder
+fn default_power_levels_content(
+	power_level_content_override: &Option<Raw<RoomPowerLevelsEventContent>>, visibility: &room::Visibility,
+	users: BTreeMap<OwnedUserId, Int>,
+) -> Result<serde_json::Value> {
+	let mut power_levels_content = serde_json::to_value(RoomPowerLevelsEventContent {
+		users,
+		..Default::default()
+	})
+	.expect("event is valid, we just created it");
+
+	// secure proper defaults of sensitive/dangerous permissions that moderators
+	// (power level 50) should not have easy access to
+	power_levels_content["events"]["m.room.power_levels"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.server_acl"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.tombstone"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.encryption"] = serde_json::to_value(100).expect("100 is valid Value");
+	power_levels_content["events"]["m.room.history_visibility"] =
+		serde_json::to_value(100).expect("100 is valid Value");
+
+	// synapse does this too. clients do not expose these permissions. it prevents
+	// default users from calling public rooms, for obvious reasons.
+	if *visibility == room::Visibility::Public {
+		power_levels_content["events"]["m.call.invite"] = serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["org.matrix.msc3401.call"] =
+			serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["org.matrix.msc3401.call.member"] =
+			serde_json::to_value(50).expect("50 is valid Value");
+	}
+
+	if let Some(power_level_content_override) = power_level_content_override {
+		let json: JsonObject = serde_json::from_str(power_level_content_override.json().get())
+			.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override."))?;
+
+		for (key, value) in json {
+			power_levels_content[key] = value;
+		}
+	}
+
+	Ok(power_levels_content)
+}
+
+/// if a room is being created with a room alias, run our checks
+async fn room_alias_check(
+	room_alias_name: &String, appservice_info: &Option<RegistrationInfo>,
+) -> Result<OwnedRoomAliasId> {
+	// Basic checks on the room alias validity
+	if room_alias_name.contains(':') {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Room alias contained `:` which is not allowed. Please note that this expects a localpart, not the full \
+			 room alias.",
+		));
+	} else if room_alias_name.contains(char::is_whitespace) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Room alias contained spaces which is not a valid room alias.",
+		));
+	} else if room_alias_name.len() > 255 {
+		// there is nothing spec-wise saying to check the limit of this,
+		// however absurdly long room aliases are guaranteed to be unreadable or done
+		// maliciously. there is no reason a room alias should even exceed 100
+		// characters as is. generally in spec, 255 is matrix's fav number
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Room alias is excessively long, clients may not be able to handle this. Please shorten it.",
+		));
+	} else if room_alias_name.contains('"') {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Room alias contained `\"` which is not allowed.",
+		));
+	}
+
+	// check if room alias is forbidden
+	if services()
+		.globals
+		.forbidden_alias_names()
+		.is_match(room_alias_name)
+	{
+		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias name is forbidden."));
+	}
+
+	let full_room_alias = RoomAliasId::parse(format!("#{}:{}", room_alias_name, services().globals.config.server_name))
+		.map_err(|e| {
+			info!("Failed to parse room alias {room_alias_name}: {e}");
+			Error::BadRequest(ErrorKind::InvalidParam, "Invalid room alias specified.")
+		})?;
+
+	if services()
+		.rooms
+		.alias
+		.resolve_local_alias(&full_room_alias)?
+		.is_some()
+	{
+		return Err(Error::BadRequest(ErrorKind::RoomInUse, "Room alias already exists."));
+	}
+
+	if let Some(ref info) = appservice_info {
+		if !info.aliases.is_match(full_room_alias.as_str()) {
+			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+		}
+	} else if services()
+		.appservice
+		.is_exclusive_alias(&full_room_alias)
+		.await
+	{
+		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
+	}
+
+	debug_info!("Full room alias: {full_room_alias}");
+
+	Ok(full_room_alias)
+}
+
+/// if a room is being created with a custom room ID, run our checks against it
+fn custom_room_id_check(custom_room_id: &String) -> Result<OwnedRoomId> {
+	// apply forbidden room alias checks to custom room IDs too
+	if services()
+		.globals
+		.forbidden_alias_names()
+		.is_match(custom_room_id)
+	{
+		return Err(Error::BadRequest(ErrorKind::Unknown, "Custom room ID is forbidden."));
+	}
+
+	if custom_room_id.contains(':') {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Custom room ID contained `:` which is not allowed. Please note that this expects a localpart, not the \
+			 full room ID.",
+		));
+	} else if custom_room_id.contains(char::is_whitespace) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Custom room ID contained spaces which is not valid.",
+		));
+	} else if custom_room_id.len() > 255 {
+		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Custom room ID is too long."));
+	}
+
+	let full_room_id = format!("!{}:{}", custom_room_id, services().globals.config.server_name);
+
+	debug_info!("Full custom room ID: {full_room_id}");
+
+	RoomId::parse(full_room_id).map_err(|e| {
+		info!("User attempted to create room with custom room ID {custom_room_id} but failed parsing: {e}");
+		Error::BadRequest(ErrorKind::InvalidParam, "Custom room ID could not be parsed")
 	})
 }
