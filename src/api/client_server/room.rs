@@ -27,7 +27,20 @@ use ruma::{
 use serde_json::{json, value::to_raw_value};
 use tracing::{debug, error, info, warn};
 
-use crate::{api::client_server::invite_helper, service::pdu::PduBuilder, services, Error, Result, Ruma};
+use crate::{api::client_server::invite_helper, debug_warn, service::pdu::PduBuilder, services, Error, Result, Ruma};
+
+/// Recommended transferable state events list from the spec
+const TRANSFERABLE_STATE_EVENTS: &[StateEventType; 9] = &[
+	StateEventType::RoomServerAcl,
+	StateEventType::RoomEncryption,
+	StateEventType::RoomName,
+	StateEventType::RoomAvatar,
+	StateEventType::RoomTopic,
+	StateEventType::RoomGuestAccess,
+	StateEventType::RoomHistoryVisibility,
+	StateEventType::RoomJoinRules,
+	StateEventType::RoomPowerLevels,
+];
 
 /// # `POST /_matrix/client/v3/createRoom`
 ///
@@ -298,13 +311,13 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 	};
 
 	// Validate creation content
-	let de_result = serde_json::from_str::<CanonicalJsonObject>(
+	if serde_json::from_str::<CanonicalJsonObject>(
 		to_raw_value(&content)
 			.expect("Invalid creation content")
 			.get(),
-	);
-
-	if de_result.is_err() {
+	)
+	.is_err()
+	{
 		return Err(Error::BadRequest(ErrorKind::BadJson, "Invalid creation content"));
 	}
 
@@ -519,6 +532,17 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 			Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event.")
 		})?;
 
+		debug_warn!("initial state event: {event:?}");
+
+		// client/appservice workaround: if a user sends an initial_state event with a
+		// state event in there with the content of literally `{}` (not null or empty
+		// string), let's just skip it over and warn.
+		if pdu_builder.content.get().eq("{}") {
+			info!("skipping empty initial state event with content of `{{}}`: {event:?}");
+			debug_warn!("content: {}", pdu_builder.content.get());
+			continue;
+		}
+
 		// Implicit state key defaults to ""
 		pdu_builder.state_key.get_or_insert_with(String::new);
 
@@ -592,7 +616,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 		services().rooms.directory.set_public(&room_id)?;
 	}
 
-	info!("{} created a room", sender_user);
+	info!("{sender_user} created a room with room ID {room_id}");
 
 	Ok(create_room::v3::Response::new(room_id))
 }
@@ -811,13 +835,13 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 	);
 
 	// Validate creation event content
-	let de_result = serde_json::from_str::<CanonicalJsonObject>(
+	if serde_json::from_str::<CanonicalJsonObject>(
 		to_raw_value(&create_event_content)
 			.expect("Error forming creation event")
 			.get(),
-	);
-
-	if de_result.is_err() {
+	)
+	.is_err()
+	{
 		return Err(Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"));
 	}
 
@@ -866,25 +890,12 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 		)
 		.await?;
 
-	// Recommended transferable state events list from the specs
-	let transferable_state_events = vec![
-		StateEventType::RoomServerAcl,
-		StateEventType::RoomEncryption,
-		StateEventType::RoomName,
-		StateEventType::RoomAvatar,
-		StateEventType::RoomTopic,
-		StateEventType::RoomGuestAccess,
-		StateEventType::RoomHistoryVisibility,
-		StateEventType::RoomJoinRules,
-		StateEventType::RoomPowerLevels,
-	];
-
 	// Replicate transferable state events to the new room
-	for event_type in transferable_state_events {
+	for event_type in TRANSFERABLE_STATE_EVENTS {
 		let event_content = match services()
 			.rooms
 			.state_accessor
-			.room_state_get(&body.room_id, &event_type, "")?
+			.room_state_get(&body.room_id, event_type, "")?
 		{
 			Some(v) => v.content.clone(),
 			None => continue, // Skipping missing events.
