@@ -32,7 +32,7 @@ use ruma::{
 use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
 
-use crate::{debug_info, services, Error, Result};
+use crate::{debug_info, services, utils::server_name::server_is_ours, Error, Result};
 
 pub(crate) struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -427,36 +427,10 @@ impl Service {
 	async fn get_summary_and_children_federation(
 		&self, current_room: &OwnedRoomId, suggested_only: bool, user_id: &UserId, via: &[OwnedServerName],
 	) -> Result<Option<SummaryAccessibility>> {
-		// try to find more servers to fetch hierachy from if the only
-		// choice is the room ID's server name (usually dead)
-		//
-		// all spaces are normal rooms, so they should always have at least
-		// 1 admin in it which has a far higher chance of their server still
-		// being alive
-		let power_levels: ruma::events::room::power_levels::RoomPowerLevelsEventContent = services()
-			.rooms
-			.state_accessor
-			.room_state_get(current_room, &StateEventType::RoomPowerLevels, "")?
-			.map(|ev| {
-				serde_json::from_str(ev.content.get())
-					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
-			})
-			.transpose()?
-			.unwrap_or_default();
-
-		// add server names of the list of admins in the room for backfill server
-		via.to_owned().extend(
-			power_levels
-				.users
-				.iter()
-				.filter(|(_, level)| **level > power_levels.users_default)
-				.map(|(user_id, _)| user_id.server_name())
-				.filter(|server| server != &services().globals.server_name())
-				.map(ToOwned::to_owned),
-		);
+		debug_info!("servers via for federation hierarchy: {via:?}");
 
 		for server in via {
-			debug!("Asking {server} for /hierarchy");
+			debug_info!("Asking {server} for /hierarchy");
 			if let Ok(response) = services()
 				.sending
 				.send_federation_request(
@@ -649,20 +623,46 @@ impl Service {
 		})
 	}
 
+	// TODO: make this a lot less messy
 	pub(crate) async fn get_client_hierarchy(
 		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, skip: usize, max_depth: usize,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {
+		// try to find more servers to fetch hierachy from if the only
+		// choice is the room ID's server name (usually dead)
+		//
+		// all spaces are normal rooms, so they should always have at least
+		// 1 admin in it which has a far higher chance of their server still
+		// being alive
+		let power_levels: ruma::events::room::power_levels::RoomPowerLevelsEventContent = services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+			.map(|ev| {
+				serde_json::from_str(ev.content.get())
+					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+			})
+			.transpose()?
+			.unwrap_or_default();
+
+		// add server names of the list of admins in the room for backfill server
+		let mut via = power_levels
+			.users
+			.iter()
+			.filter(|(_, level)| **level > power_levels.users_default)
+			.map(|(user_id, _)| user_id.server_name())
+			.filter(|server| !server_is_ours(server))
+			.map(ToOwned::to_owned)
+			.collect::<Vec<_>>();
+
+		if let Some(server_name) = room_id.server_name() {
+			via.push(server_name.to_owned());
+		}
+
+		debug_info!("servers via for hierarchy: {via:?}");
+
 		match self
-			.get_summary_and_children_client(
-				&room_id.to_owned(),
-				suggested_only,
-				sender_user,
-				&match room_id.server_name() {
-					Some(server_name) => vec![server_name.to_owned()],
-					None => vec![],
-				},
-			)
+			.get_summary_and_children_client(&room_id.to_owned(), suggested_only, sender_user, &via)
 			.await?
 		{
 			Some(SummaryAccessibility::Accessible(summary)) => {
