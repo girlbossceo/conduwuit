@@ -27,7 +27,7 @@ rand = "0.8.5"
 thiserror = "1.0.59"
 
 # Used to encode server public key
-base64 = "0.22.0"
+base64 = "0.22.1"
 
 # Used when hashing the state
 ring = "0.17.8"
