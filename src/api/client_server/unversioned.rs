@@ -10,7 +10,7 @@ use ruma::api::client::{
 	error::ErrorKind,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{services, utils::conduwuit_version, Error, Result, Ruma};
 
 /// # `GET /_matrix/client/versions`
 ///
@@ -142,14 +142,9 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 		},
 	};
 
-	let version = match option_env!("CONDUIT_VERSION_EXTRA") {
-		Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
-		None => env!("CARGO_PKG_VERSION").to_owned(),
-	};
-
 	Ok(Json(serde_json::json!({
 		"server": server_url,
-		"version": version,
+		"version": conduwuit_version(),
 	})))
 }
 
@@ -158,13 +153,8 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 /// Conduwuit-specific API to get the server version, results akin to
 /// `/_matrix/federation/v1/version`
 pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
-	let version = match option_env!("CONDUIT_VERSION_EXTRA") {
-		Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
-		None => env!("CARGO_PKG_VERSION").to_owned(),
-	};
-
 	Ok(Json(serde_json::json!({
 		"name": "Conduwuit",
-		"version": version,
+		"version": conduwuit_version(),
 	})))
 }
