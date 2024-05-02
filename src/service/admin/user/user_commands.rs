@@ -6,7 +6,9 @@ use tracing::{error, info, warn};
 use crate::{
 	api::client_server::{join_room_by_id_helper, leave_all_rooms, AUTO_GEN_PASSWORD_LENGTH},
 	service::admin::{escape_html, get_room_info},
-	services, utils, Result,
+	services,
+	utils::{self, user_id::user_is_local},
+	Result,
 };
 
 pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -35,6 +37,12 @@ pub(crate) async fn create(
 				)))
 			},
 		};
+
+	if !user_is_local(&user_id) {
+		return Ok(RoomMessageEventContent::text_plain(format!(
+			"User {user_id} does not belong to our server."
+		)));
+	}
 
 	if user_id.is_historical() {
 		return Ok(RoomMessageEventContent::text_plain(format!(
