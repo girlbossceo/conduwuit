@@ -86,6 +86,30 @@ jobs:
               run: |
                   direnv exec . engage > >(tee -a test_output.log)
 
+            - name: Sync Complement repository
+              uses: actions/checkout@v4
+              with:
+                repository: 'matrix-org/complement'
+                path: complement_src
+
+            - name: Run Complement tests
+              run: |
+                  bin/complement 'complement_src' 'complement_test_logs.jsonl' 'complement_test_results.jsonl'
+
+            - name: Upload Complement logs
+              uses: actions/upload-artifact@v4
+              with:
+                name: complement_test_logs.jsonl
+                path: complement_test_logs.jsonl
+                if-no-files-found: error
+
+            - name: Upload Complement results
+              uses: actions/upload-artifact@v4
+              with:
+                name: complement_test_results.jsonl
+                path: complement_test_results.jsonl
+                if-no-files-found: error
+
             - name: Update Job Summary
               if: success() || failure()
               run: |
