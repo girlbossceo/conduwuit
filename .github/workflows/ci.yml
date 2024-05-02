@@ -110,10 +110,18 @@ jobs:
                 path: complement_test_results.jsonl
                 if-no-files-found: error
 
-            # TODO: figure out why our complement results are not 100% consistent
-            #- name: Diff Complement results with checked-in repo results
-            #  run: |
-              #      diff -u --color=always complement_test_results.jsonl tests/test_results/complement/test_results.jsonl > >(tee -a test_output.log)
+            - name: Diff Complement results with checked-in repo results
+            # TODO: figure out why our complement results are not 100% consistent so we don't need to allow failures
+              continue-on-error: true
+              run: |
+                  diff -u --color=always complement_test_results.jsonl tests/test_results/complement/test_results.jsonl > >(tee -a complement_test_output.log)
+
+            - name: Add Complement diff result to Job Summary
+              run: |
+                  echo '# Complement diff results' >> $GITHUB_STEP_SUMMARY
+                  echo '```diff' >> $GITHUB_STEP_SUMMARY
+                  tail -n 50 complement_test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
 
             - name: Update Job Summary
               if: success() || failure()
