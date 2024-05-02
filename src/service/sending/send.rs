@@ -729,8 +729,9 @@ where
 			http_request.headers_mut().insert(
 				AUTHORIZATION,
 				HeaderValue::from_str(&format!(
-					"X-Matrix origin={},key=\"{}\",sig=\"{}\"",
-					services().globals.server_name(),
+					"X-Matrix origin=\"{}\",destination=\"{}\",key=\"{}\",sig=\"{}\"",
+					services().globals.config.server_name,
+					dest,
 					s.0,
 					s.1
 				))

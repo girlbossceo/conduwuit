@@ -34,7 +34,6 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Return joined member count of rooms for push rules/conditions instead of a hardcoded value of 10
 - Make `CONDUIT_CONFIG` optional, relevant for container users that configure only by environment variables and no longer need to set `CONDUIT_CONFIG` to an empty string.
 - Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
-- Add missing `destination` key to all `X-Matrix` `Authorization` requests (spec compliance issue)
 - Resolve and remove some "features" from upstream that result in concurrency hazards, exponential backoff issues, or arbitrary performance limiters
 - Find more servers for outbound federation `/hierarchy` requests instead of just the room ID server name
 - Support for suggesting servers to join through at `/_matrix/client/v3/directory/room/{roomAlias}`
