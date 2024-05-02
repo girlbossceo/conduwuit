@@ -94,7 +94,7 @@ jobs:
 
             - name: Run Complement tests
               run: |
-                  bin/complement 'complement_src' 'complement_test_logs.jsonl' 'complement_test_results.jsonl'
+                  direnv exec . bin/complement 'complement_src' 'complement_test_logs.jsonl' 'complement_test_results.jsonl'
 
             - name: Upload Complement logs
               uses: actions/upload-artifact@v4
