@@ -942,7 +942,7 @@ fn default_sender_idle_timeout() -> u64 { 180 }
 
 fn default_sender_retry_backoff_limit() -> u64 { 86400 }
 
-fn default_appservice_timeout() -> u64 { 120 }
+fn default_appservice_timeout() -> u64 { 35 }
 
 fn default_appservice_idle_timeout() -> u64 { 300 }
 

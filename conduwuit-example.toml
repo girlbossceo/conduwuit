@@ -626,8 +626,8 @@ allow_profile_lookup_federation_requests = true
 
 # Appservice URL request connection timeout
 #
-# Defaults to 120 seconds
-#appservice_timeout = 120
+# Defaults to 35 seconds as generally appservices are hosted within the same network
+#appservice_timeout = 35
 
 # Appservice URL idle connection pool timeout
 #
