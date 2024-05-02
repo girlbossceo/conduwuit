@@ -1,12 +1,12 @@
 {
   inputs = {
     attic.url = "github:zhaofengli/attic?ref=main";
-    complement = { url = "github:matrix-org/complement"; flake = false; };
+    complement = { url = "github:matrix-org/complement?ref=main"; flake = false; };
     crane = { url = "github:ipetkov/crane?ref=master"; inputs.nixpkgs.follows = "nixpkgs"; };
-    fenix = { url = "github:nix-community/fenix"; inputs.nixpkgs.follows = "nixpkgs"; };
-    flake-compat = { url = "github:edolstra/flake-compat"; flake = false; };
-    flake-utils.url = "github:numtide/flake-utils";
-    nix-filter.url = "github:numtide/nix-filter";
+    fenix = { url = "github:nix-community/fenix?ref=main"; inputs.nixpkgs.follows = "nixpkgs"; };
+    flake-compat = { url = "github:edolstra/flake-compat?ref=master"; flake = false; };
+    flake-utils.url = "github:numtide/flake-utils?ref=main";
+    nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
     rocksdb = { url = "github:facebook/rocksdb?ref=v9.1.1"; flake = false; };
   };
