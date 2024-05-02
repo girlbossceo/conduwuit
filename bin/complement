@@ -18,7 +18,12 @@ RESULTS_FILE="$3"
 OCI_IMAGE="complement-conduit:dev"
 
 pushd "$(git rev-parse --show-toplevel)" > /dev/null
-nix build .#complement
+# uses nix-output-monitor (nom) if available
+if command -v nom &> /dev/null; then
+    nom build .#complement
+else
+    nix build -L .#complement
+fi
 docker load < result
 popd > /dev/null
 
