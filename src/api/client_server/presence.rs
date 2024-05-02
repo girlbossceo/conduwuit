@@ -42,7 +42,7 @@ pub(crate) async fn get_presence_route(body: Ruma<get_presence::v3::Request>) ->
 		.user
 		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
 	{
-		if let Some(presence) = services().presence.get_presence(sender_user)? {
+		if let Some(presence) = services().presence.get_presence(&body.user_id)? {
 			presence_event = Some(presence);
 			break;
 		}
