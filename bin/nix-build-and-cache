@@ -2,45 +2,81 @@
 
 set -eo pipefail
 
-# The first argument must be the desired installable
-INSTALLABLE="$1"
+toplevel="$(git rev-parse --show-toplevel)"
 
-# Build the installable and forward any other arguments too
-# uses nix-output-monitor (nom) if available
-if command -v nom &> /dev/null; then
-    nom build "$@"
-else
-    nix build -L "$@"
-fi
+# Build just the single installable and forward any other arguments too
+just() {
+    # uses nix-output-monitor (nom) if available
+    if command -v nom &> /dev/null; then
+        nom build "$@"
+    else
+        nix build -L "$@"
+    fi
 
-if [ ! -z "$ATTIC_TOKEN" ]; then
-    nix run --inputs-from . attic -- \
-        login \
-        conduit \
-        "${ATTIC_ENDPOINT:-https://attic.kennel.juneis.dog/conduit}" \
-        "$ATTIC_TOKEN"
+    if [ ! -z "$ATTIC_TOKEN" ]; then
+        # historical "conduit" store for compatibility purposes, same as conduwuit
+        nix run --inputs-from "$toplevel" attic -- \
+            login \
+            conduit \
+            "${ATTIC_ENDPOINT:-https://attic.kennel.juneis.dog/conduit}" \
+            "$ATTIC_TOKEN"
 
-    # Push the target installable and its build dependencies
-    nix run --inputs-from . attic -- \
-        push \
-        conduit \
-        "$(nix path-info "$INSTALLABLE" --derivation)" \
-        "$(nix path-info "$INSTALLABLE")"
+        readarray -t outputs < <(nix path-info "$@")
+        readarray -t derivations < <(nix path-info "$@" --derivation)
+
+        # Push the target installable and its build dependencies
+        nix run --inputs-from "$toplevel" attic -- \
+            push \
+            conduit \
+            "${outputs[@]}" \
+            "${derivations[@]}"
+
+        # main "conduwuit" store
+        nix run --inputs-from "$toplevel" attic -- \
+            login \
+            conduwuit \
+            "${ATTIC_ENDPOINT:-https://attic.kennel.juneis.dog/conduwuit}" \
+            "$ATTIC_TOKEN"
+
+        # Push the target installable and its build dependencies
+        nix run --inputs-from "$toplevel" attic -- \
+            push \
+            conduwuit \
+            "${outputs[@]}" \
+            "${derivations[@]}"
+    else
+        echo "\$ATTIC_TOKEN is unset, skipping uploading to the binary cache"
+    fi
+
+}
+
+# Build and cache things needed for CI
+ci() {
+    cache=(
+        --inputs-from "$toplevel"
+
+        # Keep sorted
+        "$toplevel#devShells.x86_64-linux.default.inputDerivation"
+        attic#default
+        nixpkgs#direnv
+        nixpkgs#jq
+        nixpkgs#nix-direnv
+    )
+
+    just "${cache[@]}"
+}
+
+# Build and cache *all* the package outputs from the flake.nix
+packages() {
+    declare -a cache="($(
+        nix flake show --json 2> /dev/null |
+            nix run --inputs-from "$toplevel" nixpkgs#jq -- \
+            -r \
+            '.packages."x86_64-linux" | keys | map("'"$toplevel"'#" + .) | @sh'
+    ))"
+
+    just "${cache[@]}"
+}
 
 
-    # push to "conduwuit" too
-    nix run --inputs-from . attic -- \
-        login \
-        conduwuit \
-        "${ATTIC_ENDPOINT:-https://attic.kennel.juneis.dog/conduwuit}" \
-        "$ATTIC_TOKEN"
-
-    # Push the target installable and its build dependencies
-    nix run --inputs-from . attic -- \
-        push \
-        conduwuit \
-        "$(nix path-info "$INSTALLABLE" --derivation)" \
-        "$(nix path-info "$INSTALLABLE")"
-else
-    echo "\$ATTIC_TOKEN is unset, skipping uploading to the binary cache"
-fi
+eval "$@"
