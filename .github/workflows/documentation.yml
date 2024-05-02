@@ -88,13 +88,13 @@ jobs:
       - name: Allow direnv
         run: direnv allow
 
-      - name: Cache x86_64 inputs for devShell
+      - name: Cache CI dependencies
         run: |
-          ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+          ./bin/nix-build-and-cache ci
 
       - name: Build documentation (book)
         run: |
-          ./bin/nix-build-and-cache .#book
+          ./bin/nix-build-and-cache just .#book
           cp -r --dereference result public
       - name: Upload generated documentation (book) as normal artifact
         uses: actions/upload-artifact@v4

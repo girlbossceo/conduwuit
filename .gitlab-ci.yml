@@ -56,8 +56,8 @@ ci:
   stage: ci
   image: nixos/nix:2.22.0
   script:
-    # Cache the inputs required for the devShell
-    - ./bin/nix-build-and-cache .#devShells.x86_64-linux.default.inputDerivation
+    # Cache CI dependencies
+    - ./bin/nix-build-and-cache ci
 
     - direnv exec . engage
   cache:
@@ -81,7 +81,7 @@ artifacts:
   stage: artifacts
   image: nixos/nix:2.22.0
   script:
-    - ./bin/nix-build-and-cache .#static-x86_64-unknown-linux-musl
+    - ./bin/nix-build-and-cache just .#static-x86_64-unknown-linux-musl
     - cp result/bin/conduit x86_64-unknown-linux-musl
 
     - mkdir -p target/release
@@ -97,16 +97,16 @@ artifacts:
     # Note that although we have an `oci-image-x86_64-unknown-linux-musl`
     # output, we don't build it because it would be largely redundant to this
     # one since it's all containerized anyway.
-    - ./bin/nix-build-and-cache .#oci-image
+    - ./bin/nix-build-and-cache just .#oci-image
     - cp result oci-image-amd64.tar.gz
 
-    - ./bin/nix-build-and-cache .#static-aarch64-unknown-linux-musl
+    - ./bin/nix-build-and-cache just .#static-aarch64-unknown-linux-musl
     - cp result/bin/conduit aarch64-unknown-linux-musl
 
-    - ./bin/nix-build-and-cache .#oci-image-aarch64-unknown-linux-musl
+    - ./bin/nix-build-and-cache just .#oci-image-aarch64-unknown-linux-musl
     - cp result oci-image-arm64v8.tar.gz
 
-    - ./bin/nix-build-and-cache .#book
+    - ./bin/nix-build-and-cache just .#book
     # We can't just copy the symlink, we need to dereference it https://gitlab.com/gitlab-org/gitlab/-/issues/19746
     - cp -r --dereference result public
   artifacts:
