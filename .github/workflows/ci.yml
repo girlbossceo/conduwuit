@@ -63,8 +63,8 @@ jobs:
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-                  extra-substituters = https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
-                  extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
+                  extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
                   EOF
 
             - name: Use alternative Nix binary caches if specified
@@ -156,8 +156,8 @@ jobs:
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-                  extra-substituters = https://nix.computer.surgery/conduit https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
-                  extra-trusted-public-keys = conduit:ZGAf6P6LhNvnoJJ3Me3PRg7tlLSrPxcQ2RiE5LIppjo= conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
+                  extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
                   EOF
 
             - name: Use alternative Nix binary caches if specified
