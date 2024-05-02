@@ -30,7 +30,7 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 		.forbidden_alias_names()
 		.is_match(body.room_alias.alias())
 	{
-		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias is forbidden."));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room alias is forbidden."));
 	}
 
 	if services()
@@ -171,7 +171,7 @@ pub(crate) async fn get_alias_helper(
 		}
 
 		return Err(Error::BadRequest(
-			ErrorKind::Unknown,
+			ErrorKind::NotFound,
 			"No servers could assist in resolving the room alias",
 		));
 	}
