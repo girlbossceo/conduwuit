@@ -6,7 +6,12 @@ set -eo pipefail
 INSTALLABLE="$1"
 
 # Build the installable and forward any other arguments too
-nix build -L "$@"
+# uses nix-output-monitor (nom) if available
+if command -v nom &> /dev/null; then
+    nom build "$@"
+else
+    nix build -L "$@"
+fi
 
 if [ ! -z "$ATTIC_TOKEN" ]; then
     nix run --inputs-from . attic -- \
