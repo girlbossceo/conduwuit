@@ -31,7 +31,12 @@ pub(crate) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	let response2 = crate::alloc::memory_usage();
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Services:\n{response0}\n\nDatabase:\n{response1}\nAllocator:\n{response2}"
+		"Services:\n{response0}\n\nDatabase:\n{response1}\n{}",
+		if !response2.is_empty() {
+			"Allocator:\n{response2}"
+		} else {
+			""
+		}
 	)))
 }
 
