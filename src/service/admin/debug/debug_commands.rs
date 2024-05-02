@@ -455,5 +455,14 @@ pub(crate) async fn resolve_true_destination(
 }
 
 pub(crate) fn memory_stats() -> RoomMessageEventContent {
-	RoomMessageEventContent::text_html("HTML only".to_owned(), crate::alloc::memory_stats())
+	let html_body = crate::alloc::memory_stats();
+
+	if html_body.is_empty() {
+		return RoomMessageEventContent::text_plain("malloc stats are not supported on your compiled malloc.");
+	}
+
+	RoomMessageEventContent::text_html(
+		"This command's output can only be viewed by clients that render HTML.".to_owned(),
+		html_body,
+	)
 }
