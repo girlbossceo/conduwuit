@@ -110,6 +110,10 @@ jobs:
                 path: complement_test_results.jsonl
                 if-no-files-found: error
 
+            - name: Diff Complement results with checked-in repo results
+              run: |
+                  diff -u --color=always complement_test_results.jsonl tests/test_results/complement/test_results.jsonl > >(tee -a test_output.log)
+
             - name: Update Job Summary
               if: success() || failure()
               run: |
