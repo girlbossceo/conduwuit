@@ -37,10 +37,10 @@ env \
     go test -vet=off -timeout 1h -json ./tests | tee "$LOG_FILE"
 set -o pipefail
 
-# Post-process the results into an easy-to-compare format
-cat "$LOG_FILE" | jq -c '
+# Post-process the results into an easy-to-compare format, sorted by Test name for reproducible results
+cat "$LOG_FILE" | jq -s -c 'sort_by(.Test)[]' | jq -c '
     select(
         (.Action == "pass" or .Action == "fail" or .Action == "skip")
         and .Test != null
     ) | {Action: .Action, Test: .Test}
-    ' | sort > "$RESULTS_FILE"
+    ' > "$RESULTS_FILE"
