@@ -477,7 +477,6 @@ opt-level = 3
 lto = 'thin'
 incremental = false
 opt-level = 3
-overflow-checks = true
 strip = "symbols"
 control-flow-guard = true # Windows only
 debug = 0
