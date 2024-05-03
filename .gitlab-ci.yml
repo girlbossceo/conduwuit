@@ -127,49 +127,6 @@ artifacts:
     - if: $CI
   interruptible: true
 
-.push-oci-image:
-  stage: publish
-  image: docker:26.1.1
-  services:
-    - docker:26.1.1-dind
-  variables:
-    IMAGE_SUFFIX_AMD64: amd64
-    IMAGE_SUFFIX_ARM64V8: arm64v8
-  script:
-    - docker load -i oci-image-amd64.tar.gz
-    - IMAGE_ID_AMD64=$(docker images -q conduit:main)
-    - docker load -i oci-image-arm64v8.tar.gz
-    - IMAGE_ID_ARM64V8=$(docker images -q conduit:main)
-    # Tag and push the architecture specific images
-    - docker tag $IMAGE_ID_AMD64 $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_AMD64
-    - docker tag $IMAGE_ID_ARM64V8 $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_ARM64V8
-    - docker push $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_AMD64
-    - docker push $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_ARM64V8
-    # Tag the multi-arch image
-    - docker manifest create $IMAGE_NAME:$CI_COMMIT_SHA --amend $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_ARM64V8
-    - docker manifest push $IMAGE_NAME:$CI_COMMIT_SHA
-    # Tag and push the git ref
-    - docker manifest create $IMAGE_NAME:$CI_COMMIT_REF_NAME --amend $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_ARM64V8
-    - docker manifest push $IMAGE_NAME:$CI_COMMIT_REF_NAME
-    # Tag git tags as 'latest'
-    - |
-      if [[ -n "$CI_COMMIT_TAG" ]]; then
-        docker manifest create $IMAGE_NAME:latest --amend $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_AMD64 --amend $IMAGE_NAME:$CI_COMMIT_SHA-$IMAGE_SUFFIX_ARM64V8
-        docker manifest push $IMAGE_NAME:latest
-      fi
-  dependencies:
-    - artifacts
-  only:
-    - main
-    - tags
-
-oci-image:push-gitlab:
-  extends: .push-oci-image
-  variables:
-    IMAGE_NAME: $CI_REGISTRY_IMAGE/conduwuit
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-
 pages:
   stage: publish
   dependencies:
