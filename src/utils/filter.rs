@@ -16,7 +16,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use ruma::{
 	api::client::filter::{RoomEventFilter, UrlFilter},
-	RoomId,
+	RoomId, UserId,
 };
 
 use crate::{Error, PduEvent};
@@ -63,6 +63,7 @@ impl<'a, T: ?Sized + Hash + PartialEq + Eq> AllowDenyList<'a, T> {
 
 pub(crate) struct CompiledRoomEventFilter<'a> {
 	rooms: AllowDenyList<'a, RoomId>,
+	senders: AllowDenyList<'a, UserId>,
 	url_filter: Option<UrlFilter>,
 }
 
@@ -72,6 +73,7 @@ impl<'a> TryFrom<&'a RoomEventFilter> for CompiledRoomEventFilter<'a> {
 	fn try_from(source: &'a RoomEventFilter) -> Result<CompiledRoomEventFilter<'a>, Error> {
 		Ok(CompiledRoomEventFilter {
 			rooms: AllowDenyList::from_slices(source.rooms.as_deref(), &source.not_rooms),
+			senders: AllowDenyList::from_slices(source.senders.as_deref(), &source.not_senders),
 			url_filter: source.url_filter,
 		})
 	}
@@ -89,13 +91,16 @@ impl CompiledRoomEventFilter<'_> {
 
 	/// Returns `true` if a PDU event is allowed by the filter.
 	///
-	/// This tests against the `url_filter` field.
+	/// This tests against the `senders`, `not_senders`, and `url_filter`
+	/// fields.
 	///
 	/// This does *not* check whether the event's room is allowed. It is
 	/// expected that callers have already filtered out rejected rooms using
 	/// [`CompiledRoomEventFilter::room_allowed`] and
 	/// [`CompiledRoomFilter::room_allowed`].
-	pub(crate) fn pdu_event_allowed(&self, pdu: &PduEvent) -> bool { self.allowed_by_url_filter(pdu) }
+	pub(crate) fn pdu_event_allowed(&self, pdu: &PduEvent) -> bool {
+		self.senders.allowed(&pdu.sender) && self.allowed_by_url_filter(pdu)
+	}
 
 	fn allowed_by_url_filter(&self, pdu: &PduEvent) -> bool {
 		let Some(filter) = self.url_filter else {
