@@ -131,9 +131,10 @@ fn request_result_log(method: &Method, uri: &Uri, result: &axum::response::Respo
 }
 
 fn cors_layer(_server: &Server) -> CorsLayer {
-	const METHODS: [Method; 6] = [
+	const METHODS: [Method; 7] = [
 		Method::GET,
 		Method::HEAD,
+		Method::PATCH,
 		Method::POST,
 		Method::PUT,
 		Method::DELETE,
