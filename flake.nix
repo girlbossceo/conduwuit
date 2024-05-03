@@ -179,6 +179,10 @@
           # Useful for editing the book locally
           mdbook
         ])
+        ++ (if !pkgsHost.stdenv.isDarwin then [
+            # Needed for building with io_uring
+            pkgsHost.liburing
+        ] else [])
         ++
         scopeHost.main.nativeBuildInputs;
       };
