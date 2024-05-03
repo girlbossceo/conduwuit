@@ -362,6 +362,7 @@ default = [
     "brotli_compression",
     "zstd_compression",
     "release_max_log_level",
+    "io_uring",
 ]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
