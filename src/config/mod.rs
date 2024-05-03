@@ -369,6 +369,7 @@ pub(crate) struct WellKnownConfig {
 
 const DEPRECATED_KEYS: &[&str] = &[
 	"cache_capacity",
+	"max_concurrent_requests",
 	"well_known_client",
 	"well_known_server",
 	"well_known_support_page",
@@ -383,22 +384,22 @@ impl Config {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())
-				.merge(Env::prefixed("CONDUIT_").global())
-				.merge(Env::prefixed("CONDUWUIT_").global())
+				.merge(Env::prefixed("CONDUIT_").global().split("__"))
+				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		} else if let Some(config_file_arg) = Env::var("CONDUWUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_arg).nested())
-				.merge(Env::prefixed("CONDUIT_").global())
-				.merge(Env::prefixed("CONDUWUIT_").global())
+				.merge(Env::prefixed("CONDUIT_").global().split("__"))
+				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		} else if let Some(config_file_arg) = path {
 			Figment::new()
 				.merge(Toml::file(config_file_arg).nested())
-				.merge(Env::prefixed("CONDUIT_").global())
-				.merge(Env::prefixed("CONDUWUIT_").global())
+				.merge(Env::prefixed("CONDUIT_").global().split("__"))
+				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		} else {
 			Figment::new()
-				.merge(Env::prefixed("CONDUIT_").global())
-				.merge(Env::prefixed("CONDUWUIT_").global())
+				.merge(Env::prefixed("CONDUIT_").global().split("__"))
+				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		};
 
 		let config = match raw_config.extract::<Config>() {
@@ -532,6 +533,7 @@ impl fmt::Display for Config {
 			("DNS attempts", &self.dns_attempts.to_string()),
 			("DNS timeout", &self.dns_timeout.to_string()),
 			("DNS fallback to TCP", &self.dns_tcp_fallback.to_string()),
+			("DNS query over TCP only", &self.query_over_tcp_only.to_string()),
 			("Query all nameservers", &self.query_all_nameservers.to_string()),
 			("Maximum request size (bytes)", &self.max_request_size.to_string()),
 			("Sender retry backoff limit", &self.sender_retry_backoff_limit.to_string()),
@@ -807,6 +809,14 @@ impl fmt::Display for Config {
 			(
 				"Well-known server name",
 				&if let Some(server) = &self.well_known.server {
+					server.to_string()
+				} else {
+					String::new()
+				},
+			),
+			(
+				"Well-known client URL",
+				&if let Some(server) = &self.well_known.client {
 					server.to_string()
 				} else {
 					String::new()
