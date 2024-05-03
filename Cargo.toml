@@ -365,41 +365,41 @@ default = [
 ]
 backend_sqlite = ["sqlite"]
 backend_rocksdb = ["rocksdb"]
-rocksdb = ["rust-rocksdb"]
+rocksdb = ["dep:rust-rocksdb"]
 jemalloc = [
-    "tikv-jemalloc-sys",
-    "tikv-jemalloc-ctl",
-    "tikv-jemallocator",
+    "dep:tikv-jemalloc-sys",
+    "dep:tikv-jemalloc-ctl",
+    "dep:tikv-jemallocator",
     "rust-rocksdb/jemalloc",
 ]
 jemalloc_prof = ["tikv-jemalloc-sys/profiling"]
-sqlite = ["rusqlite", "parking_lot", "thread_local"]
-systemd = ["sd-notify"]
-sentry_telemetry = ["sentry", "sentry-tracing", "sentry-tower"]
+sqlite = ["dep:rusqlite", "dep:parking_lot", "dep:thread_local"]
+systemd = ["dep:sd-notify"]
+sentry_telemetry = ["dep:sentry", "dep:sentry-tracing", "dep:sentry-tower"]
 
 gzip_compression = ["tower-http/compression-gzip", "reqwest/gzip"]
 zstd_compression = ["tower-http/compression-zstd"]
 brotli_compression = ["tower-http/compression-br", "reqwest/brotli"]
 
-sha256_media = ["sha2"]
+sha256_media = ["dep:sha2"]
 io_uring = ["rust-rocksdb/io-uring"]
-axum_dual_protocol = ["axum-server-dual-protocol"]
+axum_dual_protocol = ["dep:axum-server-dual-protocol"]
 
 perf_measurements = [
-    "opentelemetry",
-    "tracing-flame",
-    "tracing-opentelemetry",
-    "opentelemetry_sdk",
-    "opentelemetry-jaeger",
+    "dep:opentelemetry",
+    "dep:tracing-flame",
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-jaeger",
 ]
 
 # enable the tokio_console server
 # incompatible with release_max_log_level
-tokio_console = ["console-subscriber", "tokio/tracing"]
+tokio_console = ["dep:console-subscriber", "tokio/tracing"]
 
 hot_reload = ["dep:hot-lib-reloader"]
 
-hardened_malloc = ["hardened_malloc-rs"]
+hardened_malloc = ["dep:hardened_malloc-rs"]
 
 # increases performance, reduces build times, and reduces binary size by not compiling or
 # genreating code for log level filters that users will generally not use (debug and trace) only in release builds
