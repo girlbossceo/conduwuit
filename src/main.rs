@@ -333,19 +333,20 @@ fn init_sentry(config: &Config) -> sentry::ClientInitGuard {
 	))
 }
 
-// We need to store a reload::Handle value, but can't name it's type explicitly
-// because the S type parameter depends on the subscriber's previous layers. In
-// our case, this includes unnameable 'impl Trait' types.
-//
-// This is fixed[1] in the unreleased tracing-subscriber from the master branch,
-// which removes the S parameter. Unfortunately can't use it without pulling in
-// a version of tracing that's incompatible with the rest of our deps.
-//
-// To work around this, we define an trait without the S paramter that forwards
-// to the reload::Handle::reload method, and then store the handle as a trait
-// object.
-//
-// [1]: https://github.com/tokio-rs/tracing/pull/1035/commits/8a87ea52425098d3ef8f56d92358c2f6c144a28f
+/// We need to store a reload::Handle value, but can't name it's type explicitly
+/// because the S type parameter depends on the subscriber's previous layers. In
+/// our case, this includes unnameable 'impl Trait' types.
+///
+/// This is fixed[1] in the unreleased tracing-subscriber from the master
+/// branch, which removes the S parameter. Unfortunately can't use it without
+/// pulling in a version of tracing that's incompatible with the rest of our
+/// deps.
+///
+/// To work around this, we define an trait without the S paramter that forwards
+/// to the reload::Handle::reload method, and then store the handle as a trait
+/// object.
+///
+/// [1]: <https://github.com/tokio-rs/tracing/pull/1035/commits/8a87ea52425098d3ef8f56d92358c2f6c144a28f>
 trait ReloadHandle<L> {
 	fn reload(&self, new_value: L) -> Result<(), reload::Error>;
 }
@@ -480,13 +481,13 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 	(LogLevelReloadHandles::new(reload_handles), flame_guard)
 }
 
-// This is needed for opening lots of file descriptors, which tends to
-// happen more often when using RocksDB and making lots of federation
-// connections at startup. The soft limit is usually 1024, and the hard
-// limit is usually 512000; I've personally seen it hit >2000.
-//
-// * https://www.freedesktop.org/software/systemd/man/systemd.exec.html#id-1.12.2.1.17.6
-// * https://github.com/systemd/systemd/commit/0abf94923b4a95a7d89bc526efc84e7ca2b71741
+/// This is needed for opening lots of file descriptors, which tends to
+/// happen more often when using RocksDB and making lots of federation
+/// connections at startup. The soft limit is usually 1024, and the hard
+/// limit is usually 512000; I've personally seen it hit >2000.
+///
+/// * <https://www.freedesktop.org/software/systemd/man/systemd.exec.html#id-1.12.2.1.17.6>
+/// * <https://github.com/systemd/systemd/commit/0abf94923b4a95a7d89bc526efc84e7ca2b71741>
 #[cfg(unix)]
 fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 	use nix::sys::resource::{getrlimit, setrlimit, Resource::RLIMIT_NOFILE as NOFILE};
