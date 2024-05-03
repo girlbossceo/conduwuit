@@ -233,7 +233,12 @@ jobs:
             GHCR_AMD64: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-amd64
             GHCR_TAG: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
             GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (github.ref == 'refs/heads/main' && 'latest') || github.ref_name }}
+            GLCR_ARM64: registry.gitlab.com/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-arm64v8
+            GLCR_AMD64: registry.gitlab.com/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-amd64
+            GLCR_TAG: registry.gitlab.com/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
+            GLCR_BRANCH: registry.gitlab.com/${{ github.repository }}:${{ (github.ref == 'refs/heads/main' && 'latest') || github.ref_name }}
             DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+            GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         steps:
             - name: Login to GitHub Container Registry
               uses: docker/login-action@v3
@@ -250,6 +255,14 @@ jobs:
                   username: ${{ vars.DOCKER_USERNAME }}
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+            - name: Login to GitLab Container Registry
+              if: ${{ (vars.GITLAB_USERNAME != '') && (env.GITLAB_TOKEN != '') }}
+              uses: docker/login-action@v3
+              with:
+                  registry: registry.gitlab.com
+                  username: ${{ vars.GITLAB_USERNAME }}
+                  password: ${{ secrets.GITLAB_TOKEN }}
+
             - name: Download artifacts
               uses: actions/download-artifact@v4
 
@@ -264,8 +277,10 @@ jobs:
                   docker load -i oci-image-amd64.tar.gz
                   docker tag $(docker images -q conduit:main) ${{ env.DOCKER_AMD64 }}
                   docker tag $(docker images -q conduit:main) ${{ env.GHCR_AMD64 }}
+                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_AMD64 }}
                   docker push ${{ env.DOCKER_AMD64 }}
                   docker push ${{ env.GHCR_AMD64 }}
+                  docker push ${{ env.GLCR_AMD64 }}
 
             - name: Load and push arm64 image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
@@ -273,15 +288,22 @@ jobs:
                   docker load -i oci-image-arm64v8.tar.gz
                   docker tag $(docker images -q conduit:main) ${{ env.DOCKER_ARM64 }}
                   docker tag $(docker images -q conduit:main) ${{ env.GHCR_ARM64 }}
+                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_ARM64 }}
                   docker push ${{ env.DOCKER_ARM64 }}
                   docker push ${{ env.GHCR_ARM64 }}
+                  docker push ${{ env.GLCR_ARM64 }}
 
             - name: Create Docker combined manifests
               run: |
+                  # Dockerhub Container Registry
                   docker manifest create ${{ env.DOCKER_TAG }} --amend ${{ env.DOCKER_ARM64 }} --amend ${{ env.DOCKER_AMD64 }}
                   docker manifest create ${{ env.DOCKER_BRANCH }} --amend ${{ env.DOCKER_ARM64 }} --amend ${{ env.DOCKER_AMD64 }}
+                  # GitHub Container Registry
                   docker manifest create ${{ env.GHCR_TAG }} --amend ${{ env.GHCR_ARM64 }} --amend ${{ env.GHCR_AMD64 }}
                   docker manifest create ${{ env.GHCR_BRANCH }} --amend ${{ env.GHCR_ARM64 }} --amend ${{ env.GHCR_AMD64 }}
+                  # GitLab Container Registry
+                  docker manifest create ${{ env.GLCR_TAG }} --amend ${{ env.GLCR_ARM64 }} --amend ${{ env.GCCR_AMD64 }}
+                  docker manifest create ${{ env.GLCR_BRANCH }} --amend ${{ env.GLCR_ARM64 }} --amend ${{ env.GLCR_AMD64 }}
 
             - name: Push manifests to Docker registries
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
@@ -290,9 +312,12 @@ jobs:
                   docker manifest push ${{ env.DOCKER_BRANCH }}
                   docker manifest push ${{ env.GHCR_TAG }}
                   docker manifest push ${{ env.GHCR_BRANCH }}
+                  docker manifest push ${{ env.GLCR_TAG }}
+                  docker manifest push ${{ env.GLCR_BRANCH }}
 
             - name: Add Image Links to Job Summary
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   echo "- \`docker pull ${{ env.DOCKER_TAG }}\`" >> $GITHUB_STEP_SUMMARY
                   echo "- \`docker pull ${{ env.GHCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${{ env.GLCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
