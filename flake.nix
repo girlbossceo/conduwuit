@@ -8,7 +8,8 @@
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
-    rocksdb = { url = "github:facebook/rocksdb?ref=v9.1.1"; flake = false; };
+    # https://github.com/girlbossceo/rocksdb/commit/db6df0b185774778457dabfcbd822cb81760cade
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.1.1"; flake = false; };
   };
 
   outputs = inputs:
