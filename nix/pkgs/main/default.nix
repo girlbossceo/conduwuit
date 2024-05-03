@@ -89,6 +89,9 @@ craneLib.buildPackage ( commonAttrs // {
   # This is redundant with CI
   doCheck = false;
 
+  # https://crane.dev/faq/rebuilds-bindgen.html
+  NIX_OUTPATH_USED_AS_RANDOM_SEED = "aaaaaaaaaa";
+
   env = buildPackageEnv;
 
   passthru = {
