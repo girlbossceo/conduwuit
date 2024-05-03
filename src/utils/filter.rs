@@ -10,13 +10,15 @@
 //! The first exception is room filters (`room`/`not_room` pairs in
 //! `filter.rooms` and `filter.rooms.{account_data,timeline,ephemeral,state}`).
 //! In `/messages`, if the room is rejected by the filter, we can skip the
-//! entire request.
+//! entire request. The outer loop of our `/sync` implementation is over rooms,
+//! and so we are able to skip work for an entire room if it is rejected by the
+//! top-level `filter.rooms.room`.
 
 use std::{collections::HashSet, hash::Hash};
 
 use regex::RegexSet;
 use ruma::{
-	api::client::filter::{RoomEventFilter, UrlFilter},
+	api::client::filter::{FilterDefinition, RoomEventFilter, RoomFilter, UrlFilter},
 	RoomId, UserId,
 };
 
@@ -119,6 +121,21 @@ impl WildcardAllowDenyList {
 	}
 }
 
+/// Wrapper for a [`ruma::api::client::filter::FilterDefinition`], preprocessed
+/// to allow checking against the filter efficiently.
+///
+/// The preprocessing consists of merging the `X` and `not_X` pairs into
+/// combined structures. For most fields, this is a [`AllowDenyList`]. For
+/// `types`/`not_types`, this is a [`WildcardAllowDenyList`], because the type
+/// filter fields support `'*'` wildcards.
+pub(crate) struct CompiledFilterDefinition<'a> {
+	pub(crate) room: CompiledRoomFilter<'a>,
+}
+
+pub(crate) struct CompiledRoomFilter<'a> {
+	rooms: AllowDenyList<'a, RoomId>,
+}
+
 pub(crate) struct CompiledRoomEventFilter<'a> {
 	// TODO: consider falling back a more-efficient AllowDenyList<TimelineEventType> when none of the type patterns
 	// include a wildcard.
@@ -126,6 +143,28 @@ pub(crate) struct CompiledRoomEventFilter<'a> {
 	rooms: AllowDenyList<'a, RoomId>,
 	senders: AllowDenyList<'a, UserId>,
 	url_filter: Option<UrlFilter>,
+}
+
+impl<'a> TryFrom<&'a FilterDefinition> for CompiledFilterDefinition<'a> {
+	type Error = Error;
+
+	fn try_from(source: &'a FilterDefinition) -> Result<CompiledFilterDefinition<'a>, Error> {
+		Ok(CompiledFilterDefinition {
+			room: (&source.room).try_into()?,
+		})
+	}
+}
+
+impl<'a> TryFrom<&'a RoomFilter> for CompiledRoomFilter<'a> {
+	type Error = Error;
+
+	fn try_from(source: &'a RoomFilter) -> Result<CompiledRoomFilter<'a>, Error> {
+		Ok(CompiledRoomFilter {
+			// TODO: consider calculating the intersection of room filters in
+			// all of the sub-filters
+			rooms: AllowDenyList::from_slices(source.rooms.as_deref(), &source.not_rooms),
+		})
+	}
 }
 
 impl<'a> TryFrom<&'a RoomEventFilter> for CompiledRoomEventFilter<'a> {
@@ -139,6 +178,16 @@ impl<'a> TryFrom<&'a RoomEventFilter> for CompiledRoomEventFilter<'a> {
 			url_filter: source.url_filter,
 		})
 	}
+}
+
+impl CompiledRoomFilter<'_> {
+	/// Returns the top-level [`AllowDenyList`] for rooms (`rooms`/`not_rooms`
+	/// in `filter.room`).
+	///
+	/// This is useful because, with an allowlist, iterating over allowed rooms
+	/// and checking whether they are visible to a user can be faster than
+	/// iterating over visible rooms and checking whether they are allowed.
+	pub(crate) fn rooms(&self) -> &AllowDenyList<'_, RoomId> { &self.rooms }
 }
 
 impl CompiledRoomEventFilter<'_> {
