@@ -11,7 +11,7 @@
 
 You may simply download the binary that fits your machine. Run `uname -m` to see what you need.
 
-Prebuilt binaries can be downloaded from the latest successful CI workflow on the main branch here: https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml?query=branch%3Amain+actor%3Agirlbossceo+is%3Asuccess+event%3Apush
+Prebuilt binaries can be downloaded from the latest tagged release [here](https://github.com/girlbossceo/conduwuit/releases/latest).
 
 Alternatively, you may compile the binary yourself. First, install any dependencies:
 
