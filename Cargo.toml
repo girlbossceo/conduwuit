@@ -14,7 +14,7 @@ version = "0.3.2"
 edition = "2021"
 
 # See also `rust-toolchain.toml`
-rust-version = "1.76.0"
+rust-version = "1.77.0"
 
 [dependencies]
 console-subscriber = { version = "0.2", optional = true }
