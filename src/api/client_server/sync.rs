@@ -278,6 +278,7 @@ async fn sync_helper(
 			lazy_load_enabled,
 			lazy_load_send_redundant,
 			full_state,
+			&compiled_filter,
 			&mut device_list_updates,
 			&mut left_encrypted_users,
 		)
@@ -336,6 +337,20 @@ async fn sync_helper(
 			continue;
 		}
 
+		let timeline = if compiled_filter.room.timeline.room_allowed(&room_id) {
+			Timeline {
+				limited: false,
+				prev_batch: Some(next_batch_string.clone()),
+				events: vec![],
+			}
+		} else {
+			Timeline {
+				limited: false,
+				prev_batch: None,
+				events: vec![],
+			}
+		};
+
 		if !services().rooms.metadata.exists(&room_id)? {
 			// This is just a rejected invite, not a room we know
 			// Insert a leave event anyways
@@ -368,11 +383,7 @@ async fn sync_helper(
 					account_data: RoomAccountData {
 						events: Vec::new(),
 					},
-					timeline: Timeline {
-						limited: false,
-						prev_batch: Some(next_batch_string.clone()),
-						events: Vec::new(),
-					},
+					timeline,
 					state: State {
 						events: vec![event.to_sync_state_event()],
 					},
@@ -457,11 +468,7 @@ async fn sync_helper(
 				account_data: RoomAccountData {
 					events: Vec::new(),
 				},
-				timeline: Timeline {
-					limited: false,
-					prev_batch: Some(next_batch_string.clone()),
-					events: Vec::new(),
-				},
+				timeline,
 				state: State {
 					events: left_state_events,
 				},
@@ -668,8 +675,10 @@ async fn process_presence_updates(
 async fn load_joined_room(
 	sender_user: &UserId, sender_device: &DeviceId, room_id: &RoomId, since: u64, sincecount: PduCount,
 	next_batch: u64, next_batchcount: PduCount, lazy_load_enabled: bool, lazy_load_send_redundant: bool,
-	full_state: bool, device_list_updates: &mut HashSet<OwnedUserId>, left_encrypted_users: &mut HashSet<OwnedUserId>,
+	full_state: bool, filter: &CompiledFilterDefinition<'_>, device_list_updates: &mut HashSet<OwnedUserId>,
+	left_encrypted_users: &mut HashSet<OwnedUserId>,
 ) -> Result<JoinedRoom> {
+	// TODO: can we skip this when the room is filtered out?
 	{
 		// Get and drop the lock to wait for remaining operations to finish
 		// This will make sure the we have all events until next_batch
@@ -686,7 +695,7 @@ async fn load_joined_room(
 		drop(insert_lock);
 	};
 
-	let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10)?;
+	let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10, Some(filter))?;
 
 	let send_notification_counts = !timeline_pdus.is_empty()
 		|| services()
@@ -1159,9 +1168,17 @@ async fn load_joined_room(
 
 fn load_timeline(
 	sender_user: &UserId, room_id: &RoomId, roomsincecount: PduCount, limit: u64,
+	filter: Option<&CompiledFilterDefinition<'_>>,
 ) -> Result<(Vec<(PduCount, PduEvent)>, bool), Error> {
 	let timeline_pdus;
 	let limited;
+
+	if let Some(filter) = filter {
+		if !filter.room.timeline.room_allowed(room_id) {
+			return Ok((vec![], false));
+		}
+	}
+
 	if services()
 		.rooms
 		.timeline
@@ -1554,7 +1571,7 @@ pub(crate) async fn sync_events_v4_route(
 	for (room_id, (required_state_request, timeline_limit, roomsince)) in &todo_rooms {
 		let roomsincecount = PduCount::Normal(*roomsince);
 
-		let (timeline_pdus, limited) = load_timeline(&sender_user, room_id, roomsincecount, *timeline_limit)?;
+		let (timeline_pdus, limited) = load_timeline(&sender_user, room_id, roomsincecount, *timeline_limit, None)?;
 
 		if roomsince != &0 && timeline_pdus.is_empty() {
 			continue;

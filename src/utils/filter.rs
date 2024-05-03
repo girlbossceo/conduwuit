@@ -12,7 +12,9 @@
 //! In `/messages`, if the room is rejected by the filter, we can skip the
 //! entire request. The outer loop of our `/sync` implementation is over rooms,
 //! and so we are able to skip work for an entire room if it is rejected by the
-//! top-level `filter.rooms.room`.
+//! top-level `filter.rooms.room`. Similarly, when a room is rejected for all
+//! events in a particular category, we can skip work generating events in that
+//! category for the rejected room.
 
 use std::{collections::HashSet, hash::Hash};
 
@@ -134,6 +136,7 @@ pub(crate) struct CompiledFilterDefinition<'a> {
 
 pub(crate) struct CompiledRoomFilter<'a> {
 	rooms: AllowDenyList<'a, RoomId>,
+	pub(crate) timeline: CompiledRoomEventFilter<'a>,
 }
 
 pub(crate) struct CompiledRoomEventFilter<'a> {
@@ -163,6 +166,7 @@ impl<'a> TryFrom<&'a RoomFilter> for CompiledRoomFilter<'a> {
 			// TODO: consider calculating the intersection of room filters in
 			// all of the sub-filters
 			rooms: AllowDenyList::from_slices(source.rooms.as_deref(), &source.not_rooms),
+			timeline: (&source.timeline).try_into()?,
 		})
 	}
 }
