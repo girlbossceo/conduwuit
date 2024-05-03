@@ -238,15 +238,15 @@
     "rocksdb": {
       "flake": false,
       "locked": {
-        "lastModified": 1713810944,
-        "narHash": "sha256-/Xf0bzNJPclH9IP80QNaABfhj4IAR5LycYET18VFCXc=",
-        "owner": "facebook",
+        "lastModified": 1714770052,
+        "narHash": "sha256-NCPYF2wYBsB9OHEkZSOYoPlxjC9BBMhJp8EM5M1o3Mc=",
+        "owner": "girlbossceo",
         "repo": "rocksdb",
-        "rev": "6f7cabeac80a3a6150be2c8a8369fcecb107bf43",
+        "rev": "db6df0b185774778457dabfcbd822cb81760cade",
         "type": "github"
       },
       "original": {
-        "owner": "facebook",
+        "owner": "girlbossceo",
         "ref": "v9.1.1",
         "repo": "rocksdb",
         "type": "github"
