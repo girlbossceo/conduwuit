@@ -14,9 +14,12 @@
 
 use std::{collections::HashSet, hash::Hash};
 
-use ruma::{api::client::filter::RoomEventFilter, RoomId};
+use ruma::{
+	api::client::filter::{RoomEventFilter, UrlFilter},
+	RoomId,
+};
 
-use crate::Error;
+use crate::{Error, PduEvent};
 
 /// Structure for testing against an allowlist and a denylist with a single
 /// `HashSet` lookup.
@@ -60,6 +63,7 @@ impl<'a, T: ?Sized + Hash + PartialEq + Eq> AllowDenyList<'a, T> {
 
 pub(crate) struct CompiledRoomEventFilter<'a> {
 	rooms: AllowDenyList<'a, RoomId>,
+	url_filter: Option<UrlFilter>,
 }
 
 impl<'a> TryFrom<&'a RoomEventFilter> for CompiledRoomEventFilter<'a> {
@@ -68,6 +72,7 @@ impl<'a> TryFrom<&'a RoomEventFilter> for CompiledRoomEventFilter<'a> {
 	fn try_from(source: &'a RoomEventFilter) -> Result<CompiledRoomEventFilter<'a>, Error> {
 		Ok(CompiledRoomEventFilter {
 			rooms: AllowDenyList::from_slices(source.rooms.as_deref(), &source.not_rooms),
+			url_filter: source.url_filter,
 		})
 	}
 }
@@ -81,4 +86,26 @@ impl CompiledRoomEventFilter<'_> {
 	/// rejected by the top-level filter using
 	/// [`CompiledRoomFilter::room_allowed`], if applicable.
 	pub(crate) fn room_allowed(&self, room_id: &RoomId) -> bool { self.rooms.allowed(room_id) }
+
+	/// Returns `true` if a PDU event is allowed by the filter.
+	///
+	/// This tests against the `url_filter` field.
+	///
+	/// This does *not* check whether the event's room is allowed. It is
+	/// expected that callers have already filtered out rejected rooms using
+	/// [`CompiledRoomEventFilter::room_allowed`] and
+	/// [`CompiledRoomFilter::room_allowed`].
+	pub(crate) fn pdu_event_allowed(&self, pdu: &PduEvent) -> bool { self.allowed_by_url_filter(pdu) }
+
+	fn allowed_by_url_filter(&self, pdu: &PduEvent) -> bool {
+		let Some(filter) = self.url_filter else {
+			return true;
+		};
+		// TODO: is this unwrap okay?
+		let content: serde_json::Value = serde_json::from_str(pdu.content.get()).unwrap();
+		match filter {
+			UrlFilter::EventsWithoutUrl => !content["url"].is_string(),
+			UrlFilter::EventsWithUrl => content["url"].is_string(),
+		}
+	}
 }
