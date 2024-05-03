@@ -14,6 +14,7 @@
 
 use std::{collections::HashSet, hash::Hash};
 
+use regex::RegexSet;
 use ruma::{
 	api::client::filter::{RoomEventFilter, UrlFilter},
 	RoomId, UserId,
@@ -61,7 +62,67 @@ impl<'a, T: ?Sized + Hash + PartialEq + Eq> AllowDenyList<'a, T> {
 	}
 }
 
+struct WildcardAllowDenyList {
+	allow: Option<RegexSet>,
+	deny: Option<RegexSet>,
+}
+
+/// Converts a wildcard pattern (like in filter.room.timeline.types) to a regex.
+///
+/// Wildcard patterns are all literal strings except for the `'*'` character,
+/// which matches any sequence of characters.
+fn wildcard_to_regex(pattern: &str) -> String {
+	let mut regex_pattern = String::new();
+	regex_pattern.push('^');
+	let mut parts = pattern.split('*').peekable();
+	while let Some(part) = parts.next() {
+		regex_pattern.push_str(&regex::escape(part));
+		if parts.peek().is_some() {
+			regex_pattern.push_str(".*");
+		}
+	}
+	regex_pattern.push('$');
+	regex_pattern
+}
+
+impl WildcardAllowDenyList {
+	fn new<S: AsRef<str>>(allow: Option<&[S]>, deny: &[S]) -> Result<WildcardAllowDenyList, regex::Error> {
+		Ok(WildcardAllowDenyList {
+			allow: allow
+				.map(|allow| {
+					RegexSet::new(
+						allow
+							.iter()
+							.map(|pattern| wildcard_to_regex(pattern.as_ref())),
+					)
+				})
+				.transpose()?,
+			deny: if deny.is_empty() {
+				None
+			} else {
+				Some(RegexSet::new(
+					deny.iter()
+						.map(|pattern| wildcard_to_regex(pattern.as_ref())),
+				)?)
+			},
+		})
+	}
+
+	fn allowed(&self, value: &str) -> bool {
+		self.allow
+			.as_ref()
+			.map_or(true, |allow| allow.is_match(value))
+			&& self
+				.deny
+				.as_ref()
+				.map_or(true, |deny| !deny.is_match(value))
+	}
+}
+
 pub(crate) struct CompiledRoomEventFilter<'a> {
+	// TODO: consider falling back a more-efficient AllowDenyList<TimelineEventType> when none of the type patterns
+	// include a wildcard.
+	types: WildcardAllowDenyList,
 	rooms: AllowDenyList<'a, RoomId>,
 	senders: AllowDenyList<'a, UserId>,
 	url_filter: Option<UrlFilter>,
@@ -72,6 +133,7 @@ impl<'a> TryFrom<&'a RoomEventFilter> for CompiledRoomEventFilter<'a> {
 
 	fn try_from(source: &'a RoomEventFilter) -> Result<CompiledRoomEventFilter<'a>, Error> {
 		Ok(CompiledRoomEventFilter {
+			types: WildcardAllowDenyList::new(source.types.as_deref(), &source.not_types)?,
 			rooms: AllowDenyList::from_slices(source.rooms.as_deref(), &source.not_rooms),
 			senders: AllowDenyList::from_slices(source.senders.as_deref(), &source.not_senders),
 			url_filter: source.url_filter,
@@ -91,15 +153,17 @@ impl CompiledRoomEventFilter<'_> {
 
 	/// Returns `true` if a PDU event is allowed by the filter.
 	///
-	/// This tests against the `senders`, `not_senders`, and `url_filter`
-	/// fields.
+	/// This tests against the `senders`, `not_senders`, `types`, `not_types`,
+	/// and `url_filter` fields.
 	///
 	/// This does *not* check whether the event's room is allowed. It is
 	/// expected that callers have already filtered out rejected rooms using
 	/// [`CompiledRoomEventFilter::room_allowed`] and
 	/// [`CompiledRoomFilter::room_allowed`].
 	pub(crate) fn pdu_event_allowed(&self, pdu: &PduEvent) -> bool {
-		self.senders.allowed(&pdu.sender) && self.allowed_by_url_filter(pdu)
+		self.senders.allowed(&pdu.sender)
+			&& self.types.allowed(&pdu.kind.to_string())
+			&& self.allowed_by_url_filter(pdu)
 	}
 
 	fn allowed_by_url_filter(&self, pdu: &PduEvent) -> bool {
