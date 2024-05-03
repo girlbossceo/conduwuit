@@ -17,9 +17,11 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Various config options to tweak connection pooling, request timeouts, connection timeouts, DNS timeouts and settings, etc with good defaults which also help huge with performance via reusing connections and retrying where needed
 - Implement building conduwuit with jemalloc (which extends to the RocksDB jemalloc feature for maximum gains) or hardened_malloc light variant, and produce CI builds with jemalloc for performance (Nix doesn't seem to build [hardened_malloc-rs](https://github.com/girlbossceo/hardened_malloc-rs) properly)
 - Add support for caching DNS results with hickory-dns / hickory-resolver in conduwuit (not a replacement for a proper resolver cache, but still far better than nothing)
+- Add config option for using DNS over TCP, and config option for controlling A/AAAA record lookup strategy (e.g. don't query AAAA records if you don't have IPv6 connectivity)
 - Overall significant database, Client-Server, and federation performance and latency improvements (check out the ping room leaderboards if you don't believe me :>)
 - Add config options for RocksDB compression and bottommost compression, including choosing the algorithm and compression level
 - Use [loole](https://github.com/mahdi-shojaee/loole) MPSC channels instead of tokio MPSC channels for huge performance boosts in sending channels (mainly relevant for federation) and presence channels
+- Use `tracing`/`log`'s `release_max_level_info` feature to improve performance, build speeds, binary size, and CPU usage in release builds by avoid compiling debug/trace log level macros that users will generally never use (can be disabled with a build-time feature flag)
 
 
 ## General Fixes:
@@ -38,6 +40,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Find more servers for outbound federation `/hierarchy` requests instead of just the room ID server name
 - Support for suggesting servers to join through at `/_matrix/client/v3/directory/room/{roomAlias}`
 - Support for suggesting servers to join through us at `/_matrix/federation/v1/query/directory`
+- Add workaround for [Out Of Your Element](https://gitdab.com/cadence/out-of-your-element) appservice bridge to make it functional on conduwuit (bug has already been reported)
 
 
 ## Moderation:
@@ -120,6 +123,9 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Admin debug command to fetch a PDU from a remote server and inserts it into our database/timeline as backfill
 - Add admin command to delete media via a specific MXC. This deletes the MXC from our database, and the file locally.
 - Add admin commands for banning (blocking) room IDs from our local users joining (admins are always allowed) and evicts all our local users from that room, in addition to bulk room banning support, and blocks room invites (remote and local) to the banned room, as a moderation feature
+- Add admin commands to output jemalloc memory stats and memory usage
+- Add admin command to get conduwuit's uptime
+- Add admin command to get rooms a *remote* user shares with us
 
 
 ## Misc:
@@ -137,5 +143,10 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Assume well-knowns are broken if they exceed past 10000 characters.
 - Add support for the Matrix spec compliance test suite [Complement](https://github.com/matrix-org/complement/) via the Nix flake and various other fixes for it
 - Add support for listening on both HTTP and HTTPS if using direct TLS with conduwuit for usecases such as Complement
+- Implement running and diff'ing Complement results in CI
 - Interest in supporting other operating systems such as macOS, BSDs, and Windows, and getting them added into CI and doing builds for them
+- Add config option for disabling RocksDB Direct IO if needed
+- (Developers): Add support for tokio-console
+- (Developers): Add support for tracing flame graphs
+- Add `release-debuginfo` Cargo build profile
 - No cryptocurrency donations allowed, conduwuit is fully maintained by independent queer maintainers, and with a strong priority on inclusitivity and comfort for protected groups 🏳️‍⚧️
