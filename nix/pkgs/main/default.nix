@@ -84,6 +84,9 @@ craneLib.buildPackage ( commonAttrs // {
       "--features " + (builtins.concatStringsSep "," features);
 
   # This is redundant with CI
+  cargoTestCommand = "";
+
+  # This is redundant with CI
   doCheck = false;
 
   env = buildPackageEnv;
