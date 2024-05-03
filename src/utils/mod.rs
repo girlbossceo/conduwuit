@@ -1,6 +1,7 @@
 pub(crate) mod clap;
 pub(crate) mod debug;
 pub(crate) mod error;
+pub(crate) mod filter;
 
 use std::{
 	cmp,

@@ -16,7 +16,9 @@ use serde_json::{from_str, Value};
 
 use crate::{
 	service::{pdu::PduBuilder, rooms::timeline::PduCount},
-	services, utils, Error, PduEvent, Result, Ruma,
+	services, utils,
+	utils::filter::CompiledRoomEventFilter,
+	Error, PduEvent, Result, Ruma,
 };
 
 /// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
@@ -125,6 +127,10 @@ pub(crate) async fn get_message_events_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
+	let Ok(filter) = CompiledRoomEventFilter::try_from(&body.filter) else {
+		return Err(Error::BadRequest(ErrorKind::InvalidParam, "invalid 'filter' parameter"));
+	};
+
 	let from = match body.from.clone() {
 		Some(from) => PduCount::try_from_string(&from)?,
 		None => match body.dir {
@@ -132,6 +138,15 @@ pub(crate) async fn get_message_events_route(
 			ruma::api::Direction::Backward => PduCount::max(),
 		},
 	};
+
+	if !filter.room_allowed(&body.room_id) {
+		return Ok(get_message_events::v3::Response {
+			start: from.stringify(),
+			end: None,
+			chunk: vec![],
+			state: vec![],
+		});
+	}
 
 	let to = body
 		.to
