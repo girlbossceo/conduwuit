@@ -230,7 +230,7 @@ features = ["use_std"]
 
 # for URL previews
 [dependencies.webpage]
-version = "2.0"
+version = "2.0.1"
 default-features = false
 
 # to support multiple variations of setting a config option
