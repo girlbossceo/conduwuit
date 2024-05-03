@@ -459,9 +459,11 @@ systemd-units = { unit-name = "conduwuit" }
 
 
 [profile.dev]
+#debug = 0
 lto = 'off'
 codegen-units = 512
 incremental = true
+overflow-checks = true
 #panic = "abort"
 
 # seems to speed up continuous debug compilations
