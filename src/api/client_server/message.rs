@@ -159,7 +159,9 @@ pub(crate) async fn get_message_events_route(
 		.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)
 		.await?;
 
-	let limit = u64::from(body.limit).min(100) as usize;
+	let limit = u64::from(body.limit)
+		.min(body.filter.limit.map_or(u64::MAX, u64::from))
+		.min(100) as usize;
 
 	let next_token;
 
