@@ -12,15 +12,19 @@ OCI images for conduwuit are available in the registries listed below.
 | Registry        | Image                                                           | Size                          | Notes                  |
 | --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
 | GitHub Registry | [ghcr.io/girlbossceo/conduwuit:latest][gh] | ![Image Size][shield-latest]  | Stable tagged image.          |
+| GitLab Registry | [registry.gitlab.com/girlbossceo/conduwuit:latest][gl] | ![Image Size][shield-latest]  | Stable tagged image.          |
 | Docker Hub      | [docker.io/girlbossceo/conduwuit:latest][dh]             | ![Image Size][shield-latest]  | Stable tagged image.          |
-| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    | Stable branch.   |
-| Docker Hub      | [docker.io/girlbossceo/conduwuit:main][dh]               | ![Image Size][shield-main]    | Stable branch.   |
-| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:dev][gh]   | ![Image Size][shield-main]    | Development version.   |
-| Docker Hub      | [docker.io/girlbossceo/conduwuit:dev][dh]               | ![Image Size][shield-dev]    | Development version.   |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    | Stable main branch.   |
+| GitLab Registry | [registry.gitlab.com/girlbossceo/conduwuit:main][gl]   | ![Image Size][shield-main]    | Stable main branch.   |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:main][dh]               | ![Image Size][shield-main]    | Stable main branch.   |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:dev][gh]   | ![Image Size][shield-dev]    | Development version/branch.   |
+| GitLab Registry | [registry.gitlab.com/girlbossceo/conduwuit:dev][gl]   | ![Image Size][shield-dev]    | Development version/branch.   |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:dev][dh]               | ![Image Size][shield-dev]    | Development version/branch.   |
 
 
 [dh]: https://hub.docker.com/repository/docker/girlbossceo/conduwuit
 [gh]: https://github.com/girlbossceo/conduwuit/pkgs/container/conduwuit
+[gl]: https://gitlab.com/girlbossceo/conduwuit/container_registry/6351657
 [shield-latest]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/latest
 [shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
 [shield-dev]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/dev
@@ -31,24 +35,6 @@ Use
 docker image pull <link>
 ```
 to pull it to your machine.
-
-
-
-### Build using a Dockerfile
-
-The Dockerfile provided by conduwuit has two stages, each of which creates an image.
-
-1. **Builder:** Builds the binary from local context or by cloning a git revision from the official repository.
-2. **Runner:** Copies the built binary from **Builder** and sets up the runtime environment, like creating a volume to persist the database and applying the correct permissions.
-
-To build the image you can use the following command
-
-```bash
-docker build --tag girlbossceo/conduwuit:main .
-```
-
-which also will tag the resulting image as `girlbossceo/conduwuit:main`.
-
 
 
 ### Run
@@ -70,9 +56,9 @@ docker run -d -p 8448:6167 \
 
 or you can use [docker compose](#docker-compose).
 
-The `-d` flag lets the container run in detached mode. You now need to supply a `conduwuit.toml` config file, an example can be found [here](../configuration.md).
-You can pass in different env vars to change config values on the fly. You can even configure conduwuit completely by using env vars, but for that you need
-to pass `-e CONDUIT_CONFIG=""` into your container. For an overview of possible values, please take a look at the `docker-compose.yml` file.
+The `-d` flag lets the container run in detached mode. You may supply an optional `conduwuit.toml` config file, an example can be found [here](../configuration.md).
+You can pass in different env vars to change config values on the fly. You can even configure conduwuit completely by using env vars. For an overview of possible
+values, please take a look at the `docker-compose.yml` file.
 
 If you just want to test conduwuit for a short time, you can use the `--rm` flag, which will clean up everything related to your container after you stop it.
 
