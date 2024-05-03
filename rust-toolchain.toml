@@ -11,7 +11,7 @@
 # If you're having trouble making the relevant changes, bug a maintainer.
 
 [toolchain]
-channel = "1.76.0"
+channel = "1.77.0"
 components = [
     # For rust-analyzer
     "rust-src",
