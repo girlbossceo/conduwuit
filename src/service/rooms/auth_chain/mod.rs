@@ -6,9 +6,9 @@ use std::{
 
 pub(crate) use data::Data;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 
-use crate::{services, Error, Result};
+use crate::{services, utils::debug_slice_truncated, Error, Result};
 
 pub(crate) struct Service {
 	pub(crate) db: &'static dyn Data,
@@ -30,7 +30,7 @@ impl Service {
 			.filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
 	}
 
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(skip(self), fields(starting_events = debug_slice_truncated(starting_events, 5)))]
 	pub(crate) async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
 		const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
@@ -68,6 +68,7 @@ impl Service {
 				.auth_chain
 				.get_cached_eventid_authchain(&chunk_key)?
 			{
+				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
 				hits += 1;
 				continue;
@@ -82,6 +83,7 @@ impl Service {
 					.auth_chain
 					.get_cached_eventid_authchain(&[sevent_id])?
 				{
+					trace!(?event_id, "Found cache entry for event");
 					chunk_cache.extend(cached.iter().copied());
 					hits2 += 1;
 				} else {
@@ -132,15 +134,18 @@ impl Service {
 		Ok(full_auth_chain)
 	}
 
-	#[tracing::instrument(skip(self, event_id))]
+	#[tracing::instrument(skip(self, room_id))]
 	fn get_auth_chain_inner(&self, room_id: &RoomId, event_id: &EventId) -> Result<HashSet<u64>> {
 		let mut todo = vec![Arc::from(event_id)];
 		let mut found = HashSet::new();
 
 		while let Some(event_id) = todo.pop() {
+			trace!(?event_id, "processing auth event");
+
 			match services().rooms.timeline.get_pdu(&event_id) {
 				Ok(Some(pdu)) => {
 					if pdu.room_id != room_id {
+						error!(?event_id, ?pdu, "auth event for incorrect room_id");
 						return Err(Error::BadRequest(ErrorKind::forbidden(), "Evil event in db"));
 					}
 					for auth_event in &pdu.auth_events {
@@ -150,6 +155,7 @@ impl Service {
 							.get_or_create_shorteventid(auth_event)?;
 
 						if found.insert(sauthevent) {
+							trace!(?event_id, ?auth_event, "adding auth event to processing queue");
 							todo.push(auth_event.clone());
 						}
 					}
