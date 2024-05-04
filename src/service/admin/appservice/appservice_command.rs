@@ -4,7 +4,7 @@ use crate::{service::admin::escape_html, services, Result};
 
 pub(crate) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let appservice_config = body[1..body.len() - 1].join("\n");
+		let appservice_config = body[1..body.len().checked_sub(1).unwrap()].join("\n");
 		let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
 		match parsed_config {
 			Ok(yaml) => match services().appservice.register_appservice(yaml).await {

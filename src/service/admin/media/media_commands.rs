@@ -139,14 +139,19 @@ pub(crate) async fn delete(
 
 pub(crate) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let mxc_list = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+		let mxc_list = body
+			.clone()
+			.drain(1..body.len().checked_sub(1).unwrap())
+			.collect::<Vec<_>>();
 
-		let mut mxc_deletion_count = 0;
+		let mut mxc_deletion_count: u32 = 0;
 
 		for mxc in mxc_list {
 			debug!("Deleting MXC {mxc} in bulk");
 			services().media.delete(mxc.to_owned()).await?;
-			mxc_deletion_count += 1;
+			mxc_deletion_count = mxc_deletion_count
+				.checked_add(1)
+				.expect("mxc_deletion_count should not get this high");
 		}
 
 		return Ok(RoomMessageEventContent::text_plain(format!(

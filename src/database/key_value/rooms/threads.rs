@@ -19,7 +19,7 @@ impl service::rooms::threads::Data for KeyValueDatabase {
 			.to_vec();
 
 		let mut current = prefix.clone();
-		current.extend_from_slice(&(until - 1).to_be_bytes());
+		current.extend_from_slice(&(until.saturating_sub(1)).to_be_bytes());
 
 		Ok(Box::new(
 			self.threadid_userids

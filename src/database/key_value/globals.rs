@@ -158,18 +158,15 @@ impl service::globals::Data for KeyValueDatabase {
 		let max_appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().capacity();
 		let max_lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().capacity();
 
-		let mut response = format!(
+		format!(
 			"\
 auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}
 our_real_users_cache: {our_real_users_cache} / {max_our_real_users_cache}
 appservice_in_room_cache: {appservice_in_room_cache} / {max_appservice_in_room_cache}
-lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n"
-		);
-		if let Ok(db_stats) = self.db.memory_usage() {
-			response += &db_stats;
-		}
-
-		response
+lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n
+{}",
+			self.db.memory_usage().unwrap_or_default()
+		)
 	}
 
 	fn clear_caches(&self, amount: u32) {

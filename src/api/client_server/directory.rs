@@ -380,7 +380,12 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 	let next_batch = if chunk.len() < limit as usize {
 		None
 	} else {
-		Some(format!("n{}", num_since + limit))
+		Some(format!(
+			"n{}",
+			num_since
+				.checked_add(limit)
+				.expect("num_since and limit should not be that large")
+		))
 	};
 
 	Ok(get_public_rooms_filtered::v3::Response {

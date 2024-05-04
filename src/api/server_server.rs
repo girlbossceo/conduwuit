@@ -101,7 +101,9 @@ pub(crate) async fn get_server_keys_route() -> Result<impl IntoResponse> {
 				old_verify_keys: BTreeMap::new(),
 				signatures: BTreeMap::new(),
 				valid_until_ts: MilliSecondsSinceUnixEpoch::from_system_time(
-					SystemTime::now() + Duration::from_secs(86400 * 7),
+					SystemTime::now()
+						.checked_add(Duration::from_secs(86400 * 7))
+						.expect("valid_until_ts should not get this high"),
 				)
 				.expect("time is valid"),
 			})
@@ -398,8 +400,13 @@ pub(crate) async fn send_transaction_message_route(
 					.is_joined(&typing.user_id, &typing.room_id)?
 				{
 					if typing.typing {
-						let timeout = utils::millis_since_unix_epoch()
-							+ services().globals.config.typing_federation_timeout_s * 1000;
+						let timeout = utils::millis_since_unix_epoch().saturating_add(
+							services()
+								.globals
+								.config
+								.typing_federation_timeout_s
+								.saturating_mul(1000),
+						);
 						services()
 							.rooms
 							.typing
@@ -662,7 +669,7 @@ pub(crate) async fn get_missing_events_route(
 			}
 
 			if body.earliest_events.contains(&queued_events[i]) {
-				i += 1;
+				i = i.saturating_add(1);
 				continue;
 			}
 
@@ -671,7 +678,7 @@ pub(crate) async fn get_missing_events_route(
 				&body.room_id,
 				&queued_events[i],
 			)? {
-				i += 1;
+				i = i.saturating_add(1);
 				continue;
 			}
 
@@ -688,7 +695,7 @@ pub(crate) async fn get_missing_events_route(
 			);
 			events.push(PduEvent::convert_to_outgoing_federation_event(pdu));
 		}
-		i += 1;
+		i = i.saturating_add(1);
 	}
 
 	Ok(get_missing_events::v1::Response {

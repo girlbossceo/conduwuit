@@ -121,7 +121,7 @@ pub(crate) async fn get_remote_pdu_list(
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
 		let list = body
 			.clone()
-			.drain(1..body.len() - 1)
+			.drain(1..body.len().checked_sub(1).unwrap())
 			.filter_map(|pdu| EventId::parse(pdu).ok())
 			.collect::<Vec<_>>();
 
@@ -381,7 +381,7 @@ pub(crate) async fn change_log_level(
 
 pub(crate) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let string = body[1..body.len() - 1].join("\n");
+		let string = body[1..body.len().checked_sub(1).unwrap()].join("\n");
 		match serde_json::from_str(&string) {
 			Ok(mut value) => {
 				ruma::signatures::sign_json(
@@ -404,7 +404,7 @@ pub(crate) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent
 
 pub(crate) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let string = body[1..body.len() - 1].join("\n");
+		let string = body[1..body.len().checked_sub(1).unwrap()].join("\n");
 		match serde_json::from_str(&string) {
 			Ok(value) => {
 				let pub_key_map = RwLock::new(BTreeMap::new());

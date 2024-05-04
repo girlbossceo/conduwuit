@@ -89,6 +89,8 @@ impl Client {
 	fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 		let version = conduwuit_version();
 
+		let user_agent = format!("Conduwuit/{version}");
+
 		let mut builder = reqwest::Client::builder()
 			.hickory_dns(true)
 			.connect_timeout(Duration::from_secs(config.request_conn_timeout))
@@ -96,7 +98,7 @@ impl Client {
 			.timeout(Duration::from_secs(config.request_total_timeout))
 			.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
 			.pool_max_idle_per_host(config.request_idle_per_host.into())
-			.user_agent("Conduwuit".to_owned() + "/" + &version)
+			.user_agent(user_agent)
 			.redirect(redirect::Policy::limited(6))
 			.connection_verbose(true);
 

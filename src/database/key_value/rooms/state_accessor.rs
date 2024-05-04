@@ -17,7 +17,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 			.expect("there is always one layer")
 			.1;
 		let mut result = HashMap::new();
-		let mut i = 0;
+		let mut i: u8 = 0;
 		for compressed in full_state.iter() {
 			let parsed = services()
 				.rooms
@@ -25,7 +25,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 				.parse_compressed_state_event(compressed)?;
 			result.insert(parsed.0, parsed.1);
 
-			i += 1;
+			i = i.saturating_add(1);
 			if i % 100 == 0 {
 				tokio::task::yield_now().await;
 			}
@@ -44,7 +44,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 			.1;
 
 		let mut result = HashMap::new();
-		let mut i = 0;
+		let mut i: u8 = 0;
 		for compressed in full_state.iter() {
 			let (_, eventid) = services()
 				.rooms
@@ -63,7 +63,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 				);
 			}
 
-			i += 1;
+			i = i.saturating_add(1);
 			if i % 100 == 0 {
 				tokio::task::yield_now().await;
 			}

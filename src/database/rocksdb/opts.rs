@@ -145,7 +145,14 @@ pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mu
 			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024),
 		),
 
-		"pduid_pdu" => set_table_with_new_cache(&mut opts, cfg, cache, name, cfg.pdu_cache_capacity as usize * 1536),
+		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+		"pduid_pdu" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			(cfg.pdu_cache_capacity as usize).saturating_mul(1536),
+		),
 
 		"eventid_outlierpdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "pduid_pdu"),
 
@@ -309,7 +316,10 @@ fn set_table_with_shared_cache(
 fn cache_size(config: &Config, base_size: u32, entity_size: usize) -> usize {
 	let ents = f64::from(base_size) * config.conduit_cache_capacity_modifier;
 
-	ents as usize * entity_size
+	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+	(ents as usize)
+		.checked_mul(entity_size)
+		.expect("cache capacity size is too large")
 }
 
 fn table_options(_config: &Config) -> BlockBasedOptions {

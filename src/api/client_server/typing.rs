@@ -22,14 +22,30 @@ pub(crate) async fn create_typing_event_route(
 
 	if let Typing::Yes(duration) = body.state {
 		let duration = utils::clamp(
-			duration.as_millis() as u64,
-			services().globals.config.typing_client_timeout_min_s * 1000,
-			services().globals.config.typing_client_timeout_max_s * 1000,
+			duration.as_millis().try_into().unwrap_or(u64::MAX),
+			services()
+				.globals
+				.config
+				.typing_client_timeout_min_s
+				.checked_mul(1000)
+				.unwrap(),
+			services()
+				.globals
+				.config
+				.typing_client_timeout_max_s
+				.checked_mul(1000)
+				.unwrap(),
 		);
 		services()
 			.rooms
 			.typing
-			.typing_add(sender_user, &body.room_id, utils::millis_since_unix_epoch() + duration)
+			.typing_add(
+				sender_user,
+				&body.room_id,
+				utils::millis_since_unix_epoch()
+					.checked_add(duration)
+					.expect("user typing timeout should not get this high"),
+			)
 			.await?;
 	} else {
 		services()

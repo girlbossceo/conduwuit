@@ -105,7 +105,7 @@ impl service::account_data::Data for KeyValueDatabase {
 
 		// Skip the data that's exactly at since, because we sent that last time
 		let mut first_possible = prefix.clone();
-		first_possible.extend_from_slice(&(since + 1).to_be_bytes());
+		first_possible.extend_from_slice(&(since.saturating_add(1)).to_be_bytes());
 
 		for r in self
 			.roomuserdataid_accountdata
