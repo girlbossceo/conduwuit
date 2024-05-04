@@ -216,3 +216,41 @@ pub(crate) fn conduwuit_version() -> String {
 		},
 	}
 }
+
+/// Debug-formats the given slice, but only up to the first `max_len` elements.
+/// Any further elements are replaced by an ellipsis.
+///
+/// See also [`debug_slice_truncated()`],
+pub(crate) struct TruncatedDebugSlice<'a, T> {
+	inner: &'a [T],
+	max_len: usize,
+}
+
+impl<T: fmt::Debug> fmt::Debug for TruncatedDebugSlice<'_, T> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		if self.inner.len() <= self.max_len {
+			write!(f, "{:?}", self.inner)
+		} else {
+			f.debug_list()
+				.entries(&self.inner[..self.max_len])
+				.entry(&"...")
+				.finish()
+		}
+	}
+}
+
+/// See [`TruncatedDebugSlice`]. Useful for `#[instrument]`:
+///
+/// ```
+/// #[tracing::instrument(fields(
+///     foos = debug_slice_truncated(foos, N)
+/// ))]
+/// ```
+pub(crate) fn debug_slice_truncated<T: fmt::Debug>(
+	slice: &[T], max_len: usize,
+) -> tracing::field::DebugValue<TruncatedDebugSlice<'_, T>> {
+	tracing::field::debug(TruncatedDebugSlice {
+		inner: slice,
+		max_len,
+	})
+}
