@@ -1,7 +1,8 @@
 # Development
 
 Information about developing the project. If you are only interested in using
-it, you can safely ignore this section.
+it, you can safely ignore this section. If you plan on contributing, see the
+[contributor's guide](contributing.md).
 
 ## Debugging with `tokio-console`
 

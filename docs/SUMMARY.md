@@ -13,3 +13,4 @@
 - [Appservices](appservices.md)
 - [Development](development.md)
     - [Testing](development/testing.md)
+    - [Contributing](contributing.md)
