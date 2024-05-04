@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use ruma::{
 	api::client::{error::ErrorKind, space::get_hierarchy},
-	UInt,
+	uint, UInt,
 };
 
 use crate::{service::rooms::spaces::PagnationToken, services, Error, Result, Ruma};
@@ -14,10 +14,12 @@ use crate::{service::rooms::spaces::PagnationToken, services, Error, Result, Rum
 pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let limit = body
+	let limit: usize = body
 		.limit
-		.unwrap_or_else(|| UInt::from(10_u32))
-		.min(UInt::from(100_u32));
+		.unwrap_or_else(|| uint!(10))
+		.try_into()
+		.unwrap_or(10)
+		.min(100);
 
 	let max_depth = body
 		.max_depth
@@ -45,9 +47,9 @@ pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) 
 		.get_client_hierarchy(
 			sender_user,
 			&body.room_id,
-			u64::from(limit) as usize,
-			key.map_or(0, |token| u64::from(token.skip) as usize),
-			u64::from(max_depth) as usize,
+			limit,
+			key.map_or(0, |token| token.skip.try_into().unwrap_or(0)),
+			max_depth.try_into().unwrap_or(3),
 			body.suggested_only,
 		)
 		.await

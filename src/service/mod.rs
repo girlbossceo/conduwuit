@@ -40,6 +40,7 @@ pub(crate) struct Services<'a> {
 }
 
 impl Services<'_> {
+	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	pub(crate) fn build<
 		D: appservice::Data
 			+ pusher::Data

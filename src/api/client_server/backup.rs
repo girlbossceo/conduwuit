@@ -1,11 +1,14 @@
-use ruma::api::client::{
-	backup::{
-		add_backup_keys, add_backup_keys_for_room, add_backup_keys_for_session, create_backup_version,
-		delete_backup_keys, delete_backup_keys_for_room, delete_backup_keys_for_session, delete_backup_version,
-		get_backup_info, get_backup_keys, get_backup_keys_for_room, get_backup_keys_for_session,
-		get_latest_backup_info, update_backup_version,
+use ruma::{
+	api::client::{
+		backup::{
+			add_backup_keys, add_backup_keys_for_room, add_backup_keys_for_session, create_backup_version,
+			delete_backup_keys, delete_backup_keys_for_room, delete_backup_keys_for_session, delete_backup_version,
+			get_backup_info, get_backup_keys, get_backup_keys_for_room, get_backup_keys_for_session,
+			get_latest_backup_info, update_backup_version,
+		},
+		error::ErrorKind,
 	},
-	error::ErrorKind,
+	UInt,
 };
 
 use crate::{services, Error, Result, Ruma};
@@ -56,7 +59,8 @@ pub(crate) async fn get_latest_backup_info_route(
 
 	Ok(get_latest_backup_info::v3::Response {
 		algorithm,
-		count: (services().key_backups.count_keys(sender_user, &version)? as u32).into(),
+		count: (UInt::try_from(services().key_backups.count_keys(sender_user, &version)?)
+			.expect("user backup keys count should not be that high")),
 		etag: services().key_backups.get_etag(sender_user, &version)?,
 		version,
 	})
@@ -76,10 +80,12 @@ pub(crate) async fn get_backup_info_route(
 
 	Ok(get_backup_info::v3::Response {
 		algorithm,
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,
@@ -139,10 +145,12 @@ pub(crate) async fn add_backup_keys_route(
 	}
 
 	Ok(add_backup_keys::v3::Response {
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,
@@ -181,10 +189,12 @@ pub(crate) async fn add_backup_keys_for_room_route(
 	}
 
 	Ok(add_backup_keys_for_room::v3::Response {
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,
@@ -221,10 +231,12 @@ pub(crate) async fn add_backup_keys_for_session_route(
 		.add_key(sender_user, &body.version, &body.room_id, &body.session_id, &body.session_data)?;
 
 	Ok(add_backup_keys_for_session::v3::Response {
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,
@@ -294,10 +306,12 @@ pub(crate) async fn delete_backup_keys_route(
 		.delete_all_keys(sender_user, &body.version)?;
 
 	Ok(delete_backup_keys::v3::Response {
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,
@@ -317,10 +331,12 @@ pub(crate) async fn delete_backup_keys_for_room_route(
 		.delete_room_keys(sender_user, &body.version, &body.room_id)?;
 
 	Ok(delete_backup_keys_for_room::v3::Response {
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,
@@ -340,10 +356,12 @@ pub(crate) async fn delete_backup_keys_for_session_route(
 		.delete_room_key(sender_user, &body.version, &body.room_id, &body.session_id)?;
 
 	Ok(delete_backup_keys_for_session::v3::Response {
-		count: (services()
-			.key_backups
-			.count_keys(sender_user, &body.version)? as u32)
-			.into(),
+		count: (UInt::try_from(
+			services()
+				.key_backups
+				.count_keys(sender_user, &body.version)?,
+		)
+		.expect("user backup keys count should not be that high")),
 		etag: services()
 			.key_backups
 			.get_etag(sender_user, &body.version)?,

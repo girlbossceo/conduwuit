@@ -340,6 +340,7 @@ impl KeyValueDatabase {
 
 			roomid_inviteviaservers: builder.open_tree("roomid_inviteviaservers")?,
 
+			#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 			auth_chain_cache: Mutex::new(LruCache::new(
 				(f64::from(config.auth_chain_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),

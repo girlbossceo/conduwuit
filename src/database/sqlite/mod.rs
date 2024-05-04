@@ -21,7 +21,7 @@ thread_local! {
 
 struct PreparedStatementIterator<'a> {
 	iterator: Box<dyn Iterator<Item = TupleOfBytes> + 'a>,
-	_statement_ref: NonAliasingBox<rusqlite::Statement<'a>>,
+	_statement_ref: AliasableBox<rusqlite::Statement<'a>>,
 }
 
 impl Iterator for PreparedStatementIterator<'_> {
@@ -30,16 +30,25 @@ impl Iterator for PreparedStatementIterator<'_> {
 	fn next(&mut self) -> Option<Self::Item> { self.iterator.next() }
 }
 
-struct NonAliasingBox<T>(*mut T);
-impl<T> Drop for NonAliasingBox<T> {
+struct AliasableBox<T>(*mut T);
+impl<T> Drop for AliasableBox<T> {
 	fn drop(&mut self) {
-		// TODO: figure out why this is necessary, but also this is sqlite so dont think
-		// i care that much. i tried checking commit history but couldn't find out why
-		// this was done.
-		#[allow(clippy::undocumented_unsafe_blocks)]
-		unsafe {
-			_ = Box::from_raw(self.0);
-		};
+		// SAFETY: This is cursed and relies on non-local reasoning.
+		//
+		// In order for this to be safe:
+		//
+		// * All aliased references to this value must have been dropped first, for
+		//   example by coming after its referrers in struct fields, because struct
+		//   fields are automatically dropped in order from top to bottom in the absence
+		//   of an explicit Drop impl. Otherwise, the referrers may read into
+		//   deallocated memory.
+		// * This type must not be copyable or cloneable. Otherwise, double-free can
+		//   occur.
+		//
+		// These conditions are met, but again, note that changing safe code in
+		// this module can result in unsoundness if any of these constraints are
+		// violated.
+		unsafe { drop(Box::from_raw(self.0)) }
 	}
 }
 
@@ -93,8 +102,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		// 2. divide by permanent connections + permanent iter connections + write
 		//    connection
 		// 3. round down to nearest integer
-		let cache_size_per_thread: u32 =
-			((config.db_cache_capacity_mb * 1024.0) / ((num_cpus::get().max(1) * 2) + 1) as f64) as u32;
+		#[allow(
+			clippy::as_conversions,
+			clippy::cast_possible_truncation,
+			clippy::cast_precision_loss,
+			clippy::cast_sign_loss
+		)]
+		let cache_size_per_thread = ((config.db_cache_capacity_mb * 1024.0) / ((num_cpus::get() as f64 * 2.0) + 1.0)) as u32;
 
 		let writer = Mutex::new(Engine::prepare_conn(&path, cache_size_per_thread)?);
 
@@ -161,7 +175,7 @@ impl SqliteTable {
 				.unwrap(),
 		));
 
-		let statement_ref = NonAliasingBox(statement);
+		let statement_ref = AliasableBox(statement);
 
 		//let name = self.name.clone();
 
@@ -250,7 +264,7 @@ impl KvTree for SqliteTable {
 					.unwrap(),
 			));
 
-			let statement_ref = NonAliasingBox(statement);
+			let statement_ref = AliasableBox(statement);
 
 			let iterator = Box::new(
 				statement
@@ -272,7 +286,7 @@ impl KvTree for SqliteTable {
 					.unwrap(),
 			));
 
-			let statement_ref = NonAliasingBox(statement);
+			let statement_ref = AliasableBox(statement);
 
 			let iterator = Box::new(
 				statement

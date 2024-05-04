@@ -35,7 +35,11 @@ pub(crate) struct Engine {
 impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn open(config: &Config) -> Result<Self> {
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
+
+		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 		let row_cache_capacity_bytes = (cache_capacity_bytes * 0.50) as usize;
+
+		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 		let col_cache_capacity_bytes = (cache_capacity_bytes * 0.50) as usize;
 
 		let mut col_cache = HashMap::new();
@@ -128,6 +132,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		Ok(())
 	}
 
+	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
 		let stats = rust_rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache]))?;

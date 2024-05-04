@@ -17,7 +17,7 @@ use crate::{services, Result, Ruma};
 /// and don't share a room with the sender
 pub(crate) async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result<search_users::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let limit = u64::from(body.limit) as usize;
+	let limit = usize::try_from(body.limit).unwrap_or(10); // default limit is 10
 
 	let mut users = services().users.iter().filter_map(|user_id| {
 		// Filter out buggy users (they should not exist, but you never know...)

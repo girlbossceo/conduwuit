@@ -47,7 +47,7 @@ impl Watchers {
 			let mut watchers = self.watchers.write().unwrap();
 			for prefix in triggered {
 				if let Some(tx) = watchers.remove(prefix) {
-					_ = tx.0.send(());
+					tx.0.send(()).expect("channel should still be open");
 				}
 			}
 		};

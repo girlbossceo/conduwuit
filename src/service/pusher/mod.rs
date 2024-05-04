@@ -188,13 +188,14 @@ impl Service {
 
 		let ctx = PushConditionRoomCtx {
 			room_id: room_id.to_owned(),
-			member_count: UInt::from(
+			member_count: UInt::try_from(
 				services()
 					.rooms
 					.state_cache
 					.room_joined_count(room_id)?
-					.unwrap_or(1) as u32,
-			),
+					.unwrap_or(1),
+			)
+			.unwrap_or_else(|_| uint!(0)),
 			user_id: user.to_owned(),
 			user_display_name: services()
 				.users

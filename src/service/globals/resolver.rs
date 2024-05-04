@@ -30,6 +30,7 @@ pub(crate) struct Hooked {
 }
 
 impl Resolver {
+	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	pub(crate) fn new(config: &Config) -> Self {
 		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
 			.map_err(|e| {

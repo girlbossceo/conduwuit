@@ -144,7 +144,7 @@ pub(crate) async fn get_message_events_route(
 		.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)
 		.await?;
 
-	let limit = u64::from(body.limit).min(100) as usize;
+	let limit = usize::try_from(body.limit).unwrap_or(10).min(100);
 
 	let next_token;
 
@@ -159,8 +159,9 @@ pub(crate) async fn get_message_events_route(
 				.timeline
 				.pdus_after(sender_user, &body.room_id, from)?
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| contains_url_filter(pdu, &body.filter))
-				.filter(|(_, pdu)| visibility_filter(pdu, sender_user, &body.room_id))
+				.filter(|(_, pdu)| { contains_url_filter(pdu, &body.filter) && visibility_filter(pdu, sender_user, &body.room_id)
+
+				})
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
 				.take(limit)
 				.collect();
@@ -205,8 +206,7 @@ pub(crate) async fn get_message_events_route(
 				.timeline
 				.pdus_until(sender_user, &body.room_id, from)?
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| contains_url_filter(pdu, &body.filter))
-				.filter(|(_, pdu)| visibility_filter(pdu, sender_user, &body.room_id))
+				.filter(|(_, pdu)| {contains_url_filter(pdu, &body.filter) && visibility_filter(pdu, sender_user, &body.room_id)})
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
 				.take(limit)
 				.collect();
