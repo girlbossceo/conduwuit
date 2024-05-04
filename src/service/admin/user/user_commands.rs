@@ -239,7 +239,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 			}
 		}
 
-		let mut deactivation_count = 0;
+		let mut deactivation_count: u16 = 0;
 		let mut admins = Vec::new();
 
 		if !force {
@@ -276,7 +276,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 			}
 
 			if services().users.deactivate_account(user_id).is_ok() {
-				deactivation_count += 1;
+				deactivation_count = deactivation_count.saturating_add(1);
 			}
 		}
 
@@ -316,7 +316,7 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 			},
 		};
 
-	if user_id.server_name() != services().globals.server_name() {
+	if !user_is_local(&user_id) {
 		return Ok(RoomMessageEventContent::text_plain("User does not belong to our server."));
 	}
 
@@ -340,7 +340,8 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 	rooms.reverse();
 
 	let output_plain = format!(
-		"Rooms {user_id} Joined:\n{}",
+		"Rooms {user_id} Joined ({}):\n{}",
+		rooms.len(),
 		rooms
 			.iter()
 			.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
@@ -348,8 +349,9 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 			.join("\n")
 	);
 	let output_html = format!(
-		"<table><caption>Rooms {user_id} \
-		 Joined</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+		"<table><caption>Rooms {user_id} Joined \
+		 ({})</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+		rooms.len(),
 		rooms
 			.iter()
 			.fold(String::new(), |mut output, (id, members, name)| {
