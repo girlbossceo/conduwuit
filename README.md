@@ -37,14 +37,6 @@ from time to time.
 <!-- ANCHOR_END: body -->
 
 <!-- ANCHOR: footer -->
-#### How can I contribute?
-
-1. Look for an issue you would like to work on and make sure it's not assigned
-   to other users
-2. Ask someone to assign the issue to you (comment on the issue or chat in
-   [#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay))
-3. Fork the repo and work on the issue.
-4. Submit a PR (please keep contributions to the GitHub repo, main development is done here, not the GitLab repo which exists just as a mirror. If you are avoiding GitHub, feel free to join our Matrix chat to get your patch in.)
 
 #### Contact
 
