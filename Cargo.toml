@@ -625,6 +625,7 @@ manual_let_else = "warn"
 trivially_copy_pass_by_ref = "warn"
 wildcard_imports = "warn"
 checked_conversions = "warn"
+#integer_arithmetic = "warn"
 
 # some sadness
 missing_errors_doc = "allow"

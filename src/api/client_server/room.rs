@@ -801,7 +801,13 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 	.map_err(|_| Error::bad_database("Invalid room event in database."))?;
 
 	// Setting events_default and invite to the greater of 50 and users_default + 1
-	let new_level = max(int!(50), power_levels_event_content.users_default + int!(1));
+	let new_level = max(
+		int!(50),
+		power_levels_event_content
+			.users_default
+			.checked_add(int!(1))
+			.expect("user power level should not be this high"),
+	);
 	power_levels_event_content.events_default = new_level;
 	power_levels_event_content.invite = new_level;
 

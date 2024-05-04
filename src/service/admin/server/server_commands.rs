@@ -33,9 +33,9 @@ pub(crate) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Services:\n{response0}\n\nDatabase:\n{response1}\n{}",
 		if !response2.is_empty() {
-			"Allocator:\n{response2}"
+			format!("Allocator:\n {response2}")
 		} else {
-			""
+			String::new()
 		}
 	)))
 }

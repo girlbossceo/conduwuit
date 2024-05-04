@@ -539,7 +539,7 @@ async fn handle_left_room(
 
 	left_state_ids.insert(leave_shortstatekey, left_event_id);
 
-	let mut i = 0;
+	let mut i: u8 = 0;
 	for (key, id) in left_state_ids {
 		if full_state || since_state_ids.get(&key) != Some(&id) {
 			let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
@@ -557,7 +557,7 @@ async fn handle_left_room(
 
 				left_state_events.push(pdu.to_sync_state_event());
 
-				i += 1;
+				i = i.saturating_add(1);
 				if i % 100 == 0 {
 					tokio::task::yield_now().await;
 				}
@@ -705,7 +705,11 @@ async fn load_joined_room(
 				// Recalculate heroes (first 5 members)
 				let mut heroes = Vec::new();
 
-				if joined_member_count + invited_member_count <= 5 {
+				if joined_member_count
+					.checked_add(invited_member_count)
+					.expect("joined/invite member count should not be this high")
+					<= 5
+				{
 					// Go through all PDUs and for each member event, check if the user is still
 					// joined or invited until we have 5 or we reach the end
 
@@ -784,7 +788,7 @@ async fn load_joined_room(
 				let mut state_events = Vec::new();
 				let mut lazy_loaded = HashSet::new();
 
-				let mut i = 0;
+				let mut i: u8 = 0;
 				for (shortstatekey, id) in current_state_ids {
 					let (event_type, state_key) = services()
 						.rooms
@@ -798,7 +802,7 @@ async fn load_joined_room(
 						};
 						state_events.push(pdu);
 
-						i += 1;
+						i = i.saturating_add(1);
 						if i % 100 == 0 {
 							tokio::task::yield_now().await;
 						}
@@ -819,7 +823,7 @@ async fn load_joined_room(
 						}
 						state_events.push(pdu);
 
-						i += 1;
+						i = i.saturating_add(1);
 						if i % 100 == 0 {
 							tokio::task::yield_now().await;
 						}
@@ -1416,10 +1420,14 @@ pub(crate) async fn sync_events_v4_route(
 					.ranges
 					.into_iter()
 					.map(|mut r| {
-						r.0 =
-							r.0.clamp(uint!(0), UInt::from(all_joined_rooms.len() as u32 - 1));
-						r.1 =
-							r.1.clamp(r.0, UInt::from(all_joined_rooms.len() as u32 - 1));
+						r.0 = r.0.clamp(
+							uint!(0),
+							UInt::try_from(all_joined_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
+						);
+						r.1 = r.1.clamp(
+							r.0,
+							UInt::try_from(all_joined_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
+						);
 						let room_ids = all_joined_rooms[(u64::from(r.0) as usize)..=(u64::from(r.1) as usize)].to_vec();
 						new_known_rooms.extend(room_ids.iter().cloned());
 						for room_id in &room_ids {
@@ -1592,14 +1600,13 @@ pub(crate) async fn sync_events_v4_route(
 			.collect::<Vec<_>>();
 		let name = match heroes.len().cmp(&(1_usize)) {
 			Ordering::Greater => {
+				let firsts = heroes[1..]
+					.iter()
+					.map(|h| h.0.clone())
+					.collect::<Vec<_>>()
+					.join(", ");
 				let last = heroes[0].0.clone();
-				Some(
-					heroes[1..]
-						.iter()
-						.map(|h| h.0.clone())
-						.collect::<Vec<_>>()
-						.join(", ") + " and " + &last,
-				)
+				Some(format!("{firsts} and {last}"))
 			},
 			Ordering::Equal => Some(heroes[0].0.clone()),
 			Ordering::Less => None,

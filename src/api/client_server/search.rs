@@ -106,14 +106,14 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 		}
 	}
 
-	let skip = match body.next_batch.as_ref().map(|s| s.parse()) {
+	let skip: usize = match body.next_batch.as_ref().map(|s| s.parse()) {
 		Some(Ok(s)) => s,
 		Some(Err(_)) => return Err(Error::BadRequest(ErrorKind::InvalidParam, "Invalid next_batch token.")),
 		None => 0, // Default to the start
 	};
 
 	let mut results = Vec::new();
-	for _ in 0..skip + limit {
+	for _ in 0_usize..skip.saturating_add(limit) {
 		if let Some(s) = searches
 			.iter_mut()
 			.map(|s| (s.peek().cloned(), s))
@@ -162,7 +162,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	let next_batch = if results.len() < limit {
 		None
 	} else {
-		Some((skip + limit).to_string())
+		Some((skip.checked_add(limit).unwrap()).to_string())
 	};
 
 	Ok(search_events::v3::Response::new(ResultCategories {

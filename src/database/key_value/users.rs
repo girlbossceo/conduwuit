@@ -5,7 +5,7 @@ use ruma::{
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
 	events::{AnyToDeviceEvent, StateEventType},
 	serde::Raw,
-	DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedDeviceKeyId,
+	uint, DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedDeviceKeyId,
 	OwnedMxcUri, OwnedUserId, UInt, UserId,
 };
 use tracing::warn;
@@ -414,7 +414,7 @@ impl service::users::Data for KeyValueDatabase {
 					.algorithm(),
 				)
 			}) {
-			*counts.entry(algorithm?).or_default() += UInt::from(1_u32);
+			*counts.entry(algorithm?).or_default() += uint!(1);
 		}
 
 		Ok(counts)
@@ -561,7 +561,7 @@ impl service::users::Data for KeyValueDatabase {
 		prefix.push(0xFF);
 
 		let mut start = prefix.clone();
-		start.extend_from_slice(&(from + 1).to_be_bytes());
+		start.extend_from_slice(&(from.saturating_add(1)).to_be_bytes());
 
 		let to = to.unwrap_or(u64::MAX);
 

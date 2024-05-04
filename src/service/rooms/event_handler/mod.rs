@@ -236,6 +236,7 @@ impl Service {
 			const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
 			let min_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
 			let duration = time.elapsed();
+
 			if duration < min_duration {
 				debug!(
 					duration = ?duration,
@@ -1003,7 +1004,7 @@ impl Service {
 					hash_map::Entry::Vacant(e) => {
 						e.insert((Instant::now(), 1));
 					},
-					hash_map::Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1 + 1),
+					hash_map::Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1.saturating_add(1)),
 				}
 			};
 
@@ -1034,10 +1035,9 @@ impl Service {
 						.get(&*next_id)
 					{
 						// Exponential backoff
-						let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
-						if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
-							min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
-						}
+						const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
+						let min_elapsed_duration =
+							cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
 
 						if time.elapsed() < min_elapsed_duration {
 							info!("Backing off from {}", next_id);
@@ -1143,10 +1143,9 @@ impl Service {
 						.get(&**next_id)
 					{
 						// Exponential backoff
-						let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
-						if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
-							min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
-						}
+						const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
+						let min_elapsed_duration =
+							cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
 
 						if time.elapsed() < min_elapsed_duration {
 							debug!("Backing off from {}", next_id);

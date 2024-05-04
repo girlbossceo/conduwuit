@@ -21,7 +21,9 @@ pub(crate) async fn turn_server_route(
 
 	let (username, password) = if !turn_secret.is_empty() {
 		let expiry = SecondsSinceUnixEpoch::from_system_time(
-			SystemTime::now() + Duration::from_secs(services().globals.turn_ttl()),
+			SystemTime::now()
+				.checked_add(Duration::from_secs(services().globals.turn_ttl()))
+				.expect("TURN TTL should not get this high"),
 		)
 		.expect("time is valid");
 

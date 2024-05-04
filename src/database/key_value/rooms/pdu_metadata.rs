@@ -23,10 +23,10 @@ impl service::rooms::pdu_metadata::Data for KeyValueDatabase {
 		let mut current = prefix.clone();
 
 		let count_raw = match until {
-			PduCount::Normal(x) => x - 1,
+			PduCount::Normal(x) => x.saturating_sub(1),
 			PduCount::Backfilled(x) => {
 				current.extend_from_slice(&0_u64.to_be_bytes());
-				u64::MAX - x - 1
+				u64::MAX.saturating_sub(x).saturating_sub(1)
 			},
 		};
 		current.extend_from_slice(&count_raw.to_be_bytes());

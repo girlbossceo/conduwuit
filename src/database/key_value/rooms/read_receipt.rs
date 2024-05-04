@@ -48,7 +48,7 @@ impl service::rooms::read_receipt::Data for KeyValueDatabase {
 		let prefix2 = prefix.clone();
 
 		let mut first_possible_edu = prefix.clone();
-		first_possible_edu.extend_from_slice(&(since + 1).to_be_bytes()); // +1 so we don't send the event at since
+		first_possible_edu.extend_from_slice(&(since.saturating_add(1)).to_be_bytes()); // +1 so we don't send the event at since
 
 		Box::new(
 			self.readreceiptid_readreceipt

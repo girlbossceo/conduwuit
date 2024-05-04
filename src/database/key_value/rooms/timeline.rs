@@ -256,7 +256,7 @@ fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 		utils::u64_from_bytes(&pdu_id[pdu_id.len() - 2 * size_of::<u64>()..pdu_id.len() - size_of::<u64>()]);
 
 	if matches!(second_last_u64, Ok(0)) {
-		Ok(PduCount::Backfilled(u64::MAX - last_u64))
+		Ok(PduCount::Backfilled(u64::MAX.saturating_sub(last_u64)))
 	} else {
 		Ok(PduCount::Normal(last_u64))
 	}
@@ -275,22 +275,22 @@ fn count_to_id(room_id: &RoomId, count: PduCount, offset: u64, subtract: bool) -
 	let count_raw = match count {
 		PduCount::Normal(x) => {
 			if subtract {
-				x - offset
+				x.saturating_sub(offset)
 			} else {
-				x + offset
+				x.saturating_add(offset)
 			}
 		},
 		PduCount::Backfilled(x) => {
 			pdu_id.extend_from_slice(&0_u64.to_be_bytes());
-			let num = u64::MAX - x;
+			let num = u64::MAX.saturating_sub(x);
 			if subtract {
 				if num > 0 {
-					num - offset
+					num.saturating_sub(offset)
 				} else {
 					num
 				}
 			} else {
-				num + offset
+				num.saturating_add(offset)
 			}
 		},
 	};

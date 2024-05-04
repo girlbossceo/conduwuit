@@ -1,4 +1,5 @@
 use std::{
+	cmp,
 	collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
 	sync::Arc,
 	time::{Duration, Instant},
@@ -1301,8 +1302,8 @@ async fn make_join_request(
 ) -> Result<(federation::membership::prepare_join_event::v1::Response, OwnedServerName)> {
 	let mut make_join_response_and_server = Err(Error::BadServerResponse("No server available to assist in joining."));
 
-	let mut make_join_counter = 0;
-	let mut incompatible_room_version_count = 0;
+	let mut make_join_counter: u16 = 0;
+	let mut incompatible_room_version_count: u8 = 0;
 
 	for remote_server in servers {
 		if server_is_ours(remote_server) {
@@ -1322,7 +1323,7 @@ async fn make_join_request(
 			.await;
 
 		trace!("make_join response: {:?}", make_join_response);
-		make_join_counter += 1;
+		make_join_counter = make_join_counter.saturating_add(1);
 
 		if let Err(ref e) = make_join_response {
 			trace!("make_join ErrorKind string: {:?}", e.error_code().to_string());
@@ -1336,7 +1337,7 @@ async fn make_join_request(
 					.to_string()
 					.contains("M_UNSUPPORTED_ROOM_VERSION")
 			{
-				incompatible_room_version_count += 1;
+				incompatible_room_version_count = incompatible_room_version_count.saturating_add(1);
 			}
 
 			if incompatible_room_version_count > 15 {
@@ -1393,7 +1394,15 @@ async fn validate_and_add_event_id(
 			Entry::Vacant(e) => {
 				e.insert((Instant::now(), 1));
 			},
-			Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1 + 1),
+			Entry::Occupied(mut e) => {
+				*e.get_mut() = (
+					Instant::now(),
+					e.get()
+						.1
+						.checked_add(1)
+						.expect("bad_event_ratelimiter attempt/try count should not ever get this high"),
+				);
+			},
 		}
 	};
 
@@ -1405,10 +1414,8 @@ async fn validate_and_add_event_id(
 		.get(&event_id)
 	{
 		// Exponential backoff
-		let mut min_elapsed_duration = Duration::from_secs(5 * 60) * (*tries) * (*tries);
-		if min_elapsed_duration > Duration::from_secs(60 * 60 * 24) {
-			min_elapsed_duration = Duration::from_secs(60 * 60 * 24);
-		}
+		const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
+		let min_elapsed_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
 
 		if time.elapsed() < min_elapsed_duration {
 			debug!("Backing off from {}", event_id);

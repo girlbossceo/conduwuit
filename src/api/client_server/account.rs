@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use register::RegistrationKind;
 use ruma::{
 	api::client::{
@@ -238,7 +240,7 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 	// If `new_user_displayname_suffix` is set, registration will push whatever
 	// content is set to the user's display name with a space before it
 	if !services().globals.new_user_displayname_suffix().is_empty() {
-		displayname.push_str(&(" ".to_owned() + services().globals.new_user_displayname_suffix()));
+		_ = write!(displayname, " {}", services().globals.config.new_user_displayname_suffix);
 	}
 
 	services()

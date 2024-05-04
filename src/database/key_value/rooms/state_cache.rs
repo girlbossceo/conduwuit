@@ -154,11 +154,11 @@ impl service::rooms::state_cache::Data for KeyValueDatabase {
 			if user_is_local(&joined) && !services().users.is_deactivated(&joined).unwrap_or(true) {
 				real_users.insert(joined);
 			}
-			joinedcount += 1;
+			joinedcount = joinedcount.saturating_add(1);
 		}
 
 		for _invited in self.room_members_invited(room_id).filter_map(Result::ok) {
-			invitedcount += 1;
+			invitedcount = invitedcount.saturating_add(1);
 		}
 
 		self.roomid_joinedcount

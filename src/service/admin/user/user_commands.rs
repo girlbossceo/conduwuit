@@ -61,8 +61,13 @@ pub(crate) async fn create(
 
 	// If `new_user_displayname_suffix` is set, registration will push whatever
 	// content is set to the user's display name with a space before it
-	if !services().globals.new_user_displayname_suffix().is_empty() {
-		displayname.push_str(&(" ".to_owned() + services().globals.new_user_displayname_suffix()));
+	if !services()
+		.globals
+		.config
+		.new_user_displayname_suffix
+		.is_empty()
+	{
+		_ = write!(displayname, " {}", services().globals.config.new_user_displayname_suffix);
 	}
 
 	services()
