@@ -20,7 +20,7 @@ use ruma::{
 		},
 		StateEventType,
 	},
-	ServerName, UInt,
+	uint, ServerName, UInt,
 };
 use tracing::{error, info, warn};
 
@@ -198,8 +198,9 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		});
 	}
 
+	// Use limit or else 10, with maximum 100
 	let limit = limit.map_or(10, u64::from);
-	let mut num_since = 0_u64;
+	let mut num_since: u64 = 0;
 
 	if let Some(s) = &since {
 		let mut characters = s.chars();
@@ -363,12 +364,16 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 
 	all_rooms.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
-	let total_room_count_estimate = (all_rooms.len() as u32).into();
+	let total_room_count_estimate = UInt::try_from(all_rooms.len()).unwrap_or_else(|_| uint!(0));
 
 	let chunk: Vec<_> = all_rooms
 		.into_iter()
-		.skip(num_since as usize)
-		.take(limit as usize)
+		.skip(
+			num_since
+				.try_into()
+				.expect("num_since should not be this high"),
+		)
+		.take(limit.try_into().expect("limit should not be this high"))
 		.collect();
 
 	let prev_batch = if num_since == 0 {
@@ -377,7 +382,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		Some(format!("p{num_since}"))
 	};
 
-	let next_batch = if chunk.len() < limit as usize {
+	let next_batch = if chunk.len() < limit.try_into().unwrap() {
 		None
 	} else {
 		Some(format!(

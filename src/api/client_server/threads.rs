@@ -1,4 +1,7 @@
-use ruma::api::client::{error::ErrorKind, threads::get_threads};
+use ruma::{
+	api::client::{error::ErrorKind, threads::get_threads},
+	uint,
+};
 
 use crate::{services, Error, Result, Ruma};
 
@@ -9,7 +12,8 @@ pub(crate) async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> R
 	// Use limit or else 10, with maximum 100
 	let limit = body
 		.limit
-		.and_then(|l| l.try_into().ok())
+		.unwrap_or_else(|| uint!(10))
+		.try_into()
 		.unwrap_or(10)
 		.min(100);
 

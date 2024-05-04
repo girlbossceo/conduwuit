@@ -10,7 +10,7 @@ use ruma::{
 	},
 	events::AnyStateEvent,
 	serde::Raw,
-	OwnedRoomId,
+	uint, OwnedRoomId,
 };
 use tracing::debug;
 
@@ -39,7 +39,12 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	});
 
 	// Use limit or else 10, with maximum 100
-	let limit = filter.limit.map_or(10, u64::from).min(100) as usize;
+	let limit: usize = filter
+		.limit
+		.unwrap_or_else(|| uint!(10))
+		.try_into()
+		.unwrap_or(10)
+		.min(100);
 
 	let mut room_states: BTreeMap<OwnedRoomId, Vec<Raw<AnyStateEvent>>> = BTreeMap::new();
 
@@ -167,7 +172,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 
 	Ok(search_events::v3::Response::new(ResultCategories {
 		room_events: ResultRoomEvents {
-			count: Some((results.len() as u32).into()),
+			count: Some(results.len().try_into().unwrap_or_else(|_| uint!(0))),
 			groups: BTreeMap::new(), // TODO
 			next_batch,
 			results,

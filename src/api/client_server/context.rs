@@ -63,8 +63,8 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		lazy_loaded.insert(base_event.sender.as_str().to_owned());
 	}
 
-	// Use limit with maximum 100
-	let limit = u64::from(body.limit).min(100) as usize;
+	// Use limit or else 10, with maximum 100
+	let limit = usize::try_from(body.limit).unwrap_or(10).min(100);
 
 	let base_event = base_event.to_room_event();
 

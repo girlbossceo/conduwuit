@@ -5,7 +5,7 @@ pub(crate) use data::Data;
 use ruma::{
 	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},
-	EventId, RoomId, UInt, UserId,
+	uint, EventId, RoomId, UInt, UserId,
 };
 use serde::Deserialize;
 
@@ -57,8 +57,9 @@ impl Service {
 
 		// Use limit or else 10, with maximum 100
 		let limit = limit
-			.and_then(|u| u32::try_from(u).ok())
-			.map_or(10_usize, |u| u as usize)
+			.unwrap_or_else(|| uint!(10))
+			.try_into()
+			.unwrap_or(10)
 			.min(100);
 
 		let next_token;

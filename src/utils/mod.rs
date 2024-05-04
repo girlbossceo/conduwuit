@@ -21,6 +21,7 @@ use crate::{services, Error, Result};
 
 pub(crate) fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
 
+#[allow(clippy::as_conversions)]
 pub(crate) fn millis_since_unix_epoch() -> u64 {
 	SystemTime::now()
 		.duration_since(UNIX_EPOCH)
