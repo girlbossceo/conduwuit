@@ -269,9 +269,7 @@ async fn alias_checks(room_alias: &OwnedRoomAliasId, appservice_info: &Option<Re
 		if !info.aliases.is_match(room_alias.as_str()) {
 			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
 		}
-	}
-
-	if services().appservice.is_exclusive_alias(room_alias).await {
+	} else if services().appservice.is_exclusive_alias(room_alias).await {
 		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
 	}
 
