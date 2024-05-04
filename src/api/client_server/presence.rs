@@ -49,9 +49,20 @@ pub(crate) async fn get_presence_route(body: Ruma<get_presence::v3::Request>) ->
 	}
 
 	if let Some(presence) = presence_event {
+		let status_msg = if presence
+			.content
+			.status_msg
+			.as_ref()
+			.is_some_and(String::is_empty)
+		{
+			None
+		} else {
+			presence.content.status_msg
+		};
+
 		Ok(get_presence::v3::Response {
 			// TODO: Should ruma just use the presenceeventcontent type here?
-			status_msg: presence.content.status_msg,
+			status_msg,
 			currently_active: presence.content.currently_active,
 			last_active_ago: presence
 				.content
