@@ -351,7 +351,11 @@ async fn sync_helper(
 			}
 		};
 
-		if !services().rooms.metadata.exists(&room_id)? {
+		let state = if !compiled_filter.room.state.room_allowed(&room_id) {
+			State {
+				events: vec![],
+			}
+		} else if !services().rooms.metadata.exists(&room_id)? {
 			// This is just a rejected invite, not a room we know
 			// Insert a leave event anyways
 			let event = PduEvent {
@@ -377,90 +381,84 @@ async fn sync_helper(
 				signatures: None,
 			};
 
-			left_rooms.insert(
-				room_id.into_owned(),
-				LeftRoom {
-					account_data: RoomAccountData {
-						events: Vec::new(),
-					},
-					timeline,
-					state: State {
-						events: vec![event.to_sync_state_event()],
-					},
-				},
-			);
-			continue;
-		}
+			State {
+				events: vec![event.to_sync_state_event()],
+			}
+		} else {
+			let mut left_state_events = Vec::new();
 
-		let mut left_state_events = Vec::new();
+			let since_shortstatehash = services()
+				.rooms
+				.user
+				.get_token_shortstatehash(&room_id, since)?;
 
-		let since_shortstatehash = services()
-			.rooms
-			.user
-			.get_token_shortstatehash(&room_id, since)?;
+			let since_state_ids = match since_shortstatehash {
+				Some(s) => services().rooms.state_accessor.state_full_ids(s).await?,
+				None => HashMap::new(),
+			};
 
-		let since_state_ids = match since_shortstatehash {
-			Some(s) => services().rooms.state_accessor.state_full_ids(s).await?,
-			None => HashMap::new(),
-		};
+			let Some(left_event_id) = services().rooms.state_accessor.room_state_get_id(
+				&room_id,
+				&StateEventType::RoomMember,
+				sender_user.as_str(),
+			)?
+			else {
+				error!("Left room but no left state event");
+				continue;
+			};
 
-		let Some(left_event_id) = services().rooms.state_accessor.room_state_get_id(
-			&room_id,
-			&StateEventType::RoomMember,
-			sender_user.as_str(),
-		)?
-		else {
-			error!("Left room but no left state event");
-			continue;
-		};
+			let Some(left_shortstatehash) = services()
+				.rooms
+				.state_accessor
+				.pdu_shortstatehash(&left_event_id)?
+			else {
+				error!("Leave event has no state");
+				continue;
+			};
 
-		let Some(left_shortstatehash) = services()
-			.rooms
-			.state_accessor
-			.pdu_shortstatehash(&left_event_id)?
-		else {
-			error!("Leave event has no state");
-			continue;
-		};
+			let mut left_state_ids = services()
+				.rooms
+				.state_accessor
+				.state_full_ids(left_shortstatehash)
+				.await?;
 
-		let mut left_state_ids = services()
-			.rooms
-			.state_accessor
-			.state_full_ids(left_shortstatehash)
-			.await?;
+			let leave_shortstatekey = services()
+				.rooms
+				.short
+				.get_or_create_shortstatekey(&StateEventType::RoomMember, sender_user.as_str())?;
 
-		let leave_shortstatekey = services()
-			.rooms
-			.short
-			.get_or_create_shortstatekey(&StateEventType::RoomMember, sender_user.as_str())?;
+			left_state_ids.insert(leave_shortstatekey, left_event_id);
 
-		left_state_ids.insert(leave_shortstatekey, left_event_id);
+			let mut i = 0;
+			for (key, id) in left_state_ids {
+				if full_state || since_state_ids.get(&key) != Some(&id) {
+					let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
 
-		let mut i = 0;
-		for (key, id) in left_state_ids {
-			if full_state || since_state_ids.get(&key) != Some(&id) {
-				let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
+					if !lazy_load_enabled
+						|| event_type != StateEventType::RoomMember
+						|| full_state
+						// TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
+						|| (cfg!(feature = "element_hacks") && *sender_user == state_key)
+					{
+						let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+							error!("Pdu in state not found: {}", id);
+							continue;
+						};
 
-				if !lazy_load_enabled
-                    || event_type != StateEventType::RoomMember
-                    || full_state
-                    // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
-                    || (cfg!(feature = "element_hacks") && *sender_user == state_key)
-				{
-					let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
-						error!("Pdu in state not found: {}", id);
-						continue;
-					};
+						left_state_events.push(pdu.to_sync_state_event());
 
-					left_state_events.push(pdu.to_sync_state_event());
-
-					i += 1;
-					if i % 100 == 0 {
-						tokio::task::yield_now().await;
+						i += 1;
+						if i % 100 == 0 {
+							tokio::task::yield_now().await;
+						}
 					}
 				}
 			}
-		}
+
+			State {
+				events: left_state_events,
+			}
+		};
 
 		left_rooms.insert(
 			room_id.into_owned(),
@@ -469,9 +467,7 @@ async fn sync_helper(
 					events: Vec::new(),
 				},
 				timeline,
-				state: State {
-					events: left_state_events,
-				},
+				state,
 			},
 		);
 	}
@@ -727,6 +723,8 @@ async fn load_joined_room(
 		.user
 		.get_token_shortstatehash(room_id, since)?;
 
+	let skip_state_events = !filter.room.state.room_allowed(room_id);
+
 	let (heroes, joined_member_count, invited_member_count, joined_since_last_sync, state_events) =
 		if timeline_pdus.is_empty() && since_shortstatehash == Some(current_shortstatehash) {
 			// No state changes
@@ -827,44 +825,46 @@ async fn load_joined_room(
 				let mut state_events = Vec::new();
 				let mut lazy_loaded = HashSet::new();
 
-				let mut i = 0;
-				for (shortstatekey, id) in current_state_ids {
-					let (event_type, state_key) = services()
-						.rooms
-						.short
-						.get_statekey_from_short(shortstatekey)?;
+				if !skip_state_events {
+					let mut i = 0;
+					for (shortstatekey, id) in current_state_ids {
+						let (event_type, state_key) = services()
+							.rooms
+							.short
+							.get_statekey_from_short(shortstatekey)?;
 
-					if event_type != StateEventType::RoomMember {
-						let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
-							error!("Pdu in state not found: {}", id);
-							continue;
-						};
-						state_events.push(pdu);
+						if event_type != StateEventType::RoomMember {
+							let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+								error!("Pdu in state not found: {}", id);
+								continue;
+							};
+							state_events.push(pdu);
 
-						i += 1;
-						if i % 100 == 0 {
-							tokio::task::yield_now().await;
-						}
-					} else if !lazy_load_enabled
-                || full_state
-                || timeline_users.contains(&state_key)
-                // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
-                || (cfg!(feature = "element_hacks") && *sender_user == state_key)
-					{
-						let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
-							error!("Pdu in state not found: {}", id);
-							continue;
-						};
+							i += 1;
+							if i % 100 == 0 {
+								tokio::task::yield_now().await;
+							}
+						} else if !lazy_load_enabled
+					|| full_state
+					|| timeline_users.contains(&state_key)
+					// TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
+					|| (cfg!(feature = "element_hacks") && *sender_user == state_key)
+						{
+							let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+								error!("Pdu in state not found: {}", id);
+								continue;
+							};
 
-						// This check is in case a bad user ID made it into the database
-						if let Ok(uid) = UserId::parse(&state_key) {
-							lazy_loaded.insert(uid);
-						}
-						state_events.push(pdu);
+							// This check is in case a bad user ID made it into the database
+							if let Ok(uid) = UserId::parse(&state_key) {
+								lazy_loaded.insert(uid);
+							}
+							state_events.push(pdu);
 
-						i += 1;
-						if i % 100 == 0 {
-							tokio::task::yield_now().await;
+							i += 1;
+							if i % 100 == 0 {
+								tokio::task::yield_now().await;
+							}
 						}
 					}
 				}
@@ -891,7 +891,7 @@ async fn load_joined_room(
 				let mut state_events = Vec::new();
 				let mut lazy_loaded = HashSet::new();
 
-				if since_shortstatehash != current_shortstatehash {
+				if !skip_state_events && since_shortstatehash != current_shortstatehash {
 					let current_state_ids = services()
 						.rooms
 						.state_accessor
