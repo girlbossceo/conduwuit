@@ -197,9 +197,21 @@ impl fmt::Display for HtmlEscape<'_> {
 /// git commit hashes.
 pub(crate) fn conduwuit_version() -> String {
 	match option_env!("CONDUWUIT_VERSION_EXTRA") {
-		Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
+		Some(extra) => {
+			if extra.is_empty() {
+				env!("CARGO_PKG_VERSION").to_owned()
+			} else {
+				format!("{} ({})", env!("CARGO_PKG_VERSION"), extra)
+			}
+		},
 		None => match option_env!("CONDUIT_VERSION_EXTRA") {
-			Some(extra) => format!("{} ({})", env!("CARGO_PKG_VERSION"), extra),
+			Some(extra) => {
+				if extra.is_empty() {
+					env!("CARGO_PKG_VERSION").to_owned()
+				} else {
+					format!("{} ({})", env!("CARGO_PKG_VERSION"), extra)
+				}
+			},
 			None => env!("CARGO_PKG_VERSION").to_owned(),
 		},
 	}
