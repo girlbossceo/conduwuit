@@ -1,8 +1,8 @@
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
-use tracing::debug;
 
 use crate::{
 	database::KeyValueDatabase,
+	debug_info,
 	service::{self, presence::Presence},
 	services,
 	utils::{self, user_id_from_bytes},
@@ -50,12 +50,20 @@ impl service::presence::Data for KeyValueDatabase {
 
 		// tighten for state flicker?
 		if !state_changed && last_active_ts <= last_last_active_ts {
-			debug!(
+			debug_info!(
 				"presence spam {:?} last_active_ts:{:?} <= {:?}",
-				user_id, last_active_ts, last_last_active_ts
+				user_id,
+				last_active_ts,
+				last_last_active_ts
 			);
 			return Ok(());
 		}
+
+		let status_msg = if status_msg.as_ref().is_some_and(String::is_empty) {
+			None
+		} else {
+			status_msg
+		};
 
 		let presence = Presence::new(
 			presence_state.to_owned(),
