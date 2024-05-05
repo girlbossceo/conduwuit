@@ -328,6 +328,7 @@ pub(crate) async fn get_content_thumbnail_route(
 			content_type,
 			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+			content_disposition: Some("attachment".to_owned()),
 		})
 	} else if !server_is_ours(&body.server_name) && body.allow_remote {
 		if services()
@@ -372,7 +373,13 @@ pub(crate) async fn get_content_thumbnail_route(
 					)
 					.await?;
 
-				Ok(get_thumbnail_response)
+				Ok(get_content_thumbnail::v3::Response {
+					file: get_thumbnail_response.file,
+					content_type: get_thumbnail_response.content_type,
+					cross_origin_resource_policy: get_thumbnail_response.cross_origin_resource_policy,
+					cache_control: get_thumbnail_response.cache_control,
+					content_disposition: Some("attachment".to_owned()),
+				})
 			},
 			Err(e) => {
 				debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
@@ -441,7 +448,13 @@ async fn get_remote_content(
 		)
 		.await?;
 
-	Ok(content_response)
+	Ok(get_content::v3::Response {
+		file: content_response.file,
+		content_type: content_response.content_type,
+		content_disposition: Some("attachment".to_owned()),
+		cross_origin_resource_policy: content_response.cross_origin_resource_policy,
+		cache_control: content_response.cache_control,
+	})
 }
 
 async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPreviewData> {
