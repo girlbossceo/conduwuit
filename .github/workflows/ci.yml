@@ -226,15 +226,15 @@ jobs:
             DOCKER_ARM64: docker.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-arm64v8
             DOCKER_AMD64: docker.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-amd64
             DOCKER_TAG: docker.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
-            DOCKER_BRANCH: docker.io/${{ github.repository }}:${{ (github.ref == 'refs/heads/main' && 'latest') || github.ref_name }}
+            DOCKER_BRANCH: docker.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || github.ref_name }}
             GHCR_ARM64: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-arm64v8
             GHCR_AMD64: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-amd64
             GHCR_TAG: ghcr.io/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
-            GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (github.ref == 'refs/heads/main' && 'latest') || github.ref_name }}
+            GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || github.ref_name }}
             GLCR_ARM64: registry.gitlab.com/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-arm64v8
             GLCR_AMD64: registry.gitlab.com/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}-amd64
             GLCR_TAG: registry.gitlab.com/${{ github.repository }}:${{ github.ref_name }}-${{ github.sha }}
-            GLCR_BRANCH: registry.gitlab.com/${{ github.repository }}:${{ (github.ref == 'refs/heads/main' && 'latest') || github.ref_name }}
+            GLCR_BRANCH: registry.gitlab.com/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || github.ref_name }}
             DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
             GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         steps:
