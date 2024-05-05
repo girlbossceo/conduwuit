@@ -46,6 +46,18 @@ jobs:
             - name: Sync repository
               uses: actions/checkout@v4
 
+            - name: Tag comparison check
+              if: startsWith('refs/tags/v', github.ref)
+              run: |
+                  # Tag mismatch with latest repo tag check to prevent potential downgrades
+                  LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+
+                  if [ $LATEST_TAG != ${{ github.ref_name }} ]; then
+                    echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.'
+                    echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.' >> $GITHUB_STEP_SUMMARY
+                    exit 1
+                  fi
+
             - name: Install Nix
               uses: DeterminateSystems/nix-installer-action@main
 
