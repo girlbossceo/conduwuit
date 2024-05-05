@@ -17,17 +17,12 @@ OCI images for conduwuit are available in the registries listed below.
 | GitHub Registry | [ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    | Stable main branch.   |
 | GitLab Registry | [registry.gitlab.com/girlbossceo/conduwuit:main][gl]   | ![Image Size][shield-main]    | Stable main branch.   |
 | Docker Hub      | [docker.io/girlbossceo/conduwuit:main][dh]               | ![Image Size][shield-main]    | Stable main branch.   |
-| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:dev][gh]   | ![Image Size][shield-dev]    | Development version/branch.   |
-| GitLab Registry | [registry.gitlab.com/girlbossceo/conduwuit:dev][gl]   | ![Image Size][shield-dev]    | Development version/branch.   |
-| Docker Hub      | [docker.io/girlbossceo/conduwuit:dev][dh]               | ![Image Size][shield-dev]    | Development version/branch.   |
-
 
 [dh]: https://hub.docker.com/repository/docker/girlbossceo/conduwuit
 [gh]: https://github.com/girlbossceo/conduwuit/pkgs/container/conduwuit
 [gl]: https://gitlab.com/girlbossceo/conduwuit/container_registry/6351657
 [shield-latest]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/latest
 [shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
-[shield-dev]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/dev
 
 
 Use
