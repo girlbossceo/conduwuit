@@ -130,7 +130,7 @@ pub(crate) async fn create_content_route(
 			mxc.clone(),
 			body.filename
 				.as_ref()
-				.map(|filename| "inline; filename=".to_owned() + filename)
+				.map(|filename| format!("attachment; filename={filename}"))
 				.as_deref(),
 			body.content_type.as_deref(),
 			&body.file,
@@ -173,15 +173,16 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
-		content_disposition,
 		content_type,
 		file,
+		..
 	}) = services().media.get(mxc.clone()).await?
 	{
+		// TODO: safely sanitise filename to be included in the content-disposition
 		Ok(get_content::v3::Response {
 			file,
 			content_type,
-			content_disposition,
+			content_disposition: Some("attachment".to_owned()),
 			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
@@ -243,7 +244,7 @@ pub(crate) async fn get_content_as_filename_route(
 		Ok(get_content_as_filename::v3::Response {
 			file,
 			content_type,
-			content_disposition: Some(format!("inline; filename={}", body.filename)),
+			content_disposition: Some("attachment".to_owned()),
 			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
@@ -258,7 +259,7 @@ pub(crate) async fn get_content_as_filename_route(
 		.await
 		{
 			Ok(remote_content_response) => Ok(get_content_as_filename::v3::Response {
-				content_disposition: Some(format!("inline: filename={}", body.filename)),
+				content_disposition: Some("attachment".to_owned()),
 				content_type: remote_content_response.content_type,
 				file: remote_content_response.file,
 				cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
@@ -434,7 +435,7 @@ async fn get_remote_content(
 		.create(
 			None,
 			mxc.to_owned(),
-			content_response.content_disposition.as_deref(),
+			Some("attachment"),
 			content_response.content_type.as_deref(),
 			&content_response.file,
 		)

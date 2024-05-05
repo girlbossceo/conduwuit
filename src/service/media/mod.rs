@@ -16,6 +16,7 @@ use crate::{services, utils, Error, Result};
 
 #[derive(Debug)]
 pub(crate) struct FileMeta {
+	#[allow(dead_code)]
 	pub(crate) content_disposition: Option<String>,
 	pub(crate) content_type: Option<String>,
 	pub(crate) file: Vec<u8>,
