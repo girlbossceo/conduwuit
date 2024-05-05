@@ -72,7 +72,7 @@ Please try to keep contributions to the GitHub. While the mirrors of conduwuit a
 
 If you open a pull request on one of the mirrors, it is your responsibility to inform me about its existence. In the future I may try to solve this with more repo bots in the conduwuit Matrix room. There is no mailing list or email-patch support on the sr.ht mirror, but if you'd like to email me a git patch you can do so at `strawberry@puppygock.gay`.
 
-Direct all PRs/MRs to the `dev` branch. Pull requests to `main` should only be done by a maintainer, or if the change is necessary enough to go straight to the main branch (e.g. critical fix).
+Direct all PRs/MRs to the `main` branch.
 
 By sending a pull request or patch, you are agreeing that your changes are allowed to be licenced under the Apache-2.0 licence and all of your conduct is in line with the Contributor's Covenant.
 
