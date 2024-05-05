@@ -376,8 +376,8 @@ pub(crate) async fn get_content_thumbnail_route(
 				Ok(get_content_thumbnail::v3::Response {
 					file: get_thumbnail_response.file,
 					content_type: get_thumbnail_response.content_type,
-					cross_origin_resource_policy: get_thumbnail_response.cross_origin_resource_policy,
-					cache_control: get_thumbnail_response.cache_control,
+					cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
+					cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
 					content_disposition: Some("attachment".to_owned()),
 				})
 			},
@@ -452,8 +452,8 @@ async fn get_remote_content(
 		file: content_response.file,
 		content_type: content_response.content_type,
 		content_disposition: Some("attachment".to_owned()),
-		cross_origin_resource_policy: content_response.cross_origin_resource_policy,
-		cache_control: content_response.cache_control,
+		cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
+		cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
 	})
 }
 
