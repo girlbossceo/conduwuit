@@ -118,7 +118,9 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	};
 
 	let mut results = Vec::new();
-	for _ in 0_usize..skip.saturating_add(limit) {
+	let next_batch: usize = skip.saturating_add(limit);
+
+	for _ in 0..next_batch {
 		if let Some(s) = searches
 			.iter_mut()
 			.map(|s| (s.peek().cloned(), s))
@@ -167,7 +169,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	let next_batch = if results.len() < limit {
 		None
 	} else {
-		Some((skip.checked_add(limit).unwrap()).to_string())
+		Some(next_batch.to_string())
 	};
 
 	Ok(search_events::v3::Response::new(ResultCategories {
