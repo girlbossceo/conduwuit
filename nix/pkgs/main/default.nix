@@ -3,6 +3,7 @@
 , inputs
 , lib
 , libiconv
+, liburing
 , pkgsBuildHost
 , rocksdb
 , rust
@@ -57,6 +58,8 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
 
 buildDepsOnlyEnv =
   let
+    uring = featureEnabled "io_uring";
+    extraDeps = lib.optionals uring [pkgsBuildHost.liburing.dev pkgsBuildHost.liburing.out];
     rocksdb' = (rocksdb.override {
       jemalloc = rust-jemalloc-sys';
       # rocksdb fails to build with prefixed jemalloc, which is required on
@@ -70,6 +73,7 @@ buildDepsOnlyEnv =
       # TODO: static rocksdb fails to build on darwin
       # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
       meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
+      propagatedBuildInputs = old.propagatedBuildInputs ++ extraDeps;
     });
   in
   {
@@ -89,7 +93,16 @@ buildDepsOnlyEnv =
 
 buildPackageEnv = {
   CONDUWUIT_VERSION_EXTRA = inputs.self.shortRev or inputs.self.dirtyShortRev or "";
-} // buildDepsOnlyEnv;
+} // buildDepsOnlyEnv // {
+  CARGO_BUILD_RUSTFLAGS =
+     let
+       uring = default_features || builtins.elem "io_uring" features;
+     in
+       buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
+       + lib.optionalString uring " -L${pkgsBuildHost.liburing}/lib/ -luring";
+  };
+
+
 
 commonAttrs = {
   inherit

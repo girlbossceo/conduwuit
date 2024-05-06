@@ -171,6 +171,23 @@
         "type": "github"
       }
     },
+    "liburing": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1716398759,
+        "narHash": "sha256-fDlOR13WmwVgMxGUMQXWSZAoy2VhZ5AfZRPF9qmQjSc=",
+        "owner": "axboe",
+        "repo": "liburing",
+        "rev": "49be3cad491ae8b3c40348b8d78ae2b0d3726b78",
+        "type": "github"
+      },
+      "original": {
+        "owner": "axboe",
+        "ref": "master",
+        "repo": "liburing",
+        "type": "github"
+      }
+    },
     "nix-filter": {
       "locked": {
         "lastModified": 1710156097,
@@ -260,6 +277,7 @@
         "fenix": "fenix",
         "flake-compat": "flake-compat_2",
         "flake-utils": "flake-utils_2",
+        "liburing": "liburing",
         "nix-filter": "nix-filter",
         "nixpkgs": "nixpkgs_2",
         "rocksdb": "rocksdb"
