@@ -138,6 +138,7 @@ pub(crate) async fn sync_events_route(
 	result
 }
 
+#[tracing::instrument(skip(body, tx))]
 async fn sync_helper_wrapper(
 	sender_user: OwnedUserId, sender_device: OwnedDeviceId, body: sync_events::v3::Request,
 	tx: Sender<Option<Result<sync_events::v3::Response>>>,

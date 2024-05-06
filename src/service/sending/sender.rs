@@ -26,7 +26,7 @@ use super::{appservice, send, Destination, Msg, SendingEvent, Service};
 use crate::{
 	service::presence::Presence,
 	services,
-	utils::{calculate_hash, user_id::user_is_local},
+	utils::{calculate_hash, debug_slice_truncated, user_id::user_is_local},
 	Error, PduEvent, Result,
 };
 
@@ -78,6 +78,7 @@ impl Service {
 		};
 	}
 
+	#[tracing::instrument(skip(self, _futures, statuses))]
 	fn handle_response_err(
 		&self, dest: Destination, _futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus, e: &Error,
 	) {
@@ -91,6 +92,7 @@ impl Service {
 		});
 	}
 
+	#[tracing::instrument(skip(self, futures, statuses))]
 	fn handle_response_ok(
 		&self, dest: &Destination, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {
@@ -155,7 +157,7 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, dest, new_events, statuses))]
+	#[tracing::instrument(skip(self, dest, statuses), fields(new_events = debug_slice_truncated(&new_events, 3)))]
 	fn select_events(
 		&self,
 		dest: &Destination,

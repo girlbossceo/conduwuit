@@ -218,6 +218,7 @@ async fn presence_timer(user_id: OwnedUserId, timeout: Duration) -> OwnedUserId 
 	user_id
 }
 
+#[tracing::instrument]
 fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	let idle_timeout = services().globals.config.presence_idle_timeout_s * 1_000;
 	let offline_timeout = services().globals.config.presence_offline_timeout_s * 1_000;

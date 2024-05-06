@@ -161,6 +161,7 @@ impl Service {
 		self.sender.send(message).expect("message sent");
 	}
 
+	#[tracing::instrument(skip(self))]
 	async fn handle_event(&self, event: AdminRoomEvent, admin_room: &RoomId, server_user: &UserId) -> Result<()> {
 		let (mut message_content, reply) = match event {
 			AdminRoomEvent::SendMessage(content) => (content, None),

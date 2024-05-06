@@ -67,7 +67,10 @@ pub(crate) async fn build(server: &Server) -> io::Result<axum::routing::IntoMake
 	}
 }
 
-#[tracing::instrument(skip_all, name = "spawn")]
+/// Ensures the request runs in a new tokio thread.
+///
+/// The axum request handler task gets cancelled if the connection is shut down;
+/// by spawning our own task, processing continue after the client disconnects.
 async fn request_spawn(
 	req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {

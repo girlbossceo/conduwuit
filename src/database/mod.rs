@@ -421,7 +421,6 @@ impl KeyValueDatabase {
 		Ok(())
 	}
 
-	#[tracing::instrument]
 	fn start_check_for_updates_task() {
 		let timer_interval = Duration::from_secs(7200); // 2 hours
 
@@ -472,7 +471,6 @@ impl KeyValueDatabase {
 		Ok(())
 	}
 
-	#[tracing::instrument]
 	fn start_cleanup_task() {
 		let timer_interval = Duration::from_secs(u64::from(services().globals.config.cleanup_second_interval));
 
@@ -520,6 +518,7 @@ impl KeyValueDatabase {
 		});
 	}
 
+	#[tracing::instrument]
 	fn perform_cleanup() {
 		if !services().globals.config.rocksdb_periodic_cleanup {
 			return;
