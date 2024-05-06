@@ -144,7 +144,7 @@ pub(crate) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventConte
 			.drain(1..body.len().checked_sub(1).unwrap())
 			.collect::<Vec<_>>();
 
-		let mut mxc_deletion_count: u32 = 0;
+		let mut mxc_deletion_count: usize = 0;
 
 		for mxc in mxc_list {
 			debug!("Deleting MXC {mxc} in bulk");

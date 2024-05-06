@@ -284,11 +284,7 @@ fn count_to_id(room_id: &RoomId, count: PduCount, offset: u64, subtract: bool) -
 			pdu_id.extend_from_slice(&0_u64.to_be_bytes());
 			let num = u64::MAX.saturating_sub(x);
 			if subtract {
-				if num > 0 {
-					num.saturating_sub(offset)
-				} else {
-					num
-				}
+				num.saturating_sub(offset)
 			} else {
 				num.saturating_add(offset)
 			}

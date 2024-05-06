@@ -1395,13 +1395,7 @@ async fn validate_and_add_event_id(
 				e.insert((Instant::now(), 1));
 			},
 			Entry::Occupied(mut e) => {
-				*e.get_mut() = (
-					Instant::now(),
-					e.get()
-						.1
-						.checked_add(1)
-						.expect("bad_event_ratelimiter attempt/try count should not ever get this high"),
-				);
+				*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
 			},
 		}
 	};

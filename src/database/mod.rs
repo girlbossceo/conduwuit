@@ -402,19 +402,8 @@ impl KeyValueDatabase {
 		let sqlite_exists = path.join("conduit.db").exists();
 		let rocksdb_exists = path.join("IDENTITY").exists();
 
-		let mut count: u8 = 0;
-
-		if sqlite_exists {
-			count = count.saturating_add(1);
-		}
-
-		if rocksdb_exists {
-			count = count.saturating_add(1);
-		}
-
-		if count > 1 {
-			error!("Multiple databases at database_path detected");
-			return Ok(());
+		if sqlite_exists && rocksdb_exists {
+			return Err(Error::bad_config("Multiple databases at database_path detected."));
 		}
 
 		if sqlite_exists && config.database_backend != "sqlite" {

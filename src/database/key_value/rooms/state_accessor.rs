@@ -25,7 +25,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 				.parse_compressed_state_event(compressed)?;
 			result.insert(parsed.0, parsed.1);
 
-			i = i.saturating_add(1);
+			i = i.wrapping_add(1);
 			if i % 100 == 0 {
 				tokio::task::yield_now().await;
 			}
@@ -63,7 +63,7 @@ impl service::rooms::state_accessor::Data for KeyValueDatabase {
 				);
 			}
 
-			i = i.saturating_add(1);
+			i = i.wrapping_add(1);
 			if i % 100 == 0 {
 				tokio::task::yield_now().await;
 			}
