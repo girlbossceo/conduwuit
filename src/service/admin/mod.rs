@@ -24,7 +24,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, MutexGuard};
-use tracing::{error, warn};
+use tracing::{error, info_span, warn, Instrument};
 
 use self::{fsck::FsckCommand, tester::TesterCommands};
 use super::pdu::PduBuilder;
@@ -116,10 +116,32 @@ impl Service {
 	pub(crate) fn start_handler(self: &Arc<Self>) {
 		let self2 = Arc::clone(self);
 		tokio::spawn(async move {
-			self2
-				.handler()
-				.await
-				.expect("Failed to initialize admin room handler");
+			let receiver = self2.receiver.lock().await;
+			let Ok(Some(admin_room)) = Self::get_admin_room().await else {
+				return;
+			};
+			let server_name = services().globals.server_name();
+			let server_user = UserId::parse(format!("@conduit:{server_name}")).expect("server's username is valid");
+
+			loop {
+				debug_assert!(!receiver.is_closed(), "channel closed");
+				let event = receiver.recv_async().await;
+
+				async {
+					let ret = match event {
+						Ok(event) => self2.handle_event(event, &admin_room, &server_user).await,
+						Err(e) => {
+							error!("Failed to receive admin room event from channel: {e}");
+							return;
+						},
+					};
+					if let Err(e) = ret {
+						error!("Failed to handle admin room event: {e}");
+					}
+				}
+				.instrument(info_span!("admin_event_received"))
+				.await;
+			}
 		});
 	}
 
@@ -137,25 +159,6 @@ impl Service {
 		debug_assert!(!self.sender.is_full(), "channel full");
 		debug_assert!(!self.sender.is_closed(), "channel closed");
 		self.sender.send(message).expect("message sent");
-	}
-
-	async fn handler(&self) -> Result<()> {
-		let receiver = self.receiver.lock().await;
-		let Ok(Some(admin_room)) = Self::get_admin_room().await else {
-			return Ok(());
-		};
-		let server_name = services().globals.server_name();
-		let server_user = UserId::parse(format!("@conduit:{server_name}")).expect("server's username is valid");
-
-		loop {
-			debug_assert!(!receiver.is_closed(), "channel closed");
-			tokio::select! {
-				event = receiver.recv_async() => match event {
-					Ok(event) => self.handle_event(event, &admin_room, &server_user).await?,
-					Err(e) => error!("Failed to receive admin room event from channel: {e}"),
-				}
-			}
-		}
 	}
 
 	async fn handle_event(&self, event: AdminRoomEvent, admin_room: &RoomId, server_user: &UserId) -> Result<()> {

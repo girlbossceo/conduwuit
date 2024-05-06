@@ -50,30 +50,25 @@ impl Service {
 	pub(crate) fn start_handler(self: &Arc<Self>) {
 		let self2 = Arc::clone(self);
 		tokio::spawn(async move {
-			self2.handler().await;
+			let receiver = self2.receiver.lock().await;
+			debug_assert!(!receiver.is_closed(), "channel error");
+			let mut futures: SendingFutures<'_> = FuturesUnordered::new();
+			let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
+			self2.initial_transactions(&mut futures, &mut statuses);
+			loop {
+				tokio::select! {
+					Ok(request) = receiver.recv_async() => {
+						self2.handle_request(request, &mut futures, &mut statuses);
+					},
+					Some(response) = futures.next() => {
+						self2.handle_response(response, &mut futures, &mut statuses);
+					},
+				}
+			}
 		});
 	}
 
-	#[tracing::instrument(skip_all, name = "sender")]
-	async fn handler(&self) {
-		let receiver = self.receiver.lock().await;
-		debug_assert!(!receiver.is_closed(), "channel error");
-
-		let mut futures: SendingFutures<'_> = FuturesUnordered::new();
-		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
-		self.initial_transactions(&mut futures, &mut statuses);
-		loop {
-			tokio::select! {
-				Ok(request) = receiver.recv_async() => {
-					self.handle_request(request, &mut futures, &mut statuses);
-				},
-				Some(response) = futures.next() => {
-					self.handle_response(response, &mut futures, &mut statuses);
-				},
-			}
-		}
-	}
-
+	#[tracing::instrument(skip(self, futures, statuses))]
 	fn handle_response(
 		&self, response: SendingResult, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {
@@ -124,6 +119,7 @@ impl Service {
 		}
 	}
 
+	#[tracing::instrument(skip(self, futures, statuses))]
 	fn handle_request(&self, msg: Msg, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
 		let iv = vec![(msg.event, msg.queue_id)];
 		if let Ok(Some(events)) = self.select_events(&msg.dest, iv, statuses) {
@@ -135,6 +131,7 @@ impl Service {
 		}
 	}
 
+	#[tracing::instrument(skip(self, futures, statuses))]
 	fn initial_transactions(&self, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
 		let keep = usize::try_from(self.startup_netburst_keep).unwrap_or(usize::MAX);
 		let mut txns = HashMap::<Destination, Vec<SendingEvent>>::new();

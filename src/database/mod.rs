@@ -37,7 +37,7 @@ use serde::Deserialize;
 #[cfg(unix)]
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::{interval, Instant};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info_span, warn, Instrument as _};
 
 use crate::{
 	database::migrations::migrations, service::rooms::timeline::PduCount, services, Config, Error,
@@ -436,6 +436,7 @@ impl KeyValueDatabase {
 		});
 	}
 
+	#[tracing::instrument]
 	async fn try_handle_updates() -> Result<()> {
 		let response = services()
 			.globals
@@ -487,28 +488,34 @@ impl KeyValueDatabase {
 
 			loop {
 				#[cfg(unix)]
-				tokio::select! {
-					_ = i.tick() => {
-						debug!(target: "database-cleanup", "Timer ticked");
-					}
-					_ = hangup.recv() => {
-						debug!(target: "database-cleanup","Received SIGHUP");
-					}
-					_ = ctrl_c.recv() => {
-						debug!(target: "database-cleanup", "Received Ctrl+C");
-					}
-					_ = terminate.recv() => {
-						debug!(target: "database-cleanup","Received SIGTERM");
-					}
-				}
+				let msg = tokio::select! {
+					_ = i.tick() => || {
+						debug!("Timer ticked");
+					},
+					_ = hangup.recv() => || {
+						debug!("Received SIGHUP");
+					},
+					_ = ctrl_c.recv() => || {
+						debug!("Received Ctrl+C");
+					},
+					_ = terminate.recv() => || {
+						debug!("Received SIGTERM");
+					},
+				};
 
 				#[cfg(not(unix))]
-				{
+				let msg = {
 					i.tick().await;
-					debug!(target: "database-cleanup", "Timer ticked")
-				}
+					|| debug!("Timer ticked")
+				};
 
-				Self::perform_cleanup();
+				async {
+					msg();
+
+					Self::perform_cleanup();
+				}
+				.instrument(info_span!("database_cleanup"))
+				.await;
 			}
 		});
 	}

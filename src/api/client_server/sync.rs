@@ -96,7 +96,7 @@ pub(crate) async fn sync_events_route(
 
 			v.insert((body.since.clone(), rx.clone()));
 
-			tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx));
+			tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx).in_current_span());
 
 			rx
 		},
@@ -108,7 +108,9 @@ pub(crate) async fn sync_events_route(
 
 				debug!("Sync started for {sender_user}");
 
-				tokio::spawn(sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx));
+				tokio::spawn(
+					sync_helper_wrapper(sender_user.clone(), sender_device.clone(), body, tx).in_current_span(),
+				);
 
 				rx
 			} else {
