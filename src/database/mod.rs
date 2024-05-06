@@ -388,9 +388,9 @@ impl KeyValueDatabase {
 			services().presence.start_handler();
 		}
 
-		Self::start_cleanup_task().await;
+		Self::start_cleanup_task();
 		if services().globals.allow_check_for_updates() {
-			Self::start_check_for_updates_task().await;
+			Self::start_check_for_updates_task();
 		}
 
 		Ok(())
@@ -422,18 +422,14 @@ impl KeyValueDatabase {
 	}
 
 	#[tracing::instrument]
-	async fn start_check_for_updates_task() {
+	fn start_check_for_updates_task() {
 		let timer_interval = Duration::from_secs(7200); // 2 hours
 
 		tokio::spawn(async move {
 			let mut i = interval(timer_interval);
 
 			loop {
-				tokio::select! {
-					_ = i.tick() => {
-						debug!(target: "start_check_for_updates_task", "Timer ticked");
-					},
-				}
+				i.tick().await;
 
 				_ = Self::try_handle_updates().await;
 			}
@@ -476,7 +472,7 @@ impl KeyValueDatabase {
 	}
 
 	#[tracing::instrument]
-	async fn start_cleanup_task() {
+	fn start_cleanup_task() {
 		let timer_interval = Duration::from_secs(u64::from(services().globals.config.cleanup_second_interval));
 
 		tokio::spawn(async move {
