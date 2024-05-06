@@ -2,8 +2,6 @@
 
 `main` / stable: [![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
 
-`dev`: [![CI and Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
-
 <!-- ANCHOR: catchphrase -->
 ### a very cool, featureful fork of [Conduit](https://conduit.rs/)
 <!-- ANCHOR_END: catchphrase -->
