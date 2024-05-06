@@ -237,18 +237,18 @@ jobs:
         needs: build
         if: startsWith('refs/tags/v', github.ref) || github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
         env:
-            DOCKER_ARM64: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}-${{ github.sha }}-arm64v8
-            DOCKER_AMD64: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_namee }}-${{ github.sha }}-amd64
-            DOCKER_TAG: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}-${{ github.sha }}
-            DOCKER_BRANCH: docker.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}
-            GHCR_ARM64: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}-${{ github.sha }}-arm64v8
-            GHCR_AMD64: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_namee }}-${{ github.sha }}-amd64
-            GHCR_TAG: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}-${{ github.sha }}
-            GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}
-            GLCR_ARM64: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}-${{ github.sha }}-arm64v8
-            GLCR_AMD64: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_namee }}-${{ github.sha }}-amd64
-            GLCR_TAG: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}-${{ github.sha }}
-            GLCR_BRANCH: registry.gitlab.com/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && 'merge-github.event.number-github.head_ref') || github.ref_name }}
+            DOCKER_ARM64: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}-${{ github.sha }}-arm64v8
+            DOCKER_AMD64: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_namee }}-${{ github.sha }}-amd64
+            DOCKER_TAG: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}-${{ github.sha }}
+            DOCKER_BRANCH: docker.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}
+            GHCR_ARM64: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}-${{ github.sha }}-arm64v8
+            GHCR_AMD64: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_namee }}-${{ github.sha }}-amd64
+            GHCR_TAG: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}-${{ github.sha }}
+            GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}
+            GLCR_ARM64: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}-${{ github.sha }}-arm64v8
+            GLCR_AMD64: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_namee }}-${{ github.sha }}-amd64
+            GLCR_TAG: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}-${{ github.sha }}
+            GLCR_BRANCH: registry.gitlab.com/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.head_ref)) || github.ref_name }}
 
             DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
             GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
