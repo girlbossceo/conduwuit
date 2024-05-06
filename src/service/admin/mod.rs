@@ -158,7 +158,7 @@ impl Service {
 		}
 	}
 
-	async fn handle_event(&self, event: AdminRoomEvent, admin_room: &OwnedRoomId, server_user: &UserId) -> Result<()> {
+	async fn handle_event(&self, event: AdminRoomEvent, admin_room: &RoomId, server_user: &UserId) -> Result<()> {
 		let (mut message_content, reply) = match event {
 			AdminRoomEvent::SendMessage(content) => (content, None),
 			AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
@@ -172,7 +172,7 @@ impl Service {
 				.roomid_mutex_state
 				.write()
 				.await
-				.entry(admin_room.clone())
+				.entry(admin_room.to_owned())
 				.or_default(),
 		);
 		let state_lock = mutex_state.lock().await;
@@ -207,7 +207,7 @@ impl Service {
 	}
 
 	async fn handle_response_error(
-		&self, e: &Error, admin_room: &OwnedRoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
+		&self, e: &Error, admin_room: &RoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
 	) -> Result<()> {
 		error!("Failed to build and append admin room response PDU: \"{e}\"");
 		let error_room_message = RoomMessageEventContent::text_plain(format!(
