@@ -557,7 +557,7 @@ async fn handle_left_room(
 
 				left_state_events.push(pdu.to_sync_state_event());
 
-				i = i.saturating_add(1);
+				i = i.wrapping_add(1);
 				if i % 100 == 0 {
 					tokio::task::yield_now().await;
 				}
@@ -705,11 +705,7 @@ async fn load_joined_room(
 				// Recalculate heroes (first 5 members)
 				let mut heroes = Vec::new();
 
-				if joined_member_count
-					.checked_add(invited_member_count)
-					.expect("joined/invite member count should not be this high")
-					<= 5
-				{
+				if joined_member_count.saturating_add(invited_member_count) <= 5 {
 					// Go through all PDUs and for each member event, check if the user is still
 					// joined or invited until we have 5 or we reach the end
 
@@ -802,7 +798,7 @@ async fn load_joined_room(
 						};
 						state_events.push(pdu);
 
-						i = i.saturating_add(1);
+						i = i.wrapping_add(1);
 						if i % 100 == 0 {
 							tokio::task::yield_now().await;
 						}
@@ -823,7 +819,7 @@ async fn load_joined_room(
 						}
 						state_events.push(pdu);
 
-						i = i.saturating_add(1);
+						i = i.wrapping_add(1);
 						if i % 100 == 0 {
 							tokio::task::yield_now().await;
 						}

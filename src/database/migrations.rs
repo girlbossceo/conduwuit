@@ -173,13 +173,11 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 			let mut current_sstatehash: Option<u64> = None;
 			let mut current_room = None;
 			let mut current_state = HashSet::new();
-			let mut counter: u32 = 0;
 
-			let mut handle_state = |current_sstatehash: u64,
-			                        current_room: &RoomId,
-			                        current_state: HashSet<_>,
-			                        last_roomstates: &mut HashMap<_, _>| {
-				counter = counter.saturating_add(1);
+			let handle_state = |current_sstatehash: u64,
+			                    current_room: &RoomId,
+			                    current_state: HashSet<_>,
+			                    last_roomstates: &mut HashMap<_, _>| {
 				let last_roomsstatehash = last_roomstates.get(current_room);
 
 				let states_parents = last_roomsstatehash.map_or_else(

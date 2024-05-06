@@ -340,13 +340,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
 				e.insert((Instant::now(), 1));
 			},
 			hash_map::Entry::Occupied(mut e) => {
-				*e.get_mut() = (
-					Instant::now(),
-					e.get()
-						.1
-						.checked_add(1)
-						.expect("bad_query_ratelimiter attempt/try count should not ever get this high"),
-				);
+				*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
 			},
 		}
 	};

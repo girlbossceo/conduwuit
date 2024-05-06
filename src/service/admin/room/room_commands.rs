@@ -22,7 +22,7 @@ pub(crate) async fn list(_body: Vec<&str>, page: Option<usize>) -> Result<RoomMe
 
 	let rooms = rooms
 		.into_iter()
-		.skip(page.saturating_sub(1) * PAGE_SIZE)
+		.skip(page.saturating_sub(1).saturating_mul(PAGE_SIZE))
 		.take(PAGE_SIZE)
 		.collect::<Vec<_>>();
 

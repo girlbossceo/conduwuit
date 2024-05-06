@@ -806,7 +806,9 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 		power_levels_event_content
 			.users_default
 			.checked_add(int!(1))
-			.expect("user power level should not be this high"),
+			.ok_or_else(|| {
+				Error::BadRequest(ErrorKind::BadJson, "users_default power levels event content is not valid")
+			})?,
 	);
 	power_levels_event_content.events_default = new_level;
 	power_levels_event_content.invite = new_level;

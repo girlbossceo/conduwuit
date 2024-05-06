@@ -188,7 +188,9 @@ impl Service {
 				Ok(duration) => {
 					debug!("Parsed duration: {:?}", duration);
 					debug!("System time now: {:?}", SystemTime::now());
-					SystemTime::now().checked_sub(duration).unwrap()
+					SystemTime::now().checked_sub(duration).ok_or_else(|| {
+						Error::bad_database("Duration specified is not valid against the current system time")
+					})?
 				},
 				Err(e) => {
 					error!("Failed to parse user-specified time duration: {}", e);

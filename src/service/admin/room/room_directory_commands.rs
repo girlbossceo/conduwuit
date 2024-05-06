@@ -39,7 +39,7 @@ pub(crate) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> 
 
 			let rooms = rooms
 				.into_iter()
-				.skip(page.checked_sub(1).unwrap().checked_mul(PAGE_SIZE).unwrap())
+				.skip(page.saturating_sub(1).saturating_mul(PAGE_SIZE))
 				.take(PAGE_SIZE)
 				.collect::<Vec<_>>();
 
