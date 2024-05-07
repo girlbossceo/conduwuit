@@ -19,6 +19,8 @@ rust-version = "1.77.0"
 [dependencies]
 console-subscriber = { version = "0.2", optional = true }
 
+infer = { version = "0.3", default-features = false }
+
 # for hot lib reload
 hot-lib-reloader = { version = "^0.7", optional = true }
 
