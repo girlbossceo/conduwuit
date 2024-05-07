@@ -109,6 +109,7 @@ features = [
     "add-extension",
     "cors",
     "sensitive-headers",
+    "set-header",
     "trace",
     "util",
     "catch-panic",

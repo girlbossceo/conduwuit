@@ -6,7 +6,7 @@ use axum::{
 	Router,
 };
 use http::{
-	header::{self, HeaderName},
+	header::{self, HeaderName, HeaderValue},
 	Method, StatusCode, Uri,
 };
 use ruma::api::client::{
@@ -17,6 +17,7 @@ use tower::ServiceBuilder;
 use tower_http::{
 	catch_panic::CatchPanicLayer,
 	cors::{self, CorsLayer},
+	set_header::SetResponseHeaderLayer,
 	trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 	ServiceBuilderExt as _,
 };
@@ -32,6 +33,9 @@ pub(crate) async fn build(server: &Server) -> io::Result<axum::routing::IntoMake
 	let base_middlewares = base_middlewares.layer(sentry_tower::NewSentryLayer::<http::Request<_>>::new_from_top());
 
 	let x_forwarded_for = HeaderName::from_static("x-forwarded-for");
+	let permissions_policy = HeaderName::from_static("permissions-policy");
+	let origin_agent_cluster = HeaderName::from_static("origin-agent-cluster"); // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin-Agent-Cluster
+
 	let middlewares = base_middlewares
 		.sensitive_headers([header::AUTHORIZATION])
 		.sensitive_request_headers([x_forwarded_for].into())
@@ -44,6 +48,33 @@ pub(crate) async fn build(server: &Server) -> io::Result<axum::routing::IntoMake
 				.on_response(DefaultOnResponse::new().level(Level::DEBUG)),
 		)
 		.layer(axum::middleware::from_fn(request_handle))
+		.layer(SetResponseHeaderLayer::if_not_present(
+			origin_agent_cluster,
+			HeaderValue::from_static("?1"),
+		))
+		.layer(SetResponseHeaderLayer::if_not_present(
+			header::X_CONTENT_TYPE_OPTIONS,
+			HeaderValue::from_static("nosniff"),
+		))
+		.layer(SetResponseHeaderLayer::if_not_present(
+			header::X_XSS_PROTECTION,
+			HeaderValue::from_static("0"),
+		))
+		.layer(SetResponseHeaderLayer::if_not_present(
+			header::X_FRAME_OPTIONS,
+			HeaderValue::from_static("DENY"),
+		))
+		.layer(SetResponseHeaderLayer::if_not_present(
+			permissions_policy,
+			HeaderValue::from_static("interest-cohort=(),browsing-topics=()"),
+		))
+		.layer(SetResponseHeaderLayer::if_not_present(
+			header::CONTENT_SECURITY_POLICY,
+			HeaderValue::from_static(
+				"sandbox; default-src 'none'; font-src 'none'; script-src 'none'; plugin-types application/pdf; \
+				 style-src 'unsafe-inline'; object-src 'self'; frame-ancesors 'none';",
+			),
+		))
 		.layer(cors_layer(server))
 		.layer(DefaultBodyLimit::max(
 			server
@@ -130,6 +161,8 @@ fn request_result_log(method: &Method, uri: &Uri, result: &axum::response::Respo
 	}
 }
 
+/// Cross-Origin-Resource-Sharing header as defined by spec:
+/// <https://spec.matrix.org/latest/client-server-api/#web-browser-clients>
 fn cors_layer(_server: &Server) -> CorsLayer {
 	const METHODS: [Method; 7] = [
 		Method::GET,
