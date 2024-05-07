@@ -9,6 +9,7 @@
 , rust
 , rust-jemalloc-sys
 , stdenv
+, pkgsStatic
 
 # Options (keep sorted)
 , default_features ? true
@@ -55,11 +56,15 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
     # tikv-jemalloc-sys/profiling feature
     lib.optional (featureEnabled "jemalloc_prof") "--enable-prof";
 });
+liburing' = pkgsStatic.liburing.overrideAttrs {
+  configureFlags = []; # liburing's configure file is handwritten so the default assumptions don't apply
+  isStatic = true;
+};
 
 buildDepsOnlyEnv =
   let
-    uring = featureEnabled "io_uring";
-    extraDeps = lib.optionals uring [pkgsBuildHost.liburing.dev pkgsBuildHost.liburing.out];
+    uring = featureEnabled "io_uring" && stdenv.isLinux;
+    extraDeps = lib.optionals uring [ liburing'.dev liburing'.out];
     rocksdb' = (rocksdb.override {
       jemalloc = rust-jemalloc-sys';
       # rocksdb fails to build with prefixed jemalloc, which is required on
@@ -96,10 +101,14 @@ buildPackageEnv = {
 } // buildDepsOnlyEnv // {
   CARGO_BUILD_RUSTFLAGS =
      let
-       uring = default_features || builtins.elem "io_uring" features;
+       uring = featureEnabled "io_uring";
+       valid = (stdenv.hostPlatform.isAarch64 || stdenv.hostPlatform.isx86_64)
+              && stdenv.hostPlatform.isStatic
+              && !stdenv.isDarwin
+              && !stdenv.cc.bintools.isLLVM;
      in
        buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
-       + lib.optionalString uring " -L${pkgsBuildHost.liburing}/lib/ -luring";
+       + lib.optionalString (uring && valid) " -L${lib.getLib liburing'}/lib/ -luring";
   };
 
 

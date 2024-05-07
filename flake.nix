@@ -42,12 +42,6 @@
             (builtins.fromJSON (builtins.readFile ./flake.lock))
               .nodes.rocksdb.original.ref;
         });
-        # liburing's configure file is handwritten so the default assumptions don't apply
-        liburing = pkgs.liburing.overrideAttrs {
-          dontAddStaticConfigureFlags = true;
-          dontDisableStatic = true;
-          configureFlags = [];
-        };
       });
 
       scopeHost = mkScope pkgsHost;
