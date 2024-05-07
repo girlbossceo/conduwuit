@@ -59,7 +59,7 @@ Both, but I prefer conduwuit.
 #### Mirrors of conduwuit
 
 - GitHub: <https://github.com/girlbossceo/conduwuit>
-- GitLab: <https://gitlab.com/girlbossceo/conduwuit>
+- GitLab: <https://gitlab.com/conduwuit/conduwuit>
 - git.gay: <https://git.gay/june/conduwuit>
 - Codeberg: <https://codeberg.org/girlbossceo/conduwuit>
 - sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
