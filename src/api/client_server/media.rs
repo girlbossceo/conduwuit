@@ -25,7 +25,7 @@ use crate::{
 const MXC_LENGTH: usize = 32;
 
 /// Cache control for immutable objects
-const CACHE_CONTROL_IMMUTABLE: &str = "public, max-age=31536000, immutable";
+const CACHE_CONTROL_IMMUTABLE: &str = "public,max-age=31536000,immutable";
 
 const CORP_CROSS_ORIGIN: &str = "cross-origin";
 
