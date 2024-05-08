@@ -269,6 +269,19 @@ url_preview_check_root_domain = false
 # Defaults to true
 allow_profile_lookup_federation_requests = true
 
+# Config option to automatically deactivate the account of any user who attempts to join a:
+# - banned room
+# - forbidden room alias
+# - room alias or ID with a forbidden server name
+#
+# This may be useful if all your banned lists consist of toxic rooms or servers that no good faith user would ever attempt to join, and
+# to automatically remediate the problem without any admin user intervention.
+#
+# This will also make the user leave all rooms. Federation (e.g. remote room invites) are ignored here.
+#
+# Defaults to false as rooms can be banned for non-moderation-related reasons
+#auto_deactivate_banned_room_attempts = false
+
 
 ### Misc
 
