@@ -79,6 +79,7 @@ url = { version = "2.5.0", features = ["serde"] }
 async-trait = "0.1.80"
 
 lru-cache = "0.1.2"
+sanitize-filename = "0.5.0"
 
 # standard date and time tools
 [dependencies.chrono]

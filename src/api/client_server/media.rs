@@ -1,7 +1,6 @@
 use std::{io::Cursor, sync::Arc, time::Duration};
 
 use image::io::Reader as ImgReader;
-use infer::MatcherType;
 use ipaddress::IPAddress;
 use reqwest::Url;
 use ruma::api::client::{
@@ -18,7 +17,11 @@ use crate::{
 	debug_warn,
 	service::media::{FileMeta, UrlPreviewData},
 	services,
-	utils::{self, server_name::server_is_ours},
+	utils::{
+		self,
+		content_disposition::{content_disposition_type, make_content_disposition, sanitise_filename},
+		server_name::server_is_ours,
+	},
 	Error, Result, Ruma, RumaResponse,
 };
 
@@ -131,7 +134,13 @@ pub(crate) async fn create_content_route(
 			mxc.clone(),
 			body.filename
 				.as_ref()
-				.map(|filename| format!("attachment; filename={filename}"))
+				.map(|filename| {
+					format!(
+						"{}; filename={}",
+						content_disposition_type(&body.file, &body.content_type),
+						sanitise_filename(filename.to_owned())
+					)
+				})
 				.as_deref(),
 			body.content_type.as_deref(),
 			&body.file,
@@ -176,12 +185,11 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 	if let Some(FileMeta {
 		content_type,
 		file,
-		..
+		content_disposition,
 	}) = services().media.get(mxc.clone()).await?
 	{
-		let content_disposition = Some(String::from(content_disposition_type(&file, &content_type)));
+		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition));
 
-		// TODO: safely sanitise filename to be included in the content-disposition
 		Ok(get_content::v3::Response {
 			file,
 			content_type,
@@ -190,7 +198,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 		})
 	} else if !server_is_ours(&body.server_name) && body.allow_remote {
-		get_remote_content(
+		let response = get_remote_content(
 			&mxc,
 			&body.server_name,
 			body.media_id.clone(),
@@ -201,6 +209,20 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 		.map_err(|e| {
 			debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
 			Error::BadRequest(ErrorKind::NotFound, "Remote media error.")
+		})?;
+
+		let content_disposition = Some(make_content_disposition(
+			&response.file,
+			&response.content_type,
+			response.content_disposition,
+		));
+
+		Ok(get_content::v3::Response {
+			file: response.file,
+			content_type: response.content_type,
+			content_disposition,
+			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
+			cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
 		})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
@@ -241,10 +263,10 @@ pub(crate) async fn get_content_as_filename_route(
 	if let Some(FileMeta {
 		content_type,
 		file,
-		..
+		content_disposition,
 	}) = services().media.get(mxc.clone()).await?
 	{
-		let content_disposition = Some(String::from(content_disposition_type(&file, &content_type)));
+		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition));
 
 		Ok(get_content_as_filename::v3::Response {
 			file,
@@ -264,10 +286,11 @@ pub(crate) async fn get_content_as_filename_route(
 		.await
 		{
 			Ok(remote_content_response) => {
-				let content_disposition = Some(String::from(content_disposition_type(
+				let content_disposition = Some(make_content_disposition(
 					&remote_content_response.file,
 					&remote_content_response.content_type,
-				)));
+					remote_content_response.content_disposition,
+				));
 
 				Ok(get_content_as_filename::v3::Response {
 					content_disposition,
@@ -321,7 +344,7 @@ pub(crate) async fn get_content_thumbnail_route(
 	if let Some(FileMeta {
 		content_type,
 		file,
-		..
+		content_disposition,
 	}) = services()
 		.media
 		.get_thumbnail(
@@ -335,7 +358,7 @@ pub(crate) async fn get_content_thumbnail_route(
 		)
 		.await?
 	{
-		let content_disposition = Some(String::from(content_disposition_type(&file, &content_type)));
+		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition));
 
 		Ok(get_content_thumbnail::v3::Response {
 			file,
@@ -387,10 +410,11 @@ pub(crate) async fn get_content_thumbnail_route(
 					)
 					.await?;
 
-				let content_disposition = Some(String::from(content_disposition_type(
+				let content_disposition = Some(make_content_disposition(
 					&get_thumbnail_response.file,
 					&get_thumbnail_response.content_type,
-				)));
+					get_thumbnail_response.content_disposition,
+				));
 
 				Ok(get_content_thumbnail::v3::Response {
 					file: get_thumbnail_response.file,
@@ -456,12 +480,18 @@ async fn get_remote_content(
 		)
 		.await?;
 
+	let content_disposition = Some(make_content_disposition(
+		&content_response.file,
+		&content_response.content_type,
+		content_response.content_disposition,
+	));
+
 	services()
 		.media
 		.create(
 			None,
 			mxc.to_owned(),
-			Some("attachment"),
+			content_disposition.as_deref(),
 			content_response.content_type.as_deref(),
 			&content_response.file,
 		)
@@ -470,7 +500,7 @@ async fn get_remote_content(
 	Ok(get_content::v3::Response {
 		file: content_response.file,
 		content_type: content_response.content_type,
-		content_disposition: Some("attachment".to_owned()),
+		content_disposition,
 		cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 		cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
 	})
@@ -706,25 +736,4 @@ fn url_preview_allowed(url_str: &str) -> bool {
 	}
 
 	false
-}
-
-/// Returns a Content-Disposition of `attachment` or `inline`, depending on the
-/// *parsed* contents of the file uploaded via format magic keys using `infer`
-/// crate (basically libmagic without needing libmagic).
-///
-/// This forbids trusting what the client or remote server says the file is from
-/// their `Content-Type` and we try to detect it ourselves. Also returns
-/// `attachment` if the Content-Type does not match what we detected.
-///
-/// TODO: add a "strict" function for comparing the Content-Type with what we
-/// detected: `file_type.mime_type() != content_type`
-fn content_disposition_type(buf: &[u8], _content_type: &Option<String>) -> &'static str {
-	let Some(file_type) = infer::get(buf) else {
-		return "attachment";
-	};
-
-	match file_type.matcher_type() {
-		MatcherType::IMAGE | MatcherType::AUDIO | MatcherType::TEXT | MatcherType::VIDEO => "inline",
-		_ => "attachment",
-	}
 }
