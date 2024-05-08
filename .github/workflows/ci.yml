@@ -245,10 +245,10 @@ jobs:
             GHCR_AMD64: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}-amd64
             GHCR_TAG: ghcr.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}
             GHCR_BRANCH: ghcr.io/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}
-            GLCR_ARM64: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}-arm64v8
-            GLCR_AMD64: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}-amd64
-            GLCR_TAG: registry.gitlab.com/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}
-            GLCR_BRANCH: registry.gitlab.com/${{ github.repository }}:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}
+            GLCR_ARM64: registry.gitlab.com/conduwuit/conduwuit:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}-arm64v8
+            GLCR_AMD64: registry.gitlab.com/conduwuit/conduwuit:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}-amd64
+            GLCR_TAG: registry.gitlab.com/conduwuit/conduwuit:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}
+            GLCR_BRANCH: registry.gitlab.com/conduwuit/conduwuit:${{ (startsWith('refs/tags/v', github.ref) && 'latest') || (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}
 
             DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
             GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
