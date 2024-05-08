@@ -167,7 +167,7 @@ pub(crate) async fn deactivate(
 		services().users.deactivate_account(&user_id)?;
 
 		if leave_rooms {
-			leave_all_rooms(&user_id).await?;
+			leave_all_rooms(&user_id).await;
 		}
 
 		Ok(RoomMessageEventContent::text_plain(format!(
@@ -282,7 +282,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 
 		if leave_rooms {
 			for &user_id in &user_ids {
-				_ = leave_all_rooms(user_id).await;
+				leave_all_rooms(user_id).await;
 			}
 		}
 

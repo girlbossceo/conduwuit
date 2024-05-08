@@ -21,12 +21,13 @@ use ruma::{
 		room::{
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
+			message::RoomMessageEventContent,
 		},
 		StateEventType, TimelineEventType,
 	},
 	serde::Base64,
 	state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
-	OwnedUserId, RoomId, RoomVersionId, UserId,
+	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
@@ -39,6 +40,91 @@ use crate::{
 	utils::{self, server_name::server_is_ours, user_id::user_is_local},
 	Error, PduEvent, Result, Ruma,
 };
+
+/// Checks if the room is banned in any way possible and the sender user is not
+/// an admin.
+///
+/// Performs automatic deactivation if `auto_deactivate_banned_room_attempts` is
+/// enabled
+#[tracing::instrument]
+async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_name: Option<&ServerName>) -> Result<()> {
+	if !services().users.is_admin(user_id)? {
+		if let Some(room_id) = room_id {
+			if services().rooms.metadata.is_banned(room_id)?
+				|| services()
+					.globals
+					.config
+					.forbidden_remote_server_names
+					.contains(&room_id.server_name().unwrap().to_owned())
+			{
+				warn!(
+					"User {user_id} who is not an admin attempted to send an invite for or attempted to join a banned \
+					 room or banned room server name: {room_id}."
+				);
+
+				if services()
+					.globals
+					.config
+					.auto_deactivate_banned_room_attempts
+				{
+					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
+					services()
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"Automatically deactivating user {user_id} due to attempted banned room join"
+						)))
+						.await;
+
+					// ignore errors
+					leave_all_rooms(user_id).await;
+					_ = services().users.deactivate_account(user_id);
+				}
+
+				return Err(Error::BadRequest(
+					ErrorKind::forbidden(),
+					"This room is banned on this homeserver.",
+				));
+			}
+		} else if let Some(server_name) = server_name {
+			if services()
+				.globals
+				.config
+				.forbidden_remote_server_names
+				.contains(&server_name.to_owned())
+			{
+				warn!(
+					"User {user_id} who is not an admin tried joining a room which has the server name {server_name} \
+					 that is globally forbidden. Rejecting.",
+				);
+
+				if services()
+					.globals
+					.config
+					.auto_deactivate_banned_room_attempts
+				{
+					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
+					services()
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"Automatically deactivating user {user_id} due to attempted banned room join"
+						)))
+						.await;
+
+					// ignore errors
+					leave_all_rooms(user_id).await;
+					_ = services().users.deactivate_account(user_id);
+				}
+
+				return Err(Error::BadRequest(
+					ErrorKind::forbidden(),
+					"This remote server is banned on this homeserver.",
+				));
+			}
+		}
+	}
+
+	Ok(())
+}
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/join`
 ///
@@ -53,32 +139,7 @@ pub(crate) async fn join_room_by_id_route(
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(sender_user)? {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"This room is banned on this homeserver.",
-		));
-	}
-
-	if let Some(server) = body.room_id.server_name() {
-		if services()
-			.globals
-			.config
-			.forbidden_remote_server_names
-			.contains(&server.to_owned())
-			&& !services().users.is_admin(sender_user)?
-		{
-			warn!(
-				"User {sender_user} tried joining room ID {} which has a server name that is globally forbidden. \
-				 Rejecting.",
-				body.room_id
-			);
-			return Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"This remote server is banned on this homeserver.",
-			));
-		}
-	}
+	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name()).await?;
 
 	// There is no body.server_name for /roomId/join
 	let mut servers = services()
@@ -131,31 +192,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 
 	let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
 		Ok(room_id) => {
-			if services().rooms.metadata.is_banned(&room_id)? && !services().users.is_admin(sender_user)? {
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"This room is banned on this homeserver.",
-				));
-			}
-
-			if let Some(server) = room_id.server_name() {
-				if services()
-					.globals
-					.config
-					.forbidden_remote_server_names
-					.contains(&server.to_owned())
-					&& !services().users.is_admin(sender_user)?
-				{
-					warn!(
-						"User {sender_user} tried joining room ID {room_id} which has a server name that is globally \
-						 forbidden. Rejecting.",
-					);
-					return Err(Error::BadRequest(
-						ErrorKind::forbidden(),
-						"This remote server is banned on this homeserver.",
-					));
-				}
-			}
+			banned_room_check(sender_user, Some(&room_id), room_id.server_name()).await?;
 
 			let mut servers = body.server_name.clone();
 			servers.extend(
@@ -186,69 +223,9 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 			(servers, room_id)
 		},
 		Err(room_alias) => {
-			if services()
-				.globals
-				.config
-				.forbidden_remote_server_names
-				.contains(&room_alias.server_name().to_owned())
-				&& !services().users.is_admin(sender_user)?
-			{
-				warn!(
-					"User {sender_user} tried joining room alias {room_alias} which has a server name that is \
-					 globally forbidden. Rejecting.",
-				);
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"This remote server is banned on this homeserver.",
-				));
-			}
-
 			let response = get_alias_helper(room_alias.clone(), Some(body.server_name.clone())).await?;
 
-			if services().rooms.metadata.is_banned(&response.room_id)? && !services().users.is_admin(sender_user)? {
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"This room is banned on this homeserver.",
-				));
-			}
-
-			if services()
-				.globals
-				.config
-				.forbidden_remote_server_names
-				.contains(&room_alias.server_name().to_owned())
-				&& !services().users.is_admin(sender_user)?
-			{
-				warn!(
-					"User {sender_user} tried joining room alias {room_alias} with room ID {}, which the alias has a \
-					 server name that is globally forbidden. Rejecting.",
-					&response.room_id
-				);
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"This remote server is banned on this homeserver.",
-				));
-			}
-
-			if let Some(server) = response.room_id.server_name() {
-				if services()
-					.globals
-					.config
-					.forbidden_remote_server_names
-					.contains(&server.to_owned())
-					&& !services().users.is_admin(sender_user)?
-				{
-					warn!(
-						"User {sender_user} tried joining room alias {room_alias} with room ID {}, which has a server \
-						 name that is globally forbidden. Rejecting.",
-						&response.room_id
-					);
-					return Err(Error::BadRequest(
-						ErrorKind::forbidden(),
-						"This remote server is banned on this homeserver.",
-					));
-				}
-			}
+			banned_room_check(sender_user, Some(&response.room_id), Some(room_alias.server_name())).await?;
 
 			let mut servers = body.server_name;
 			servers.extend(response.servers);
@@ -321,30 +298,7 @@ pub(crate) async fn invite_user_route(body: Ruma<invite_user::v3::Request>) -> R
 		));
 	}
 
-	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(sender_user)? {
-		info!(
-			"Local user {} who is not an admin attempted to send an invite for banned room {}.",
-			&sender_user, &body.room_id
-		);
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"This room is banned on this homeserver.",
-		));
-	}
-
-	if let Some(server) = body.room_id.server_name() {
-		if services()
-			.globals
-			.config
-			.forbidden_remote_server_names
-			.contains(&server.to_owned())
-		{
-			return Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"Server is banned on this homeserver.",
-			));
-		}
-	}
+	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name()).await?;
 
 	if let invite_user::v3::InvitationRecipient::UserId {
 		user_id,
@@ -1606,8 +1560,9 @@ pub(crate) async fn invite_helper(
 	Ok(())
 }
 
-// Make a user leave all their joined rooms
-pub(crate) async fn leave_all_rooms(user_id: &UserId) -> Result<()> {
+// Make a user leave all their joined rooms, forgets all rooms, and ignores
+// errors
+pub(crate) async fn leave_all_rooms(user_id: &UserId) {
 	let all_rooms = services()
 		.rooms
 		.state_cache
@@ -1627,10 +1582,9 @@ pub(crate) async fn leave_all_rooms(user_id: &UserId) -> Result<()> {
 		};
 
 		// ignore errors
+		_ = services().rooms.state_cache.forget(&room_id, user_id);
 		_ = leave_room(user_id, &room_id, None).await;
 	}
-
-	Ok(())
 }
 
 pub(crate) async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {

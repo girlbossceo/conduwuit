@@ -533,7 +533,7 @@ pub(crate) async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Res
 	}
 
 	// Make the user leave all rooms before deactivation
-	client_server::leave_all_rooms(sender_user).await?;
+	client_server::leave_all_rooms(sender_user).await;
 
 	// Remove devices and mark account as deactivated
 	services().users.deactivate_account(sender_user)?;

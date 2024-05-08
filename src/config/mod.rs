@@ -207,6 +207,8 @@ pub(crate) struct Config {
 
 	#[serde(default = "Vec::new")]
 	pub(crate) auto_join_rooms: Vec<OwnedRoomId>,
+	#[serde(default)]
+	pub(crate) auto_deactivate_banned_room_attempts: bool,
 
 	#[serde(default = "default_rocksdb_log_level")]
 	pub(crate) rocksdb_log_level: String,
@@ -611,6 +613,10 @@ impl fmt::Display for Config {
 			(
 				"Allow incoming profile lookup federation requests",
 				&self.allow_profile_lookup_federation_requests.to_string(),
+			),
+			(
+				"Auto deactivate banned room join attempts",
+				&self.auto_deactivate_banned_room_attempts.to_string(),
 			),
 			("Notification push path", &self.notification_push_path),
 			("Allow room creation", &self.allow_room_creation.to_string()),
