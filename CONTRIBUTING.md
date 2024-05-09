@@ -70,7 +70,7 @@ Rust's default style and standards with regards to [function names, variable nam
 
 ### Creating pull requests
 
-Please try to keep contributions to the GitHub. While the mirrors of conduwuit allow for pull/merge requests, there is no guarantee I will see them in a timely manner.
+Please try to keep contributions to the GitHub. While the mirrors of conduwuit allow for pull/merge requests, there is no guarantee I will see them in a timely manner. Additionally, please mark WIP or unfinished or incomplete PRs as drafts. This prevents me from having to ping once in a while to double check the status of it, especially when the CI completed successfully and everything so it *looks* done.
 
 If you open a pull request on one of the mirrors, it is your responsibility to inform me about its existence. In the future I may try to solve this with more repo bots in the conduwuit Matrix room. There is no mailing list or email-patch support on the sr.ht mirror, but if you'd like to email me a git patch you can do so at `strawberry@puppygock.gay`.
 
