@@ -1,25 +1,55 @@
 # Setting up TURN/STURN
 
-## General instructions
+In order to make or receive calls, a TURN server is required. conduwuit suggests using [Coturn](https://github.com/coturn/coturn) for this purpose, which is also available as a Docker image.
 
-* It is assumed you have a [Coturn server](https://github.com/coturn/coturn) up and running. See [Synapse reference implementation](https://github.com/matrix-org/synapse/blob/develop/docs/turn-howto.md).
+### Configuration
 
-## Edit/Add a few settings to your existing conduit.toml
+Create a configuration file called `coturn.conf` containing:
+
+```conf
+use-auth-secret
+static-auth-secret=<a secret key>
+realm=<your server domain>
+```
+A common way to generate a suitable alphanumeric secret key is by using `pwgen -s 64 1`.
+
+These same values need to be set in conduwuit. You can either modify conduwuit.toml to include these lines:
 
 ```
-# Refer to your Coturn settings. 
-# `your.turn.url` has to match the REALM setting of your Coturn as well as `transport`.
-turn_uris = ["turn:your.turn.url?transport=udp", "turn:your.turn.url?transport=tcp"]
-
-# static-auth-secret of your turnserver
-turn_secret = "ADD SECRET HERE"
-
-# If you have your TURN server configured to use a username and password
-# you can provide these information too. In this case comment out `turn_secret above`!
-#turn_username = ""
-#turn_password = ""
+turn_uris = ["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]
+turn_secret = "<secret key from coturn configuration>"
 ```
 
-## Apply settings
+or append the following to the docker environment variables dependig on which configuration method you used earlier:
 
-Restart Conduit.
+```yml
+CONDUIT_TURN_URIS: '["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]'
+CONDUIT_TURN_SECRET: "<secret key from coturn configuration>"
+```
+
+Restart conduwuit to apply these changes.
+
+### Run
+Run the [Coturn](https://hub.docker.com/r/coturn/coturn) image using
+```bash
+docker run -d --network=host -v $(pwd)/coturn.conf:/etc/coturn/turnserver.conf coturn/coturn
+```
+
+or docker-compose. For the latter, paste the following section into a file called `docker-compose.yml`
+and run `docker compose up -d` in the same directory.
+
+```yml
+version: 3
+services:
+    turn:
+      container_name: coturn-server
+      image: docker.io/coturn/coturn
+      restart: unless-stopped
+      network_mode: "host"
+      volumes:
+        - ./coturn.conf:/etc/coturn/turnserver.conf
+```
+
+To understand why the host networking mode is used and explore alternative configuration options, please visit [Coturn's Docker documentation](https://github.com/coturn/coturn/blob/master/docker/coturn/README.md).
+
+For security recommendations see Synapse's [Coturn documentation](https://element-hq.github.io/synapse/latest/turn-howto.html).

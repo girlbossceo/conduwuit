@@ -1,5 +1,4 @@
-conduwuit for Debian
-==================
+# conduwuit for Debian
 
 Installation
 ------------

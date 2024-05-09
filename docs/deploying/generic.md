@@ -1,7 +1,5 @@
 # Generic deployment documentation
 
-### Please note that this documentation is not fully representative of conduwuit at the moment. Assume majority of it is outdated.
-
 > ## Getting help
 >
 > If you run into any problems while setting up conduwuit, ask us
@@ -13,29 +11,28 @@ You may simply download the binary that fits your machine. Run `uname -m` to see
 
 Prebuilt binaries can be downloaded from the latest tagged release [here](https://github.com/girlbossceo/conduwuit/releases/latest).
 
-Alternatively, you may compile the binary yourself. First, install any dependencies:
+The latest tagged release also includes the Debian packages.
 
-```bash
-# Debian
-$ sudo apt install libclang-dev build-essential
+Alternatively, you may compile the binary yourself. We recommend using [Lix](https://lix.systems) to build conduwuit as this has the most guaranteed
+reproducibiltiy and easiest to get a build environment and output going.
 
-# RHEL
-$ sudo dnf install clang
-```
-Then, `cd` into the source tree of conduwuit and run:
-```bash
-$ cargo build --release
-```
+Otherwise, follow standard Rust project build guides (installing git and cloning the repo, getting the Rust toolchain via rustup, installing LLVM toolchain + libclang, installing liburing for io_uring and RocksDB, etc).
 
 ## Adding a conduwuit user
 
-While conduwuit can run as any user it is usually better to use dedicated users for different services. This also allows
+While conduwuit can run as any user it is better to use dedicated users for different services. This also allows
 you to make sure that the file permissions are correctly set up.
 
 In Debian or RHEL, you can use this command to create a conduwuit user:
 
 ```bash
 sudo adduser --system conduwuit --group --disabled-login --no-create-home
+```
+
+For distros without `adduser`:
+
+```bash
+sudo useradd -r --shell /usr/bin/nologin --no-create-home conduwuit
 ```
 
 ## Forwarding ports in the firewall or the router
@@ -46,45 +43,18 @@ If conduwuit runs behind a router or in a container and has a different public I
 
 ## Setting up a systemd service
 
-Now we'll set up a systemd service for conduwuit, so it's easy to start/stop conduwuit and set it to autostart when your
-server reboots. Simply paste the default systemd service you can find below into
-`/etc/systemd/system/conduwuit.service`.
-
-```systemd
-[Unit]
-Description=conduwuit Matrix Server
-After=network.target
-
-[Service]
-Environment="CONDUWUIT_CONFIG=/etc/conduwuit/conduwuit.toml"
-User=conduwuit
-Group=conduwuit
-RuntimeDirectory=conduwuit
-RuntimeDirectoryMode=0750
-Restart=always
-ExecStart=/usr/local/bin/conduwuit
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Finally, run
-
-```bash
-$ sudo systemctl daemon-reload
-```
+The systemd unit for conduwuit can be found [here](../../debian/conduwuit.service). You may need to change the `ExecStart=` path to where you placed the conduwuit binary.
 
 ## Creating the conduwuit configuration file
 
-Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. Paste this in **and take a moment
-to read it. You need to change at least the server name.**
-RocksDB (`rocksdb`) is the only supported database backend. SQLite only exists for historical reasons and is not recommended. Any performance issues, storage issues, database issues, etc will not be assisted if using SQLite and you will be asked to migrate to RocksDB first.
+Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. The example config can be found at [conduwuit-example.toml](../configuration.md).**Please take a moment to read it. You need to change at least the server name.**
 
-See the following example config at [conduwuit-example.toml](../configuration.md)
+RocksDB (`rocksdb`) is the only supported database backend. SQLite only exists for historical reasons and is not recommended. Any performance issues, storage issues, database issues, etc will not be assisted if using SQLite and you will be asked to migrate to RocksDB first.
 
 ## Setting the correct file permissions
 
-As we are using a conduwuit specific user we need to allow it to read the config. To do that you can run this command on
+If you are using a dedicated user for conduwuit, you will need to allow it to read the config. To do that you can run this command on
+
 Debian or RHEL:
 
 ```bash
@@ -102,7 +72,7 @@ sudo chmod 700 /var/lib/conduwuit/
 
 ## Setting up the Reverse Proxy
 
-Refer to the documentation or various guides online of your chosen reverse proxy software. A Caddy example will be provided as this is the recommended reverse proxy for new users and is very trivial.
+Refer to the documentation or various guides online of your chosen reverse proxy software. A [Caddy](https://caddyserver.com/) example will be provided as this is the recommended reverse proxy for new users and is very trivial to use (handles TLS, reverse proxy headers, etc transparently with proper defaults).
 
 ### Caddy
 
@@ -118,10 +88,10 @@ your.server.name, your.server.name:8448 {
 }
 ```
 
-That's it! Just start or enable the service and you're set.
+That's it! Just start and enable the service and you're set.
 
 ```bash
-$ sudo systemctl enable caddy
+$ sudo systemctl enable --now caddy
 ```
 
 ## You're done!

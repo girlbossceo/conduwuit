@@ -7,21 +7,21 @@ CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit/
 
 case "$1" in
   configure)
-    # Create the `_conduwuit` user if it does not exist yet.
-    if ! getent passwd _conduwuit > /dev/null ; then
+    # Create the `conduwuit` user if it does not exist yet.
+    if ! getent passwd conduwuit > /dev/null ; then
       echo 'Adding system user for the conduwuit Matrix homeserver' 1>&2
       adduser --system --group --quiet \
         --home "$CONDUWUIT_DATABASE_PATH" \
         --disabled-login \
         --shell "/usr/sbin/nologin" \
         --force-badname \
-        _conduwuit
+        conduwuit
     fi
 
     # Create the database path if it does not exist yet and fix up ownership
     # and permissions.
     mkdir -p "$CONDUWUIT_DATABASE_PATH"
-    chown _conduwuit:_conduwuit -R "$CONDUWUIT_DATABASE_PATH"
+    chown conduwuit:conduwuit -R "$CONDUWUIT_DATABASE_PATH"
     chmod 700 "$CONDUWUIT_DATABASE_PATH"
     ;;
 esac
