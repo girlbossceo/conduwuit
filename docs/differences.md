@@ -6,7 +6,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 
 ## Performance:
 - Concurrency support for key fetching for faster remote room joins and room joins that will error less frequently
-- Send `Cache-Control` response header with `immutable` and 1 year cache length for all media requests to instruct clients to cache media, and reduce server load from media requests that could be otherwise cached
+- Send `Cache-Control` response header with `immutable` and 1 year cache length for all media requests (download and thumbnail) to instruct clients to cache media, and reduce server load from media requests that could be otherwise cached
 - Add feature flags and config options to enable/build with zstd, brotli, and/or gzip HTTP body compression (response and request)
 - Eliminate all usage of the thread-blocking `getaddrinfo(3)` call upon DNS queries, significantly improving federation latency/ping and cache DNS results (NXDOMAINs, successful queries, etc) using hickory-dns / hickory-resolver
 - Vastly improve RocksDB default settings to use new features that help with performance significantly, uses settings tailored to SSDs, various ways to tweak RocksDB, and a conduwuit setting to tell RocksDB to use settings that are tailored to HDDs or slow spinning rust storage or buggy filesystems.
@@ -22,6 +22,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Add config options for RocksDB compression and bottommost compression, including choosing the algorithm and compression level
 - Use [loole](https://github.com/mahdi-shojaee/loole) MPSC channels instead of tokio MPSC channels for huge performance boosts in sending channels (mainly relevant for federation) and presence channels
 - Use `tracing`/`log`'s `release_max_level_info` feature to improve performance, build speeds, binary size, and CPU usage in release builds by avoid compiling debug/trace log level macros that users will generally never use (can be disabled with a build-time feature flag)
+- Enable RocksDB async read I/O via `io_uring` by default
 
 
 ## General Fixes:
@@ -35,7 +36,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Increased graceful shutdown timeout from a low 60 seconds to 180 seconds to avoid killing connections and let the remaining ones finish processing
 - Return joined member count of rooms for push rules/conditions instead of a hardcoded value of 10
 - Make `CONDUIT_CONFIG` optional, relevant for container users that configure only by environment variables and no longer need to set `CONDUIT_CONFIG` to an empty string.
-- Allow HEAD HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
+- Allow HEAD and PATCH (MSC4138) HTTP requests in CORS for clients (despite not being explicity mentioned in Matrix spec, HTTP spec says all HEAD requests need to behave the same as GET requests, Synapse supports HEAD requests)
 - Resolve and remove some "features" from upstream that result in concurrency hazards, exponential backoff issues, or arbitrary performance limiters
 - Find more servers for outbound federation `/hierarchy` requests instead of just the room ID server name
 - Support for suggesting servers to join through at `/_matrix/client/v3/directory/room/{roomAlias}`
@@ -55,6 +56,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - On new public room creations, only allow moderators to send `m.call.invite`, `org.matrix.msc3401.call`, and `org.matrix.msc3401.call.member` events
 - Add support for a "global ACLs" feature (`forbidden_remote_server_names`) that blocks inbound remote room invites, room joins by room ID on server name, room joins by room alias on server name, incoming federated joins, and incoming federated room directory requests. This is very helpful for blocking servers that are purely toxic/bad and serve no value in allowing our users to suffer from things like room invite spam or such. Please note that this is not a substitute for room ACLs.
 - Add support for a config option to forbid our local users from sending federated room directory requests for (`forbidden_remote_room_directory_server_names`). Similar to above, useful for blocking servers that help prevent our users from wandering into bad areas of Matrix via room directories of those malicious servers.
+- Add config option for auto remediating/deactivating local non-admin users who attempt to join bad/forbidden rooms (`auto_deactivate_banned_room_attempts`)
 
 
 ## Privacy/Security:
@@ -68,6 +70,9 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Config option to disable incoming and/or outgoing remote read receipts
 - Config option to disable incoming and/or outgoing remote typing indicators
 - Config option to disable incoming, outgoing, and/or local presence
+- Sanitise file names for the `Content-Disposition` header for all media requests (thumbnails, downloads, uploads)
+- Return `inline` or `attachment` based on the detected file MIME type for the `Content-Disposition` and only allow images/videos/text/audio to be `inline`
+- Send secure default HTTP headers such as a strong restrictive CSP, deny iframes, disable `X-XSS-Protection`, disable interest cohort in `Permission-Policy`, etc to mitigate any potential attack surface such as from untrusted media
 
 
 ## Administration/Logging:
@@ -81,7 +86,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Warn on unknown config options specified
 - Add `/_conduwuit/server_version` route to return the version of conduwuit without relying on the federation API `/_matrix/federation/v1/version`
 - Add configurable RocksDB recovery modes to aid in recovering corrupted RocksDB databases
-- Support config options via `CONDUWUIT_` prefix
+- Support config options via `CONDUWUIT_` prefix and accessing non-global struct config options with the `__` split (e.g. `CONDUWUIT_WELL_KNOWN__SERVER`)
 - Add support for listening on multiple TCP ports
 - Disable update check by default as it's not useful for conduwuit
 - **Opt-in** Sentry.io telemetry and metrics, mainly used for crash reporting
@@ -89,7 +94,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 
 ## Maintenance/Stability:
 - GitLab CI ported to GitHub Actions
-- Repo is mirrored to GitHub, GitLab, git.gay, sourcehut, and Codeberg (see README.md for their links)
+- Repo is mirrored to GitHub, GitLab, git.gay, git.girlcock.ceo, sourcehut, and Codeberg (see README.md for their links)
+- Docker container images published to GitLab Container Registry, GitHub Container Registry, and Dockerhub
 - Extensively revamp the example config to be extremely helpful and useful to both new users and power users
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
 - Add a **lot** of other clippy and rustc lints and a rustfmt.toml file
@@ -146,6 +152,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Implement running and diff'ing Complement results in CI
 - Interest in supporting other operating systems such as macOS, BSDs, and Windows, and getting them added into CI and doing builds for them
 - Add config option for disabling RocksDB Direct IO if needed
+- Add various documentation on maintaining conduwuit, using RocksDB online backups, some troubleshooting, using admin commands, etc
 - (Developers): Add support for tokio-console
 - (Developers): Add support for tracing flame graphs
 - Add `release-debuginfo` Cargo build profile
