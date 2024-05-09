@@ -26,6 +26,10 @@ friends or company.
 
 An official conduwuit server ran by me is available at transfem.dev ([element.transfem.dev](https://element.transfem.dev) / [cinny.transfem.dev](https://cinny.transfem.dev))
 
+transfem.dev is a public homeserver that can be used, it is not a "test only homeserver". This means there are rules, so please read the rules: [https://transfem.dev/homeserver_rules.txt](https://transfem.dev/homeserver_rules.txt)
+
+transfem.dev is also listed at [servers.joinmatrix.org](https://servers.joinmatrix.org/)
+
 #### What is the current status?
 
 conduwuit is a hard fork of Conduit which is in beta, meaning you can join and participate in most
