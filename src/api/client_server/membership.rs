@@ -400,11 +400,11 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 		.map_or(
 			Ok(RoomMemberEventContent {
 				membership: MembershipState::Ban,
-				displayname: services().users.displayname(&body.user_id)?,
-				avatar_url: services().users.avatar_url(&body.user_id)?,
+				displayname: None,
+				avatar_url: None,
 				is_direct: None,
 				third_party_invite: None,
-				blurhash: services().users.blurhash(&body.user_id)?,
+				blurhash: services().users.blurhash(&body.user_id).unwrap_or_default(),
 				reason: body.reason.clone(),
 				join_authorized_via_users_server: None,
 			}),
@@ -412,14 +412,8 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 				serde_json::from_str(event.content.get())
 					.map(|event: RoomMemberEventContent| RoomMemberEventContent {
 						membership: MembershipState::Ban,
-						displayname: services()
-							.users
-							.displayname(&body.user_id)
-							.unwrap_or_default(),
-						avatar_url: services()
-							.users
-							.avatar_url(&body.user_id)
-							.unwrap_or_default(),
+						displayname: None,
+						avatar_url: None,
 						blurhash: services().users.blurhash(&body.user_id).unwrap_or_default(),
 						reason: body.reason.clone(),
 						join_authorized_via_users_server: None,
