@@ -14,6 +14,7 @@ stdenv.mkDerivation {
     include = [
       "book.toml"
       "conduwuit-example.toml"
+      "CONTRIBUTING.md"
       "README.md"
       "debian/README.md"
       "docs"

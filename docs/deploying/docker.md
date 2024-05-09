@@ -51,9 +51,9 @@ docker run -d -p 8448:6167 \
 
 or you can use [docker compose](#docker-compose).
 
-The `-d` flag lets the container run in detached mode. You may supply an optional `conduwuit.toml` config file, an example can be found [here](../configuration.md).
+The `-d` flag lets the container run in detached mode. You may supply an optional `conduwuit.toml` config file, the example config can be found [here](../configuration.md).
 You can pass in different env vars to change config values on the fly. You can even configure conduwuit completely by using env vars. For an overview of possible
-values, please take a look at the `docker-compose.yml` file.
+values, please take a look at the [`docker-compose.yml`](docker-compose.yml) file.
 
 If you just want to test conduwuit for a short time, you can use the `--rm` flag, which will clean up everything related to your container after you stop it.
 
@@ -107,92 +107,7 @@ either expose ports `443` and `8448` or serve two endpoints `.well-known/matrix/
 
 With the service `well-known` we use a single `nginx` container that will serve those two files.
 
-So...step by step:
-
-1. Copy [`docker-compose.for-traefik.yml`](docker-compose.for-traefik.yml) (or
-[`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)) and [`docker-compose.override.yml`](docker-compose.override.yml) from the repository and remove `.for-traefik` (or `.with-traefik`) from the filename.
-2. Open both files and modify/adjust them to your needs. Meaning, change the `CONDUIT_SERVER_NAME` and the volume host mappings according to your needs.
-3. Create the `conduwuit.toml` config file, an example can be found [here](../configuration.md), or set `CONDUIT_CONFIG=""` and configure conduwuit per env vars.
-4. Uncomment the `element-web` service if you want to host your own Element Web Client and create a `element_config.json`.
-5. Create the files needed by the `well-known` service.
-
-   - `./nginx/matrix.conf` (relative to the compose file, you can change this, but then also need to change the volume mapping)
-
-     ```nginx
-     server {
-         server_name <SUBDOMAIN>.<DOMAIN>;
-         listen      80 default_server;
-
-         location /.well-known/matrix/server {
-            return 200 '{"m.server": "<SUBDOMAIN>.<DOMAIN>:443"}';
-            types { } default_type "application/json; charset=utf-8";
-         }
-
-        location /.well-known/matrix/client {
-            return 200 '{"m.homeserver": {"base_url": "https://<SUBDOMAIN>.<DOMAIN>"}}';
-            types { } default_type "application/json; charset=utf-8";
-            add_header "Access-Control-Allow-Origin" *;
-        }
-
-        location / {
-            return 404;
-        }
-     }
-     ```
-
-6. Run `docker compose up -d`
-7. Connect to your homeserver with your preferred client and create a user. You should do this immediately after starting Conduit, because the first created user is the admin.
-
-
-
 
 ## Voice communication
 
-In order to make or receive calls, a TURN server is required. conduwuit suggests using [Coturn](https://github.com/coturn/coturn) for this purpose, which is also available as a Docker image. Before proceeding with the software installation, it is essential to have the necessary configurations in place.
-
-### Configuration
-
-Create a configuration file called `coturn.conf` containing:
-
-```conf
-use-auth-secret
-static-auth-secret=<a secret key>
-realm=<your server domain>
-```
-A common way to generate a suitable alphanumeric secret key is by using `pwgen -s 64 1`.
-
-These same values need to be set in conduwuit. You can either modify conduwuit.toml to include these lines:
-```
-turn_uris = ["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]
-turn_secret = "<secret key from coturn configuration>"
-```
-or append the following to the docker environment variables dependig on which configuration method you used earlier:
-```yml
-CONDUIT_TURN_URIS: '["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]'
-CONDUIT_TURN_SECRET: "<secret key from coturn configuration>"
-```
-Restart Conduit to apply these changes.
-
-### Run
-Run the [Coturn](https://hub.docker.com/r/coturn/coturn) image using
-```bash
-docker run -d --network=host -v $(pwd)/coturn.conf:/etc/coturn/turnserver.conf coturn/coturn
-```
-
-or docker-compose. For the latter, paste the following section into a file called `docker-compose.yml`
-and run `docker compose up -d` in the same directory.
-
-```yml
-version: 3
-services:
-    turn:
-      container_name: coturn-server
-      image: docker.io/coturn/coturn
-      restart: unless-stopped
-      network_mode: "host"
-      volumes:
-        - ./coturn.conf:/etc/coturn/turnserver.conf
-```
-
-To understand why the host networking mode is used and explore alternative configuration options, please visit the following link: https://github.com/coturn/coturn/blob/master/docker/coturn/README.md.
-For security recommendations see Synapse's [Coturn documentation](https://github.com/matrix-org/synapse/blob/develop/docs/setup/turn/coturn.md#configuration).
+See the [TURN](../turn.md) page.

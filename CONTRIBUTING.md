@@ -52,6 +52,8 @@ conduwuit's website uses [`mdbook`][mdbook] and deployed via CI using GitHub Pag
 
 To build the documentation using Nix, run: `bin/nix-build-and-cache just .#book`
 
+The output of the mdbook generation is in `result/`. mdbooks can be opened in your browser from the individual HTML files without any web server needed.
+
 ### Inclusivity and Diversity
 
 All **MUST** code and write with inclusivity and diversity in mind. See the [following page by Google on writing inclusive code and documentation](https://developers.google.com/style/inclusive-documentation).
