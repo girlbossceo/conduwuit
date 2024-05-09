@@ -16,7 +16,7 @@ pub(crate) fn content_disposition_type(buf: &[u8], _content_type: &Option<String
 	};
 
 	match file_type.matcher_type() {
-		MatcherType::IMAGE | MatcherType::AUDIO | MatcherType::TEXT | MatcherType::VIDEO => "inline",
+		MatcherType::Image | MatcherType::Audio | MatcherType::Text | MatcherType::Video => "inline",
 		_ => "attachment",
 	}
 }
