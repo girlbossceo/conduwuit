@@ -13,8 +13,9 @@ use ruma::{
 use tracing::debug;
 
 use crate::{
-	debug_info, debug_warn, service::appservice::RegistrationInfo, services, utils::server_name::server_is_ours, Error,
-	Result, Ruma,
+	debug_info, debug_warn,
+	service::{appservice::RegistrationInfo, server_is_ours},
+	services, Error, Result, Ruma,
 };
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
@@ -65,7 +66,6 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 /// - TODO: Update canonical alias event
 pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
 	alias_checks(&body.room_alias, &body.appservice_info).await?;
-
 	if services()
 		.rooms
 		.alias
@@ -99,7 +99,7 @@ pub(crate) async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Resul
 	get_alias_helper(body.body.room_alias, None).await
 }
 
-pub(crate) async fn get_alias_helper(
+pub async fn get_alias_helper(
 	room_alias: OwnedRoomAliasId, servers: Option<Vec<OwnedServerName>>,
 ) -> Result<get_alias::v3::Response> {
 	debug!("get_alias_helper servers: {servers:?}");

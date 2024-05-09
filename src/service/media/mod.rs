@@ -1,7 +1,7 @@
 mod data;
 use std::{collections::HashMap, io::Cursor, sync::Arc, time::SystemTime};
 
-pub(crate) use data::Data;
+pub use data::Data;
 use image::imageops::FilterType;
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
@@ -15,37 +15,37 @@ use tracing::{debug, error};
 use crate::{services, utils, Error, Result};
 
 #[derive(Debug)]
-pub(crate) struct FileMeta {
+pub struct FileMeta {
 	#[allow(dead_code)]
-	pub(crate) content_disposition: Option<String>,
-	pub(crate) content_type: Option<String>,
-	pub(crate) file: Vec<u8>,
+	pub content_disposition: Option<String>,
+	pub content_type: Option<String>,
+	pub file: Vec<u8>,
 }
 
 #[derive(Serialize, Default)]
-pub(crate) struct UrlPreviewData {
+pub struct UrlPreviewData {
 	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:title"))]
-	pub(crate) title: Option<String>,
+	pub title: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:description"))]
-	pub(crate) description: Option<String>,
+	pub description: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:image"))]
-	pub(crate) image: Option<String>,
+	pub image: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "matrix:image:size"))]
-	pub(crate) image_size: Option<usize>,
+	pub image_size: Option<usize>,
 	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:image:width"))]
-	pub(crate) image_width: Option<u32>,
+	pub image_width: Option<u32>,
 	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:image:height"))]
-	pub(crate) image_height: Option<u32>,
+	pub image_height: Option<u32>,
 }
 
-pub(crate) struct Service {
-	pub(crate) db: &'static dyn Data,
-	pub(crate) url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
+pub struct Service {
+	pub db: Arc<dyn Data>,
+	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl Service {
 	/// Uploads a file.
-	pub(crate) async fn create(
+	pub async fn create(
 		&self, sender_user: Option<OwnedUserId>, mxc: String, content_disposition: Option<&str>,
 		content_type: Option<&str>, file: &[u8],
 	) -> Result<()> {
@@ -79,7 +79,7 @@ impl Service {
 	}
 
 	/// Deletes a file in the database and from the media directory via an MXC
-	pub(crate) async fn delete(&self, mxc: String) -> Result<()> {
+	pub async fn delete(&self, mxc: String) -> Result<()> {
 		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc.clone()) {
 			for key in keys {
 				let file_path;
@@ -116,7 +116,7 @@ impl Service {
 
 	/// Uploads or replaces a file thumbnail.
 	#[allow(clippy::too_many_arguments)]
-	pub(crate) async fn upload_thumbnail(
+	pub async fn upload_thumbnail(
 		&self, sender_user: Option<OwnedUserId>, mxc: String, content_disposition: Option<&str>,
 		content_type: Option<&str>, width: u32, height: u32, file: &[u8],
 	) -> Result<()> {
@@ -149,7 +149,7 @@ impl Service {
 	}
 
 	/// Downloads a file.
-	pub(crate) async fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
+	pub async fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
 			let path;
 
@@ -182,7 +182,7 @@ impl Service {
 
 	/// Deletes all remote only media files in the given at or after
 	/// time/duration. Returns a u32 with the amount of media files deleted.
-	pub(crate) async fn delete_all_remote_media_at_after_time(&self, time: String) -> Result<u32> {
+	pub async fn delete_all_remote_media_at_after_time(&self, time: String) -> Result<u32> {
 		if let Ok(all_keys) = self.db.get_all_media_keys() {
 			let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
 				Ok(duration) => {
@@ -296,7 +296,7 @@ impl Service {
 
 	/// Returns width, height of the thumbnail and whether it should be cropped.
 	/// Returns None when the server should send the original file.
-	pub(crate) fn thumbnail_properties(&self, width: u32, height: u32) -> Option<(u32, u32, bool)> {
+	pub fn thumbnail_properties(&self, width: u32, height: u32) -> Option<(u32, u32, bool)> {
 		match (width, height) {
 			(0..=32, 0..=32) => Some((32, 32, true)),
 			(0..=96, 0..=96) => Some((96, 96, true)),
@@ -320,7 +320,7 @@ impl Service {
 	///
 	/// For width,height <= 96 the server uses another thumbnailing algorithm
 	/// which crops the image afterwards.
-	pub(crate) async fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
+	pub async fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
 		let (width, height, crop) = self
 			.thumbnail_properties(width, height)
 			.unwrap_or((0, 0, false)); // 0, 0 because that's the original file
@@ -467,16 +467,16 @@ impl Service {
 		}
 	}
 
-	pub(crate) async fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> { self.db.get_url_preview(url) }
+	pub async fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> { self.db.get_url_preview(url) }
 
 	/// TODO: use this?
 	#[allow(dead_code)]
-	pub(crate) async fn remove_url_preview(&self, url: &str) -> Result<()> {
+	pub async fn remove_url_preview(&self, url: &str) -> Result<()> {
 		// TODO: also remove the downloaded image
 		self.db.remove_url_preview(url)
 	}
 
-	pub(crate) async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<()> {
+	pub async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<()> {
 		let now = SystemTime::now()
 			.duration_since(SystemTime::UNIX_EPOCH)
 			.expect("valid system time");
@@ -548,9 +548,9 @@ mod tests {
 			fn get_url_preview(&self, _url: &str) -> Option<UrlPreviewData> { todo!() }
 		}
 
-		static DB: MockedKVDatabase = MockedKVDatabase;
+		let db: Arc<MockedKVDatabase> = Arc::new(MockedKVDatabase);
 		let media = Service {
-			db: &DB,
+			db,
 			url_preview_mutex: RwLock::new(HashMap::new()),
 		};
 

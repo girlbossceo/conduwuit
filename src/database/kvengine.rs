@@ -3,7 +3,7 @@ use std::{error::Error, sync::Arc};
 use super::{Config, KvTree};
 use crate::Result;
 
-pub(crate) trait KeyValueDatabaseEngine: Send + Sync {
+pub trait KeyValueDatabaseEngine: Send + Sync {
 	fn open(config: &Config) -> Result<Self>
 	where
 		Self: Sized;

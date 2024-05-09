@@ -2,7 +2,7 @@ use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId
 
 use crate::Result;
 
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	/// Returns the latest presence event for the given user.
 	fn get_presence(&self, user_id: &UserId) -> Result<Option<(u64, PresenceEvent)>>;
 

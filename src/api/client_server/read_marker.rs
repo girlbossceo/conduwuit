@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use conduit::PduCount;
 use ruma::{
 	api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
 	events::{
@@ -9,7 +10,7 @@ use ruma::{
 	MilliSecondsSinceUnixEpoch,
 };
 
-use crate::{service::rooms::timeline::PduCount, services, Error, Result, Ruma};
+use crate::{services, Error, Result, Ruma};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///

@@ -1,0 +1,32 @@
+[package]
+name = "rust-rocksdb-uwu"
+version = "0.0.1"
+edition = "2021"
+
+[features]
+default = ["snappy", "lz4", "zstd", "zlib", "bzip2"]
+jemalloc = ["rust-rocksdb/jemalloc"]
+io-uring = ["rust-rocksdb/io-uring"]
+valgrind = ["rust-rocksdb/valgrind"]
+snappy = ["rust-rocksdb/snappy"]
+lz4 = ["rust-rocksdb/lz4"]
+zstd = ["rust-rocksdb/zstd"]
+zlib = ["rust-rocksdb/zlib"]
+bzip2 = ["rust-rocksdb/bzip2"]
+rtti = ["rust-rocksdb/rtti"]
+mt_static = ["rust-rocksdb/mt_static"]
+multi-threaded-cf = ["rust-rocksdb/multi-threaded-cf"]
+serde1 = ["rust-rocksdb/serde1"]
+malloc-usable-size = ["rust-rocksdb/malloc-usable-size"]
+
+[dependencies.rust-rocksdb]
+git = "https://github.com/zaidoon1/rust-rocksdb"
+branch = "master"
+default-features = false
+
+[lib]
+path = "lib.rs"
+crate-type = [
+	"rlib",
+#	"dylib"
+]

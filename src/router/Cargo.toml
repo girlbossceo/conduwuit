@@ -1,0 +1,85 @@
+[package]
+name = "conduit_router"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "mod.rs"
+crate-type = [
+	"rlib",
+#	"dylib",
+]
+
+[features]
+default = [
+	"systemd",
+	"sentry_telemetry",
+	"gzip_compression",
+	"zstd_compression",
+	"brotli_compression",
+	"release_max_log_level",
+]
+
+dev_release_log_level = []
+release_max_log_level = [
+	"tracing/max_level_trace",
+	"tracing/release_max_level_info",
+	"log/max_level_trace",
+	"log/release_max_level_info",
+]
+sentry_telemetry = [
+	"dep:sentry",
+	"dep:sentry-tracing",
+	"dep:sentry-tower",
+]
+zstd_compression = [
+	"tower-http/compression-zstd",
+]
+gzip_compression = [
+	"tower-http/compression-gzip",
+]
+brotli_compression = [
+	"tower-http/compression-br",
+]
+systemd = [
+	"dep:sd-notify",
+]
+axum_dual_protocol = [
+	"dep:axum-server-dual-protocol"
+]
+
+[dependencies]
+axum-server-dual-protocol.optional = true
+axum-server-dual-protocol.workspace = true
+axum-server.workspace = true
+axum.workspace = true
+conduit-admin.workspace = true
+conduit-api.workspace = true
+conduit-core.workspace = true
+conduit-database.workspace = true
+conduit-service.workspace = true
+log.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tracing.workspace = true
+bytes.workspace = true
+clap.workspace = true
+http-body-util.workspace = true
+http.workspace = true
+regex.workspace = true
+ruma.workspace = true
+sentry.optional = true
+sentry-tower.optional = true
+sentry-tower.workspace = true
+sentry-tracing.optional = true
+sentry-tracing.workspace = true
+sentry.workspace = true
+serde_json.workspace = true
+tower-http.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+sd-notify.workspace = true
+sd-notify.optional = true
+
+[lints]
+workspace = true

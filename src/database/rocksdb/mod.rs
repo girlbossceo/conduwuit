@@ -1,3 +1,8 @@
+// no_link to prevent double-inclusion of librocksdb.a here and with
+// libconduit_core.so
+#[no_link]
+extern crate rust_rocksdb;
+
 use std::{
 	collections::HashMap,
 	sync::{atomic::AtomicU32, Arc},
@@ -6,12 +11,12 @@ use std::{
 use chrono::{DateTime, Utc};
 use rust_rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
+	perf::get_memory_usage_stats,
 	Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode as Db, Env, MultiThreaded, Options,
 };
 use tracing::{debug, error, info, warn};
 
-use super::{super::Config, watchers::Watchers, KeyValueDatabaseEngine, KvTree};
-use crate::Result;
+use crate::{watchers::Watchers, Config, KeyValueDatabaseEngine, KvTree, Result};
 
 pub(crate) mod kvtree;
 pub(crate) mod opts;
@@ -22,13 +27,13 @@ use opts::{cf_options, db_options};
 use super::watchers;
 
 pub(crate) struct Engine {
-	rocks: Db<MultiThreaded>,
+	config: Config,
 	row_cache: Cache,
 	col_cache: HashMap<String, Cache>,
-	old_cfs: Vec<String>,
 	opts: Options,
 	env: Env,
-	config: Config,
+	old_cfs: Vec<String>,
+	rocks: Db<MultiThreaded>,
 	corks: AtomicU32,
 }
 
@@ -79,13 +84,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			load_time.elapsed()
 		);
 		Ok(Arc::new(Engine {
-			rocks: db,
+			config: config.clone(),
 			row_cache,
 			col_cache,
-			old_cfs: cfs,
 			opts: db_opts,
 			env: db_env,
-			config: config.clone(),
+			old_cfs: cfs,
+			rocks: db,
 			corks: AtomicU32::new(0),
 		}))
 	}
@@ -135,7 +140,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
-		let stats = rust_rocksdb::perf::get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache]))?;
+		let stats = get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache]))?;
 		_ = std::fmt::write(
 			&mut res,
 			format_args!(
@@ -257,4 +262,21 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	// TODO: figure out if this is needed for rocksdb
 	#[allow(dead_code)]
 	fn clear_caches(&self) {}
+}
+
+impl Drop for Engine {
+	fn drop(&mut self) {
+		debug!("Waiting for background tasks to finish...");
+		const BLOCKING: bool = true;
+		self.rocks.cancel_all_background_work(BLOCKING);
+
+		debug!("Shutting down background threads");
+		self.env.set_high_priority_background_threads(0);
+		self.env.set_low_priority_background_threads(0);
+		self.env.set_bottom_priority_background_threads(0);
+		self.env.set_background_threads(0);
+
+		debug!("Joining background threads...");
+		self.env.join_all_threads();
+	}
 }

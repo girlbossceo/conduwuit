@@ -1,8 +1,8 @@
 mod data;
-use std::{fmt::Debug, mem};
+use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-pub(crate) use data::Data;
+pub use data::Data;
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -24,27 +24,28 @@ use tracing::{info, trace, warn};
 
 use crate::{debug_info, services, Error, PduEvent, Result};
 
-pub(crate) struct Service {
-	pub(crate) db: &'static dyn Data,
+pub struct Service {
+	pub db: Arc<dyn Data>,
 }
 
 impl Service {
-	pub(crate) fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
+	pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
 		self.db.set_pusher(sender, pusher)
 	}
 
-	pub(crate) fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
+	pub fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
 		self.db.get_pusher(sender, pushkey)
 	}
 
-	pub(crate) fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> { self.db.get_pushers(sender) }
+	pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> { self.db.get_pushers(sender) }
 
-	pub(crate) fn get_pushkeys(&self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>>> {
+	#[must_use]
+	pub fn get_pushkeys(&self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>> + '_> {
 		self.db.get_pushkeys(sender)
 	}
 
 	#[tracing::instrument(skip(self, dest, request))]
-	pub(crate) async fn send_request<T>(&self, dest: &str, request: T) -> Result<T::IncomingResponse>
+	pub async fn send_request<T>(&self, dest: &str, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug,
 	{
@@ -131,7 +132,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, user, unread, pusher, ruleset, pdu))]
-	pub(crate) async fn send_push_notice(
+	pub async fn send_push_notice(
 		&self, user: &UserId, unread: UInt, pusher: &Pusher, ruleset: Ruleset, pdu: &PduEvent,
 	) -> Result<()> {
 		let mut notify = None;
@@ -176,7 +177,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, user, ruleset, pdu))]
-	pub(crate) fn get_actions<'a>(
+	pub fn get_actions<'a>(
 		&self, user: &UserId, ruleset: &'a Ruleset, power_levels: &RoomPowerLevelsEventContent,
 		pdu: &Raw<AnySyncTimelineEvent>, room_id: &RoomId,
 	) -> Result<&'a [Action]> {

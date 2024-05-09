@@ -8,7 +8,7 @@ use ruma::{
 	to_device::DeviceIdOrAllDevices,
 };
 
-use crate::{services, utils::user_id::user_is_local, Error, Result, Ruma};
+use crate::{services, user_is_local, Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/sendToDevice/{eventType}/{txnId}`
 ///

@@ -35,9 +35,12 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::get_alias_helper;
 use crate::{
-	service::pdu::{gen_event_id_canonical_json, PduBuilder},
+	service::{
+		pdu::{gen_event_id_canonical_json, PduBuilder},
+		server_is_ours, user_is_local,
+	},
 	services,
-	utils::{self, server_name::server_is_ours, user_id::user_is_local},
+	utils::{self},
 	Error, PduEvent, Result, Ruma,
 };
 
@@ -607,7 +610,7 @@ pub(crate) async fn joined_members_route(
 	})
 }
 
-pub(crate) async fn join_room_by_id_helper(
+pub async fn join_room_by_id_helper(
 	sender_user: Option<&UserId>, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
@@ -1525,7 +1528,7 @@ pub(crate) async fn invite_helper(
 
 // Make a user leave all their joined rooms, forgets all rooms, and ignores
 // errors
-pub(crate) async fn leave_all_rooms(user_id: &UserId) {
+pub async fn leave_all_rooms(user_id: &UserId) {
 	let all_rooms = services()
 		.rooms
 		.state_cache
@@ -1550,7 +1553,7 @@ pub(crate) async fn leave_all_rooms(user_id: &UserId) {
 	}
 }
 
-pub(crate) async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {
+pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {
 	// Ask a remote server if we don't have this room
 	if !services()
 		.rooms

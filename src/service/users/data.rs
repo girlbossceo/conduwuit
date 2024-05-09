@@ -10,7 +10,7 @@ use ruma::{
 
 use crate::Result;
 
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	/// Check if a user has an account on this homeserver.
 	fn exists(&self, user_id: &UserId) -> Result<bool>;
 

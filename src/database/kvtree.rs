@@ -2,7 +2,7 @@ use std::{future::Future, pin::Pin};
 
 use crate::Result;
 
-pub(crate) trait KvTree: Send + Sync {
+pub trait KvTree: Send + Sync {
 	fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
 	#[allow(dead_code)]

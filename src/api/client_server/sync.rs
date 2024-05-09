@@ -5,6 +5,7 @@ use std::{
 	time::Duration,
 };
 
+use conduit::PduCount;
 use ruma::{
 	api::client::{
 		filter::{FilterDefinition, LazyLoadOptions},
@@ -29,10 +30,7 @@ use ruma::{
 };
 use tracing::{error, Instrument as _, Span};
 
-use crate::{
-	service::{pdu::EventHash, rooms::timeline::PduCount},
-	services, utils, Error, PduEvent, Result, Ruma, RumaResponse,
-};
+use crate::{service::pdu::EventHash, services, utils, Error, PduEvent, Result, Ruma, RumaResponse};
 
 /// # `GET /_matrix/client/r0/sync`
 ///

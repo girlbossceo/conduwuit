@@ -13,7 +13,6 @@ use ruma::{
 		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest,
 		SendAccessToken,
 	},
-	events::room::message::RoomMessageEventContent,
 	OwnedServerName, ServerName,
 };
 use tracing::{debug, error, trace};
@@ -28,7 +27,7 @@ use crate::{debug_error, debug_info, debug_warn, services, Error, Result};
 ///
 /// # Examples:
 /// ```rust
-/// # use conduit::api::server_server::FedDest;
+/// # use conduit_service::sending::FedDest;
 /// # fn main() -> Result<(), std::net::AddrParseError> {
 /// FedDest::Literal("198.51.100.3:8448".parse()?);
 /// FedDest::Literal("[2001:db8::4:5]:443".parse()?);
@@ -39,7 +38,7 @@ use crate::{debug_error, debug_info, debug_warn, services, Error, Result};
 /// # }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FedDest {
+pub enum FedDest {
 	Literal(SocketAddr),
 	Named(String, String),
 }
@@ -52,7 +51,7 @@ struct ActualDest {
 }
 
 #[tracing::instrument(skip_all, name = "send")]
-pub(crate) async fn send<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
+pub async fn send<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug,
 {
@@ -195,7 +194,7 @@ async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDest> {
 	} else {
 		cached = false;
 		validate_dest(server_name)?;
-		resolve_actual_dest(server_name, false, false).await?
+		resolve_actual_dest(server_name, false).await?
 	};
 
 	let string = dest.clone().into_https_string();
@@ -211,162 +210,49 @@ async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDest> {
 /// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
-pub(crate) async fn resolve_actual_dest(
-	dest: &'_ ServerName, no_cache_dest: bool, admin_room_caller: bool,
-) -> Result<(FedDest, String)> {
+pub async fn resolve_actual_dest(dest: &ServerName, no_cache_dest: bool) -> Result<(FedDest, String)> {
 	trace!("Finding actual destination for {dest}");
 	let dest_str = dest.as_str().to_owned();
 	let mut hostname = dest_str.clone();
-
-	if admin_room_caller {
-		services()
-			.admin
-			.send_message(RoomMessageEventContent::notice_plain(
-				"Checking for 1: IP literal with provided or default port",
-			))
-			.await;
-	}
 
 	#[allow(clippy::single_match_else)]
 	let actual_dest = match get_ip_with_port(&dest_str) {
 		Some(host_port) => {
 			debug!("1: IP literal with provided or default port");
-			if admin_room_caller {
-				services()
-					.admin
-					.send_message(RoomMessageEventContent::notice_plain(format!(
-						"1: IP literal with provided or default port\n\nHost and Port: {host_port:?}"
-					)))
-					.await;
-			}
-
 			host_port
 		},
 		None => {
-			if admin_room_caller {
-				services()
-					.admin
-					.send_message(RoomMessageEventContent::notice_plain(
-						"Checking for 2: Hostname with included port",
-					))
-					.await;
-			}
-
 			if let Some(pos) = dest_str.find(':') {
 				debug!("2: Hostname with included port");
-				if admin_room_caller {
-					services()
-						.admin
-						.send_message(RoomMessageEventContent::notice_plain("2: Hostname with included port"))
-						.await;
-				}
-
 				let (host, port) = dest_str.split_at(pos);
 				if !no_cache_dest {
 					query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await?;
 				}
 
-				if admin_room_caller {
-					services()
-						.admin
-						.send_message(RoomMessageEventContent::notice_plain(format!("Host: {host} | Port: {port}")))
-						.await;
-				}
-
 				FedDest::Named(host.to_owned(), port.to_owned())
 			} else {
 				trace!("Requesting well known for {dest}");
-				if admin_room_caller {
-					services()
-						.admin
-						.send_message(RoomMessageEventContent::notice_plain(format!(
-							"Checking for 3: A .well-known file is available. Requesting well-known for {dest}"
-						)))
-						.await;
-				}
-
 				if let Some(delegated_hostname) = request_well_known(dest.as_str()).await? {
 					debug!("3: A .well-known file is available");
-					if admin_room_caller {
-						services()
-							.admin
-							.send_message(RoomMessageEventContent::notice_plain("3: A .well-known file is available"))
-							.await;
-					}
-
 					hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
 					match get_ip_with_port(&delegated_hostname) {
 						Some(host_and_port) => {
 							debug!("3.1: IP literal in .well-known file");
-							if admin_room_caller {
-								services()
-									.admin
-									.send_message(RoomMessageEventContent::notice_plain(format!(
-										"3.1: IP literal in .well-known file\n\nHost and Port: {host_and_port:?}"
-									)))
-									.await;
-							}
-
 							host_and_port
 						},
 						None => {
-							if admin_room_caller {
-								services()
-									.admin
-									.send_message(RoomMessageEventContent::notice_plain(
-										"Checking for 3.2: Hostname with port in .well-known file",
-									))
-									.await;
-							}
-
 							if let Some(pos) = delegated_hostname.find(':') {
 								debug!("3.2: Hostname with port in .well-known file");
-								if admin_room_caller {
-									services()
-										.admin
-										.send_message(RoomMessageEventContent::notice_plain(
-											"3.2: Hostname with port in .well-known file",
-										))
-										.await;
-								}
-
 								let (host, port) = delegated_hostname.split_at(pos);
 								if !no_cache_dest {
 									query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await?;
 								}
 
-								if admin_room_caller {
-									services()
-										.admin
-										.send_message(RoomMessageEventContent::notice_plain(format!(
-											"Host: {host} | Port: {port}"
-										)))
-										.await;
-								}
-
 								FedDest::Named(host.to_owned(), port.to_owned())
 							} else {
 								trace!("Delegated hostname has no port in this branch");
-								if admin_room_caller {
-									services()
-										.admin
-										.send_message(RoomMessageEventContent::notice_plain(
-											"Delegated hostname has no port specified",
-										))
-										.await;
-								}
-
 								if let Some(hostname_override) = query_srv_record(&delegated_hostname).await? {
 									debug!("3.3: SRV lookup successful");
-									if admin_room_caller {
-										services()
-											.admin
-											.send_message(RoomMessageEventContent::notice_plain(
-												"3.3: SRV lookup successful",
-											))
-											.await;
-									}
-
 									let force_port = hostname_override.port();
 									if !no_cache_dest {
 										query_and_cache_override(
@@ -378,51 +264,15 @@ pub(crate) async fn resolve_actual_dest(
 									}
 
 									if let Some(port) = force_port {
-										if admin_room_caller {
-											services()
-												.admin
-												.send_message(RoomMessageEventContent::notice_plain(format!(
-													"Host: {delegated_hostname} | Port: {port}"
-												)))
-												.await;
-										}
-
 										FedDest::Named(delegated_hostname, format!(":{port}"))
 									} else {
-										if admin_room_caller {
-											services()
-												.admin
-												.send_message(RoomMessageEventContent::notice_plain(format!(
-													"Host: {delegated_hostname} | Port: 8448"
-												)))
-												.await;
-										}
-
 										add_port_to_hostname(&delegated_hostname)
 									}
 								} else {
 									debug!("3.4: No SRV records, just use the hostname from .well-known");
-									if admin_room_caller {
-										services()
-											.admin
-											.send_message(RoomMessageEventContent::notice_plain(
-												"3.4: No SRV records, just use the hostname from .well-known",
-											))
-											.await;
-									}
-
 									if !no_cache_dest {
 										query_and_cache_override(&delegated_hostname, &delegated_hostname, 8448)
 											.await?;
-									}
-
-									if admin_room_caller {
-										services()
-											.admin
-											.send_message(RoomMessageEventContent::notice_plain(format!(
-												"Host: {delegated_hostname} | Port: 8448"
-											)))
-											.await;
 									}
 
 									add_port_to_hostname(&delegated_hostname)
@@ -432,26 +282,8 @@ pub(crate) async fn resolve_actual_dest(
 					}
 				} else {
 					trace!("4: No .well-known or an error occured");
-					if admin_room_caller {
-						services()
-							.admin
-							.send_message(RoomMessageEventContent::notice_plain(
-								"4: No .well-known or an error occured",
-							))
-							.await;
-					}
-
 					if let Some(hostname_override) = query_srv_record(&dest_str).await? {
 						debug!("4: No .well-known; SRV record found");
-						if admin_room_caller {
-							services()
-								.admin
-								.send_message(RoomMessageEventContent::notice_plain(
-									"4: No .well-known; SRV record found",
-								))
-								.await;
-						}
-
 						let force_port = hostname_override.port();
 
 						if !no_cache_dest {
@@ -464,50 +296,14 @@ pub(crate) async fn resolve_actual_dest(
 						}
 
 						if let Some(port) = force_port {
-							if admin_room_caller {
-								services()
-									.admin
-									.send_message(RoomMessageEventContent::notice_plain(format!(
-										"Host: {hostname} | Port: {port}"
-									)))
-									.await;
-							}
-
 							FedDest::Named(hostname.clone(), format!(":{port}"))
 						} else {
-							if admin_room_caller {
-								services()
-									.admin
-									.send_message(RoomMessageEventContent::notice_plain(format!(
-										"Host: {hostname} | Port: 8448"
-									)))
-									.await;
-							}
-
 							add_port_to_hostname(&hostname)
 						}
 					} else {
 						debug!("4: No .well-known; 5: No SRV record found");
-						if admin_room_caller {
-							services()
-								.admin
-								.send_message(RoomMessageEventContent::notice_plain(
-									"4: No .well-known; 5: No SRV record found",
-								))
-								.await;
-						}
-
 						if !no_cache_dest {
 							query_and_cache_override(&dest_str, &dest_str, 8448).await?;
-						}
-
-						if admin_room_caller {
-							services()
-								.admin
-								.send_message(RoomMessageEventContent::notice_plain(format!(
-									"Host: {dest_str} | Port: 8448"
-								)))
-								.await;
 						}
 
 						add_port_to_hostname(&dest_str)
@@ -531,14 +327,6 @@ pub(crate) async fn resolve_actual_dest(
 	};
 
 	debug!("Actual destination: {actual_dest:?} hostname: {hostname:?}");
-	if admin_room_caller {
-		services()
-			.admin
-			.send_message(RoomMessageEventContent::notice_plain(format!(
-				"Actual destination: {actual_dest:?} | Hostname: {hostname:?}"
-			)))
-			.await;
-	}
 	Ok((actual_dest, hostname.into_uri_string()))
 }
 

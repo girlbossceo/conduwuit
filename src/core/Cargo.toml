@@ -1,0 +1,133 @@
+[package]
+name = "conduit_core"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "mod.rs"
+crate-type = [
+	"rlib",
+#	"dylib",
+]
+
+[features]
+default = [
+	"rocksdb",
+	"io_uring",
+	"jemalloc",
+	"gzip_compression",
+	"zstd_compression",
+	"brotli_compression",
+	"sentry_telemetry",
+	"release_max_log_level",
+]
+
+dev_release_log_level = []
+release_max_log_level = [
+	"tracing/max_level_trace",
+	"tracing/release_max_level_info",
+	"log/max_level_trace",
+	"log/release_max_level_info",
+]
+sqlite = [
+	"dep:rusqlite",
+	"dep:parking_lot",
+	"dep:thread_local",
+]
+rocksdb = [
+	"dep:rust-rocksdb",
+]
+jemalloc = [
+	"dep:tikv-jemalloc-sys",
+	"dep:tikv-jemalloc-ctl",
+	"dep:tikv-jemallocator",
+	"rust-rocksdb/jemalloc",
+]
+jemalloc_prof = [
+	"tikv-jemalloc-sys/profiling",
+]
+hardened_malloc = [
+	"dep:hardened_malloc-rs"
+]
+io_uring = [
+	"rust-rocksdb/io-uring",
+]
+zstd_compression = [
+	"rust-rocksdb/zstd",
+]
+gzip_compression = [
+	"reqwest/gzip",
+]
+brotli_compression = [
+	"reqwest/brotli",
+]
+perf_measurements = []
+sentry_telemetry = []
+mods = [
+	"dep:libloading"
+]
+panic_trap = []
+
+[dependencies]
+async-trait.workspace = true
+axum-server.workspace = true
+axum.workspace = true
+base64.workspace = true
+bytes.workspace = true
+clap.workspace = true
+cyborgtime.workspace = true
+either.workspace = true
+figment.workspace = true
+futures-util.workspace = true
+http-body-util.workspace = true
+http.workspace = true
+image.workspace = true
+infer.workspace = true
+ipaddress.workspace = true
+itertools.workspace = true
+libloading.workspace = true
+libloading.optional = true
+log.workspace = true
+lru-cache.workspace = true
+parking_lot.optional = true
+parking_lot.workspace = true
+rand.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+ring.workspace = true
+ruma.workspace = true
+rusqlite.optional = true
+rusqlite.workspace = true
+rust-rocksdb.optional = true
+rust-rocksdb.workspace = true
+sanitize-filename.workspace = true
+serde_json.workspace = true
+serde_regex.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+sha-1.workspace = true
+thiserror.workspace = true
+thread_local.optional = true
+thread_local.workspace = true
+tikv-jemallocator.optional = true
+tikv-jemallocator.workspace = true
+tikv-jemalloc-ctl.optional = true
+tikv-jemalloc-ctl.workspace = true
+tikv-jemalloc-sys.optional = true
+tikv-jemalloc-sys.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
+url.workspace = true
+zstd.optional = true
+zstd.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[target.'cfg(all(not(target_env = "msvc"), target_os = "linux"))'.dependencies]
+hardened_malloc-rs.workspace = true
+hardened_malloc-rs.optional = true
+
+[lints]
+workspace = true

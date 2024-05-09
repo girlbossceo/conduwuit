@@ -24,7 +24,7 @@ use ruma::{
 };
 use tracing::{error, info, warn};
 
-use crate::{services, utils::server_name::server_is_ours, Error, Result, Ruma};
+use crate::{service::server_is_ours, services, Error, Result, Ruma};
 
 /// # `POST /_matrix/client/v3/publicRooms`
 ///

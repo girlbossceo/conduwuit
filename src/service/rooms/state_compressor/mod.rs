@@ -1,11 +1,11 @@
-pub(crate) mod data;
+pub mod data;
 use std::{
 	collections::HashSet,
 	mem::size_of,
 	sync::{Arc, Mutex},
 };
 
-pub(crate) use data::Data;
+pub use data::Data;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
@@ -42,19 +42,19 @@ type ParentStatesVec = Vec<(
 
 type HashSetCompressStateEvent = Result<(u64, Arc<HashSet<CompressedStateEvent>>, Arc<HashSet<CompressedStateEvent>>)>;
 
-pub(crate) struct Service {
-	pub(crate) db: &'static dyn Data,
+pub struct Service {
+	pub db: Arc<dyn Data>,
 
-	pub(crate) stateinfo_cache: StateInfoLruCache,
+	pub stateinfo_cache: StateInfoLruCache,
 }
 
-pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
+pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn load_shortstatehash_info(&self, shortstatehash: u64) -> ShortStateInfoResult {
+	pub fn load_shortstatehash_info(&self, shortstatehash: u64) -> ShortStateInfoResult {
 		if let Some(r) = self
 			.stateinfo_cache
 			.lock()
@@ -97,7 +97,7 @@ impl Service {
 		}
 	}
 
-	pub(crate) fn compress_state_event(&self, shortstatekey: u64, event_id: &EventId) -> Result<CompressedStateEvent> {
+	pub fn compress_state_event(&self, shortstatekey: u64, event_id: &EventId) -> Result<CompressedStateEvent> {
 		let mut v = shortstatekey.to_be_bytes().to_vec();
 		v.extend_from_slice(
 			&services()
@@ -110,9 +110,7 @@ impl Service {
 	}
 
 	/// Returns shortstatekey, event id
-	pub(crate) fn parse_compressed_state_event(
-		&self, compressed_event: &CompressedStateEvent,
-	) -> Result<(u64, Arc<EventId>)> {
+	pub fn parse_compressed_state_event(&self, compressed_event: &CompressedStateEvent) -> Result<(u64, Arc<EventId>)> {
 		Ok((
 			utils::u64_from_bytes(&compressed_event[0..size_of::<u64>()]).expect("bytes have right length"),
 			services().rooms.short.get_eventid_from_short(
@@ -140,7 +138,7 @@ impl Service {
 	/// * `parent_states` - A stack with info on shortstatehash, full state,
 	///   added diff and removed diff for each parent layer
 	#[tracing::instrument(skip(self, statediffnew, statediffremoved, diff_to_sibling, parent_states))]
-	pub(crate) fn save_state_from_diff(
+	pub fn save_state_from_diff(
 		&self, shortstatehash: u64, statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		statediffremoved: Arc<HashSet<CompressedStateEvent>>, diff_to_sibling: usize,
 		mut parent_states: ParentStatesVec,
@@ -252,7 +250,7 @@ impl Service {
 
 	/// Returns the new shortstatehash, and the state diff from the previous
 	/// room state
-	pub(crate) fn save_state(
+	pub fn save_state(
 		&self, room_id: &RoomId, new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> HashSetCompressStateEvent {
 		let previous_shortstatehash = services().rooms.state.get_room_shortstatehash(room_id)?;

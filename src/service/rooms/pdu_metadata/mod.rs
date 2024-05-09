@@ -1,7 +1,8 @@
 mod data;
+
 use std::sync::Arc;
 
-pub(crate) use data::Data;
+pub use data::Data;
 use ruma::{
 	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},
@@ -9,11 +10,10 @@ use ruma::{
 };
 use serde::Deserialize;
 
-use super::timeline::PduCount;
-use crate::{services, PduEvent, Result};
+use crate::{services, PduCount, PduEvent, Result};
 
-pub(crate) struct Service {
-	pub(crate) db: &'static dyn Data,
+pub struct Service {
+	pub db: Arc<dyn Data>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -28,7 +28,7 @@ struct ExtractRelatesToEventId {
 
 impl Service {
 	#[tracing::instrument(skip(self, from, to))]
-	pub(crate) fn add_relation(&self, from: PduCount, to: PduCount) -> Result<()> {
+	pub fn add_relation(&self, from: PduCount, to: PduCount) -> Result<()> {
 		match (from, to) {
 			(PduCount::Normal(f), PduCount::Normal(t)) => self.db.add_relation(f, t),
 			_ => {
@@ -40,7 +40,7 @@ impl Service {
 	}
 
 	#[allow(clippy::too_many_arguments)]
-	pub(crate) fn paginate_relations_with_filter(
+	pub fn paginate_relations_with_filter(
 		&self, sender_user: &UserId, room_id: &RoomId, target: &EventId, filter_event_type: &Option<TimelineEventType>,
 		filter_rel_type: &Option<RelationType>, from: &Option<String>, to: &Option<String>, limit: &Option<UInt>,
 		recurse: bool, dir: Direction,
@@ -174,7 +174,7 @@ impl Service {
 		}
 	}
 
-	pub(crate) fn relations_until<'a>(
+	pub fn relations_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, target: &'a EventId, until: PduCount, max_depth: u8,
 	) -> Result<Vec<(PduCount, PduEvent)>> {
 		let room_id = services().rooms.short.get_or_create_shortroomid(room_id)?;
@@ -216,22 +216,18 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, event_ids))]
-	pub(crate) fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
+	pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
 		self.db.mark_as_referenced(room_id, event_ids)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
+	pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		self.db.is_event_referenced(room_id, event_id)
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> {
-		self.db.mark_event_soft_failed(event_id)
-	}
+	pub fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> { self.db.mark_event_soft_failed(event_id) }
 
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
-		self.db.is_event_soft_failed(event_id)
-	}
+	pub fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> { self.db.is_event_soft_failed(event_id) }
 }

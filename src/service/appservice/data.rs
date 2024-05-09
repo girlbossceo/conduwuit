@@ -2,7 +2,7 @@ use ruma::api::appservice::Registration;
 
 use crate::Result;
 
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	/// Registers an appservice and returns the ID to the caller
 	fn register_appservice(&self, yaml: Registration) -> Result<String>;
 

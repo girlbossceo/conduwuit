@@ -15,14 +15,16 @@ use webpage::HTML;
 
 use crate::{
 	debug_warn,
-	service::media::{FileMeta, UrlPreviewData},
+	service::{
+		media::{FileMeta, UrlPreviewData},
+		server_is_ours,
+	},
 	services,
 	utils::{
 		self,
 		content_disposition::{
 			content_disposition_type, make_content_disposition, make_content_type, sanitise_filename,
 		},
-		server_name::server_is_ours,
 	},
 	Error, Result, Ruma, RumaResponse,
 };

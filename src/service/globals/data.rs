@@ -10,7 +10,7 @@ use ruma::{
 use crate::{database::Cork, Result};
 
 #[async_trait]
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	fn next_count(&self) -> Result<u64>;
 	fn current_count(&self) -> Result<u64>;
 	fn last_check_for_updates_id(&self) -> Result<u64>;

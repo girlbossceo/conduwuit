@@ -1,0 +1,81 @@
+[package]
+name = "conduit_database"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "mod.rs"
+crate-type = [
+	"rlib",
+#	"dylib",
+]
+
+[features]
+default = [
+	"rocksdb",
+	"io_uring",
+	"jemalloc",
+	"zstd_compression",
+	"release_max_log_level",
+]
+
+dev_release_log_level = []
+release_max_log_level = [
+	"tracing/max_level_trace",
+	"tracing/release_max_level_info",
+	"log/max_level_trace",
+	"log/release_max_level_info",
+]
+sqlite = [
+	"dep:rusqlite",
+	"dep:parking_lot",
+	"dep:thread_local",
+]
+rocksdb = [
+	"dep:rust-rocksdb",
+]
+jemalloc = [
+	"dep:tikv-jemalloc-sys",
+	"dep:tikv-jemalloc-ctl",
+	"dep:tikv-jemallocator",
+	"rust-rocksdb/jemalloc",
+]
+jemalloc_prof = [
+	"tikv-jemalloc-sys/profiling",
+]
+io_uring = [
+	"rust-rocksdb/io-uring",
+]
+zstd_compression = [
+	"rust-rocksdb/zstd",
+]
+
+[dependencies]
+chrono.workspace = true
+conduit-core.workspace = true
+futures-util.workspace = true
+log.workspace = true
+lru-cache.workspace = true
+num_cpus.workspace = true
+parking_lot.optional = true
+parking_lot.workspace = true
+ruma.workspace = true
+rusqlite.optional = true
+rusqlite.workspace = true
+rust-rocksdb.optional = true
+rust-rocksdb.workspace = true
+thread_local.optional = true
+thread_local.workspace = true
+tikv-jemallocator.optional = true
+tikv-jemallocator.workspace = true
+tikv-jemalloc-ctl.optional = true
+tikv-jemalloc-ctl.workspace = true
+tikv-jemalloc-sys.optional = true
+tikv-jemalloc-sys.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+zstd.optional = true
+zstd.workspace = true
+
+[lints]
+workspace = true
