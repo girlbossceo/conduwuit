@@ -91,12 +91,12 @@ fn is_report_valid(
 		));
 	}
 
-	if services()
+	if !services()
 		.rooms
 		.state_cache
 		.room_members(&pdu.room_id)
 		.filter_map(Result::ok)
-		.any(|user_id| user_id != *sender_user)
+		.any(|user_id| user_id == *sender_user)
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::NotFound,
