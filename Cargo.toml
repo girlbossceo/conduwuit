@@ -299,7 +299,8 @@ default-features = false
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
-branch = "master"
+rev = "c5cd6bd25152ef1f8a488761351da0c3d29ed93a"
+#branch = "master"
 optional = true
 default-features = true
 features = ["multi-threaded-cf", "zstd"]
