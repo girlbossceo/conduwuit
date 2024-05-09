@@ -55,7 +55,7 @@ commonAttrs = {
       include = [
         "Cargo.lock"
         "Cargo.toml"
-        "hot_lib"
+        "deps"
         "src"
       ];
     };

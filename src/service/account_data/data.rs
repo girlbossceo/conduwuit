@@ -8,7 +8,7 @@ use ruma::{
 
 use crate::Result;
 
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	/// Places one event in the account data of the user and removes the
 	/// previous entry.
 	fn update(

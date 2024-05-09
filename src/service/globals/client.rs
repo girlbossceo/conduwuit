@@ -4,18 +4,18 @@ use reqwest::redirect;
 
 use crate::{service::globals::resolver, utils::conduwuit_version, Config, Result};
 
-pub(crate) struct Client {
-	pub(crate) default: reqwest::Client,
-	pub(crate) url_preview: reqwest::Client,
-	pub(crate) well_known: reqwest::Client,
-	pub(crate) federation: reqwest::Client,
-	pub(crate) sender: reqwest::Client,
-	pub(crate) appservice: reqwest::Client,
-	pub(crate) pusher: reqwest::Client,
+pub struct Client {
+	pub default: reqwest::Client,
+	pub url_preview: reqwest::Client,
+	pub well_known: reqwest::Client,
+	pub federation: reqwest::Client,
+	pub sender: reqwest::Client,
+	pub appservice: reqwest::Client,
+	pub pusher: reqwest::Client,
 }
 
 impl Client {
-	pub(crate) fn new(config: &Config, resolver: &Arc<resolver::Resolver>) -> Client {
+	pub fn new(config: &Config, resolver: &Arc<resolver::Resolver>) -> Client {
 		Client {
 			default: Self::base(config)
 				.unwrap()

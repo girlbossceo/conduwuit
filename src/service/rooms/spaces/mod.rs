@@ -32,9 +32,9 @@ use ruma::{
 use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
 
-use crate::{debug_info, services, utils::server_name::server_is_ours, Error, Result};
+use crate::{debug_info, server_is_ours, services, Error, Result};
 
-pub(crate) struct CachedSpaceHierarchySummary {
+pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
 }
 
@@ -235,11 +235,11 @@ impl Arena {
 
 // Note: perhaps use some better form of token rather than just room count
 #[derive(Debug, PartialEq)]
-pub(crate) struct PagnationToken {
-	pub(crate) skip: UInt,
-	pub(crate) limit: UInt,
-	pub(crate) max_depth: UInt,
-	pub(crate) suggested_only: bool,
+pub struct PagnationToken {
+	pub skip: UInt,
+	pub limit: UInt,
+	pub max_depth: UInt,
+	pub suggested_only: bool,
 }
 
 impl FromStr for PagnationToken {
@@ -294,8 +294,8 @@ enum Identifier<'a> {
 	None,
 }
 
-pub(crate) struct Service {
-	pub(crate) roomid_spacehierarchy_cache: Mutex<LruCache<OwnedRoomId, Option<CachedSpaceHierarchySummary>>>,
+pub struct Service {
+	pub roomid_spacehierarchy_cache: Mutex<LruCache<OwnedRoomId, Option<CachedSpaceHierarchySummary>>>,
 }
 
 // Here because cannot implement `From` across ruma-federation-api and
@@ -338,7 +338,7 @@ impl Service {
 	///
 	///Panics if the room does not exist, so a check if the room exists should
 	/// be done
-	pub(crate) async fn get_federation_hierarchy(
+	pub async fn get_federation_hierarchy(
 		&self, room_id: &RoomId, server_name: &ServerName, suggested_only: bool,
 	) -> Result<federation::space::get_hierarchy::v1::Response> {
 		match self
@@ -624,7 +624,7 @@ impl Service {
 	}
 
 	// TODO: make this a lot less messy
-	pub(crate) async fn get_client_hierarchy(
+	pub async fn get_client_hierarchy(
 		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, skip: usize, max_depth: usize,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {

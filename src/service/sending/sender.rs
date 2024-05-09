@@ -23,12 +23,7 @@ use ruma::{
 use tracing::{debug, error, warn};
 
 use super::{appservice, send, Destination, Msg, SendingEvent, Service};
-use crate::{
-	service::presence::Presence,
-	services,
-	utils::{calculate_hash, user_id::user_is_local},
-	Error, PduEvent, Result,
-};
+use crate::{service::presence::Presence, services, user_is_local, utils::calculate_hash, Error, PduEvent, Result};
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -47,25 +42,31 @@ const DEQUEUE_LIMIT: usize = 48;
 const SELECT_EDU_LIMIT: usize = 16;
 
 impl Service {
-	pub(crate) fn start_handler(self: &Arc<Self>) {
-		let self2 = Arc::clone(self);
-		tokio::spawn(async move {
-			self2.handler().await;
+	pub async fn start_handler(self: &Arc<Self>) {
+		let self_ = Arc::clone(self);
+		let handle = services().server.runtime().spawn(async move {
+			self_
+				.handler()
+				.await
+				.expect("Failed to start sending handler");
 		});
+
+		_ = self.handler_join.lock().await.insert(handle);
 	}
 
 	#[tracing::instrument(skip_all, name = "sender")]
-	async fn handler(&self) {
+	async fn handler(&self) -> Result<()> {
 		let receiver = self.receiver.lock().await;
-		debug_assert!(!receiver.is_closed(), "channel error");
-
 		let mut futures: SendingFutures<'_> = FuturesUnordered::new();
 		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
+
 		self.initial_transactions(&mut futures, &mut statuses);
 		loop {
+			debug_assert!(!receiver.is_closed(), "channel error");
 			tokio::select! {
-				Ok(request) = receiver.recv_async() => {
-					self.handle_request(request, &mut futures, &mut statuses);
+				request = receiver.recv_async() => match request {
+					Ok(request) => self.handle_request(request, &mut futures, &mut statuses),
+					Err(_) => return Ok(()),
 				},
 				Some(response) = futures.next() => {
 					self.handle_response(response, &mut futures, &mut statuses);
@@ -396,7 +397,7 @@ fn select_edus_receipts(
 }
 
 async fn send_events(dest: Destination, events: Vec<SendingEvent>) -> SendingResult {
-	debug_assert!(!events.is_empty(), "sending empty transaction");
+	//debug_assert!(!events.is_empty(), "sending empty transaction");
 	match dest {
 		Destination::Normal(ref server) => send_events_dest_normal(&dest, server, events).await,
 		Destination::Appservice(ref id) => send_events_dest_appservice(&dest, id, events).await,
@@ -433,7 +434,7 @@ async fn send_events_dest_appservice(dest: &Destination, id: &String, events: Ve
 		}
 	}
 
-	debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
+	//debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
 	match appservice::send_request(
 		services()
 			.appservice
@@ -584,7 +585,8 @@ async fn send_events_dest_normal(
 	}
 
 	let client = &services().globals.client.sender;
-	debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty transaction");
+	//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
+	// transaction");
 	send::send(
 		client,
 		server_name,

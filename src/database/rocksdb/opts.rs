@@ -1,13 +1,13 @@
 #![allow(dead_code)]
-
 use std::collections::HashMap;
 
-use rust_rocksdb::{
-	BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env, LogLevel, Options,
-	UniversalCompactOptions, UniversalCompactionStopStyle,
+use super::{
+	rust_rocksdb::{
+		BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env, LogLevel, Options,
+		UniversalCompactOptions, UniversalCompactionStopStyle,
+	},
+	Config,
 };
-
-use super::Config;
 
 /// Create database-wide options suitable for opening the database. This also
 /// sets our default column options in case of opening a column with the same

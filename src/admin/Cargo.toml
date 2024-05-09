@@ -1,0 +1,63 @@
+[package]
+name = "conduit_admin"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "mod.rs"
+crate-type = [
+	"rlib",
+#	"dylib",
+]
+
+[features]
+default = [
+	"rocksdb",
+	"io_uring",
+	"jemalloc",
+	"zstd_compression",
+	"release_max_log_level",
+]
+
+dev_release_log_level = []
+release_max_log_level = [
+	"tracing/max_level_trace",
+	"tracing/release_max_level_info",
+	"log/max_level_trace",
+	"log/release_max_level_info",
+]
+rocksdb = [
+	"dep:rust-rocksdb",
+]
+jemalloc = [
+	"rust-rocksdb/jemalloc",
+]
+io_uring = [
+	"rust-rocksdb/io-uring",
+]
+zstd_compression = [
+	"rust-rocksdb/zstd",
+]
+
+[dependencies]
+clap.workspace = true
+conduit-api.workspace = true
+conduit-core.workspace = true
+conduit-database.workspace = true
+conduit-service.workspace = true
+futures-util.workspace = true
+log.workspace = true
+loole.workspace = true
+regex.workspace = true
+ruma.workspace = true
+rust-rocksdb.optional = true
+rust-rocksdb.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

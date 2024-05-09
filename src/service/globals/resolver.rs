@@ -17,21 +17,21 @@ use crate::{service::sending::FedDest, Config, Error};
 pub(crate) type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 
-pub(crate) struct Resolver {
-	pub(crate) destinations: Arc<RwLock<WellKnownMap>>, // actual_destination, host
-	pub(crate) overrides: Arc<StdRwLock<TlsNameMap>>,
-	pub(crate) resolver: Arc<TokioAsyncResolver>,
-	pub(crate) hooked: Arc<Hooked>,
+pub struct Resolver {
+	pub destinations: Arc<RwLock<WellKnownMap>>, // actual_destination, host
+	pub overrides: Arc<StdRwLock<TlsNameMap>>,
+	pub resolver: Arc<TokioAsyncResolver>,
+	pub hooked: Arc<Hooked>,
 }
 
-pub(crate) struct Hooked {
-	pub(crate) overrides: Arc<StdRwLock<TlsNameMap>>,
-	pub(crate) resolver: Arc<TokioAsyncResolver>,
+pub struct Hooked {
+	pub overrides: Arc<StdRwLock<TlsNameMap>>,
+	pub resolver: Arc<TokioAsyncResolver>,
 }
 
 impl Resolver {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-	pub(crate) fn new(config: &Config) -> Self {
+	pub fn new(config: &Config) -> Self {
 		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
 			.map_err(|e| {
 				error!("Failed to set up hickory dns resolver with system config: {}", e);

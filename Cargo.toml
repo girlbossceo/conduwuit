@@ -1,115 +1,95 @@
-[package]
-# TODO: when can we rename to conduwuit?
-name = "conduit"
+#cargo-features = ["profile-rustflags"]
+
+[workspace]
+resolver = "2"
+members = ["src/*"]
+default-members = ["src/*"]
+
+[workspace.package]
 description = "a very cool fork of Conduit, a Matrix homeserver written in Rust"
 license = "Apache-2.0"
 authors = [
     "strawberry <strawberry@puppygock.gay>",
     "timokoesters <timo@koesters.xyz>",
 ]
+version = "0.3.4"
+edition = "2021"
+# See also `rust-toolchain.toml`
+rust-version = "1.77.0"
 homepage = "https://conduwuit.puppyirl.gay/"
 repository = "https://github.com/girlbossceo/conduwuit"
 readme = "README.md"
-version = "0.3.4"
-edition = "2021"
 
-# See also `rust-toolchain.toml`
-rust-version = "1.77.0"
-
-[dependencies]
 # 1.1.17 seems broken on nix from a permission error?
-libz-sys = "=1.1.16"
+[workspace.dependencies.libz-sys]
+version = "=1.1.16"
 
-console-subscriber = { version = "0.2", optional = true }
+[workspace.dependencies.sanitize-filename]
+version = "0.5.0"
 
-infer = { version = "0.15", default-features = false }
+[workspace.dependencies.infer]
+version = "0.15"
+default-features = false
 
-# for hot lib reload
-hot-lib-reloader = { version = "^0.7", optional = true }
+[workspace.dependencies.jsonwebtoken]
+version = "9.3.0"
 
-# Used for secure identifiers
-rand = "0.8.5"
-
-# Used for conduit::Error type
-thiserror = "1.0.60"
-
-# Used to encode server public key
-base64 = "0.22.1"
-
-# Used when hashing the state
-ring = "0.17.8"
-
-# Used to find matching events for appservices
-regex = "1.10.4"
-
-# Used to load forbidden room/user regex from config
-serde_regex = "1.1.0"
-
-# Used to make working with iterators easier, was already a transitive depdendency
-itertools = "0.12.1"
-
-# jwt jsonwebtokens
-jsonwebtoken = "9.3.0"
-
-# Used for ruma wrapper
-serde_html_form = "0.2.6"
+[workspace.dependencies.base64]
+version = "0.22.1"
 
 # used for TURN server authentication
-hmac = "0.12.1"
-sha-1 = "0.10.1"
+[workspace.dependencies.hmac]
+version = "0.12.1"
+
+[workspace.dependencies.sha-1]
+version = "0.10.1"
 
 # used for checking if an IP is in specific subnets / CIDR ranges easier
-ipaddress = "0.1.3"
+[workspace.dependencies.ipaddress]
+version = "0.1.3"
 
-# to get the client IP address of requests
-#axum-client-ip = "0.4.2"
+[workspace.dependencies.rand]
+version = "0.8.5"
 
-# to parse user-friendly time durations in admin commands
-cyborgtime = "2.1.1"
-
-# all the web/HTTP dependencies
 # Used for the http request / response body type for Ruma endpoints used with reqwest
-bytes = "1.6.0"
-http = "1.1.0"
-http-body-util = "0.1.1"
+[workspace.dependencies.bytes]
+version = "1.6.0"
 
-# used to replace the channels of the tokio runtime
-loole = "0.3.0"
+[workspace.dependencies.http-body-util]
+version = "0.1.1"
 
-# Validating urls in config, was already a transitive dependency
-url = { version = "2.5.0", features = ["serde"] }
+[workspace.dependencies.http]
+version = "1.1.0"
 
-async-trait = "0.1.80"
+[workspace.dependencies.regex]
+version = "1.10.4"
 
-lru-cache = "0.1.2"
-sanitize-filename = "0.5.0"
-
-# standard date and time tools
-[dependencies.chrono]
-version = "0.4.38"
-features = ["alloc"]
-default-features = false
-
-# Web framework
-[dependencies.axum]
+[workspace.dependencies.axum]
 version = "0.7.5"
 default-features = false
-features = ["form", "http1", "http2", "json", "matched-path"]
+features = [
+	"form",
+	"http1",
+	"http2",
+	"json",
+	"matched-path",
+	"tokio",
+]
 
-[dependencies.axum-extra]
+[workspace.dependencies.axum-extra]
 version = "0.9.3"
 default-features = false
 features = ["typed-header"]
 
-[dependencies.axum-server]
+[workspace.dependencies.axum-server]
 version = "0.6.0"
 features = ["tls-rustls"]
 
-[dependencies.tower]
+[workspace.dependencies.tower]
 version = "0.4.13"
 features = ["util"]
 
-[dependencies.tower-http]
+[workspace.dependencies.tower-http]
 version = "0.5.2"
 features = [
     "add-extension",
@@ -121,153 +101,170 @@ features = [
     "catch-panic",
 ]
 
-[dependencies.hyper]
-version = "1.3.1"
-features = ["server", "http1", "http2"]
-
-[dependencies.hyper-util]
-version = "0.1.3"
-
-[dependencies.reqwest]
+[workspace.dependencies.reqwest]
 version = "0.12.4"
 default-features = false
-features = ["rustls-tls-native-roots", "socks", "hickory-dns"]
+features = [
+	"rustls-tls-native-roots",
+	"socks",
+	"hickory-dns",
+]
 
-# all the serde stuff
-# Used for pdu definition
-[dependencies.serde]
+[workspace.dependencies.serde]
 version = "1.0.201"
 features = ["rc"]
-# Used for appservice registration files
-[dependencies.serde_yaml]
-version = "0.9.34"
-# Used for ruma wrapper
-[dependencies.serde_json]
+
+[workspace.dependencies.serde_json]
 version = "1.0.117"
 features = ["raw_value"]
 
+# Used for appservice registration files
+[workspace.dependencies.serde_yaml]
+version = "0.9.34"
+
+# Used to load forbidden room/user regex from config
+[workspace.dependencies.serde_regex]
+version = "1.1.0"
+
+# Used for ruma wrapper
+[workspace.dependencies.serde_html_form]
+version = "0.2.6"
 
 # Used for password hashing
-[dependencies.argon2]
+[workspace.dependencies.argon2]
 version = "0.5.3"
 features = ["alloc", "rand"]
 default-features = false
 
 # Used to generate thumbnails for images
-[dependencies.image]
+[workspace.dependencies.image]
 version = "0.25.1"
 default-features = false
-features = ["jpeg", "png", "gif", "webp"]
+features = [
+	"jpeg",
+	"png",
+	"gif",
+	"webp",
+]
 
 # logging
-[dependencies.log]
+[workspace.dependencies.log]
 version = "0.4.21"
 default-features = false
-[dependencies.tracing]
+[workspace.dependencies.tracing]
 version = "0.1.40"
 default-features = false
-[dependencies.tracing-subscriber]
+[workspace.dependencies.tracing-subscriber]
 version = "0.3.18"
 features = ["env-filter"]
 
-# optional SHA256 media keys feature
-[dependencies.sha2]
-version = "0.10.8"
-optional = true
-
-# optional opentelemetry, performance measurements, flamegraphs, etc for performance measurements and monitoring
-[dependencies.opentelemetry]
-version = "0.21.0"
-optional = true
-[dependencies.tracing-flame]
-version = "0.2.0"
-optional = true
-[dependencies.tracing-opentelemetry]
-version = "0.22.0"
-optional = true
-[dependencies.opentelemetry_sdk]
-version = "0.21.2"
-optional = true
-features = ["rt-tokio"]
-[dependencies.opentelemetry-jaeger]
-version = "0.20.0"
-optional = true
-features = ["rt-tokio"]
-
-# optional sentry metrics for crash/panic reporting
-[dependencies.sentry]
-version = "0.32.3"
-optional = true
-default-features = false
-features = [
-    "backtrace",
-    "contexts",
-    "debug-images",
-    "panic",
-    "rustls",
-    "tower",
-    "tower-http",
-    "tracing",
-    "reqwest",
-    "log",
-]
-[dependencies.sentry-tracing]
-version = "0.32.3"
-optional = true
-[dependencies.sentry-tower]
-version = "0.32.3"
-optional = true
-
-# optional jemalloc usage
-[dependencies.tikv-jemalloc-sys]
-version = "0.5.4"
-optional = true
-default-features = false
-features = ["stats", "unprefixed_malloc_on_supported_platforms"]
-[dependencies.tikv-jemallocator]
-version = "0.5.4"
-optional = true
-default-features = false
-features = ["stats", "unprefixed_malloc_on_supported_platforms"]
-[dependencies.tikv-jemalloc-ctl]
-version = "0.5.4"
-optional = true
-default-features = false
-features = ["use_std"]
-
 # for URL previews
-[dependencies.webpage]
+[workspace.dependencies.webpage]
 version = "2.0.1"
 default-features = false
 
-# to support multiple variations of setting a config option
-[dependencies.either]
-version = "1.11.0"
-features = ["serde"]
-
-# to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
-[dependencies.axum-server-dual-protocol]
-version = "0.6"
-optional = true
-
 # used for conduit's CLI and admin room command parsing
-[dependencies.clap]
+[workspace.dependencies.clap]
 version = "4.5.4"
 default-features = false
-features = ["std", "derive", "help", "usage", "error-context", "string"]
+features = [
+	"std",
+	"derive",
+	"help",
+	"usage",
+	"error-context",
+	"string",
+]
 
-[dependencies.futures-util]
+[workspace.dependencies.futures-util]
 version = "0.3.30"
 default-features = false
 
+[workspace.dependencies.tokio]
+version = "1.37.0"
+features = [
+	"fs",
+	"net",
+	"macros",
+	"sync",
+	"signal",
+	"time",
+	"rt-multi-thread",
+	"io-util",
+]
+
+[workspace.dependencies.libloading]
+version = "0.8.3"
+
+# Validating urls in config, was already a transitive dependency
+[workspace.dependencies.url]
+version = "2.5.0"
+features = ["serde"]
+
+# standard date and time tools
+[workspace.dependencies.chrono]
+version = "0.4.38"
+features = ["alloc"]
+default-features = false
+
+[workspace.dependencies.hyper]
+version = "1.3.1"
+features = [
+	"server",
+	"http1",
+	"http2",
+]
+
+[workspace.dependencies.hyper-util]
+version = "0.1.3"
+
+# to support multiple variations of setting a config option
+[workspace.dependencies.either]
+version = "1.11.0"
+features = ["serde"]
+
 # Used for reading the configuration from conduwuit.toml & environment variables
-[dependencies.figment]
+[workspace.dependencies.figment]
 version = "0.10.18"
 features = ["env", "toml"]
 
+[workspace.dependencies.hickory-resolver]
+version = "0.24.1"
+default-features = false
+
+# Used for conduit::Error type
+[workspace.dependencies.thiserror]
+version = "1.0.60"
+
+# Used when hashing the state
+[workspace.dependencies.ring]
+version = "0.17.8"
+
+# Used to make working with iterators easier, was already a transitive depdendency
+[workspace.dependencies.itertools]
+version = "0.12.1"
+
+# to parse user-friendly time durations in admin commands
+#TODO: overlaps chrono?
+[workspace.dependencies.cyborgtime]
+version = "2.1.1"
+
+# used to replace the channels of the tokio runtime
+[workspace.dependencies.loole]
+version = "0.3.0"
+
+[workspace.dependencies.async-trait]
+version = "0.1.80"
+
+[workspace.dependencies.lru-cache]
+version = "0.1.2"
+
+[workspace.dependencies.num_cpus]
+version = "1.16.0"
+
 # Used for matrix spec type definitions and helpers
-[dependencies.ruma]
-git = "https://github.com/girlbossceo/ruma"
+[workspace.dependencies.ruma]
+git = "https://github.com/girlbossceo/ruwuma"
 branch = "conduwuit-changes"
 features = [
     "compat",
@@ -292,60 +289,128 @@ features = [
     "unstable-extensible-events",
 ]
 
-[dependencies.ruma-identifiers-validation]
-git = "https://github.com/girlbossceo/ruma"
+[workspace.dependencies.ruma-identifiers-validation]
+git = "https://github.com/girlbossceo/ruwuma"
 branch = "conduwuit-changes"
 
-[dependencies.hickory-resolver]
-version = "0.24.1"
+[workspace.dependencies.rust-rocksdb]
+path = "deps/rust-rocksdb"
+package = "rust-rocksdb-uwu"
+features = [
+	"multi-threaded-cf",
+	"mt_static",
+	"snappy",
+	"lz4",
+	"zstd",
+	"zlib",
+	"bzip2",
+]
+
+[workspace.dependencies.zstd]
+version = "0.13.1"
+
+# to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
+[workspace.dependencies.axum-server-dual-protocol]
+version = "0.6"
+
+# optional SHA256 media keys feature
+[workspace.dependencies.sha2]
+version = "0.10.8"
+
+# optional opentelemetry, performance measurements, flamegraphs, etc for performance measurements and monitoring
+[workspace.dependencies.opentelemetry]
+version = "0.21.0"
+
+[workspace.dependencies.tracing-flame]
+version = "0.2.0"
+
+[workspace.dependencies.tracing-opentelemetry]
+version = "0.22.0"
+
+[workspace.dependencies.opentelemetry_sdk]
+version = "0.21.2"
+features = ["rt-tokio"]
+
+[workspace.dependencies.opentelemetry-jaeger]
+version = "0.20.0"
+features = ["rt-tokio"]
+
+# optional sentry metrics for crash/panic reporting
+[workspace.dependencies.sentry]
+version = "0.32.3"
 default-features = false
+features = [
+    "backtrace",
+    "contexts",
+    "debug-images",
+    "panic",
+    "rustls",
+    "tower",
+    "tower-http",
+    "tracing",
+    "reqwest",
+    "log",
+]
 
-[dependencies.rust-rocksdb]
-git = "https://github.com/zaidoon1/rust-rocksdb"
-branch = "master"
-optional = true
-default-features = true
-features = ["multi-threaded-cf", "zstd"]
+[workspace.dependencies.sentry-tracing]
+version = "0.32.3"
+[workspace.dependencies.sentry-tower]
+version = "0.32.3"
 
-[dependencies.rusqlite]
+# optional jemalloc usage
+[workspace.dependencies.tikv-jemalloc-sys]
+version = "0.5.4"
+default-features = false
+features = ["unprefixed_malloc_on_supported_platforms"]
+[workspace.dependencies.tikv-jemallocator]
+version = "0.5.4"
+default-features = false
+features = ["unprefixed_malloc_on_supported_platforms"]
+[workspace.dependencies.tikv-jemalloc-ctl]
+version = "0.5.4"
+default-features = false
+features = ["use_std"]
+
+[workspace.dependencies.rusqlite]
 git = "https://github.com/rusqlite/rusqlite"
 #branch = "master"
 rev = "e00b626e2b1c67347d789fb7f600281705c89381"
-optional = true
 features = ["bundled"]
 
 # used only by rusqlite
-[dependencies.parking_lot]
+[workspace.dependencies.parking_lot]
 version = "0.12.2"
-optional = true
 
 # used only by rusqlite
-[dependencies.thread_local]
+[workspace.dependencies.thread_local]
 version = "1.1.8"
-optional = true
 
-# used only by rusqlite and rust-rocksdb
-[dependencies.num_cpus]
-version = "1.16.0"
+[workspace.dependencies.tokio-metrics]
+version = "0.3.1"
+default-features = false
 
-[dependencies.tokio]
-version = "1.37.0"
-features = ["fs", "macros", "sync", "signal"]
+[workspace.dependencies.console-subscriber]
+version = "0.2"
 
-# *nix-specific dependencies
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.28.0", features = ["resource"] }
-sd-notify = { version = "0.4.1", optional = true }    # systemd is only available/relevant on *nix platforms
+[workspace.dependencies.nix]
+version = "0.28.0"
+features = ["resource"]
 
+[workspace.dependencies.sd-notify]
+version = "0.4.1"
 
-[target.'cfg(all(not(target_env = "msvc"), target_os = "linux"))'.dependencies]
-hardened_malloc-rs = { version = "0.1.2", optional = true, features = [
-    "static",
-    "gcc",
-    "light",
-], default-features = false }
-#hardened_malloc-rs = { optional = true, features = ["static","clang","light"], path = "../hardened_malloc-rs", default-features = false }
+[workspace.dependencies.hardened_malloc-rs]
+version = "0.1.2"
+default-features = false
+features = [
+	"static",
+	"gcc",
+	"light",
+]
 
+#
+# Patches
+#
 
 # backport of [https://github.com/tokio-rs/tracing/pull/2956] to the 0.1.x branch of tracing.
 # we can switch back to upstream if #2956 is merged and backported in the upstream repo.
@@ -359,166 +424,213 @@ branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
 git = "https://github.com/girlbossceo/tracing"
 branch = "tracing-subscriber/env-filter-clone-0.1.x-backport"
 
-[features]
-default = [
-    "backend_rocksdb",
-    "systemd",
-    "element_hacks",
-    "sentry_telemetry",
-    "gzip_compression",
-    "brotli_compression",
-    "zstd_compression",
-    "release_max_log_level",
-    "io_uring",
-]
-backend_sqlite = ["sqlite"]
-backend_rocksdb = ["rocksdb"]
-rocksdb = ["dep:rust-rocksdb"]
-jemalloc = [
-    "dep:tikv-jemalloc-sys",
-    "dep:tikv-jemalloc-ctl",
-    "dep:tikv-jemallocator",
-    "rust-rocksdb/jemalloc",
-]
-jemalloc_prof = ["tikv-jemalloc-sys/profiling"]
-sqlite = ["dep:rusqlite", "dep:parking_lot", "dep:thread_local"]
-systemd = ["dep:sd-notify"]
-sentry_telemetry = ["dep:sentry", "dep:sentry-tracing", "dep:sentry-tower"]
-
-gzip_compression = ["tower-http/compression-gzip", "reqwest/gzip"]
-zstd_compression = ["tower-http/compression-zstd"]
-brotli_compression = ["tower-http/compression-br", "reqwest/brotli"]
-
-sha256_media = ["dep:sha2"]
-io_uring = ["rust-rocksdb/io-uring"]
-axum_dual_protocol = ["dep:axum-server-dual-protocol"]
-
-perf_measurements = [
-    "dep:opentelemetry",
-    "dep:tracing-flame",
-    "dep:tracing-opentelemetry",
-    "dep:opentelemetry_sdk",
-    "dep:opentelemetry-jaeger",
-]
-
-# enable the tokio_console server
-# incompatible with release_max_log_level
-tokio_console = ["dep:console-subscriber", "tokio/tracing"]
-
-hot_reload = ["dep:hot-lib-reloader"]
-
-hardened_malloc = ["dep:hardened_malloc-rs"]
-
-# increases performance, reduces build times, and reduces binary size by not compiling or
-# genreating code for log level filters that users will generally not use (debug and trace) only in release builds
 #
-# the expense is obviously losing those log level filters for usage at runtime. debug builds will still have all log levels
-release_max_log_level = [
-    "tracing/max_level_trace",
-    "tracing/release_max_level_info",
-    "log/max_level_trace",
-    "log/release_max_level_info",
-]
-
-# developer feature useful only in debug builds.
-dev_release_log_level = []
-
-# client/server interopability hacks
+# Our crates
 #
-## element has various non-spec compliant behaviour
-element_hacks = []
 
+[workspace.dependencies.conduit-router]
+package = "conduit_router"
+path = "src/router"
+default-features = false
 
-[package.metadata.deb]
-name = "conduwuit"
-maintainer = "strawberry <strawberry@puppygock.gay>"
-copyright = "2024, strawberry <strawberry@puppygock.gay>"
-license-file = ["LICENSE", "3"]
-depends = "$auto, ca-certificates"
-extended-description = """\
-a cool hard fork of Conduit, a Matrix homeserver written in Rust"""
-section = "net"
-priority = "optional"
-assets = [
-    [
-        "debian/README.md",
-        "usr/share/doc/conduwuit/README.Debian",
-        "644",
-    ],
-    [
-        "README.md",
-        "usr/share/doc/conduwuit/",
-        "644",
-    ],
-    [
-        "target/release/conduwuit",
-        "usr/sbin/conduwuit",
-        "755",
-    ],
-    [
-        "conduwuit-example.toml",
-        "etc/conduwuit/conduwuit.toml",
-        "640",
-    ],
-]
-conf-files = ["/etc/conduwuit/conduwuit.toml"]
-maintainer-scripts = "debian/"
-systemd-units = { unit-name = "conduwuit", start = false }
+[workspace.dependencies.conduit-admin]
+package = "conduit_admin"
+path = "src/admin"
+default-features = false
 
+[workspace.dependencies.conduit-api]
+package = "conduit_api"
+path = "src/api"
+default-features = false
 
-[profile.dev]
-#debug = 0
-lto = 'off'
-codegen-units = 512
-incremental = true
-overflow-checks = true
-#panic = "abort"
+[workspace.dependencies.conduit-service]
+package = "conduit_service"
+path = "src/service"
+default-features = false
 
-# seems to speed up continuous debug compilations
-[profile.dev.build-override]
-opt-level = 3
-[profile.dev.package."*"] # external dependencies
-opt-level = 1
-[profile.dev.package."tokio"]
-opt-level = 3
+[workspace.dependencies.conduit-database]
+package = "conduit_database"
+path = "src/database"
+default-features = false
 
-# default release profile
+[workspace.dependencies.conduit-core]
+package = "conduit_core"
+path = "src/core"
+default-features = false
+
+###############################################################################
+#
+# Release profiles
+#
+
 [profile.release]
-lto = 'thin'
-incremental = false
-opt-level = 3
 strip = "symbols"
-control-flow-guard = true # Windows only
-debug = 0
+lto = "thin"
 
 # release profile with debug symbols
 [profile.release-debuginfo]
 inherits = "release"
-strip = "none"
 debug = "full"
+strip = "none"
 
-
-# high performance release profile which uses fat LTO across all crates, 1 codegen unit, max opt-level, and optimises across all crates
 [profile.release-high-perf]
 inherits = "release"
-lto = 'fat'
+lto = "fat"
 codegen-units = 1
 panic = "abort"
 
-# For releases also try to max optimizations for dependencies:
-[profile.release-high-perf.build-override]
-debug = 0
-opt-level = 3
+# do not use without profile-rustflags enabled
+[profile.release-max-perf]
+inherits = "release"
+strip = "symbols"
+lto = "fat"
+#rustflags = [
+#	'-Ctarget-cpu=native',
+#	'-Ztune-cpu=native',
+#	'-Ctarget-feature=+crt-static',
+#	'-Crelocation-model=static',
+#	'-Ztls-model=local-exec',
+#	'-Zinline-in-all-cgus=true',
+#	'-Zinline-mir=true',
+#	'-Zmir-opt-level=3',
+#	'-Clink-arg=-fuse-ld=mold',
+#	'-Clink-arg=-Wl,--threads',
+#	'-Clink-arg=-Wl,--gc-sections',
+#	'-Ztime-passes',
+#	'-Ztime-llvm-passes',
+#]
+
+[profile.release-max-perf.build-override]
+inherits = "release-max-perf"
+opt-level = 0
+#rustflags = [
+#	'-Ctarget-feature=-crt-static',
+#]
+
+[profile.bench]
+inherits = "release"
+#rustflags = [
+#	"-Cremark=all",
+#	'-Ztime-passes',
+#	'-Ztime-llvm-passes',
+#]
+
+###############################################################################
+#
+# Developer profile
+#
+
+# To enable hot-reloading:
+# 1. Uncomment all of the rustflags here.
+# 2. Uncomment crate-type=dylib in src/*/Cargo.toml and deps/rust-rocksdb/Cargo.toml
+# 2. Build with the 'mods' feature.
+#
+# opt-level, mir-opt-level, validate-mir are not known to interfere with reloading
+# and can be raised if build times are tolerable.
+
+[profile.dev]
+debug = 1
+opt-level = 0
+panic = "unwind"
+debug-assertions = true
+incremental = true
+codegen-units = 64
+rpath = true
+#rustflags = [
+#	'-Ztime-passes',
+#	'-Zmir-opt-level=0',
+#	'-Zvalidate-mir=false',
+#	'-Ztls-model=global-dynamic',
+#	'-Cprefer-dynamic=true',
+#	'-Zstaticlib-prefer-dynamic=true',
+#	'-Zstaticlib-allow-rdylib-deps=true',
+#	'-Zpacked-bundled-libs=false',
+#	'-Zplt=true',
+#	'-Crpath=true',
+#	'-Clink-arg=-Wl,--as-needed',
+#	'-Clink-arg=-Wl,--allow-shlib-undefined',
+#	'-Clink-arg=-Wl,-z,keep-text-section-prefix',
+#	'-Clink-arg=-Wl,-z,lazy',
+#]
+
+[profile.dev.package.conduit_core]
+inherits = "dev"
+incremental = false
+#rustflags = [
+#	'-Ztime-passes',
+#	'-Zmir-opt-level=0',
+#	'-Ztls-model=initial-exec',
+#	'-Cprefer-dynamic=true',
+#	'-Zstaticlib-prefer-dynamic=true',
+#	'-Zstaticlib-allow-rdylib-deps=true',
+#	'-Zpacked-bundled-libs=false',
+#	'-Zplt=true',
+#	'-Clink-arg=-Wl,--as-needed',
+#	'-Clink-arg=-Wl,--allow-shlib-undefined',
+#	'-Clink-arg=-Wl,-z,lazy',
+#	'-Clink-arg=-Wl,-z,unique',
+#	'-Clink-arg=-Wl,-z,nodlopen',
+#	'-Clink-arg=-Wl,-z,nodelete',
+#]
+
+[profile.dev.package.conduit]
+inherits = "dev"
+incremental = false
+#rustflags = [
+#	'-Ztime-passes',
+#	'-Zmir-opt-level=0',
+#	'-Zvalidate-mir=false',
+#	'-Ztls-model=global-dynamic',
+#	'-Cprefer-dynamic=true',
+#	'-Zexport-executable-symbols=true',
+#	'-Zplt=true',
+#	'-Crpath=true',
+#	'-Clink-arg=-Wl,--as-needed',
+#	'-Clink-arg=-Wl,--allow-shlib-undefined',
+#	'-Clink-arg=-Wl,--export-dynamic',
+#	'-Clink-arg=-Wl,-z,lazy',
+#]
+
+[profile.dev.package.rust-rocksdb-uwu]
+inherits = "dev"
+debug = 'limited'
+incremental = false
 codegen-units = 1
+opt-level = 'z'
+#rustflags = [
+#	'-Ztls-model=initial-exec',
+#	'-Cprefer-dynamic=true',
+#	'-Zstaticlib-prefer-dynamic=true',
+#	'-Zstaticlib-allow-rdylib-deps=true',
+#	'-Zpacked-bundled-libs=true',
+#	'-Zplt=true',
+#	'-Clink-arg=-Wl,--no-as-needed',
+#	'-Clink-arg=-Wl,--allow-shlib-undefined',
+#	'-Clink-arg=-Wl,-z,lazy',
+#	'-Clink-arg=-Wl,-z,nodlopen',
+#	'-Clink-arg=-Wl,-z,nodelete',
+#]
 
-[profile.release-high-perf.package."*"]
-debug = 0
-opt-level = 3
+[profile.dev.package.'*']
+inherits = "dev"
+debug = 'limited'
+incremental = false
 codegen-units = 1
+opt-level = 'z'
+#rustflags = [
+#	'-Ztls-model=global-dynamic',
+#	'-Cprefer-dynamic=true',
+#	'-Zstaticlib-prefer-dynamic=true',
+#	'-Zstaticlib-allow-rdylib-deps=true',
+#	'-Zpacked-bundled-libs=true',
+#	'-Zplt=true',
+#	'-Clink-arg=-Wl,--as-needed',
+#	'-Clink-arg=-Wl,-z,lazy',
+#	'-Clink-arg=-Wl,-z,nodelete',
+#]
 
-
-[lints]
-workspace = true
+[profile.test]
+incremental = false
 
 [workspace.lints.rust]
 missing_abi = "warn"
@@ -542,7 +654,6 @@ unused_braces = "allow"
 
 # some sadness
 missing_docs = "allow"
-
 
 [workspace.lints.clippy]
 # pedantic = "warn"
@@ -615,7 +726,6 @@ unnecessary_box_returns = "warn"
 map_unwrap_or = "warn"
 implicit_clone = "warn"
 match_wildcard_for_single_variants = "warn"
-unnecessary_wraps = "warn"
 match_same_arms = "warn"
 ignored_unit_patterns = "warn"
 redundant_else = "warn"
@@ -650,6 +760,7 @@ unwrap_used = "allow"
 expect_used = "allow"
 if_then_some_else_none = "allow"
 let_underscore_must_use = "allow"
+let_underscore_future = "allow"
 map_err_ignore = "allow"
 missing_docs_in_private_items = "allow"
 multiple_inherent_impl = "allow"
@@ -657,3 +768,4 @@ error_impl_error = "allow"
 string_add = "allow"
 string_slice = "allow"
 ref_patterns = "allow"
+unnecessary_wraps = "allow"

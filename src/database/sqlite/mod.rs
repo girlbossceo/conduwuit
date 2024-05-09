@@ -6,13 +6,13 @@ use std::{
 	sync::Arc,
 };
 
+use conduit::{Config, Result};
 use parking_lot::{Mutex, MutexGuard};
 use rusqlite::{Connection, DatabaseName::Main, OptionalExtension};
 use thread_local::ThreadLocal;
 use tracing::debug;
 
 use super::{watchers::Watchers, KeyValueDatabaseEngine, KvTree};
-use crate::{database::Config, Result};
 
 thread_local! {
 	static READ_CONNECTION: RefCell<Option<&'static Connection>> = const { RefCell::new(None) };
@@ -224,7 +224,7 @@ impl KvTree for SqliteTable {
 		guard.execute("BEGIN", [])?;
 		for key in iter {
 			let old = self.get_with_guard(&guard, &key)?;
-			let new = crate::utils::increment(old.as_deref());
+			let new = conduit::utils::increment(old.as_deref());
 			self.insert_with_guard(&guard, &key, &new)?;
 		}
 		guard.execute("COMMIT", [])?;
@@ -307,7 +307,7 @@ impl KvTree for SqliteTable {
 
 		let old = self.get_with_guard(&guard, key)?;
 
-		let new = crate::utils::increment(old.as_deref());
+		let new = conduit::utils::increment(old.as_deref());
 
 		self.insert_with_guard(&guard, key, &new)?;
 

@@ -1,8 +1,8 @@
 mod data;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
-pub(crate) use data::Data;
+pub use data::Data;
 use futures_util::Future;
 use regex::RegexSet;
 use ruma::{
@@ -15,14 +15,15 @@ use crate::{services, Result};
 
 /// Compiled regular expressions for a namespace
 #[derive(Clone, Debug)]
-pub(crate) struct NamespaceRegex {
-	pub(crate) exclusive: Option<RegexSet>,
-	pub(crate) non_exclusive: Option<RegexSet>,
+pub struct NamespaceRegex {
+	pub exclusive: Option<RegexSet>,
+	pub non_exclusive: Option<RegexSet>,
 }
 
 impl NamespaceRegex {
 	/// Checks if this namespace has rights to a namespace
-	pub(crate) fn is_match(&self, heystack: &str) -> bool {
+	#[must_use]
+	pub fn is_match(&self, heystack: &str) -> bool {
 		if self.is_exclusive_match(heystack) {
 			return true;
 		}
@@ -36,7 +37,8 @@ impl NamespaceRegex {
 	}
 
 	/// Checks if this namespace has exlusive rights to a namespace
-	pub(crate) fn is_exclusive_match(&self, heystack: &str) -> bool {
+	#[must_use]
+	pub fn is_exclusive_match(&self, heystack: &str) -> bool {
 		if let Some(exclusive) = &self.exclusive {
 			if exclusive.is_match(heystack) {
 				return true;
@@ -47,11 +49,13 @@ impl NamespaceRegex {
 }
 
 impl RegistrationInfo {
-	pub(crate) fn is_user_match(&self, user_id: &UserId) -> bool {
+	#[must_use]
+	pub fn is_user_match(&self, user_id: &UserId) -> bool {
 		self.users.is_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
 	}
 
-	pub(crate) fn is_exclusive_user_match(&self, user_id: &UserId) -> bool {
+	#[must_use]
+	pub fn is_exclusive_user_match(&self, user_id: &UserId) -> bool {
 		self.users.is_exclusive_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
 	}
 }
@@ -88,11 +92,11 @@ impl TryFrom<Vec<Namespace>> for NamespaceRegex {
 
 /// Appservice registration combined with its compiled regular expressions.
 #[derive(Clone, Debug)]
-pub(crate) struct RegistrationInfo {
-	pub(crate) registration: Registration,
-	pub(crate) users: NamespaceRegex,
-	pub(crate) aliases: NamespaceRegex,
-	pub(crate) rooms: NamespaceRegex,
+pub struct RegistrationInfo {
+	pub registration: Registration,
+	pub users: NamespaceRegex,
+	pub aliases: NamespaceRegex,
+	pub rooms: NamespaceRegex,
 }
 
 impl TryFrom<Registration> for RegistrationInfo {
@@ -108,13 +112,13 @@ impl TryFrom<Registration> for RegistrationInfo {
 	}
 }
 
-pub(crate) struct Service {
-	pub(crate) db: &'static dyn Data,
+pub struct Service {
+	pub db: Arc<dyn Data>,
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
 }
 
 impl Service {
-	pub(crate) fn build(db: &'static dyn Data) -> Result<Self> {
+	pub fn build(db: Arc<dyn Data>) -> Result<Self> {
 		let mut registration_info = BTreeMap::new();
 		// Inserting registrations into cache
 		for appservice in db.all()? {
@@ -134,7 +138,7 @@ impl Service {
 	}
 
 	/// Registers an appservice and returns the ID to the caller
-	pub(crate) async fn register_appservice(&self, yaml: Registration) -> Result<String> {
+	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
 		//TODO: Check for collisions between exclusive appservice namespaces
 		services()
 			.appservice
@@ -151,7 +155,7 @@ impl Service {
 	/// # Arguments
 	///
 	/// * `service_name` - the name you send to register the service previously
-	pub(crate) async fn unregister_appservice(&self, service_name: &str) -> Result<()> {
+	pub async fn unregister_appservice(&self, service_name: &str) -> Result<()> {
 		// removes the appservice registration info
 		services()
 			.appservice
@@ -171,7 +175,7 @@ impl Service {
 		Ok(())
 	}
 
-	pub(crate) async fn get_registration(&self, id: &str) -> Option<Registration> {
+	pub async fn get_registration(&self, id: &str) -> Option<Registration> {
 		self.registration_info
 			.read()
 			.await
@@ -180,7 +184,7 @@ impl Service {
 			.map(|info| info.registration)
 	}
 
-	pub(crate) async fn iter_ids(&self) -> Vec<String> {
+	pub async fn iter_ids(&self) -> Vec<String> {
 		self.registration_info
 			.read()
 			.await
@@ -189,7 +193,7 @@ impl Service {
 			.collect()
 	}
 
-	pub(crate) async fn find_from_token(&self, token: &str) -> Option<RegistrationInfo> {
+	pub async fn find_from_token(&self, token: &str) -> Option<RegistrationInfo> {
 		self.read()
 			.await
 			.values()
@@ -198,7 +202,7 @@ impl Service {
 	}
 
 	/// Checks if a given user id matches any exclusive appservice regex
-	pub(crate) async fn is_exclusive_user_id(&self, user_id: &UserId) -> bool {
+	pub async fn is_exclusive_user_id(&self, user_id: &UserId) -> bool {
 		self.read()
 			.await
 			.values()
@@ -206,7 +210,7 @@ impl Service {
 	}
 
 	/// Checks if a given room alias matches any exclusive appservice regex
-	pub(crate) async fn is_exclusive_alias(&self, alias: &RoomAliasId) -> bool {
+	pub async fn is_exclusive_alias(&self, alias: &RoomAliasId) -> bool {
 		self.read()
 			.await
 			.values()
@@ -217,16 +221,14 @@ impl Service {
 	///
 	/// TODO: use this?
 	#[allow(dead_code)]
-	pub(crate) async fn is_exclusive_room_id(&self, room_id: &RoomId) -> bool {
+	pub async fn is_exclusive_room_id(&self, room_id: &RoomId) -> bool {
 		self.read()
 			.await
 			.values()
 			.any(|info| info.rooms.is_exclusive_match(room_id.as_str()))
 	}
 
-	pub(crate) fn read(
-		&self,
-	) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>> {
+	pub fn read(&self) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>> {
 		self.registration_info.read()
 	}
 }

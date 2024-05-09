@@ -1,11 +1,17 @@
+mod parse_incoming_pdu;
+mod signing_keys;
+pub struct Service;
+
 use std::{
 	cmp,
-	collections::{hash_map, HashSet},
+	collections::{hash_map, BTreeMap, HashMap, HashSet},
 	pin::Pin,
+	sync::Arc,
 	time::{Duration, Instant},
 };
 
 use futures_util::Future;
+pub use parse_incoming_pdu::parse_incoming_pdu;
 use ruma::{
 	api::{
 		client::error::ErrorKind,
@@ -24,14 +30,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{
-	debug_error, debug_info,
-	service::{pdu, Arc, BTreeMap, HashMap, Result},
-	services, Error, PduEvent,
-};
-
-mod signing_keys;
-pub(crate) struct Service;
+use crate::{debug_error, debug_info, pdu, services, Error, PduEvent, Result};
 
 // We use some AsyncRecursiveType hacks here so we can call async funtion
 // recursively.
@@ -70,7 +69,7 @@ impl Service {
 	/// 14. Check if the event passes auth based on the "current state" of the
 	///     room, if not soft fail it
 	#[tracing::instrument(skip(self, origin, value, is_timeline_event, pub_key_map), name = "pdu")]
-	pub(crate) async fn handle_incoming_pdu<'a>(
+	pub async fn handle_incoming_pdu<'a>(
 		&self, origin: &'a ServerName, room_id: &'a RoomId, event_id: &'a EventId,
 		value: BTreeMap<String, CanonicalJsonValue>, is_timeline_event: bool,
 		pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
@@ -207,7 +206,7 @@ impl Service {
 		skip(self, origin, event_id, room_id, pub_key_map, eventid_info, create_event, first_pdu_in_room),
 		name = "prev"
 	)]
-	pub(crate) async fn handle_prev_pdu<'a>(
+	pub async fn handle_prev_pdu<'a>(
 		&self, origin: &'a ServerName, event_id: &'a EventId, room_id: &'a RoomId,
 		pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 		eventid_info: &mut HashMap<Arc<EventId>, (Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>,
@@ -427,7 +426,7 @@ impl Service {
 		})
 	}
 
-	pub(crate) async fn upgrade_outlier_to_timeline_pdu(
+	pub async fn upgrade_outlier_to_timeline_pdu(
 		&self, incoming_pdu: Arc<PduEvent>, val: BTreeMap<String, CanonicalJsonValue>, create_event: &PduEvent,
 		origin: &ServerName, room_id: &RoomId, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<Option<Vec<u8>>> {
@@ -748,7 +747,7 @@ impl Service {
 	// TODO: if we know the prev_events of the incoming event we can avoid the
 	// request and build the state from a known point and resolve if > 1 prev_event
 	#[tracing::instrument(skip_all, name = "state")]
-	pub(crate) async fn state_at_incoming_degree_one(
+	pub async fn state_at_incoming_degree_one(
 		&self, incoming_pdu: &Arc<PduEvent>,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		let prev_event = &*incoming_pdu.prev_events[0];
@@ -796,7 +795,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip_all, name = "state")]
-	pub(crate) async fn state_at_incoming_resolved(
+	pub async fn state_at_incoming_resolved(
 		&self, incoming_pdu: &Arc<PduEvent>, room_id: &RoomId, room_version_id: &RoomVersionId,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		debug!("Calculating state at event using state res");
@@ -988,7 +987,7 @@ impl Service {
 	/// b. Look at outlier pdu tree
 	/// c. Ask origin server over federation
 	/// d. TODO: Ask other servers over federation?
-	pub(crate) fn fetch_and_handle_outliers<'a>(
+	pub fn fetch_and_handle_outliers<'a>(
 		&'a self, origin: &'a ServerName, events: &'a [Arc<EventId>], create_event: &'a PduEvent, room_id: &'a RoomId,
 		room_version_id: &'a RoomVersionId, pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> AsyncRecursiveCanonicalJsonVec<'a> {
@@ -1275,7 +1274,7 @@ impl Service {
 
 	/// Returns Ok if the acl allows the server
 	#[tracing::instrument(skip_all)]
-	pub(crate) fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
+	pub fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
 		let acl_event = if let Some(acl) =
 			services()
 				.rooms

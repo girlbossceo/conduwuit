@@ -12,7 +12,7 @@ type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, V
 
 type AnySyncStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
 
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
 	fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
 	fn mark_as_invited(

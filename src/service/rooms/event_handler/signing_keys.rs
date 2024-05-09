@@ -1,5 +1,5 @@
 use std::{
-	collections::HashSet,
+	collections::{BTreeMap, HashMap, HashSet},
 	time::{Duration, SystemTime},
 };
 
@@ -21,13 +21,10 @@ use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::{RwLock, RwLockWriteGuard};
 use tracing::{debug, error, info, trace, warn};
 
-use crate::{
-	service::{BTreeMap, HashMap, Result},
-	services, Error,
-};
+use crate::{services, Error, Result};
 
 impl super::Service {
-	pub(crate) async fn fetch_required_signing_keys<'a, E>(
+	pub async fn fetch_required_signing_keys<'a, E>(
 		&'a self, events: E, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()>
 	where
@@ -265,7 +262,7 @@ impl super::Service {
 		Ok(())
 	}
 
-	pub(crate) async fn fetch_join_signing_keys(
+	pub async fn fetch_join_signing_keys(
 		&self, event: &create_join_event::v2::Response, room_version: &RoomVersionId,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
@@ -342,7 +339,7 @@ impl super::Service {
 	/// Search the DB for the signing keys of the given server, if we don't have
 	/// them fetch them from the server and save to our DB.
 	#[tracing::instrument(skip_all)]
-	pub(crate) async fn fetch_signing_keys_for_server(
+	pub async fn fetch_signing_keys_for_server(
 		&self, origin: &ServerName, signature_ids: Vec<String>,
 	) -> Result<BTreeMap<String, Base64>> {
 		let contains_all_ids = |keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));

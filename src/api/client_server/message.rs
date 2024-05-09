@@ -3,6 +3,7 @@ use std::{
 	sync::Arc,
 };
 
+use conduit::PduCount;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -14,10 +15,7 @@ use ruma::{
 };
 use serde_json::{from_str, Value};
 
-use crate::{
-	service::{pdu::PduBuilder, rooms::timeline::PduCount},
-	services, utils, Error, PduEvent, Result, Ruma,
-};
+use crate::{service::pdu::PduBuilder, services, utils, Error, PduEvent, Result, Ruma};
 
 /// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
 ///

@@ -8,7 +8,7 @@ use ruma::{
 
 use crate::Result;
 
-pub(crate) trait Data: Send + Sync {
+pub trait Data: Send + Sync {
 	fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String>;
 
 	fn delete_backup(&self, user_id: &UserId, version: &str) -> Result<()>;

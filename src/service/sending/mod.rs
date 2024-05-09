@@ -1,27 +1,28 @@
 use std::{fmt::Debug, sync::Arc};
 
-pub(crate) use data::Data;
+pub use data::Data;
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
-use tokio::sync::Mutex;
-use tracing::warn;
+use tokio::{sync::Mutex, task::JoinHandle};
+use tracing::{error, warn};
 
-use crate::{services, utils::server_name::server_is_ours, Config, Error, Result};
+use crate::{server_is_ours, services, Config, Error, Result};
 
 mod appservice;
 mod data;
-pub(crate) mod send;
-pub(crate) mod sender;
-pub(crate) use send::FedDest;
+pub mod send;
+pub mod sender;
+pub use send::FedDest;
 
-pub(crate) struct Service {
-	pub(crate) db: &'static dyn Data,
+pub struct Service {
+	pub db: Arc<dyn Data>,
 
 	/// The state for a given state hash.
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
+	handler_join: Mutex<Option<JoinHandle<()>>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
 }
@@ -34,7 +35,7 @@ struct Msg {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Destination {
+pub enum Destination {
 	Appservice(String),
 	Push(OwnedUserId, String), // user and pushkey
 	Normal(OwnedServerName),
@@ -42,26 +43,42 @@ pub(crate) enum Destination {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum SendingEvent {
+pub enum SendingEvent {
 	Pdu(Vec<u8>), // pduid
 	Edu(Vec<u8>), // pdu json
 	Flush,        // none
 }
 
 impl Service {
-	pub(crate) fn build(db: &'static dyn Data, config: &Config) -> Arc<Self> {
+	pub fn build(db: Arc<dyn Data>, config: &Config) -> Arc<Self> {
 		let (sender, receiver) = loole::unbounded();
 		Arc::new(Self {
 			db,
 			sender,
 			receiver: Mutex::new(receiver),
+			handler_join: Mutex::new(None),
 			startup_netburst: config.startup_netburst,
 			startup_netburst_keep: config.startup_netburst_keep,
 		})
 	}
 
+	pub async fn close(&self) {
+		self.interrupt();
+		if let Some(handler_join) = self.handler_join.lock().await.take() {
+			if let Err(e) = handler_join.await {
+				error!("Failed to shutdown: {e:?}");
+			}
+		}
+	}
+
+	pub fn interrupt(&self) {
+		if !self.sender.is_closed() {
+			self.sender.close();
+		}
+	}
+
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
-	pub(crate) fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
+	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(pdu_id.to_owned());
 		let _cork = services().globals.db.cork()?;
@@ -74,7 +91,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
+	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
 		let _cork = services().globals.db.cork()?;
@@ -87,7 +104,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, pdu_id))]
-	pub(crate) fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
+	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
 		let servers = services()
 			.rooms
 			.state_cache
@@ -99,9 +116,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers, pdu_id))]
-	pub(crate) fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(
-		&self, servers: I, pdu_id: &[u8],
-	) -> Result<()> {
+	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
 		let requests = servers
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEvent::Pdu(pdu_id.to_owned())))
@@ -125,7 +140,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, server, serialized))]
-	pub(crate) fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
+	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
 		let _cork = services().globals.db.cork()?;
@@ -138,7 +153,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, serialized))]
-	pub(crate) fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
+	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
 		let servers = services()
 			.rooms
 			.state_cache
@@ -150,9 +165,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers, serialized))]
-	pub(crate) fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(
-		&self, servers: I, serialized: Vec<u8>,
-	) -> Result<()> {
+	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
 		let requests = servers
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEvent::Edu(serialized.clone())))
@@ -177,7 +190,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
-	pub(crate) fn flush_room(&self, room_id: &RoomId) -> Result<()> {
+	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers = services()
 			.rooms
 			.state_cache
@@ -189,7 +202,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers))]
-	pub(crate) fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
+	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
 		let requests = servers.into_iter().map(Destination::Normal);
 		for dest in requests {
 			self.dispatch(Msg {
@@ -203,7 +216,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, request), name = "request")]
-	pub(crate) async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug,
 	{
@@ -215,7 +228,7 @@ impl Service {
 	///
 	/// Only returns None if there is no url specified in the appservice
 	/// registration file
-	pub(crate) async fn send_appservice_request<T>(
+	pub async fn send_appservice_request<T>(
 		&self, registration: Registration, request: T,
 	) -> Result<Option<T::IncomingResponse>>
 	where
@@ -227,7 +240,7 @@ impl Service {
 	/// Cleanup event data
 	/// Used for instance after we remove an appservice registration
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn cleanup_events(&self, appservice_id: String) -> Result<()> {
+	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
 		self.db
 			.delete_all_requests_for(&Destination::Appservice(appservice_id))?;
 
@@ -243,7 +256,7 @@ impl Service {
 
 impl Destination {
 	#[tracing::instrument(skip(self))]
-	pub(crate) fn get_prefix(&self) -> Vec<u8> {
+	pub fn get_prefix(&self) -> Vec<u8> {
 		let mut prefix = match self {
 			Destination::Appservice(server) => {
 				let mut p = b"+".to_vec();

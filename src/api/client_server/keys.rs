@@ -22,8 +22,9 @@ use tracing::debug;
 
 use super::SESSION_ID_LENGTH;
 use crate::{
+	service::user_is_local,
 	services,
-	utils::{self, user_id::user_is_local},
+	utils::{self},
 	Error, Result, Ruma,
 };
 

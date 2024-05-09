@@ -8,23 +8,23 @@ use ruma::{
 use tokio::sync::{broadcast, RwLock};
 
 use crate::{
-	debug_info, services,
-	utils::{self, user_id::user_is_local},
+	debug_info, services, user_is_local,
+	utils::{self},
 	Result,
 };
 
-pub(crate) struct Service {
-	pub(crate) typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>, // u64 is unix timestamp of timeout
-	pub(crate) last_typing_update: RwLock<BTreeMap<OwnedRoomId, u64>>,            /* timestamp of the last change to
-	                                                                               * typing
-	                                                                               * users */
-	pub(crate) typing_update_sender: broadcast::Sender<OwnedRoomId>,
+pub struct Service {
+	pub typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>, // u64 is unix timestamp of timeout
+	pub last_typing_update: RwLock<BTreeMap<OwnedRoomId, u64>>,            /* timestamp of the last change to
+	                                                                        * typing
+	                                                                        * users */
+	pub typing_update_sender: broadcast::Sender<OwnedRoomId>,
 }
 
 impl Service {
 	/// Sets a user as typing until the timeout timestamp is reached or
 	/// roomtyping_remove is called.
-	pub(crate) async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
+	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
 		debug_info!("typing started {:?} in {:?} timeout:{:?}", user_id, room_id, timeout);
 		// update clients
 		self.typing
@@ -48,7 +48,7 @@ impl Service {
 	}
 
 	/// Removes a user from typing before the timeout is reached.
-	pub(crate) async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+	pub async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		debug_info!("typing stopped {:?} in {:?}", user_id, room_id);
 		// update clients
 		self.typing
@@ -71,7 +71,7 @@ impl Service {
 		Ok(())
 	}
 
-	pub(crate) async fn wait_for_update(&self, room_id: &RoomId) -> Result<()> {
+	pub async fn wait_for_update(&self, room_id: &RoomId) -> Result<()> {
 		let mut receiver = self.typing_update_sender.subscribe();
 		while let Ok(next) = receiver.recv().await {
 			if next == room_id {
@@ -128,7 +128,7 @@ impl Service {
 	}
 
 	/// Returns the count of the last typing update in this room.
-	pub(crate) async fn last_typing_update(&self, room_id: &RoomId) -> Result<u64> {
+	pub async fn last_typing_update(&self, room_id: &RoomId) -> Result<u64> {
 		self.typings_maintain(room_id).await?;
 		Ok(self
 			.last_typing_update
@@ -140,7 +140,7 @@ impl Service {
 	}
 
 	/// Returns a new typing EDU.
-	pub(crate) async fn typings_all(
+	pub async fn typings_all(
 		&self, room_id: &RoomId,
 	) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
 		Ok(SyncEphemeralRoomEvent {

@@ -13,7 +13,10 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 
-use crate::{service::pdu::PduBuilder, services, utils::user_id::user_is_local, Error, Result, Ruma};
+use crate::{
+	service::{pdu::PduBuilder, user_is_local},
+	services, Error, Result, Ruma,
+};
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
 ///

@@ -1,10 +1,11 @@
+pub(crate) mod axum;
+mod xmatrix;
+
 use std::ops::Deref;
 
-use ruma::{api::client::uiaa::UiaaResponse, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId};
+use ruma::{CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId};
 
-use crate::{service::appservice::RegistrationInfo, Error};
-
-mod axum;
+use crate::service::appservice::RegistrationInfo;
 
 /// Extractor for Ruma request structs
 pub(crate) struct Ruma<T> {
@@ -20,15 +21,4 @@ impl<T> Deref for Ruma<T> {
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target { &self.body }
-}
-
-#[derive(Clone)]
-pub(crate) struct RumaResponse<T>(pub(crate) T);
-
-impl<T> From<T> for RumaResponse<T> {
-	fn from(t: T) -> Self { Self(t) }
-}
-
-impl From<Error> for RumaResponse<UiaaResponse> {
-	fn from(t: Error) -> Self { t.to_response() }
 }

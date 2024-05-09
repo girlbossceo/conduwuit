@@ -44,19 +44,23 @@ use ruma::{
 	},
 	serde::{Base64, JsonObject, Raw},
 	to_device::DeviceIdOrAllDevices,
-	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId,
-	OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName,
+	uint, user_id, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedServerName,
+	OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
 use tracing::{debug, error, trace, warn};
 
 use crate::{
-	api::client_server::{self, claim_keys_helper, get_keys_helper},
+	client_server::{self, claim_keys_helper, get_keys_helper},
 	debug_error,
-	service::pdu::{gen_event_id_canonical_json, PduBuilder},
+	service::{
+		pdu::{gen_event_id_canonical_json, PduBuilder},
+		rooms::event_handler::parse_incoming_pdu,
+		server_is_ours, user_is_local,
+	},
 	services,
-	utils::{self, server_name::server_is_ours, user_id::user_is_local},
+	utils::{self},
 	Error, PduEvent, Result, Ruma,
 };
 
@@ -194,32 +198,6 @@ pub(crate) async fn get_public_rooms_route(
 		next_batch: response.next_batch,
 		total_room_count_estimate: response.total_room_count_estimate,
 	})
-}
-
-pub(crate) fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
-	let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-		warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
-		Error::BadServerResponse("Invalid PDU in server response")
-	})?;
-
-	let room_id: OwnedRoomId = value
-		.get("room_id")
-		.and_then(|id| RoomId::parse(id.as_str()?).ok())
-		.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid room id in pdu"))?;
-
-	let Ok(room_version_id) = services().rooms.state.get_room_version(&room_id) else {
-		return Err(Error::Err(format!("Server is not in room {room_id}")));
-	};
-
-	let Ok((event_id, value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
-		// Event could not be converted to canonical json
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Could not convert event to canonical json.",
-		));
-	};
-
-	Ok((event_id, value, room_id))
 }
 
 /// # `PUT /_matrix/federation/v1/send/{txnId}`

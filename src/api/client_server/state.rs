@@ -19,10 +19,8 @@ use ruma::{
 use tracing::{error, log::warn};
 
 use crate::{
-	service::{self, pdu::PduBuilder},
-	services,
-	utils::server_name::server_is_ours,
-	Error, Result, Ruma, RumaResponse,
+	service::{pdu::PduBuilder, server_is_ours},
+	services, Error, Result, Ruma, RumaResponse,
 };
 
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
