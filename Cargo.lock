@@ -1609,9 +1609,9 @@ dependencies = [
 
 [[package]]
 name = "infer"
-version = "0.3.7"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "865e8a58ae8e24d2c4412c31344afa1d302a3740ad67528c10f50d6876cdcf55"
+checksum = "cb33622da908807a06f9513c19b3c1ad50fab3e4137d82a78107d502075aa199"
 
 [[package]]
 name = "inlinable_string"
