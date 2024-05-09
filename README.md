@@ -64,6 +64,7 @@ Both, but I prefer conduwuit.
 
 - GitHub: <https://github.com/girlbossceo/conduwuit>
 - GitLab: <https://gitlab.com/conduwuit/conduwuit>
+- git.girlcock.ceo: <https://git.girlcock.ceo/strawberry/conduwuit>
 - git.gay: <https://git.gay/june/conduwuit>
 - Codeberg: <https://codeberg.org/girlbossceo/conduwuit>
 - sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
