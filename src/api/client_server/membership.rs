@@ -317,15 +317,6 @@ pub(crate) async fn invite_user_route(body: Ruma<invite_user::v3::Request>) -> R
 pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if let Ok(true) = services()
-		.rooms
-		.state_cache
-		.is_left(sender_user, &body.room_id)
-	{
-		info!("{} is not in room {}", &body.user_id, &body.room_id);
-		return Ok(kick_user::v3::Response {});
-	}
-
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
 			.rooms
@@ -381,17 +372,6 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 /// Tries to send a ban event into the room.
 pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	if let Ok(Some(membership_event)) = services()
-		.rooms
-		.state_accessor
-		.get_member(&body.room_id, sender_user)
-	{
-		if membership_event.membership == MembershipState::Ban {
-			info!("{} is already banned in {}", &body.user_id, &body.room_id);
-			return Ok(ban_user::v3::Response {});
-		}
-	}
 
 	let event = services()
 		.rooms
@@ -461,17 +441,6 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 /// Tries to send an unban event into the room.
 pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	if let Ok(Some(membership_event)) = services()
-		.rooms
-		.state_accessor
-		.get_member(&body.room_id, sender_user)
-	{
-		if membership_event.membership != MembershipState::Ban {
-			info!("{} is already unbanned in {}", &body.user_id, &body.room_id);
-			return Ok(unban_user::v3::Response {});
-		}
-	}
 
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
