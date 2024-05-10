@@ -19,7 +19,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
 
 		Ok(self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?)
 	}
@@ -27,7 +26,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
 
 		// Optimization can be `true` if key vector is pre-sorted **by the column
 		// comparator**.
@@ -115,7 +113,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
 
 		Box::new(
 			self.db
@@ -129,7 +126,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn iter_from<'a>(&'a self, from: &[u8], backwards: bool) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
 
 		Box::new(
 			self.db
@@ -154,8 +150,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
-
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
 		let old = self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?;
@@ -174,8 +168,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn increment_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
-
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
 		let mut batch = WriteBatchWithTransaction::<false>::default();
@@ -198,7 +190,6 @@ impl KvTree for RocksDbEngineTree<'_> {
 	fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
-		readoptions.set_async_io(cfg!(feature = "io_uring"));
 
 		Box::new(
 			self.db
