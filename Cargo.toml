@@ -19,7 +19,7 @@ rust-version = "1.77.0"
 [dependencies]
 console-subscriber = { version = "0.2", optional = true }
 
-infer = { version = "0.15", default-features = false }
+infer = { version = "0.3", default-features = false }
 
 # for hot lib reload
 hot-lib-reloader = { version = "^0.7", optional = true }
@@ -28,7 +28,7 @@ hot-lib-reloader = { version = "^0.7", optional = true }
 rand = "0.8.5"
 
 # Used for conduit::Error type
-thiserror = "1.0.60"
+thiserror = "1.0.59"
 
 # Used to encode server public key
 base64 = "0.22.1"
@@ -133,14 +133,14 @@ features = ["rustls-tls-native-roots", "socks", "hickory-dns"]
 # all the serde stuff
 # Used for pdu definition
 [dependencies.serde]
-version = "1.0.201"
+version = "1.0.200"
 features = ["rc"]
 # Used for appservice registration files
 [dependencies.serde_yaml]
 version = "0.9.34"
 # Used for ruma wrapper
 [dependencies.serde_json]
-version = "1.0.117"
+version = "1.0.116"
 features = ["raw_value"]
 
 
@@ -234,7 +234,7 @@ features = ["use_std"]
 
 # for URL previews
 [dependencies.webpage]
-version = "2.0.1"
+version = "2.0"
 default-features = false
 
 # to support multiple variations of setting a config option
