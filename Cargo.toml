@@ -298,8 +298,8 @@ version = "0.24.1"
 default-features = false
 
 [dependencies.rust-rocksdb]
-git = "https://github.com/zaidoon1/rust-rocksdb"
-rev = "c5cd6bd25152ef1f8a488761351da0c3d29ed93a"
+git = "https://github.com/girlbossceo/rust-rocksdb-zaidoon1"
+rev = "9ecb597d966efb37ed96f4cfe3f09165013fd14a"
 #branch = "master"
 optional = true
 default-features = true
