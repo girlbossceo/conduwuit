@@ -750,8 +750,7 @@ async fn load_joined_room(
 				// Incremental /sync
 				let since_shortstatehash = since_shortstatehash.unwrap();
 
-				let mut state_events = Vec::new();
-				let mut lazy_loaded = HashSet::new();
+				let mut delta_state_events = Vec::new();
 
 				if since_shortstatehash != current_shortstatehash {
 					let current_state_ids = services()
@@ -772,54 +771,11 @@ async fn load_joined_room(
 								continue;
 							};
 
-							if pdu.kind == TimelineEventType::RoomMember {
-								match UserId::parse(
-									pdu.state_key
-										.as_ref()
-										.expect("State event has state key")
-										.clone(),
-								) {
-									Ok(state_key_userid) => {
-										lazy_loaded.insert(state_key_userid);
-									},
-									Err(e) => error!("Invalid state key for member event: {}", e),
-								}
-							}
-
-							state_events.push(pdu);
+							delta_state_events.push(pdu);
 							tokio::task::yield_now().await;
 						}
 					}
 				}
-
-				for (_, event) in &timeline_pdus {
-					if lazy_loaded.contains(&event.sender) {
-						continue;
-					}
-
-					if !services().rooms.lazy_loading.lazy_load_was_sent_before(
-						sender_user,
-						sender_device,
-						room_id,
-						&event.sender,
-					)? || lazy_load_send_redundant
-					{
-						if let Some(member_event) = services().rooms.state_accessor.room_state_get(
-							room_id,
-							&StateEventType::RoomMember,
-							event.sender.as_str(),
-						)? {
-							lazy_loaded.insert(event.sender.clone());
-							state_events.push(member_event);
-						}
-					}
-				}
-
-				services()
-					.rooms
-					.lazy_loading
-					.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
-					.await;
 
 				let encrypted_room = services()
 					.rooms
@@ -836,12 +792,12 @@ async fn load_joined_room(
 				// Calculations:
 				let new_encrypted_room = encrypted_room && since_encryption.is_none();
 
-				let send_member_count = state_events
+				let send_member_count = delta_state_events
 					.iter()
 					.any(|event| event.kind == TimelineEventType::RoomMember);
 
 				if encrypted_room {
-					for state_event in &state_events {
+					for state_event in &delta_state_events {
 						if state_event.kind != TimelineEventType::RoomMember {
 							continue;
 						}
@@ -901,6 +857,57 @@ async fn load_joined_room(
 				} else {
 					(None, None, Vec::new())
 				};
+
+				let mut state_events = delta_state_events;
+				let mut lazy_loaded = HashSet::new();
+
+				// Mark all member events we're returning as lazy-loaded
+				for pdu in &state_events {
+					if pdu.kind == TimelineEventType::RoomMember {
+						match UserId::parse(
+							pdu.state_key
+								.as_ref()
+								.expect("State event has state key")
+								.clone(),
+						) {
+							Ok(state_key_userid) => {
+								lazy_loaded.insert(state_key_userid);
+							},
+							Err(e) => error!("Invalid state key for member event: {}", e),
+						}
+					}
+				}
+
+				// Fetch contextual member state events for events from the timeline, and
+				// mark them as lazy-loaded as well.
+				for (_, event) in &timeline_pdus {
+					if lazy_loaded.contains(&event.sender) {
+						continue;
+					}
+
+					if !services().rooms.lazy_loading.lazy_load_was_sent_before(
+						sender_user,
+						sender_device,
+						room_id,
+						&event.sender,
+					)? || lazy_load_send_redundant
+					{
+						if let Some(member_event) = services().rooms.state_accessor.room_state_get(
+							room_id,
+							&StateEventType::RoomMember,
+							event.sender.as_str(),
+						)? {
+							lazy_loaded.insert(event.sender.clone());
+							state_events.push(member_event);
+						}
+					}
+				}
+
+				services()
+					.rooms
+					.lazy_loading
+					.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy_loaded, next_batchcount)
+					.await;
 
 				(
 					heroes,
