@@ -89,8 +89,7 @@ craneLib.buildPackage ( commonAttrs // {
 
   # This is redundant with CI
   cargoTestCommand = "";
-
-  # This is redundant with CI
+  cargoCheckCommand = "";
   doCheck = false;
 
   # https://crane.dev/faq/rebuilds-bindgen.html
