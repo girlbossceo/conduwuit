@@ -15,7 +15,7 @@ LOG_FILE="$2"
 # A `.jsonl` file to write test results to
 RESULTS_FILE="$3"
 
-OCI_IMAGE="complement-conduit:dev"
+OCI_IMAGE="complement-conduit:main"
 
 toplevel="$(git rev-parse --show-toplevel)"
 
