@@ -1,6 +1,6 @@
 # conduwuit for NixOS
 
-conduwuit can be acquired by Nix from various places:
+conduwuit can be acquired by [Lix][lix] from various places:
 
 * The `flake.nix` at the root of the repo
 * The `default.nix` at the root of the repo
@@ -26,5 +26,6 @@ If you want to run the latest code, you should get Conduwuit from the `flake.nix
 or `default.nix` and set [`services.matrix-conduit.package`][package]
 appropriately.
 
+[lix]: https://lix.systems/
 [module]: https://search.nixos.org/options?channel=unstable&query=services.matrix-conduit
 [package]: https://search.nixos.org/options?channel=unstable&query=services.matrix-conduit.package
