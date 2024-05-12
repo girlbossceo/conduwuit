@@ -16,6 +16,7 @@ use ruma::{
 			message::{Relation::Reply, RoomMessageEventContent},
 			name::RoomNameEventContent,
 			power_levels::RoomPowerLevelsEventContent,
+			preview_url::RoomPreviewUrlsEventContent,
 			topic::RoomTopicEventContent,
 		},
 		TimelineEventType,
@@ -633,6 +634,27 @@ impl Service {
 			.await?;
 
 		services().rooms.alias.set_alias(&alias, &room_id)?;
+
+		// 7. (ad-hoc) Disable room previews for everyone by default
+		services()
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
+					event_type: TimelineEventType::RoomPreviewUrls,
+					content: to_raw_value(&RoomPreviewUrlsEventContent {
+						disabled: true,
+					})
+					.expect("event is valid we just created it"),
+					unsigned: None,
+					state_key: Some(String::new()),
+					redacts: None,
+				},
+				&server_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
 
 		Ok(())
 	}
