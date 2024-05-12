@@ -1,5 +1,7 @@
 use infer::MatcherType;
 
+use crate::debug_info;
+
 /// Returns a Content-Disposition of `attachment` or `inline`, depending on the
 /// *parsed* contents of the file uploaded via format magic keys using `infer`
 /// crate (basically libmagic without needing libmagic).
@@ -15,9 +17,11 @@ pub(crate) fn content_disposition_type(buf: &[u8], _content_type: &Option<String
 		return "attachment";
 	};
 
+	debug_info!("MIME type: {}", file_type.mime_type());
+
 	match file_type.matcher_type() {
 		MatcherType::Image | MatcherType::Audio | MatcherType::Text | MatcherType::Video => {
-			if file_type.mime_type().contains("svg") {
+			if file_type.mime_type().contains("xml") {
 				"attachment"
 			} else {
 				"inline"
