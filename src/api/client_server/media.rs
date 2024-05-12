@@ -19,7 +19,9 @@ use crate::{
 	services,
 	utils::{
 		self,
-		content_disposition::{content_disposition_type, make_content_disposition, sanitise_filename},
+		content_disposition::{
+			content_disposition_type, make_content_disposition, make_content_type, sanitise_filename,
+		},
 		server_name::server_is_ours,
 	},
 	Error, Result, Ruma, RumaResponse,
@@ -127,6 +129,8 @@ pub(crate) async fn create_content_route(
 		utils::random_string(MXC_LENGTH)
 	);
 
+	let content_type = Some(make_content_type(&body.file, &body.content_type).to_owned());
+
 	services()
 		.media
 		.create(
@@ -137,20 +141,18 @@ pub(crate) async fn create_content_route(
 				.map(|filename| {
 					format!(
 						"{}; filename={}",
-						content_disposition_type(&body.file, &body.content_type),
+						content_disposition_type(&body.file, &content_type),
 						sanitise_filename(filename.to_owned())
 					)
 				})
 				.as_deref(),
-			body.content_type.as_deref(),
+			content_type.as_deref(),
 			&body.file,
 		)
 		.await?;
 
-	let content_uri = mxc.into();
-
 	Ok(create_content::v3::Response {
-		content_uri,
+		content_uri: mxc.into(),
 		blurhash: None,
 	})
 }
@@ -189,6 +191,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 	}) = services().media.get(mxc.clone()).await?
 	{
 		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition));
+		let content_type = Some(make_content_type(&file, &content_type).to_owned());
 
 		Ok(get_content::v3::Response {
 			file,
@@ -216,10 +219,11 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 			&response.content_type,
 			response.content_disposition,
 		));
+		let content_type = Some(make_content_type(&response.file, &response.content_type).to_owned());
 
 		Ok(get_content::v3::Response {
 			file: response.file,
-			content_type: response.content_type,
+			content_type,
 			content_disposition,
 			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
@@ -267,6 +271,7 @@ pub(crate) async fn get_content_as_filename_route(
 	}) = services().media.get(mxc.clone()).await?
 	{
 		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition));
+		let content_type = Some(make_content_type(&file, &content_type).to_owned());
 
 		Ok(get_content_as_filename::v3::Response {
 			file,
@@ -291,10 +296,13 @@ pub(crate) async fn get_content_as_filename_route(
 					&remote_content_response.content_type,
 					remote_content_response.content_disposition,
 				));
+				let content_type = Some(
+					make_content_type(&remote_content_response.file, &remote_content_response.content_type).to_owned(),
+				);
 
 				Ok(get_content_as_filename::v3::Response {
 					content_disposition,
-					content_type: remote_content_response.content_type,
+					content_type,
 					file: remote_content_response.file,
 					cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 					cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
@@ -359,6 +367,7 @@ pub(crate) async fn get_content_thumbnail_route(
 		.await?
 	{
 		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition));
+		let content_type = Some(make_content_type(&file, &content_type).to_owned());
 
 		Ok(get_content_thumbnail::v3::Response {
 			file,
@@ -371,7 +380,7 @@ pub(crate) async fn get_content_thumbnail_route(
 		if services()
 			.globals
 			.prevent_media_downloads_from()
-			.contains(&body.server_name.clone())
+			.contains(&body.server_name)
 		{
 			// we'll lie to the client and say the blocked server's media was not found and
 			// log. the client has no way of telling anyways so this is a security bonus.
@@ -415,10 +424,13 @@ pub(crate) async fn get_content_thumbnail_route(
 					&get_thumbnail_response.content_type,
 					get_thumbnail_response.content_disposition,
 				));
+				let content_type = Some(
+					make_content_type(&get_thumbnail_response.file, &get_thumbnail_response.content_type).to_owned(),
+				);
 
 				Ok(get_content_thumbnail::v3::Response {
 					file: get_thumbnail_response.file,
-					content_type: get_thumbnail_response.content_type,
+					content_type,
 					cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 					cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
 					content_disposition,
@@ -486,20 +498,22 @@ async fn get_remote_content(
 		content_response.content_disposition,
 	));
 
+	let content_type = Some(make_content_type(&content_response.file, &content_response.content_type).to_owned());
+
 	services()
 		.media
 		.create(
 			None,
 			mxc.to_owned(),
 			content_disposition.as_deref(),
-			content_response.content_type.as_deref(),
+			content_type.as_deref(),
 			&content_response.file,
 		)
 		.await?;
 
 	Ok(get_content::v3::Response {
 		file: content_response.file,
-		content_type: content_response.content_type,
+		content_type,
 		content_disposition,
 		cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.to_owned()),
 		cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
