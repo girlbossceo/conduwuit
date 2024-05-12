@@ -2,6 +2,11 @@ use infer::MatcherType;
 
 use crate::debug_info;
 
+const ATTACHMENT: &str = "attachment";
+const INLINE: &str = "inline";
+const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
+const IMAGE_SVG_XML: &str = "image/svg+xml";
+
 /// Returns a Content-Disposition of `attachment` or `inline`, depending on the
 /// *parsed* contents of the file uploaded via format magic keys using `infer`
 /// crate (basically libmagic without needing libmagic).
@@ -12,9 +17,10 @@ use crate::debug_info;
 ///
 /// TODO: add a "strict" function for comparing the Content-Type with what we
 /// detected: `file_type.mime_type() != content_type`
-pub(crate) fn content_disposition_type(buf: &[u8], _content_type: &Option<String>) -> &'static str {
+#[tracing::instrument(skip(buf))]
+pub(crate) fn content_disposition_type(buf: &[u8], content_type: &Option<String>) -> &'static str {
 	let Some(file_type) = infer::get(buf) else {
-		return "attachment";
+		return ATTACHMENT;
 	};
 
 	debug_info!("MIME type: {}", file_type.mime_type());
@@ -22,13 +28,35 @@ pub(crate) fn content_disposition_type(buf: &[u8], _content_type: &Option<String
 	match file_type.matcher_type() {
 		MatcherType::Image | MatcherType::Audio | MatcherType::Text | MatcherType::Video => {
 			if file_type.mime_type().contains("xml") {
-				"attachment"
+				ATTACHMENT
 			} else {
-				"inline"
+				INLINE
 			}
 		},
-		_ => "attachment",
+		_ => ATTACHMENT,
 	}
+}
+
+/// overrides the Content-Type with what we detected
+///
+/// SVG is special-cased due to the MIME type being classified as `text/xml` but
+/// browsers need `image/svg+xml`
+#[tracing::instrument(skip(buf))]
+pub(crate) fn make_content_type(buf: &[u8], content_type: &Option<String>) -> &'static str {
+	let Some(file_type) = infer::get(buf) else {
+		debug_info!("Failed to infer the file's contents");
+		return APPLICATION_OCTET_STREAM;
+	};
+
+	let Some(claimed_content_type) = content_type else {
+		return file_type.mime_type();
+	};
+
+	if claimed_content_type.contains("svg") && file_type.mime_type().contains("xml") {
+		return IMAGE_SVG_XML;
+	}
+
+	file_type.mime_type()
 }
 
 /// sanitises the file name for the Content-Disposition using
@@ -46,8 +74,10 @@ pub(crate) fn sanitise_filename(filename: String) -> String {
 /// creates the final Content-Disposition based on whether the filename exists
 /// or not.
 ///
-/// if filename exists: `Content-Disposition: attachment/inline;
-/// filename=filename.ext` else: `Content-Disposition: attachment/inline`
+/// if filename exists:
+/// `Content-Disposition: attachment/inline; filename=filename.ext`
+///
+/// else: `Content-Disposition: attachment/inline`
 #[tracing::instrument(skip(file))]
 pub(crate) fn make_content_disposition(
 	file: &[u8], content_type: &Option<String>, content_disposition: Option<String>,
