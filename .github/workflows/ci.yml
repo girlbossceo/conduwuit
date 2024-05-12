@@ -140,7 +140,7 @@ jobs:
               run: |
                   echo '# Complement diff results' >> $GITHUB_STEP_SUMMARY
                   echo '```diff' >> $GITHUB_STEP_SUMMARY
-                  tail -n 50 complement_test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
+                  tail -n 100 complement_test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
                   echo '```' >> $GITHUB_STEP_SUMMARY
 
             - name: Update Job Summary
