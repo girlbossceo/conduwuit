@@ -16,7 +16,13 @@ pub(crate) fn content_disposition_type(buf: &[u8], _content_type: &Option<String
 	};
 
 	match file_type.matcher_type() {
-		MatcherType::Image | MatcherType::Audio | MatcherType::Text | MatcherType::Video => "inline",
+		MatcherType::Image | MatcherType::Audio | MatcherType::Text | MatcherType::Video => {
+			if file_type.mime_type().contains("svg") {
+				"attachment"
+			} else {
+				"inline"
+			}
+		},
 		_ => "attachment",
 	}
 }
