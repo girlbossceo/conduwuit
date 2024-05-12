@@ -66,7 +66,11 @@ commonAttrs = {
       # right thing here.
       pkgsBuildHost.rustPlatform.bindgenHook
   ]
-  ++ lib.optionals stdenv.isDarwin [ libiconv ];
+      # https://github.com/NixOS/nixpkgs/issues/206242
+  ++ lib.optionals stdenv.isDarwin [ libiconv ]
+      # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
+      # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
+  ++ lib.optionals stdenv.isDarwin [ pkgsBuildHost.darwin.apple_sdk.frameworks.Security ];
  };
 in
 
