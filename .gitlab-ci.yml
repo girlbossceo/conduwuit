@@ -86,7 +86,7 @@ ci:
 
 artifacts:
   stage: artifacts
-  image: nixos/nix:2.22.0
+  image: nixos/nix:2.22.1
   script:
     - ./bin/nix-build-and-cache just .#static-x86_64-unknown-linux-musl
     - cp result/bin/conduit x86_64-unknown-linux-musl
