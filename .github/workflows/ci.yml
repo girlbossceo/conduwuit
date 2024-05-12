@@ -107,6 +107,14 @@ jobs:
             - name: Run Complement tests
               run: |
                   direnv exec . bin/complement 'complement_src' 'complement_test_logs.jsonl' 'complement_test_results.jsonl'
+                  cp -v -f result complement_oci_image.tar.gz
+
+            - name: Upload Complement OCI image
+              uses: actions/upload-artifact@v4
+              with:
+                name: complement_oci_image.tar.gz
+                path: complement_oci_image.tar.gz
+                if-no-files-found: error
 
             - name: Upload Complement logs
               uses: actions/upload-artifact@v4

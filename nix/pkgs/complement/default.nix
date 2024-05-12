@@ -53,7 +53,7 @@ in
 
 dockerTools.buildImage {
   name = "complement-${main.pname}";
-  tag = "dev";
+  tag = "main";
 
   copyToRoot = buildEnv {
     name = "root";
@@ -81,7 +81,7 @@ dockerTools.buildImage {
 
     Env = [
       "SSL_CERT_FILE=/complement/ca/ca.crt"
-      "CONDUIT_CONFIG=${./config.toml}"
+      "CONDUWUIT_CONFIG=${./config.toml}"
     ];
 
     ExposedPorts = {
