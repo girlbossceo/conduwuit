@@ -43,7 +43,7 @@ If conduwuit runs behind a router or in a container and has a different public I
 
 ## Setting up a systemd service
 
-The systemd unit for conduwuit can be found [here](../../debian/conduwuit.service). You may need to change the `ExecStart=` path to where you placed the conduwuit binary.
+The systemd unit for conduwuit can be found [here](../configuration.md#example-systemd-unit-file). You may need to change the `ExecStart=` path to where you placed the conduwuit binary.
 
 ## Creating the conduwuit configuration file
 

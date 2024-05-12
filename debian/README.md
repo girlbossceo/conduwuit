@@ -22,7 +22,7 @@ file size for download/upload, enabling federation, etc.
 Running
 -------
 
-The package uses the `conduwuit.service` systemd unit file to start and
+The package uses the [`conduwuit.service`](../configuration.md#example-systemd-unit-file) systemd unit file to start and
 stop conduwuit. It loads the configuration file mentioned above to set up the
 environment before running the server.
 

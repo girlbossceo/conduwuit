@@ -16,6 +16,7 @@ stdenv.mkDerivation {
       "conduwuit-example.toml"
       "CONTRIBUTING.md"
       "README.md"
+      "debian/conduwuit.service"
       "debian/README.md"
       "docs"
     ];
