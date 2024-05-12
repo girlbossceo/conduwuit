@@ -2931,7 +2931,7 @@ dependencies = [
 [[package]]
 name = "rust-librocksdb-sys"
 version = "0.21.0+9.1.1"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=c5cd6bd25152ef1f8a488761351da0c3d29ed93a#c5cd6bd25152ef1f8a488761351da0c3d29ed93a"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#6f0afedb3c29239b1d8a15a97ed8e6b74e0a9b33"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -2948,7 +2948,7 @@ dependencies = [
 [[package]]
 name = "rust-rocksdb"
 version = "0.25.0"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=c5cd6bd25152ef1f8a488761351da0c3d29ed93a#c5cd6bd25152ef1f8a488761351da0c3d29ed93a"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#6f0afedb3c29239b1d8a15a97ed8e6b74e0a9b33"
 dependencies = [
  "libc",
  "rust-librocksdb-sys",
