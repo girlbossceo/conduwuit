@@ -290,8 +290,8 @@ jobs:
 
             - name: Move OCI images into position
               run: |
-                  mv oci-image-x86_64-*-jemalloc/*.tar.gz oci-image-amd64.tar.gz
-                  mv oci-image-aarch64-*-jemalloc/*.tar.gz oci-image-arm64v8.tar.gz
+                  mv -v oci-image-x86_64-*-jemalloc/*.tar.gz oci-image-amd64.tar.gz
+                  mv -v oci-image-aarch64-*-jemalloc/*.tar.gz oci-image-arm64v8.tar.gz
 
             - name: Load and push amd64 image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
