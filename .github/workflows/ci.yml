@@ -206,10 +206,12 @@ jobs:
 
             - name: Build static ${{ matrix.target }}
               run: |
+                  CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
+
                   bin/nix-build-and-cache just .#static-${{ matrix.target }}
                   mkdir -p target/release/${{ matrix.target }}
                   cp -v -f result/bin/conduit target/release/${{ matrix.target }}
-                  direnv exec . cargo deb --verbose --no-build --no-strip --target=${{ matrix.target }} --output target/release/${{ matrix.target }}/${{ matrix.target }}.deb
+                  direnv exec . cargo deb --verbose --no-build --no-strip --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}/${{ matrix.target }}.deb
                   mv -v target/release/${{ matrix.target }}/conduit static-${{ matrix.target }}
                   mv -v target/release/${{ matrix.target }}/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
