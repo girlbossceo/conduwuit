@@ -207,10 +207,11 @@ jobs:
             - name: Build static ${{ matrix.target }}
               run: |
                   bin/nix-build-and-cache just .#static-${{ matrix.target }}
-                  mkdir -p target/release
-                  cp -v -f result/bin/conduit target/release/
-                  direnv exec . cargo deb --verbose --no-build --no-strip --target=${{ matrix.target }} --output target/debian/${{ matrix.target }}.deb
-                  mv target/release/conduit static-${{ matrix.target }}
+                  mkdir -p target/release/${{ matrix.target }}
+                  cp -v -f result/bin/conduit target/release/${{ matrix.target }}
+                  direnv exec . cargo deb --verbose --no-build --no-strip --target=${{ matrix.target }} --output target/release/${{ matrix.target }}/${{ matrix.target }}.deb
+                  mv -v target/release/${{ matrix.target }}/conduit static-${{ matrix.target }}
+                  mv -v target/release/${{ matrix.target }}/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
             - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
@@ -223,7 +224,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: deb-${{ matrix.target }}
-                  path: target/debian/${{ matrix.target }}.deb
+                  path: ${{ matrix.target }}.deb
                   if-no-files-found: error
 
             - name: Build OCI image ${{ matrix.target }}
