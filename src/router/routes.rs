@@ -133,6 +133,7 @@ pub(crate) fn routes(config: &Config) -> Router {
 		.ruma_route(client_server::get_media_config_route)
 		.ruma_route(client_server::get_media_preview_route)
 		.ruma_route(client_server::create_content_route)
+		.ruma_route(client_server::create_mxc_uri)
 		// legacy v1 media routes
 		.route(
 			"/_matrix/media/v1/preview_url",

@@ -6,7 +6,7 @@ use reqwest::Url;
 use ruma::api::client::{
 	error::{ErrorKind, RetryAfter},
 	media::{
-		create_content, get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
+		create_content, create_mxc_uri, get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
 		get_media_preview,
 	},
 };
@@ -57,6 +57,29 @@ pub(crate) async fn get_media_config_v1_route(
 	body: Ruma<get_media_config::v3::Request>,
 ) -> Result<RumaResponse<get_media_config::v3::Response>> {
 	get_media_config_route(body).await.map(RumaResponse)
+}
+
+/// # `POST /_matrix/media/v1/create`
+///
+/// Creates a MXC URI.
+///
+/// <https://spec.matrix.org/latest/client-server-api/#post_matrixmediav1create>
+///
+/// TODO: implement `unused_expires_at`, prevent MXC URI creation spam by
+/// keeping track of created MXC URIs with no content pushed to them per-user
+pub(crate) async fn create_mxc_uri(body: Ruma<create_mxc_uri::v1::Request>) -> Result<create_mxc_uri::v1::Response> {
+	let _sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	let mxc = format!(
+		"mxc://{}/{}",
+		services().globals.server_name(),
+		utils::random_string(MXC_LENGTH)
+	);
+
+	Ok(create_mxc_uri::v1::Response {
+		content_uri: mxc.into(),
+		unused_expires_at: None,
+	})
 }
 
 /// # `GET /_matrix/media/v3/preview_url`
