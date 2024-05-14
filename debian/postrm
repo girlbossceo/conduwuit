@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-. /usr/share/debconf/confmodule
+#. /usr/share/debconf/confmodule
 
 CONDUWUIT_CONFIG_PATH=/etc/conduwuit
 CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit
@@ -15,11 +15,11 @@ case $1 in
     # "configuration files must be preserved when the package is removed, and
     #  only deleted when the package is purged."
     if [ -d "$CONDUWUIT_CONFIG_PATH" ]; then
-      rm -r "$CONDUWUIT_CONFIG_PATH"
+      rm -v -r "$CONDUWUIT_CONFIG_PATH"
     fi
 
     if [ -d "$CONDUWUIT_DATABASE_PATH" ]; then
-      rm -r "$CONDUWUIT_DATABASE_PATH"
+      rm -v -r "$CONDUWUIT_DATABASE_PATH"
     fi
     ;;
 esac
