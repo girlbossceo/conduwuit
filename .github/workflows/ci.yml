@@ -209,11 +209,13 @@ jobs:
                   CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
 
                   bin/nix-build-and-cache just .#static-${{ matrix.target }}
-                  mkdir -p target/release/${{ matrix.target }}
-                  cp -v -f result/bin/conduit target/release/${{ matrix.target }}
-                  direnv exec . cargo deb --verbose --no-build --no-strip --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}/${{ matrix.target }}.deb
-                  mv -v target/release/${{ matrix.target }}/conduit static-${{ matrix.target }}
-                  mv -v target/release/${{ matrix.target }}/${{ matrix.target }}.deb ${{ matrix.target }}.deb
+                  mkdir -v -p target/release/
+                  mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
+                  cp -v -f result/bin/conduit target/release/conduwuit
+                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
+                  direnv exec . cargo deb --verbose --no-build --no-strip --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}.deb
+                  mv -v target/release/conduwuit static-${{ matrix.target }}
+                  mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
             - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
@@ -228,6 +230,7 @@ jobs:
                   name: deb-${{ matrix.target }}
                   path: ${{ matrix.target }}.deb
                   if-no-files-found: error
+                  compression-level: 0
 
             - name: Build OCI image ${{ matrix.target }}
               run: |

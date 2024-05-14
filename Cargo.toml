@@ -448,7 +448,7 @@ assets = [
         "644",
     ],
     [
-        "target/release/conduit",
+        "target/release/conduwuit",
         "usr/sbin/conduwuit",
         "755",
     ],
