@@ -1,9 +1,12 @@
 #!/bin/sh
 set -e
 
-. /usr/share/debconf/confmodule
+# TODO: implement debconf support that is maintainable without duplicating the config
+#. /usr/share/debconf/confmodule
 
-CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit/
+CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit
+CONDUWUIT_CONFIG_PATH=/etc/conduwuit
+CONDUWUIT_CONFIG_FILE="${CONDUWUIT_CONFIG_PATH}/conduwuit.toml"
 
 case "$1" in
   configure)
@@ -19,10 +22,15 @@ case "$1" in
     fi
 
     # Create the database path if it does not exist yet and fix up ownership
-    # and permissions.
-    mkdir -p "$CONDUWUIT_DATABASE_PATH"
-    chown conduwuit:conduwuit -R "$CONDUWUIT_DATABASE_PATH"
-    chmod 700 "$CONDUWUIT_DATABASE_PATH"
+    # and permissions for the config.
+    mkdir -v -p "$CONDUWUIT_DATABASE_PATH"
+
+    chown -v conduwuit:conduwuit -R "$CONDUWUIT_DATABASE_PATH"
+    chown -v conduwuit:conduwuit -R "$CONDUWUIT_CONFIG_PATH"
+    chown -v conduwuit:conduwuit -R "$CONDUWUIT_CONFIG_FILE"
+
+    chmod -v 740 "$CONDUWUIT_DATABASE_PATH"
+
     ;;
 esac
 
