@@ -14,7 +14,7 @@ case "$1" in
         --home "$CONDUWUIT_DATABASE_PATH" \
         --disabled-login \
         --shell "/usr/sbin/nologin" \
-        --force-badname \
+        --verbose \
         conduwuit
     fi
 
