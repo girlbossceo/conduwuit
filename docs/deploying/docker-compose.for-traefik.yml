@@ -3,7 +3,7 @@ version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
-        ### If you already built the Conduit image with 'docker build' or want to use the Docker Hub image,
+        ### If you already built the conduduwit image with 'docker build' or want to use the Docker Hub image,
         ### then you are ready to go.
         image: girlbossceo/conduwuit:latest
         ### If you want to build a fresh image from the sources, then comment the image line and uncomment the
@@ -18,13 +18,13 @@ services:
         #         GIT_REF: origin/master
         restart: unless-stopped
         volumes:
-            - db:/var/lib/matrix-conduit
+            - db:/var/lib/conduwuit
             #- ./conduwuit.toml:/etc/conduit.toml
         networks:
             - proxy
         environment:
             CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
-            CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit
+            CONDUIT_DATABASE_PATH: /var/lib/conduwuit
             CONDUIT_DATABASE_BACKEND: rocksdb
             CONDUIT_PORT: 6167
             CONDUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB

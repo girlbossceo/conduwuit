@@ -25,6 +25,9 @@ case "$1" in
     # and permissions for the config.
     mkdir -v -p "$CONDUWUIT_DATABASE_PATH"
 
+    # symlink the previous location for compatibility
+    ln -s -v "$CONDUWUIT_DATABASE_PATH" "/var/lib/matrix-conduit"
+
     chown -v conduwuit:conduwuit -R "$CONDUWUIT_DATABASE_PATH"
     chown -v conduwuit:conduwuit -R "$CONDUWUIT_CONFIG_PATH"
     chown -v conduwuit:conduwuit -R "$CONDUWUIT_CONFIG_FILE"
