@@ -18,7 +18,7 @@ use ruma::{
 	UserId,
 };
 use serde::Deserialize;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{services, utils, Error, Result, Ruma};
@@ -76,14 +76,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 				warn!("Bad login type: {:?}", &body.login_info);
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
 			}
-			.map_err(|e| {
-				warn!("Failed to parse username from user logging in: {e}");
-				Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-			})?;
-
-			if services().appservice.is_exclusive_user_id(&user_id).await {
-				return Err(Error::BadRequest(ErrorKind::Exclusive, "User ID reserved by appservice."));
-			}
+			.map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 			let hash = services()
 				.users
@@ -94,18 +87,15 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 				return Err(Error::BadRequest(ErrorKind::UserDeactivated, "The user has been deactivated"));
 			}
 
-			let Ok(parsed_hash) = PasswordHash::new(&hash) else {
-				error!("error while hashing user {}", user_id);
-				return Err(Error::BadServerResponse("could not hash"));
-			};
+			let parsed_hash = PasswordHash::new(&hash)
+				.map_err(|_| Error::BadServerResponse("Unknown error occurred hashing password."))?;
 
-			let hash_matches = services()
+			if services()
 				.globals
 				.argon
 				.verify_password(password.as_bytes(), &parsed_hash)
-				.is_ok();
-
-			if !hash_matches {
+				.is_err()
+			{
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."));
 			}
 
@@ -125,17 +115,10 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 
 				let username = token.claims.sub.to_lowercase();
 
-				let user_id =
-					UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
-						warn!("Failed to parse username from user logging in: {e}");
-						Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-					})?;
-
-				if services().appservice.is_exclusive_user_id(&user_id).await {
-					return Err(Error::BadRequest(ErrorKind::Exclusive, "User ID reserved by appservice."));
-				}
-
-				user_id
+				UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
+					warn!("Failed to parse username from user logging in: {e}");
+					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+				})?
 			} else {
 				return Err(Error::BadRequest(
 					ErrorKind::Unknown,
