@@ -173,9 +173,9 @@
 {"Action":"fail","Test":"TestMediaFilenames/Parallel/Unicode/Can_download_with_Unicode_file_name_locally"}
 {"Action":"fail","Test":"TestMediaFilenames/Parallel/Unicode/Can_download_with_Unicode_file_name_over_federation"}
 {"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Can_upload_with_Unicode_file_name"}
-{"Action":"skip","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_safe_media_types_as_inline"}
-{"Action":"skip","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_safe_media_types_with_parameters_as_inline"}
-{"Action":"skip","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_unsafe_media_types_as_attachments"}
+{"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_safe_media_types_as_inline"}
+{"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_safe_media_types_with_parameters_as_inline"}
+{"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_unsafe_media_types_as_attachments"}
 {"Action":"fail","Test":"TestMediaWithoutFileName"}
 {"Action":"fail","Test":"TestMediaWithoutFileName/parallel"}
 {"Action":"fail","Test":"TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_locally"}

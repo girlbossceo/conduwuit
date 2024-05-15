@@ -134,7 +134,7 @@ jobs:
             # TODO: figure out why our complement results are not 100% consistent so we don't need to allow failures
               continue-on-error: true
               run: |
-                  diff -u --color=always complement_test_results.jsonl tests/test_results/complement/test_results.jsonl > >(tee -a complement_test_output.log)
+                  diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_test_output.log)
 
             - name: Add Complement diff result to Job Summary
               run: |
