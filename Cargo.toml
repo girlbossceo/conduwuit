@@ -460,7 +460,7 @@ assets = [
 ]
 conf-files = ["/etc/conduwuit/conduwuit.toml"]
 maintainer-scripts = "debian/"
-systemd-units = { unit-name = "conduwuit" }
+systemd-units = { unit-name = "conduwuit", start = false }
 
 
 [profile.dev]
