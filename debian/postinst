@@ -30,7 +30,6 @@ case "$1" in
 
     chown -v conduwuit:conduwuit -R "$CONDUWUIT_DATABASE_PATH"
     chown -v conduwuit:conduwuit -R "$CONDUWUIT_CONFIG_PATH"
-    chown -v conduwuit:conduwuit -R "$CONDUWUIT_CONFIG_FILE"
 
     chmod -v 740 "$CONDUWUIT_DATABASE_PATH"
 

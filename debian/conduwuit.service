@@ -13,6 +13,8 @@ Environment="CONDUWUIT_CONFIG=/etc/conduwuit/conduwuit.toml"
 
 ExecStart=/usr/sbin/conduwuit
 
+ReadWritePaths=/var/lib/conduwuit /etc/conduwuit
+
 AmbientCapabilities=
 CapabilityBoundingSet=
 
@@ -44,16 +46,16 @@ SystemCallArchitectures=native
 SystemCallFilter=@system-service @resources
 SystemCallFilter=~@clock @debug @module @mount @reboot @swap @cpu-emulation @obsolete @timer @chown @setuid @privileged @keyring @ipc
 SystemCallErrorNumber=EPERM
-StateDirectory=conduwuit
+#StateDirectory=conduwuit
 
-RuntimeDirectory=conduit
+RuntimeDirectory=conduwuit
 RuntimeDirectoryMode=0750
 
 Restart=on-failure
 RestartSec=5
 
-TimeoutStopSec=4m
-TimeoutStartSec=4m
+TimeoutStopSec=2m
+TimeoutStartSec=2m
 
 StartLimitInterval=1m
 StartLimitBurst=5
