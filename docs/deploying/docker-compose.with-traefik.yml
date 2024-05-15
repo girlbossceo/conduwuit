@@ -1,44 +1,33 @@
-# Conduit - Behind Traefik Reverse Proxy
+# conduwuit - Behind Traefik Reverse Proxy
 version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
-        ### If you already built the Conduit image with 'docker build' or want to use the Docker Hub image,
+        ### If you already built the conduwuit image with 'docker build' or want to use the Docker Hub image,
         ### then you are ready to go.
         image: girlbossceo/conduwuit:latest
-        ### If you want to build a fresh image from the sources, then comment the image line and uncomment the
-        ### build lines. If you want meaningful labels in your built Conduit image, you should run docker compose like this:
-        ### CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ') VERSION=$(grep -m1 -o '[0-9].[0-9].[0-9]' Cargo.toml) docker compose up -d
-        # build:
-        #     context: .
-        #     args:
-        #         CREATED: '2021-03-16T08:18:27Z'
-        #         VERSION: '0.1.0'
-        #         LOCAL: 'false'
-        #         GIT_REF: origin/master
         restart: unless-stopped
         volumes:
-            - db:/srv/conduit/.local/share/conduit
-            #- ./conduwuit.toml:/etc/conduit.toml
+            - db:/srv/conduwuit/.local/share/conduwuit
+            #- ./conduwuit.toml:/etc/conduwuit.toml
         networks:
             - proxy
         environment:
-            CONDUIT_SERVER_NAME: your.server.name # EDIT THIS
-            CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
-            CONDUIT_ALLOW_REGISTRATION : 'true'
-            #CONDUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
+            CONDUWUIT_SERVER_NAME: your.server.name # EDIT THIS
+            CONDUWUIT_TRUSTED_SERVERS: '["matrix.org"]'
+            CONDUWUIT_ALLOW_REGISTRATION : 'true'
+            #CONDUWUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
             ### Uncomment and change values as desired
-            # CONDUIT_ADDRESS: 0.0.0.0
-            # CONDUIT_PORT: 6167
-            # Available levels are: error, warn, info, debug, trace - more info at: https://docs.rs/env_logger/*/env_logger/#enabling-logging
-            # CONDUIT_LOG: info  # default is: "warn,state_res=warn"
-            # CONDUIT_ALLOW_JAEGER: 'false'
-            # CONDUIT_ALLOW_ENCRYPTION: 'true'
-            # CONDUIT_ALLOW_FEDERATION: 'true'
-            # CONDUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
-            # CONDUIT_DATABASE_PATH: /srv/conduit/.local/share/conduit
-            # CONDUIT_WORKERS: 10
-            # CONDUIT_MAX_REQUEST_SIZE: 20_000_000  # in bytes, ~20 MB
+            # CONDUWUIT_ADDRESS: 0.0.0.0
+            # CONDUWUIT_PORT: 6167
+            # CONDUWUIT_LOG: info  # default is: "warn,state_res=warn"
+            # CONDUWUIT_ALLOW_JAEGER: 'false'
+            # CONDUWUIT_ALLOW_ENCRYPTION: 'true'
+            # CONDUWUIT_ALLOW_FEDERATION: 'true'
+            # CONDUWUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
+            # CONDUWUIT_DATABASE_PATH: /srv/conduwuit/.local/share/conduwuit
+            # CONDUWUIT_WORKERS: 10
+            # CONDUWUIT_MAX_REQUEST_SIZE: 20000000  # in bytes, ~20 MB
         #cpuset: "0-4" # Uncomment to limit to specific CPU cores
 
     # We need some way to server the client and server .well-known json. The simplest way is to use a nginx container
@@ -53,7 +42,7 @@ services:
 
     ### Uncomment if you want to use your own Element-Web App.
     ### Note: You need to provide a config.json for Element and you also need a second
-    ###       Domain or Subdomain for the communication between Element and Conduit
+    ###       Domain or Subdomain for the communication between Element and conduwuit
     ### Config-Docs: https://github.com/vector-im/element-web/blob/develop/docs/config.md
     # element-web:
     #     image: vectorim/element-web:latest
