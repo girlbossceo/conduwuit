@@ -628,6 +628,7 @@ impl Service {
 		Ok(pdu_id)
 	}
 
+	#[tracing::instrument(skip_all)]
 	pub(crate) fn create_hash_and_sign_event(
 		&self,
 		pdu_builder: PduBuilder,

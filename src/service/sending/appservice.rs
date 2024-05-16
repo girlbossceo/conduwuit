@@ -10,6 +10,7 @@ use crate::{debug_error, services, utils, Error, Result};
 ///
 /// Only returns Ok(None) if there is no url specified in the appservice
 /// registration file
+#[tracing::instrument(skip_all, fields(appservice = &registration.id))]
 pub(crate) async fn send_request<T>(registration: Registration, request: T) -> Result<Option<T::IncomingResponse>>
 where
 	T: OutgoingRequest + Debug,

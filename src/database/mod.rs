@@ -37,7 +37,7 @@ use serde::Deserialize;
 #[cfg(unix)]
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::{interval, Instant};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info_span, warn, Instrument as _};
 
 use crate::{
 	database::migrations::migrations, service::rooms::timeline::PduCount, services, Config, Error,
@@ -388,9 +388,9 @@ impl KeyValueDatabase {
 			services().presence.start_handler();
 		}
 
-		Self::start_cleanup_task().await;
+		Self::start_cleanup_task();
 		if services().globals.allow_check_for_updates() {
-			Self::start_check_for_updates_task().await;
+			Self::start_check_for_updates_task();
 		}
 
 		Ok(())
@@ -421,25 +421,21 @@ impl KeyValueDatabase {
 		Ok(())
 	}
 
-	#[tracing::instrument]
-	async fn start_check_for_updates_task() {
+	fn start_check_for_updates_task() {
 		let timer_interval = Duration::from_secs(7200); // 2 hours
 
 		tokio::spawn(async move {
 			let mut i = interval(timer_interval);
 
 			loop {
-				tokio::select! {
-					_ = i.tick() => {
-						debug!(target: "start_check_for_updates_task", "Timer ticked");
-					},
-				}
+				i.tick().await;
 
 				_ = Self::try_handle_updates().await;
 			}
 		});
 	}
 
+	#[tracing::instrument]
 	async fn try_handle_updates() -> Result<()> {
 		let response = services()
 			.globals
@@ -475,8 +471,7 @@ impl KeyValueDatabase {
 		Ok(())
 	}
 
-	#[tracing::instrument]
-	async fn start_cleanup_task() {
+	fn start_cleanup_task() {
 		let timer_interval = Duration::from_secs(u64::from(services().globals.config.cleanup_second_interval));
 
 		tokio::spawn(async move {
@@ -491,32 +486,39 @@ impl KeyValueDatabase {
 
 			loop {
 				#[cfg(unix)]
-				tokio::select! {
-					_ = i.tick() => {
-						debug!(target: "database-cleanup", "Timer ticked");
-					}
-					_ = hangup.recv() => {
-						debug!(target: "database-cleanup","Received SIGHUP");
-					}
-					_ = ctrl_c.recv() => {
-						debug!(target: "database-cleanup", "Received Ctrl+C");
-					}
-					_ = terminate.recv() => {
-						debug!(target: "database-cleanup","Received SIGTERM");
-					}
-				}
+				let msg = tokio::select! {
+					_ = i.tick() => || {
+						debug!("Timer ticked");
+					},
+					_ = hangup.recv() => || {
+						debug!("Received SIGHUP");
+					},
+					_ = ctrl_c.recv() => || {
+						debug!("Received Ctrl+C");
+					},
+					_ = terminate.recv() => || {
+						debug!("Received SIGTERM");
+					},
+				};
 
 				#[cfg(not(unix))]
-				{
+				let msg = {
 					i.tick().await;
-					debug!(target: "database-cleanup", "Timer ticked")
-				}
+					|| debug!("Timer ticked")
+				};
 
-				Self::perform_cleanup();
+				async {
+					msg();
+
+					Self::perform_cleanup();
+				}
+				.instrument(info_span!("database_cleanup"))
+				.await;
 			}
 		});
 	}
 
+	#[tracing::instrument]
 	fn perform_cleanup() {
 		if !services().globals.config.rocksdb_periodic_cleanup {
 			return;

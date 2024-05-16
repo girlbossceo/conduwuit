@@ -176,7 +176,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(skip(self))]
 	pub(crate) fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -234,6 +234,7 @@ impl Service {
 		Ok(())
 	}
 
+	#[tracing::instrument(skip(self))]
 	fn dispatch(&self, msg: Msg) -> Result<()> {
 		debug_assert!(!self.sender.is_full(), "channel full");
 		debug_assert!(!self.sender.is_closed(), "channel closed");

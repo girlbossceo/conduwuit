@@ -24,7 +24,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, MutexGuard};
-use tracing::{error, warn};
+use tracing::{error, info_span, warn, Instrument};
 
 use self::{fsck::FsckCommand, tester::TesterCommands};
 use super::pdu::PduBuilder;
@@ -116,10 +116,32 @@ impl Service {
 	pub(crate) fn start_handler(self: &Arc<Self>) {
 		let self2 = Arc::clone(self);
 		tokio::spawn(async move {
-			self2
-				.handler()
-				.await
-				.expect("Failed to initialize admin room handler");
+			let receiver = self2.receiver.lock().await;
+			let Ok(Some(admin_room)) = Self::get_admin_room().await else {
+				return;
+			};
+			let server_name = services().globals.server_name();
+			let server_user = UserId::parse(format!("@conduit:{server_name}")).expect("server's username is valid");
+
+			loop {
+				debug_assert!(!receiver.is_closed(), "channel closed");
+				let event = receiver.recv_async().await;
+
+				async {
+					let ret = match event {
+						Ok(event) => self2.handle_event(event, &admin_room, &server_user).await,
+						Err(e) => {
+							error!("Failed to receive admin room event from channel: {e}");
+							return;
+						},
+					};
+					if let Err(e) = ret {
+						error!("Failed to handle admin room event: {e}");
+					}
+				}
+				.instrument(info_span!("admin_event_received"))
+				.await;
+			}
 		});
 	}
 
@@ -139,26 +161,8 @@ impl Service {
 		self.sender.send(message).expect("message sent");
 	}
 
-	async fn handler(&self) -> Result<()> {
-		let receiver = self.receiver.lock().await;
-		let Ok(Some(admin_room)) = Self::get_admin_room().await else {
-			return Ok(());
-		};
-		let server_name = services().globals.server_name();
-		let server_user = UserId::parse(format!("@conduit:{server_name}")).expect("server's username is valid");
-
-		loop {
-			debug_assert!(!receiver.is_closed(), "channel closed");
-			tokio::select! {
-				event = receiver.recv_async() => match event {
-					Ok(event) => self.handle_event(event, &admin_room, &server_user).await?,
-					Err(e) => error!("Failed to receive admin room event from channel: {e}"),
-				}
-			}
-		}
-	}
-
-	async fn handle_event(&self, event: AdminRoomEvent, admin_room: &OwnedRoomId, server_user: &UserId) -> Result<()> {
+	#[tracing::instrument(skip(self))]
+	async fn handle_event(&self, event: AdminRoomEvent, admin_room: &RoomId, server_user: &UserId) -> Result<()> {
 		let (mut message_content, reply) = match event {
 			AdminRoomEvent::SendMessage(content) => (content, None),
 			AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
@@ -172,7 +176,7 @@ impl Service {
 				.roomid_mutex_state
 				.write()
 				.await
-				.entry(admin_room.clone())
+				.entry(admin_room.to_owned())
 				.or_default(),
 		);
 		let state_lock = mutex_state.lock().await;
@@ -207,7 +211,7 @@ impl Service {
 	}
 
 	async fn handle_response_error(
-		&self, e: &Error, admin_room: &OwnedRoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
+		&self, e: &Error, admin_room: &RoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
 	) -> Result<()> {
 		error!("Failed to build and append admin room response PDU: \"{e}\"");
 		let error_room_message = RoomMessageEventContent::text_plain(format!(

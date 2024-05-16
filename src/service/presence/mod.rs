@@ -11,7 +11,7 @@ use ruma::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::sleep};
-use tracing::{debug, error};
+use tracing::{debug, error, info_span, Instrument as _};
 
 use crate::{
 	services,
@@ -99,10 +99,34 @@ impl Service {
 	pub(crate) fn start_handler(self: &Arc<Self>) {
 		let self_ = Arc::clone(self);
 		tokio::spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to start presence handler");
+			let mut presence_timers = FuturesUnordered::new();
+			let receiver = self_.timer_receiver.lock().await;
+			loop {
+				tokio::select! {
+					event = receiver.recv_async() => async {
+							match event {
+								Ok((user_id, timeout)) => {
+									debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
+									presence_timers.push(presence_timer(user_id, timeout));
+								}
+								Err(e) => {
+									// generally shouldn't happen
+									error!("Failed to receive presence timer through channel: {e}");
+								}
+							}
+						}
+						.instrument(info_span!("presence_event_received"))
+						.await,
+
+					Some(user_id) = presence_timers.next() => async {
+							if let Err(e) = process_presence_timer(&user_id) {
+								error!(?user_id, "Failed to process presence timer: {e}");
+							}
+						}
+						.instrument(info_span!("presence_timer_expired"))
+						.await,
+				}
+			}
 		});
 	}
 
@@ -186,32 +210,6 @@ impl Service {
 	pub(crate) fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)>> {
 		self.db.presence_since(since)
 	}
-
-	async fn handler(&self) -> Result<()> {
-		let mut presence_timers = FuturesUnordered::new();
-		let receiver = self.timer_receiver.lock().await;
-		loop {
-			tokio::select! {
-				event = receiver.recv_async() => {
-
-					match event {
-						Ok((user_id, timeout)) => {
-							debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
-							presence_timers.push(presence_timer(user_id, timeout));
-						}
-						Err(e) => {
-							// generally shouldn't happen
-							error!("Failed to receive presence timer through channel: {e}");
-						}
-					}
-				}
-
-				Some(user_id) = presence_timers.next() => {
-					process_presence_timer(&user_id)?;
-				}
-			}
-		}
-	}
 }
 
 async fn presence_timer(user_id: OwnedUserId, timeout: Duration) -> OwnedUserId {
@@ -220,6 +218,7 @@ async fn presence_timer(user_id: OwnedUserId, timeout: Duration) -> OwnedUserId 
 	user_id
 }
 
+#[tracing::instrument]
 fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
 	let idle_timeout = services().globals.config.presence_idle_timeout_s * 1_000;
 	let offline_timeout = services().globals.config.presence_offline_timeout_s * 1_000;
