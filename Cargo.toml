@@ -17,6 +17,9 @@ edition = "2021"
 rust-version = "1.77.0"
 
 [dependencies]
+# 1.1.17 seems broken on nix from a permission error?
+libz-sys = "=1.1.16"
+
 console-subscriber = { version = "0.2", optional = true }
 
 infer = { version = "0.15", default-features = false }
