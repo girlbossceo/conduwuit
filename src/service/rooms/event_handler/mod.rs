@@ -674,7 +674,7 @@ impl Service {
 
 		let fork_states = [current_state_ids, incoming_state];
 
-		let mut auth_chain_sets = Vec::new();
+		let mut auth_chain_sets = Vec::with_capacity(fork_states.len());
 		for state in &fork_states {
 			auth_chain_sets.push(
 				services()
@@ -1007,7 +1007,7 @@ impl Service {
 				}
 			};
 
-			let mut events_with_auth_events = vec![];
+			let mut events_with_auth_events = Vec::with_capacity(events.len());
 			for id in events {
 				// a. Look in the main timeline (pduid_pdu tree)
 				// b. Look at outlier pdu tree
@@ -1022,8 +1022,8 @@ impl Service {
 				// We also handle its auth chain here so we don't get a stack overflow in
 				// handle_outlier_pdu.
 				let mut todo_auth_events = vec![Arc::clone(id)];
-				let mut events_in_reverse_order = Vec::new();
-				let mut events_all = HashSet::new();
+				let mut events_in_reverse_order = Vec::with_capacity(todo_auth_events.len());
+				let mut events_all = HashSet::with_capacity(todo_auth_events.len());
 				let mut i = 0;
 				while let Some(next_id) = todo_auth_events.pop() {
 					if let Some((time, tries)) = services()
@@ -1124,7 +1124,7 @@ impl Service {
 				warn!("Could not fetch all signatures for PDUs from {}: {:?}", origin, e);
 			});
 
-			let mut pdus = vec![];
+			let mut pdus = Vec::with_capacity(events_with_auth_events.len());
 			for (id, local_pdu, events_in_reverse_order) in events_with_auth_events {
 				// a. Look in the main timeline (pduid_pdu tree)
 				// b. Look at outlier pdu tree

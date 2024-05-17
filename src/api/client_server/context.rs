@@ -163,7 +163,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		.map(|(_, pdu)| pdu.to_room_event())
 		.collect();
 
-	let mut state = Vec::new();
+	let mut state = Vec::with_capacity(state_ids.len());
 
 	for (shortstatekey, id) in state_ids {
 		let (event_type, state_key) = services()
