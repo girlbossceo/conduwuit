@@ -592,6 +592,7 @@ dependencies = [
  "ipaddress",
  "itertools",
  "jsonwebtoken",
+ "libz-sys",
  "log",
  "loole",
  "lru-cache",
@@ -1816,11 +1817,12 @@ dependencies = [
 
 [[package]]
 name = "libz-sys"
-version = "1.1.17"
+version = "1.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0078520875cbd94735b332bca766d640ca0754e5419dce654dcee9115c4239f0"
+checksum = "5e143b5e666b2695d28f6bca6497720813f699c9602dd7f5cac91008b8ada7f9"
 dependencies = [
  "cc",
+ "libc",
  "pkg-config",
  "vcpkg",
 ]
