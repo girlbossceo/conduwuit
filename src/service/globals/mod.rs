@@ -18,14 +18,14 @@ use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
 	api::{
-		client::{discovery::discover_support::ContactRole, sync::sync_events},
+		client::discovery::discover_support::ContactRole,
 		federation::discovery::{ServerSigningKeys, VerifyKey},
 	},
 	serde::Base64,
-	DeviceId, OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
-	RoomVersionId, ServerName, UserId,
+	DeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomVersionId,
+	ServerName, UserId,
 };
-use tokio::sync::{broadcast, watch::Receiver, Mutex, RwLock};
+use tokio::sync::{broadcast, Mutex, RwLock};
 use tracing::{error, info, trace};
 use url::Url;
 
@@ -36,10 +36,6 @@ mod data;
 mod resolver;
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
-type SyncHandle = (
-	Option<String>,                                      // since
-	Receiver<Option<Result<sync_events::v3::Response>>>, // rx
-);
 
 pub(crate) struct Service<'a> {
 	pub(crate) db: &'static dyn Data,
@@ -56,7 +52,6 @@ pub(crate) struct Service<'a> {
 	pub(crate) bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub(crate) bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub(crate) bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
-	pub(crate) sync_receivers: RwLock<HashMap<(OwnedUserId, OwnedDeviceId), SyncHandle>>,
 	pub(crate) roomid_mutex_insert: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
 	pub(crate) roomid_mutex_state: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>,
 	pub(crate) roomid_mutex_federation: RwLock<HashMap<OwnedRoomId, Arc<Mutex<()>>>>, // this lock will be held longer
@@ -163,7 +158,6 @@ impl Service<'_> {
 			roomid_mutex_federation: RwLock::new(HashMap::new()),
 			roomid_federationhandletime: RwLock::new(HashMap::new()),
 			stateres_mutex: Arc::new(Mutex::new(())),
-			sync_receivers: RwLock::new(HashMap::new()),
 			rotate: RotationHandler::new(),
 			started: SystemTime::now(),
 			shutdown: AtomicBool::new(false),
