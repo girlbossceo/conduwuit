@@ -18,7 +18,7 @@ rust-version = "1.77.0"
 
 [dependencies]
 # 1.1.17 seems broken on nix from a permission error?
-libz-sys = "=1.1.16"
+libz-sys = "=1.1.17"
 
 console-subscriber = { version = "0.2", optional = true }
 
