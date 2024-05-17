@@ -1,0 +1,8 @@
+#! /bin/bash
+
+yay -S vagrant libvirt virt-manager qemu-system-x86 qemu-img qtile
+sudo usermod -a -G libvirt $(whoami)
+sudo systemctl enable --now libvirtd
+export VAGRANT_DISABLE_STRICT_DEPENDENCY_ENFORCEMENT=1
+vagrant plugin install vagrant-libvirt
+echo You must login again before starting vagrant.
