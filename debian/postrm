@@ -5,6 +5,7 @@ set -e
 
 CONDUWUIT_CONFIG_PATH=/etc/conduwuit
 CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit
+CONDUWUIT_DATABASE_PATH_SYMLINK=/var/lib/matrix-conduit
 
 case $1 in
   purge)
@@ -20,6 +21,10 @@ case $1 in
 
     if [ -d "$CONDUWUIT_DATABASE_PATH" ]; then
       rm -v -r "$CONDUWUIT_DATABASE_PATH"
+    fi
+
+    if [ -d "$CONDUWUIT_DATABASE_PATH_SYMLINK" ]; then
+      rm -v -r "$CONDUWUIT_DATABASE_PATH_SYMLINK"
     fi
     ;;
 esac
