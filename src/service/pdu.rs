@@ -328,20 +328,17 @@ impl PduEvent {
 			unsigned.remove("transaction_id");
 		}
 
+		// room v3 and above removed the "event_id" field from remote PDU format
 		if let Some(room_id) = pdu_json
 			.get("room_id")
 			.and_then(|val| RoomId::parse(val.as_str()?).ok())
 		{
-			if let Ok(room_version_id) = services().rooms.state.get_room_version(&room_id) {
-				// room v3 and above removed the "event_id" field from remote PDU format
-				match room_version_id {
+			match services().rooms.state.get_room_version(&room_id) {
+				Ok(room_version_id) => match room_version_id {
 					RoomVersionId::V1 | RoomVersionId::V2 => {},
-					_ => {
-						pdu_json.remove("event_id");
-					},
-				};
-			} else {
-				pdu_json.remove("event_id");
+					_ => _ = pdu_json.remove("event_id"),
+				},
+				Err(_) => _ = pdu_json.remove("event_id"),
 			}
 		} else {
 			pdu_json.remove("event_id");
