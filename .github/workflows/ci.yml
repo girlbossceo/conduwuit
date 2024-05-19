@@ -213,7 +213,8 @@ jobs:
                   mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
                   cp -v -f result/bin/conduit target/release/conduwuit
                   cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
-                  direnv exec . cargo deb --verbose --no-build --no-strip --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}.deb
+                  # -p conduit is the main crate name
+                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}.deb
                   mv -v target/release/conduwuit static-${{ matrix.target }}
                   mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 

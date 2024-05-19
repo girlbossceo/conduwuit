@@ -20,6 +20,9 @@ homepage = "https://conduwuit.puppyirl.gay/"
 repository = "https://github.com/girlbossceo/conduwuit"
 readme = "README.md"
 
+[workspace.metadata.crane]
+name = "conduit"
+
 # 1.1.17 seems broken on nix from a permission error?
 [workspace.dependencies.libz-sys]
 version = "=1.1.16"
