@@ -21,8 +21,8 @@ pub(crate) struct Server {
 	#[cfg(feature = "sentry_telemetry")]
 	_sentry_guard: Option<sentry::ClientInitGuard>,
 
+	#[cfg(conduit_mods)]
 	// Module instances; TODO: move to mods::loaded mgmt vector
-	#[cfg(feature = "mods")]
 	pub(crate) mods: tokio::sync::RwLock<Vec<conduit::mods::Module>>,
 }
 
@@ -52,7 +52,7 @@ impl Server {
 			#[cfg(feature = "sentry_telemetry")]
 			_sentry_guard: sentry_guard,
 
-			#[cfg(feature = "mods")]
+			#[cfg(conduit_mods)]
 			mods: tokio::sync::RwLock::new(Vec::new()),
 		}))
 	}
@@ -109,7 +109,7 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 	let mut reload_handles = Vec::<Box<dyn ReloadHandle<EnvFilter> + Send + Sync>>::new();
 	let subscriber = registry;
 
-	#[cfg(feature = "tokio_console")]
+	#[cfg(all(feature = "tokio_console", tokio_unstable))]
 	let subscriber = {
 		let console_layer = console_subscriber::spawn();
 		subscriber.with(console_layer)
@@ -176,7 +176,7 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 
 	tracing::subscriber::set_global_default(subscriber).unwrap();
 
-	#[cfg(all(feature = "tokio_console", feature = "release_max_log_level"))]
+	#[cfg(all(feature = "tokio_console", feature = "release_max_log_level", tokio_unstable))]
 	tracing::error!(
 		"'tokio_console' feature and 'release_max_log_level' feature are incompatible, because console-subscriber \
 		 needs access to trace-level events. 'release_max_log_level' must be disabled to use tokio-console."

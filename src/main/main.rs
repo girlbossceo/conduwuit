@@ -37,7 +37,7 @@ fn main() -> Result<(), Error> {
 
 /// Operate the server normally in release-mode static builds. This will start,
 /// run and stop the server within the asynchronous runtime.
-#[cfg(not(feature = "mods"))]
+#[cfg(not(conduit_mods))]
 async fn async_main(server: Arc<Server>) -> Result<(), Error> {
 	extern crate conduit_router as router;
 	use tracing::error;
@@ -64,7 +64,7 @@ async fn async_main(server: Arc<Server>) -> Result<(), Error> {
 /// Operate the server in developer-mode dynamic builds. This will start, run,
 /// and hot-reload portions of the server as-needed before returning for an
 /// actual shutdown. This is not available in release-mode or static builds.
-#[cfg(feature = "mods")]
+#[cfg(conduit_mods)]
 async fn async_main(server: Arc<Server>) -> Result<(), Error> {
 	let mut starts = true;
 	let mut reloads = true;

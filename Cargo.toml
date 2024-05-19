@@ -526,7 +526,6 @@ inherits = "release"
 # To enable hot-reloading:
 # 1. Uncomment all of the rustflags here.
 # 2. Uncomment crate-type=dylib in src/*/Cargo.toml and deps/rust-rocksdb/Cargo.toml
-# 2. Build with the 'mods' feature.
 #
 # opt-level, mir-opt-level, validate-mir are not known to interfere with reloading
 # and can be raised if build times are tolerable.
@@ -540,6 +539,7 @@ incremental = true
 codegen-units = 64
 rpath = true
 #rustflags = [
+#	'--cfg', 'conduit_mods',
 #	'-Ztime-passes',
 #	'-Zmir-opt-level=0',
 #	'-Zvalidate-mir=false',
@@ -560,6 +560,7 @@ rpath = true
 inherits = "dev"
 incremental = false
 #rustflags = [
+#	'--cfg', 'conduit_mods',
 #	'-Ztime-passes',
 #	'-Zmir-opt-level=0',
 #	'-Ztls-model=initial-exec',
@@ -580,6 +581,7 @@ incremental = false
 inherits = "dev"
 incremental = false
 #rustflags = [
+#	'--cfg', 'conduit_mods',
 #	'-Ztime-passes',
 #	'-Zmir-opt-level=0',
 #	'-Zvalidate-mir=false',
@@ -601,6 +603,7 @@ incremental = false
 codegen-units = 1
 opt-level = 'z'
 #rustflags = [
+#	'--cfg', 'conduit_mods',
 #	'-Ztls-model=initial-exec',
 #	'-Cprefer-dynamic=true',
 #	'-Zstaticlib-prefer-dynamic=true',
@@ -621,6 +624,7 @@ incremental = false
 codegen-units = 1
 opt-level = 'z'
 #rustflags = [
+#	'--cfg', 'conduit_mods',
 #	'-Ztls-model=global-dynamic',
 #	'-Cprefer-dynamic=true',
 #	'-Zstaticlib-prefer-dynamic=true',
@@ -654,6 +658,11 @@ unreachable_pub = "warn"
 
 # this seems to suggest broken code and is not working correctly
 unused_braces = "allow"
+
+# cfgs cannot be limited to features or cargo build --all-features panics for unsuspecting users.
+# cfgs cannot be limited to expected cfgs or their de facto non-transitive/opt-in use-case e.g.
+# tokio_unstable will warn.
+unexpected_cfgs = "allow"
 
 # some sadness
 missing_docs = "allow"

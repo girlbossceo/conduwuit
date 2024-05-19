@@ -1,6 +1,4 @@
-#![cfg(feature = "mods")]
-#[cfg(not(any(clippy, debug_assertions, doctest, test)))]
-compile_error!("Feature 'mods' is only available in developer builds");
+#![cfg(conduit_mods)]
 
 use std::{
 	future::Future,
@@ -26,7 +24,7 @@ const MODULE_NAMES: &[&str] = &[
 	"conduit_router",
 ];
 
-#[cfg(feature = "panic_trap")]
+#[cfg(panic_trap)]
 conduit::mod_init! {{
 	conduit::debug::set_panic_trap();
 }}

@@ -1,4 +1,4 @@
-#![cfg(feature = "mods")]
+#![cfg(conduit_mods)]
 
 pub(crate) use libloading::os::unix::{Library, Symbol};
 

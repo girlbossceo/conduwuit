@@ -14,8 +14,8 @@ pub use pducount::PduCount;
 pub use server::Server;
 pub use utils::conduwuit_version;
 
-#[cfg(not(feature = "mods"))]
-mod mods {
+#[cfg(not(conduit_mods))]
+pub mod mods {
 	#[macro_export]
 	macro_rules! mod_ctor {
 		() => {};
