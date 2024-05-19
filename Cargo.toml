@@ -12,7 +12,7 @@ authors = [
     "strawberry <strawberry@puppygock.gay>",
     "timokoesters <timo@koesters.xyz>",
 ]
-version = "0.3.4"
+version = "0.4.0"
 edition = "2021"
 # See also `rust-toolchain.toml`
 rust-version = "1.77.0"

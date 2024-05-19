@@ -130,7 +130,7 @@ checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -141,7 +141,7 @@ checksum = "c6fa2087f2753a7da8cc1c0dbfcf89579dd57458e36769de5ac750b4671737ca"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -214,6 +214,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_urlencoded",
  "sync_wrapper 1.0.1",
+ "tokio",
  "tower",
  "tower-layer",
  "tower-service",
@@ -369,7 +370,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -545,7 +546,7 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -562,80 +563,240 @@ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
 name = "conduit"
-version = "0.3.4"
+version = "0.4.0"
+dependencies = [
+ "clap",
+ "conduit_admin",
+ "conduit_api",
+ "conduit_core",
+ "conduit_database",
+ "conduit_router",
+ "conduit_service",
+ "console-subscriber",
+ "hardened_malloc-rs",
+ "log",
+ "num_cpus",
+ "opentelemetry",
+ "opentelemetry-jaeger",
+ "opentelemetry_sdk",
+ "sentry",
+ "sentry-tower",
+ "sentry-tracing",
+ "tikv-jemallocator",
+ "tokio",
+ "tokio-metrics",
+ "tracing",
+ "tracing-flame",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "conduit_admin"
+version = "0.4.0"
+dependencies = [
+ "clap",
+ "conduit_api",
+ "conduit_core",
+ "conduit_database",
+ "conduit_service",
+ "futures-util",
+ "log",
+ "loole",
+ "regex",
+ "ruma",
+ "rust-rocksdb-uwu",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "conduit_api"
+version = "0.4.0"
 dependencies = [
  "argon2",
- "async-trait",
  "axum 0.7.5",
  "axum-extra",
- "axum-server",
- "axum-server-dual-protocol",
  "base64 0.22.1",
  "bytes",
- "chrono",
+ "conduit_core",
+ "conduit_database",
+ "conduit_service",
+ "futures-util",
+ "hmac",
+ "http 1.1.0",
+ "hyper 1.3.1",
+ "image",
+ "ipaddress",
+ "jsonwebtoken",
+ "log",
+ "rand",
+ "reqwest",
+ "ruma",
+ "serde",
+ "serde_html_form",
+ "serde_json",
+ "sha-1",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "webpage",
+]
+
+[[package]]
+name = "conduit_core"
+version = "0.4.0"
+dependencies = [
+ "async-trait",
+ "axum 0.7.5",
+ "axum-server",
+ "base64 0.22.1",
+ "bytes",
  "clap",
- "console-subscriber",
  "cyborgtime",
  "either",
  "figment",
  "futures-util",
  "hardened_malloc-rs",
- "hickory-resolver",
- "hmac",
- "hot-lib-reloader",
  "http 1.1.0",
  "http-body-util",
- "hyper 1.3.1",
- "hyper-util",
  "image",
  "infer",
  "ipaddress",
  "itertools",
- "jsonwebtoken",
- "libz-sys",
+ "libloading",
  "log",
- "loole",
  "lru-cache",
  "nix",
- "num_cpus",
- "opentelemetry",
- "opentelemetry-jaeger",
- "opentelemetry_sdk",
  "parking_lot",
  "rand",
  "regex",
  "reqwest",
  "ring",
  "ruma",
- "ruma-identifiers-validation",
  "rusqlite",
- "rust-rocksdb",
+ "rust-rocksdb-uwu",
  "sanitize-filename",
- "sd-notify",
- "sentry",
- "sentry-tower",
- "sentry-tracing",
  "serde",
- "serde_html_form",
  "serde_json",
  "serde_regex",
  "serde_yaml",
  "sha-1",
- "sha2",
  "thiserror",
  "thread_local",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "zstd",
+]
+
+[[package]]
+name = "conduit_database"
+version = "0.4.0"
+dependencies = [
+ "chrono",
+ "conduit_core",
+ "futures-util",
+ "log",
+ "lru-cache",
+ "num_cpus",
+ "parking_lot",
+ "ruma",
+ "rusqlite",
+ "rust-rocksdb-uwu",
+ "thread_local",
+ "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
+ "tikv-jemallocator",
+ "tokio",
+ "tracing",
+ "zstd",
+]
+
+[[package]]
+name = "conduit_router"
+version = "0.4.0"
+dependencies = [
+ "axum 0.7.5",
+ "axum-server",
+ "axum-server-dual-protocol",
+ "bytes",
+ "clap",
+ "conduit_admin",
+ "conduit_api",
+ "conduit_core",
+ "conduit_database",
+ "conduit_service",
+ "http 1.1.0",
+ "http-body-util",
+ "log",
+ "regex",
+ "ruma",
+ "sd-notify",
+ "sentry",
+ "sentry-tower",
+ "sentry-tracing",
+ "serde_json",
+ "tokio",
  "tower",
  "tower-http",
  "tracing",
- "tracing-flame",
- "tracing-opentelemetry",
+]
+
+[[package]]
+name = "conduit_service"
+version = "0.4.0"
+dependencies = [
+ "argon2",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "clap",
+ "conduit_core",
+ "conduit_database",
+ "cyborgtime",
+ "futures-util",
+ "hickory-resolver",
+ "hmac",
+ "http 1.1.0",
+ "image",
+ "ipaddress",
+ "itertools",
+ "jsonwebtoken",
+ "log",
+ "loole",
+ "lru-cache",
+ "parking_lot",
+ "rand",
+ "regex",
+ "reqwest",
+ "ruma",
+ "ruma-identifiers-validation",
+ "rusqlite",
+ "rust-rocksdb-uwu",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha-1",
+ "sha2",
+ "thread_local",
+ "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
+ "tikv-jemallocator",
+ "tokio",
+ "tracing",
  "tracing-subscriber",
  "url",
  "webpage",
+ "zstd",
 ]
 
 [[package]]
@@ -771,7 +932,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -875,7 +1036,7 @@ dependencies = [
  "heck 0.4.1",
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -926,27 +1087,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "file-id"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6584280525fb2059cba3db2c04abf947a1a29a45ddae89f3870f8281704fafc9"
-dependencies = [
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "filetime"
-version = "0.2.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ee447700ac8aa0b2f2bd7bc4462ad686ba06baa6727ac149a2d6277f0d240fd"
-dependencies = [
- "cfg-if",
- "libc",
- "redox_syscall 0.4.1",
- "windows-sys 0.52.0",
-]
-
-[[package]]
 name = "findshlibs"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -981,15 +1121,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
-]
-
-[[package]]
-name = "fsevent-sys"
-version = "4.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76ee7a02da4d231650c7cea31349b889be2f45ddb3ef3032d2ec8185f6313fd2"
-dependencies = [
- "libc",
 ]
 
 [[package]]
@@ -1043,7 +1174,7 @@ checksum = "87750cf4b7a4c0625b1529e4c543c2182106e4dedc60a2a6455e00d212c489ac"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -1326,32 +1457,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hot-lib-reloader"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eda706fdb8bcf5279ce95754dd86a23eab0a81ad2823d5402c2e10a4dd3283c2"
-dependencies = [
- "crc32fast",
- "hot-lib-reloader-macro",
- "libloading",
- "log",
- "notify",
- "notify-debouncer-full",
- "thiserror",
-]
-
-[[package]]
-name = "hot-lib-reloader-macro"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f01c6c25eabdd8e2de50ccdb7e13186ba2ac0f69ebd8bd5f96ae235414180800"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "html5ever"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1362,7 +1467,7 @@ dependencies = [
  "markup5ever",
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -1614,26 +1719,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8fae54786f62fb2918dcfae3d568594e50eb9b5c25bf04371af6fe7516452fb"
 
 [[package]]
-name = "inotify"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8069d3ec154eb856955c1c0fbffefbf5f3c40a104ec912d4797314c1801abff"
-dependencies = [
- "bitflags 1.3.2",
- "inotify-sys",
- "libc",
-]
-
-[[package]]
-name = "inotify-sys"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e05c02b5e89bff3b946cedeca278abc628fe811e604f027c45a8aa3cf793d0eb"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "integer-encoding"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1758,26 +1843,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kqueue"
-version = "1.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7447f1ca1b7b563588a205fe93dea8df60fd981423a768bc1c0ded35ed147d0c"
-dependencies = [
- "kqueue-sys",
- "libc",
-]
-
-[[package]]
-name = "kqueue-sys"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed9625ffda8729b85e45cf04090035ac368927b8cebc34898e7c120f52e4838b"
-dependencies = [
- "bitflags 1.3.2",
- "libc",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1822,7 +1887,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e143b5e666b2695d28f6bca6497720813f699c9602dd7f5cac91008b8ada7f9"
 dependencies = [
  "cc",
- "libc",
  "pkg-config",
  "vcpkg",
 ]
@@ -1968,7 +2032,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
 dependencies = [
  "libc",
- "log",
  "wasi",
  "windows-sys 0.48.0",
 ]
@@ -1999,39 +2062,6 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
-]
-
-[[package]]
-name = "notify"
-version = "6.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6205bd8bb1e454ad2e27422015fb5e4f2bcc7e08fa8f27058670d208324a4d2d"
-dependencies = [
- "bitflags 2.5.0",
- "crossbeam-channel",
- "filetime",
- "fsevent-sys",
- "inotify",
- "kqueue",
- "libc",
- "log",
- "mio",
- "walkdir",
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "notify-debouncer-full"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49f5dab59c348b9b50cf7f261960a20e389feb2713636399cd9082cd4b536154"
-dependencies = [
- "crossbeam-channel",
- "file-id",
- "log",
- "notify",
- "parking_lot",
- "walkdir",
 ]
 
 [[package]]
@@ -2270,7 +2300,7 @@ checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.1",
+ "redox_syscall",
  "smallvec",
  "windows-targets 0.52.5",
 ]
@@ -2312,7 +2342,7 @@ dependencies = [
  "proc-macro2",
  "proc-macro2-diagnostics",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -2405,7 +2435,7 @@ checksum = "2f38a4412a78282e09a2cf38d195ea5420d15ba0602cb375210efbc877243965"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -2499,7 +2529,7 @@ checksum = "af066a9c399a26e020ada66a034357a868728e72cd426f3adcd35f80d88d88c8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
  "version_check",
  "yansi",
 ]
@@ -2524,7 +2554,7 @@ dependencies = [
  "itertools",
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -2579,15 +2609,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
-dependencies = [
- "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -2718,7 +2739,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "assign",
  "js_int",
@@ -2738,7 +2759,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2750,7 +2771,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.18.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "as_variant",
  "assign",
@@ -2772,7 +2793,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "as_variant",
  "base64 0.22.1",
@@ -2802,7 +2823,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.28.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "as_variant",
  "indexmap 2.2.6",
@@ -2824,7 +2845,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2836,7 +2857,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.5"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "js_int",
  "thiserror",
@@ -2845,7 +2866,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2855,7 +2876,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -2863,14 +2884,14 @@ dependencies = [
  "quote",
  "ruma-identifiers-validation",
  "serde",
- "syn 2.0.64",
+ "syn",
  "toml",
 ]
 
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2882,7 +2903,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.15.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -2898,7 +2919,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.11.0"
-source = "git+https://github.com/girlbossceo/ruma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
+source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#62aca1e976d0c161d5b2c413bde6d0079f75f3ee"
 dependencies = [
  "itertools",
  "js_int",
@@ -2947,6 +2968,14 @@ source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#6f0afedb3c2
 dependencies = [
  "libc",
  "rust-librocksdb-sys",
+ "serde",
+]
+
+[[package]]
+name = "rust-rocksdb-uwu"
+version = "0.0.1"
+dependencies = [
+ "rust-rocksdb",
 ]
 
 [[package]]
@@ -3057,15 +3086,6 @@ name = "ryu"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
-
-[[package]]
-name = "same-file"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
-dependencies = [
- "winapi-util",
-]
 
 [[package]]
 name = "sanitize-filename"
@@ -3289,7 +3309,7 @@ checksum = "6048858004bcff69094cd972ed40a32500f153bd3be9f716b2eed2e8217c4838"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -3544,17 +3564,6 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 
 [[package]]
 name = "syn"
-version = "1.0.109"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
-dependencies = [
- "proc-macro2",
- "quote",
- "unicode-ident",
-]
-
-[[package]]
-name = "syn"
 version = "2.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ad3dee41f36859875573074334c200d1add8e4a87bb37113ebd31d926b7b11f"
@@ -3604,7 +3613,7 @@ checksum = "e2470041c06ec3ac1ab38d0356a6119054dedaea53e12fbefc0de730a1c08524"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -3753,7 +3762,18 @@ checksum = "5b8a1e28f2deaa14e508979454cb3a223b10b938b45af148bc0986de36f1923b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
+]
+
+[[package]]
+name = "tokio-metrics"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eace09241d62c98b7eeb1107d4c5c64ca3bd7da92e8c218c153ab3a78f9be112"
+dependencies = [
+ "futures-util",
+ "pin-project-lite",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -3958,7 +3978,7 @@ source = "git+https://github.com/girlbossceo/tracing?branch=tracing-subscriber/e
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
@@ -4184,16 +4204,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
-name = "walkdir"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b"
-dependencies = [
- "same-file",
- "winapi-util",
-]
-
-[[package]]
 name = "want"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4229,7 +4239,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
  "wasm-bindgen-shared",
 ]
 
@@ -4263,7 +4273,7 @@ checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -4364,15 +4374,6 @@ name = "winapi-i686-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
-
-[[package]]
-name = "winapi-util"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d4cc384e1e73b93bafa6fb4f1df8c41695c8a91cf9c4c64358067d15a7b6c6b"
-dependencies = [
- "windows-sys 0.52.0",
-]
 
 [[package]]
 name = "winapi-x86_64-pc-windows-gnu"
@@ -4610,7 +4611,7 @@ checksum = "15e934569e47891f7d9411f1a451d947a60e000ab3bd24fbb970f000387d1b3b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.64",
+ "syn",
 ]
 
 [[package]]
