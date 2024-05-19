@@ -62,7 +62,6 @@ fn panic_handler(info: &PanicInfo<'_>, next: &dyn Fn(&PanicInfo<'_>)) {
 }
 
 #[inline(always)]
-#[allow(unexpected_cfgs)]
 pub fn trap() {
 	#[cfg(core_intrinsics)]
 	//SAFETY: embeds llvm intrinsic for hardware breakpoint

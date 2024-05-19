@@ -67,8 +67,6 @@ perf_measurements = [
 jemalloc = [
 	"dep:tikv-jemallocator",
 ]
-panic_trap = []
-mods = []
 
 [dependencies]
 conduit-router.workspace = true
