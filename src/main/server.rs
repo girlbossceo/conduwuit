@@ -5,11 +5,13 @@ use conduit::{
 	config::Config,
 	info,
 	log::{LogLevelReloadHandles, ReloadHandle},
-	utils::{clap, maximize_fd_limit},
+	utils::maximize_fd_limit,
 	Error, Result,
 };
 use tokio::runtime;
 use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
+
+use crate::clap::Args;
 
 /// Server runtime state; complete
 pub(crate) struct Server {
@@ -27,7 +29,7 @@ pub(crate) struct Server {
 }
 
 impl Server {
-	pub(crate) fn build(args: clap::Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Server>, Error> {
+	pub(crate) fn build(args: Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Server>, Error> {
 		let config = Config::new(args.config)?;
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = init_sentry(&config);
