@@ -13,7 +13,6 @@ use tracing::debug;
 
 use crate::{Error, Result};
 
-pub mod clap;
 pub mod content_disposition;
 pub mod defer;
 

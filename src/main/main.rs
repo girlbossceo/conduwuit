@@ -1,3 +1,4 @@
+pub(crate) mod clap;
 mod mods;
 mod server;
 
@@ -5,7 +6,7 @@ extern crate conduit_core as conduit;
 
 use std::{cmp, sync::Arc, time::Duration};
 
-use conduit::{debug_info, error, utils::clap, Error, Result};
+use conduit::{debug_info, error, Error, Result};
 use server::Server;
 use tokio::runtime;
 
