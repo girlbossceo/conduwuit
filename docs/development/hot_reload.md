@@ -2,27 +2,23 @@
 
 ### Summary
 
-When doing development/debug builds with the nightly toolchain, conduwuit is modular using dynamic libraries and various parts of the application are hot reloadable such as the APIs, database, service, admin room, RocksDB, etc. These are all split up into individual workspace crates. This design also only reloads the libraries that actually changed. [hot_lib_reload][6] was considered during early research of this, however its too limited in its functionality for conduwuit's use-case where we have *many* things going on (e.g. async code, tower/tower-http, axum, hyper, hickory_resolver, ruma, RocksDB, admin room, etc etc etc), so a custom solution using `libloading` was required.
+When developing in debug-builds with the nightly toolchain, conduwuit is modular using dynamic libraries and various parts of the application are hot-reloadable while the server is running: http api handlers, admin commands, services, database, etc. These are all split up into individual workspace crates as seen in the `src/` directory. Changes to sourcecode in a crate rebuild that crate and subsequent crates depending on it. Reloading then occurs for the changed crates.
 
-Release builds are unaffected and still function as fully normal static binaries. Some bugs such as shutdown issues have been fixed as apart of this implementation, but there is no functional difference with release builds as apart of this. You cannot hot reload release binaries.
-
-Currently, this development setup only works on x86_64 and aarch64 Linux glibc. [musl explicitly does not support hot reloadable libraries, and does not implement `dlclose`][2]. macOS does not fully support our usage of `RTLD_GLOBAL` possibly due to some thread-local issues. [This Rust issue][3] may be of relevance, specifically [this comment][4]. It may be possible to get it working on only very modern macOS versions such as at least Sonoma, as currently loading dylibs is supported, but not unloading them in our setup, and the cited comment mentions an Apple WWDC confirming there have been TLS changes to somewhat make this possible.
-
-Additionally, at the time of writing `io_uring` and `jemalloc` are unstable at runtime when using hot reloading. Release builds are not affected.
+Release builds still produce static binaries which are unaffected. Rust's soundness guarantees are in full force. Thus you cannot hot-reload release binaries.
 
 ### Requirements
 
-As mentioned above this requires the nightly toolchain. This is due to reliance on various Cargo.toml features that are only available on nightly, most specifically `RUSTFLAGS` in Cargo.toml. Some of the implementation could also be simpler based on other various nightly features. We hope lots of nightly features start making it out of nightly sooner as there have been dozens of very helpful features that have been stuck in nightly ("unstable") for at least 5+ years that would make this a lot more cleaner, simpler, etc and have worked perfectly fine in testing.
+Currently, this development setup only works on x86_64 and aarch64 Linux glibc. [musl explicitly does not support hot reloadable libraries, and does not implement `dlclose`][2]. macOS does not fully support our usage of `RTLD_GLOBAL` possibly due to some thread-local issues. [This Rust issue][3] may be of relevance, specifically [this comment][4]. It may be possible to get it working on only very modern macOS versions such as at least Sonoma, as currently loading dylibs is supported, but not unloading them in our setup, and the cited comment mentions an Apple WWDC confirming there have been TLS changes to somewhat make this possible.
 
-This currently only works on x86_64/aarch64 Linux with a glibc C library. musl C library, macOS, and likely other host architectures are not supported (if other architectures work, feel free to let us know and/or make a PR updating this).
+As mentioned above this requires the nightly toolchain. This is due to reliance on various Cargo.toml features that are only available on nightly, most specifically `RUSTFLAGS` in Cargo.toml. Some of the implementation could also be simpler based on other various nightly features. We hope lots of nightly features start making it out of nightly sooner as there have been dozens of very helpful features that have been stuck in nightly ("unstable") for at least 5+ years that would make this simpler. We encourage greater community consensus to move these features into stability.
 
-This should work on GNU ld and lld (rust-lld) and gcc/clang, however if you happen to have linker issues it's recommended to try using `mold` or `gold` linkers, and please let us know in the [conduwuit Matrix room][7] the linker error and what linker solved this issue so we can figure out a solution. Ideally there should be minimal friction to using this, and in the future a build script (`build.rs`) may be suitable to making this easier to use if the capabilities allow us.
+This currently only works on x86_64/aarch64 Linux with a glibc C library. musl C library, macOS, and likely other host architectures are not supported (if other architectures work, feel free to let us know and/or make a PR updating this). This should work on GNU ld and lld (rust-lld) and gcc/clang, however if you happen to have linker issues it's recommended to try using `mold` or `gold` linkers, and please let us know in the [conduwuit Matrix room][7] the linker error and what linker solved this issue so we can figure out a solution. Ideally there should be minimal friction to using this, and in the future a build script (`build.rs`) may be suitable to making this easier to use if the capabilities allow us.
 
 ### Usage
 
 As of 19 May 2024, the instructions for using this are:
 
-0. Have patience. Don't feel hesitated to join the [conduwuit Matrix room][7] to receive help in using this. As indicated by the various rustflags used and some of the interesting issues linked at the bottom, this is definitely not something the Rust ecosystem or toolchain is used to doing.
+0. Have patience. Don't hesitate to join the [conduwuit Matrix room][7] to receive help using this. As indicated by the various rustflags used and some of the interesting issues linked at the bottom, this is definitely not something the Rust ecosystem or toolchain is used to doing.
 
 1. Install the nightly toolchain using rustup. You may need to use `rustup override set nightly` in your local conduwuit directory, or use `cargo +nightly` for all actions.
 
@@ -52,15 +48,34 @@ As mentioned in the requirements section, if you happen to have some linker issu
 
 It's possible a helper script can be made to do all of this, or most preferably a specially made build script (build.rs). `cargo watch` support will be implemented soon which will eliminate the need to manually run `cargo build` all together.
 
-### Design
+### Addendum
 
-The initial implementation PR is available [here][1].
+Conduit was inherited as a single crate without modularity or reloading in its design. Reasonable partitioning and abstraction allowed a split into several crates, though many circular dependencies had to be corrected. The resulting crates now form a directed graph as depicted in figures below. The interfacing between these crates is still extremely broad which is not mitigable.
 
-TODO: document a lot more stuff about all the design here
+Initially [hot_lib_reload][6] was investigated but found appropriate for a project designed with modularity through limited interfaces, not a large and complex existing codebase. Instead a bespoke solution built directly on [libloading][8] satisfied our constraints. This required relatively minimal modifications and zero maintenance burden compared to what would be required otherwise. The technical difference lies with relocation processing: we leverage global bindings (`RTLD_GLOBAL`) in a very intentional way. Most libraries and off-the-shelf module systems (such as [hot_lib_reload][6]) restrict themselves to local bindings (`RTLD_LOCAL`). This allows them to release software to multiple platforms with much greater consistency, but at the cost of burdening applications to explicitly manage these bindings. In our case with an optional feature for developers, we shrug any such requirement to enjoy the cost/benefit on platforms where global relocations are properly cooperative.
+
+To make use of `RTLD_GLOBAL` the application has to be oriented as a directed acyclic graph. The primary rule is simple and illustrated in the figure below: **no crate is allowed to call a function or use a variable from a crate below it.**
 
 ![conduwuit's dynamic library setup diagram - created by Jason Volk](assets/libraries.png)
 
+When a symbol is referenced between crates they become bound: **crates cannot be unloaded until their calling crates are first unloaded.** Thus we start the reloading process from the crate which has no callers. There is a small problem though: the first crate is called by the base executable itself! This is solved by using an `RTLD_LOCAL` binding for just one link between the main executable and the first crate, freeing the executable from all modules as no global binding ever occurs between them.
+
 ![conduwuit's reload and load order diagram - created by Jason Volk](assets/reload_order.png)
+
+Proper resource management is essential for reliable reloading to occur. This is a very basic ask in RAII-idiomatic Rust and the exposure to reloading hazards is remarkably low, generally stemming from poor patterns and practices. Unfortunately static analysis doesn't enforce reload-safety programmatically (though it could one day), for now hazards can be avoided by knowing a few basic do's and dont's:
+
+1. Understand that code is memory. Just like one is forbidden from referencing free'd memory, one must not transfer control to free'd code. Exposure to this is primarily from two things:
+- Callbacks, which this project makes very little use of.
+- Async tasks, which are addressed below.
+
+2. Tie all resources to a scope or object lifetime with greatest possible symmetry (locality). For our purposes this applies to code resources, which means async blocks and tokio tasks.
+- **Never spawn a task without receiving and storing its JoinHandle**.
+- **Always wait on join handles** before leaving a scope or in another cleanup function called by an owning scope.
+
+3. Know any minor specific quirks documented in code or here:
+- Don't use `tokio::spawn`, instead use our `Handle` in `core/server.rs`, which is reachable in most of the codebase via `services()` or other state. This is due to some bugs or assumptions made in tokio, as it happens in `unsafe {}` blocks, which are mitigated by circumventing some thread-local variables. Using runtime handles is good practice in any case.
+
+The initial implementation PR is available [here][1].
 
 ### Interesting related issues/bugs
 
@@ -73,5 +88,6 @@ TODO: document a lot more stuff about all the design here
 [3]: https://github.com/rust-lang/rust/issues/28794
 [4]: https://github.com/rust-lang/rust/issues/28794#issuecomment-368693049
 [5]: https://github.com/rust-lang/cargo/issues/12746
-[6]: https://docs.rs/hot-lib-reloader/latest/hot_lib_reloader/
+[6]: https://crates.io/crates/hot-lib-reloader/
 [7]: https://matrix.to/#/#conduwuit:puppygock.gay
+[8]: https://crates.io/crates/libloading
