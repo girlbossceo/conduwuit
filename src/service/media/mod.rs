@@ -251,7 +251,14 @@ impl Service {
 				let file_metadata = fs::metadata(path.clone()).await?;
 				debug!("File metadata: {:?}", file_metadata);
 
-				let file_created_at = file_metadata.created()?;
+				let file_created_at = match file_metadata.created() {
+					Ok(value) => value,
+					Err(err) if err.kind() == std::io::ErrorKind::Unsupported => {
+						debug!("btime is unsupported, using mtime instead");
+						file_metadata.modified()?
+					},
+					Err(err) => return Err(err.into()),
+				};
 				debug!("File created at: {:?}", file_created_at);
 
 				if file_created_at >= user_duration {
