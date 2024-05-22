@@ -44,9 +44,7 @@ let
       -sha256
 
     ${lib.getExe' coreutils "env"} \
-      CONDUIT_SERVER_NAME="$SERVER_NAME" \
-      CONDUIT_WELL_KNOWN_SERVER="$SERVER_NAME:8448" \
-      CONDUIT_WELL_KNOWN_SERVER="$SERVER_NAME:8008" \
+      CONDUWUIT_SERVER_NAME="$SERVER_NAME" \
       ${lib.getExe main'}
   '';
 in
