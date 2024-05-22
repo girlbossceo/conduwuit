@@ -153,6 +153,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Interest in supporting other operating systems such as macOS, BSDs, and Windows, and getting them added into CI and doing builds for them
 - Add config option for disabling RocksDB Direct IO if needed
 - Add various documentation on maintaining conduwuit, using RocksDB online backups, some troubleshooting, using admin commands, etc
+- (Developers): Add support for [hot reloadable/"live" modular development](development/hot_reload.md)
 - (Developers): Add support for tokio-console
 - (Developers): Add support for tracing flame graphs
 - Add `release-debuginfo` Cargo build profile
