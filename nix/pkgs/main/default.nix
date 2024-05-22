@@ -8,6 +8,7 @@
 , rocksdb
 , rust
 , rust-jemalloc-sys
+, snappy
 , stdenv
 , pkgsStatic
 
@@ -108,7 +109,8 @@ buildPackageEnv = {
               && !stdenv.cc.bintools.isLLVM;
      in
        buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
-       + lib.optionalString (uring && valid) " -L${lib.getLib liburing'}/lib/ -luring";
+       + lib.optionalString (uring && valid) " -L${lib.getLib liburing'}/lib/ -luring"
+       + " -L${lib.getLib snappy}/lib/ -lsnappy";
   };
 
 
