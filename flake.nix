@@ -101,7 +101,6 @@
     {
       packages = {
         default = scopeHost.main;
-        jemalloc = scopeHost.main.override { features = ["jemalloc"]; };
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
         oci-image = scopeHost.oci-image;

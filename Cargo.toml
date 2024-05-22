@@ -360,7 +360,7 @@ version = "0.32.3"
 [workspace.dependencies.sentry-tower]
 version = "0.32.3"
 
-# optional jemalloc usage
+# jemalloc usage
 [workspace.dependencies.tikv-jemalloc-sys]
 version = "0.5.4"
 default-features = false
