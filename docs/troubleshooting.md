@@ -59,4 +59,4 @@ conduwuit can ping other servers using `!admin debug ping`. This takes a server 
 
 #### Allocator memory stats
 
-If using jemalloc (for now) and built with jemallocator's `stats` feature, you can see conduwuit's jemalloc memory stats by using `!admin debug memory-stats`
+When using jemalloc with jemallocator's `stats` feature, you can see conduwuit's jemalloc memory stats by using `!admin debug memory-stats`

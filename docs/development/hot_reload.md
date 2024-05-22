@@ -1,4 +1,4 @@
-## Hot Reloading ("Live" Development)
+# Hot Reloading ("Live" Development)
 
 ### Summary
 

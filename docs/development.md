@@ -16,8 +16,7 @@ look like this:
 RUSTFLAGS="--cfg tokio_unstable" cargo build \
     --release \
     --no-default-features \
-    --features
-    backend_rocksdb,systemd,element_hacks,sentry_telemetry,gzip_compression,brotli_compression,zstd_compression,tokio_console
+    --features=rocksdb,systemd,element_hacks,sentry_telemetry,gzip_compression,brotli_compression,zstd_compression,tokio_console
 ```
 
 [1]: https://docs.rs/tokio-console/latest/tokio_console/
