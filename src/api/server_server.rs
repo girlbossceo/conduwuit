@@ -1409,6 +1409,12 @@ async fn create_leave_event(sender_servername: &ServerName, room_id: &RoomId, pd
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
+	services()
+		.rooms
+		.event_handler
+		.fetch_required_signing_keys([&value], &pub_key_map)
+		.await?;
+
 	let mutex = Arc::clone(
 		services()
 			.globals
