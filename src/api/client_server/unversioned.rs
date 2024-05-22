@@ -45,12 +45,13 @@ pub(crate) async fn get_supported_versions_route(
 		],
 		unstable_features: BTreeMap::from_iter([
 			("org.matrix.e2e_cross_signing".to_owned(), true),
-			("org.matrix.msc2285.stable".to_owned(), true),
-			("uk.half-shot.msc2666.query_mutual_rooms".to_owned(), true),
-			("org.matrix.msc2836".to_owned(), true),
-			("org.matrix.msc2946".to_owned(), true),
-			("org.matrix.msc3026.busy_presence".to_owned(), true),
-			("org.matrix.msc3827".to_owned(), true),
+			("org.matrix.msc2285.stable".to_owned(), true), /* private read receipts (https://github.com/matrix-org/matrix-spec-proposals/pull/2285) */
+			("uk.half-shot.msc2666.query_mutual_rooms".to_owned(), true), /* query mutual rooms (https://github.com/matrix-org/matrix-spec-proposals/pull/2666) */
+			("org.matrix.msc2836".to_owned(), true), /* threading/threads (https://github.com/matrix-org/matrix-spec-proposals/pull/2836) */
+			("org.matrix.msc2946".to_owned(), true), /* spaces/hierarchy summaries (https://github.com/matrix-org/matrix-spec-proposals/pull/2946) */
+			("org.matrix.msc3026.busy_presence".to_owned(), true), /* busy presence status (https://github.com/matrix-org/matrix-spec-proposals/pull/3026) */
+			("org.matrix.msc3827".to_owned(), true), /* filtering of /publicRooms by room type (https://github.com/matrix-org/matrix-spec-proposals/pull/3827) */
+			("org.matrix.msc3575".to_owned(), true), /* sliding sync (https://github.com/matrix-org/matrix-spec-proposals/pull/3575/files#r1588877046) */
 		]),
 	};
 
