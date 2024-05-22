@@ -136,8 +136,6 @@ jobs:
                 if-no-files-found: error
 
             - name: Diff Complement results with checked-in repo results
-            # TODO: figure out why our complement results are not 100% consistent so we don't need to allow failures
-              continue-on-error: true
               run: |
                   diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_test_output.log)
 
@@ -168,9 +166,7 @@ jobs:
             matrix:
                 include:
                     - target: aarch64-unknown-linux-musl
-                    - target: aarch64-unknown-linux-musl-jemalloc
                     - target: x86_64-unknown-linux-musl
-                    - target: x86_64-unknown-linux-musl-jemalloc
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
@@ -301,8 +297,8 @@ jobs:
 
             - name: Move OCI images into position
               run: |
-                  mv -v oci-image-x86_64-*-jemalloc/*.tar.gz oci-image-amd64.tar.gz
-                  mv -v oci-image-aarch64-*-jemalloc/*.tar.gz oci-image-arm64v8.tar.gz
+                  mv -v oci-image-x86_64-*/*.tar.gz oci-image-amd64.tar.gz
+                  mv -v oci-image-aarch64-*/*.tar.gz oci-image-arm64v8.tar.gz
 
             - name: Load and push amd64 image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
