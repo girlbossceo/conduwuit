@@ -245,7 +245,7 @@ version = "0.17.8"
 
 # Used to make working with iterators easier, was already a transitive depdendency
 [workspace.dependencies.itertools]
-version = "0.12.1"
+version = "0.13.0"
 
 # to parse user-friendly time durations in admin commands
 #TODO: overlaps chrono?
