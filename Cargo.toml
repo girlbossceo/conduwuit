@@ -322,7 +322,7 @@ version = "0.10.8"
 
 # optional opentelemetry, performance measurements, flamegraphs, etc for performance measurements and monitoring
 [workspace.dependencies.opentelemetry]
-version = "0.21.0"
+version = "0.23.0"
 
 [workspace.dependencies.tracing-flame]
 version = "0.2.0"
