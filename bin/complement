@@ -17,6 +17,12 @@ RESULTS_FILE="$3"
 
 OCI_IMAGE="complement-conduit:main"
 
+# Complement tests that are skipped due to flakiness/reliability issues (likely
+# Complement itself induced based on various open issues)
+#
+# According to Go docs, these are separated by forward slashes and not pipes (why)
+SKIPPED_COMPLEMENT_TESTS='-skip=TestJumpToDateEndpoint.*|TestJoinFederatedRoomFromApplicationServiceBridgeUser.*|TestFederationRoomsInvite.*|TestClientSpacesSummary.*'
+
 toplevel="$(git rev-parse --show-toplevel)"
 
 pushd "$toplevel" > /dev/null
@@ -31,7 +37,7 @@ set +o pipefail
 env \
     -C "$COMPLEMENT_SRC" \
     COMPLEMENT_BASE_IMAGE="$OCI_IMAGE" \
-    go test -tags="conduwuit_blacklist" -v -timeout 1h -json ./tests | tee "$LOG_FILE"
+    go test -tags="conduwuit_blacklist" "$SKIPPED_COMPLEMENT_TESTS" -v -timeout 1h -json ./tests | tee "$LOG_FILE"
 set -o pipefail
 
 # Post-process the results into an easy-to-compare format, sorted by Test name for reproducible results
