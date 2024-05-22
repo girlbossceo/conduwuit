@@ -23,10 +23,6 @@ readme = "README.md"
 [workspace.metadata.crane]
 name = "conduit"
 
-# 1.1.17 seems broken on nix from a permission error?
-[workspace.dependencies.libz-sys]
-version = "=1.1.16"
-
 [workspace.dependencies.sanitize-filename]
 version = "0.5.0"
 
@@ -237,7 +233,7 @@ default-features = false
 
 # Used for conduit::Error type
 [workspace.dependencies.thiserror]
-version = "1.0.60"
+version = "1.0.61"
 
 # Used when hashing the state
 [workspace.dependencies.ring]
@@ -245,7 +241,7 @@ version = "0.17.8"
 
 # Used to make working with iterators easier, was already a transitive depdendency
 [workspace.dependencies.itertools]
-version = "0.12.1"
+version = "0.13.0"
 
 # to parse user-friendly time durations in admin commands
 #TODO: overlaps chrono?
