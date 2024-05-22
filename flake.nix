@@ -105,11 +105,6 @@
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
         oci-image = scopeHost.oci-image;
-        oci-image-jemalloc = scopeHost.oci-image.override {
-          main = scopeHost.main.override {
-            features = ["jemalloc"];
-          };
-        };
         oci-image-hmalloc = scopeHost.oci-image.override {
           main = scopeHost.main.override {
             features = ["hardened_malloc"];
@@ -144,14 +139,6 @@
                   value = scopeCrossStatic.main;
                 }
 
-                # An output for a statically-linked binary with jemalloc
-                {
-                  name = "${binaryName}-jemalloc";
-                  value = scopeCrossStatic.main.override {
-                    features = ["jemalloc"];
-                  };
-                }
-
                 # An output for a statically-linked binary with hardened_malloc
                 {
                   name = "${binaryName}-hmalloc";
@@ -164,16 +151,6 @@
                 {
                   name = "oci-image-${crossSystem}";
                   value = scopeCrossStatic.oci-image;
-                }
-
-                # An output for an OCI image based on that binary with jemalloc
-                {
-                  name = "oci-image-${crossSystem}-jemalloc";
-                  value = scopeCrossStatic.oci-image.override {
-                    main = scopeCrossStatic.main.override {
-                      features = ["jemalloc"];
-                    };
-                  };
                 }
 
                 # An output for an OCI image based on that binary with hardened_malloc
