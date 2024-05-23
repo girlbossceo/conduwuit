@@ -220,11 +220,13 @@ pub fn build(router: Router, server: &Server) -> Router {
 			.ruma_route(server_server::claim_keys_route)
 			.ruma_route(server_server::get_hierarchy_route)
 			.ruma_route(server_server::well_known_server)
+			.route("/_conduwuit/local_user_count", get(client_server::conduwuit_local_user_count))
 	} else {
 		router
 			.route("/_matrix/federation/*path", any(federation_disabled))
 			.route("/.well-known/matrix/server", any(federation_disabled))
 			.route("/_matrix/key/*path", any(federation_disabled))
+			.route("/_conduwuit/local_user_count", any(federation_disabled))
 	}
 }
 

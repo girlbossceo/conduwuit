@@ -155,7 +155,20 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 /// `/_matrix/federation/v1/version`
 pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
 	Ok(Json(serde_json::json!({
-		"name": "Conduwuit",
+		"name": "conduwuit",
 		"version": conduwuit_version(),
+	})))
+}
+
+/// # `GET /_conduwuit/local_user_count`
+///
+/// conduwuit-specific API to return the amount of users registered on this
+/// homeserver. Endpoint is disabled if federation is disabled for privacy. This
+/// only includes active users (not deactivated, no guests, etc)
+pub(crate) async fn conduwuit_local_user_count() -> Result<impl IntoResponse> {
+	let user_count = services().users.list_local_users()?.len();
+
+	Ok(Json(serde_json::json!({
+		"count": user_count
 	})))
 }
