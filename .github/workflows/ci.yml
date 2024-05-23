@@ -38,6 +38,8 @@ env:
     # Use the all-features devshell instead of default, to ensure that features
     # match between nix and cargo
     DIRENV_DEVSHELL: all-features
+    # Get error output from nix that we can actually use
+    NIX_CONFIG: show-trace = true
 
 permissions:
     packages: write
