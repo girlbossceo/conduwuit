@@ -11,5 +11,6 @@
   },
   "nix": {
     "enabled": true
-  }
+  },
+  "labels": ["dependencies", "github_actions"]
 }
