@@ -37,7 +37,7 @@ pub enum Error {
 		#[from]
 		source: rust_rocksdb::Error,
 	},
-	#[error("Could not generate an image.")]
+	#[error("Could not generate an image: {source}")]
 	Image {
 		#[from]
 		source: image::error::ImageError,
@@ -52,14 +52,14 @@ pub enum Error {
 		#[from]
 		source: regex::Error,
 	},
-	#[error("{0}")]
+	#[error("Remote server {0} responded with: {1}")]
 	Federation(OwnedServerName, RumaError),
 	#[error("Could not do this io: {source}")]
 	Io {
 		#[from]
 		source: std::io::Error,
 	},
-	#[error("There was a problem with your configuration file: {0}")]
+	#[error("There was a problem with your configuration: {0}")]
 	BadConfig(String),
 	#[error("{0}")]
 	BadServerResponse(&'static str),
