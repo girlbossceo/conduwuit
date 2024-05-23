@@ -25,7 +25,8 @@
         sha256 = "sha256-+syqAd2kX8KVa8/U2gz3blIQTTsYYt3U63xBWaGOSc8";
       };
 
-      scope = pkgs: pkgs.lib.makeScope pkgs.newScope (self: {
+      mkScope = pkgs: pkgs.lib.makeScope pkgs.newScope (self: {
+        inherit pkgs;
         book = self.callPackage ./nix/pkgs/book {};
         complement = self.callPackage ./nix/pkgs/complement {};
         craneLib = ((inputs.crane.mkLib pkgs).overrideToolchain toolchain);
@@ -41,7 +42,53 @@
         });
       });
 
-      scopeHost = (scope pkgsHost);
+      scopeHost = mkScope pkgsHost;
+
+      mkDevShell = scope: scope.pkgs.mkShell {
+        env = scope.main.env // {
+          # Rust Analyzer needs to be able to find the path to default crate
+          # sources, and it can read this environment variable to do so. The
+          # `rust-src` component is required in order for this to work.
+          RUST_SRC_PATH = "${toolchain}/lib/rustlib/src/rust/library";
+
+          # Convenient way to access a pinned version of Complement's source
+          # code.
+          COMPLEMENT_SRC = inputs.complement.outPath;
+        };
+
+        # Development tools
+        packages = [
+          # Always use nightly rustfmt because most of its options are unstable
+          #
+          # This needs to come before `toolchain` in this list, otherwise
+          # `$PATH` will have stable rustfmt instead.
+          inputs.fenix.packages.${system}.latest.rustfmt
+
+          toolchain
+        ]
+        ++ (with pkgsHost.pkgs; [
+          engage
+          cargo-audit
+
+          # Needed for producing Debian packages
+          cargo-deb
+
+          # Needed for Complement
+          go
+          olm
+
+          # Needed for our script for Complement
+          jq
+
+          # Needed for finding broken markdown links
+          lychee
+
+          # Useful for editing the book locally
+          mdbook
+        ])
+        ++ scope.main.propagatedBuildInputs
+        ++ scope.main.nativeBuildInputs;
+      };
     in
     {
       packages = {
@@ -79,7 +126,7 @@
                       config = crossSystem;
                     };
                   }).pkgsStatic;
-                scopeCrossStatic = scope pkgsCrossStatic;
+                scopeCrossStatic = mkScope pkgsCrossStatic;
               in
               [
                 # An output for a statically-linked binary
@@ -138,50 +185,6 @@
           )
         );
 
-      devShells.default = pkgsHost.mkShell {
-        env = scopeHost.main.env // {
-          # Rust Analyzer needs to be able to find the path to default crate
-          # sources, and it can read this environment variable to do so. The
-          # `rust-src` component is required in order for this to work.
-          RUST_SRC_PATH = "${toolchain}/lib/rustlib/src/rust/library";
-
-          # Convenient way to access a pinned version of Complement's source
-          # code.
-          COMPLEMENT_SRC = inputs.complement.outPath;
-        };
-
-        # Development tools
-        packages = [
-          # Always use nightly rustfmt because most of its options are unstable
-          #
-          # This needs to come before `toolchain` in this list, otherwise
-          # `$PATH` will have stable rustfmt instead.
-          inputs.fenix.packages.${system}.latest.rustfmt
-
-          toolchain
-        ]
-        ++ (with pkgsHost; [
-          engage
-          cargo-audit
-
-          # Needed for producing Debian packages
-          cargo-deb
-
-          # Needed for Complement
-          go
-          olm
-
-          # Needed for our script for Complement
-          jq
-
-          # Needed for finding broken markdown links
-          lychee
-
-          # Useful for editing the book locally
-          mdbook
-        ])
-        ++ scopeHost.main.propagatedBuildInputs
-        ++ scopeHost.main.nativeBuildInputs;
-      };
+      devShells.default = mkDevShell scopeHost;
     });
 }
