@@ -6,6 +6,7 @@
 , pkgsBuildHost
 , rocksdb
 , rust
+, rust-jemalloc-sys
 , stdenv
 
 # Options (keep sorted)
@@ -15,10 +16,27 @@
 }:
 
 let
+featureEnabled = feature : builtins.elem feature features;
+
+# This derivation will set the JEMALLOC_OVERRIDE variable, causing the
+# tikv-jemalloc-sys crate to use the nixpkgs jemalloc instead of building it's
+# own. In order for this to work, we need to set flags on the build that match
+# whatever flags tikv-jemalloc-sys was going to use. These are dependent on
+# which features we enable in tikv-jemalloc-sys.
+rust-jemalloc-sys' = (rust-jemalloc-sys.override {
+  # tikv-jemalloc-sys/unprefixed_malloc_on_supported_platforms feature
+  unprefixed = true;
+}).overrideAttrs (old: {
+  configureFlags = old.configureFlags ++
+    # tikv-jemalloc-sys/profiling feature
+    lib.optional (featureEnabled "jemalloc_prof") "--enable-prof";
+});
+
 buildDepsOnlyEnv =
   let
     rocksdb' = rocksdb.override {
-      enableJemalloc = builtins.elem "jemalloc" features;
+      jemalloc = rust-jemalloc-sys';
+      enableJemalloc = featureEnabled "jemalloc";
     };
   in
   {
@@ -59,6 +77,8 @@ commonAttrs = {
         "src"
       ];
     };
+
+    buildInputs = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys';
 
     nativeBuildInputs = [
       # bindgen needs the build platform's libclang. Apparently due to "splicing

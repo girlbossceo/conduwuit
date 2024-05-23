@@ -184,8 +184,8 @@
             # Needed for building with io_uring
             pkgsHost.liburing
         ] else [])
-        ++
-        scopeHost.main.nativeBuildInputs;
+        ++ scopeHost.main.propagatedBuildInputs
+        ++ scopeHost.main.nativeBuildInputs;
       };
     });
 }
