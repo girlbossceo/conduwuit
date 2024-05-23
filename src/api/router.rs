@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use axum::{
-	extract::FromRequestParts,
 	response::IntoResponse,
 	routing::{any, get, on, post, MethodFilter},
 	Router,
@@ -244,63 +243,47 @@ trait RouterExt {
 }
 
 impl RouterExt for Router {
+	#[inline(always)]
 	fn ruma_route<H, T>(self, handler: H) -> Self
 	where
 		H: RumaHandler<T>,
 		T: 'static,
 	{
-		handler.add_to_router(self)
+		handler.add_routes(self)
 	}
 }
 
 trait RumaHandler<T> {
-	// Can't transform to a handler without boxing or relying on the nightly-only
-	// impl-trait-in-traits feature. Moving a small amount of extra logic into the
-	// trait allows bypassing both.
-	fn add_to_router(self, router: Router) -> Router;
+	fn add_routes(&self, router: Router) -> Router;
+
+	fn add_route(&self, router: Router, path: &str) -> Router;
 }
 
-macro_rules! impl_ruma_handler {
-    ( $($ty:ident),* $(,)? ) => {
-        #[axum::async_trait]
-        #[allow(non_snake_case)]
-        impl<Req, E, F, Fut, $($ty,)*> RumaHandler<($($ty,)* Ruma<Req>,)> for F
-        where
-            Req: IncomingRequest + Send + 'static,
-            F: FnOnce($($ty,)* Ruma<Req>) -> Fut + Clone + Send + 'static,
-            Fut: Future<Output = Result<Req::OutgoingResponse, E>>
-                + Send,
-            E: IntoResponse,
-            $( $ty: FromRequestParts<()> + Send + 'static, )*
-        {
-            fn add_to_router(self, mut router: Router) -> Router {
-                let meta = Req::METADATA;
-                let method_filter = method_to_filter(meta.method);
+impl<Req, E, F, Fut> RumaHandler<Ruma<Req>> for F
+where
+	Req: IncomingRequest + Send + 'static,
+	F: FnOnce(Ruma<Req>) -> Fut + Clone + Send + Sync + 'static,
+	Fut: Future<Output = Result<Req::OutgoingResponse, E>> + Send,
+	E: IntoResponse,
+{
+	#[inline(always)]
+	fn add_routes(&self, router: Router) -> Router {
+		Req::METADATA
+			.history
+			.all_paths()
+			.fold(router, |router, path| self.add_route(router, path))
+	}
 
-                for path in meta.history.all_paths() {
-                    let handler = self.clone();
-
-                    router = router.route(path, on(method_filter, |$( $ty: $ty, )* req| async move {
-                        handler($($ty,)* req).await.map(RumaResponse)
-                    }))
-                }
-
-                router
-            }
-        }
-    };
+	#[inline(always)]
+	fn add_route(&self, router: Router, path: &str) -> Router {
+		let handle = self.clone();
+		let method = method_to_filter(Req::METADATA.method);
+		let action = |req| async { handle(req).await.map(RumaResponse) };
+		router.route(path, on(method, action))
+	}
 }
 
-impl_ruma_handler!();
-impl_ruma_handler!(T1);
-impl_ruma_handler!(T1, T2);
-impl_ruma_handler!(T1, T2, T3);
-impl_ruma_handler!(T1, T2, T3, T4);
-impl_ruma_handler!(T1, T2, T3, T4, T5);
-impl_ruma_handler!(T1, T2, T3, T4, T5, T6);
-impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7);
-impl_ruma_handler!(T1, T2, T3, T4, T5, T6, T7, T8);
-
+#[inline]
 fn method_to_filter(method: Method) -> MethodFilter {
 	match method {
 		Method::DELETE => MethodFilter::DELETE,
