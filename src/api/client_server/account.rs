@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use conduit::debug_info;
 use register::RegistrationKind;
 use ruma::{
 	api::client::{
@@ -290,10 +291,11 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 		.users
 		.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
 
-	info!("New user \"{}\" registered on this server.", user_id);
+	debug_info!(%user_id, %device_id, "User account was created");
 
 	// log in conduit admin channel if a non-guest user registered
 	if body.appservice_info.is_none() && !is_guest {
+		info!("New user \"{user_id}\" registered on this server.");
 		services()
 			.admin
 			.send_message(RoomMessageEventContent::notice_plain(format!(
@@ -304,6 +306,8 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 
 	// log in conduit admin channel if a guest registered
 	if body.appservice_info.is_none() && is_guest && services().globals.log_guest_registrations() {
+		info!("New guest user \"{user_id}\" registered on this server.");
+
 		if let Some(device_display_name) = &body.initial_device_display_name {
 			if body
 				.initial_device_display_name
