@@ -192,5 +192,9 @@
         (scopeHostStatic.overrideScope (final: prev: {
           main = prev.main.override { all_features = true; };
         }));
+      devShells.no-features = mkDevShell
+        (scopeHostStatic.overrideScope (final: prev: {
+          main = prev.main.override { default_features = false; };
+        }));
     });
 }
