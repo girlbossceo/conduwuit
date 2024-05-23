@@ -11,6 +11,7 @@
 
 # Options (keep sorted)
 , default_features ? true
+, all_features ? false
 , features ? []
 , profile ? "release"
 }:
@@ -20,13 +21,23 @@ let
 # on the nix side depend on feature values.
 workspaceMembers = builtins.map (member: "${inputs.self}/src/${member}")
   (builtins.attrNames (builtins.readDir "${inputs.self}/src"));
+crateFeatures = path:
+  let manifest = lib.importTOML "${path}/Cargo.toml"; in
+  lib.remove "default" (lib.attrNames manifest.features) ++
+  lib.attrNames
+    (lib.filterAttrs
+      (_: dependency: dependency.optional or false)
+      manifest.dependencies);
 crateDefaultFeatures = path:
   (lib.importTOML "${path}/Cargo.toml").features.default;
 allDefaultFeatures = lib.unique
   (lib.flatten (builtins.map crateDefaultFeatures workspaceMembers));
+allFeatures = lib.unique
+  (lib.flatten (builtins.map crateFeatures workspaceMembers));
 features' = lib.unique
   (features ++
-    lib.optionals default_features allDefaultFeatures);
+    lib.optionals default_features allDefaultFeatures ++
+    lib.optionals all_features allFeatures);
 
 featureEnabled = feature : builtins.elem feature features';
 

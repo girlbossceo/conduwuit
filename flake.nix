@@ -188,5 +188,9 @@
         );
 
       devShells.default = mkDevShell scopeHostStatic;
+      devShells.all-features = mkDevShell
+        (scopeHostStatic.overrideScope (final: prev: {
+          main = prev.main.override { all_features = true; };
+        }));
     });
 }
