@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::fmt::Write;
 
 use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId};
 
@@ -79,12 +79,13 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 				match aliases {
 					Ok(aliases) => {
 						let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {
-							writeln!(output, "- {alias}").unwrap();
+							writeln!(output, "- {alias}").expect("should be able to write to string buffer");
 							output
 						});
 
 						let html_list = aliases.iter().fold(String::new(), |mut output, alias| {
-							writeln!(output, "<li>{}</li>", escape_html(alias.as_ref())).unwrap();
+							writeln!(output, "<li>{}</li>", escape_html(alias.as_ref()))
+								.expect("should be able to write to string buffer");
 							output
 						});
 
@@ -106,7 +107,8 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 						let plain_list = aliases
 							.iter()
 							.fold(String::new(), |mut output, (alias, id)| {
-								writeln!(output, "- `{alias}` -> #{id}:{server_name}").unwrap();
+								writeln!(output, "- `{alias}` -> #{id}:{server_name}")
+									.expect("should be able to write to string buffer");
 								output
 							});
 
@@ -120,7 +122,7 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 									escape_html(id.as_ref()),
 									server_name
 								)
-								.unwrap();
+								.expect("should be able to write to string buffer");
 								output
 							});
 

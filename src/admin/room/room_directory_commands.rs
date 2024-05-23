@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::fmt::Write;
 
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
 
@@ -65,7 +65,7 @@ pub(crate) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> 
 							members,
 							escape_html(name.as_ref())
 						)
-						.unwrap();
+						.expect("should be able to write to string buffer");
 						output
 					})
 			);

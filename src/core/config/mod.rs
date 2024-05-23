@@ -866,7 +866,7 @@ impl fmt::Display for Config {
 		let mut msg: String = "Active config values:\n\n".to_owned();
 
 		for line in lines.into_iter().enumerate() {
-			let _ = writeln!(msg, "{}: {}", line.1 .0, line.1 .1);
+			writeln!(msg, "{}: {}", line.1 .0, line.1 .1).expect("should be able to write to string buffer");
 		}
 
 		write!(f, "{msg}")
