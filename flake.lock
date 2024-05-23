@@ -255,11 +255,11 @@
     "rocksdb": {
       "flake": false,
       "locked": {
-        "lastModified": 1714770052,
-        "narHash": "sha256-NCPYF2wYBsB9OHEkZSOYoPlxjC9BBMhJp8EM5M1o3Mc=",
+        "lastModified": 1716426977,
+        "narHash": "sha256-UULwofoFTiCH/atA5shRj0DLg6WxP5X83jxAJb1jfZ8=",
         "owner": "girlbossceo",
         "repo": "rocksdb",
-        "rev": "db6df0b185774778457dabfcbd822cb81760cade",
+        "rev": "be68b3c95ccd225f3121ba33a67cfaf3c3596afc",
         "type": "github"
       },
       "original": {
