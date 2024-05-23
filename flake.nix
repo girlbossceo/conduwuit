@@ -16,6 +16,7 @@
     inputs.flake-utils.lib.eachDefaultSystem (system:
     let
       pkgsHost = inputs.nixpkgs.legacyPackages.${system};
+      pkgsHostStatic = pkgsHost.pkgsStatic;
 
       # The Rust toolchain to use
       toolchain = inputs.fenix.packages.${system}.fromToolchainFile {
@@ -43,6 +44,7 @@
       });
 
       scopeHost = mkScope pkgsHost;
+      scopeHostStatic = mkScope pkgsHostStatic;
 
       mkDevShell = scope: scope.pkgs.mkShell {
         env = scope.main.env // {
@@ -185,6 +187,6 @@
           )
         );
 
-      devShells.default = mkDevShell scopeHost;
+      devShells.default = mkDevShell scopeHostStatic;
     });
 }
