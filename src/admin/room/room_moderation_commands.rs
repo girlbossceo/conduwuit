@@ -122,7 +122,9 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 						&local_user, &room_id
 					);
 
-					_ = leave_room(&local_user, &room_id, None).await;
+					if let Err(e) = leave_room(&local_user, &room_id, None).await {
+						warn!(%e, "Failed to leave room");
+					}
 				}
 			} else {
 				for local_user in services()
@@ -329,7 +331,9 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 								 admins too)",
 								&local_user, room_id
 							);
-							_ = leave_room(&local_user, &room_id, None).await;
+							if let Err(e) = leave_room(&local_user, &room_id, None).await {
+								warn!(%e, "Failed to leave room");
+							}
 						}
 					} else {
 						for local_user in services()

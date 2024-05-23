@@ -81,8 +81,7 @@ pub(crate) async fn start(server: Arc<Server>) -> Result<(), Error> {
 	services().start().await?;
 
 	#[cfg(feature = "systemd")]
-	#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
-	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+	sd_notify::notify(true, &[sd_notify::NotifyState::Ready]).expect("failed to notify systemd of ready state");
 
 	debug!("Started");
 	Ok(())
@@ -115,8 +114,7 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 	drop(s);
 
 	#[cfg(feature = "systemd")]
-	#[allow(clippy::let_underscore_untyped)] // error[E0658]: attributes on expressions are experimental
-	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]);
+	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]).expect("failed to notify systemd of stopping state");
 
 	info!("Shutdown complete.");
 	Ok(())

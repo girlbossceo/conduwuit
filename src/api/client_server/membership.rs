@@ -80,7 +80,9 @@ async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_na
 
 					// ignore errors
 					leave_all_rooms(user_id).await;
-					_ = services().users.deactivate_account(user_id);
+					if let Err(e) = services().users.deactivate_account(user_id) {
+						warn!(%e, "Failed to deactivate account");
+					}
 				}
 
 				return Err(Error::BadRequest(
@@ -115,7 +117,9 @@ async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_na
 
 					// ignore errors
 					leave_all_rooms(user_id).await;
-					_ = services().users.deactivate_account(user_id);
+					if let Err(e) = services().users.deactivate_account(user_id) {
+						warn!(%e, "Failed to deactivate account");
+					}
 				}
 
 				return Err(Error::BadRequest(
@@ -1548,8 +1552,12 @@ pub async fn leave_all_rooms(user_id: &UserId) {
 		};
 
 		// ignore errors
-		_ = services().rooms.state_cache.forget(&room_id, user_id);
-		_ = leave_room(user_id, &room_id, None).await;
+		if let Err(e) = services().rooms.state_cache.forget(&room_id, user_id) {
+			warn!(%e, "Failed to forget room");
+		}
+		if let Err(e) = leave_room(user_id, &room_id, None).await {
+			warn!(%e, "Failed to leave room");
+		}
 	}
 }
 

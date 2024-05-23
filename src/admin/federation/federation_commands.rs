@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::fmt::Write;
 
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
 
@@ -20,7 +20,8 @@ pub(crate) async fn incoming_federeation(_body: Vec<&str>) -> Result<RoomMessage
 
 	for (r, (e, i)) in map.iter() {
 		let elapsed = i.elapsed();
-		let _ = writeln!(msg, "{} {}: {}m{}s", r, e, elapsed.as_secs() / 60, elapsed.as_secs() % 60);
+		writeln!(msg, "{} {}: {}m{}s", r, e, elapsed.as_secs() / 60, elapsed.as_secs() % 60,)
+			.expect("should be able to write to string buffer");
 	}
 	Ok(RoomMessageEventContent::text_plain(&msg))
 }
@@ -120,7 +121,7 @@ pub(crate) async fn remote_user_in_rooms(_body: Vec<&str>, user_id: Box<UserId>)
 					members,
 					escape_html(name)
 				)
-				.unwrap();
+				.expect("should be able to write to string buffer");
 				output
 			})
 	);

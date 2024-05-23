@@ -3,7 +3,7 @@ use std::time::Duration;
 use ruma::events::room::message::RoomMessageEventContent;
 use serde::Deserialize;
 use tokio::{task::JoinHandle, time::interval};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{
 	conduit::{Error, Result},
@@ -35,7 +35,9 @@ pub async fn start_check_for_updates_task() -> Result<JoinHandle<()>> {
 				},
 			}
 
-			_ = try_handle_updates().await;
+			if let Err(e) = try_handle_updates().await {
+				warn!(%e, "Failed to check for updates");
+			}
 		}
 	}))
 }

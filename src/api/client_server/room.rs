@@ -388,7 +388,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 			Error::BadRequest(ErrorKind::InvalidParam, "Invalid initial state event.")
 		})?;
 
-		debug_warn!("initial state event: {event:?}");
+		debug_info!("Room creation initial state event: {event:?}");
 
 		// client/appservice workaround: if a user sends an initial_state event with a
 		// state event in there with the content of literally `{}` (not null or empty
@@ -460,7 +460,9 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 	// 8. Events implied by invite (and TODO: invite_3pid)
 	drop(state_lock);
 	for user_id in &body.invite {
-		_ = invite_helper(sender_user, user_id, &room_id, None, body.is_direct).await;
+		if let Err(e) = invite_helper(sender_user, user_id, &room_id, None, body.is_direct).await {
+			warn!(%e, "Failed to send invite");
+		}
 	}
 
 	// Homeserver specific stuff
@@ -815,7 +817,7 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 
 	// Modify the power levels in the old room to prevent sending of events and
 	// inviting new users
-	_ = services()
+	services()
 		.rooms
 		.timeline
 		.build_and_append_pdu(

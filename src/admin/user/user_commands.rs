@@ -65,7 +65,8 @@ pub(crate) async fn create(
 		.new_user_displayname_suffix
 		.is_empty()
 	{
-		_ = write!(displayname, " {}", services().globals.config.new_user_displayname_suffix);
+		write!(displayname, " {}", services().globals.config.new_user_displayname_suffix)
+			.expect("should be able to write to string buffer");
 	}
 
 	services()

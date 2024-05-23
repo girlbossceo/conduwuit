@@ -5,6 +5,7 @@ extern crate rust_rocksdb;
 
 use std::{
 	collections::HashMap,
+	fmt::Write,
 	sync::{atomic::AtomicU32, Arc},
 };
 
@@ -99,6 +100,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		if !self.old_cfs.contains(&name.to_owned()) {
 			// Create if it didn't exist
 			debug!("Creating new column family in database: {}", name);
+
 			_ = self.rocks.create_cf(name, &self.opts);
 		}
 
@@ -141,22 +143,19 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
 		let stats = get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache]))?;
-		_ = std::fmt::write(
-			&mut res,
-			format_args!(
-				"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB\n",
-				stats.mem_table_total as f64 / 1024.0 / 1024.0,
-				stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
-				stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
-				self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
-			),
-		);
+		writeln!(
+			res,
+			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB",
+			stats.mem_table_total as f64 / 1024.0 / 1024.0,
+			stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
+			stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
+			self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
+		)
+		.expect("should be able to write to string buffer");
 
 		for (name, cache) in &self.col_cache {
-			_ = std::fmt::write(
-				&mut res,
-				format_args!("{} cache: {:.2} MiB\n", name, cache.get_usage() as f64 / 1024.0 / 1024.0,),
-			);
+			writeln!(res, "{} cache: {:.2} MiB", name, cache.get_usage() as f64 / 1024.0 / 1024.0,)
+				.expect("should be able to write to string buffer");
 		}
 
 		Ok(res)
@@ -217,19 +216,17 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let options = BackupEngineOptions::new(path.unwrap())?;
 		let engine = BackupEngine::open(&options, &self.env)?;
 		for info in engine.get_backup_info() {
-			std::fmt::write(
-				&mut res,
-				format_args!(
-					"#{} {}: {} bytes, {} files\n",
-					info.backup_id,
-					DateTime::<Utc>::from_timestamp(info.timestamp, 0)
-						.unwrap_or_default()
-						.to_rfc2822(),
-					info.size,
-					info.num_files,
-				),
+			writeln!(
+				res,
+				"#{} {}: {} bytes, {} files",
+				info.backup_id,
+				DateTime::<Utc>::from_timestamp(info.timestamp, 0)
+					.unwrap_or_default()
+					.to_rfc2822(),
+				info.size,
+				info.num_files,
 			)
-			.unwrap();
+			.expect("should be able to write to string buffer");
 		}
 
 		Ok(res)
@@ -241,18 +238,12 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			Ok(files) => {
 				let mut res = String::new();
 				for file in files {
-					let _ = std::fmt::write(
-						&mut res,
-						format_args!(
-							"<code>L{} {:<13} {:7}+ {:4}- {:9}</code> {}<br>",
-							file.level,
-							file.name,
-							file.num_entries,
-							file.num_deletions,
-							file.size,
-							file.column_family_name,
-						),
-					);
+					writeln!(
+						res,
+						"<code>L{} {:<13} {:7}+ {:4}- {:9}</code> {}<br>",
+						file.level, file.name, file.num_entries, file.num_deletions, file.size, file.column_family_name,
+					)
+					.expect("should be able to writeln to string buffer");
 				}
 				Ok(res)
 			},

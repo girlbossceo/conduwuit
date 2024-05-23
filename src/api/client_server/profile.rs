@@ -12,6 +12,7 @@ use ruma::{
 	presence::PresenceState,
 };
 use serde_json::value::to_raw_value;
+use tracing::warn;
 
 use crate::{
 	service::{pdu::PduBuilder, user_is_local},
@@ -82,11 +83,14 @@ pub(crate) async fn set_displayname_route(
 		);
 		let state_lock = mutex_state.lock().await;
 
-		_ = services()
+		if let Err(e) = services()
 			.rooms
 			.timeline
 			.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
-			.await;
+			.await
+		{
+			warn!(%e, "Failed to update/send new display name in room");
+		}
 	}
 
 	if services().globals.allow_local_presence() {
@@ -224,11 +228,14 @@ pub(crate) async fn set_avatar_url_route(
 		);
 		let state_lock = mutex_state.lock().await;
 
-		_ = services()
+		if let Err(e) = services()
 			.rooms
 			.timeline
 			.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
-			.await;
+			.await
+		{
+			warn!(%e, "Failed to set/update room with new avatar URL / pfp");
+		}
 	}
 
 	if services().globals.allow_local_presence() {
