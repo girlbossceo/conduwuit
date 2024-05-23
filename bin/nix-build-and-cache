@@ -70,7 +70,7 @@ ci() {
         --inputs-from "$toplevel"
 
         # Keep sorted
-        "$toplevel#devShells.x86_64-linux.default"
+        "$toplevel#devShells.x86_64-linux.all-features"
         attic#default
         nixpkgs#direnv
         nixpkgs#jq

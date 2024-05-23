@@ -35,6 +35,9 @@ env:
     # Custom nix binary cache if fork is being used
     ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
     ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
+    # Use the all-features devshell instead of default, to ensure that features
+    # match between nix and cargo
+    DIRENV_DEVSHELL: all-features
 
 permissions:
     packages: write
@@ -92,7 +95,7 @@ jobs:
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
                   nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
-                  nix develop --command true
+                  nix develop .#all-features --command true
 
             - name: Run CI tests
               run: |
@@ -202,7 +205,7 @@ jobs:
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
                   nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
-                  nix develop --command true
+                  nix develop .#all-features --command true
 
             - name: Build static ${{ matrix.target }}
               run: |
