@@ -4,7 +4,7 @@ use register::RegistrationKind;
 use ruma::{
 	api::client::{
 		account::{
-			change_password, deactivate, get_3pids, get_username_availability,
+			change_password, check_registration_token_validity, deactivate, get_3pids, get_username_availability,
 			register::{self, LoginType},
 			request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn, whoami,
 			ThirdPartyIdRemovalStatus,
@@ -593,4 +593,25 @@ pub(crate) async fn request_3pid_management_token_via_msisdn_route(
 		ErrorKind::ThreepidDenied,
 		"Third party identifier is not allowed",
 	))
+}
+
+/// # `GET /_matrix/client/v1/register/m.login.registration_token/validity`
+///
+/// Checks if the provided registration token is valid at the time of checking
+///
+/// Currently does not have any ratelimiting, and this isn't very practical as
+/// there is only one registration token allowed.
+pub(crate) async fn check_registration_token_validity(
+	body: Ruma<check_registration_token_validity::v1::Request>,
+) -> Result<check_registration_token_validity::v1::Response> {
+	let Some(reg_token) = services().globals.config.registration_token.clone() else {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Server does not allow token registration.",
+		));
+	};
+
+	Ok(check_registration_token_validity::v1::Response {
+		valid: reg_token == body.token,
+	})
 }
