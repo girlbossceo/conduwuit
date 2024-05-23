@@ -588,7 +588,6 @@ dependencies = [
  "sentry",
  "sentry-tower",
  "sentry-tracing",
- "tikv-jemallocator",
  "tokio",
  "tokio-metrics",
  "tracing",

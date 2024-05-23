@@ -64,9 +64,6 @@ perf_measurements = [
 	"dep:opentelemetry_sdk",
 	"dep:opentelemetry-jaeger",
 ]
-jemalloc = [
-	"dep:tikv-jemallocator",
-]
 
 [dependencies]
 conduit-router.workspace = true
@@ -100,9 +97,6 @@ sentry-tracing.workspace = true
 sentry-tracing.optional = true
 sentry-tower.workspace = true
 sentry-tower.optional = true
-
-tikv-jemallocator.workspace = true
-tikv-jemallocator.optional = true
 
 tokio-metrics.workspace = true
 tokio-metrics.optional = true
