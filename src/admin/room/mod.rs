@@ -46,7 +46,7 @@ pub(crate) enum RoomAliasCommand {
 		room_alias_localpart: String,
 	},
 
-	/// - Remove an alias
+	/// - Remove a local alias
 	Remove {
 		/// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
 		room_alias_localpart: String,

@@ -79,11 +79,13 @@ impl RotationHandler {
 
 	pub fn watch(&self) -> impl Future<Output = ()> {
 		let mut r = self.0.subscribe();
+		#[allow(clippy::let_underscore_must_use)]
 		async move {
 			_ = r.recv().await;
 		}
 	}
 
+	#[allow(clippy::let_underscore_must_use)]
 	pub fn fire(&self) { _ = self.0.send(()); }
 }
 

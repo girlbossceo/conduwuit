@@ -10,7 +10,7 @@ use tokio::{
 	fs,
 	sync::{broadcast, Mutex, RwLock},
 };
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 
 use crate::{
 	account_data, admin, appservice, globals, key_backups, media, presence, pusher, rooms, sending, transaction_ids,
@@ -293,7 +293,11 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 
 		if self.globals.allow_check_for_updates() {
 			let handle = globals::updates::start_check_for_updates_task().await?;
-			_ = self.globals.updates_handle.lock().await.insert(handle);
+
+			#[allow(clippy::let_underscore_must_use)] // needed for shutdown
+			{
+				_ = self.globals.updates_handle.lock().await.insert(handle);
+			}
 		}
 
 		debug_info!("Services startup complete.");
@@ -319,13 +323,19 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 
 		debug!("Removing unix socket file.");
 		if let Some(path) = self.globals.unix_socket_path().as_ref() {
-			_ = fs::remove_file(path).await;
+			if let Err(e) = fs::remove_file(path).await {
+				warn!("Failed to remove UNIX socket file: {e}");
+			}
 		}
 
 		debug!("Waiting for update worker...");
 		if let Some(updates_handle) = self.globals.updates_handle.lock().await.take() {
 			updates_handle.abort();
-			_ = updates_handle.await;
+
+			#[allow(clippy::let_underscore_must_use)]
+			{
+				_ = updates_handle.await;
+			}
 		}
 
 		debug!("Waiting for admin worker...");

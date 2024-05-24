@@ -22,6 +22,7 @@ use crate::{layers, serve};
 
 /// Main loop base
 #[tracing::instrument(skip_all)]
+#[allow(clippy::let_underscore_must_use)] // various of these are intended
 pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	let config = &server.config;
 	let app = layers::build(&server)?;
@@ -70,6 +71,7 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 
 /// Async initializations
 #[tracing::instrument(skip_all)]
+#[allow(clippy::let_underscore_must_use)]
 pub(crate) async fn start(server: Arc<Server>) -> Result<(), Error> {
 	debug!("Starting...");
 	let d = Arc::new(KeyValueDatabase::load_or_create(&server).await?);
