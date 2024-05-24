@@ -304,7 +304,7 @@ impl Service {
 				},
 				Ok(ruma::signatures::Verified::Signatures) => {
 					// Redact
-					warn!("Calculated hash does not match: {}", event_id);
+					debug_info!("Calculated hash does not match (redaction): {event_id}");
 					let Ok(obj) = ruma::canonical_json::redact(value, &room_version_id, None) else {
 						return Err(Error::BadRequest(ErrorKind::InvalidParam, "Redaction failed"));
 					};
