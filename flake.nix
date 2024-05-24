@@ -9,7 +9,7 @@
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
     # https://github.com/girlbossceo/rocksdb/commit/db6df0b185774778457dabfcbd822cb81760cade
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.1.1"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.2.1"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 

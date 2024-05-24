@@ -2962,8 +2962,8 @@ dependencies = [
 
 [[package]]
 name = "rust-librocksdb-sys"
-version = "0.21.0+9.1.1"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#6f0afedb3c29239b1d8a15a97ed8e6b74e0a9b33"
+version = "0.22.0+9.2.1"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#3d55dd3f33ee86015a89258afb2c4fa2e15eac6a"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -2979,8 +2979,8 @@ dependencies = [
 
 [[package]]
 name = "rust-rocksdb"
-version = "0.25.0"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#6f0afedb3c29239b1d8a15a97ed8e6b74e0a9b33"
+version = "0.26.0"
+source = "git+https://github.com/zaidoon1/rust-rocksdb?branch=master#3d55dd3f33ee86015a89258afb2c4fa2e15eac6a"
 dependencies = [
  "libc",
  "rust-librocksdb-sys",
@@ -3580,9 +3580,9 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 
 [[package]]
 name = "syn"
-version = "2.0.65"
+version = "2.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2863d96a84c6439701d7a38f9de935ec562c8832cc55d1dde0f513b52fad106"
+checksum = "c42f3f41a2de00b01c0aaad383c5a45241efc8b2d1eda5661812fda5f3cdcff5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4371,9 +4371,9 @@ checksum = "7219d36b6eac893fa81e84ebe06485e7dcbb616177469b142df14f1f4deb1311"
 
 [[package]]
 name = "wildmatch"
-version = "2.3.3"
+version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "939e59c1bc731542357fdaad98b209ef78c8743d652bb61439d16b16a79eb025"
+checksum = "3928939971918220fed093266b809d1ee4ec6c1a2d72692ff6876898f3b16c19"
 
 [[package]]
 name = "winapi"

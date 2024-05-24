@@ -68,11 +68,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1716156051,
-        "narHash": "sha256-TjUX7WWRcrhuUxDHsR8pDR2N7jitqZehgCVSy3kBeS8=",
+        "lastModified": 1716569590,
+        "narHash": "sha256-5eDbq8TuXFGGO3mqJFzhUbt5zHVTf5zilQoyW5jnJwo=",
         "owner": "ipetkov",
         "repo": "crane",
-        "rev": "7443df1c478947bf96a2e699209f53b2db26209d",
+        "rev": "109987da061a1bf452f435f1653c47511587d919",
         "type": "github"
       },
       "original": {
@@ -90,11 +90,11 @@
         "rust-analyzer-src": "rust-analyzer-src"
       },
       "locked": {
-        "lastModified": 1716272846,
-        "narHash": "sha256-MtL0YhG20cngHsS6PIdpA3bkLnSx6XJBd2V8R9RaEc4=",
+        "lastModified": 1716359173,
+        "narHash": "sha256-pYcjP6Gy7i6jPWrjiWAVV0BCQp+DdmGaI/k65lBb/kM=",
         "owner": "nix-community",
         "repo": "fenix",
-        "rev": "063d7e5fac454edd35b7e2cedb6ca9fb1410c79b",
+        "rev": "b6fc5035b28e36a98370d0eac44f4ef3fd323df6",
         "type": "github"
       },
       "original": {
@@ -174,11 +174,11 @@
     "liburing": {
       "flake": false,
       "locked": {
-        "lastModified": 1716398759,
-        "narHash": "sha256-fDlOR13WmwVgMxGUMQXWSZAoy2VhZ5AfZRPF9qmQjSc=",
+        "lastModified": 1716565485,
+        "narHash": "sha256-4R19aJNQYs6vb0/Hz4bWT56YN1P1DkFL/sxdE4Yj0CE=",
         "owner": "axboe",
         "repo": "liburing",
-        "rev": "49be3cad491ae8b3c40348b8d78ae2b0d3726b78",
+        "rev": "b90c0e670a93caabbebe2d9e24ff85cece4cfe0e",
         "type": "github"
       },
       "original": {
@@ -238,11 +238,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1716293225,
-        "narHash": "sha256-pU9ViBVE3XYb70xZx+jK6SEVphvt7xMTbm6yDIF4xPs=",
+        "lastModified": 1716330097,
+        "narHash": "sha256-8BO3B7e3BiyIDsaKA0tY8O88rClYRTjvAp66y+VBUeU=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "3eaeaeb6b1e08a016380c279f8846e0bd8808916",
+        "rev": "5710852ba686cc1fd0d3b8e22b3117d43ba374c2",
         "type": "github"
       },
       "original": {
@@ -255,16 +255,16 @@
     "rocksdb": {
       "flake": false,
       "locked": {
-        "lastModified": 1716426977,
-        "narHash": "sha256-UULwofoFTiCH/atA5shRj0DLg6WxP5X83jxAJb1jfZ8=",
+        "lastModified": 1716563894,
+        "narHash": "sha256-LT3RVOcIZmPWetkRfFKMi8dce0QgWvN0Sr7STD1hgxo=",
         "owner": "girlbossceo",
         "repo": "rocksdb",
-        "rev": "be68b3c95ccd225f3121ba33a67cfaf3c3596afc",
+        "rev": "7c0e7f7666678e3ad5c82485f9bfe405e92ff727",
         "type": "github"
       },
       "original": {
         "owner": "girlbossceo",
-        "ref": "v9.1.1",
+        "ref": "v9.2.1",
         "repo": "rocksdb",
         "type": "github"
       }
