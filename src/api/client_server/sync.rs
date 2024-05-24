@@ -317,7 +317,11 @@ pub(crate) async fn sync_events_route(
 		if duration.as_secs() > 30 {
 			duration = Duration::from_secs(30);
 		}
-		_ = tokio::time::timeout(duration, watcher).await;
+
+		#[allow(clippy::let_underscore_must_use)]
+		{
+			_ = tokio::time::timeout(duration, watcher).await;
+		}
 	}
 
 	Ok(response)
@@ -1594,7 +1598,10 @@ pub(crate) async fn sync_events_v4_route(
 		if duration.as_secs() > 30 {
 			duration = Duration::from_secs(30);
 		}
-		_ = tokio::time::timeout(duration, watcher).await;
+		#[allow(clippy::let_underscore_must_use)]
+		{
+			_ = tokio::time::timeout(duration, watcher).await;
+		}
 	}
 
 	Ok(sync_events::v4::Response {

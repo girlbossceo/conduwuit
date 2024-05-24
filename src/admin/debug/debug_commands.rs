@@ -124,7 +124,9 @@ pub(crate) async fn get_remote_pdu_list(
 
 		for pdu in list {
 			if force {
-				_ = get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await;
+				if let Err(e) = get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await {
+					warn!(%e, "Failed to get remote PDU, ignoring error");
+				}
 			} else {
 				get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await?;
 			}

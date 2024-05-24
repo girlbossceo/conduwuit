@@ -271,17 +271,20 @@ impl super::Service {
 		{
 			let mut pkm = pub_key_map.write().await;
 
-			// Try to fetch keys, failure is okay
-			// Servers we couldn't find in the cache will be added to `servers`
-			for pdu in &event.room_state.state {
-				_ = self
+			// Try to fetch keys, failure is okay. Servers we couldn't find in the cache
+			// will be added to `servers`
+			for pdu in event
+				.room_state
+				.state
+				.iter()
+				.chain(&event.room_state.auth_chain)
+			{
+				if let Err(error) = self
 					.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm)
-					.await;
-			}
-			for pdu in &event.room_state.auth_chain {
-				_ = self
-					.get_server_keys_from_cache(pdu, &mut servers, room_version, &mut pkm)
-					.await;
+					.await
+				{
+					debug!(%error, "failed to get server keys from cache");
+				};
 			}
 
 			drop(pkm);

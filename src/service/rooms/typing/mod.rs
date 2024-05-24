@@ -6,6 +6,7 @@ use ruma::{
 	OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use tokio::sync::{broadcast, RwLock};
+use tracing::trace;
 
 use crate::{
 	debug_info, services, user_is_local,
@@ -37,7 +38,9 @@ impl Service {
 			.write()
 			.await
 			.insert(room_id.to_owned(), services().globals.next_count()?);
-		_ = self.typing_update_sender.send(room_id.to_owned());
+		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
+			trace!("receiver found what it was looking for and is no longer interested");
+		}
 
 		// update federation
 		if user_is_local(user_id) {
@@ -61,7 +64,9 @@ impl Service {
 			.write()
 			.await
 			.insert(room_id.to_owned(), services().globals.next_count()?);
-		_ = self.typing_update_sender.send(room_id.to_owned());
+		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
+			trace!("receiver found what it was looking for and is no longer interested");
+		}
 
 		// update federation
 		if user_is_local(user_id) {
@@ -114,7 +119,9 @@ impl Service {
 				.write()
 				.await
 				.insert(room_id.to_owned(), services().globals.next_count()?);
-			_ = self.typing_update_sender.send(room_id.to_owned());
+			if self.typing_update_sender.send(room_id.to_owned()).is_err() {
+				trace!("receiver found what it was looking for and is no longer interested");
+			}
 
 			// update federation
 			for user in removable {
