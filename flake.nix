@@ -100,7 +100,7 @@
     in
     {
       packages = {
-        default = scopeHost.main;
+        default = scopeHostStatic.main;
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
         oci-image = scopeHost.oci-image;
