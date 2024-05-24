@@ -360,11 +360,11 @@ version = "0.32.3"
 [workspace.dependencies.tikv-jemalloc-sys]
 version = "0.5.4"
 default-features = false
-features = ["unprefixed_malloc_on_supported_platforms"]
+features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
 version = "0.5.4"
 default-features = false
-features = ["unprefixed_malloc_on_supported_platforms"]
+features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
 version = "0.5.4"
 default-features = false
