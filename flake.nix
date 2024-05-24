@@ -56,6 +56,10 @@
           # Convenient way to access a pinned version of Complement's source
           # code.
           COMPLEMENT_SRC = inputs.complement.outPath;
+
+          # Needed for Complement
+          CGO_CFLAGS = "-I${scope.pkgs.olm}/include";
+          CGO_LDFLAGS = "-L${scope.pkgs.olm}/lib";
         };
 
         # Development tools
@@ -77,7 +81,6 @@
 
           # Needed for Complement
           go
-          olm
 
           # Needed for our script for Complement
           jq
