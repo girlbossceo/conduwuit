@@ -492,9 +492,12 @@ lto = "fat"
 #	'-Zinline-in-all-cgus=true',
 #	'-Zinline-mir=true',
 #	'-Zmir-opt-level=3',
-#	'-Clink-arg=-fuse-ld=mold',
+#	'-Clink-arg=-fuse-ld=gold',
 #	'-Clink-arg=-Wl,--threads',
 #	'-Clink-arg=-Wl,--gc-sections',
+#	'-Clink-arg=-luring',
+#	'-Clink-arg=-lstdc++',
+#	'-Clink-arg=-lc',
 #	'-Ztime-passes',
 #	'-Ztime-llvm-passes',
 #]
