@@ -533,7 +533,6 @@ panic = "unwind"
 debug-assertions = true
 incremental = true
 codegen-units = 64
-rpath = true
 #rustflags = [
 #	'--cfg', 'conduit_mods',
 #	'-Ztime-passes',
