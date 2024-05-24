@@ -115,6 +115,7 @@
         book = scopeHost.book;
 
         complement = scopeHost.complement;
+        static-complement = scopeHostStatic.complement;
       }
       //
       builtins.listToAttrs
