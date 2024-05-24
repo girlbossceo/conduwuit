@@ -99,6 +99,10 @@ jobs:
                   direnv allow
                   nix develop .#all-features --command true
 
+            - name: Cache CI dependencies
+              run: |
+                  bin/nix-build-and-cache ci
+
             - name: Run CI tests
               run: |
                   direnv exec . engage > >(tee -a test_output.log)
