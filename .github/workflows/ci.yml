@@ -81,7 +81,7 @@ jobs:
               run: |
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
                   extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems
-                  extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
+                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
                   EOF
 
             - name: Use alternative Nix binary caches if specified
@@ -190,8 +190,8 @@ jobs:
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit
-                  extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg= conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems
+                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
                   EOF
 
             - name: Use alternative Nix binary caches if specified

@@ -26,10 +26,10 @@ before_script:
 
   # Add conduwuit binary cache
   - if command -v nix > /dev/null; then echo "extra-substituters = https://attic.kennel.juneis.dog/conduwuit" >> /etc/nix/nix.conf; fi
-  - if command -v nix > /dev/null; then echo "extra-trusted-public-keys = conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=" >> /etc/nix/nix.conf; fi
+  - if command -v nix > /dev/null; then echo "extra-trusted-public-keys = conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE=" >> /etc/nix/nix.conf; fi
 
   - if command -v nix > /dev/null; then echo "extra-substituters = https://attic.kennel.juneis.dog/conduit" >> /etc/nix/nix.conf; fi
-  - if command -v nix > /dev/null; then echo "extra-trusted-public-keys = conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=" >> /etc/nix/nix.conf; fi
+  - if command -v nix > /dev/null; then echo "extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk=" >> /etc/nix/nix.conf; fi
 
   # Add alternate binary cache
   - if command -v nix > /dev/null && [ -n "$ATTIC_ENDPOINT" ]; then echo "extra-substituters = $ATTIC_ENDPOINT" >> /etc/nix/nix.conf; fi
