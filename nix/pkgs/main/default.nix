@@ -14,7 +14,9 @@
 
 # Options (keep sorted)
 , default_features ? true
+, disable_release_max_log_level ? false
 , all_features ? false
+, disable_features ? []
 , features ? []
 , profile ? "release"
 }:
@@ -41,8 +43,10 @@ features' = lib.unique
   (features ++
     lib.optionals default_features allDefaultFeatures ++
     lib.optionals all_features allFeatures);
+disable_features' = disable_features ++ lib.optionals disable_release_max_log_level ["release_max_log_level"];
+features'' = lib.subtractLists disable_features' features';
 
-featureEnabled = feature : builtins.elem feature features';
+featureEnabled = feature : builtins.elem feature features'';
 
 # This derivation will set the JEMALLOC_OVERRIDE variable, causing the
 # tikv-jemalloc-sys crate to use the nixpkgs jemalloc instead of building it's
@@ -161,8 +165,8 @@ craneLib.buildPackage ( commonAttrs // {
 
   cargoExtraArgs = "--no-default-features "
     + lib.optionalString
-      (features' != [])
-      "--features " + (builtins.concatStringsSep "," features');
+      (features'' != [])
+      "--features " + (builtins.concatStringsSep "," features'');
 
   # This is redundant with CI
   cargoTestCommand = "";
