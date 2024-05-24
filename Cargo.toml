@@ -215,7 +215,7 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-version = "0.1.3"
+version = "0.1.4"
 
 # to support multiple variations of setting a config option
 [workspace.dependencies.either]
