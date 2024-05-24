@@ -90,6 +90,8 @@
         ])
         ++ scope.main.propagatedBuildInputs
         ++ scope.main.nativeBuildInputs;
+
+        meta.broken = scope.main.meta.broken;
       };
     in
     {

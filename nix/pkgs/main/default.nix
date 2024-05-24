@@ -155,4 +155,11 @@ craneLib.buildPackage ( commonAttrs // {
   };
 
   meta.mainProgram = commonAttrs.pname;
+  # Dynamically-linked jemalloc is broken on linux due to link-order problems,
+  # where the symbols are being resolved to libc malloc/free before jemalloc is
+  # loaded. This problem does not occur on darwin for unknown reasons.
+  meta.broken =
+    stdenv.isLinux &&
+    !stdenv.hostPlatform.isStatic &&
+    (featureEnabled "jemalloc");
 })
