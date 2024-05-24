@@ -59,7 +59,13 @@ buildDepsOnlyEnv =
   let
     rocksdb' = rocksdb.override {
       jemalloc = rust-jemalloc-sys';
-      enableJemalloc = featureEnabled "jemalloc";
+      # rocksdb fails to build with prefixed jemalloc, which is required on
+      # darwin due to [1]. In this case, fall back to building rocksdb with
+      # libc malloc. This should not cause conflicts, because all of the
+      # jemalloc symbols are prefixed.
+      #
+      # [1]: https://github.com/tikv/jemallocator/blob/ab0676d77e81268cd09b059260c75b38dbef2d51/jemalloc-sys/src/env.rs#L17
+      enableJemalloc = featureEnabled "jemalloc" && !stdenv.isDarwin;
     };
   in
   {
