@@ -198,5 +198,6 @@
         (scopeHostStatic.overrideScope (final: prev: {
           main = prev.main.override { default_features = false; };
         }));
+      devShells.dynamic = mkDevShell scopeHost;
     });
 }
