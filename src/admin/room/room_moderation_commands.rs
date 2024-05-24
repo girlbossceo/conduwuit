@@ -170,8 +170,8 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 			}
 
 			Ok(RoomMessageEventContent::text_plain(
-				"Room banned and removed all our local users, use disable-room to stop receiving new inbound \
-				 federation events as well if needed.",
+				"Room banned and removed all our local users, use `!admin federation disable-room` to stop receiving \
+				 new inbound federation events as well if needed.",
 			))
 		},
 		RoomModerationCommand::BanListOfRooms {
