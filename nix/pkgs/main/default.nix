@@ -57,7 +57,7 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
 
 buildDepsOnlyEnv =
   let
-    rocksdb' = rocksdb.override {
+    rocksdb' = (rocksdb.override {
       jemalloc = rust-jemalloc-sys';
       # rocksdb fails to build with prefixed jemalloc, which is required on
       # darwin due to [1]. In this case, fall back to building rocksdb with
@@ -66,7 +66,11 @@ buildDepsOnlyEnv =
       #
       # [1]: https://github.com/tikv/jemallocator/blob/ab0676d77e81268cd09b059260c75b38dbef2d51/jemalloc-sys/src/env.rs#L17
       enableJemalloc = featureEnabled "jemalloc" && !stdenv.isDarwin;
-    };
+    }).overrideAttrs (old: {
+      # TODO: static rocksdb fails to build on darwin
+      # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
+      meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
+    });
   in
   {
     CARGO_PROFILE = profile;
