@@ -101,7 +101,11 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			// Create if it didn't exist
 			debug!("Creating new column family in database: {}", name);
 
-			_ = self.rocks.create_cf(name, &self.opts);
+			// TODO: the workaround for this needs to be extended to rocksdb caches, but i
+			// dont know that code to safely do that
+			#[allow(clippy::let_underscore_must_use)]
+			#[allow(clippy::let_underscore_untyped)] // attributes on expressions are experimental
+			let _ = self.rocks.create_cf(name, &self.opts);
 		}
 
 		Ok(Arc::new(RocksDbEngineTree {
