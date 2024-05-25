@@ -139,9 +139,7 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 			let (flame_layer, flame_guard) =
 				match tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path) {
 					Ok(ok) => ok,
-					Err(e) => {
-						panic!("failed to initialize tracing-flame: {e}");
-					},
+					Err(e) => panic!("failed to initialize tracing-flame: {e}"),
 				};
 			let flame_layer = flame_layer
 				.with_empty_samples(false)
@@ -175,7 +173,7 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 	#[cfg_attr(not(feature = "perf_measurements"), allow(clippy::let_unit_value))]
 	let flame_guard = ();
 
-	tracing::subscriber::set_global_default(subscriber).unwrap();
+	tracing::subscriber::set_global_default(subscriber).expect("failed to set global tracing subscriber");
 
 	#[cfg(all(feature = "tokio_console", feature = "release_max_log_level", tokio_unstable))]
 	tracing::error!(

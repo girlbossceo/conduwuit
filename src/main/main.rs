@@ -25,21 +25,20 @@ fn main() -> Result<(), Error> {
 		.build()
 		.expect("built runtime");
 
-	let handle = runtime.handle();
-	let server: Arc<Server> = Server::build(args, Some(handle))?;
-	runtime.block_on(async { async_main(server.clone()).await })?;
+	let server: Arc<Server> = Server::build(args, Some(runtime.handle()))?;
+	runtime.block_on(async_main(&server))?;
 
 	// explicit drop here to trace thread and tls dtors
 	drop(runtime);
-
 	debug_info!("Exit");
+
 	Ok(())
 }
 
 /// Operate the server normally in release-mode static builds. This will start,
 /// run and stop the server within the asynchronous runtime.
 #[cfg(not(conduit_mods))]
-async fn async_main(server: Arc<Server>) -> Result<(), Error> {
+async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	extern crate conduit_router as router;
 	use tracing::error;
 
@@ -66,22 +65,22 @@ async fn async_main(server: Arc<Server>) -> Result<(), Error> {
 /// and hot-reload portions of the server as-needed before returning for an
 /// actual shutdown. This is not available in release-mode or static builds.
 #[cfg(conduit_mods)]
-async fn async_main(server: Arc<Server>) -> Result<(), Error> {
+async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	let mut starts = true;
 	let mut reloads = true;
 	while reloads {
-		if let Err(error) = mods::open(&server).await {
+		if let Err(error) = mods::open(server).await {
 			error!("Loading router: {error}");
 			return Err(error);
 		}
 
-		let result = mods::run(&server, starts).await;
+		let result = mods::run(server, starts).await;
 		if let Ok(result) = result {
 			(starts, reloads) = result;
 		}
 
 		let force = !reloads || result.is_err();
-		if let Err(error) = mods::close(&server, force).await {
+		if let Err(error) = mods::close(server, force).await {
 			error!("Unloading router: {error}");
 			return Err(error);
 		}
