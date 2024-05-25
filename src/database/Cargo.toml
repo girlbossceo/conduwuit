@@ -56,7 +56,6 @@ conduit-core.workspace = true
 futures-util.workspace = true
 log.workspace = true
 lru-cache.workspace = true
-num_cpus.workspace = true
 parking_lot.optional = true
 parking_lot.workspace = true
 ruma.workspace = true
