@@ -8,6 +8,7 @@ extern "C" {
 	pub fn rocksdb_options_set_info_log();
 	pub fn rocksdb_get_options_from_string();
 	pub fn rocksdb_writebatch_create();
+	pub fn rocksdb_writebatch_destroy();
 	pub fn rocksdb_writebatch_put_cf();
 	pub fn rocksdb_writebatch_delete_cf();
 	pub fn rocksdb_iter_value();
