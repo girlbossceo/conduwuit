@@ -92,6 +92,7 @@
           # Useful for editing the book locally
           mdbook
         ])
+        ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs
         ++ scope.main.nativeBuildInputs;
 
