@@ -145,3 +145,15 @@ cargo test \
     -- \
     --color=always
 """
+
+# Ensure that the flake's default output can build and run without crashing
+#
+# This is a dynamically-linked jemalloc build, which is a case not covered by
+# our other tests. We've had linking problems in the past with dynamic
+# jemalloc builds that usually show up as an immediate segfault or "invalid free"
+[[task]]
+name = "nix-default"
+group = "tests"
+script = """
+nix run .#default -- --help
+"""
