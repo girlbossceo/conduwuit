@@ -258,9 +258,6 @@ version = "0.1.80"
 [workspace.dependencies.lru-cache]
 version = "0.1.2"
 
-[workspace.dependencies.num_cpus]
-version = "1.16.0"
-
 # Used for matrix spec type definitions and helpers
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"

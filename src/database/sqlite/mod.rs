@@ -108,7 +108,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			clippy::cast_precision_loss,
 			clippy::cast_sign_loss
 		)]
-		let cache_size_per_thread = ((config.db_cache_capacity_mb * 1024.0) / ((num_cpus::get() as f64 * 2.0) + 1.0)) as u32;
+		let cache_size_per_thread = ((config.db_cache_capacity_mb * 1024.0)
+			/ ((conduit::utils::available_parallelism() as f64 * 2.0) + 1.0)) as u32;
 
 		let writer = Mutex::new(Engine::prepare_conn(&path, cache_size_per_thread)?);
 

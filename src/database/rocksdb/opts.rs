@@ -1,5 +1,7 @@
 #![allow(dead_code)]
-use std::collections::HashMap;
+use std::{cmp, collections::HashMap};
+
+use conduit::utils;
 
 use super::{
 	rust_rocksdb::{
@@ -21,10 +23,11 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	set_logging_defaults(&mut opts, config);
 
 	// Processing
+	const MIN_PARALLELISM: usize = 2;
 	let threads = if config.rocksdb_parallelism_threads == 0 {
-		std::cmp::max(2, num_cpus::get()) // max cores if user specified 0
+		cmp::max(MIN_PARALLELISM, utils::available_parallelism())
 	} else {
-		config.rocksdb_parallelism_threads
+		cmp::max(MIN_PARALLELISM, config.rocksdb_parallelism_threads)
 	};
 
 	opts.set_max_background_jobs(threads.try_into().unwrap());

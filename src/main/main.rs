@@ -6,7 +6,7 @@ extern crate conduit_core as conduit;
 
 use std::{cmp, sync::Arc, time::Duration};
 
-use conduit::{debug_info, error, Error, Result};
+use conduit::{debug_info, error, utils::available_parallelism, Error, Result};
 use server::Server;
 use tokio::runtime;
 
@@ -20,7 +20,7 @@ fn main() -> Result<(), Error> {
 		.enable_io()
 		.enable_time()
 		.thread_name(WORKER_NAME)
-		.worker_threads(cmp::max(WORKER_MIN, num_cpus::get()))
+		.worker_threads(cmp::max(WORKER_MIN, available_parallelism()))
 		.thread_keep_alive(Duration::from_millis(WORKER_KEEPALIVE_MS))
 		.build()
 		.expect("built runtime");

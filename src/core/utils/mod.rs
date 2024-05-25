@@ -267,3 +267,15 @@ pub fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 
 	Ok(())
 }
+
+/// Get the number of threads which could execute in parallel based on the
+/// hardware and administrative constraints of this system. This value should be
+/// used to hint the size of thread-pools and divide-and-conquer algorithms.
+///
+/// * <https://doc.rust-lang.org/std/thread/fn.available_parallelism.html>
+#[must_use]
+pub fn available_parallelism() -> usize {
+	std::thread::available_parallelism()
+		.expect("Unable to query for available parallelism.")
+		.get()
+}
