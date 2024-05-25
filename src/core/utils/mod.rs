@@ -279,3 +279,15 @@ pub fn available_parallelism() -> usize {
 		.expect("Unable to query for available parallelism.")
 		.get()
 }
+
+/// Boilerplate for wraps which are typed to never error.
+///
+/// * <https://doc.rust-lang.org/std/convert/enum.Infallible.html>
+#[must_use]
+#[inline(always)]
+pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
+	match result {
+		Ok(val) => val,
+		Err(err) => match err {},
+	}
+}
