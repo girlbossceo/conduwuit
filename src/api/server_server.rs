@@ -209,6 +209,27 @@ pub(crate) async fn send_transaction_message_route(
 ) -> Result<send_transaction_message::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
+	if *origin != body.body.origin {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Not allowed to send transactions on behalf of other servers",
+		));
+	}
+
+	if body.pdus.len() > 50_usize {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Not allowed to send more than 50 PDUs in one transaction",
+		));
+	}
+
+	if body.edus.len() > 100_usize {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"Not allowed to send more than 100 EDUs in one transaction",
+		));
+	}
+
 	// This is all the auth_events that have been recursively fetched so they don't
 	// have to be deserialized over and over again.
 	// TODO: make this persist across requests but not in a DB Tree (in globals?)
