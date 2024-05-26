@@ -1092,6 +1092,7 @@ pub(crate) async fn create_join_event_template_route(
 	})
 }
 
+/// helper method for /send_join v1 and v2
 async fn create_join_event(
 	origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
@@ -1124,6 +1125,29 @@ async fn create_join_event(
 			"Could not convert event to canonical json.",
 		));
 	};
+
+	// ACL check sender server name
+	let sender: OwnedUserId = serde_json::from_value(
+		value
+			.get("sender")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not have a sender user/key"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid"))?;
+
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender.server_name(), room_id)?;
+
+	// check if origin server is trying to send for another server
+	if sender.server_name() != origin {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to join on behalf of another server/user",
+		));
+	}
 
 	ruma::signatures::hash_and_sign_event(
 		services().globals.server_name().as_str(),
