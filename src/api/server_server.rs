@@ -332,6 +332,11 @@ pub(crate) async fn send_transaction_message_route(
 				}
 
 				for update in presence.push {
+					if update.user_id.server_name() != origin {
+						debug_warn!(%update.user_id, %origin, "received presence EDU for user not belonging to origin");
+						continue;
+					}
+
 					services().presence.set_presence(
 						&update.user_id,
 						&update.presence,
@@ -348,6 +353,11 @@ pub(crate) async fn send_transaction_message_route(
 
 				for (room_id, room_updates) in receipt.receipts {
 					for (user_id, user_updates) in room_updates.read {
+						if user_id.server_name() != origin {
+							debug_warn!(%user_id, %origin, "received read receipt EDU for user not belonging to origin");
+							continue;
+						}
+
 						if services()
 							.rooms
 							.event_handler
@@ -406,6 +416,11 @@ pub(crate) async fn send_transaction_message_route(
 					continue;
 				}
 
+				if typing.user_id.server_name() != origin {
+					debug_warn!(%typing.user_id, %origin, "received typing EDU for user not belonging to origin");
+					continue;
+				}
+
 				if services()
 					.rooms
 					.event_handler
@@ -450,6 +465,11 @@ pub(crate) async fn send_transaction_message_route(
 				user_id,
 				..
 			}) => {
+				if user_id.server_name() != origin {
+					debug_warn!(%user_id, %origin, "received device list update EDU for user not belonging to origin");
+					continue;
+				}
+
 				services().users.mark_device_key_update(&user_id)?;
 			},
 			Edu::DirectToDevice(DirectDeviceContent {
@@ -458,6 +478,11 @@ pub(crate) async fn send_transaction_message_route(
 				message_id,
 				messages,
 			}) => {
+				if sender.server_name() != origin {
+					debug_warn!(%sender, %origin, "received direct to device EDU for user not belonging to origin");
+					continue;
+				}
+
 				// Check if this is a new transaction id
 				if services()
 					.transaction_ids
@@ -514,13 +539,16 @@ pub(crate) async fn send_transaction_message_route(
 					debug_info!(%user_id, %origin, "received signing key update EDU from server that does not belong to user's server");
 					continue;
 				}
+
 				if let Some(master_key) = master_key {
 					services()
 						.users
 						.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)?;
 				}
 			},
-			Edu::_Custom(_) => {},
+			Edu::_Custom(custom) => {
+				debug_info!(?custom, "received custom/unknown EDU");
+			},
 		}
 	}
 
