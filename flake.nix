@@ -42,6 +42,24 @@
             (builtins.fromJSON (builtins.readFile ./flake.lock))
               .nodes.rocksdb.original.ref;
         });
+        # TODO: remove once https://github.com/NixOS/nixpkgs/pull/314945 is available
+        liburing = pkgs.liburing.overrideAttrs (old: {
+          # the configure script doesn't support these, and unconditionally
+          # builds both static and dynamic libraries.
+          configureFlags = pkgs.lib.subtractLists
+            [ "--enable-static" "--disable-shared" ]
+            old.configureFlags;
+
+          postInstall = old.postInstall + ''
+            # we remove the extra outputs
+            #
+            # we need to do this to prevent rocksdb from trying to link the
+            # static library in a dynamic stdenv
+            rm $out/lib/liburing*${
+              if pkgs.stdenv.hostPlatform.isStatic then ".so*" else ".a"
+            }
+          '';
+        });
       });
 
       scopeHost = mkScope pkgsHost;

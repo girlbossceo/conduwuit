@@ -9,9 +9,7 @@
 , rocksdb
 , rust
 , rust-jemalloc-sys
-, snappy
 , stdenv
-, pkgsStatic
 
 # Options (keep sorted)
 , default_features ? true
@@ -49,6 +47,8 @@ features'' = lib.subtractLists disable_features' features';
 
 featureEnabled = feature : builtins.elem feature features'';
 
+enableLiburing = featureEnabled "io_uring" && stdenv.isLinux;
+
 # This derivation will set the JEMALLOC_OVERRIDE variable, causing the
 # tikv-jemalloc-sys crate to use the nixpkgs jemalloc instead of building it's
 # own. In order for this to work, we need to set flags on the build that match
@@ -62,15 +62,9 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
     # tikv-jemalloc-sys/profiling feature
     lib.optional (featureEnabled "jemalloc_prof") "--enable-prof";
 });
-liburing' = pkgsStatic.liburing.overrideAttrs {
-  configureFlags = []; # liburing's configure file is handwritten so the default assumptions don't apply
-  isStatic = true;
-};
 
 buildDepsOnlyEnv =
   let
-    uring = featureEnabled "io_uring" && stdenv.isLinux;
-    extraDeps = lib.optionals uring [ liburing'.dev liburing'.out];
     rocksdb' = (rocksdb.override {
       jemalloc = rust-jemalloc-sys';
       # rocksdb fails to build with prefixed jemalloc, which is required on
@@ -84,7 +78,8 @@ buildDepsOnlyEnv =
       # TODO: static rocksdb fails to build on darwin
       # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
       meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
-      propagatedBuildInputs = old.propagatedBuildInputs ++ extraDeps;
+      # TODO: switch to enableUring option once https://github.com/NixOS/nixpkgs/pull/314945 is available
+      buildInputs = old.buildInputs ++ lib.optional enableLiburing liburing;
     });
   in
   {
@@ -108,18 +103,11 @@ buildDepsOnlyEnv =
 buildPackageEnv = {
   CONDUWUIT_VERSION_EXTRA = inputs.self.shortRev or inputs.self.dirtyShortRev or "";
 } // buildDepsOnlyEnv // {
-  CARGO_BUILD_RUSTFLAGS =
-     let
-       uring = featureEnabled "io_uring";
-       valid = (stdenv.hostPlatform.isAarch64 || stdenv.hostPlatform.isx86_64)
-              && stdenv.hostPlatform.isStatic
-              && !stdenv.isDarwin
-              && !stdenv.cc.bintools.isLLVM;
-     in
-       buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
-       + lib.optionalString (uring && valid) " -L${lib.getLib liburing'}/lib/ -luring"
-       + " -L${lib.getLib snappy}/lib/ -lsnappy";
-  };
+  # Only needed in static stdenv because these are transitive dependencies of rocksdb
+  CARGO_BUILD_RUSTFLAGS = buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
+    + lib.optionalString (enableLiburing && stdenv.hostPlatform.isStatic)
+      " -L${lib.getLib liburing}/lib -luring";
+};
 
 
 
