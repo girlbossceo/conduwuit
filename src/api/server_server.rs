@@ -1191,6 +1191,28 @@ async fn create_join_event(
 		));
 	}
 
+	let content = value
+		.get("content")
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event does not a content key"))?
+		.as_object()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event content is empty or invalid"))?;
+
+	let membership: MembershipState = serde_json::from_value(
+		content
+			.get("membership")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event content does not have a membership"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Join event has an invalid membership"))?;
+
+	if membership != MembershipState::Join {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to send a non-join event at a join endpoint",
+		));
+	}
+
 	// ACL check sender server name
 	let sender: OwnedUserId = serde_json::from_value(
 		value
