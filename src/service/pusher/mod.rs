@@ -2,7 +2,7 @@ mod data;
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-pub use data::Data;
+use data::Data;
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -25,7 +25,7 @@ use tracing::{info, trace, warn};
 use crate::{debug_info, services, Error, PduEvent, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub(super) db: Arc<dyn Data>,
 }
 
 impl Service {

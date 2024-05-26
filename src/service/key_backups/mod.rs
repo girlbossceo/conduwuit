@@ -1,7 +1,7 @@
 mod data;
 use std::{collections::BTreeMap, sync::Arc};
 
-pub use data::Data;
+use data::Data;
 use ruma::{
 	api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
 	serde::Raw,
@@ -11,7 +11,7 @@ use ruma::{
 use crate::Result;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub(super) db: Arc<dyn Data>,
 }
 
 impl Service {

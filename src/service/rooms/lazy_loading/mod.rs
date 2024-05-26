@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-pub use data::Data;
+use data::Data;
 use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use tokio::sync::Mutex;
 

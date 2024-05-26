@@ -5,7 +5,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-pub use data::Data;
+use data::Data;
 use ruma::{
 	api::client::{
 		device::Device,

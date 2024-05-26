@@ -2,7 +2,7 @@ mod data;
 
 use std::sync::Arc;
 
-pub use data::Data;
+use data::Data;
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::Result;

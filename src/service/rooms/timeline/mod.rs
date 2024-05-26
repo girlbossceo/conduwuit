@@ -1,11 +1,11 @@
-pub mod data;
+mod data;
 
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
 };
 
-pub use data::Data;
+use data::Data;
 use rand::prelude::SliceRandom;
 use ruma::{
 	api::{client::error::ErrorKind, federation},
@@ -195,7 +195,7 @@ impl Service {
 		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Vec<u8>> {
 		// Coalesce database writes for the remainder of this scope.
-		let _cork = services().globals.db.cork_and_flush()?;
+		let _cork = services().globals.cork_and_flush()?;
 
 		let shortroomid = services()
 			.rooms

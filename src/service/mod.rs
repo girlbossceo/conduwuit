@@ -1,4 +1,3 @@
-pub(crate) mod key_value;
 pub mod pdu;
 pub mod services;
 

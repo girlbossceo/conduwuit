@@ -2,7 +2,7 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-pub use data::Data;
+use data::Data;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
 	events::relation::BundledThread,

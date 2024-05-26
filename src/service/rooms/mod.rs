@@ -19,27 +19,6 @@ pub mod timeline;
 pub mod typing;
 pub mod user;
 
-pub trait Data:
-	alias::Data
-	+ auth_chain::Data
-	+ directory::Data
-	+ lazy_loading::Data
-	+ metadata::Data
-	+ outlier::Data
-	+ pdu_metadata::Data
-	+ read_receipt::Data
-	+ search::Data
-	+ short::Data
-	+ state::Data
-	+ state_accessor::Data
-	+ state_cache::Data
-	+ state_compressor::Data
-	+ timeline::Data
-	+ threads::Data
-	+ user::Data
-{
-}
-
 pub struct Service {
 	pub alias: alias::Service,
 	pub auth_chain: auth_chain::Service,
