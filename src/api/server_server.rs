@@ -880,7 +880,20 @@ pub(crate) async fn create_join_event_template_route(
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
+
+	// ACL check invited user server name
+	services()
+		.rooms
+		.event_handler
+		.acl_check(body.user_id.server_name(), &body.room_id)?;
+
+	if body.user_id.server_name() != origin {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to join on behalf of another server/user",
+		));
+	}
 
 	if services()
 		.globals
