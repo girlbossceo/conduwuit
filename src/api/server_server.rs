@@ -1518,6 +1518,28 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		));
 	}
 
+	// ACL check sender server name
+	let sender: OwnedUserId = serde_json::from_value(
+		value
+			.get("sender")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not have a sender user/key"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid"))?;
+
+	services()
+		.rooms
+		.event_handler
+		.acl_check(sender.server_name(), room_id)?;
+
+	if sender.server_name() != origin {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to leave on behalf of another server/user",
+		));
+	}
+
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
 			value
