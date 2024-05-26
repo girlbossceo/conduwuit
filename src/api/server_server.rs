@@ -1126,6 +1126,22 @@ async fn create_join_event(
 		));
 	};
 
+	let event_type: StateEventType = serde_json::from_value(
+		value
+			.get("type")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event does not have state event type"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "PDU has invalid event type"))?;
+
+	if event_type != StateEventType::RoomMember {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to send non-membership state event at join endpoint",
+		));
+	}
+
 	// ACL check sender server name
 	let sender: OwnedUserId = serde_json::from_value(
 		value
