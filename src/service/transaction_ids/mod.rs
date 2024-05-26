@@ -2,13 +2,13 @@ mod data;
 
 use std::sync::Arc;
 
-pub use data::Data;
+use data::Data;
 use ruma::{DeviceId, TransactionId, UserId};
 
 use crate::Result;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub(super) db: Arc<dyn Data>,
 }
 
 impl Service {

@@ -9,7 +9,7 @@ use std::{
 
 use argon2::Argon2;
 use base64::{engine::general_purpose, Engine as _};
-pub use data::Data;
+use data::Data;
 use hickory_resolver::TokioAsyncResolver;
 use ipaddress::IPAddress;
 use regex::RegexSet;
@@ -29,10 +29,10 @@ use tokio::{
 use tracing::{error, trace};
 use url::Url;
 
-use crate::{services, Config, Result};
+use crate::{database::Cork, services, Config, Result};
 
 mod client;
-pub mod data;
+mod data;
 pub(crate) mod emerg_access;
 pub(crate) mod migrations;
 mod resolver;
@@ -199,6 +199,10 @@ impl Service {
 	/// TODO: use this?
 	#[allow(dead_code)]
 	pub fn flush(&self) -> Result<()> { self.db.flush() }
+
+	pub fn cork(&self) -> Result<Cork> { self.db.cork() }
+
+	pub fn cork_and_flush(&self) -> Result<Cork> { self.db.cork_and_flush() }
 
 	pub fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }
 

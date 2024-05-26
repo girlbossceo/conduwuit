@@ -2,7 +2,7 @@ mod data;
 
 use std::{sync::Arc, time::Duration};
 
-pub use data::Data;
+use data::Data;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},

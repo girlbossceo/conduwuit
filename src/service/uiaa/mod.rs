@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use argon2::{PasswordHash, PasswordVerifier};
 use conduit::{utils, Error, Result};
-pub use data::Data;
+use data::Data;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -19,7 +19,7 @@ use crate::services;
 pub const SESSION_ID_LENGTH: usize = 32;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub(super) db: Arc<dyn Data>,
 }
 
 impl Service {

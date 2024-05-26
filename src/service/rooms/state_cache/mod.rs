@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-pub use data::Data;
+use data::Data;
 use itertools::Itertools;
 use ruma::{
 	events::{

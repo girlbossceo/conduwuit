@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-pub use data::Data;
+use data::Data;
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{

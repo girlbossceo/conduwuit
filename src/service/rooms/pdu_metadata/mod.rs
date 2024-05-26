@@ -2,7 +2,7 @@ mod data;
 
 use std::sync::Arc;
 
-pub use data::Data;
+use data::Data;
 use ruma::{
 	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},

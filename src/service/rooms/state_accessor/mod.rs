@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-pub use data::Data;
+use data::Data;
 use lru_cache::LruCache;
 use ruma::{
 	events::{

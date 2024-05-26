@@ -1,11 +1,11 @@
-pub mod data;
+mod data;
 use std::{
 	collections::HashSet,
 	mem::size_of,
 	sync::{Arc, Mutex},
 };
 
-pub use data::Data;
+use data::Data;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 

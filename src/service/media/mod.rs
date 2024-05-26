@@ -1,7 +1,7 @@
 mod data;
 use std::{collections::HashMap, io::Cursor, sync::Arc, time::SystemTime};
 
-pub use data::Data;
+use data::Data;
 use image::imageops::FilterType;
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
@@ -39,7 +39,7 @@ pub struct UrlPreviewData {
 }
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub(super) db: Arc<dyn Data>,
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
