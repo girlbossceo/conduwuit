@@ -1,6 +1,7 @@
 pub use rust_rocksdb::*;
 
-#[link(name = "rocksdb", kind = "static")]
+#[cfg_attr(not(conduit_mods), link(name = "rocksdb"))]
+#[cfg_attr(conduit_mods, link(name = "rocksdb", kind = "static"))]
 extern "C" {
 	pub fn rocksdb_list_column_families();
 	pub fn rocksdb_logger_create_stderr_logger();
