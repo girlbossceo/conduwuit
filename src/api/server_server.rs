@@ -206,10 +206,7 @@ pub(crate) async fn get_public_rooms_route(
 pub(crate) async fn send_transaction_message_route(
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	// This is all the auth_events that have been recursively fetched so they don't
 	// have to be deserialized over and over again.
@@ -253,7 +250,7 @@ pub(crate) async fn send_transaction_message_route(
 			.fetch_required_signing_keys(parsed_pdus.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
 			.await
 			.unwrap_or_else(|e| {
-				warn!("Could not fetch all signatures for PDUs from {}: {:?}", sender_servername, e);
+				warn!("Could not fetch all signatures for PDUs from {origin}: {:?}", e);
 			});
 
 		debug!(
@@ -280,7 +277,7 @@ pub(crate) async fn send_transaction_message_route(
 			services()
 				.rooms
 				.event_handler
-				.handle_incoming_pdu(sender_servername, &room_id, &event_id, value, true, &pub_key_map)
+				.handle_incoming_pdu(origin, &room_id, &event_id, value, true, &pub_key_map)
 				.await
 				.map(|_| ()),
 		);
@@ -463,7 +460,8 @@ pub(crate) async fn send_transaction_message_route(
 				master_key,
 				self_signing_key,
 			}) => {
-				if user_id.server_name() != sender_servername {
+				if user_id.server_name() != origin {
+					debug_info!(%user_id, %origin, "received signing key update EDU from server that does not belong to user's server");
 					continue;
 				}
 				if let Some(master_key) = master_key {
@@ -500,10 +498,7 @@ pub(crate) async fn send_transaction_message_route(
 /// - Only works if a user of this server is currently invited or joined the
 ///   room
 pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_event::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	let event = services()
 		.rooms
@@ -522,7 +517,7 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	if !services()
 		.rooms
 		.state_cache
-		.server_in_room(sender_servername, room_id)?
+		.server_in_room(origin, room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
 	}
@@ -530,7 +525,7 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	if !services()
 		.rooms
 		.state_accessor
-		.server_can_see_event(sender_servername, room_id, &body.event_id)?
+		.server_can_see_event(origin, room_id, &body.event_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not allowed to see event."));
 	}
@@ -547,15 +542,12 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 /// Retrieves events from before the sender joined the room, if the room's
 /// history visibility allows.
 pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) -> Result<get_backfill::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if !services()
 		.rooms
 		.state_cache
-		.server_in_room(sender_servername, &body.room_id)?
+		.server_in_room(origin, &body.room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
@@ -563,7 +555,7 @@ pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) ->
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
 
 	let until = body
 		.v
@@ -588,7 +580,7 @@ pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) ->
 				services()
 					.rooms
 					.state_accessor
-					.server_can_see_event(sender_servername, &e.room_id, &e.event_id,),
+					.server_can_see_event(origin, &e.room_id, &e.event_id,),
 				Ok(true),
 			)
 		})
@@ -610,15 +602,12 @@ pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) ->
 pub(crate) async fn get_missing_events_route(
 	body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if !services()
 		.rooms
 		.state_cache
-		.server_in_room(sender_servername, &body.room_id)?
+		.server_in_room(origin, &body.room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
 	}
@@ -626,7 +615,7 @@ pub(crate) async fn get_missing_events_route(
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
 
 	let mut queued_events = body.latest_events.clone();
 	let mut events = Vec::new();
@@ -651,11 +640,11 @@ pub(crate) async fn get_missing_events_route(
 				continue;
 			}
 
-			if !services().rooms.state_accessor.server_can_see_event(
-				sender_servername,
-				&body.room_id,
-				&queued_events[i],
-			)? {
+			if !services()
+				.rooms
+				.state_accessor
+				.server_can_see_event(origin, &body.room_id, &queued_events[i])?
+			{
 				i = i.saturating_add(1);
 				continue;
 			}
@@ -689,15 +678,12 @@ pub(crate) async fn get_missing_events_route(
 pub(crate) async fn get_event_authorization_route(
 	body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if !services()
 		.rooms
 		.state_cache
-		.server_in_room(sender_servername, &body.room_id)?
+		.server_in_room(origin, &body.room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
@@ -705,7 +691,7 @@ pub(crate) async fn get_event_authorization_route(
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
 
 	let event = services()
 		.rooms
@@ -741,15 +727,12 @@ pub(crate) async fn get_event_authorization_route(
 pub(crate) async fn get_room_state_route(
 	body: Ruma<get_room_state::v1::Request>,
 ) -> Result<get_room_state::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if !services()
 		.rooms
 		.state_cache
-		.server_in_room(sender_servername, &body.room_id)?
+		.server_in_room(origin, &body.room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
@@ -757,7 +740,7 @@ pub(crate) async fn get_room_state_route(
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
 
 	let shortstatehash = services()
 		.rooms
@@ -810,15 +793,12 @@ pub(crate) async fn get_room_state_route(
 pub(crate) async fn get_room_state_ids_route(
 	body: Ruma<get_room_state_ids::v1::Request>,
 ) -> Result<get_room_state_ids::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if !services()
 		.rooms
 		.state_cache
-		.server_in_room(sender_servername, &body.room_id)?
+		.server_in_room(origin, &body.room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
@@ -826,7 +806,7 @@ pub(crate) async fn get_room_state_ids_route(
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
 
 	let shortstatehash = services()
 		.rooms
@@ -865,11 +845,9 @@ pub(crate) async fn create_join_event_template_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
+	// ACL check origin server
 	services()
 		.rooms
 		.event_handler
@@ -879,11 +857,11 @@ pub(crate) async fn create_join_event_template_route(
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(sender_servername)
+		.contains(origin)
 	{
 		warn!(
-			"Server {sender_servername} for remote user {} tried joining room ID {} which has a server name that is \
-			 globally forbidden. Rejecting.",
+			"Server {origin} for remote user {} tried joining room ID {} which has a server name that is globally \
+			 forbidden. Rejecting.",
 			&body.user_id, &body.room_id,
 		);
 		return Err(Error::BadRequest(
@@ -1073,16 +1051,14 @@ pub(crate) async fn create_join_event_template_route(
 }
 
 async fn create_join_event(
-	sender_servername: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
+	origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
 	if !services().rooms.metadata.exists(room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	services()
-		.rooms
-		.event_handler
-		.acl_check(sender_servername, room_id)?;
+	// ACL check origin server
+	services().rooms.event_handler.acl_check(origin, room_id)?;
 
 	// We need to return the state prior to joining, let's keep a reference to that
 	// here
@@ -1119,7 +1095,7 @@ async fn create_join_event(
 		serde_json::to_value(
 			value
 				.get("origin")
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
+				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
 		)
 		.expect("CanonicalJson is valid json value"),
 	)
@@ -1189,20 +1165,16 @@ async fn create_join_event(
 pub(crate) async fn create_join_event_v1_route(
 	body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if services()
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(sender_servername)
+		.contains(origin)
 	{
 		warn!(
-			"Server {sender_servername} tried joining room ID {} who has a server name that is globally forbidden. \
-			 Rejecting.",
+			"Server {origin} tried joining room ID {} who has a server name that is globally forbidden. Rejecting.",
 			&body.room_id,
 		);
 		return Err(Error::BadRequest(
@@ -1219,8 +1191,8 @@ pub(crate) async fn create_join_event_v1_route(
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Server {sender_servername} tried joining room ID {} which has a server name that is globally \
-				 forbidden. Rejecting.",
+				"Server {origin} tried joining room ID {} which has a server name that is globally forbidden. \
+				 Rejecting.",
 				&body.room_id,
 			);
 			return Err(Error::BadRequest(
@@ -1230,7 +1202,7 @@ pub(crate) async fn create_join_event_v1_route(
 		}
 	}
 
-	let room_state = create_join_event(sender_servername, &body.room_id, &body.pdu).await?;
+	let room_state = create_join_event(origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_join_event::v1::Response {
 		room_state,
@@ -1243,16 +1215,13 @@ pub(crate) async fn create_join_event_v1_route(
 pub(crate) async fn create_join_event_v2_route(
 	body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if services()
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(sender_servername)
+		.contains(origin)
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
@@ -1278,7 +1247,7 @@ pub(crate) async fn create_join_event_v2_route(
 		auth_chain,
 		state,
 		event,
-	} = create_join_event(sender_servername, &body.room_id, &body.pdu).await?;
+	} = create_join_event(origin, &body.room_id, &body.pdu).await?;
 	let room_state = create_join_event::v2::RoomState {
 		members_omitted: false,
 		auth_chain,
@@ -1298,11 +1267,9 @@ pub(crate) async fn create_join_event_v2_route(
 pub(crate) async fn create_leave_event_template_route(
 	body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
+	// ACL check origin
 	services()
 		.rooms
 		.event_handler
@@ -1376,15 +1343,13 @@ pub(crate) async fn create_leave_event_template_route(
 	})
 }
 
-async fn create_leave_event(sender_servername: &ServerName, room_id: &RoomId, pdu: &RawJsonValue) -> Result<()> {
+async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue) -> Result<()> {
 	if !services().rooms.metadata.exists(room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	services()
-		.rooms
-		.event_handler
-		.acl_check(sender_servername, room_id)?;
+	// ACL check origin
+	services().rooms.event_handler.acl_check(origin, room_id)?;
 
 	let pub_key_map = RwLock::new(BTreeMap::new());
 
@@ -1455,12 +1420,9 @@ async fn create_leave_event(sender_servername: &ServerName, room_id: &RoomId, pd
 pub(crate) async fn create_leave_event_v1_route(
 	body: Ruma<create_leave_event::v1::Request>,
 ) -> Result<create_leave_event::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	create_leave_event(sender_servername, &body.room_id, &body.pdu).await?;
+	create_leave_event(origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v1::Response::new())
 }
@@ -1471,12 +1433,9 @@ pub(crate) async fn create_leave_event_v1_route(
 pub(crate) async fn create_leave_event_v2_route(
 	body: Ruma<create_leave_event::v2::Request>,
 ) -> Result<create_leave_event::v2::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	create_leave_event(sender_servername, &body.room_id, &body.pdu).await?;
+	create_leave_event(origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v2::Response::new())
 }
@@ -1485,15 +1444,13 @@ pub(crate) async fn create_leave_event_v2_route(
 ///
 /// Invites a remote user to a room.
 pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Result<create_invite::v2::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
+	// ACL check origin
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
 
 	if !services()
 		.globals
@@ -1526,10 +1483,10 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(&sender_servername.to_owned())
+		.contains(origin)
 	{
 		warn!(
-			"Received federated/remote invite from banned server {sender_servername} for room ID {}. Rejecting.",
+			"Received federated/remote invite from banned server {origin} for room ID {}. Rejecting.",
 			body.room_id
 		);
 		return Err(Error::BadRequest(
@@ -1569,7 +1526,7 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	let sender: OwnedUserId = serde_json::from_value(
 		signed_event
 			.get("sender")
-			.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender field."))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender field."))?
 			.clone()
 			.into(),
 	)
@@ -1578,7 +1535,7 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	let invited_user: Box<_> = serde_json::from_value(
 		signed_event
 			.get("state_key")
-			.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field."))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field."))?
 			.clone()
 			.into(),
 	)
@@ -1644,10 +1601,7 @@ pub(crate) async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> R
 		));
 	}
 
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	Ok(get_devices::v1::Response {
 		user_id: body.user_id.clone(),
@@ -1680,10 +1634,10 @@ pub(crate) async fn get_devices_route(body: Ruma<get_devices::v1::Request>) -> R
 			.collect(),
 		master_key: services()
 			.users
-			.get_master_key(None, &body.user_id, &|u| u.server_name() == sender_servername)?,
+			.get_master_key(None, &body.user_id, &|u| u.server_name() == origin)?,
 		self_signing_key: services()
 			.users
-			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == sender_servername)?,
+			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == origin)?,
 	})
 }
 
@@ -1792,7 +1746,7 @@ pub(crate) async fn get_keys_route(body: Ruma<get_keys::v1::Request>) -> Result<
 	let result = get_keys_helper(
 		None,
 		&body.device_keys,
-		|u| Some(u.server_name()) == body.sender_servername.as_deref(),
+		|u| Some(u.server_name()) == body.origin.as_deref(),
 		services().globals.allow_device_name_federation(),
 	)
 	.await?;
@@ -1841,16 +1795,13 @@ pub(crate) async fn well_known_server(
 /// Gets the space tree in a depth-first manner to locate child rooms of a given
 /// space.
 pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
-	let sender_servername = body
-		.sender_servername
-		.as_ref()
-		.expect("server is authenticated");
+	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if services().rooms.metadata.exists(&body.room_id)? {
 		services()
 			.rooms
 			.spaces
-			.get_federation_hierarchy(&body.room_id, sender_servername, body.suggested_only)
+			.get_federation_hierarchy(&body.room_id, origin, body.suggested_only)
 			.await
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "Room does not exist."))
