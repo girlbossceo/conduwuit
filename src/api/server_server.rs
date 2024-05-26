@@ -1540,6 +1540,22 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		));
 	}
 
+	let state_key: OwnedUserId = serde_json::from_value(
+		value
+			.get("state_key")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not a state key"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "State key is invalid or not a user ID"))?;
+
+	if state_key != sender {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"State key does not match sender user",
+		));
+	}
+
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
 			value
