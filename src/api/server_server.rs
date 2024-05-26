@@ -46,7 +46,7 @@ use ruma::{
 	serde::{Base64, JsonObject, Raw},
 	to_device::DeviceIdOrAllDevices,
 	uint, user_id, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedServerName,
-	OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
+	OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
@@ -1479,6 +1479,28 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 			"Could not convert event to canonical json.",
 		));
 	};
+
+	let content = value
+		.get("content")
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event does not a content key"))?
+		.as_object()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event content is empty"))?;
+
+	let membership: MembershipState = serde_json::from_value(
+		content
+			.get("membership")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event content is empty"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Leave event membership state is not valid"))?;
+
+	if membership != MembershipState::Leave {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to send a non-leave event at a leave endpoint",
+		));
+	}
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
