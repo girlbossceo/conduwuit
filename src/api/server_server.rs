@@ -1302,7 +1302,21 @@ pub(crate) async fn create_leave_event_template_route(
 	services()
 		.rooms
 		.event_handler
-		.acl_check(sender_servername, &body.room_id)?;
+		.acl_check(origin, &body.room_id)?;
+
+	// ACL check invited user server name
+	services()
+		.rooms
+		.event_handler
+		.acl_check(body.user_id.server_name(), &body.room_id)?;
+
+	// check if origin server is trying to send for another server
+	if body.user_id.server_name() != origin {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to leave on behalf of another server/user",
+		));
+	}
 
 	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
 
