@@ -405,6 +405,9 @@ pub(crate) async fn send_transaction_message_route(
 							.typing_remove(&typing.user_id, &typing.room_id)
 							.await?;
 					}
+				} else {
+					debug_warn!(%typing.user_id, %typing.room_id, "received typing EDU for user not in room");
+					continue;
 				}
 			},
 			Edu::DeviceListUpdate(DeviceListUpdateContent {
