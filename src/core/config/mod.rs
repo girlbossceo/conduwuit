@@ -1,7 +1,7 @@
 use std::{
 	collections::BTreeMap,
 	fmt::{self, Write as _},
-	net::{IpAddr, Ipv4Addr, SocketAddr},
+	net::{IpAddr, Ipv6Addr, SocketAddr},
 	path::PathBuf,
 };
 
@@ -875,7 +875,7 @@ impl fmt::Display for Config {
 
 fn true_fn() -> bool { true }
 
-fn default_address() -> IpAddr { Ipv4Addr::LOCALHOST.into() }
+fn default_address() -> IpAddr { Ipv6Addr::LOCALHOST.into() }
 
 fn default_port() -> ListeningPort {
 	ListeningPort {
