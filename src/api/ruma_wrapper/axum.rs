@@ -119,7 +119,7 @@ where
 
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&body).ok();
 
-		let (sender_user, sender_device, sender_servername, appservice_info) = match (metadata.authentication, token) {
+		let (sender_user, sender_device, origin, appservice_info) = match (metadata.authentication, token) {
 			(_, Token::Invalid) => {
 				return Err(Error::BadRequest(
 					ErrorKind::UnknownToken {
@@ -322,7 +322,7 @@ where
 			body,
 			sender_user,
 			sender_device,
-			sender_servername,
+			origin,
 			json_body,
 			appservice_info,
 		})
