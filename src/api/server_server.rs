@@ -1365,6 +1365,10 @@ pub(crate) async fn create_join_event_v2_route(
 pub(crate) async fn create_leave_event_template_route(
 	body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
+	if !services().rooms.metadata.exists(&body.room_id)? {
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
+	}
+
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	// ACL check origin
