@@ -1502,6 +1502,22 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		));
 	}
 
+	let event_type: StateEventType = serde_json::from_value(
+		value
+			.get("type")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event does not have state event type"))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Leave event does not have a valid state event type"))?;
+
+	if event_type != StateEventType::RoomMember {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to send non-membership state event at leave endpoint",
+		));
+	}
+
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
 			value
