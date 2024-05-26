@@ -8,6 +8,7 @@ use std::{
 };
 
 use axum::{response::IntoResponse, Json};
+use conduit::{debug_info, debug_warn};
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;
 use ruma::{
@@ -45,7 +46,7 @@ use ruma::{
 	serde::{Base64, JsonObject, Raw},
 	to_device::DeviceIdOrAllDevices,
 	uint, user_id, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedServerName,
-	OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName,
+	OwnedServerSigningKeyId, OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
@@ -366,6 +367,16 @@ pub(crate) async fn send_transaction_message_route(
 			},
 			Edu::Typing(typing) => {
 				if !services().globals.config.allow_incoming_typing {
+					continue;
+				}
+
+				if services()
+					.rooms
+					.event_handler
+					.acl_check(typing.user_id.server_name(), &typing.room_id)
+					.is_err()
+				{
+					debug_warn!(%typing.user_id, %typing.room_id, "received typing EDU for ACL'd user's server");
 					continue;
 				}
 
