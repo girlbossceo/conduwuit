@@ -587,17 +587,17 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	let room_id_str = event
 		.get("room_id")
 		.and_then(|val| val.as_str())
-		.ok_or_else(|| Error::bad_database("Invalid event in database"))?;
+		.ok_or_else(|| Error::bad_database("Invalid event in database."))?;
 
-	let room_id = <&RoomId>::try_from(room_id_str)
-		.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
+	let room_id =
+		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
 	if !services()
 		.rooms
 		.state_cache
 		.server_in_room(origin, room_id)?
 	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
 	if !services()
@@ -638,10 +638,10 @@ pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) ->
 	let until = body
 		.v
 		.iter()
-		.map(|eventid| services().rooms.timeline.get_pdu_count(eventid))
+		.map(|event_id| services().rooms.timeline.get_pdu_count(event_id))
 		.filter_map(|r| r.ok().flatten())
 		.max()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "No known eventid in v"))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event not found."))?;
 
 	let limit = body.limit.min(uint!(100));
 
@@ -704,13 +704,13 @@ pub(crate) async fn get_missing_events_route(
 			let room_id_str = pdu
 				.get("room_id")
 				.and_then(|val| val.as_str())
-				.ok_or_else(|| Error::bad_database("Invalid event in database"))?;
+				.ok_or_else(|| Error::bad_database("Invalid event in database."))?;
 
 			let event_room_id = <&RoomId>::try_from(room_id_str)
-				.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
+				.map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
 			if event_room_id != body.room_id {
-				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event from wrong room"));
+				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event from wrong room."));
 			}
 
 			if body.earliest_events.contains(&queued_events[i]) {
@@ -732,11 +732,11 @@ pub(crate) async fn get_missing_events_route(
 					serde_json::to_value(
 						pdu.get("prev_events")
 							.cloned()
-							.ok_or_else(|| Error::bad_database("Event in db has no prev_events field."))?,
+							.ok_or_else(|| Error::bad_database("Event in db has no prev_events property."))?,
 					)
 					.expect("canonical json is valid json value"),
 				)
-				.map_err(|_| Error::bad_database("Invalid prev_events content in pdu in db."))?,
+				.map_err(|_| Error::bad_database("Invalid prev_events in event in database."))?,
 			);
 			events.push(PduEvent::convert_to_outgoing_federation_event(pdu));
 		}
@@ -780,10 +780,10 @@ pub(crate) async fn get_event_authorization_route(
 	let room_id_str = event
 		.get("room_id")
 		.and_then(|val| val.as_str())
-		.ok_or_else(|| Error::bad_database("Invalid event in database"))?;
+		.ok_or_else(|| Error::bad_database("Invalid event in database."))?;
 
-	let room_id = <&RoomId>::try_from(room_id_str)
-		.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
+	let room_id =
+		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
 	let auth_chain_ids = services()
 		.rooms
@@ -1151,7 +1151,7 @@ async fn create_join_event(
 		.rooms
 		.state
 		.get_room_shortstatehash(room_id)?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Event state not found."))?;
 
 	let pub_key_map = RwLock::new(BTreeMap::new());
 	// let mut auth_cache = EventMap::new();
@@ -1171,38 +1171,38 @@ async fn create_join_event(
 	let event_type: StateEventType = serde_json::from_value(
 		value
 			.get("type")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event does not have state event type"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing type property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "PDU has invalid event type"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event has invalid event type."))?;
 
 	if event_type != StateEventType::RoomMember {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"Not allowed to send non-membership state event at join endpoint",
+			"Not allowed to send non-membership state event to join endpoint.",
 		));
 	}
 
 	let content = value
 		.get("content")
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event does not a content key"))?
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property."))?
 		.as_object()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event content is empty or invalid"))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event content is empty or invalid."))?;
 
 	let membership: MembershipState = serde_json::from_value(
 		content
 			.get("membership")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Join event content does not have a membership"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event content missing membership property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Join event has an invalid membership"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Event has an invalid membership state."))?;
 
 	if membership != MembershipState::Join {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"Not allowed to send a non-join event at a join endpoint",
+			"Not allowed to send a non-join membership event to join endpoint.",
 		));
 	}
 
@@ -1210,11 +1210,11 @@ async fn create_join_event(
 	let sender: OwnedUserId = serde_json::from_value(
 		value
 			.get("sender")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not have a sender user/key"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing sender property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "sender is not a valid user ID."))?;
 
 	services()
 		.rooms
@@ -1225,18 +1225,18 @@ async fn create_join_event(
 	if sender.server_name() != origin {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"Not allowed to join on behalf of another server/user",
+			"Not allowed to join on behalf of another server.",
 		));
 	}
 
 	let state_key: OwnedUserId = serde_json::from_value(
 		value
 			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not a state key"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing state_key property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "State key is invalid or not a user ID"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "state_key is invalid or not a user ID."))?;
 
 	if state_key != sender {
 		return Err(Error::BadRequest(
@@ -1257,11 +1257,11 @@ async fn create_join_event(
 		serde_json::to_value(
 			value
 				.get("origin")
-				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
+				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing origin property."))?,
 		)
 		.expect("CanonicalJson is valid json value"),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
 	services()
 		.rooms
@@ -1284,9 +1284,7 @@ async fn create_join_event(
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true, &pub_key_map)
 		.await?
-		.ok_or_else(|| {
-			Error::BadRequest(ErrorKind::InvalidParam, "Could not accept incoming PDU as timeline event.")
-		})?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
 	drop(mutex_lock);
 
 	let state_ids = services()
@@ -1537,39 +1535,39 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 
 	let content = value
 		.get("content")
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event does not a content key"))?
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property."))?
 		.as_object()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event content is empty"))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event content not an object."))?;
 
 	let membership: MembershipState = serde_json::from_value(
 		content
 			.get("membership")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event content is empty"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event membership is missing."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Leave event membership state is not valid"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Event membership state is not valid."))?;
 
 	if membership != MembershipState::Leave {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"Not allowed to send a non-leave event at a leave endpoint",
+			"Not allowed to send a non-leave membership event to leave endpoint.",
 		));
 	}
 
 	let event_type: StateEventType = serde_json::from_value(
 		value
 			.get("type")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Leave event does not have state event type"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing type property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Leave event does not have a valid state event type"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Event does not have a valid state event type."))?;
 
 	if event_type != StateEventType::RoomMember {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"Not allowed to send non-membership state event at leave endpoint",
+			"Not allowed to send non-membership state event to leave endpoint.",
 		));
 	}
 
@@ -1577,11 +1575,11 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 	let sender: OwnedUserId = serde_json::from_value(
 		value
 			.get("sender")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not have a sender user/key"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing sender property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid."))?;
 
 	services()
 		.rooms
@@ -1591,23 +1589,23 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 	if sender.server_name() != origin {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"Not allowed to leave on behalf of another server/user",
+			"Not allowed to leave on behalf of another server.",
 		));
 	}
 
 	let state_key: OwnedUserId = serde_json::from_value(
 		value
 			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not a state key"))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing state_key property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "State key is invalid or not a user ID"))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "state_key is invalid or not a user ID"))?;
 
 	if state_key != sender {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"State key does not match sender user",
+			"state_key does not match sender user.",
 		));
 	}
 
@@ -1615,11 +1613,11 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		serde_json::to_value(
 			value
 				.get("origin")
-				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
+				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing origin property."))?,
 		)
 		.expect("CanonicalJson is valid json value"),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
 	services()
 		.rooms
@@ -1642,9 +1640,7 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
 		.await?
-		.ok_or_else(|| {
-			Error::BadRequest(ErrorKind::InvalidParam, "Could not accept incoming PDU as timeline event.")
-		})?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
 
 	drop(mutex_lock);
 
@@ -1753,11 +1749,11 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	let invited_user: OwnedUserId = serde_json::from_value(
 		signed_event
 			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field."))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event has no state_key property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user ID."))?;
 
 	if !server_is_ours(invited_user.server_name()) {
 		return Err(Error::BadRequest(
@@ -1794,11 +1790,11 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	let sender: OwnedUserId = serde_json::from_value(
 		signed_event
 			.get("sender")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender field."))?
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender property."))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user id."))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user ID."))?;
 
 	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(&invited_user)? {
 		return Err(Error::BadRequest(
@@ -1959,7 +1955,7 @@ pub(crate) async fn get_profile_information_route(
 	if !server_is_ours(body.user_id.server_name()) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
-			"User does not belong to this server",
+			"User does not belong to this server.",
 		));
 	}
 
