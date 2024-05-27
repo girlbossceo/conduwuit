@@ -641,7 +641,7 @@ pub(crate) async fn get_backfill_route(body: Ruma<get_backfill::v1::Request>) ->
 		.map(|eventid| services().rooms.timeline.get_pdu_count(eventid))
 		.filter_map(|r| r.ok().flatten())
 		.max()
-		.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "No known eventid in v"))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "No known eventid in v"))?;
 
 	let limit = body.limit.min(uint!(100));
 
@@ -824,7 +824,7 @@ pub(crate) async fn get_room_state_route(
 		.rooms
 		.state_accessor
 		.pdu_shortstatehash(&body.event_id)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
 
 	let pdus = services()
 		.rooms
@@ -890,7 +890,7 @@ pub(crate) async fn get_room_state_ids_route(
 		.rooms
 		.state_accessor
 		.pdu_shortstatehash(&body.event_id)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
 
 	let pdu_ids = services()
 		.rooms
@@ -1158,7 +1158,7 @@ async fn create_join_event(
 		.rooms
 		.state
 		.get_room_shortstatehash(room_id)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
 
 	let pub_key_map = RwLock::new(BTreeMap::new());
 	// let mut auth_cache = EventMap::new();
@@ -1291,10 +1291,9 @@ async fn create_join_event(
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true, &pub_key_map)
 		.await?
-		.ok_or(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Could not accept incoming PDU as timeline event.",
-		))?;
+		.ok_or_else(|| {
+			Error::BadRequest(ErrorKind::InvalidParam, "Could not accept incoming PDU as timeline event.")
+		})?;
 	drop(mutex_lock);
 
 	let state_ids = services()
@@ -1631,7 +1630,7 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		serde_json::to_value(
 			value
 				.get("origin")
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
+				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event needs an origin field."))?,
 		)
 		.expect("CanonicalJson is valid json value"),
 	)
@@ -1658,10 +1657,9 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
 		.await?
-		.ok_or(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Could not accept incoming PDU as timeline event.",
-		))?;
+		.ok_or_else(|| {
+			Error::BadRequest(ErrorKind::InvalidParam, "Could not accept incoming PDU as timeline event.")
+		})?;
 
 	drop(mutex_lock);
 
@@ -1914,7 +1912,7 @@ pub(crate) async fn get_room_information_route(
 		.rooms
 		.alias
 		.resolve_local_alias(&body.room_alias)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
+		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
 
 	let mut servers: Vec<OwnedServerName> = services()
 		.rooms
