@@ -20,7 +20,7 @@ conduwuit () {
 	UWU_OPTS=$@
 	rm -rf /tmp/uwu_smoketest.db
 	echo -e "[global]\nserver_name = \"localhost\"\ndatabase_path = \"/tmp/uwu_smoketest.db\"" > /tmp/uwu_smoketest.toml
-	cargo run $UWU_OPTS -- -c /tmp/uwu_smoketest.toml &
+	cargo $UWU_OPTS -- -c /tmp/uwu_smoketest.toml &
 	sleep 15s
 	kill -QUIT %1
 	wait %1
@@ -37,7 +37,7 @@ element () {
 		run cargo "$TOOLCHAIN" test $ELEMENT_OPTS --all-targets
 		run cargo "$TOOLCHAIN" bench $ELEMENT_OPTS --all-targets
 		run cargo "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduit -- -V
-		run conduwuit $ELEMENT_OPTS --bin conduit
+		run conduwuit "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduit
 	fi
 }
 
