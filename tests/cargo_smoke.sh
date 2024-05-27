@@ -13,7 +13,6 @@ run () {
 	else
 		echo -ne "\033[1F"
 		echo -e "\033[1;32mPASS\033[0m $RUN_COMMAND"
-		echo -e "\033[1;32mPASS\033[0m $RUN_COMMAND"
 	fi
 }
 
@@ -22,7 +21,7 @@ conduwuit () {
 	rm -rf /tmp/uwu_smoketest.db
 	echo -e "[global]\nserver_name = \"localhost\"\ndatabase_path = \"/tmp/uwu_smoketest.db\"" > /tmp/uwu_smoketest.toml
 	cargo run $UWU_OPTS -- -c /tmp/uwu_smoketest.toml &
-	sleep 5s
+	sleep 15s
 	kill -QUIT %1
 	wait %1
 	return $?
