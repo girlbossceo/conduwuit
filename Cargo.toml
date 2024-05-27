@@ -107,6 +107,7 @@ features = [
 	"rustls-tls-native-roots",
 	"socks",
 	"hickory-dns",
+	"http2",
 ]
 
 [workspace.dependencies.serde]
