@@ -352,19 +352,19 @@ pub(crate) async fn send_transaction_message_route(
 				}
 
 				for (room_id, room_updates) in receipt.receipts {
+					if services()
+						.rooms
+						.event_handler
+						.acl_check(origin, &room_id)
+						.is_err()
+					{
+						debug_warn!(%origin, %room_id, "received read receipt EDU from ACL'd server");
+						continue;
+					}
+
 					for (user_id, user_updates) in room_updates.read {
 						if user_id.server_name() != origin {
 							debug_warn!(%user_id, %origin, "received read receipt EDU for user not belonging to origin");
-							continue;
-						}
-
-						if services()
-							.rooms
-							.event_handler
-							.acl_check(user_id.server_name(), &room_id)
-							.is_err()
-						{
-							debug_warn!(%user_id, %room_id, "received read receipt EDU from ACL'd user's server");
 							continue;
 						}
 
