@@ -28,28 +28,34 @@ conduwuit () {
 }
 
 element () {
+	TOOLCHAIN=$1; shift
 	ELEMENT_OPTS=$@
-	run cargo check $ELEMENT_OPTS --all-targets
-	run cargo clippy $ELEMENT_OPTS --all-targets -- -D warnings
-	run cargo build $ELEMENT_OPTS --all-targets
-	run cargo test $ELEMENT_OPTS --all-targets
-	run cargo bench $ELEMENT_OPTS --all-targets
-	run cargo run $ELEMENT_OPTS --bin conduit -- -V
-	run conduwuit $ELEMENT_OPTS --bin conduit
+	run cargo "$TOOLCHAIN" check $ELEMENT_OPTS --all-targets
+	run cargo "$TOOLCHAIN" clippy $ELEMENT_OPTS --all-targets -- -D warnings
+	if [ "$BUILD" != "check" ]; then
+		run cargo "$TOOLCHAIN" build $ELEMENT_OPTS --all-targets
+		run cargo "$TOOLCHAIN" test $ELEMENT_OPTS --all-targets
+		run cargo "$TOOLCHAIN" bench $ELEMENT_OPTS --all-targets
+		run cargo "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduit -- -V
+		run conduwuit $ELEMENT_OPTS --bin conduit
+	fi
 }
 
 vector () {
+	TOOLCHAIN=$1; shift
 	VECTOR_OPTS=$@
-	element $VECTOR_OPTS --no-default-features --features="rocksdb"
-	element $VECTOR_OPTS --features=default
-	element $VECTOR_OPTS --all-features
+	element "$TOOLCHAIN" $VECTOR_OPTS --no-default-features --features="rocksdb"
+	element "$TOOLCHAIN" $VECTOR_OPTS --features=default
+	element "$TOOLCHAIN" $VECTOR_OPTS --all-features
 }
 
 matrix () {
-	run cargo fmt --all --check
-	vector --profile=dev
-	vector --profile=release
+	run cargo +nightly fmt --all --check
+	vector +nightly --profile=dev
+	vector +nightly --profile=release
+	vector "" --profile=dev
+	vector "" --profile=release
 }
 
-matrix &&
-exit 0
+BUILD=${1:-build}
+matrix && exit 0
