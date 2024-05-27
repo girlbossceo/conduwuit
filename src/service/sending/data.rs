@@ -1,31 +1,31 @@
+use std::sync::Arc;
+
 use ruma::{ServerName, UserId};
 
 use super::{Destination, SendingEvent};
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::{services, utils, Error, KeyValueDatabase, KvTree, Result};
 
 type OutgoingSendingIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, Destination, SendingEvent)>> + 'a>;
 type SendingEventIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEvent)>> + 'a>;
 
-pub trait Data: Send + Sync {
-	fn active_requests(&self) -> OutgoingSendingIter<'_>;
-	fn active_requests_for(&self, destination: &Destination) -> SendingEventIter<'_>;
-	fn delete_active_request(&self, key: Vec<u8>) -> Result<()>;
-	fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()>;
-
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn delete_all_requests_for(&self, destination: &Destination) -> Result<()>;
-	fn queue_requests(&self, requests: &[(&Destination, SendingEvent)]) -> Result<Vec<Vec<u8>>>;
-	fn queued_requests<'a>(
-		&'a self, destination: &Destination,
-	) -> Box<dyn Iterator<Item = Result<(SendingEvent, Vec<u8>)>> + 'a>;
-	fn mark_as_active(&self, events: &[(SendingEvent, Vec<u8>)]) -> Result<()>;
-	fn set_latest_educount(&self, server_name: &ServerName, educount: u64) -> Result<()>;
-	fn get_latest_educount(&self, server_name: &ServerName) -> Result<u64>;
+pub struct Data {
+	servercurrentevent_data: Arc<dyn KvTree>,
+	servernameevent_data: Arc<dyn KvTree>,
+	servername_educount: Arc<dyn KvTree>,
+	_db: Arc<KeyValueDatabase>,
 }
 
-impl Data for KeyValueDatabase {
-	fn active_requests<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(Vec<u8>, Destination, SendingEvent)>> + 'a> {
+impl Data {
+	pub(super) fn new(db: Arc<KeyValueDatabase>) -> Self {
+		Self {
+			servercurrentevent_data: db.servercurrentevent_data.clone(),
+			servernameevent_data: db.servernameevent_data.clone(),
+			servername_educount: db.servername_educount.clone(),
+			_db: db,
+		}
+	}
+
+	pub fn active_requests(&self) -> OutgoingSendingIter<'_> {
 		Box::new(
 			self.servercurrentevent_data
 				.iter()
@@ -33,9 +33,7 @@ impl Data for KeyValueDatabase {
 		)
 	}
 
-	fn active_requests_for<'a>(
-		&'a self, destination: &Destination,
-	) -> Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEvent)>> + 'a> {
+	pub fn active_requests_for<'a>(&'a self, destination: &Destination) -> SendingEventIter<'a> {
 		let prefix = destination.get_prefix();
 		Box::new(
 			self.servercurrentevent_data
@@ -44,9 +42,9 @@ impl Data for KeyValueDatabase {
 		)
 	}
 
-	fn delete_active_request(&self, key: Vec<u8>) -> Result<()> { self.servercurrentevent_data.remove(&key) }
+	pub(super) fn delete_active_request(&self, key: &[u8]) -> Result<()> { self.servercurrentevent_data.remove(key) }
 
-	fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()> {
+	pub(super) fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()> {
 		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix) {
 			self.servercurrentevent_data.remove(&key)?;
@@ -55,7 +53,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn delete_all_requests_for(&self, destination: &Destination) -> Result<()> {
+	pub(super) fn delete_all_requests_for(&self, destination: &Destination) -> Result<()> {
 		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
 			self.servercurrentevent_data.remove(&key).unwrap();
@@ -68,7 +66,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn queue_requests(&self, requests: &[(&Destination, SendingEvent)]) -> Result<Vec<Vec<u8>>> {
+	pub(super) fn queue_requests(&self, requests: &[(&Destination, SendingEvent)]) -> Result<Vec<Vec<u8>>> {
 		let mut batch = Vec::new();
 		let mut keys = Vec::new();
 		for (destination, event) in requests {
@@ -91,7 +89,7 @@ impl Data for KeyValueDatabase {
 		Ok(keys)
 	}
 
-	fn queued_requests<'a>(
+	pub fn queued_requests<'a>(
 		&'a self, destination: &Destination,
 	) -> Box<dyn Iterator<Item = Result<(SendingEvent, Vec<u8>)>> + 'a> {
 		let prefix = destination.get_prefix();
@@ -102,7 +100,7 @@ impl Data for KeyValueDatabase {
 		);
 	}
 
-	fn mark_as_active(&self, events: &[(SendingEvent, Vec<u8>)]) -> Result<()> {
+	pub(super) fn mark_as_active(&self, events: &[(SendingEvent, Vec<u8>)]) -> Result<()> {
 		for (e, key) in events {
 			if key.is_empty() {
 				continue;
@@ -120,12 +118,12 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn set_latest_educount(&self, server_name: &ServerName, last_count: u64) -> Result<()> {
+	pub(super) fn set_latest_educount(&self, server_name: &ServerName, last_count: u64) -> Result<()> {
 		self.servername_educount
 			.insert(server_name.as_bytes(), &last_count.to_be_bytes())
 	}
 
-	fn get_latest_educount(&self, server_name: &ServerName) -> Result<u64> {
+	pub fn get_latest_educount(&self, server_name: &ServerName) -> Result<u64> {
 		self.servername_educount
 			.get(server_name.as_bytes())?
 			.map_or(Ok(0), |bytes| {

@@ -1,16 +1,25 @@
 use std::{mem::size_of, sync::Arc};
 
+use database::KvTree;
+
 use crate::{utils, KeyValueDatabase, Result};
 
-pub trait Data: Send + Sync {
-	fn get_cached_eventid_authchain(&self, shorteventid: &[u64]) -> Result<Option<Arc<[u64]>>>;
-	fn cache_auth_chain(&self, shorteventid: Vec<u64>, auth_chain: Arc<[u64]>) -> Result<()>;
+pub(super) struct Data {
+	shorteventid_authchain: Arc<dyn KvTree>,
+	db: Arc<KeyValueDatabase>,
 }
 
-impl Data for KeyValueDatabase {
-	fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			shorteventid_authchain: db.shorteventid_authchain.clone(),
+			db: db.clone(),
+		}
+	}
+
+	pub(super) fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
 		// Check RAM cache
-		if let Some(result) = self.auth_chain_cache.lock().unwrap().get_mut(key) {
+		if let Some(result) = self.db.auth_chain_cache.lock().unwrap().get_mut(key) {
 			return Ok(Some(Arc::clone(result)));
 		}
 
@@ -29,7 +38,8 @@ impl Data for KeyValueDatabase {
 
 			if let Some(chain) = chain {
 				// Cache in RAM
-				self.auth_chain_cache
+				self.db
+					.auth_chain_cache
 					.lock()
 					.unwrap()
 					.insert(vec![key[0]], Arc::clone(&chain));
@@ -41,7 +51,7 @@ impl Data for KeyValueDatabase {
 		Ok(None)
 	}
 
-	fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[u64]>) -> Result<()> {
+	pub(super) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[u64]>) -> Result<()> {
 		// Only persist single events in db
 		if key.len() == 1 {
 			self.shorteventid_authchain.insert(
@@ -54,7 +64,8 @@ impl Data for KeyValueDatabase {
 		}
 
 		// Cache in RAM
-		self.auth_chain_cache
+		self.db
+			.auth_chain_cache
 			.lock()
 			.unwrap()
 			.insert(key, auth_chain);

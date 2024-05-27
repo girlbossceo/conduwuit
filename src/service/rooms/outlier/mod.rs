@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::sync::Arc;
@@ -8,10 +11,16 @@ use ruma::{CanonicalJsonObject, EventId};
 use crate::{PduEvent, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	/// Returns the pdu from the outlier tree.
 	pub fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.db.get_outlier_pdu_json(event_id)

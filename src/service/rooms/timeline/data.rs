@@ -1,76 +1,36 @@
 use std::{collections::hash_map, mem::size_of, sync::Arc};
 
+use database::KvTree;
 use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
 use tracing::error;
 
 use super::PduCount;
 use crate::{services, utils, Error, KeyValueDatabase, PduEvent, Result};
 
-pub trait Data: Send + Sync {
-	fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount>;
-
-	/// Returns the `count` of this pdu's id.
-	fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>>;
-
-	/// Returns the json of a pdu.
-	fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>>;
-
-	/// Returns the json of a pdu.
-	fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>>;
-
-	/// Returns the pdu's id.
-	fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>>;
-
-	/// Returns the pdu.
-	///
-	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>>;
-
-	/// Returns the pdu.
-	///
-	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>>;
-
-	/// Returns the pdu.
-	///
-	/// This does __NOT__ check the outliers `Tree`.
-	fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>>;
-
-	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
-	fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>>;
-
-	/// Adds a new pdu to the timeline
-	fn append_pdu(&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64) -> Result<()>;
-
-	// Adds a new pdu to the backfilled timeline
-	fn prepend_backfill_pdu(&self, pdu_id: &[u8], event_id: &EventId, json: &CanonicalJsonObject) -> Result<()>;
-
-	/// Removes a pdu and creates a new one with the same id.
-	fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()>;
-
-	/// Returns an iterator over all events and their tokens in a room that
-	/// happened before the event with id `until` in reverse-chronological
-	/// order.
-	#[allow(clippy::type_complexity)]
-	fn pdus_until<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount,
-	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
-
-	/// Returns an iterator over all events in a room that happened after the
-	/// event with id `from` in chronological order.
-	#[allow(clippy::type_complexity)]
-	fn pdus_after<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount,
-	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
-
-	fn increment_notification_counts(
-		&self, room_id: &RoomId, notifies: Vec<OwnedUserId>, highlights: Vec<OwnedUserId>,
-	) -> Result<()>;
+pub struct Data {
+	eventid_pduid: Arc<dyn KvTree>,
+	pduid_pdu: Arc<dyn KvTree>,
+	eventid_outlierpdu: Arc<dyn KvTree>,
+	userroomid_notificationcount: Arc<dyn KvTree>,
+	userroomid_highlightcount: Arc<dyn KvTree>,
+	db: Arc<KeyValueDatabase>,
 }
 
-impl Data for KeyValueDatabase {
-	fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			eventid_pduid: db.eventid_pduid.clone(),
+			pduid_pdu: db.pduid_pdu.clone(),
+			eventid_outlierpdu: db.eventid_outlierpdu.clone(),
+			userroomid_notificationcount: db.userroomid_notificationcount.clone(),
+			userroomid_highlightcount: db.userroomid_highlightcount.clone(),
+			db: db.clone(),
+		}
+	}
+
+	pub(super) fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
 		match self
+			.db
 			.lasttimelinecount_cache
 			.lock()
 			.unwrap()
@@ -96,7 +56,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the `count` of this pdu's id.
-	fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>> {
+	pub(super) fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>> {
 		self.eventid_pduid
 			.get(event_id.as_bytes())?
 			.map(|pdu_id| pdu_count(&pdu_id))
@@ -104,7 +64,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the json of a pdu.
-	fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
+	pub(super) fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.get_non_outlier_pdu_json(event_id)?.map_or_else(
 			|| {
 				self.eventid_outlierpdu
@@ -117,7 +77,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the json of a pdu.
-	fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
+	pub(super) fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.eventid_pduid
 			.get(event_id.as_bytes())?
 			.map(|pduid| {
@@ -131,10 +91,12 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the pdu's id.
-	fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> { self.eventid_pduid.get(event_id.as_bytes()) }
+	pub(super) fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> {
+		self.eventid_pduid.get(event_id.as_bytes())
+	}
 
 	/// Returns the pdu.
-	fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
+	pub(super) fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.eventid_pduid
 			.get(event_id.as_bytes())?
 			.map(|pduid| {
@@ -150,7 +112,7 @@ impl Data for KeyValueDatabase {
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> {
+	pub(super) fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> {
 		if let Some(pdu) = self
 			.get_non_outlier_pdu(event_id)?
 			.map_or_else(
@@ -173,7 +135,7 @@ impl Data for KeyValueDatabase {
 	/// Returns the pdu.
 	///
 	/// This does __NOT__ check the outliers `Tree`.
-	fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> {
+	pub(super) fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> {
 		self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
 			Ok(Some(
 				serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))?,
@@ -182,7 +144,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
-	fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
+	pub(super) fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
 		self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
 			Ok(Some(
 				serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))?,
@@ -190,13 +152,16 @@ impl Data for KeyValueDatabase {
 		})
 	}
 
-	fn append_pdu(&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64) -> Result<()> {
+	pub(super) fn append_pdu(
+		&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64,
+	) -> Result<()> {
 		self.pduid_pdu.insert(
 			pdu_id,
 			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
 		)?;
 
-		self.lasttimelinecount_cache
+		self.db
+			.lasttimelinecount_cache
 			.lock()
 			.unwrap()
 			.insert(pdu.room_id.clone(), PduCount::Normal(count));
@@ -207,7 +172,9 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn prepend_backfill_pdu(&self, pdu_id: &[u8], event_id: &EventId, json: &CanonicalJsonObject) -> Result<()> {
+	pub(super) fn prepend_backfill_pdu(
+		&self, pdu_id: &[u8], event_id: &EventId, json: &CanonicalJsonObject,
+	) -> Result<()> {
 		self.pduid_pdu.insert(
 			pdu_id,
 			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
@@ -220,7 +187,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
-	fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent) -> Result<()> {
+	pub(super) fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent) -> Result<()> {
 		if self.pduid_pdu.get(pdu_id)?.is_some() {
 			self.pduid_pdu.insert(
 				pdu_id,
@@ -236,7 +203,7 @@ impl Data for KeyValueDatabase {
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
-	fn pdus_until<'a>(
+	pub(super) fn pdus_until<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount,
 	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
 		let (prefix, current) = count_to_id(room_id, until, 1, true)?;
@@ -260,7 +227,7 @@ impl Data for KeyValueDatabase {
 		))
 	}
 
-	fn pdus_after<'a>(
+	pub(super) fn pdus_after<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount,
 	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
 		let (prefix, current) = count_to_id(room_id, from, 1, false)?;
@@ -284,7 +251,7 @@ impl Data for KeyValueDatabase {
 		))
 	}
 
-	fn increment_notification_counts(
+	pub(super) fn increment_notification_counts(
 		&self, room_id: &RoomId, notifies: Vec<OwnedUserId>, highlights: Vec<OwnedUserId>,
 	) -> Result<()> {
 		let mut notifies_batch = Vec::new();
@@ -311,7 +278,7 @@ impl Data for KeyValueDatabase {
 }
 
 /// Returns the `count` of this pdu's id.
-fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
+pub(super) fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 	let last_u64 = utils::u64_from_bytes(&pdu_id[pdu_id.len() - size_of::<u64>()..])
 		.map_err(|_| Error::bad_database("PDU has invalid count bytes."))?;
 	let second_last_u64 =
@@ -324,7 +291,9 @@ fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 	}
 }
 
-fn count_to_id(room_id: &RoomId, count: PduCount, offset: u64, subtract: bool) -> Result<(Vec<u8>, Vec<u8>)> {
+pub(super) fn count_to_id(
+	room_id: &RoomId, count: PduCount, offset: u64, subtract: bool,
+) -> Result<(Vec<u8>, Vec<u8>)> {
 	let prefix = services()
 		.rooms
 		.short

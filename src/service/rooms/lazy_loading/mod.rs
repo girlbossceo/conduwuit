@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::{
 	collections::{HashMap, HashSet},
@@ -11,13 +14,20 @@ use tokio::sync::Mutex;
 use crate::{PduCount, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 
 	#[allow(clippy::type_complexity)]
 	pub lazy_load_waiting: Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+			lazy_load_waiting: Mutex::new(HashMap::new()),
+		})
+	}
+
 	#[tracing::instrument(skip(self))]
 	pub fn lazy_load_was_sent_before(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,

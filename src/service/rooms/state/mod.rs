@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::{
 	collections::{HashMap, HashSet},
@@ -22,10 +25,16 @@ use super::state_compressor::CompressedStateEvent;
 use crate::{services, utils::calculate_hash, Error, PduEvent, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	/// Set the room to the given statehash and update caches.
 	pub async fn force_state(
 		&self,

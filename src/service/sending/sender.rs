@@ -144,7 +144,7 @@ impl Service {
 			if self.startup_netburst_keep >= 0 && entry.len() >= keep {
 				warn!("Dropping unsent event {:?} {:?}", dest, String::from_utf8_lossy(&key));
 				self.db
-					.delete_active_request(key)
+					.delete_active_request(&key)
 					.expect("active request deleted");
 			} else {
 				entry.push(event);

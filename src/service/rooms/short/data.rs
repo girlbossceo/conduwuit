@@ -1,33 +1,33 @@
 use std::sync::Arc;
 
+use conduit::warn;
+use database::{KeyValueDatabase, KvTree};
 use ruma::{events::StateEventType, EventId, RoomId};
-use tracing::warn;
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::{services, utils, Error, Result};
 
-pub trait Data: Send + Sync {
-	fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64>;
-
-	fn multi_get_or_create_shorteventid(&self, event_id: &[&EventId]) -> Result<Vec<u64>>;
-
-	fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>>;
-
-	fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64>;
-
-	fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>>;
-
-	fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)>;
-
-	/// Returns (shortstatehash, already_existed)
-	fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> Result<(u64, bool)>;
-
-	fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>>;
-
-	fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64>;
+pub(super) struct Data {
+	eventid_shorteventid: Arc<dyn KvTree>,
+	shorteventid_eventid: Arc<dyn KvTree>,
+	statekey_shortstatekey: Arc<dyn KvTree>,
+	shortstatekey_statekey: Arc<dyn KvTree>,
+	roomid_shortroomid: Arc<dyn KvTree>,
+	statehash_shortstatehash: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			eventid_shorteventid: db.eventid_shorteventid.clone(),
+			shorteventid_eventid: db.shorteventid_eventid.clone(),
+			statekey_shortstatekey: db.statekey_shortstatekey.clone(),
+			shortstatekey_statekey: db.shortstatekey_statekey.clone(),
+			roomid_shortroomid: db.roomid_shortroomid.clone(),
+			statehash_shortstatehash: db.statehash_shortstatehash.clone(),
+		}
+	}
+
+	pub(super) fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
 		let short = if let Some(shorteventid) = self.eventid_shorteventid.get(event_id.as_bytes())? {
 			utils::u64_from_bytes(&shorteventid).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?
 		} else {
@@ -42,7 +42,7 @@ impl Data for KeyValueDatabase {
 		Ok(short)
 	}
 
-	fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Result<Vec<u64>> {
+	pub(super) fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Result<Vec<u64>> {
 		let mut ret: Vec<u64> = Vec::with_capacity(event_ids.len());
 		let keys = event_ids
 			.iter()
@@ -74,7 +74,7 @@ impl Data for KeyValueDatabase {
 		Ok(ret)
 	}
 
-	fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
+	pub(super) fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
 		let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
 		statekey_vec.push(0xFF);
 		statekey_vec.extend_from_slice(state_key.as_bytes());
@@ -90,7 +90,7 @@ impl Data for KeyValueDatabase {
 		Ok(short)
 	}
 
-	fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
+	pub(super) fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
 		let mut statekey_vec = event_type.to_string().as_bytes().to_vec();
 		statekey_vec.push(0xFF);
 		statekey_vec.extend_from_slice(state_key.as_bytes());
@@ -109,7 +109,7 @@ impl Data for KeyValueDatabase {
 		Ok(short)
 	}
 
-	fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
+	pub(super) fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
 		let bytes = self
 			.shorteventid_eventid
 			.get(&shorteventid.to_be_bytes())?
@@ -124,7 +124,7 @@ impl Data for KeyValueDatabase {
 		Ok(event_id)
 	}
 
-	fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
+	pub(super) fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
 		let bytes = self
 			.shortstatekey_statekey
 			.get(&shortstatekey.to_be_bytes())?
@@ -150,7 +150,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns (shortstatehash, already_existed)
-	fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> Result<(u64, bool)> {
+	pub(super) fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> Result<(u64, bool)> {
 		Ok(if let Some(shortstatehash) = self.statehash_shortstatehash.get(state_hash)? {
 			(
 				utils::u64_from_bytes(&shortstatehash)
@@ -165,14 +165,14 @@ impl Data for KeyValueDatabase {
 		})
 	}
 
-	fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>> {
+	pub(super) fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_shortroomid
 			.get(room_id.as_bytes())?
 			.map(|bytes| utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid shortroomid in db.")))
 			.transpose()
 	}
 
-	fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
+	pub(super) fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
 		Ok(if let Some(short) = self.roomid_shortroomid.get(room_id.as_bytes())? {
 			utils::u64_from_bytes(&short).map_err(|_| Error::bad_database("Invalid shortroomid in db."))?
 		} else {

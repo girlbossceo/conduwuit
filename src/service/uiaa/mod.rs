@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::sync::Arc;
@@ -18,10 +21,16 @@ use crate::services;
 pub const SESSION_ID_LENGTH: usize = 32;
 
 pub struct Service {
-	pub(super) db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	/// Creates a new Uiaa session. Make sure the session token is unique.
 	pub fn create(
 		&self, user_id: &UserId, device_id: &DeviceId, uiaainfo: &UiaaInfo, json_body: &CanonicalJsonValue,

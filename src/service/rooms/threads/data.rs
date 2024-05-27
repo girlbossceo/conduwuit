@@ -1,22 +1,24 @@
-use std::mem::size_of;
+use std::{mem::size_of, sync::Arc};
 
+use database::KvTree;
 use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, RoomId, UserId};
 
 use crate::{services, utils, Error, KeyValueDatabase, PduEvent, Result};
 
 type PduEventIterResult<'a> = Result<Box<dyn Iterator<Item = Result<(u64, PduEvent)>> + 'a>>;
 
-pub trait Data: Send + Sync {
-	fn threads_until<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
-	) -> PduEventIterResult<'a>;
-
-	fn update_participants(&self, root_id: &[u8], participants: &[OwnedUserId]) -> Result<()>;
-	fn get_participants(&self, root_id: &[u8]) -> Result<Option<Vec<OwnedUserId>>>;
+pub struct Data {
+	threadid_userids: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn threads_until<'a>(
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			threadid_userids: db.threadid_userids.clone(),
+		}
+	}
+
+	pub(super) fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, _include: &'a IncludeThreads,
 	) -> PduEventIterResult<'a> {
 		let prefix = services()
@@ -50,7 +52,7 @@ impl Data for KeyValueDatabase {
 		))
 	}
 
-	fn update_participants(&self, root_id: &[u8], participants: &[OwnedUserId]) -> Result<()> {
+	pub(super) fn update_participants(&self, root_id: &[u8], participants: &[OwnedUserId]) -> Result<()> {
 		let users = participants
 			.iter()
 			.map(|user| user.as_bytes())
@@ -62,7 +64,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn get_participants(&self, root_id: &[u8]) -> Result<Option<Vec<OwnedUserId>>> {
+	pub(super) fn get_participants(&self, root_id: &[u8]) -> Result<Option<Vec<OwnedUserId>>> {
 		if let Some(users) = self.threadid_userids.get(root_id)? {
 			Ok(Some(
 				users

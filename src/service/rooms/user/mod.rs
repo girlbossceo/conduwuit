@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::sync::Arc;
@@ -8,10 +11,16 @@ use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use crate::Result;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		self.db.reset_notification_counts(user_id, room_id)
 	}

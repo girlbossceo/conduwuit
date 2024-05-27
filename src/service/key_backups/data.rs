@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use ruma::{
 	api::client::{
@@ -9,48 +9,24 @@ use ruma::{
 	OwnedRoomId, RoomId, UserId,
 };
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::{services, utils, Error, KeyValueDatabase, KvTree, Result};
 
-pub(crate) trait Data: Send + Sync {
-	fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String>;
-
-	fn delete_backup(&self, user_id: &UserId, version: &str) -> Result<()>;
-
-	fn update_backup(&self, user_id: &UserId, version: &str, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String>;
-
-	fn get_latest_backup_version(&self, user_id: &UserId) -> Result<Option<String>>;
-
-	fn get_latest_backup(&self, user_id: &UserId) -> Result<Option<(String, Raw<BackupAlgorithm>)>>;
-
-	fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Option<Raw<BackupAlgorithm>>>;
-
-	fn add_key(
-		&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str, key_data: &Raw<KeyBackupData>,
-	) -> Result<()>;
-
-	fn count_keys(&self, user_id: &UserId, version: &str) -> Result<usize>;
-
-	fn get_etag(&self, user_id: &UserId, version: &str) -> Result<String>;
-
-	fn get_all(&self, user_id: &UserId, version: &str) -> Result<BTreeMap<OwnedRoomId, RoomKeyBackup>>;
-
-	fn get_room(
-		&self, user_id: &UserId, version: &str, room_id: &RoomId,
-	) -> Result<BTreeMap<String, Raw<KeyBackupData>>>;
-
-	fn get_session(
-		&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str,
-	) -> Result<Option<Raw<KeyBackupData>>>;
-
-	fn delete_all_keys(&self, user_id: &UserId, version: &str) -> Result<()>;
-
-	fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &RoomId) -> Result<()>;
-
-	fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) -> Result<()>;
+pub(crate) struct Data {
+	backupid_algorithm: Arc<dyn KvTree>,
+	backupid_etag: Arc<dyn KvTree>,
+	backupkeyid_backup: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			backupid_algorithm: db.backupid_algorithm.clone(),
+			backupid_etag: db.backupid_etag.clone(),
+			backupkeyid_backup: db.backupkeyid_backup.clone(),
+		}
+	}
+
+	pub(super) fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
 		let version = services().globals.next_count()?.to_string();
 
 		let mut key = user_id.as_bytes().to_vec();
@@ -66,7 +42,7 @@ impl Data for KeyValueDatabase {
 		Ok(version)
 	}
 
-	fn delete_backup(&self, user_id: &UserId, version: &str) -> Result<()> {
+	pub(super) fn delete_backup(&self, user_id: &UserId, version: &str) -> Result<()> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
@@ -83,7 +59,9 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn update_backup(&self, user_id: &UserId, version: &str, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
+	pub(super) fn update_backup(
+		&self, user_id: &UserId, version: &str, backup_metadata: &Raw<BackupAlgorithm>,
+	) -> Result<String> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
@@ -99,7 +77,7 @@ impl Data for KeyValueDatabase {
 		Ok(version.to_owned())
 	}
 
-	fn get_latest_backup_version(&self, user_id: &UserId) -> Result<Option<String>> {
+	pub(super) fn get_latest_backup_version(&self, user_id: &UserId) -> Result<Option<String>> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		let mut last_possible_key = prefix.clone();
@@ -120,7 +98,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn get_latest_backup(&self, user_id: &UserId) -> Result<Option<(String, Raw<BackupAlgorithm>)>> {
+	pub(super) fn get_latest_backup(&self, user_id: &UserId) -> Result<Option<(String, Raw<BackupAlgorithm>)>> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		let mut last_possible_key = prefix.clone();
@@ -147,7 +125,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Option<Raw<BackupAlgorithm>>> {
+	pub(super) fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Option<Raw<BackupAlgorithm>>> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
@@ -160,7 +138,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn add_key(
+	pub(super) fn add_key(
 		&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str, key_data: &Raw<KeyBackupData>,
 	) -> Result<()> {
 		let mut key = user_id.as_bytes().to_vec();
@@ -185,7 +163,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn count_keys(&self, user_id: &UserId, version: &str) -> Result<usize> {
+	pub(super) fn count_keys(&self, user_id: &UserId, version: &str) -> Result<usize> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(version.as_bytes());
@@ -193,7 +171,7 @@ impl Data for KeyValueDatabase {
 		Ok(self.backupkeyid_backup.scan_prefix(prefix).count())
 	}
 
-	fn get_etag(&self, user_id: &UserId, version: &str) -> Result<String> {
+	pub(super) fn get_etag(&self, user_id: &UserId, version: &str) -> Result<String> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
@@ -208,7 +186,7 @@ impl Data for KeyValueDatabase {
 		.to_string())
 	}
 
-	fn get_all(&self, user_id: &UserId, version: &str) -> Result<BTreeMap<OwnedRoomId, RoomKeyBackup>> {
+	pub(super) fn get_all(&self, user_id: &UserId, version: &str) -> Result<BTreeMap<OwnedRoomId, RoomKeyBackup>> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(version.as_bytes());
@@ -257,7 +235,7 @@ impl Data for KeyValueDatabase {
 		Ok(rooms)
 	}
 
-	fn get_room(
+	pub(super) fn get_room(
 		&self, user_id: &UserId, version: &str, room_id: &RoomId,
 	) -> Result<BTreeMap<String, Raw<KeyBackupData>>> {
 		let mut prefix = user_id.as_bytes().to_vec();
@@ -289,7 +267,7 @@ impl Data for KeyValueDatabase {
 			.collect())
 	}
 
-	fn get_session(
+	pub(super) fn get_session(
 		&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str,
 	) -> Result<Option<Raw<KeyBackupData>>> {
 		let mut key = user_id.as_bytes().to_vec();
@@ -309,7 +287,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn delete_all_keys(&self, user_id: &UserId, version: &str) -> Result<()> {
+	pub(super) fn delete_all_keys(&self, user_id: &UserId, version: &str) -> Result<()> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
@@ -322,7 +300,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &RoomId) -> Result<()> {
+	pub(super) fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &RoomId) -> Result<()> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
@@ -337,7 +315,9 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) -> Result<()> {
+	pub(super) fn delete_room_key(
+		&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str,
+	) -> Result<()> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());

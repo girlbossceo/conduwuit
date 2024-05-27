@@ -1,22 +1,25 @@
+use std::sync::Arc;
+
+use database::{KeyValueDatabase, KvTree};
 use ruma::{
 	api::client::push::{set_pusher, Pusher},
 	UserId,
 };
 
-use crate::{utils, Error, KeyValueDatabase, Result};
+use crate::{utils, Error, Result};
 
-pub(crate) trait Data: Send + Sync {
-	fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()>;
-
-	fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>>;
-
-	fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>>;
-
-	fn get_pushkeys<'a>(&'a self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>> + 'a>;
+pub struct Data {
+	senderkey_pusher: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			senderkey_pusher: db.senderkey_pusher.clone(),
+		}
+	}
+
+	pub(super) fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
 		match &pusher {
 			set_pusher::v3::PusherAction::Post(data) => {
 				let mut key = sender.as_bytes().to_vec();
@@ -35,7 +38,7 @@ impl Data for KeyValueDatabase {
 		}
 	}
 
-	fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
+	pub(super) fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
 		let mut senderkey = sender.as_bytes().to_vec();
 		senderkey.push(0xFF);
 		senderkey.extend_from_slice(pushkey.as_bytes());
@@ -46,7 +49,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> {
+	pub(super) fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> {
 		let mut prefix = sender.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -56,7 +59,7 @@ impl Data for KeyValueDatabase {
 			.collect()
 	}
 
-	fn get_pushkeys<'a>(&'a self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>> + 'a> {
+	pub(super) fn get_pushkeys<'a>(&'a self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>> + 'a> {
 		let mut prefix = sender.as_bytes().to_vec();
 		prefix.push(0xFF);
 

@@ -1,8 +1,10 @@
+use conduit::Server;
+
 mod data;
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	mem,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex, Mutex as StdMutex},
 };
 
 use data::Data;
@@ -22,7 +24,7 @@ use ruma::{
 	UInt, UserId,
 };
 
-use crate::{service, services, Error, Result};
+use crate::{database::KeyValueDatabase, service, services, Error, Result};
 
 pub struct SlidingSyncCache {
 	lists: BTreeMap<String, SyncRequestList>,
@@ -34,11 +36,18 @@ pub struct SlidingSyncCache {
 type DbConnections = Mutex<BTreeMap<(OwnedUserId, OwnedDeviceId, String), Arc<Mutex<SlidingSyncCache>>>>;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 	pub connections: DbConnections,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db.clone()),
+			connections: StdMutex::new(BTreeMap::new()),
+		})
+	}
+
 	/// Check if a user has an account on this homeserver.
 	pub fn exists(&self, user_id: &UserId) -> Result<bool> { self.db.exists(user_id) }
 
@@ -381,7 +390,7 @@ impl Service {
 	pub fn parse_master_key(
 		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>,
 	) -> Result<(Vec<u8>, CrossSigningKey)> {
-		self.db.parse_master_key(user_id, master_key)
+		Data::parse_master_key(user_id, master_key)
 	}
 
 	pub fn get_key(

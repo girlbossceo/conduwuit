@@ -1,30 +1,33 @@
 use std::{mem::size_of, sync::Arc};
 
+use database::KvTree;
 use ruma::{EventId, RoomId, UserId};
 
 use crate::{services, utils, Error, KeyValueDatabase, PduCount, PduEvent, Result};
 
-pub trait Data: Send + Sync {
-	fn add_relation(&self, from: u64, to: u64) -> Result<()>;
-	#[allow(clippy::type_complexity)]
-	fn relations_until<'a>(
-		&'a self, user_id: &'a UserId, room_id: u64, target: u64, until: PduCount,
-	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>>;
-	fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()>;
-	fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool>;
-	fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()>;
-	fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool>;
+pub(super) struct Data {
+	tofrom_relation: Arc<dyn KvTree>,
+	referencedevents: Arc<dyn KvTree>,
+	softfailedeventids: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn add_relation(&self, from: u64, to: u64) -> Result<()> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			tofrom_relation: db.tofrom_relation.clone(),
+			referencedevents: db.referencedevents.clone(),
+			softfailedeventids: db.softfailedeventids.clone(),
+		}
+	}
+
+	pub(super) fn add_relation(&self, from: u64, to: u64) -> Result<()> {
 		let mut key = to.to_be_bytes().to_vec();
 		key.extend_from_slice(&from.to_be_bytes());
 		self.tofrom_relation.insert(&key, &[])?;
 		Ok(())
 	}
 
-	fn relations_until<'a>(
+	pub(super) fn relations_until<'a>(
 		&'a self, user_id: &'a UserId, shortroomid: u64, target: u64, until: PduCount,
 	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
 		let prefix = target.to_be_bytes().to_vec();
@@ -63,7 +66,7 @@ impl Data for KeyValueDatabase {
 		))
 	}
 
-	fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
+	pub(super) fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
 		for prev in event_ids {
 			let mut key = room_id.as_bytes().to_vec();
 			key.extend_from_slice(prev.as_bytes());
@@ -73,17 +76,17 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
+	pub(super) fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.extend_from_slice(event_id.as_bytes());
 		Ok(self.referencedevents.get(&key)?.is_some())
 	}
 
-	fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> {
+	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> {
 		self.softfailedeventids.insert(event_id.as_bytes(), &[])
 	}
 
-	fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
+	pub(super) fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
 		self.softfailedeventids
 			.get(event_id.as_bytes())
 			.map(|o| o.is_some())

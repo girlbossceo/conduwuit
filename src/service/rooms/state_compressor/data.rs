@@ -1,21 +1,28 @@
 use std::{collections::HashSet, mem::size_of, sync::Arc};
 
+use database::KvTree;
+
 use super::CompressedStateEvent;
 use crate::{utils, Error, KeyValueDatabase, Result};
 
-pub struct StateDiff {
-	pub parent: Option<u64>,
-	pub added: Arc<HashSet<CompressedStateEvent>>,
-	pub removed: Arc<HashSet<CompressedStateEvent>>,
+pub(super) struct StateDiff {
+	pub(super) parent: Option<u64>,
+	pub(super) added: Arc<HashSet<CompressedStateEvent>>,
+	pub(super) removed: Arc<HashSet<CompressedStateEvent>>,
 }
 
-pub trait Data: Send + Sync {
-	fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff>;
-	fn save_statediff(&self, shortstatehash: u64, diff: StateDiff) -> Result<()>;
+pub struct Data {
+	shortstatehash_statediff: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			shortstatehash_statediff: db.shortstatehash_statediff.clone(),
+		}
+	}
+
+	pub(super) fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
 		let value = self
 			.shortstatehash_statediff
 			.get(&shortstatehash.to_be_bytes())?
@@ -53,7 +60,7 @@ impl Data for KeyValueDatabase {
 		})
 	}
 
-	fn save_statediff(&self, shortstatehash: u64, diff: StateDiff) -> Result<()> {
+	pub(super) fn save_statediff(&self, shortstatehash: u64, diff: StateDiff) -> Result<()> {
 		let mut value = diff.parent.unwrap_or(0).to_be_bytes().to_vec();
 		for new in diff.added.iter() {
 			value.extend_from_slice(&new[..]);

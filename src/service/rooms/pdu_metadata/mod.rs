@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::sync::Arc;
@@ -13,7 +16,7 @@ use serde::Deserialize;
 use crate::{services, PduCount, PduEvent, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	db: Data,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -27,6 +30,12 @@ struct ExtractRelatesToEventId {
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	#[tracing::instrument(skip(self, from, to))]
 	pub fn add_relation(&self, from: PduCount, to: PduCount) -> Result<()> {
 		match (from, to) {

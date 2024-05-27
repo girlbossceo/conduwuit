@@ -1,19 +1,21 @@
+use std::sync::Arc;
+
+use conduit::Result;
+use database::{KeyValueDatabase, KvTree};
 use ruma::{DeviceId, TransactionId, UserId};
 
-use crate::{KeyValueDatabase, Result};
-
-pub(crate) trait Data: Send + Sync {
-	fn add_txnid(
-		&self, user_id: &UserId, device_id: Option<&DeviceId>, txn_id: &TransactionId, data: &[u8],
-	) -> Result<()>;
-
-	fn existing_txnid(
-		&self, user_id: &UserId, device_id: Option<&DeviceId>, txn_id: &TransactionId,
-	) -> Result<Option<Vec<u8>>>;
+pub struct Data {
+	userdevicetxnid_response: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn add_txnid(
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			userdevicetxnid_response: db.userdevicetxnid_response.clone(),
+		}
+	}
+
+	pub(super) fn add_txnid(
 		&self, user_id: &UserId, device_id: Option<&DeviceId>, txn_id: &TransactionId, data: &[u8],
 	) -> Result<()> {
 		let mut key = user_id.as_bytes().to_vec();
@@ -27,7 +29,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn existing_txnid(
+	pub(super) fn existing_txnid(
 		&self, user_id: &UserId, device_id: Option<&DeviceId>, txn_id: &TransactionId,
 	) -> Result<Option<Vec<u8>>> {
 		let mut key = user_id.as_bytes().to_vec();

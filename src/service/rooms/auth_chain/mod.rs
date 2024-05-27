@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::{
 	collections::{BTreeSet, HashSet},
@@ -11,10 +14,16 @@ use tracing::{debug, error, trace, warn};
 use crate::{services, Error, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	pub async fn event_ids_iter<'a>(
 		&self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {

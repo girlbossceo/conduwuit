@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
+use conduit::Server;
 use data::Data;
+use database::KeyValueDatabase;
 use itertools::Itertools;
 use ruma::{
 	events::{
@@ -24,10 +26,16 @@ use crate::{service::appservice::RegistrationInfo, services, user_is_local, Erro
 mod data;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	/// Update current membership data.
 	#[tracing::instrument(skip(self, last_state))]
 	#[allow(clippy::too_many_arguments)]

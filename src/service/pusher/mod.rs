@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::{fmt::Debug, mem, sync::Arc};
 
@@ -25,10 +28,16 @@ use tracing::{info, trace, warn};
 use crate::{debug_info, services, Error, PduEvent, Result};
 
 pub struct Service {
-	pub(super) db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
 		self.db.set_pusher(sender, pusher)
 	}

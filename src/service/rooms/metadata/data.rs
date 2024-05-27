@@ -1,20 +1,29 @@
+use std::sync::Arc;
+
+use database::KvTree;
 use ruma::{OwnedRoomId, RoomId};
 use tracing::error;
 
 use crate::{services, utils, Error, KeyValueDatabase, Result};
 
-pub trait Data: Send + Sync {
-	fn exists(&self, room_id: &RoomId) -> Result<bool>;
-	fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
-	fn is_disabled(&self, room_id: &RoomId) -> Result<bool>;
-	fn disable_room(&self, room_id: &RoomId, disabled: bool) -> Result<()>;
-	fn is_banned(&self, room_id: &RoomId) -> Result<bool>;
-	fn ban_room(&self, room_id: &RoomId, banned: bool) -> Result<()>;
-	fn list_banned_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
+pub struct Data {
+	disabledroomids: Arc<dyn KvTree>,
+	bannedroomids: Arc<dyn KvTree>,
+	roomid_shortroomid: Arc<dyn KvTree>,
+	pduid_pdu: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn exists(&self, room_id: &RoomId) -> Result<bool> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			disabledroomids: db.disabledroomids.clone(),
+			bannedroomids: db.bannedroomids.clone(),
+			roomid_shortroomid: db.roomid_shortroomid.clone(),
+			pduid_pdu: db.pduid_pdu.clone(),
+		}
+	}
+
+	pub(super) fn exists(&self, room_id: &RoomId) -> Result<bool> {
 		let prefix = match services().rooms.short.get_shortroomid(room_id)? {
 			Some(b) => b.to_be_bytes().to_vec(),
 			None => return Ok(false),
@@ -29,7 +38,7 @@ impl Data for KeyValueDatabase {
 			.is_some())
 	}
 
-	fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
+	pub(super) fn iter_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
 		Box::new(self.roomid_shortroomid.iter().map(|(bytes, _)| {
 			RoomId::parse(
 				utils::string_from_bytes(&bytes)
@@ -39,11 +48,11 @@ impl Data for KeyValueDatabase {
 		}))
 	}
 
-	fn is_disabled(&self, room_id: &RoomId) -> Result<bool> {
+	pub(super) fn is_disabled(&self, room_id: &RoomId) -> Result<bool> {
 		Ok(self.disabledroomids.get(room_id.as_bytes())?.is_some())
 	}
 
-	fn disable_room(&self, room_id: &RoomId, disabled: bool) -> Result<()> {
+	pub(super) fn disable_room(&self, room_id: &RoomId, disabled: bool) -> Result<()> {
 		if disabled {
 			self.disabledroomids.insert(room_id.as_bytes(), &[])?;
 		} else {
@@ -53,9 +62,11 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn is_banned(&self, room_id: &RoomId) -> Result<bool> { Ok(self.bannedroomids.get(room_id.as_bytes())?.is_some()) }
+	pub(super) fn is_banned(&self, room_id: &RoomId) -> Result<bool> {
+		Ok(self.bannedroomids.get(room_id.as_bytes())?.is_some())
+	}
 
-	fn ban_room(&self, room_id: &RoomId, banned: bool) -> Result<()> {
+	pub(super) fn ban_room(&self, room_id: &RoomId, banned: bool) -> Result<()> {
 		if banned {
 			self.bannedroomids.insert(room_id.as_bytes(), &[])?;
 		} else {
@@ -65,7 +76,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn list_banned_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
+	pub(super) fn list_banned_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
 		Box::new(self.bannedroomids.iter().map(
 			|(room_id_bytes, _ /* non-banned rooms should not be in this table */)| {
 				let room_id = utils::string_from_bytes(&room_id_bytes)

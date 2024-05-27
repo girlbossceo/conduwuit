@@ -1,3 +1,8 @@
+use std::sync::Mutex as StdMutex;
+
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::{
 	collections::HashSet,
@@ -41,16 +46,25 @@ type ParentStatesVec = Vec<(
 )>;
 
 type HashSetCompressStateEvent = Result<(u64, Arc<HashSet<CompressedStateEvent>>, Arc<HashSet<CompressedStateEvent>>)>;
+pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 
 	pub stateinfo_cache: StateInfoLruCache,
 }
 
-pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
-
 impl Service {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		let config = &server.config;
+		Ok(Self {
+			db: Data::new(db),
+			stateinfo_cache: StdMutex::new(LruCache::new(
+				(f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
+			)),
+		})
+	}
+
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
 	#[tracing::instrument(skip(self))]

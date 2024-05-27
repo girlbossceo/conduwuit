@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use conduit::debug_warn;
+use database::KvTree;
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 
 use crate::{
@@ -8,26 +11,20 @@ use crate::{
 	Error, KeyValueDatabase, Result,
 };
 
-pub trait Data: Send + Sync {
-	/// Returns the latest presence event for the given user.
-	fn get_presence(&self, user_id: &UserId) -> Result<Option<(u64, PresenceEvent)>>;
-
-	/// Adds a presence event which will be saved until a new event replaces it.
-	fn set_presence(
-		&self, user_id: &UserId, presence_state: &PresenceState, currently_active: Option<bool>,
-		last_active_ago: Option<UInt>, status_msg: Option<String>,
-	) -> Result<()>;
-
-	/// Removes the presence record for the given user from the database.
-	fn remove_presence(&self, user_id: &UserId) -> Result<()>;
-
-	/// Returns the most recent presence updates that happened after the event
-	/// with id `since`.
-	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + 'a>;
+pub struct Data {
+	presenceid_presence: Arc<dyn KvTree>,
+	userid_presenceid: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn get_presence(&self, user_id: &UserId) -> Result<Option<(u64, PresenceEvent)>> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			presenceid_presence: db.presenceid_presence.clone(),
+			userid_presenceid: db.userid_presenceid.clone(),
+		}
+	}
+
+	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<(u64, PresenceEvent)>> {
 		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes())? {
 			let count = utils::u64_from_bytes(&count_bytes)
 				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
@@ -44,7 +41,7 @@ impl Data for KeyValueDatabase {
 		}
 	}
 
-	fn set_presence(
+	pub(super) fn set_presence(
 		&self, user_id: &UserId, presence_state: &PresenceState, currently_active: Option<bool>,
 		last_active_ago: Option<UInt>, status_msg: Option<String>,
 	) -> Result<()> {
@@ -105,7 +102,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn remove_presence(&self, user_id: &UserId) -> Result<()> {
+	pub(super) fn remove_presence(&self, user_id: &UserId) -> Result<()> {
 		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes())? {
 			let count = utils::u64_from_bytes(&count_bytes)
 				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
@@ -117,7 +114,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + 'a> {
+	pub fn presence_since<'a>(&'a self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + 'a> {
 		Box::new(
 			self.presenceid_presence
 				.iter()

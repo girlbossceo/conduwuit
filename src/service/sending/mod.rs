@@ -1,3 +1,5 @@
+use conduit::Server;
+
 mod appservice;
 mod data;
 pub mod resolve;
@@ -15,10 +17,10 @@ use ruma::{
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{error, warn};
 
-use crate::{server_is_ours, services, Config, Error, Result};
+use crate::{server_is_ours, services, Error, KeyValueDatabase, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 
 	/// The state for a given state hash.
 	sender: loole::Sender<Msg>,
@@ -51,16 +53,17 @@ pub enum SendingEvent {
 }
 
 impl Service {
-	pub fn build(db: Arc<dyn Data>, config: &Config) -> Arc<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Arc<Self>> {
+		let config = &server.config;
 		let (sender, receiver) = loole::unbounded();
-		Arc::new(Self {
-			db,
+		Ok(Arc::new(Self {
+			db: Data::new(db.clone()),
 			sender,
 			receiver: Mutex::new(receiver),
 			handler_join: Mutex::new(None),
 			startup_netburst: config.startup_netburst,
 			startup_netburst_keep: config.startup_netburst_keep,
-		})
+		}))
 	}
 
 	pub async fn close(&self) {

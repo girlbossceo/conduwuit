@@ -14,7 +14,6 @@ pub(super) async fn account_data(subcommand: AccountData) -> Result<RoomMessageE
 			let timer = tokio::time::Instant::now();
 			let results = services()
 				.account_data
-				.db
 				.changes_since(room_id.as_deref(), &user_id, since)?;
 			let query_time = timer.elapsed();
 
@@ -30,7 +29,6 @@ pub(super) async fn account_data(subcommand: AccountData) -> Result<RoomMessageE
 			let timer = tokio::time::Instant::now();
 			let results = services()
 				.account_data
-				.db
 				.get(room_id.as_deref(), &user_id, kind)?;
 			let query_time = timer.elapsed();
 

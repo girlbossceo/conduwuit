@@ -1,3 +1,8 @@
+use std::sync::Mutex as StdMutex;
+
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::{
 	collections::HashMap,
@@ -29,12 +34,25 @@ use tracing::{error, warn};
 use crate::{service::pdu::PduBuilder, services, Error, PduEvent, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
 	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
 }
 
 impl Service {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		let config = &server.config;
+		Ok(Self {
+			db: Data::new(db),
+			server_visibility_cache: StdMutex::new(LruCache::new(
+				(f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
+			)),
+			user_visibility_cache: StdMutex::new(LruCache::new(
+				(f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
+			)),
+		})
+	}
+
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self))]

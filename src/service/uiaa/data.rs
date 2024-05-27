@@ -1,29 +1,30 @@
+use std::sync::Arc;
+
+use conduit::{Error, Result};
+use database::{KeyValueDatabase, KvTree};
 use ruma::{
 	api::client::{error::ErrorKind, uiaa::UiaaInfo},
 	CanonicalJsonValue, DeviceId, UserId,
 };
 
-use crate::{Error, KeyValueDatabase, Result};
-
-pub(crate) trait Data: Send + Sync {
-	fn set_uiaa_request(
-		&self, user_id: &UserId, device_id: &DeviceId, session: &str, request: &CanonicalJsonValue,
-	) -> Result<()>;
-
-	fn get_uiaa_request(&self, user_id: &UserId, device_id: &DeviceId, session: &str) -> Option<CanonicalJsonValue>;
-
-	fn update_uiaa_session(
-		&self, user_id: &UserId, device_id: &DeviceId, session: &str, uiaainfo: Option<&UiaaInfo>,
-	) -> Result<()>;
-
-	fn get_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &str) -> Result<UiaaInfo>;
+pub struct Data {
+	userdevicesessionid_uiaainfo: Arc<dyn KvTree>,
+	db: Arc<KeyValueDatabase>,
 }
 
-impl Data for KeyValueDatabase {
-	fn set_uiaa_request(
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			userdevicesessionid_uiaainfo: db.userdevicesessionid_uiaainfo.clone(),
+			db: db.clone(),
+		}
+	}
+
+	pub(super) fn set_uiaa_request(
 		&self, user_id: &UserId, device_id: &DeviceId, session: &str, request: &CanonicalJsonValue,
 	) -> Result<()> {
-		self.userdevicesessionid_uiaarequest
+		self.db
+			.userdevicesessionid_uiaarequest
 			.write()
 			.unwrap()
 			.insert(
@@ -34,15 +35,18 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn get_uiaa_request(&self, user_id: &UserId, device_id: &DeviceId, session: &str) -> Option<CanonicalJsonValue> {
-		self.userdevicesessionid_uiaarequest
+	pub(super) fn get_uiaa_request(
+		&self, user_id: &UserId, device_id: &DeviceId, session: &str,
+	) -> Option<CanonicalJsonValue> {
+		self.db
+			.userdevicesessionid_uiaarequest
 			.read()
 			.unwrap()
 			.get(&(user_id.to_owned(), device_id.to_owned(), session.to_owned()))
 			.map(ToOwned::to_owned)
 	}
 
-	fn update_uiaa_session(
+	pub(super) fn update_uiaa_session(
 		&self, user_id: &UserId, device_id: &DeviceId, session: &str, uiaainfo: Option<&UiaaInfo>,
 	) -> Result<()> {
 		let mut userdevicesessionid = user_id.as_bytes().to_vec();
@@ -64,7 +68,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn get_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &str) -> Result<UiaaInfo> {
+	pub(super) fn get_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &str) -> Result<UiaaInfo> {
 		let mut userdevicesessionid = user_id.as_bytes().to_vec();
 		userdevicesessionid.push(0xFF);
 		userdevicesessionid.extend_from_slice(device_id.as_bytes());

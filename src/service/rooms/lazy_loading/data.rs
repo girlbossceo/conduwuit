@@ -1,22 +1,22 @@
+use std::sync::Arc;
+
+use database::KvTree;
 use ruma::{DeviceId, RoomId, UserId};
 
 use crate::{KeyValueDatabase, Result};
 
-pub trait Data: Send + Sync {
-	fn lazy_load_was_sent_before(
-		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
-	) -> Result<bool>;
-
-	fn lazy_load_confirm_delivery(
-		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId,
-		confirmed_user_ids: &mut dyn Iterator<Item = &UserId>,
-	) -> Result<()>;
-
-	fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) -> Result<()>;
+pub struct Data {
+	lazyloadedids: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn lazy_load_was_sent_before(
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			lazyloadedids: db.lazyloadedids.clone(),
+		}
+	}
+
+	pub(super) fn lazy_load_was_sent_before(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
 	) -> Result<bool> {
 		let mut key = user_id.as_bytes().to_vec();
@@ -29,7 +29,7 @@ impl Data for KeyValueDatabase {
 		Ok(self.lazyloadedids.get(&key)?.is_some())
 	}
 
-	fn lazy_load_confirm_delivery(
+	pub(super) fn lazy_load_confirm_delivery(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId,
 		confirmed_user_ids: &mut dyn Iterator<Item = &UserId>,
 	) -> Result<()> {
@@ -49,7 +49,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) -> Result<()> {
+	pub(super) fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) -> Result<()> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(device_id.as_bytes());

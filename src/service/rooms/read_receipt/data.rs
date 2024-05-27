@@ -1,5 +1,6 @@
-use std::mem::size_of;
+use std::{mem::size_of, sync::Arc};
 
+use database::KvTree;
 use ruma::{
 	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
 	serde::Raw,
@@ -11,32 +12,22 @@ use crate::{services, utils, Error, KeyValueDatabase, Result};
 type AnySyncEphemeralRoomEventIter<'a> =
 	Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
 
-pub trait Data: Send + Sync {
-	/// Replaces the previous read receipt.
-	fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()>;
-
-	/// Returns an iterator over the most recent read_receipts in a room that
-	/// happened after the event with id `since`.
-	fn readreceipts_since(&self, room_id: &RoomId, since: u64) -> AnySyncEphemeralRoomEventIter<'_>;
-
-	/// Sets a private read marker at `count`.
-	fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()>;
-
-	/// Returns the private read marker.
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>>;
-
-	/// Returns the count of the last typing update in this room.
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
+pub(super) struct Data {
+	roomuserid_privateread: Arc<dyn KvTree>,
+	roomuserid_lastprivatereadupdate: Arc<dyn KvTree>,
+	readreceiptid_readreceipt: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			roomuserid_privateread: db.roomuserid_privateread.clone(),
+			roomuserid_lastprivatereadupdate: db.roomuserid_lastprivatereadupdate.clone(),
+			readreceiptid_readreceipt: db.readreceiptid_readreceipt.clone(),
+		}
+	}
+
+	pub(super) fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -71,9 +62,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn readreceipts_since<'a>(
-		&'a self, room_id: &RoomId, since: u64,
-	) -> Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a> {
+	pub(super) fn readreceipts_since<'a>(&'a self, room_id: &RoomId, since: u64) -> AnySyncEphemeralRoomEventIter<'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		let prefix2 = prefix.clone();
@@ -107,7 +96,7 @@ impl Data for KeyValueDatabase {
 		)
 	}
 
-	fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()> {
+	pub(super) fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
@@ -119,7 +108,7 @@ impl Data for KeyValueDatabase {
 			.insert(&key, &services().globals.next_count()?.to_be_bytes())
 	}
 
-	fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
+	pub(super) fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
@@ -133,7 +122,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+	pub(super) fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());

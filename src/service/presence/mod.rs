@@ -1,3 +1,5 @@
+use conduit::Server;
+
 mod data;
 
 use std::{sync::Arc, time::Duration};
@@ -14,9 +16,10 @@ use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::{debug, error};
 
 use crate::{
+	database::KeyValueDatabase,
 	services, user_is_local,
 	utils::{self},
-	Config, Error, Result,
+	Error, Result,
 };
 
 /// Represents data required to be kept in order to implement the presence
@@ -77,7 +80,7 @@ impl Presence {
 }
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 	pub timer_sender: loole::Sender<(OwnedUserId, Duration)>,
 	timer_receiver: Mutex<loole::Receiver<(OwnedUserId, Duration)>>,
 	handler_join: Mutex<Option<JoinHandle<()>>>,
@@ -85,15 +88,16 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(db: Arc<dyn Data>, config: &Config) -> Arc<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Arc<Self>> {
+		let config = &server.config;
 		let (timer_sender, timer_receiver) = loole::unbounded();
-		Arc::new(Self {
-			db,
+		Ok(Arc::new(Self {
+			db: Data::new(db),
 			timer_sender,
 			timer_receiver: Mutex::new(timer_receiver),
 			handler_join: Mutex::new(None),
 			timeout_remote_users: config.presence_timeout_remote_users,
-		})
+		}))
 	}
 
 	pub async fn start_handler(self: &Arc<Self>) {

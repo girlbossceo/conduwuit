@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 pub mod console;
 mod create;
 mod grant;
@@ -44,17 +47,16 @@ pub struct Command {
 }
 
 impl Service {
-	#[must_use]
-	pub fn build() -> Arc<Self> {
+	pub fn build(_server: &Arc<Server>, _db: &Arc<KeyValueDatabase>) -> Result<Arc<Self>> {
 		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
-		Arc::new(Self {
+		Ok(Arc::new(Self {
 			sender,
 			receiver: Mutex::new(receiver),
 			handler_join: Mutex::new(None),
 			handle: Mutex::new(None),
 			#[cfg(feature = "console")]
 			console: console::Console::new(),
-		})
+		}))
 	}
 
 	pub async fn start_handler(self: &Arc<Self>) {

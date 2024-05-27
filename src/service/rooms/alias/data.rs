@@ -1,31 +1,26 @@
+use std::sync::Arc;
+
+use database::KvTree;
 use ruma::{api::client::error::ErrorKind, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, UserId};
 
 use crate::{services, utils, Error, KeyValueDatabase, Result};
 
-pub trait Data: Send + Sync {
-	/// Creates or updates the alias to the given room id.
-	fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()>;
-
-	/// Forgets about an alias. Returns an error if the alias did not exist.
-	fn remove_alias(&self, alias: &RoomAliasId) -> Result<()>;
-
-	/// Looks up the roomid for the given alias.
-	fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>>;
-
-	/// Finds the user who assigned the given alias to a room
-	fn who_created_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedUserId>>;
-
-	/// Returns all local aliases that point to the given room
-	fn local_aliases_for_room<'a>(
-		&'a self, room_id: &RoomId,
-	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a>;
-
-	/// Returns all local aliases on the server
-	fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a>;
+pub struct Data {
+	alias_userid: Arc<dyn KvTree>,
+	alias_roomid: Arc<dyn KvTree>,
+	aliasid_alias: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			alias_userid: db.alias_userid.clone(),
+			alias_roomid: db.alias_roomid.clone(),
+			aliasid_alias: db.aliasid_alias.clone(),
+		}
+	}
+
+	pub(super) fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
 		// Comes first as we don't want a stuck alias
 		self.alias_userid
 			.insert(alias.alias().as_bytes(), user_id.as_bytes())?;
@@ -41,7 +36,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn remove_alias(&self, alias: &RoomAliasId) -> Result<()> {
+	pub(super) fn remove_alias(&self, alias: &RoomAliasId) -> Result<()> {
 		if let Some(room_id) = self.alias_roomid.get(alias.alias().as_bytes())? {
 			let mut prefix = room_id;
 			prefix.push(0xFF);
@@ -60,7 +55,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
+	pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
 		self.alias_roomid
 			.get(alias.alias().as_bytes())?
 			.map(|bytes| {
@@ -73,7 +68,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn who_created_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedUserId>> {
+	pub(super) fn who_created_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedUserId>> {
 		self.alias_userid
 			.get(alias.alias().as_bytes())?
 			.map(|bytes| {
@@ -86,7 +81,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn local_aliases_for_room<'a>(
+	pub fn local_aliases_for_room<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
@@ -100,7 +95,7 @@ impl Data for KeyValueDatabase {
 		}))
 	}
 
-	fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
+	pub fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
 		Box::new(
 			self.alias_roomid
 				.iter()

@@ -1,30 +1,24 @@
+use std::sync::Arc;
+
+use database::KvTree;
 use ruma::RoomId;
 
 use crate::{services, utils, KeyValueDatabase, Result};
 
 type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>>;
 
-pub trait Data: Send + Sync {
-	fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()>;
-
-	fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()>;
-
-	fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a>;
+pub struct Data {
+	tokenids: Arc<dyn KvTree>,
 }
 
-/// Splits a string into tokens used as keys in the search inverted index
-///
-/// This may be used to tokenize both message bodies (for indexing) or search
-/// queries (for querying).
-fn tokenize(body: &str) -> impl Iterator<Item = String> + '_ {
-	body.split_terminator(|c: char| !c.is_alphanumeric())
-		.filter(|s| !s.is_empty())
-		.filter(|word| word.len() <= 50)
-		.map(str::to_lowercase)
-}
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			tokenids: db.tokenids.clone(),
+		}
+	}
 
-impl Data for KeyValueDatabase {
-	fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
+	pub(super) fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
 		let mut batch = tokenize(message_body).map(|word| {
 			let mut key = shortroomid.to_be_bytes().to_vec();
 			key.extend_from_slice(word.as_bytes());
@@ -36,7 +30,7 @@ impl Data for KeyValueDatabase {
 		self.tokenids.insert_batch(&mut batch)
 	}
 
-	fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
+	pub(super) fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
 		let batch = tokenize(message_body).map(|word| {
 			let mut key = shortroomid.to_be_bytes().to_vec();
 			key.extend_from_slice(word.as_bytes());
@@ -52,7 +46,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
+	pub(super) fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
 		let prefix = services()
 			.rooms
 			.short
@@ -87,4 +81,15 @@ impl Data for KeyValueDatabase {
 
 		Ok(Some((Box::new(common_elements), words)))
 	}
+}
+
+/// Splits a string into tokens used as keys in the search inverted index
+///
+/// This may be used to tokenize both message bodies (for indexing) or search
+/// queries (for querying).
+fn tokenize(body: &str) -> impl Iterator<Item = String> + '_ {
+	body.split_terminator(|c: char| !c.is_alphanumeric())
+		.filter(|s| !s.is_empty())
+		.filter(|word| word.len() <= 50)
+		.map(str::to_lowercase)
 }

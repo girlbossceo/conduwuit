@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::{
@@ -74,12 +77,19 @@ struct ExtractBody {
 }
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 
 	pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+			lasttimelinecount_cache: Mutex::new(HashMap::new()),
+		})
+	}
+
 	#[tracing::instrument(skip(self))]
 	pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
 		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?

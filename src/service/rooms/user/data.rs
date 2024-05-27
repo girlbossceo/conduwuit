@@ -1,28 +1,30 @@
+use std::sync::Arc;
+
+use database::KvTree;
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::{services, utils, Error, KeyValueDatabase, Result};
 
-pub trait Data: Send + Sync {
-	fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
-
-	fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
-
-	fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
-
-	// Returns the count at which the last reset_notification_counts was called
-	fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64>;
-
-	fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: u64) -> Result<()>;
-
-	fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>>;
-
-	fn get_shared_rooms<'a>(
-		&'a self, users: Vec<OwnedUserId>,
-	) -> Result<Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>>;
+pub struct Data {
+	userroomid_notificationcount: Arc<dyn KvTree>,
+	userroomid_highlightcount: Arc<dyn KvTree>,
+	roomuserid_lastnotificationread: Arc<dyn KvTree>,
+	roomsynctoken_shortstatehash: Arc<dyn KvTree>,
+	userroomid_joined: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			userroomid_notificationcount: db.userroomid_notificationcount.clone(),
+			userroomid_highlightcount: db.userroomid_highlightcount.clone(),
+			roomuserid_lastnotificationread: db.roomuserid_lastnotificationread.clone(),
+			roomsynctoken_shortstatehash: db.roomsynctoken_shortstatehash.clone(),
+			userroomid_joined: db.userroomid_joined.clone(),
+		}
+	}
+
+	pub(super) fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -41,7 +43,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+	pub(super) fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -53,7 +55,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+	pub(super) fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -65,7 +67,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
+	pub(super) fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
@@ -81,7 +83,9 @@ impl Data for KeyValueDatabase {
 			.unwrap_or(0))
 	}
 
-	fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: u64) -> Result<()> {
+	pub(super) fn associate_token_shortstatehash(
+		&self, room_id: &RoomId, token: u64, shortstatehash: u64,
+	) -> Result<()> {
 		let shortroomid = services()
 			.rooms
 			.short
@@ -95,7 +99,7 @@ impl Data for KeyValueDatabase {
 			.insert(&key, &shortstatehash.to_be_bytes())
 	}
 
-	fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
+	pub(super) fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
 		let shortroomid = services()
 			.rooms
 			.short
@@ -114,7 +118,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn get_shared_rooms<'a>(
+	pub(super) fn get_shared_rooms<'a>(
 		&'a self, users: Vec<OwnedUserId>,
 	) -> Result<Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>> {
 		let iterators = users.into_iter().map(move |user_id| {

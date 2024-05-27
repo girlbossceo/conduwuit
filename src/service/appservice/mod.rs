@@ -113,13 +113,17 @@ impl TryFrom<Registration> for RegistrationInfo {
 }
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
 }
 
+use conduit::Server;
+use database::KeyValueDatabase;
+
 impl Service {
-	pub fn build(db: Arc<dyn Data>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
 		let mut registration_info = BTreeMap::new();
+		let db = Data::new(db);
 		// Inserting registrations into cache
 		for appservice in db.all()? {
 			registration_info.insert(

@@ -1,6 +1,8 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod parse_incoming_pdu;
 mod signing_keys;
-pub struct Service;
 
 use std::{
 	cmp,
@@ -32,6 +34,8 @@ use tracing::{debug, error, info, trace, warn};
 use super::state_compressor::CompressedStateEvent;
 use crate::{debug_error, debug_info, pdu, services, Error, PduEvent, Result};
 
+pub struct Service;
+
 // We use some AsyncRecursiveType hacks here so we can call async funtion
 // recursively.
 type AsyncRecursiveType<'a, T> = Pin<Box<dyn Future<Output = T> + 'a + Send>>;
@@ -41,6 +45,8 @@ type AsyncRecursiveCanonicalJsonResult<'a> =
 	AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, _db: &Arc<KeyValueDatabase>) -> Result<Self> { Ok(Self {}) }
+
 	/// When receiving an event one needs to:
 	/// 0. Check the server is in the room
 	/// 1. Skip the PDU if we already know about it

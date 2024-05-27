@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use ruma::{
 	api::client::error::ErrorKind,
@@ -8,33 +8,25 @@ use ruma::{
 };
 use tracing::warn;
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::{services, utils, Error, KeyValueDatabase, KvTree, Result};
 
-pub trait Data: Send + Sync {
-	/// Places one event in the account data of the user and removes the
-	/// previous entry.
-	fn update(
-		&self, room_id: Option<&RoomId>, user_id: &UserId, event_type: RoomAccountDataEventType,
-		data: &serde_json::Value,
-	) -> Result<()>;
-
-	/// Searches the account data for a specific kind.
-	fn get(
-		&self, room_id: Option<&RoomId>, user_id: &UserId, kind: RoomAccountDataEventType,
-	) -> Result<Option<Box<serde_json::value::RawValue>>>;
-
-	/// Returns all changes to the account data that happened after `since`.
-	fn changes_since(
-		&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
-	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>>;
+pub(super) struct Data {
+	roomuserdataid_accountdata: Arc<dyn KvTree>,
+	roomusertype_roomuserdataid: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			roomuserdataid_accountdata: db.roomuserdataid_accountdata.clone(),
+			roomusertype_roomuserdataid: db.roomusertype_roomuserdataid.clone(),
+		}
+	}
+
 	/// Places one event in the account data of the user and removes the
 	/// previous entry.
-	#[tracing::instrument(skip(self, room_id, user_id, event_type, data))]
-	fn update(
-		&self, room_id: Option<&RoomId>, user_id: &UserId, event_type: RoomAccountDataEventType,
+	pub(super) fn update(
+		&self, room_id: Option<&RoomId>, user_id: &UserId, event_type: &RoomAccountDataEventType,
 		data: &serde_json::Value,
 	) -> Result<()> {
 		let mut prefix = room_id
@@ -80,9 +72,8 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Searches the account data for a specific kind.
-	#[tracing::instrument(skip(self, room_id, user_id, kind))]
-	fn get(
-		&self, room_id: Option<&RoomId>, user_id: &UserId, kind: RoomAccountDataEventType,
+	pub(super) fn get(
+		&self, room_id: Option<&RoomId>, user_id: &UserId, kind: &RoomAccountDataEventType,
 	) -> Result<Option<Box<serde_json::value::RawValue>>> {
 		let mut key = room_id
 			.map(ToString::to_string)
@@ -107,8 +98,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns all changes to the account data that happened after `since`.
-	#[tracing::instrument(skip(self, room_id, user_id, since))]
-	fn changes_since(
+	pub(super) fn changes_since(
 		&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
 	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {
 		let mut userdata = HashMap::new();

@@ -17,101 +17,53 @@ use crate::{
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 type AnySyncStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
 
-pub trait Data: Send + Sync {
-	fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
-	fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
-	fn mark_as_invited(
-		&self, user_id: &UserId, room_id: &RoomId, last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
-		invite_via: Option<Vec<OwnedServerName>>,
-	) -> Result<()>;
-	fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()>;
+use std::sync::Arc;
 
-	fn update_joined_count(&self, room_id: &RoomId) -> Result<()>;
+use database::KvTree;
 
-	fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool>;
-
-	/// Makes a user forget a room.
-	fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()>;
-
-	/// Returns an iterator of all servers participating in this room.
-	fn room_servers<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a>;
-
-	fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool>;
-
-	/// Returns an iterator of all rooms a server participates in (as far as we
-	/// know).
-	fn server_rooms<'a>(&'a self, server: &ServerName) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
-
-	/// Returns an iterator of all joined members of a room.
-	fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
-
-	/// Returns an iterator of all our local users
-	/// in the room, even if they're deactivated/guests
-	fn local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a>;
-
-	/// Returns an iterator of all our local joined users in a room who are
-	/// active (not deactivated, not guest)
-	fn active_local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a>;
-
-	fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>>;
-
-	fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>>;
-
-	/// Returns an iterator over all User IDs who ever joined a room.
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn room_useroncejoined<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
-
-	/// Returns an iterator over all invited members of a room.
-	fn room_members_invited<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
-
-	fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>>;
-
-	fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>>;
-
-	/// Returns an iterator over all rooms this user joined.
-	fn rooms_joined(&self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + '_>;
-
-	/// Returns an iterator over all rooms a user was invited to.
-	fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a>;
-
-	fn invite_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>>;
-
-	fn left_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>>;
-
-	/// Returns an iterator over all rooms a user left.
-	fn rooms_left<'a>(&'a self, user_id: &UserId) -> AnySyncStateEventIter<'a>;
-
-	fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool>;
-
-	fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool>;
-
-	fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool>;
-
-	fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool>;
-
-	/// Gets the servers to either accept or decline invites via for a given
-	/// room.
-	fn servers_invite_via<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a>;
-
-	/// Add the given servers the list to accept or decline invites via for a
-	/// given room.
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> Result<()>;
+pub struct Data {
+	userroomid_joined: Arc<dyn KvTree>,
+	roomuserid_joined: Arc<dyn KvTree>,
+	userroomid_invitestate: Arc<dyn KvTree>,
+	roomuserid_invitecount: Arc<dyn KvTree>,
+	userroomid_leftstate: Arc<dyn KvTree>,
+	roomuserid_leftcount: Arc<dyn KvTree>,
+	roomid_inviteviaservers: Arc<dyn KvTree>,
+	roomuseroncejoinedids: Arc<dyn KvTree>,
+	roomid_joinedcount: Arc<dyn KvTree>,
+	roomid_invitedcount: Arc<dyn KvTree>,
+	roomserverids: Arc<dyn KvTree>,
+	serverroomids: Arc<dyn KvTree>,
+	db: Arc<KeyValueDatabase>,
 }
 
-impl Data for KeyValueDatabase {
-	fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			userroomid_joined: db.userroomid_joined.clone(),
+			roomuserid_joined: db.roomuserid_joined.clone(),
+			userroomid_invitestate: db.userroomid_invitestate.clone(),
+			roomuserid_invitecount: db.roomuserid_invitecount.clone(),
+			userroomid_leftstate: db.userroomid_leftstate.clone(),
+			roomuserid_leftcount: db.roomuserid_leftcount.clone(),
+			roomid_inviteviaservers: db.roomid_inviteviaservers.clone(),
+			roomuseroncejoinedids: db.roomuseroncejoinedids.clone(),
+			roomid_joinedcount: db.roomid_joinedcount.clone(),
+			roomid_invitedcount: db.roomid_invitedcount.clone(),
+			roomserverids: db.roomserverids.clone(),
+			serverroomids: db.serverroomids.clone(),
+			db: db.clone(),
+		}
+	}
+
+	pub(super) fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 		self.roomuseroncejoinedids.insert(&userroom_id, &[])
 	}
 
-	fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+	pub(super) fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		let roomid = room_id.as_bytes().to_vec();
 
 		let mut roomuser_id = roomid.clone();
@@ -134,7 +86,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn mark_as_invited(
+	pub(super) fn mark_as_invited(
 		&self, user_id: &UserId, room_id: &RoomId, last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
 		invite_via: Option<Vec<OwnedServerName>>,
 	) -> Result<()> {
@@ -179,7 +131,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+	pub(super) fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		let roomid = room_id.as_bytes().to_vec();
 
 		let mut roomuser_id = roomid.clone();
@@ -206,7 +158,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn update_joined_count(&self, room_id: &RoomId) -> Result<()> {
+	pub(super) fn update_joined_count(&self, room_id: &RoomId) -> Result<()> {
 		let mut joinedcount = 0_u64;
 		let mut invitedcount = 0_u64;
 		let mut joined_servers = HashSet::new();
@@ -256,7 +208,8 @@ impl Data for KeyValueDatabase {
 			self.serverroomids.insert(&serverroom_id, &[])?;
 		}
 
-		self.appservice_in_room_cache
+		self.db
+			.appservice_in_room_cache
 			.write()
 			.unwrap()
 			.remove(room_id);
@@ -265,8 +218,9 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self, room_id, appservice))]
-	fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
+	pub(super) fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
 		let maybe = self
+			.db
 			.appservice_in_room_cache
 			.read()
 			.unwrap()
@@ -288,7 +242,8 @@ impl Data for KeyValueDatabase {
 					.room_members(room_id)
 					.any(|userid| userid.map_or(false, |userid| appservice.users.is_match(userid.as_str())));
 
-			self.appservice_in_room_cache
+			self.db
+				.appservice_in_room_cache
 				.write()
 				.unwrap()
 				.entry(room_id.to_owned())
@@ -301,7 +256,7 @@ impl Data for KeyValueDatabase {
 
 	/// Makes a user forget a room.
 	#[tracing::instrument(skip(self))]
-	fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
+	pub(super) fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -318,7 +273,9 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator of all servers participating in this room.
 	#[tracing::instrument(skip(self))]
-	fn room_servers<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
+	pub(super) fn room_servers<'a>(
+		&'a self, room_id: &RoomId,
+	) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -336,7 +293,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
+	pub(super) fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
 		let mut key = server.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(room_id.as_bytes());
@@ -347,7 +304,9 @@ impl Data for KeyValueDatabase {
 	/// Returns an iterator of all rooms a server participates in (as far as we
 	/// know).
 	#[tracing::instrument(skip(self))]
-	fn server_rooms<'a>(&'a self, server: &ServerName) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
+	pub(super) fn server_rooms<'a>(
+		&'a self, server: &ServerName,
+	) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
 		let mut prefix = server.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -366,7 +325,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator of all joined members of a room.
 	#[tracing::instrument(skip(self))]
-	fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
+	pub(super) fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -385,7 +344,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator of all our local users in the room, even if they're
 	/// deactivated/guests
-	fn local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
+	pub(super) fn local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
 		Box::new(
 			self.room_members(room_id)
 				.filter_map(Result::ok)
@@ -396,7 +355,9 @@ impl Data for KeyValueDatabase {
 	/// Returns an iterator of all our local joined users in a room who are
 	/// active (not deactivated, not guest)
 	#[tracing::instrument(skip(self))]
-	fn active_local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
+	pub(super) fn active_local_users_in_room<'a>(
+		&'a self, room_id: &RoomId,
+	) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
 		Box::new(
 			self.local_users_in_room(room_id)
 				.filter(|user| !services().users.is_deactivated(user).unwrap_or(true)),
@@ -405,7 +366,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns the number of users which are currently in a room
 	#[tracing::instrument(skip(self))]
-	fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
+	pub(super) fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_joinedcount
 			.get(room_id.as_bytes())?
 			.map(|b| utils::u64_from_bytes(&b).map_err(|_| Error::bad_database("Invalid joinedcount in db.")))
@@ -414,7 +375,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns the number of users which are currently invited to a room
 	#[tracing::instrument(skip(self))]
-	fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
+	pub(super) fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_invitedcount
 			.get(room_id.as_bytes())?
 			.map(|b| utils::u64_from_bytes(&b).map_err(|_| Error::bad_database("Invalid joinedcount in db.")))
@@ -423,7 +384,9 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator over all User IDs who ever joined a room.
 	#[tracing::instrument(skip(self))]
-	fn room_useroncejoined<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
+	pub(super) fn room_useroncejoined<'a>(
+		&'a self, room_id: &RoomId,
+	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -446,7 +409,9 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator over all invited members of a room.
 	#[tracing::instrument(skip(self))]
-	fn room_members_invited<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
+	pub(super) fn room_members_invited<'a>(
+		&'a self, room_id: &RoomId,
+	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -468,7 +433,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
+	pub(super) fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
@@ -483,7 +448,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
+	pub(super) fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
@@ -496,7 +461,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator over all rooms this user joined.
 	#[tracing::instrument(skip(self))]
-	fn rooms_joined(&self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + '_> {
+	pub(super) fn rooms_joined(&self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + '_> {
 		Box::new(
 			self.userroomid_joined
 				.scan_prefix(user_id.as_bytes().to_vec())
@@ -516,7 +481,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator over all rooms a user was invited to.
 	#[tracing::instrument(skip(self))]
-	fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a> {
+	pub(super) fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -543,7 +508,9 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn invite_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
+	pub(super) fn invite_state(
+		&self, user_id: &UserId, room_id: &RoomId,
+	) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(room_id.as_bytes());
@@ -560,7 +527,9 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn left_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
+	pub(super) fn left_state(
+		&self, user_id: &UserId, room_id: &RoomId,
+	) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(room_id.as_bytes());
@@ -578,7 +547,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator over all rooms a user left.
 	#[tracing::instrument(skip(self))]
-	fn rooms_left<'a>(&'a self, user_id: &UserId) -> AnySyncStateEventIter<'a> {
+	pub(super) fn rooms_left<'a>(&'a self, user_id: &UserId) -> AnySyncStateEventIter<'a> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -605,7 +574,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(super) fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -614,7 +583,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(super) fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -623,7 +592,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(super) fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -632,7 +601,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	pub(super) fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
@@ -641,7 +610,9 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn servers_invite_via<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
+	pub(super) fn servers_invite_via<'a>(
+		&'a self, room_id: &RoomId,
+	) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
 		let key = room_id.as_bytes().to_vec();
 
 		Box::new(
@@ -665,7 +636,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	#[tracing::instrument(skip(self))]
-	fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> Result<()> {
+	pub(super) fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> Result<()> {
 		let mut prev_servers = self
 			.servers_invite_via(room_id)
 			.filter_map(Result::ok)

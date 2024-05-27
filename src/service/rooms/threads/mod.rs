@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -13,10 +16,16 @@ use serde_json::json;
 use crate::{services, Error, PduEvent, Result};
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	pub fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
 	) -> Result<impl Iterator<Item = Result<(u64, PduEvent)>> + 'a> {

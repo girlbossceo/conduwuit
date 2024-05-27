@@ -20,7 +20,7 @@ extern crate conduit_database as database;
 use std::sync::{Arc, RwLock};
 
 pub(crate) use conduit::{config, debug_error, debug_info, debug_warn, utils, Config, Error, PduCount, Result, Server};
-pub(crate) use database::KeyValueDatabase;
+pub(crate) use database::{KeyValueDatabase, KvTree};
 pub use globals::{server_is_ours, user_is_local};
 pub use pdu::PduEvent;
 pub use services::Services;

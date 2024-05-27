@@ -1,12 +1,7 @@
-use std::{
-	collections::{BTreeMap, HashMap},
-	sync::{Arc, Mutex as StdMutex},
-};
+use std::sync::Arc;
 
 use conduit::{debug_info, Result, Server};
 use database::KeyValueDatabase;
-use lru_cache::LruCache;
-use tokio::sync::{broadcast, Mutex, RwLock};
 use tracing::{debug, info, trace};
 
 use crate::{
@@ -15,9 +10,9 @@ use crate::{
 };
 
 pub struct Services {
+	pub rooms: rooms::Service,
 	pub appservice: appservice::Service,
 	pub pusher: pusher::Service,
-	pub rooms: rooms::Service,
 	pub transaction_ids: transaction_ids::Service,
 	pub uiaa: uiaa::Service,
 	pub users: users::Service,
@@ -34,111 +29,41 @@ pub struct Services {
 
 impl Services {
 	pub async fn build(server: Arc<Server>, db: Arc<KeyValueDatabase>) -> Result<Self> {
-		let config = &server.config;
 		Ok(Self {
-			appservice: appservice::Service::build(db.clone())?,
-			pusher: pusher::Service {
-				db: db.clone(),
-			},
 			rooms: rooms::Service {
-				alias: rooms::alias::Service {
-					db: db.clone(),
-				},
-				auth_chain: rooms::auth_chain::Service {
-					db: db.clone(),
-				},
-				directory: rooms::directory::Service {
-					db: db.clone(),
-				},
-				event_handler: rooms::event_handler::Service,
-				lazy_loading: rooms::lazy_loading::Service {
-					db: db.clone(),
-					lazy_load_waiting: Mutex::new(HashMap::new()),
-				},
-				metadata: rooms::metadata::Service {
-					db: db.clone(),
-				},
-				outlier: rooms::outlier::Service {
-					db: db.clone(),
-				},
-				pdu_metadata: rooms::pdu_metadata::Service {
-					db: db.clone(),
-				},
-				read_receipt: rooms::read_receipt::Service {
-					db: db.clone(),
-				},
-				search: rooms::search::Service {
-					db: db.clone(),
-				},
-				short: rooms::short::Service {
-					db: db.clone(),
-				},
-				state: rooms::state::Service {
-					db: db.clone(),
-				},
-				state_accessor: rooms::state_accessor::Service {
-					db: db.clone(),
-					server_visibility_cache: StdMutex::new(LruCache::new(
-						(f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier)
-							as usize,
-					)),
-					user_visibility_cache: StdMutex::new(LruCache::new(
-						(f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier)
-							as usize,
-					)),
-				},
-				state_cache: rooms::state_cache::Service {
-					db: db.clone(),
-				},
-				state_compressor: rooms::state_compressor::Service {
-					db: db.clone(),
-					stateinfo_cache: StdMutex::new(LruCache::new(
-						(f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-					)),
-				},
-				timeline: rooms::timeline::Service {
-					db: db.clone(),
-					lasttimelinecount_cache: Mutex::new(HashMap::new()),
-				},
-				threads: rooms::threads::Service {
-					db: db.clone(),
-				},
-				typing: rooms::typing::Service {
-					typing: RwLock::new(BTreeMap::new()),
-					last_typing_update: RwLock::new(BTreeMap::new()),
-					typing_update_sender: broadcast::channel(100).0,
-				},
-				spaces: rooms::spaces::Service {
-					roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
-						(f64::from(config.roomid_spacehierarchy_cache_capacity)
-							* config.conduit_cache_capacity_modifier) as usize,
-					)),
-				},
-				user: rooms::user::Service {
-					db: db.clone(),
-				},
+				alias: rooms::alias::Service::build(&server, &db)?,
+				auth_chain: rooms::auth_chain::Service::build(&server, &db)?,
+				directory: rooms::directory::Service::build(&server, &db)?,
+				event_handler: rooms::event_handler::Service::build(&server, &db)?,
+				lazy_loading: rooms::lazy_loading::Service::build(&server, &db)?,
+				metadata: rooms::metadata::Service::build(&server, &db)?,
+				outlier: rooms::outlier::Service::build(&server, &db)?,
+				pdu_metadata: rooms::pdu_metadata::Service::build(&server, &db)?,
+				read_receipt: rooms::read_receipt::Service::build(&server, &db)?,
+				search: rooms::search::Service::build(&server, &db)?,
+				short: rooms::short::Service::build(&server, &db)?,
+				state: rooms::state::Service::build(&server, &db)?,
+				state_accessor: rooms::state_accessor::Service::build(&server, &db)?,
+				state_cache: rooms::state_cache::Service::build(&server, &db)?,
+				state_compressor: rooms::state_compressor::Service::build(&server, &db)?,
+				timeline: rooms::timeline::Service::build(&server, &db)?,
+				threads: rooms::threads::Service::build(&server, &db)?,
+				typing: rooms::typing::Service::build(&server, &db)?,
+				spaces: rooms::spaces::Service::build(&server, &db)?,
+				user: rooms::user::Service::build(&server, &db)?,
 			},
-			transaction_ids: transaction_ids::Service {
-				db: db.clone(),
-			},
-			uiaa: uiaa::Service {
-				db: db.clone(),
-			},
-			users: users::Service {
-				db: db.clone(),
-				connections: StdMutex::new(BTreeMap::new()),
-			},
-			account_data: account_data::Service {
-				db: db.clone(),
-			},
-			presence: presence::Service::build(db.clone(), config),
-			admin: admin::Service::build(),
-			key_backups: key_backups::Service {
-				db: db.clone(),
-			},
-			media: media::Service::build(&server, &db),
-			sending: sending::Service::build(db.clone(), config),
-			globals: globals::Service::load(db.clone(), config)?,
+			appservice: appservice::Service::build(&server, &db)?,
+			pusher: pusher::Service::build(&server, &db)?,
+			transaction_ids: transaction_ids::Service::build(&server, &db)?,
+			uiaa: uiaa::Service::build(&server, &db)?,
+			users: users::Service::build(&server, &db)?,
+			account_data: account_data::Service::build(&server, &db)?,
+			presence: presence::Service::build(&server, &db)?,
+			admin: admin::Service::build(&server, &db)?,
+			key_backups: key_backups::Service::build(&server, &db)?,
+			media: media::Service::build(&server, &db)?,
+			sending: sending::Service::build(&server, &db)?,
+			globals: globals::Service::build(&server, &db)?,
 			server,
 			db,
 		})

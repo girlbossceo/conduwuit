@@ -1,39 +1,27 @@
 use std::{collections::HashSet, sync::Arc};
 
 use conduit::utils::mutex_map;
+use database::KvTree;
 use ruma::{EventId, OwnedEventId, RoomId};
 
 use crate::{utils, Error, KeyValueDatabase, Result};
 
-pub trait Data: Send + Sync {
-	/// Returns the last state hash key added to the db for the given room.
-	fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>>;
-
-	/// Set the state hash to a new version, but does not update `state_cache`.
-	fn set_room_state(
-		&self,
-		room_id: &RoomId,
-		new_shortstatehash: u64,
-		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
-	) -> Result<()>;
-
-	/// Associates a state with an event.
-	fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) -> Result<()>;
-
-	/// Returns all events we would send as the `prev_events` of the next event.
-	fn get_forward_extremities(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>>;
-
-	/// Replace the forward extremities of the room.
-	fn set_forward_extremities(
-		&self,
-		room_id: &RoomId,
-		event_ids: Vec<OwnedEventId>,
-		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
-	) -> Result<()>;
+pub struct Data {
+	shorteventid_shortstatehash: Arc<dyn KvTree>,
+	roomid_pduleaves: Arc<dyn KvTree>,
+	roomid_shortstatehash: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			shorteventid_shortstatehash: db.shorteventid_shortstatehash.clone(),
+			roomid_pduleaves: db.roomid_pduleaves.clone(),
+			roomid_shortstatehash: db.roomid_shortstatehash.clone(),
+		}
+	}
+
+	pub(super) fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_shortstatehash
 			.get(room_id.as_bytes())?
 			.map_or(Ok(None), |bytes| {
@@ -43,7 +31,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn set_room_state(
+	pub(super) fn set_room_state(
 		&self,
 		room_id: &RoomId,
 		new_shortstatehash: u64,
@@ -54,13 +42,13 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) -> Result<()> {
+	pub(super) fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) -> Result<()> {
 		self.shorteventid_shortstatehash
 			.insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes())?;
 		Ok(())
 	}
 
-	fn get_forward_extremities(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>> {
+	pub(super) fn get_forward_extremities(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -76,7 +64,7 @@ impl Data for KeyValueDatabase {
 			.collect()
 	}
 
-	fn set_forward_extremities(
+	pub(super) fn set_forward_extremities(
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,

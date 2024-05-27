@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::sync::Arc;
@@ -8,10 +11,16 @@ use ruma::{OwnedRoomId, RoomId};
 use crate::Result;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	/// Checks if a room exists.
 	#[tracing::instrument(skip(self))]
 	pub fn exists(&self, room_id: &RoomId) -> Result<bool> { self.db.exists(room_id) }

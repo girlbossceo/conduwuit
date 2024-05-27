@@ -1,20 +1,28 @@
+use conduit::Server;
+
 mod data;
 use std::{collections::BTreeMap, sync::Arc};
 
+use conduit::Result;
 use data::Data;
+use database::KeyValueDatabase;
 use ruma::{
 	api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
 	serde::Raw,
 	OwnedRoomId, RoomId, UserId,
 };
 
-use crate::Result;
-
 pub struct Service {
-	pub(super) db: Arc<dyn Data>,
+	pub(super) db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	pub fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
 		self.db.create_backup(user_id, backup_metadata)
 	}

@@ -44,17 +44,17 @@ pub struct UrlPreviewData {
 
 pub struct Service {
 	server: Arc<Server>,
-	pub(super) db: Arc<dyn Data>,
+	pub db: Data,
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Self {
-		Self {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
 			server: server.clone(),
-			db: db.clone(),
+			db: Data::new(db),
 			url_preview_mutex: RwLock::new(HashMap::new()),
-		}
+		})
 	}
 
 	/// Uploads a file.

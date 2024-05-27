@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 
 use std::sync::Arc;
@@ -8,10 +11,16 @@ use ruma::{OwnedRoomId, RoomId};
 use crate::Result;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	#[tracing::instrument(skip(self))]
 	pub fn set_public(&self, room_id: &RoomId) -> Result<()> { self.db.set_public(room_id) }
 

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, mem::size_of};
+use std::{collections::BTreeMap, mem::size_of, sync::Arc};
 
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
@@ -10,149 +10,60 @@ use ruma::{
 };
 use tracing::warn;
 
-use crate::{services, users::clean_signatures, utils, Error, KeyValueDatabase, Result};
+use crate::{services, users::clean_signatures, utils, Error, KeyValueDatabase, KvTree, Result};
 
-pub trait Data: Send + Sync {
-	/// Check if a user has an account on this homeserver.
-	fn exists(&self, user_id: &UserId) -> Result<bool>;
-
-	/// Check if account is deactivated
-	fn is_deactivated(&self, user_id: &UserId) -> Result<bool>;
-
-	/// Returns the number of users registered on this server.
-	fn count(&self) -> Result<usize>;
-
-	/// Find out which user an access token belongs to.
-	fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>>;
-
-	/// Returns an iterator over all users on this homeserver.
-	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
-
-	/// Returns a list of local users as list of usernames.
-	///
-	/// A user account is considered `local` if the length of it's password is
-	/// greater then zero.
-	fn list_local_users(&self) -> Result<Vec<String>>;
-
-	/// Returns the password hash for the given user.
-	fn password_hash(&self, user_id: &UserId) -> Result<Option<String>>;
-
-	/// Hash and set the user's password to the Argon2 hash
-	fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()>;
-
-	/// Returns the displayname of a user on this homeserver.
-	fn displayname(&self, user_id: &UserId) -> Result<Option<String>>;
-
-	/// Sets a new displayname or removes it if displayname is None. You still
-	/// need to nofify all rooms of this change.
-	fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()>;
-
-	/// Get the avatar_url of a user.
-	fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>>;
-
-	/// Sets a new avatar_url or removes it if avatar_url is None.
-	fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()>;
-
-	/// Get the blurhash of a user.
-	fn blurhash(&self, user_id: &UserId) -> Result<Option<String>>;
-
-	/// Sets a new avatar_url or removes it if avatar_url is None.
-	fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()>;
-
-	/// Adds a new device to a user.
-	fn create_device(
-		&self, user_id: &UserId, device_id: &DeviceId, token: &str, initial_device_display_name: Option<String>,
-	) -> Result<()>;
-
-	/// Removes a device from a user.
-	fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()>;
-
-	/// Returns an iterator over all device ids of this user.
-	fn all_device_ids<'a>(&'a self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedDeviceId>> + 'a>;
-
-	/// Replaces the access token of one device.
-	fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()>;
-
-	fn add_one_time_key(
-		&self, user_id: &UserId, device_id: &DeviceId, one_time_key_key: &DeviceKeyId,
-		one_time_key_value: &Raw<OneTimeKey>,
-	) -> Result<()>;
-
-	fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64>;
-
-	fn take_one_time_key(
-		&self, user_id: &UserId, device_id: &DeviceId, key_algorithm: &DeviceKeyAlgorithm,
-	) -> Result<Option<(OwnedDeviceKeyId, Raw<OneTimeKey>)>>;
-
-	fn count_one_time_keys(&self, user_id: &UserId, device_id: &DeviceId)
-		-> Result<BTreeMap<DeviceKeyAlgorithm, UInt>>;
-
-	fn add_device_keys(&self, user_id: &UserId, device_id: &DeviceId, device_keys: &Raw<DeviceKeys>) -> Result<()>;
-
-	fn add_cross_signing_keys(
-		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>, self_signing_key: &Option<Raw<CrossSigningKey>>,
-		user_signing_key: &Option<Raw<CrossSigningKey>>, notify: bool,
-	) -> Result<()>;
-
-	fn sign_key(&self, target_id: &UserId, key_id: &str, signature: (String, String), sender_id: &UserId)
-		-> Result<()>;
-
-	fn keys_changed<'a>(
-		&'a self, user_or_room_id: &str, from: u64, to: Option<u64>,
-	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
-
-	fn mark_device_key_update(&self, user_id: &UserId) -> Result<()>;
-
-	fn get_device_keys(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Raw<DeviceKeys>>>;
-
-	fn parse_master_key(
-		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>,
-	) -> Result<(Vec<u8>, CrossSigningKey)>;
-
-	fn get_key(
-		&self, key: &[u8], sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
-	) -> Result<Option<Raw<CrossSigningKey>>>;
-
-	fn get_master_key(
-		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
-	) -> Result<Option<Raw<CrossSigningKey>>>;
-
-	fn get_self_signing_key(
-		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
-	) -> Result<Option<Raw<CrossSigningKey>>>;
-
-	fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>>;
-
-	fn add_to_device_event(
-		&self, sender: &UserId, target_user_id: &UserId, target_device_id: &DeviceId, event_type: &str,
-		content: serde_json::Value,
-	) -> Result<()>;
-
-	fn get_to_device_events(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Vec<Raw<AnyToDeviceEvent>>>;
-
-	fn remove_to_device_events(&self, user_id: &UserId, device_id: &DeviceId, until: u64) -> Result<()>;
-
-	fn update_device_metadata(&self, user_id: &UserId, device_id: &DeviceId, device: &Device) -> Result<()>;
-
-	/// Get device metadata.
-	fn get_device_metadata(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Device>>;
-
-	fn get_devicelist_version(&self, user_id: &UserId) -> Result<Option<u64>>;
-
-	fn all_devices_metadata<'a>(&'a self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<Device>> + 'a>;
-
-	/// Creates a new sync filter. Returns the filter id.
-	fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> Result<String>;
-
-	fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<Option<FilterDefinition>>;
+pub struct Data {
+	userid_password: Arc<dyn KvTree>,
+	token_userdeviceid: Arc<dyn KvTree>,
+	userid_displayname: Arc<dyn KvTree>,
+	userid_avatarurl: Arc<dyn KvTree>,
+	userid_blurhash: Arc<dyn KvTree>,
+	userid_devicelistversion: Arc<dyn KvTree>,
+	userdeviceid_token: Arc<dyn KvTree>,
+	userdeviceid_metadata: Arc<dyn KvTree>,
+	onetimekeyid_onetimekeys: Arc<dyn KvTree>,
+	userid_lastonetimekeyupdate: Arc<dyn KvTree>,
+	keyid_key: Arc<dyn KvTree>,
+	userid_masterkeyid: Arc<dyn KvTree>,
+	userid_selfsigningkeyid: Arc<dyn KvTree>,
+	userid_usersigningkeyid: Arc<dyn KvTree>,
+	keychangeid_userid: Arc<dyn KvTree>,
+	todeviceid_events: Arc<dyn KvTree>,
+	userfilterid_filter: Arc<dyn KvTree>,
+	_db: Arc<KeyValueDatabase>,
 }
 
-impl Data for KeyValueDatabase {
+impl Data {
+	pub(super) fn new(db: Arc<KeyValueDatabase>) -> Self {
+		Self {
+			userid_password: db.userid_password.clone(),
+			token_userdeviceid: db.token_userdeviceid.clone(),
+			userid_displayname: db.userid_displayname.clone(),
+			userid_avatarurl: db.userid_avatarurl.clone(),
+			userid_blurhash: db.userid_blurhash.clone(),
+			userid_devicelistversion: db.userid_devicelistversion.clone(),
+			userdeviceid_token: db.userdeviceid_token.clone(),
+			userdeviceid_metadata: db.userdeviceid_metadata.clone(),
+			onetimekeyid_onetimekeys: db.onetimekeyid_onetimekeys.clone(),
+			userid_lastonetimekeyupdate: db.userid_lastonetimekeyupdate.clone(),
+			keyid_key: db.keyid_key.clone(),
+			userid_masterkeyid: db.userid_masterkeyid.clone(),
+			userid_selfsigningkeyid: db.userid_selfsigningkeyid.clone(),
+			userid_usersigningkeyid: db.userid_usersigningkeyid.clone(),
+			keychangeid_userid: db.keychangeid_userid.clone(),
+			todeviceid_events: db.todeviceid_events.clone(),
+			userfilterid_filter: db.userfilterid_filter.clone(),
+			_db: db,
+		}
+	}
+
 	/// Check if a user has an account on this homeserver.
-	fn exists(&self, user_id: &UserId) -> Result<bool> { Ok(self.userid_password.get(user_id.as_bytes())?.is_some()) }
+	pub(super) fn exists(&self, user_id: &UserId) -> Result<bool> {
+		Ok(self.userid_password.get(user_id.as_bytes())?.is_some())
+	}
 
 	/// Check if account is deactivated
-	fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
+	pub(super) fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
 		Ok(self
 			.userid_password
 			.get(user_id.as_bytes())?
@@ -161,10 +72,10 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the number of users registered on this server.
-	fn count(&self) -> Result<usize> { Ok(self.userid_password.iter().count()) }
+	pub(super) fn count(&self) -> Result<usize> { Ok(self.userid_password.iter().count()) }
 
 	/// Find out which user an access token belongs to.
-	fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>> {
+	pub(super) fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>> {
 		self.token_userdeviceid
 			.get(token.as_bytes())?
 			.map_or(Ok(None), |bytes| {
@@ -189,7 +100,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns an iterator over all users on this homeserver.
-	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
+	pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
 		Box::new(self.userid_password.iter().map(|(bytes, _)| {
 			UserId::parse(
 				utils::string_from_bytes(&bytes)
@@ -203,7 +114,7 @@ impl Data for KeyValueDatabase {
 	///
 	/// A user account is considered `local` if the length of it's password is
 	/// greater then zero.
-	fn list_local_users(&self) -> Result<Vec<String>> {
+	pub(super) fn list_local_users(&self) -> Result<Vec<String>> {
 		let users: Vec<String> = self
 			.userid_password
 			.iter()
@@ -213,7 +124,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the password hash for the given user.
-	fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {
+	pub(super) fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {
 		self.userid_password
 			.get(user_id.as_bytes())?
 			.map_or(Ok(None), |bytes| {
@@ -224,7 +135,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Hash and set the user's password to the Argon2 hash
-	fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
+	pub(super) fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
 		if let Some(password) = password {
 			if let Ok(hash) = utils::hash::password(password) {
 				self.userid_password
@@ -243,7 +154,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns the displayname of a user on this homeserver.
-	fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
+	pub(super) fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
 		self.userid_displayname
 			.get(user_id.as_bytes())?
 			.map_or(Ok(None), |bytes| {
@@ -256,7 +167,7 @@ impl Data for KeyValueDatabase {
 
 	/// Sets a new displayname or removes it if displayname is None. You still
 	/// need to nofify all rooms of this change.
-	fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()> {
+	pub(super) fn set_displayname(&self, user_id: &UserId, displayname: Option<String>) -> Result<()> {
 		if let Some(displayname) = displayname {
 			self.userid_displayname
 				.insert(user_id.as_bytes(), displayname.as_bytes())?;
@@ -268,7 +179,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Get the `avatar_url` of a user.
-	fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>> {
+	pub(super) fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>> {
 		self.userid_avatarurl
 			.get(user_id.as_bytes())?
 			.map(|bytes| {
@@ -283,7 +194,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Sets a new avatar_url or removes it if avatar_url is None.
-	fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()> {
+	pub(super) fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) -> Result<()> {
 		if let Some(avatar_url) = avatar_url {
 			self.userid_avatarurl
 				.insert(user_id.as_bytes(), avatar_url.to_string().as_bytes())?;
@@ -295,7 +206,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Get the blurhash of a user.
-	fn blurhash(&self, user_id: &UserId) -> Result<Option<String>> {
+	pub(super) fn blurhash(&self, user_id: &UserId) -> Result<Option<String>> {
 		self.userid_blurhash
 			.get(user_id.as_bytes())?
 			.map(|bytes| {
@@ -307,8 +218,8 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	/// Sets a new blurhash or removes it if blurhash is None.
-	fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
+	/// Sets a new avatar_url or removes it if avatar_url is None.
+	pub(super) fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
 		if let Some(blurhash) = blurhash {
 			self.userid_blurhash
 				.insert(user_id.as_bytes(), blurhash.as_bytes())?;
@@ -320,7 +231,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Adds a new device to a user.
-	fn create_device(
+	pub(super) fn create_device(
 		&self, user_id: &UserId, device_id: &DeviceId, token: &str, initial_device_display_name: Option<String>,
 	) -> Result<()> {
 		// This method should never be called for nonexistent users. We shouldn't assert
@@ -354,7 +265,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Removes a device from a user.
-	fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
+	pub(super) fn remove_device(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
 		let mut userdeviceid = user_id.as_bytes().to_vec();
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -384,7 +295,9 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Returns an iterator over all device ids of this user.
-	fn all_device_ids<'a>(&'a self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedDeviceId>> + 'a> {
+	pub(super) fn all_device_ids<'a>(
+		&'a self, user_id: &UserId,
+	) -> Box<dyn Iterator<Item = Result<OwnedDeviceId>> + 'a> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		// All devices have metadata
@@ -405,7 +318,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Replaces the access token of one device.
-	fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
+	pub(super) fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
 		let mut userdeviceid = user_id.as_bytes().to_vec();
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -436,7 +349,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn add_one_time_key(
+	pub(super) fn add_one_time_key(
 		&self, user_id: &UserId, device_id: &DeviceId, one_time_key_key: &DeviceKeyId,
 		one_time_key_value: &Raw<OneTimeKey>,
 	) -> Result<()> {
@@ -478,7 +391,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
+	pub(super) fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
 		self.userid_lastonetimekeyupdate
 			.get(user_id.as_bytes())?
 			.map_or(Ok(0), |bytes| {
@@ -487,7 +400,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn take_one_time_key(
+	pub(super) fn take_one_time_key(
 		&self, user_id: &UserId, device_id: &DeviceId, key_algorithm: &DeviceKeyAlgorithm,
 	) -> Result<Option<(OwnedDeviceKeyId, Raw<OneTimeKey>)>> {
 		let mut prefix = user_id.as_bytes().to_vec();
@@ -521,7 +434,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	fn count_one_time_keys(
+	pub(super) fn count_one_time_keys(
 		&self, user_id: &UserId, device_id: &DeviceId,
 	) -> Result<BTreeMap<DeviceKeyAlgorithm, UInt>> {
 		let mut userdeviceid = user_id.as_bytes().to_vec();
@@ -551,7 +464,9 @@ impl Data for KeyValueDatabase {
 		Ok(counts)
 	}
 
-	fn add_device_keys(&self, user_id: &UserId, device_id: &DeviceId, device_keys: &Raw<DeviceKeys>) -> Result<()> {
+	pub(super) fn add_device_keys(
+		&self, user_id: &UserId, device_id: &DeviceId, device_keys: &Raw<DeviceKeys>,
+	) -> Result<()> {
 		let mut userdeviceid = user_id.as_bytes().to_vec();
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -566,7 +481,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn add_cross_signing_keys(
+	pub(super) fn add_cross_signing_keys(
 		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>, self_signing_key: &Option<Raw<CrossSigningKey>>,
 		user_signing_key: &Option<Raw<CrossSigningKey>>, notify: bool,
 	) -> Result<()> {
@@ -574,7 +489,7 @@ impl Data for KeyValueDatabase {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
-		let (master_key_key, _) = self.parse_master_key(user_id, master_key)?;
+		let (master_key_key, _) = Self::parse_master_key(user_id, master_key)?;
 
 		self.keyid_key
 			.insert(&master_key_key, master_key.json().get().as_bytes())?;
@@ -647,7 +562,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn sign_key(
+	pub(super) fn sign_key(
 		&self, target_id: &UserId, key_id: &str, signature: (String, String), sender_id: &UserId,
 	) -> Result<()> {
 		let mut key = target_id.as_bytes().to_vec();
@@ -685,7 +600,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn keys_changed<'a>(
+	pub(super) fn keys_changed<'a>(
 		&'a self, user_or_room_id: &str, from: u64, to: Option<u64>,
 	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
 		let mut prefix = user_or_room_id.as_bytes().to_vec();
@@ -724,7 +639,7 @@ impl Data for KeyValueDatabase {
 		)
 	}
 
-	fn mark_device_key_update(&self, user_id: &UserId) -> Result<()> {
+	pub(super) fn mark_device_key_update(&self, user_id: &UserId) -> Result<()> {
 		let count = services().globals.next_count()?.to_be_bytes();
 		for room_id in services()
 			.rooms
@@ -757,7 +672,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn get_device_keys(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Raw<DeviceKeys>>> {
+	pub(super) fn get_device_keys(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Raw<DeviceKeys>>> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(device_id.as_bytes());
@@ -769,8 +684,8 @@ impl Data for KeyValueDatabase {
 		})
 	}
 
-	fn parse_master_key(
-		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>,
+	pub(super) fn parse_master_key(
+		user_id: &UserId, master_key: &Raw<CrossSigningKey>,
 	) -> Result<(Vec<u8>, CrossSigningKey)> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
@@ -793,7 +708,7 @@ impl Data for KeyValueDatabase {
 		Ok((master_key_key, master_key))
 	}
 
-	fn get_key(
+	pub(super) fn get_key(
 		&self, key: &[u8], sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
@@ -807,7 +722,7 @@ impl Data for KeyValueDatabase {
 		})
 	}
 
-	fn get_master_key(
+	pub(super) fn get_master_key(
 		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.userid_masterkeyid
@@ -815,7 +730,7 @@ impl Data for KeyValueDatabase {
 			.map_or(Ok(None), |key| self.get_key(&key, sender_user, user_id, allowed_signatures))
 	}
 
-	fn get_self_signing_key(
+	pub(super) fn get_self_signing_key(
 		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.userid_selfsigningkeyid
@@ -823,7 +738,7 @@ impl Data for KeyValueDatabase {
 			.map_or(Ok(None), |key| self.get_key(&key, sender_user, user_id, allowed_signatures))
 	}
 
-	fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
+	pub(super) fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.userid_usersigningkeyid
 			.get(user_id.as_bytes())?
 			.map_or(Ok(None), |key| {
@@ -836,7 +751,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn add_to_device_event(
+	pub(super) fn add_to_device_event(
 		&self, sender: &UserId, target_user_id: &UserId, target_device_id: &DeviceId, event_type: &str,
 		content: serde_json::Value,
 	) -> Result<()> {
@@ -858,7 +773,9 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn get_to_device_events(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Vec<Raw<AnyToDeviceEvent>>> {
+	pub(super) fn get_to_device_events(
+		&self, user_id: &UserId, device_id: &DeviceId,
+	) -> Result<Vec<Raw<AnyToDeviceEvent>>> {
 		let mut events = Vec::new();
 
 		let mut prefix = user_id.as_bytes().to_vec();
@@ -876,7 +793,7 @@ impl Data for KeyValueDatabase {
 		Ok(events)
 	}
 
-	fn remove_to_device_events(&self, user_id: &UserId, device_id: &DeviceId, until: u64) -> Result<()> {
+	pub(super) fn remove_to_device_events(&self, user_id: &UserId, device_id: &DeviceId, until: u64) -> Result<()> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(device_id.as_bytes());
@@ -905,7 +822,7 @@ impl Data for KeyValueDatabase {
 		Ok(())
 	}
 
-	fn update_device_metadata(&self, user_id: &UserId, device_id: &DeviceId, device: &Device) -> Result<()> {
+	pub(super) fn update_device_metadata(&self, user_id: &UserId, device_id: &DeviceId, device: &Device) -> Result<()> {
 		let mut userdeviceid = user_id.as_bytes().to_vec();
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -935,7 +852,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Get device metadata.
-	fn get_device_metadata(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Device>> {
+	pub(super) fn get_device_metadata(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Device>> {
 		let mut userdeviceid = user_id.as_bytes().to_vec();
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
@@ -949,7 +866,7 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn get_devicelist_version(&self, user_id: &UserId) -> Result<Option<u64>> {
+	pub(super) fn get_devicelist_version(&self, user_id: &UserId) -> Result<Option<u64>> {
 		self.userid_devicelistversion
 			.get(user_id.as_bytes())?
 			.map_or(Ok(None), |bytes| {
@@ -959,7 +876,9 @@ impl Data for KeyValueDatabase {
 			})
 	}
 
-	fn all_devices_metadata<'a>(&'a self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<Device>> + 'a> {
+	pub(super) fn all_devices_metadata<'a>(
+		&'a self, user_id: &UserId,
+	) -> Box<dyn Iterator<Item = Result<Device>> + 'a> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 
@@ -974,7 +893,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Creates a new sync filter. Returns the filter id.
-	fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> Result<String> {
+	pub(super) fn create_filter(&self, user_id: &UserId, filter: &FilterDefinition) -> Result<String> {
 		let filter_id = utils::random_string(4);
 
 		let mut key = user_id.as_bytes().to_vec();
@@ -987,7 +906,7 @@ impl Data for KeyValueDatabase {
 		Ok(filter_id)
 	}
 
-	fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<Option<FilterDefinition>> {
+	pub(super) fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<Option<FilterDefinition>> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(filter_id.as_bytes());
@@ -1006,7 +925,7 @@ impl Data for KeyValueDatabase {
 /// username could be successfully parsed.
 /// If `utils::string_from_bytes`(...) returns an error that username will be
 /// skipped and the error will be logged.
-fn get_username_with_valid_password(username: &[u8], password: &[u8]) -> Option<String> {
+pub(super) fn get_username_with_valid_password(username: &[u8], password: &[u8]) -> Option<String> {
 	// A valid password is not empty
 	if password.is_empty() {
 		None

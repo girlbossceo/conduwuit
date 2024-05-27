@@ -1,3 +1,6 @@
+use conduit::Server;
+use database::KeyValueDatabase;
+
 mod data;
 use std::sync::Arc;
 
@@ -7,10 +10,16 @@ use ruma::{events::StateEventType, EventId, RoomId};
 use crate::Result;
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	db: Data,
 }
 
 impl Service {
+	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		Ok(Self {
+			db: Data::new(db),
+		})
+	}
+
 	pub fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
 		self.db.get_or_create_shorteventid(event_id)
 	}

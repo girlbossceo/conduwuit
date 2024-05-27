@@ -1,37 +1,28 @@
+use std::sync::Arc;
+
 use conduit::debug_info;
+use database::{KeyValueDatabase, KvTree};
 use ruma::api::client::error::ErrorKind;
 use tracing::debug;
 
-use crate::{media::UrlPreviewData, utils::string_from_bytes, Error, KeyValueDatabase, Result};
+use crate::{media::UrlPreviewData, utils::string_from_bytes, Error, Result};
 
-pub(crate) trait Data: Send + Sync {
-	fn create_file_metadata(
-		&self, sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
-		content_type: Option<&str>,
-	) -> Result<Vec<u8>>;
-
-	fn delete_file_mxc(&self, mxc: String) -> Result<()>;
-
-	/// Returns content_disposition, content_type and the metadata key.
-	fn search_file_metadata(
-		&self, mxc: String, width: u32, height: u32,
-	) -> Result<(Option<String>, Option<String>, Vec<u8>)>;
-
-	fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>>;
-
-	fn get_all_media_keys(&self) -> Vec<Vec<u8>>;
-
-	// TODO: use this
-	#[allow(dead_code)]
-	fn remove_url_preview(&self, url: &str) -> Result<()>;
-
-	fn set_url_preview(&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration) -> Result<()>;
-
-	fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData>;
+pub struct Data {
+	mediaid_file: Arc<dyn KvTree>,
+	mediaid_user: Arc<dyn KvTree>,
+	url_previews: Arc<dyn KvTree>,
 }
 
-impl Data for KeyValueDatabase {
-	fn create_file_metadata(
+impl Data {
+	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			mediaid_file: db.mediaid_file.clone(),
+			mediaid_user: db.mediaid_user.clone(),
+			url_previews: db.url_previews.clone(),
+		}
+	}
+
+	pub(super) fn create_file_metadata(
 		&self, sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
 		content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
@@ -65,7 +56,7 @@ impl Data for KeyValueDatabase {
 		Ok(key)
 	}
 
-	fn delete_file_mxc(&self, mxc: String) -> Result<()> {
+	pub(super) fn delete_file_mxc(&self, mxc: String) -> Result<()> {
 		debug!("MXC URI: {:?}", mxc);
 
 		let mut prefix = mxc.as_bytes().to_vec();
@@ -91,7 +82,7 @@ impl Data for KeyValueDatabase {
 	}
 
 	/// Searches for all files with the given MXC
-	fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>> {
+	pub(super) fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>> {
 		debug!("MXC URI: {:?}", mxc);
 
 		let mut prefix = mxc.as_bytes().to_vec();
@@ -114,7 +105,7 @@ impl Data for KeyValueDatabase {
 		Ok(keys)
 	}
 
-	fn search_file_metadata(
+	pub(super) fn search_file_metadata(
 		&self, mxc: String, width: u32, height: u32,
 	) -> Result<(Option<String>, Option<String>, Vec<u8>)> {
 		let mut prefix = mxc.as_bytes().to_vec();
@@ -156,11 +147,13 @@ impl Data for KeyValueDatabase {
 
 	/// Gets all the media keys in our database (this includes all the metadata
 	/// associated with it such as width, height, content-type, etc)
-	fn get_all_media_keys(&self) -> Vec<Vec<u8>> { self.mediaid_file.iter().map(|(key, _)| key).collect() }
+	pub(crate) fn get_all_media_keys(&self) -> Vec<Vec<u8>> { self.mediaid_file.iter().map(|(key, _)| key).collect() }
 
-	fn remove_url_preview(&self, url: &str) -> Result<()> { self.url_previews.remove(url.as_bytes()) }
+	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> { self.url_previews.remove(url.as_bytes()) }
 
-	fn set_url_preview(&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration) -> Result<()> {
+	pub(super) fn set_url_preview(
+		&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration,
+	) -> Result<()> {
 		let mut value = Vec::<u8>::new();
 		value.extend_from_slice(&timestamp.as_secs().to_be_bytes());
 		value.push(0xFF);
@@ -194,7 +187,7 @@ impl Data for KeyValueDatabase {
 		self.url_previews.insert(url.as_bytes(), &value)
 	}
 
-	fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
+	pub(super) fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
 		let values = self.url_previews.get(url.as_bytes()).ok()??;
 
 		let mut values = values.split(|&b| b == 0xFF);

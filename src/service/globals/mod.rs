@@ -1,3 +1,5 @@
+use conduit::Server;
+
 mod client;
 mod data;
 pub(super) mod emerg_access;
@@ -33,12 +35,12 @@ use tracing::{error, trace};
 use url::Url;
 use utils::MutexMap;
 
-use crate::{services, Config, Result};
+use crate::{services, Config, KeyValueDatabase, Result};
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
 pub struct Service {
-	pub db: Arc<dyn Data>,
+	pub db: Data,
 
 	pub config: Config,
 	pub cidr_range_denylist: Vec<IPAddress>,
@@ -62,7 +64,9 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn load(db: Arc<dyn Data>, config: &Config) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+		let config = &server.config;
+		let db = Data::new(db);
 		let keypair = db.load_keypair();
 
 		let keypair = match keypair {
