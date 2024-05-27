@@ -2688,6 +2688,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
+ "h2 0.4.5",
  "hickory-resolver",
  "http 1.1.0",
  "http-body 1.0.0",
