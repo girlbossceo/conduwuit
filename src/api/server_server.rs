@@ -8,7 +8,7 @@ use std::{
 };
 
 use axum::{response::IntoResponse, Json};
-use conduit::{debug_info, debug_warn};
+use conduit::debug_warn;
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;
 use ruma::{
@@ -536,7 +536,7 @@ pub(crate) async fn send_transaction_message_route(
 				self_signing_key,
 			}) => {
 				if user_id.server_name() != origin {
-					debug_info!(%user_id, %origin, "received signing key update EDU from server that does not belong to user's server");
+					debug_warn!(%user_id, %origin, "received signing key update EDU from server that does not belong to user's server");
 					continue;
 				}
 
@@ -547,7 +547,7 @@ pub(crate) async fn send_transaction_message_route(
 				}
 			},
 			Edu::_Custom(custom) => {
-				debug_info!(?custom, "received custom/unknown EDU");
+				debug_warn!(?custom, "received custom/unknown EDU");
 			},
 		}
 	}
