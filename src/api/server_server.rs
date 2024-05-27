@@ -1765,6 +1765,21 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	let mut signed_event = utils::to_canonical_object(&body.event)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid."))?;
 
+	let invited_user: OwnedUserId = serde_json::from_value(
+		signed_event
+			.get("state_key")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field."))?
+			.clone()
+			.into(),
+	)
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
+
+	// ACL check the invited user's server
+	services()
+		.rooms
+		.event_handler
+		.acl_check(invited_user.server_name(), &body.room_id)?;
+
 	ruma::signatures::hash_and_sign_event(
 		services().globals.server_name().as_str(),
 		services().globals.keypair(),
@@ -1792,15 +1807,6 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 			.into(),
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user id."))?;
-
-	let invited_user: Box<_> = serde_json::from_value(
-		signed_event
-			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no state_key field."))?
-			.clone()
-			.into(),
-	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
 
 	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(&invited_user)? {
 		return Err(Error::BadRequest(
