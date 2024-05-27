@@ -1759,7 +1759,14 @@ pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) 
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user id."))?;
 
-	// ACL check the invited user's server
+	if !server_is_ours(invited_user.server_name()) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"User does not belong to this homeserver.",
+		));
+	}
+
+	// Make sure we're not ACL'ed from their room.
 	services()
 		.rooms
 		.event_handler
