@@ -74,7 +74,7 @@ pub(crate) async fn get_server_version_route(
 	Ok(get_server_version::v1::Response {
 		server: Some(get_server_version::v1::Server {
 			name: Some("Conduwuit".to_owned()),
-			version: Some(utils::conduwuit_version()),
+			version: Some(conduit::version::conduwuit()),
 		}),
 	})
 }

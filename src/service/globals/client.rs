@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use reqwest::redirect;
 
-use crate::{service::globals::resolver, utils::conduwuit_version, Config, Result};
+use crate::{service::globals::resolver, Config, Result};
 
 pub struct Client {
 	pub default: reqwest::Client,
@@ -87,7 +87,7 @@ impl Client {
 	}
 
 	fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
-		let version = conduwuit_version();
+		let version = conduit::version::conduwuit();
 
 		let user_agent = format!("Conduwuit/{version}");
 

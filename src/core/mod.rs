@@ -7,12 +7,12 @@ pub mod mods;
 pub mod pducount;
 pub mod server;
 pub mod utils;
+pub mod version;
 
 pub use config::Config;
 pub use error::{Error, Result, RumaResponse};
 pub use pducount::PduCount;
 pub use server::Server;
-pub use utils::conduwuit_version;
 
 #[cfg(not(conduit_mods))]
 pub mod mods {

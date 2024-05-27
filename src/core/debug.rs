@@ -2,6 +2,9 @@
 
 use std::{panic, panic::PanicInfo};
 
+/// Export all of the ancillary tools from here as well.
+pub use crate::utils::debug::*;
+
 /// Log event at given level in debug-mode (when debug-assertions are enabled).
 /// In release-mode it becomes DEBUG level, and possibly subject to elision.
 ///

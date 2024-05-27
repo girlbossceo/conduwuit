@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
 use conduit::{
-	conduwuit_version,
 	config::Config,
 	info,
 	log::{LogLevelReloadHandles, ReloadHandle},
-	utils::maximize_fd_limit,
+	utils::sys::maximize_fd_limit,
 	Error, Result,
 };
 use tokio::runtime;
@@ -43,7 +42,7 @@ impl Server {
 			database_path = ?config.database_path,
 			log_levels = %config.log,
 			"{}",
-			conduwuit_version(),
+			conduit::version::conduwuit(),
 		);
 
 		Ok(Arc::new(Server {

@@ -10,7 +10,7 @@ use ruma::api::client::{
 	error::ErrorKind,
 };
 
-use crate::{services, utils::conduwuit_version, Error, Result, Ruma};
+use crate::{services, Error, Result, Ruma};
 
 /// # `GET /_matrix/client/versions`
 ///
@@ -145,7 +145,7 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 
 	Ok(Json(serde_json::json!({
 		"server": server_url,
-		"version": conduwuit_version(),
+		"version": conduit::version::conduwuit(),
 	})))
 }
 
@@ -156,7 +156,7 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
 	Ok(Json(serde_json::json!({
 		"name": "conduwuit",
-		"version": conduwuit_version(),
+		"version": conduit::version::conduwuit(),
 	})))
 }
 
