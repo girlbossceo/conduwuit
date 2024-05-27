@@ -924,25 +924,18 @@ pub(crate) async fn create_join_event_template_route(
 	}
 
 	let origin = body.origin.as_ref().expect("server is authenticated");
-
-	// ACL check origin server
-	services()
-		.rooms
-		.event_handler
-		.acl_check(origin, &body.room_id)?;
-
-	// ACL check invited user server name
-	services()
-		.rooms
-		.event_handler
-		.acl_check(body.user_id.server_name(), &body.room_id)?;
-
 	if body.user_id.server_name() != origin {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Not allowed to join on behalf of another server/user",
 		));
 	}
+
+	// ACL check origin server
+	services()
+		.rooms
+		.event_handler
+		.acl_check(origin, &body.room_id)?;
 
 	if services()
 		.globals
@@ -1440,26 +1433,18 @@ pub(crate) async fn create_leave_event_template_route(
 	}
 
 	let origin = body.origin.as_ref().expect("server is authenticated");
-
-	// ACL check origin
-	services()
-		.rooms
-		.event_handler
-		.acl_check(origin, &body.room_id)?;
-
-	// ACL check invited user server name
-	services()
-		.rooms
-		.event_handler
-		.acl_check(body.user_id.server_name(), &body.room_id)?;
-
-	// check if origin server is trying to send for another server
 	if body.user_id.server_name() != origin {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Not allowed to leave on behalf of another server/user",
 		));
 	}
+
+	// ACL check origin
+	services()
+		.rooms
+		.event_handler
+		.acl_check(origin, &body.room_id)?;
 
 	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
 
