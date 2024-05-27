@@ -74,7 +74,8 @@ pub fn sanitise_filename(filename: String) -> String {
 }
 
 /// creates the final Content-Disposition based on whether the filename exists
-/// or not.
+/// or not, or if a requested filename was specified (media download with
+/// filename)
 ///
 /// if filename exists:
 /// `Content-Disposition: attachment/inline; filename=filename.ext`
@@ -82,19 +83,25 @@ pub fn sanitise_filename(filename: String) -> String {
 /// else: `Content-Disposition: attachment/inline`
 #[tracing::instrument(skip(file))]
 pub fn make_content_disposition(
-	file: &[u8], content_type: &Option<String>, content_disposition: Option<String>,
+	file: &[u8], content_type: &Option<String>, content_disposition: Option<String>, req_filename: Option<String>,
 ) -> String {
-	let filename = content_disposition.map_or_else(String::new, |content_disposition| {
-		let (_, filename) = content_disposition
-			.split_once("filename=")
-			.unwrap_or(("", ""));
+	let filename: String;
 
-		if filename.is_empty() {
-			String::new()
-		} else {
-			sanitise_filename(filename.to_owned())
-		}
-	});
+	if let Some(req_filename) = req_filename {
+		filename = sanitise_filename(req_filename);
+	} else {
+		filename = content_disposition.map_or_else(String::new, |content_disposition| {
+			let (_, filename) = content_disposition
+				.split_once("filename=")
+				.unwrap_or(("", ""));
+
+			if filename.is_empty() {
+				String::new()
+			} else {
+				sanitise_filename(filename.to_owned())
+			}
+		});
+	};
 
 	if !filename.is_empty() {
 		// Content-Disposition: attachment/inline; filename=filename.ext
