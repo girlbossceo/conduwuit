@@ -1,20 +1,20 @@
 pub mod cork;
-mod kvdatabase;
-mod kvengine;
-mod kvtree;
-
-#[cfg(feature = "rocksdb")]
-pub(crate) mod rocksdb;
-
-#[cfg(feature = "rocksdb")]
-pub(crate) mod watchers;
+mod database;
+mod engine;
+mod map;
+pub mod maps;
+mod opts;
+mod util;
+mod watchers;
 
 extern crate conduit_core as conduit;
-pub(crate) use conduit::{Config, Result};
+extern crate rust_rocksdb as rocksdb;
+
 pub use cork::Cork;
-pub use kvdatabase::KeyValueDatabase;
-pub use kvengine::KeyValueDatabaseEngine;
-pub use kvtree::KvTree;
+pub use database::Database;
+pub(crate) use engine::Engine;
+pub use map::Map;
+pub(crate) use util::{or_else, result};
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}

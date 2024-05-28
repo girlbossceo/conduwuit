@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use super::KeyValueDatabaseEngine;
+use crate::Engine;
 
 pub struct Cork {
-	db: Arc<dyn KeyValueDatabaseEngine>,
+	db: Arc<Engine>,
 	flush: bool,
 	sync: bool,
 }
 
 impl Cork {
-	pub fn new(db: &Arc<dyn KeyValueDatabaseEngine>, flush: bool, sync: bool) -> Self {
-		db.cork().unwrap();
+	pub fn new(db: &Arc<Engine>, flush: bool, sync: bool) -> Self {
+		db.cork();
 		Self {
 			db: db.clone(),
 			flush,
@@ -21,7 +21,7 @@ impl Cork {
 
 impl Drop for Cork {
 	fn drop(&mut self) {
-		self.db.uncork().ok();
+		self.db.uncork();
 		if self.flush {
 			self.db.flush().ok();
 		}

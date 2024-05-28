@@ -1,14 +1,9 @@
-#![allow(dead_code)]
 use std::{cmp, collections::HashMap};
 
-use conduit::utils;
-
-use super::{
-	rust_rocksdb::{
-		BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env, LogLevel, Options,
-		UniversalCompactOptions, UniversalCompactionStopStyle,
-	},
-	Config,
+use conduit::{utils, Config};
+use rocksdb::{
+	BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env, LogLevel, Options,
+	UniversalCompactOptions, UniversalCompactionStopStyle,
 };
 
 /// Create database-wide options suitable for opening the database. This also
@@ -150,7 +145,7 @@ pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mu
 		),
 
 		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-		"pduid_pdu" => set_table_with_new_cache(
+		"eventid_outlierpdu" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
@@ -158,7 +153,7 @@ pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mu
 			(cfg.pdu_cache_capacity as usize).saturating_mul(1536),
 		),
 
-		"eventid_outlierpdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "pduid_pdu"),
+		"pduid_pdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "eventid_outlierpdu"),
 
 		&_ => {},
 	}
@@ -210,6 +205,7 @@ fn set_compression_defaults(opts: &mut Options, config: &Config) {
 	opts.set_compression_type(rocksdb_compression_algo);
 }
 
+#[allow(dead_code)]
 fn set_for_random_small_uc(opts: &mut Options, config: &Config) {
 	let uco = uc_options(config);
 	set_for_random_small(opts, config);
@@ -224,6 +220,7 @@ fn set_for_sequential_small_uc(opts: &mut Options, config: &Config) {
 	opts.set_compaction_style(DBCompactionStyle::Universal);
 }
 
+#[allow(dead_code)]
 fn set_for_random_small(opts: &mut Options, config: &Config) {
 	set_for_random(opts, config);
 

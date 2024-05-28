@@ -1,45 +1,36 @@
-// no_link to prevent double-inclusion of librocksdb.a here and with
-// libconduit_core.so
-#[no_link]
-extern crate rust_rocksdb;
-
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	fmt::Write,
-	sync::{atomic::AtomicU32, Arc},
+	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
 };
 
 use chrono::{DateTime, Utc};
-use rust_rocksdb::{
+use conduit::{debug, error, info, warn, Result, Server};
+use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
-	Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode as Db, Env, MultiThreaded, Options,
+	BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode as Db, Env, MultiThreaded, Options,
 };
-use tracing::{debug, error, info, warn};
 
-use crate::{watchers::Watchers, Config, KeyValueDatabaseEngine, KvTree, Result};
+use crate::{
+	opts::{cf_options, db_options},
+	or_else, result,
+};
 
-pub(crate) mod kvtree;
-pub(crate) mod opts;
-
-use kvtree::RocksDbEngineTree;
-use opts::{cf_options, db_options};
-
-use super::watchers;
-
-pub(crate) struct Engine {
-	config: Config,
+pub struct Engine {
+	server: Arc<Server>,
 	row_cache: Cache,
-	col_cache: HashMap<String, Cache>,
+	col_cache: RwLock<HashMap<String, Cache>>,
 	opts: Options,
 	env: Env,
-	old_cfs: Vec<String>,
-	rocks: Db<MultiThreaded>,
+	cfs: Mutex<HashSet<String>>,
+	pub(crate) db: Db<MultiThreaded>,
 	corks: AtomicU32,
 }
 
-impl KeyValueDatabaseEngine for Arc<Engine> {
-	fn open(config: &Config) -> Result<Self> {
+impl Engine {
+	pub(crate) fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
+		let config = &server.config;
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
 
 		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
@@ -85,61 +76,64 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			db.latest_sequence_number(),
 			load_time.elapsed()
 		);
-		Ok(Self::new(Engine {
-			config: config.clone(),
+
+		let cfs = HashSet::<String>::from_iter(cfs);
+		Ok(Arc::new(Self {
+			server: server.clone(),
 			row_cache,
-			col_cache,
+			col_cache: RwLock::new(col_cache),
 			opts: db_opts,
 			env: db_env,
-			old_cfs: cfs,
-			rocks: db,
+			cfs: Mutex::new(cfs),
+			db,
 			corks: AtomicU32::new(0),
 		}))
 	}
 
-	fn open_tree(&self, name: &'static str) -> Result<Arc<dyn KvTree>> {
-		if !self.old_cfs.contains(&name.to_owned()) {
-			// Create if it didn't exist
+	pub(crate) fn open_cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
+		let mut cfs = self.cfs.lock().expect("locked");
+		if !cfs.contains(name) {
 			debug!("Creating new column family in database: {}", name);
 
-			// TODO: the workaround for this needs to be extended to rocksdb caches, but i
-			// dont know that code to safely do that
-			#[allow(clippy::let_underscore_must_use)]
-			#[allow(clippy::let_underscore_untyped)] // attributes on expressions are experimental
-			let _ = self.rocks.create_cf(name, &self.opts);
+			let mut col_cache = self.col_cache.write().expect("locked");
+			let opts = cf_options(&self.server.config, name, self.opts.clone(), &mut col_cache);
+			if let Err(e) = self.db.create_cf(name, &opts) {
+				error!("Failed to create new column family: {e}");
+				return or_else(e);
+			}
+
+			cfs.insert(name.to_owned());
 		}
 
-		Ok(Arc::new(RocksDbEngineTree {
-			name,
-			db: Self::clone(self),
-			watchers: Watchers::default(),
-		}))
+		Ok(self.cf(name))
 	}
 
-	fn flush(&self) -> Result<()> { result(DBCommon::flush_wal(&self.rocks, false)) }
+	pub(crate) fn cf<'db>(&'db self, name: &str) -> Arc<BoundColumnFamily<'db>> {
+		self.db
+			.cf_handle(name)
+			.expect("column was created and exists")
+	}
 
-	fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.rocks, true)) }
+	pub fn flush(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, false)) }
 
-	fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
+	pub fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, true)) }
 
-	fn cork(&self) -> Result<()> {
+	pub(crate) fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
+
+	pub(crate) fn cork(&self) {
 		self.corks
 			.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-		Ok(())
 	}
 
-	fn uncork(&self) -> Result<()> {
+	pub(crate) fn uncork(&self) {
 		self.corks
 			.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-
-		Ok(())
 	}
 
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-	fn memory_usage(&self) -> Result<String> {
+	pub fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
-		let stats = get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache])).or_else(or_else)?;
+		let stats = get_memory_usage_stats(Some(&[&self.db]), Some(&[&self.row_cache])).or_else(or_else)?;
 		writeln!(
 			res,
 			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB",
@@ -150,7 +144,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		)
 		.expect("should be able to write to string buffer");
 
-		for (name, cache) in &self.col_cache {
+		for (name, cache) in &*self.col_cache.read().expect("locked") {
 			writeln!(res, "{} cache: {:.2} MiB", name, cache.get_usage() as f64 / 1024.0 / 1024.0,)
 				.expect("should be able to write to string buffer");
 		}
@@ -158,22 +152,23 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		Ok(res)
 	}
 
-	fn cleanup(&self) -> Result<()> {
+	pub fn cleanup(&self) -> Result<()> {
 		debug!("Running flush_opt");
-		let flushoptions = rust_rocksdb::FlushOptions::default();
-		result(DBCommon::flush_opt(&self.rocks, &flushoptions))
+		let flushoptions = rocksdb::FlushOptions::default();
+		result(DBCommon::flush_opt(&self.db, &flushoptions))
 	}
 
-	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
-		let path = self.config.database_backup_path.as_ref();
+	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
+		let config = &self.server.config;
+		let path = config.database_backup_path.as_ref();
 		if path.is_none() || path.is_some_and(|path| path.as_os_str().is_empty()) {
 			return Ok(());
 		}
 
 		let options = BackupEngineOptions::new(path.unwrap())?;
 		let mut engine = BackupEngine::open(&options, &self.env)?;
-		if self.config.database_backups_to_keep > 0 {
-			if let Err(e) = engine.create_new_backup_flush(&self.rocks, true) {
+		if config.database_backups_to_keep > 0 {
+			if let Err(e) = engine.create_new_backup_flush(&self.db, true) {
 				return Err(Box::new(e));
 			}
 
@@ -185,8 +180,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			);
 		}
 
-		if self.config.database_backups_to_keep >= 0 {
-			let keep = u32::try_from(self.config.database_backups_to_keep)?;
+		if config.database_backups_to_keep >= 0 {
+			let keep = u32::try_from(config.database_backups_to_keep)?;
 			if let Err(e) = engine.purge_old_backups(keep.try_into()?) {
 				error!("Failed to purge old backup: {:?}", e.to_string());
 			}
@@ -195,8 +190,9 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		Ok(())
 	}
 
-	fn backup_list(&self) -> Result<String> {
-		let path = self.config.database_backup_path.as_ref();
+	pub fn backup_list(&self) -> Result<String> {
+		let config = &self.server.config;
+		let path = config.database_backup_path.as_ref();
 		if path.is_none() || path.is_some_and(|path| path.as_os_str().is_empty()) {
 			return Ok(
 				"Configure database_backup_path to enable backups, or the path specified is not valid".to_owned(),
@@ -223,8 +219,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		Ok(res)
 	}
 
-	fn file_list(&self) -> Result<String> {
-		match self.rocks.live_files() {
+	pub fn file_list(&self) -> Result<String> {
+		match self.db.live_files() {
 			Err(e) => Ok(String::from(e)),
 			Ok(files) => {
 				let mut res = String::new();
@@ -242,10 +238,6 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			},
 		}
 	}
-
-	// TODO: figure out if this is needed for rocksdb
-	#[allow(dead_code)]
-	fn clear_caches(&self) {}
 }
 
 impl Drop for Engine {
@@ -253,7 +245,7 @@ impl Drop for Engine {
 		const BLOCKING: bool = true;
 
 		debug!("Waiting for background tasks to finish...");
-		self.rocks.cancel_all_background_work(BLOCKING);
+		self.db.cancel_all_background_work(BLOCKING);
 
 		debug!("Shutting down background threads");
 		self.env.set_high_priority_background_threads(0);
@@ -265,15 +257,3 @@ impl Drop for Engine {
 		self.env.join_all_threads();
 	}
 }
-
-#[inline]
-fn result<T>(r: std::result::Result<T, rust_rocksdb::Error>) -> Result<T, conduit::Error> {
-	r.map_or_else(or_else, and_then)
-}
-
-#[inline(always)]
-fn and_then<T>(t: T) -> Result<T, conduit::Error> { Ok(t) }
-
-fn or_else<T>(e: rust_rocksdb::Error) -> Result<T, conduit::Error> { Err(map_err(e)) }
-
-fn map_err(e: rust_rocksdb::Error) -> conduit::Error { conduit::Error::Database(e.into_string()) }
