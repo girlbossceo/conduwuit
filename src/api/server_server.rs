@@ -367,7 +367,13 @@ pub(crate) async fn send_transaction_message_route(
 							continue;
 						}
 
-						if services().rooms.state_cache.is_joined(&user_id, &room_id)? {
+						if services()
+							.rooms
+							.state_cache
+							.room_members(&room_id)
+							.filter_map(Result::ok)
+							.any(|member| member.server_name() == user_id.server_name())
+						{
 							for event_id in &user_updates.event_ids {
 								let mut user_receipts = BTreeMap::new();
 								user_receipts.insert(user_id.clone(), user_updates.data.clone());
@@ -389,7 +395,7 @@ pub(crate) async fn send_transaction_message_route(
 									.readreceipt_update(&user_id, &room_id, event)?;
 							}
 						} else {
-							debug_warn!(%user_id, %room_id, "received read receipt EDU for user not in room");
+							debug_warn!(%user_id, %room_id, %origin, "received read receipt EDU from server who does not have a single member from their server in the room");
 							continue;
 						}
 					}
@@ -411,7 +417,7 @@ pub(crate) async fn send_transaction_message_route(
 					.acl_check(typing.user_id.server_name(), &typing.room_id)
 					.is_err()
 				{
-					debug_warn!(%typing.user_id, %typing.room_id, "received typing EDU for ACL'd user's server");
+					debug_warn!(%typing.user_id, %typing.room_id, %origin, "received typing EDU for ACL'd user's server");
 					continue;
 				}
 
@@ -441,7 +447,7 @@ pub(crate) async fn send_transaction_message_route(
 							.await?;
 					}
 				} else {
-					debug_warn!(%typing.user_id, %typing.room_id, "received typing EDU for user not in room");
+					debug_warn!(%typing.user_id, %typing.room_id, %origin, "received typing EDU for user not in room");
 					continue;
 				}
 			},
