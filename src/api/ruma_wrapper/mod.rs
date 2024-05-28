@@ -1,11 +1,14 @@
 mod auth;
 mod request;
+mod router;
 mod xmatrix;
 
 use std::ops::Deref;
 
+pub(super) use conduit::error::RumaResponse;
 use ruma::{CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId};
 
+pub(super) use self::router::RouterExt;
 use crate::service::appservice::RegistrationInfo;
 
 /// Extractor for Ruma request structs

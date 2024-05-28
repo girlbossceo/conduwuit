@@ -1,15 +1,13 @@
-use std::future::Future;
-
 use axum::{
 	response::IntoResponse,
-	routing::{any, get, on, post, MethodFilter},
+	routing::{any, get, post},
 	Router,
 };
-use conduit::{Error, Result, Server};
-use http::{Method, Uri};
-use ruma::api::{client::error::ErrorKind, IncomingRequest};
+use conduit::{Error, Server};
+use http::Uri;
+use ruma::api::client::error::ErrorKind;
 
-use crate::{client_server, server_server, Ruma, RumaResponse};
+use crate::{client_server, ruma_wrapper::RouterExt, server_server};
 
 pub fn build(router: Router, server: &Server) -> Router {
 	let config = &server.config;
@@ -234,66 +232,3 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 }
 
 async fn federation_disabled() -> impl IntoResponse { Error::bad_config("Federation is disabled.") }
-
-trait RouterExt {
-	fn ruma_route<H, T>(self, handler: H) -> Self
-	where
-		H: RumaHandler<T>,
-		T: 'static;
-}
-
-impl RouterExt for Router {
-	#[inline(always)]
-	fn ruma_route<H, T>(self, handler: H) -> Self
-	where
-		H: RumaHandler<T>,
-		T: 'static,
-	{
-		handler.add_routes(self)
-	}
-}
-
-trait RumaHandler<T> {
-	fn add_routes(&self, router: Router) -> Router;
-
-	fn add_route(&self, router: Router, path: &str) -> Router;
-}
-
-impl<Req, E, F, Fut> RumaHandler<Ruma<Req>> for F
-where
-	Req: IncomingRequest + Send + 'static,
-	F: FnOnce(Ruma<Req>) -> Fut + Clone + Send + Sync + 'static,
-	Fut: Future<Output = Result<Req::OutgoingResponse, E>> + Send,
-	E: IntoResponse,
-{
-	#[inline(always)]
-	fn add_routes(&self, router: Router) -> Router {
-		Req::METADATA
-			.history
-			.all_paths()
-			.fold(router, |router, path| self.add_route(router, path))
-	}
-
-	#[inline(always)]
-	fn add_route(&self, router: Router, path: &str) -> Router {
-		let handle = self.clone();
-		let method = method_to_filter(Req::METADATA.method);
-		let action = |req| async { handle(req).await.map(RumaResponse) };
-		router.route(path, on(method, action))
-	}
-}
-
-#[inline]
-fn method_to_filter(method: Method) -> MethodFilter {
-	match method {
-		Method::DELETE => MethodFilter::DELETE,
-		Method::GET => MethodFilter::GET,
-		Method::HEAD => MethodFilter::HEAD,
-		Method::OPTIONS => MethodFilter::OPTIONS,
-		Method::PATCH => MethodFilter::PATCH,
-		Method::POST => MethodFilter::POST,
-		Method::PUT => MethodFilter::PUT,
-		Method::TRACE => MethodFilter::TRACE,
-		m => panic!("Unsupported HTTP method: {m:?}"),
-	}
-}
