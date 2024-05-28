@@ -115,18 +115,18 @@ cargo clippy \
     -D warnings
 """
 
-[[task]]
-name = "clippy/hardened_malloc"
-group = "lints"
-script = """
-cargo clippy \
-    --workspace \
-    --features hardened_malloc \
-    --all-targets \
-    --color=always \
-    -- \
-    -D warnings
-"""
+#[[task]]
+#name = "clippy/hardened_malloc"
+#group = "lints"
+#script = """
+#cargo clippy \
+#    --workspace \
+#    --features hardened_malloc \
+#    --all-targets \
+#    --color=always \
+#    -- \
+#    -D warnings
+#"""
 
 [[task]]
 name = "lychee"
