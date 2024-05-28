@@ -509,6 +509,17 @@ pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Res
 pub(crate) async fn forget_room_route(body: Ruma<forget_room::v3::Request>) -> Result<forget_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+	if services()
+		.rooms
+		.state_cache
+		.is_joined(sender_user, &body.room_id)?
+	{
+		return Err(Error::BadRequest(
+			ErrorKind::Unknown,
+			"You must leave the room before forgetting it",
+		));
+	}
+
 	services()
 		.rooms
 		.state_cache
