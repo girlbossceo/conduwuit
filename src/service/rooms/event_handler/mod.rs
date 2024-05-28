@@ -375,7 +375,7 @@ impl Service {
 			//    auth events
 			debug!("Checking based on auth events");
 			// Build map of auth events
-			let mut auth_events = HashMap::new();
+			let mut auth_events = HashMap::with_capacity(incoming_pdu.auth_events.len());
 			for id in &incoming_pdu.auth_events {
 				let Some(auth_event) = services().rooms.timeline.get_pdu(id)? else {
 					warn!("Could not find auth event {}", id);
@@ -814,7 +814,7 @@ impl Service {
 		&self, incoming_pdu: &Arc<PduEvent>, room_id: &RoomId, room_version_id: &RoomVersionId,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		debug!("Calculating state at event using state res");
-		let mut extremity_sstatehashes = HashMap::new();
+		let mut extremity_sstatehashes = HashMap::with_capacity(incoming_pdu.prev_events.len());
 
 		let mut okay = true;
 		for prev_eventid in &incoming_pdu.prev_events {
@@ -949,7 +949,7 @@ impl Service {
 					.fetch_and_handle_outliers(origin, &collect, create_event, room_id, room_version_id, pub_key_map)
 					.await;
 
-				let mut state: HashMap<_, Arc<EventId>> = HashMap::new();
+				let mut state: HashMap<_, Arc<EventId>> = HashMap::with_capacity(state_vec.len());
 				for (pdu, _) in state_vec {
 					let state_key = pdu
 						.state_key
@@ -1196,7 +1196,7 @@ impl Service {
 		Vec<Arc<EventId>>,
 		HashMap<Arc<EventId>, (Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>,
 	)> {
-		let mut graph: HashMap<Arc<EventId>, _> = HashMap::new();
+		let mut graph: HashMap<Arc<EventId>, _> = HashMap::with_capacity(initial_set.len());
 		let mut eventid_info = HashMap::new();
 		let mut todo_outlier_stack: Vec<Arc<EventId>> = initial_set;
 
@@ -1242,7 +1242,7 @@ impl Service {
 						.flatten()
 				}) {
 					if pdu.origin_server_ts > first_pdu_in_room.origin_server_ts {
-						amount += 1;
+						amount = amount.saturating_add(1);
 						for prev_prev in &pdu.prev_events {
 							if !graph.contains_key(prev_prev) {
 								todo_outlier_stack.push(prev_prev.clone());
