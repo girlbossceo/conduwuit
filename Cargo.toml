@@ -75,6 +75,7 @@ features = [
 	"json",
 	"matched-path",
 	"tokio",
+	"tracing",
 ]
 
 [workspace.dependencies.axum-extra]
