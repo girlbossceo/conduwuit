@@ -239,7 +239,7 @@ impl Service {
 
 	/// Returns an iterator of all servers participating in this room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_servers<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + 'a {
+	pub fn room_servers(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + '_ {
 		self.db.room_servers(room_id)
 	}
 
@@ -251,7 +251,7 @@ impl Service {
 	/// Returns an iterator of all rooms a server participates in (as far as we
 	/// know).
 	#[tracing::instrument(skip(self))]
-	pub fn server_rooms<'a>(&'a self, server: &ServerName) -> impl Iterator<Item = Result<OwnedRoomId>> + 'a {
+	pub fn server_rooms(&self, server: &ServerName) -> impl Iterator<Item = Result<OwnedRoomId>> + '_ {
 		self.db.server_rooms(server)
 	}
 
@@ -282,7 +282,7 @@ impl Service {
 
 	/// Returns an iterator over all joined members of a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_members<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
+	pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
 		self.db.room_members(room_id)
 	}
 
@@ -308,13 +308,13 @@ impl Service {
 
 	/// Returns an iterator over all User IDs who ever joined a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_useroncejoined<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
+	pub fn room_useroncejoined(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
 		self.db.room_useroncejoined(room_id)
 	}
 
 	/// Returns an iterator over all invited members of a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_members_invited<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + 'a {
+	pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
 		self.db.room_members_invited(room_id)
 	}
 
@@ -330,15 +330,15 @@ impl Service {
 
 	/// Returns an iterator over all rooms this user joined.
 	#[tracing::instrument(skip(self))]
-	pub fn rooms_joined<'a>(&'a self, user_id: &UserId) -> impl Iterator<Item = Result<OwnedRoomId>> + 'a {
+	pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<OwnedRoomId>> + '_ {
 		self.db.rooms_joined(user_id)
 	}
 
 	/// Returns an iterator over all rooms a user was invited to.
 	#[tracing::instrument(skip(self))]
-	pub fn rooms_invited<'a>(
-		&'a self, user_id: &UserId,
-	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a {
+	pub fn rooms_invited(
+		&self, user_id: &UserId,
+	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + '_ {
 		self.db.rooms_invited(user_id)
 	}
 
@@ -354,9 +354,9 @@ impl Service {
 
 	/// Returns an iterator over all rooms a user left.
 	#[tracing::instrument(skip(self))]
-	pub fn rooms_left<'a>(
-		&'a self, user_id: &UserId,
-	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a {
+	pub fn rooms_left(
+		&self, user_id: &UserId,
+	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + '_ {
 		self.db.rooms_left(user_id)
 	}
 

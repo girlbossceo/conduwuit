@@ -72,7 +72,7 @@ pub trait Data: Send + Sync {
 	fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>>;
 
 	/// Returns an iterator over all rooms this user joined.
-	fn rooms_joined<'a>(&'a self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
+	fn rooms_joined(&self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + '_>;
 
 	/// Returns an iterator over all rooms a user was invited to.
 	fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a>;
@@ -494,7 +494,7 @@ impl Data for KeyValueDatabase {
 
 	/// Returns an iterator over all rooms this user joined.
 	#[tracing::instrument(skip(self))]
-	fn rooms_joined<'a>(&'a self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
+	fn rooms_joined(&self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + '_> {
 		Box::new(
 			self.userroomid_joined
 				.scan_prefix(user_id.as_bytes().to_vec())
