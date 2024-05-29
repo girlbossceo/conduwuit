@@ -216,7 +216,14 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-version = "0.1.4"
+version = "0.1.5"
+features = [
+	"client",
+	"server-auto",
+	"server-graceful",
+	"service",
+	"tokio",
+]
 
 # to support multiple variations of setting a config option
 [workspace.dependencies.either]
