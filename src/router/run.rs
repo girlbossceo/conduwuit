@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use axum_server::Handle as ServerHandle;
 use tokio::{
 	signal,
-	sync::oneshot::{self, Sender},
+	sync::broadcast::{self, Sender},
 };
 use tracing::{debug, info, warn};
 
@@ -40,14 +40,16 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 		.insert(handle.clone());
 
 	server.interrupt.store(false, Ordering::Release);
-	let (tx, rx) = oneshot::channel::<()>();
-	let sigs = server.runtime().spawn(sighandle(server.clone(), tx));
+	let (tx, _) = broadcast::channel::<()>(1);
+	let sigs = server
+		.runtime()
+		.spawn(sighandle(server.clone(), tx.clone()));
 
 	// Prepare to serve http clients
 	let res;
 	// Serve clients
 	if cfg!(unix) && config.unix_socket_path.is_some() {
-		res = serve::unix_socket(&server, app, rx).await;
+		res = serve::unix_socket(&server, app, tx.subscribe()).await;
 	} else if config.tls.is_some() {
 		res = serve::tls(&server, app, handle.clone(), addrs).await;
 	} else {
@@ -66,7 +68,7 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	_ = services().admin.handle.lock().await.take();
 
 	debug_info!("Finished");
-	Ok(res?)
+	res
 }
 
 /// Async initializations
