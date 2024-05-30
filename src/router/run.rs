@@ -24,9 +24,7 @@ use crate::{layers, serve};
 #[tracing::instrument(skip_all)]
 #[allow(clippy::let_underscore_must_use)] // various of these are intended
 pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
-	let config = &server.config;
 	let app = layers::build(&server)?;
-	let addrs = config.get_bind_addrs();
 
 	// Install the admin room callback here for now
 	_ = services().admin.handle.lock().await.insert(admin::handle);
@@ -45,16 +43,8 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 		.runtime()
 		.spawn(sighandle(server.clone(), tx.clone()));
 
-	// Prepare to serve http clients
-	let res;
 	// Serve clients
-	if cfg!(unix) && config.unix_socket_path.is_some() {
-		res = serve::unix_socket(&server, app, tx.subscribe()).await;
-	} else if config.tls.is_some() {
-		res = serve::tls(&server, app, handle.clone(), addrs).await;
-	} else {
-		res = serve::plain(&server, app, handle.clone(), addrs).await;
-	}
+	let res = serve::serve(&server, app, handle, tx.subscribe()).await;
 
 	// Join the signal handler before we leave.
 	sigs.abort();
