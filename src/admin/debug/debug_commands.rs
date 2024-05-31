@@ -5,7 +5,7 @@ use ruma::{
 	api::client::error::ErrorKind, events::room::message::RoomMessageEventContent, CanonicalJsonObject, EventId,
 	RoomId, RoomVersionId, ServerName,
 };
-use service::{rooms::event_handler::parse_incoming_pdu, sending::send::resolve_actual_dest, services, PduEvent};
+use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve::resolve_actual_dest, services, PduEvent};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use tracing_subscriber::EnvFilter;

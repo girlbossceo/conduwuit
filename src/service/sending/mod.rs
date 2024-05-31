@@ -1,6 +1,13 @@
+mod appservice;
+mod data;
+pub mod resolve;
+mod send;
+mod sender;
+
 use std::{fmt::Debug, sync::Arc};
 
 use data::Data;
+pub use resolve::FedDest;
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
@@ -9,12 +16,6 @@ use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{error, warn};
 
 use crate::{server_is_ours, services, Config, Error, Result};
-
-mod appservice;
-mod data;
-pub mod send;
-pub mod sender;
-pub use send::FedDest;
 
 pub struct Service {
 	pub db: Arc<dyn Data>,
