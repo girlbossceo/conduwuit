@@ -119,7 +119,7 @@ pub async fn get_alias_helper(
 			)
 			.await;
 
-		debug_info!("room alias server_name get_alias_helper response: {response:?}");
+		debug!("room alias server_name get_alias_helper response: {response:?}");
 
 		if let Err(ref e) = response {
 			debug_info!(
@@ -140,7 +140,7 @@ pub async fn get_alias_helper(
 							},
 						)
 						.await;
-					debug_info!("Got response from server {server} for room aliases: {response:?}");
+					debug!("Got response from server {server} for room aliases: {response:?}");
 
 					if let Ok(ref response) = response {
 						if !response.servers.is_empty() {
@@ -162,7 +162,7 @@ pub async fn get_alias_helper(
 			pre_servers.push(room_alias.server_name().into());
 
 			let servers = room_available_servers(&room_id, &room_alias, &Some(pre_servers));
-			debug_warn!(
+			debug!(
 				"room alias servers from federation response for room ID {room_id} and room alias {room_alias}: \
 				 {servers:?}"
 			);
@@ -213,7 +213,7 @@ pub async fn get_alias_helper(
 
 	let servers = room_available_servers(&room_id, &room_alias, &None);
 
-	debug_warn!("room alias servers for room ID {room_id} and room alias {room_alias}");
+	debug!("room alias servers for room ID {room_id} and room alias {room_alias}");
 
 	Ok(get_alias::v3::Response::new(room_id, servers))
 }
