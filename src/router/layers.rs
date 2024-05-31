@@ -66,7 +66,7 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<axum::routing::IntoMakeS
 			header::CONTENT_SECURITY_POLICY,
 			HeaderValue::from_static(
 				"sandbox; default-src 'none'; font-src 'none'; script-src 'none'; plugin-types application/pdf; \
-				 style-src 'unsafe-inline'; object-src 'self'; frame-ancesors 'none';",
+				 style-src 'unsafe-inline'; object-src 'self'; frame-ancestors 'none'; base-uri 'none';",
 			),
 		))
 		.layer(cors_layer(server))
