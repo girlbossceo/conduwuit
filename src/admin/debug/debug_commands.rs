@@ -445,7 +445,7 @@ pub(crate) async fn resolve_true_destination(
 		));
 	}
 
-	let (actual_dest, hostname_uri) = resolve_actual_dest(&server_name, no_cache).await?;
+	let (actual_dest, hostname_uri) = resolve_actual_dest(&server_name, !no_cache).await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Actual destination: {actual_dest} | Hostname URI: {hostname_uri}"

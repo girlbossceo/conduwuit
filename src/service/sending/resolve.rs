@@ -59,7 +59,7 @@ pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDe
 	} else {
 		cached = false;
 		validate_dest(server_name)?;
-		resolve_actual_dest(server_name, false).await?
+		resolve_actual_dest(server_name, true).await?
 	};
 
 	let string = dest.clone().into_https_string();
@@ -75,128 +75,122 @@ pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDe
 /// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
-pub async fn resolve_actual_dest(dest: &ServerName, no_cache_dest: bool) -> Result<(FedDest, String)> {
+pub async fn resolve_actual_dest(dest: &ServerName, cache: bool) -> Result<(FedDest, String)> {
 	trace!("Finding actual destination for {dest}");
-	let dest_str = dest.as_str().to_owned();
-	let mut hostname = dest_str.clone();
-
-	#[allow(clippy::single_match_else)]
-	let actual_dest = match get_ip_with_port(&dest_str) {
-		Some(host_port) => {
-			debug!("1: IP literal with provided or default port");
-			host_port
-		},
+	let mut host = dest.as_str().to_owned();
+	let actual_dest = match get_ip_with_port(dest.as_str()) {
+		Some(host_port) => actual_dest_1(host_port)?,
 		None => {
-			if let Some(pos) = dest_str.find(':') {
-				debug!("2: Hostname with included port");
-				let (host, port) = dest_str.split_at(pos);
-				if !no_cache_dest {
-					query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await?;
-				}
-
-				FedDest::Named(host.to_owned(), port.to_owned())
+			if let Some(pos) = dest.as_str().find(':') {
+				actual_dest_2(dest, cache, pos).await?
+			} else if let Some(delegated) = request_well_known(dest.as_str()).await? {
+				actual_dest_3(&mut host, cache, delegated).await?
+			} else if let Some(overrider) = query_srv_record(dest.as_str()).await? {
+				actual_dest_4(&host, cache, overrider).await?
 			} else {
-				trace!("Requesting well known for {dest}");
-				if let Some(delegated_hostname) = request_well_known(dest.as_str()).await? {
-					debug!("3: A .well-known file is available");
-					hostname = add_port_to_hostname(&delegated_hostname).into_uri_string();
-					match get_ip_with_port(&delegated_hostname) {
-						Some(host_and_port) => {
-							debug!("3.1: IP literal in .well-known file");
-							host_and_port
-						},
-						None => {
-							if let Some(pos) = delegated_hostname.find(':') {
-								debug!("3.2: Hostname with port in .well-known file");
-								let (host, port) = delegated_hostname.split_at(pos);
-								if !no_cache_dest {
-									query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448)).await?;
-								}
-
-								FedDest::Named(host.to_owned(), port.to_owned())
-							} else {
-								trace!("Delegated hostname has no port in this branch");
-								if let Some(hostname_override) = query_srv_record(&delegated_hostname).await? {
-									debug!("3.3: SRV lookup successful");
-									let force_port = hostname_override.port();
-									if !no_cache_dest {
-										query_and_cache_override(
-											&delegated_hostname,
-											&hostname_override.hostname(),
-											force_port.unwrap_or(8448),
-										)
-										.await?;
-									}
-
-									if let Some(port) = force_port {
-										FedDest::Named(delegated_hostname, format!(":{port}"))
-									} else {
-										add_port_to_hostname(&delegated_hostname)
-									}
-								} else {
-									debug!("3.4: No SRV records, just use the hostname from .well-known");
-									if !no_cache_dest {
-										query_and_cache_override(&delegated_hostname, &delegated_hostname, 8448)
-											.await?;
-									}
-
-									add_port_to_hostname(&delegated_hostname)
-								}
-							}
-						},
-					}
-				} else {
-					trace!("4: No .well-known or an error occured");
-					if let Some(hostname_override) = query_srv_record(&dest_str).await? {
-						debug!("4: No .well-known; SRV record found");
-						let force_port = hostname_override.port();
-
-						if !no_cache_dest {
-							query_and_cache_override(
-								&hostname,
-								&hostname_override.hostname(),
-								force_port.unwrap_or(8448),
-							)
-							.await?;
-						}
-
-						if let Some(port) = force_port {
-							FedDest::Named(hostname.clone(), format!(":{port}"))
-						} else {
-							add_port_to_hostname(&hostname)
-						}
-					} else {
-						debug!("4: No .well-known; 5: No SRV record found");
-						if !no_cache_dest {
-							query_and_cache_override(&dest_str, &dest_str, 8448).await?;
-						}
-
-						add_port_to_hostname(&dest_str)
-					}
-				}
+				actual_dest_5(dest, cache).await?
 			}
 		},
 	};
 
 	// Can't use get_ip_with_port here because we don't want to add a port
 	// to an IP address if it wasn't specified
-	let hostname = if let Ok(addr) = hostname.parse::<SocketAddr>() {
+	let host = if let Ok(addr) = host.parse::<SocketAddr>() {
 		FedDest::Literal(addr)
-	} else if let Ok(addr) = hostname.parse::<IpAddr>() {
+	} else if let Ok(addr) = host.parse::<IpAddr>() {
 		FedDest::Named(addr.to_string(), ":8448".to_owned())
-	} else if let Some(pos) = hostname.find(':') {
-		let (host, port) = hostname.split_at(pos);
+	} else if let Some(pos) = host.find(':') {
+		let (host, port) = host.split_at(pos);
 		FedDest::Named(host.to_owned(), port.to_owned())
 	} else {
-		FedDest::Named(hostname, ":8448".to_owned())
+		FedDest::Named(host, ":8448".to_owned())
 	};
 
-	debug!("Actual destination: {actual_dest:?} hostname: {hostname:?}");
-	Ok((actual_dest, hostname.into_uri_string()))
+	debug!("Actual destination: {actual_dest:?} hostname: {host:?}");
+	Ok((actual_dest, host.into_uri_string()))
+}
+
+fn actual_dest_1(host_port: FedDest) -> Result<FedDest> {
+	debug!("1: IP literal with provided or default port");
+	Ok(host_port)
+}
+
+async fn actual_dest_2(dest: &ServerName, cache: bool, pos: usize) -> Result<FedDest> {
+	debug!("2: Hostname with included port");
+	let (host, port) = dest.as_str().split_at(pos);
+	conditional_query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448), cache).await?;
+	Ok(FedDest::Named(host.to_owned(), port.to_owned()))
+}
+
+async fn actual_dest_3(host: &mut String, cache: bool, delegated: String) -> Result<FedDest> {
+	debug!("3: A .well-known file is available");
+	*host = add_port_to_hostname(&delegated).into_uri_string();
+	match get_ip_with_port(&delegated) {
+		Some(host_and_port) => actual_dest_3_1(host_and_port),
+		None => {
+			if let Some(pos) = delegated.find(':') {
+				actual_dest_3_2(cache, delegated, pos).await
+			} else {
+				trace!("Delegated hostname has no port in this branch");
+				if let Some(overrider) = query_srv_record(&delegated).await? {
+					actual_dest_3_3(cache, delegated, overrider).await
+				} else {
+					actual_dest_3_4(cache, delegated).await
+				}
+			}
+		},
+	}
+}
+
+fn actual_dest_3_1(host_and_port: FedDest) -> Result<FedDest> {
+	debug!("3.1: IP literal in .well-known file");
+	Ok(host_and_port)
+}
+
+async fn actual_dest_3_2(cache: bool, delegated: String, pos: usize) -> Result<FedDest> {
+	debug!("3.2: Hostname with port in .well-known file");
+	let (host, port) = delegated.split_at(pos);
+	conditional_query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448), cache).await?;
+	Ok(FedDest::Named(host.to_owned(), port.to_owned()))
+}
+
+async fn actual_dest_3_3(cache: bool, delegated: String, overrider: FedDest) -> Result<FedDest> {
+	debug!("3.3: SRV lookup successful");
+	let force_port = overrider.port();
+	conditional_query_and_cache_override(&delegated, &overrider.hostname(), force_port.unwrap_or(8448), cache).await?;
+	if let Some(port) = force_port {
+		Ok(FedDest::Named(delegated, format!(":{port}")))
+	} else {
+		Ok(add_port_to_hostname(&delegated))
+	}
+}
+
+async fn actual_dest_3_4(cache: bool, delegated: String) -> Result<FedDest> {
+	debug!("3.4: No SRV records, just use the hostname from .well-known");
+	conditional_query_and_cache_override(&delegated, &delegated, 8448, cache).await?;
+	Ok(add_port_to_hostname(&delegated))
+}
+
+async fn actual_dest_4(host: &str, cache: bool, overrider: FedDest) -> Result<FedDest> {
+	debug!("4: No .well-known; SRV record found");
+	let force_port = overrider.port();
+	conditional_query_and_cache_override(host, &overrider.hostname(), force_port.unwrap_or(8448), cache).await?;
+	if let Some(port) = force_port {
+		Ok(FedDest::Named(host.to_owned(), format!(":{port}")))
+	} else {
+		Ok(add_port_to_hostname(host))
+	}
+}
+
+async fn actual_dest_5(dest: &ServerName, cache: bool) -> Result<FedDest> {
+	debug!("5: No SRV record found");
+	conditional_query_and_cache_override(dest.as_str(), dest.as_str(), 8448, cache).await?;
+	Ok(add_port_to_hostname(dest.as_str()))
 }
 
 #[tracing::instrument(skip_all, name = "well-known")]
 async fn request_well_known(dest: &str) -> Result<Option<String>> {
+	trace!("Requesting well known for {dest}");
 	if !services()
 		.globals
 		.resolver
@@ -250,6 +244,15 @@ async fn request_well_known(dest: &str) -> Result<Option<String>> {
 
 	debug_info!("{:?} found at {:?}", dest, m_server);
 	Ok(Some(m_server.to_owned()))
+}
+
+#[inline]
+async fn conditional_query_and_cache_override(overname: &str, hostname: &str, port: u16, cache: bool) -> Result<()> {
+	if cache {
+		query_and_cache_override(overname, hostname, port).await
+	} else {
+		Ok(())
+	}
 }
 
 #[tracing::instrument(skip_all, name = "ip")]
