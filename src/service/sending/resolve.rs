@@ -1,4 +1,5 @@
 use std::{
+	fmt,
 	fmt::Debug,
 	net::{IpAddr, SocketAddr},
 };
@@ -410,6 +411,15 @@ impl FedDest {
 		match &self {
 			Self::Literal(addr) => Some(addr.port()),
 			Self::Named(_, port) => port[1..].parse().ok(),
+		}
+	}
+}
+
+impl fmt::Display for FedDest {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			FedDest::Named(host, port) => write!(f, "{host}{port}"),
+			FedDest::Literal(addr) => write!(f, "{addr}"),
 		}
 	}
 }
