@@ -62,13 +62,13 @@ pub fn content_disposition_type(buf: &[u8], content_type: &Option<String>) -> &'
 #[must_use]
 #[tracing::instrument(skip(buf))]
 pub fn make_content_type(buf: &[u8], content_type: &Option<String>) -> &'static str {
-	let Some(file_type) = infer::get(buf) else {
-		debug_info!("Failed to infer the file's contents");
+	let Some(claimed_content_type) = content_type else {
 		return APPLICATION_OCTET_STREAM;
 	};
 
-	let Some(claimed_content_type) = content_type else {
-		return file_type.mime_type();
+	let Some(file_type) = infer::get(buf) else {
+		debug_info!("Failed to infer the file's contents");
+		return APPLICATION_OCTET_STREAM;
 	};
 
 	if claimed_content_type.contains("svg") && file_type.mime_type().contains("xml") {
