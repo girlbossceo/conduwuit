@@ -975,7 +975,8 @@ fn default_tracing_flame_output_path() -> String { "./tracing.folded".to_owned()
 
 fn default_trusted_servers() -> Vec<OwnedServerName> { vec![OwnedServerName::try_from("matrix.org").unwrap()] }
 
-fn default_log() -> String {
+#[must_use]
+pub fn default_log() -> String {
 	// do debug logging by default for debug builds
 	if cfg!(debug_assertions) {
 		"debug".to_owned()

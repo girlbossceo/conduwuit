@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use conduit::{
+	config,
 	config::Config,
 	info,
 	log::{LogLevelReloadHandles, ReloadHandle},
@@ -103,7 +104,7 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 		Ok(s) => s,
 		Err(e) => {
 			eprintln!("It looks like your config is invalid. The following error occured while parsing it: {e}");
-			EnvFilter::try_new("warn").unwrap()
+			EnvFilter::try_new(config::default_log()).expect("failed to set default EnvFilter")
 		},
 	};
 
