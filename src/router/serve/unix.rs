@@ -3,7 +3,7 @@
 use std::{path::Path, sync::Arc};
 
 use axum::{extract::Request, routing::IntoMakeService, Router};
-use conduit::{debug_error, utils, Error, Result, Server};
+use conduit::{debug_error, trace, utils, Error, Result, Server};
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
 	rt::{TokioExecutor, TokioIo},
@@ -19,6 +19,7 @@ use tower::{Service, ServiceExt};
 use tracing::{debug, info, warn};
 use utils::unwrap_infallible;
 
+#[tracing::instrument(skip_all)]
 pub(super) async fn serve(
 	server: &Arc<Server>, app: IntoMakeService<Router>, mut shutdown: broadcast::Receiver<()>,
 ) -> Result<()> {
@@ -43,23 +44,21 @@ pub(super) async fn serve(
 	Ok(())
 }
 
+#[allow(clippy::let_underscore_must_use)]
 async fn accept(
 	server: &Arc<Server>, listener: &UnixListener, tasks: &mut JoinSet<()>, mut app: IntoMakeService<Router>,
 	builder: server::conn::auto::Builder<TokioExecutor>, conn: (UnixStream, SocketAddr),
 ) {
 	let (socket, remote) = conn;
 	let socket = TokioIo::new(socket);
-	debug!(?listener, ?socket, ?remote, "accepted");
+	trace!(?listener, ?socket, ?remote, "accepted");
 
 	let called = unwrap_infallible(app.call(()).await);
 	let handler = service_fn(move |req: Request<Incoming>| called.clone().oneshot(req));
 
 	let task = async move {
-		builder
-			.serve_connection(socket, handler)
-			.await
-			.map_err(|e| debug_error!(?remote, "connection error: {e}"))
-			.expect("connection error");
+		// bug on darwin causes all results to be errors. do not unwrap this
+		_ = builder.serve_connection(socket, handler).await;
 	};
 
 	_ = tasks.spawn_on(task, server.runtime());
