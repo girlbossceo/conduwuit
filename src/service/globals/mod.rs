@@ -395,8 +395,6 @@ impl Service {
 
 	pub fn well_known_server(&self) -> &Option<OwnedServerName> { &self.config.well_known.server }
 
-	pub fn unix_socket_path(&self) -> &Option<PathBuf> { &self.config.unix_socket_path }
-
 	pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
 		for cidr in &self.cidr_range_denylist {
 			if cidr.includes(ip) {
