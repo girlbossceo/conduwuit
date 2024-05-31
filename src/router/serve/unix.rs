@@ -11,6 +11,7 @@ use hyper_util::{
 };
 use tokio::{
 	fs,
+	net::{unix::SocketAddr, UnixListener, UnixStream},
 	sync::broadcast::{self},
 	task::JoinSet,
 };
@@ -37,16 +38,14 @@ pub(super) async fn serve(
 		}
 	}
 
-	drop(listener);
-	tasks.shutdown().await;
+	fini(listener, tasks).await;
 
 	Ok(())
 }
 
 async fn accept(
-	server: &Arc<Server>, listener: &tokio::net::UnixListener, tasks: &mut JoinSet<()>,
-	mut app: IntoMakeService<Router>, builder: server::conn::auto::Builder<TokioExecutor>,
-	conn: (tokio::net::UnixStream, tokio::net::unix::SocketAddr),
+	server: &Arc<Server>, listener: &UnixListener, tasks: &mut JoinSet<()>, mut app: IntoMakeService<Router>,
+	builder: server::conn::auto::Builder<TokioExecutor>, conn: (UnixStream, SocketAddr),
 ) {
 	let (socket, remote) = conn;
 	let socket = TokioIo::new(socket);
@@ -67,7 +66,7 @@ async fn accept(
 	while tasks.try_join_next().is_some() {}
 }
 
-async fn init(server: &Arc<Server>) -> Result<tokio::net::UnixListener> {
+async fn init(server: &Arc<Server>) -> Result<UnixListener> {
 	use std::os::unix::fs::PermissionsExt;
 
 	let config = &server.config;
@@ -89,7 +88,7 @@ async fn init(server: &Arc<Server>) -> Result<tokio::net::UnixListener> {
 		return Err(Error::Err(format!("Failed to create {dir:?} for socket {path:?}: {e}")));
 	}
 
-	let listener = tokio::net::UnixListener::bind(path);
+	let listener = UnixListener::bind(path);
 	if let Err(e) = listener {
 		return Err(Error::Err(format!("Failed to bind listener {path:?}: {e}")));
 	}
@@ -104,4 +103,20 @@ async fn init(server: &Arc<Server>) -> Result<tokio::net::UnixListener> {
 	info!("Listening at {:?}", path);
 
 	Ok(listener.unwrap())
+}
+
+async fn fini(listener: UnixListener, mut tasks: JoinSet<()>) {
+	let local = listener.local_addr();
+
+	drop(listener);
+	tasks.shutdown().await;
+
+	if let Ok(local) = local {
+		if let Some(path) = local.as_pathname() {
+			debug!(?path, "Removing unix socket file.");
+			if let Err(e) = fs::remove_file(path).await {
+				warn!(?path, "Failed to remove UNIX socket file: {e}");
+			}
+		}
+	}
 }
