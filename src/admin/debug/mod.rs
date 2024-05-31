@@ -1,4 +1,5 @@
 use clap::Subcommand;
+use debug_commands::{first_pdu_in_room, latest_pdu_in_room};
 use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
 
 use self::debug_commands::{
@@ -45,7 +46,8 @@ pub(crate) enum DebugCommand {
 		server: Box<ServerName>,
 	},
 
-	/// Same as `get-remote-pdu` but accepts a codeblock newline delimited list
+	/// - Same as `get-remote-pdu` but accepts a codeblock newline delimited
+	///   list
 	/// of PDUs and a single server to fetch from
 	GetRemotePduList {
 		/// Argument for us to attempt to fetch all the events from the
@@ -107,6 +109,20 @@ pub(crate) enum DebugCommand {
 	/// the command.
 	VerifyJson,
 
+	/// - Prints the very first PDU in the specified room (typically
+	///   m.room.create)
+	FirstPduInRoom {
+		/// The room ID
+		room_id: Box<RoomId>,
+	},
+
+	/// - Prints the latest ("last") PDU in the specified room (typically a
+	///   message)
+	LatestPduInRoom {
+		/// The room ID
+		room_id: Box<RoomId>,
+	},
+
 	/// - Runs a server name through conduwuit's true destination resolution
 	///   process
 	///
@@ -148,6 +164,12 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 		} => change_log_level(body, filter, reset).await?,
 		DebugCommand::SignJson => sign_json(body).await?,
 		DebugCommand::VerifyJson => verify_json(body).await?,
+		DebugCommand::FirstPduInRoom {
+			room_id,
+		} => first_pdu_in_room(body, room_id).await?,
+		DebugCommand::LatestPduInRoom {
+			room_id,
+		} => latest_pdu_in_room(body, room_id).await?,
 		DebugCommand::GetRemotePduList {
 			server,
 			force,
