@@ -93,13 +93,15 @@ cargo clippy \
 name = "clippy/all"
 group = "lints"
 script = """
-cargo clippy \
-    --workspace \
-    --all-targets \
-    --all-features \
-    --color=always \
-    -- \
-    -D warnings
+env DIRENV_DEVSHELL=all-features \
+    direnv exec . \
+    cargo clippy \
+        --workspace \
+        --all-targets \
+        --all-features \
+        --color=always \
+        -- \
+        -D warnings
 """
 
 [[task]]
