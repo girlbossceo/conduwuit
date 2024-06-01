@@ -69,12 +69,15 @@ script = "cargo fmt --check -- --color=always"
 name = "cargo-doc"
 group = "lints"
 script = """
-RUSTDOCFLAGS="-D warnings" cargo doc \
-    --workspace \
-    --all-features \
-    --no-deps \
-    --document-private-items \
-    --color always
+env DIRENV_DEVSHELL=all-features \
+    RUSTDOCFLAGS="-D warnings" \
+    direnv exec . \
+    cargo doc \
+        --workspace \
+        --all-features \
+        --no-deps \
+        --document-private-items \
+        --color always
 """
 
 [[task]]
