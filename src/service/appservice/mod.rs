@@ -64,8 +64,8 @@ impl TryFrom<Vec<Namespace>> for NamespaceRegex {
 	type Error = regex::Error;
 
 	fn try_from(value: Vec<Namespace>) -> Result<Self, regex::Error> {
-		let mut exclusive = vec![];
-		let mut non_exclusive = vec![];
+		let mut exclusive = Vec::with_capacity(value.len());
+		let mut non_exclusive = Vec::with_capacity(value.len());
 
 		for namespace in value {
 			if namespace.exclusive {

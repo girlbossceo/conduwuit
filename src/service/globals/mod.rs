@@ -305,7 +305,7 @@ impl Service {
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
 
 	pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
-		let mut room_versions: Vec<RoomVersionId> = vec![];
+		let mut room_versions: Vec<RoomVersionId> = Vec::with_capacity(self.stable_room_versions.len());
 		room_versions.extend(self.stable_room_versions.clone());
 		if self.allow_unstable_room_versions() {
 			room_versions.extend(self.unstable_room_versions.clone());

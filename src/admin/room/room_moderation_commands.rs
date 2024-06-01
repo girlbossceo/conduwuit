@@ -185,7 +185,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 					.try_into()
 					.expect("#admins:server_name is a valid alias name");
 
-				let mut room_ban_count = 0;
+				let mut room_ban_count: usize = 0;
 				let mut room_ids: Vec<OwnedRoomId> = Vec::new();
 
 				for &room in &rooms_s {
@@ -297,7 +297,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 				for room_id in room_ids {
 					if services().rooms.metadata.ban_room(&room_id, true).is_ok() {
 						debug!("Banned {room_id} successfully");
-						room_ban_count += 1;
+						room_ban_count = room_ban_count.saturating_add(1);
 					}
 
 					debug!("Making all users leave the room {}", &room_id);

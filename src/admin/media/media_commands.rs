@@ -23,7 +23,7 @@ pub(crate) async fn delete(
 		debug!("Got event ID to delete media from: {event_id}");
 
 		let mut mxc_urls = vec![];
-		let mut mxc_deletion_count = 0;
+		let mut mxc_deletion_count: usize = 0;
 
 		// parsing the PDU for any MXC URLs begins here
 		if let Some(event_json) = services().rooms.timeline.get_pdu_json(&event_id)? {
@@ -123,7 +123,7 @@ pub(crate) async fn delete(
 
 		for mxc_url in mxc_urls {
 			services().media.delete(mxc_url).await?;
-			mxc_deletion_count += 1;
+			mxc_deletion_count = mxc_deletion_count.saturating_add(1);
 		}
 
 		return Ok(RoomMessageEventContent::text_plain(format!(

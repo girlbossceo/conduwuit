@@ -54,9 +54,9 @@ impl Service {
 			"start",
 		);
 
-		let mut hits = 0;
-		let mut misses = 0;
-		let mut full_auth_chain = Vec::new();
+		let mut hits: usize = 0;
+		let mut misses: usize = 0;
+		let mut full_auth_chain = Vec::with_capacity(buckets.len());
 		for chunk in buckets {
 			if chunk.is_empty() {
 				continue;
@@ -70,13 +70,13 @@ impl Service {
 			{
 				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
-				hits += 1;
+				hits = hits.saturating_add(1);
 				continue;
 			}
 
-			let mut hits2 = 0;
-			let mut misses2 = 0;
-			let mut chunk_cache = Vec::new();
+			let mut hits2: usize = 0;
+			let mut misses2: usize = 0;
+			let mut chunk_cache = Vec::with_capacity(chunk.len());
 			for (sevent_id, event_id) in chunk {
 				if let Some(cached) = services()
 					.rooms
@@ -85,7 +85,7 @@ impl Service {
 				{
 					trace!(?event_id, "Found cache entry for event");
 					chunk_cache.extend(cached.iter().copied());
-					hits2 += 1;
+					hits2 = hits2.saturating_add(1);
 				} else {
 					let auth_chain = self.get_auth_chain_inner(room_id, event_id)?;
 					services()
@@ -93,7 +93,7 @@ impl Service {
 						.auth_chain
 						.cache_auth_chain(vec![sevent_id], &auth_chain)?;
 					chunk_cache.extend(auth_chain.iter());
-					misses2 += 1;
+					misses2 = misses2.saturating_add(1);
 					debug!(
 						event_id = ?event_id,
 						chain_length = ?auth_chain.len(),
@@ -111,7 +111,7 @@ impl Service {
 				.auth_chain
 				.cache_auth_chain_vec(chunk_key, &chunk_cache)?;
 			full_auth_chain.extend(chunk_cache.iter());
-			misses += 1;
+			misses = misses.saturating_add(1);
 			debug!(
 				chunk_cache_length = ?chunk_cache.len(),
 				hits = ?hits2,
