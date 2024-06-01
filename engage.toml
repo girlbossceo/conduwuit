@@ -134,13 +134,27 @@ group = "lints"
 script = "lychee --verbose --offline docs *.md"
 
 [[task]]
-name = "cargo"
+name = "cargo/all"
+group = "tests"
+script = """
+env DIRENV_DEVSHELL=all-features \
+    direnv exec . \
+    cargo test \
+        --workspace \
+        --all-targets \
+        --all-features \
+        --color=always \
+        -- \
+        --color=always
+"""
+
+[[task]]
+name = "cargo/default"
 group = "tests"
 script = """
 cargo test \
     --workspace \
     --all-targets \
-    --all-features \
     --color=always \
     -- \
     --color=always
