@@ -54,7 +54,6 @@ use tracing::{debug, error, trace, warn};
 
 use crate::{
 	client_server::{self, claim_keys_helper, get_keys_helper},
-	debug_error,
 	service::{
 		pdu::{gen_event_id_canonical_json, PduBuilder},
 		rooms::event_handler::parse_incoming_pdu,
@@ -369,22 +368,9 @@ pub(crate) async fn send_transaction_message_route(
 						}
 
 						if services().rooms.state_cache.is_joined(&user_id, &room_id)? {
-							if let Some((event_id, _)) = user_updates
-								.event_ids
-								.iter()
-								.filter_map(|id| {
-									services()
-										.rooms
-										.timeline
-										.get_pdu_count(id)
-										.ok()
-										.flatten()
-										.map(|r| (id, r))
-								})
-								.max_by_key(|(_, count)| *count)
-							{
+							for event_id in &user_updates.event_ids {
 								let mut user_receipts = BTreeMap::new();
-								user_receipts.insert(user_id.clone(), user_updates.data);
+								user_receipts.insert(user_id.clone(), user_updates.data.clone());
 
 								let mut receipts = BTreeMap::new();
 								receipts.insert(ReceiptType::Read, user_receipts);
@@ -396,13 +382,11 @@ pub(crate) async fn send_transaction_message_route(
 									content: ReceiptEventContent(receipt_content),
 									room_id: room_id.clone(),
 								};
+
 								services()
 									.rooms
 									.read_receipt
 									.readreceipt_update(&user_id, &room_id, event)?;
-							} else {
-								// TODO fetch missing events
-								debug_error!("No known event ids in read receipt: {:?}", user_updates);
 							}
 						} else {
 							debug_warn!(%user_id, %room_id, "received read receipt EDU for user not in room");
