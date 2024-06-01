@@ -6,19 +6,21 @@ members = ["src/*"]
 default-members = ["src/*"]
 
 [workspace.package]
-description = "a very cool fork of Conduit, a Matrix homeserver written in Rust"
-license = "Apache-2.0"
 authors = [
     "strawberry <strawberry@puppygock.gay>",
     "timokoesters <timo@koesters.xyz>",
 ]
-version = "0.4.1"
+categories = ["network-programming"]
+description = "a very cool fork of Conduit, a Matrix homeserver written in Rust"
 edition = "2021"
-# See also `rust-toolchain.toml`
-rust-version = "1.77.0"
 homepage = "https://conduwuit.puppyirl.gay/"
-repository = "https://github.com/girlbossceo/conduwuit"
+keywords = ["chat", "matrix", "server"]
+license = "Apache-2.0"
+# See also `rust-toolchain.toml`
 readme = "README.md"
+repository = "https://github.com/girlbossceo/conduwuit"
+rust-version = "1.77.0"
+version = "0.4.1"
 
 [workspace.metadata.crane]
 name = "conduit"

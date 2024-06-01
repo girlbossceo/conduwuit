@@ -1,7 +1,13 @@
 [package]
 name = "rust-rocksdb-uwu"
-version = "0.0.1"
+categories.workspace = true
+description = "dylib wrapper for rust-rocksdb"
 edition = "2021"
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+version = "0.0.1"
 
 [features]
 default = ["snappy", "lz4", "zstd", "zlib", "bzip2"]
