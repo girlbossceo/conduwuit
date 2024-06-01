@@ -18,11 +18,7 @@ crate-type = [
 
 [features]
 default = [
-	"rocksdb",
-	"io_uring",
-	"jemalloc",
 	"gzip_compression",
-	"zstd_compression",
 	"brotli_compression",
 	"release_max_log_level",
 ]
@@ -39,21 +35,6 @@ sqlite = [
 	"dep:parking_lot",
 	"dep:thread_local",
 ]
-rocksdb = [
-	"dep:rust-rocksdb",
-]
-jemalloc = [
-	"dep:tikv-jemalloc-sys",
-	"dep:tikv-jemalloc-ctl",
-	"dep:tikv-jemallocator",
-	"rust-rocksdb/jemalloc",
-]
-io_uring = [
-	"rust-rocksdb/io-uring",
-]
-zstd_compression = [
-	"rust-rocksdb/zstd",
-]
 gzip_compression = [
 	"reqwest/gzip",
 ]
@@ -69,13 +50,11 @@ argon2.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bytes.workspace = true
-clap.workspace = true
 conduit-core.workspace = true
 conduit-database.workspace = true
 cyborgtime.workspace = true
 futures-util.workspace = true
 hickory-resolver.workspace = true
-hmac.workspace = true
 http.workspace = true
 image.workspace = true
 ipaddress.workspace = true
@@ -93,27 +72,16 @@ ruma-identifiers-validation.workspace = true
 ruma.workspace = true
 rusqlite.optional = true
 rusqlite.workspace = true
-rust-rocksdb.optional = true
-rust-rocksdb.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
-sha-1.workspace = true
 sha2.optional = true
 sha2.workspace = true
 thread_local.optional = true
 thread_local.workspace = true
-tikv-jemallocator.optional = true
-tikv-jemallocator.workspace = true
-tikv-jemalloc-ctl.optional = true
-tikv-jemalloc-ctl.workspace = true
-tikv-jemalloc-sys.optional = true
-tikv-jemalloc-sys.workspace = true
 tokio.workspace = true
-tracing-subscriber.workspace = true
 tracing.workspace = true
 url.workspace = true
-webpage.workspace = true
 zstd.optional = true
 zstd.workspace = true
 

@@ -41,13 +41,7 @@ rocksdb = [
 	"dep:rust-rocksdb",
 ]
 jemalloc = [
-	"dep:tikv-jemalloc-sys",
-	"dep:tikv-jemalloc-ctl",
-	"dep:tikv-jemallocator",
 	"rust-rocksdb/jemalloc",
-]
-jemalloc_prof = [
-	"tikv-jemalloc-sys/profiling",
 ]
 io_uring = [
 	"rust-rocksdb/io-uring",
@@ -59,7 +53,6 @@ zstd_compression = [
 [dependencies]
 chrono.workspace = true
 conduit-core.workspace = true
-futures-util.workspace = true
 log.workspace = true
 lru-cache.workspace = true
 parking_lot.optional = true
@@ -71,12 +64,6 @@ rust-rocksdb.optional = true
 rust-rocksdb.workspace = true
 thread_local.optional = true
 thread_local.workspace = true
-tikv-jemallocator.optional = true
-tikv-jemallocator.workspace = true
-tikv-jemalloc-ctl.optional = true
-tikv-jemalloc-ctl.workspace = true
-tikv-jemalloc-sys.optional = true
-tikv-jemalloc-sys.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 zstd.optional = true

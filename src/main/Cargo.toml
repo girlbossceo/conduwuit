@@ -69,10 +69,6 @@ perf_measurements = [
 
 [dependencies]
 conduit-router.workspace = true
-conduit-admin.workspace = true
-conduit-api.workspace = true
-conduit-service.workspace = true
-conduit-database.workspace = true
 conduit-core.workspace = true
 
 tokio.workspace = true
