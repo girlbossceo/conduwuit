@@ -1,11 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
 use axum_server::Handle as ServerHandle;
-use tokio::{
-	signal,
-	sync::broadcast::{self, Sender},
-};
-use tracing::{debug, info, warn};
+use tokio::sync::broadcast::{self, Sender};
+use tracing::{debug, error, info};
 
 extern crate conduit_admin as admin;
 extern crate conduit_core as conduit;
@@ -39,9 +36,7 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 
 	server.interrupt.store(false, Ordering::Release);
 	let (tx, _) = broadcast::channel::<()>(1);
-	let sigs = server
-		.runtime()
-		.spawn(sighandle(server.clone(), tx.clone()));
+	let sigs = server.runtime().spawn(signal(server.clone(), tx.clone()));
 
 	// Serve clients
 	let res = serve::serve(&server, app, handle, tx.subscribe()).await;
@@ -115,51 +110,25 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 }
 
 #[tracing::instrument(skip_all)]
-async fn sighandle(server: Arc<Server>, tx: Sender<()>) -> Result<(), Error> {
-	let ctrl_c = async {
-		signal::ctrl_c()
-			.await
-			.expect("failed to install Ctrl+C handler");
+async fn signal(server: Arc<Server>, tx: Sender<()>) {
+	let sig: &'static str = server
+		.signal
+		.subscribe()
+		.recv()
+		.await
+		.expect("channel error");
 
+	debug!("Received signal {}", sig);
+	if sig == "Ctrl+C" {
 		let reload = cfg!(unix) && cfg!(debug_assertions);
 		server.reload.store(reload, Ordering::Release);
-	};
-
-	#[cfg(unix)]
-	let ctrl_bs = async {
-		signal::unix::signal(signal::unix::SignalKind::quit())
-			.expect("failed to install Ctrl+\\ handler")
-			.recv()
-			.await;
-	};
-
-	#[cfg(unix)]
-	let terminate = async {
-		signal::unix::signal(signal::unix::SignalKind::terminate())
-			.expect("failed to install SIGTERM handler")
-			.recv()
-			.await;
-	};
-
-	debug!("Installed signal handlers");
-	let sig: &str;
-	#[cfg(unix)]
-	tokio::select! {
-		() = ctrl_c => { sig = "Ctrl+C"; },
-		() = ctrl_bs => { sig = "Ctrl+\\"; },
-		() = terminate => { sig = "SIGTERM"; },
 	}
 
-	#[cfg(not(unix))]
-	tokio::select! {
-		_ = ctrl_c => { sig = "Ctrl+C"; },
-	}
-
-	warn!("Received {}", sig);
 	server.interrupt.store(true, Ordering::Release);
 	services().globals.rotate.fire();
-	tx.send(())
-		.expect("failed sending shutdown transaction to oneshot channel");
+	if let Err(e) = tx.send(()) {
+		error!("failed sending shutdown transaction to channel: {e}");
+	}
 
 	if let Some(handle) = server.shutdown.lock().expect("locked").as_ref() {
 		let pending = server.requests_spawn_active.load(Ordering::Relaxed);
@@ -172,6 +141,4 @@ async fn sighandle(server: Arc<Server>, tx: Sender<()>) -> Result<(), Error> {
 			handle.shutdown();
 		}
 	}
-
-	Ok(())
 }

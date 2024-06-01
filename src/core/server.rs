@@ -6,7 +6,7 @@ use std::{
 	time::SystemTime,
 };
 
-use tokio::runtime;
+use tokio::{runtime, sync::broadcast};
 
 use crate::{config::Config, log::LogLevelReloadHandles};
 
@@ -21,6 +21,9 @@ pub struct Server {
 	/// Reload/shutdown signal channel. Called from the signal handler or admin
 	/// command to initiate shutdown.
 	pub shutdown: Mutex<Option<axum_server::Handle>>,
+
+	/// Reload/shutdown signal
+	pub signal: broadcast::Sender<&'static str>,
 
 	/// Reload/shutdown desired indicator; when false, shutdown is desired. This
 	/// is an observable used on shutdown and modifying is not recommended.
@@ -51,6 +54,7 @@ impl Server {
 			config,
 			started: SystemTime::now(),
 			shutdown: Mutex::new(None),
+			signal: broadcast::channel::<&'static str>(1).0,
 			reload: AtomicBool::new(false),
 			interrupt: AtomicBool::new(false),
 			runtime,
