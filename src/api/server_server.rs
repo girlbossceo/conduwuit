@@ -1922,7 +1922,7 @@ pub(crate) async fn get_room_information_route(
 		.iter()
 		.position(|server| server == services().globals.server_name())
 	{
-		servers.remove(server_index);
+		servers.swap_remove(server_index);
 		servers.insert(0, services().globals.server_name().to_owned());
 	}
 

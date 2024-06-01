@@ -1078,7 +1078,7 @@ impl Service {
 			.into_iter()
 			.position(|server_name| server_is_ours(&server_name))
 		{
-			servers.remove(server_index);
+			servers.swap_remove(server_index);
 		}
 
 		servers.sort_unstable();

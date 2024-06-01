@@ -247,13 +247,13 @@ fn room_available_servers(
 		.iter()
 		.position(|server_name| server_is_ours(server_name))
 	{
-		servers.remove(server_index);
+		servers.swap_remove(server_index);
 		servers.insert(0, services().globals.server_name().to_owned());
 	} else if let Some(alias_server_index) = servers
 		.iter()
 		.position(|server| server == room_alias.server_name())
 	{
-		servers.remove(alias_server_index);
+		servers.swap_remove(alias_server_index);
 		servers.insert(0, room_alias.server_name().into());
 	}
 
