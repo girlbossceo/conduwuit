@@ -17,23 +17,12 @@ crate-type = [
 ]
 
 [features]
-default = [
-	"gzip_compression",
-	"brotli_compression",
-	"release_max_log_level",
-]
-
 dev_release_log_level = []
 release_max_log_level = [
 	"tracing/max_level_trace",
 	"tracing/release_max_level_info",
 	"log/max_level_trace",
 	"log/release_max_level_info",
-]
-sqlite = [
-	"dep:rusqlite",
-	"dep:parking_lot",
-	"dep:thread_local",
 ]
 gzip_compression = [
 	"reqwest/gzip",
@@ -63,22 +52,16 @@ jsonwebtoken.workspace = true
 log.workspace = true
 loole.workspace = true
 lru-cache.workspace = true
-parking_lot.optional = true
-parking_lot.workspace = true
 rand.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 ruma-identifiers-validation.workspace = true
 ruma.workspace = true
-rusqlite.optional = true
-rusqlite.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 sha2.optional = true
 sha2.workspace = true
-thread_local.optional = true
-thread_local.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 url.workspace = true

@@ -17,17 +17,6 @@ crate-type = [
 ]
 
 [features]
-default = [
-	"rocksdb",
-	"io_uring",
-	"jemalloc",
-	"gzip_compression",
-	"zstd_compression",
-	"brotli_compression",
-	"sentry_telemetry",
-	"release_max_log_level",
-]
-
 dev_release_log_level = []
 release_max_log_level = [
 	"tracing/max_level_trace",

@@ -17,13 +17,6 @@ crate-type = [
 ]
 
 [features]
-default = [
-	"element_hacks",
-	"gzip_compression",
-	"brotli_compression",
-	"release_max_log_level",
-]
-
 element_hacks = []
 dev_release_log_level = []
 release_max_log_level = [

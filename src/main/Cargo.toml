@@ -37,27 +37,57 @@ assets = [
 
 [features]
 default = [
-	"sentry_telemetry",
+	"brotli_compression",
+	"element_hacks",
+	"gzip_compression",
+	"io_uring",
+	"jemalloc",
 	"release_max_log_level",
+	"rocksdb",
+	"sentry_telemetry",
+	"systemd",
+	"zstd_compression",
 ]
 
-# increases performance, reduces build times, and reduces binary size by not compiling or
-# genreating code for log level filters that users will generally not use (debug and trace)
-release_max_log_level = [
-	"tracing/max_level_trace",
-	"tracing/release_max_level_info",
-	"log/max_level_trace",
-	"log/release_max_level_info",
+axum_dual_protocol = [
+	"conduit-router/axum_dual_protocol",
 ]
-sentry_telemetry = [
-	"dep:sentry",
-	"dep:sentry-tracing",
-	"dep:sentry-tower",
+brotli_compression = [
+	"conduit-api/brotli_compression",
+	"conduit-core/brotli_compression",
+	"conduit-router/brotli_compression",
+	"conduit-service/brotli_compression",
 ]
-# enable the tokio_console server ncompatible with release_max_log_level
-tokio_console = [
-	"dep:console-subscriber",
-	"tokio/tracing",
+dev_release_log_level = [
+	"conduit-api/dev_release_log_level",
+	"conduit-core/dev_release_log_level",
+	"conduit-database/dev_release_log_level",
+	"conduit-router/dev_release_log_level",
+	"conduit-service/dev_release_log_level",
+]
+element_hacks = [
+	"conduit-api/element_hacks",
+]
+gzip_compression = [
+	"conduit-api/gzip_compression",
+	"conduit-router/gzip_compression",
+	"conduit-service/gzip_compression",
+]
+hardened_malloc = [
+	"conduit-core/hardened_malloc",
+]
+io_uring = [
+	"conduit-admin/io_uring",
+	"conduit-core/io_uring",
+	"conduit-database/io_uring",
+]
+jemalloc = [
+	"conduit-admin/jemalloc",
+	"conduit-core/jemalloc",
+	"conduit-database/jemalloc",	
+]
+jemalloc_prof = [
+	"conduit-core/jemalloc_prof",
 ]
 perf_measurements = [
 	"dep:opentelemetry",
@@ -65,11 +95,64 @@ perf_measurements = [
 	"dep:tracing-opentelemetry",
 	"dep:opentelemetry_sdk",
 	"dep:opentelemetry-jaeger",
+	"conduit-core/perf_measurements",
+	"conduit-core/sentry_telemetry",
+]
+# increases performance, reduces build times, and reduces binary size by not compiling or
+# genreating code for log level filters that users will generally not use (debug and trace)
+release_max_log_level = [
+	"tracing/max_level_trace",
+	"tracing/release_max_level_info",
+	"log/max_level_trace",
+	"log/release_max_level_info",
+	"conduit-admin/release_max_log_level",
+	"conduit-api/release_max_log_level",
+	"conduit-core/release_max_log_level",
+	"conduit-database/release_max_log_level",
+	"conduit-router/release_max_log_level",
+	"conduit-service/release_max_log_level",
+]
+rocksdb = [
+	"conduit-admin/rocksdb",
+	"conduit-core/rocksdb",
+	"conduit-database/rocksdb",
+]
+sentry_telemetry = [
+	"dep:sentry",
+	"dep:sentry-tracing",
+	"dep:sentry-tower",
+	"conduit-core/sentry_telemetry",
+	"conduit-router/sentry_telemetry",
+]
+sha256_media = [
+	"conduit-service/sha256_media",
+]
+sqlite = [
+	"conduit-core/sqlite",
+	"conduit-database/sqlite",
+]
+systemd = [
+	"conduit-router/systemd",
+]
+# enable the tokio_console server ncompatible with release_max_log_level
+tokio_console = [
+	"dep:console-subscriber",
+	"tokio/tracing",
+]
+zstd_compression = [
+	"conduit-admin/zstd_compression",
+	"conduit-core/zstd_compression",
+	"conduit-database/zstd_compression",
+	"conduit-router/zstd_compression",
 ]
 
 [dependencies]
-conduit-router.workspace = true
+conduit-admin.workspace = true
+conduit-api.workspace = true
 conduit-core.workspace = true
+conduit-database.workspace = true
+conduit-router.workspace = true
+conduit-service.workspace = true
 
 tokio.workspace = true
 log.workspace = true
