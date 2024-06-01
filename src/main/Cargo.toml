@@ -2,15 +2,17 @@
 # TODO: when can we rename to conduwuit?
 name = "conduit"
 default-run = "conduit"
-description.workspace = true
-license.workspace = true
 authors.workspace = true
-homepage.workspace = true
-repository.workspace = true
-readme.workspace = true
-version.workspace = true
+categories.workspace = true
+description.workspace = true
 edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
 rust-version.workspace = true
+version.workspace = true
 metadata.crane.workspace = true
 
 [package.metadata.deb]

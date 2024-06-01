@@ -1,7 +1,13 @@
 [package]
 name = "conduit_service"
-version.workspace = true
+categories.workspace = true
+description.workspace = true
 edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+version.workspace = true
 
 [lib]
 path = "mod.rs"
