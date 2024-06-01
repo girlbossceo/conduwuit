@@ -644,145 +644,181 @@ opt-level = 'z'
 [profile.test]
 incremental = false
 
+###############################################################################
+#
+# Linting
+#
+
 [workspace.lints.rust]
-missing_abi = "warn"
-noop_method_call = "warn"
-pointer_structural_match = "warn"
-explicit_outlives_requirements = "warn"
-unused_extern_crates = "warn"
-unused_import_braces = "warn"
-unused_lifetimes = "warn"
-unused_qualifications = "warn"
-unused_macro_rules = "warn"
-dead_code = "warn"
-elided_lifetimes_in_paths = "warn"
-macro_use_extern_crate = "warn"
-single_use_lifetimes = "warn"
-unsafe_op_in_unsafe_fn = "warn"
-unreachable_pub = "warn"
+absolute-paths-not-starting-with-crate = "warn"
+#box-pointers = "warn"                                               # TODO
+deprecated-in-future = "warn"
+elided-lifetimes-in-paths = "warn"
+explicit-outlives-requirements = "warn"
+ffi-unwind-calls = "warn"
+keyword-idents = "warn"
+macro-use-extern-crate = "warn"
+meta-variable-misuse = "warn"
+missing-abi = "warn"
+#missing-copy-implementations = "warn"                               # TODO
+#missing-debug-implementations = "warn"                              # TODO
+non-ascii-idents = "warn"
+rust-2021-incompatible-closure-captures = "warn"
+rust-2021-incompatible-or-patterns = "warn"
+rust-2021-prefixes-incompatible-syntax = "warn"
+rust-2021-prelude-collisions = "warn"
+single-use-lifetimes = "warn"
+#trivial-casts = "warn"                                              # TODO
+trivial-numeric-casts = "warn"
+unit-bindings = "warn"
+#unnameable-types = "warn"                                           # TODO
+unreachable-pub = "warn"
+unsafe-op-in-unsafe-fn = "warn"
+unstable-features = "warn"
+unused-extern-crates = "warn"
+unused-import-braces = "warn"
+unused-lifetimes = "warn"
+unused-macro-rules = "warn"
+unused-qualifications = "warn"
+#unused-results = "warn"                                             # TODO
 
-# this seems to suggest broken code and is not working correctly
-unused_braces = "allow"
-
-# cfgs cannot be limited to features or cargo build --all-features panics for unsuspecting users.
+## some sadness
+let_underscore_drop = "allow"
+missing_docs = "allow"
 # cfgs cannot be limited to expected cfgs or their de facto non-transitive/opt-in use-case e.g.
 # tokio_unstable will warn.
 unexpected_cfgs = "allow"
+# this seems to suggest broken code and is not working correctly
+unused_braces = "allow"
+# buggy, but worth checking on occasionally
+unused_crate_dependencies = "allow"
+unsafe_code = "allow"
+variant_size_differences = "allow"
 
-# some sadness
-missing_docs = "allow"
+#######################################
+#
+# Clippy lints
+#
 
 [workspace.lints.clippy]
-# pedantic = "warn"
 
-suspicious = "warn" # assume deny in practice
-perf = "warn"       # assume deny in practice
+###################
+cargo = "warn"
 
-redundant_clone = "warn"
-cloned_instead_of_copied = "warn"
-expl_impl_clone_on_copy = "warn"
-unnecessary_cast = "warn"
-cast_lossless = "warn"
-ptr_as_ptr = "warn"
-mut_mut = "warn"
-char_lit_as_u8 = "warn"
-dbg_macro = "warn"
-empty_structs_with_brackets = "warn"
-get_unwrap = "warn"
-negative_feature_names = "warn"
-pub_without_shorthand = "warn"
-rc_buffer = "warn"
-rc_mutex = "warn"
-redundant_feature_names = "warn"
-redundant_type_annotations = "warn"
-rest_pat_in_fully_bound_structs = "warn"
-str_to_string = "warn"
-string_to_string = "warn"
-tests_outside_test_module = "warn"
-undocumented_unsafe_blocks = "warn"
-unneeded_field_pattern = "warn"
-unseparated_literal_suffix = "warn"
-wildcard_dependencies = "warn"
-or_fun_call = "warn"
-unnecessary_lazy_evaluations = "warn"
+## some sadness
+multiple_crate_versions = { level = "allow", priority = 1 }
+
+###################
+complexity = "warn"
+
+###################
+correctness = "warn"
+
+###################
+nursery = "warn"
+
+### some sadness
+branches_sharing_code = { level = "allow", priority = 1 }            # TODO
+cognitive_complexity = { level = "allow", priority = 1 }             # TODO
+derive_partial_eq_without_eq = { level = "allow", priority = 1 }     # TODO
+equatable_if_let = { level = "allow", priority = 1 }                 # TODO
+future_not_send = { level = "allow", priority = 1 }                  # TODO
+missing_const_for_fn = { level = "allow", priority = 1 }             # TODO
+needless_collect = { level = "allow", priority = 1 }                 # TODO
+needless_pass_by_ref_mut = { level = "allow", priority = 1 }         # TODO
+option_if_let_else = { level = "allow", priority = 1 }               # TODO
+redundant_pub_crate = { level = "allow", priority = 1 }              # TODO
+significant_drop_in_scrutinee = { level = "allow", priority = 1 }    # TODO
+significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
+suboptimal_flops = { level = "allow", priority = 1 }                 # TODO
+use_self = { level = "allow", priority = 1 }                         # TODO
+useless_let_if_seq = { level = "allow", priority = 1 }               # TODO
+
+###################
+pedantic = "warn"
+
+## some sadness
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+doc_markdown = "allow"
+error_impl_error = "allow"
+expect_used = "allow"
+if_not_else = "allow"
+if_then_some_else_none = "allow"
+implicit_return = "allow"
+inline_always = "allow"
+map_err_ignore = "allow"
+missing_docs_in_private_items = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+mod_module_files = "allow"
+module_name_repetitions = "allow"
+multiple_inherent_impl = "allow"
+no_effect_underscore_binding = "allow"
+ref_patterns = "allow"
+same_name_method = "allow"
+similar_names = { level = "allow", priority = 1 }
+single_call_fn = "allow"
+string_add = "allow"
+string_slice = "allow"
+struct_field_names = { level = "allow", priority = 1 }
+unnecessary_wraps = { level = "allow", priority = 1 }
+unused_async = { level = "allow", priority = 1 }
+unwrap_used = "allow"
+
+###################
+perf = "warn"
+
+###################
+#restriction = "warn"
+
+#arithmetic_side_effects = "warn"                                    # TODO
+#as_conversions = "warn"                                             # TODO
 assertions_on_result_states = "warn"
+dbg_macro = "warn"
 default_union_representation = "warn"
 deref_by_slicing = "warn"
 empty_drop = "warn"
+empty_structs_with_brackets = "warn"
 exit = "warn"
 filetype_is_file = "warn"
 float_cmp_const = "warn"
+fn_to_numeric_cast_any = "warn"
 format_push_string = "warn"
+get_unwrap = "warn"
 impl_trait_in_params = "warn"
+let_underscore_must_use = "warn"
+let_underscore_untyped = "warn"
 lossy_float_literal = "warn"
 mem_forget = "warn"
 missing_assert_message = "warn"
 mutex_atomic = "warn"
+pub_without_shorthand = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+redundant_type_annotations = "warn"
+rest_pat_in_fully_bound_structs = "warn"
 semicolon_outside_block = "warn"
-fn_to_numeric_cast = "warn"
-fn_to_numeric_cast_with_truncation = "warn"
+str_to_string = "warn"
 string_lit_chars_any = "warn"
+string_to_string = "warn"
 suspicious_xor_used_as_pow = "warn"
+tests_outside_test_module = "warn"
 try_err = "warn"
+undocumented_unsafe_blocks = "warn"
 unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
 unnecessary_self_imports = "warn"
+unneeded_field_pattern = "warn"
+unseparated_literal_suffix = "warn"
 verbose_file_reads = "warn"
-cast_possible_wrap = "warn"
-redundant_closure_for_method_calls = "warn"
-large_futures = "warn"
-semicolon_if_nothing_returned = "warn"
-match_bool = "warn"
-struct_excessive_bools = "warn"
-must_use_candidate = "warn"
-collapsible_else_if = "warn"
-inconsistent_struct_constructor = "warn"
-manual_string_new = "warn"
-zero_sized_map_values = "warn"
-unnecessary_box_returns = "warn"
-map_unwrap_or = "warn"
-implicit_clone = "warn"
-match_wildcard_for_single_variants = "warn"
-match_same_arms = "warn"
-ignored_unit_patterns = "warn"
-redundant_else = "warn"
-explicit_into_iter_loop = "warn"
-used_underscore_binding = "warn"
-needless_pass_by_value = "warn"
-too_many_lines = "warn"
-let_underscore_untyped = "warn"
-single_match = "warn"
-single_match_else = "warn"
-explicit_deref_methods = "warn"
-explicit_iter_loop = "warn"
-manual_let_else = "warn"
-trivially_copy_pass_by_ref = "warn"
-wildcard_imports = "warn"
-checked_conversions = "warn"
-let_underscore_must_use = "warn"
-#integer_arithmetic = "warn"
-#as_conversions = "warn"
 
-# some sadness
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-module_name_repetitions = "allow"
-if_not_else = "allow"
-doc_markdown = "allow"
-cast_possible_truncation = "allow"
-cast_precision_loss = "allow"
-cast_sign_loss = "allow"
-same_name_method = "allow"
-mod_module_files = "allow"
-unwrap_used = "allow"
-expect_used = "allow"
-if_then_some_else_none = "allow"
+###################
+style = "warn"
+
+###################
+suspicious = "warn"
+
+## some sadness
 let_underscore_future = "allow"
-map_err_ignore = "allow"
-missing_docs_in_private_items = "allow"
-multiple_inherent_impl = "allow"
-error_impl_error = "allow"
-string_add = "allow"
-string_slice = "allow"
-ref_patterns = "allow"
-unnecessary_wraps = "allow"
