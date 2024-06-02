@@ -238,7 +238,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 			}
 		}
 
-		let mut deactivation_count: u16 = 0;
+		let mut deactivation_count: usize = 0;
 		let mut admins = Vec::new();
 
 		if !force {
@@ -279,7 +279,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 			}
 		}
 
-		if leave_rooms {
+		if leave_rooms || force {
 			for &user_id in &user_ids {
 				leave_all_rooms(user_id).await;
 			}
@@ -291,7 +291,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 			)))
 		} else {
 			Ok(RoomMessageEventContent::text_plain(format!(
-				"Deactivated {} accounts.\nSkipped admin accounts: {:?}. Use --force to deactivate admin accounts",
+				"Deactivated {} accounts.\nSkipped admin accounts: {}. Use --force to deactivate admin accounts",
 				deactivation_count,
 				admins.join(", ")
 			)))

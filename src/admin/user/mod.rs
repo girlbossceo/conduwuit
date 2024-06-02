@@ -38,7 +38,7 @@ pub(crate) enum UserCommand {
 	/// Recommended to use in conjunction with list-local-users.
 	///
 	/// Users will not be removed from joined rooms by default.
-	/// Can be overridden with --leave-rooms flag.
+	/// Can be overridden with --leave-rooms OR the --force flag.
 	/// Removing a mass amount of users from a room may cause a significant
 	/// amount of leave events. The time to leave rooms may depend significantly
 	/// on joined rooms and servers.
@@ -50,7 +50,7 @@ pub(crate) enum UserCommand {
 		/// Remove users from their joined rooms
 		leave_rooms: bool,
 		#[arg(short, long)]
-		/// Also deactivate admin accounts
+		/// Also deactivate admin accounts and will assume leave all rooms too
 		force: bool,
 	},
 
