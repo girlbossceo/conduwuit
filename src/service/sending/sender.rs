@@ -80,12 +80,12 @@ impl Service {
 	) {
 		match response {
 			Ok(dest) => self.handle_response_ok(&dest, futures, statuses),
-			Err((dest, e)) => self.handle_response_err(dest, futures, statuses, &e),
+			Err((dest, e)) => Self::handle_response_err(dest, futures, statuses, &e),
 		};
 	}
 
 	fn handle_response_err(
-		&self, dest: Destination, _futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus, e: &Error,
+		dest: Destination, _futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus, e: &Error,
 	) {
 		debug!(dest = ?dest, "{e:?}");
 		statuses.entry(dest).and_modify(|e| {

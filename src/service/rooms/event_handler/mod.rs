@@ -118,7 +118,7 @@ impl Service {
 			.ok_or_else(|| Error::bad_database("Failed to find create event in db."))?;
 
 		// Procure the room version
-		let room_version_id = self.get_room_version_id(&create_event)?;
+		let room_version_id = Self::get_room_version_id(&create_event)?;
 
 		let first_pdu_in_room = services()
 			.rooms
@@ -130,7 +130,7 @@ impl Service {
 			.handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false, pub_key_map)
 			.await?;
 
-		self.check_room_id(room_id, &incoming_pdu)?;
+		Self::check_room_id(room_id, &incoming_pdu)?;
 
 		// 8. if not timeline event: stop
 		if !is_timeline_event {
@@ -308,7 +308,7 @@ impl Service {
 
 			// 2. Check signatures, otherwise drop
 			// 3. check content hash, redact if doesn't match
-			let room_version_id = self.get_room_version_id(create_event)?;
+			let room_version_id = Self::get_room_version_id(create_event)?;
 
 			let guard = pub_key_map.read().await;
 			let mut val = match ruma::signatures::verify_event(&guard, &value, &room_version_id) {
@@ -347,7 +347,7 @@ impl Service {
 			)
 			.map_err(|_| Error::bad_database("Event is not a valid PDU."))?;
 
-			self.check_room_id(room_id, &incoming_pdu)?;
+			Self::check_room_id(room_id, &incoming_pdu)?;
 
 			if !auth_events_known {
 				// 4. fetch any missing auth events doing all checks listed here starting at 1.
@@ -382,7 +382,7 @@ impl Service {
 					continue;
 				};
 
-				self.check_room_id(room_id, &auth_event)?;
+				Self::check_room_id(room_id, &auth_event)?;
 
 				match auth_events.entry((
 					auth_event.kind.to_string().into(),
@@ -417,7 +417,7 @@ impl Service {
 			}
 
 			if !state_res::event_auth::auth_check(
-				&self.to_room_version(&room_version_id),
+				&Self::to_room_version(&room_version_id),
 				&incoming_pdu,
 				None::<PduEvent>, // TODO: third party invite
 				|k, s| auth_events.get(&(k.to_string().into(), s.to_owned())),
@@ -460,7 +460,7 @@ impl Service {
 
 		debug!("Upgrading to timeline pdu");
 		let timer = tokio::time::Instant::now();
-		let room_version_id = self.get_room_version_id(create_event)?;
+		let room_version_id = Self::get_room_version_id(create_event)?;
 
 		// 10. Fetch missing state and auth chain events by calling /state_ids at
 		//     backwards extremities doing all the checks in this list starting at 1.
@@ -488,7 +488,7 @@ impl Service {
 		}
 
 		let state_at_incoming_event = state_at_incoming_event.expect("we always set this to some above");
-		let room_version = self.to_room_version(&room_version_id);
+		let room_version = Self::to_room_version(&room_version_id);
 
 		debug!("Performing auth check");
 		// 11. Check the auth of the event passes based on the state of the event
@@ -1221,7 +1221,7 @@ impl Service {
 				.await
 				.pop()
 			{
-				self.check_room_id(room_id, &pdu)?;
+				Self::check_room_id(room_id, &pdu)?;
 
 				if amount > services().globals.max_fetch_prev_events() {
 					// Max limit reached
@@ -1329,7 +1329,7 @@ impl Service {
 		}
 	}
 
-	fn check_room_id(&self, room_id: &RoomId, pdu: &PduEvent) -> Result<()> {
+	fn check_room_id(room_id: &RoomId, pdu: &PduEvent) -> Result<()> {
 		if pdu.room_id != room_id {
 			warn!("Found event from room {} in room {}", pdu.room_id, room_id);
 			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event has wrong room id"));
@@ -1337,7 +1337,7 @@ impl Service {
 		Ok(())
 	}
 
-	fn get_room_version_id(&self, create_event: &PduEvent) -> Result<RoomVersionId> {
+	fn get_room_version_id(create_event: &PduEvent) -> Result<RoomVersionId> {
 		let create_event_content: RoomCreateEventContent =
 			serde_json::from_str(create_event.content.get()).map_err(|e| {
 				error!("Invalid create event: {}", e);
@@ -1347,7 +1347,7 @@ impl Service {
 		Ok(create_event_content.room_version)
 	}
 
-	fn to_room_version(&self, room_version_id: &RoomVersionId) -> RoomVersion {
+	fn to_room_version(room_version_id: &RoomVersionId) -> RoomVersion {
 		RoomVersion::new(room_version_id).expect("room version is supported")
 	}
 }

@@ -411,7 +411,7 @@ impl Config {
 		};
 
 		// don't start if we're listening on both UNIX sockets and TCP at same time
-		if config.is_dual_listening(&raw_config) {
+		if Self::is_dual_listening(&raw_config) {
 			return Err(Error::bad_config("dual listening on UNIX and TCP sockets not allowed."));
 		};
 
@@ -455,7 +455,7 @@ impl Config {
 
 	/// Checks the presence of the `address` and `unix_socket_path` keys in the
 	/// raw_config, exiting the process if both keys were detected.
-	fn is_dual_listening(&self, raw_config: &Figment) -> bool {
+	fn is_dual_listening(raw_config: &Figment) -> bool {
 		let check_address = raw_config.find_value("address");
 		let check_unix_socket = raw_config.find_value("unix_socket_path");
 
