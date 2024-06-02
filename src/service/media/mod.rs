@@ -559,9 +559,7 @@ mod tests {
 			.db
 			.create_file_metadata(None, mxc, width, height, Some(content_disposition), Some(content_type))
 			.unwrap();
-		let mut r = PathBuf::new();
-		r.push("/tmp");
-		r.push("media");
+		let mut r = PathBuf::from("/tmp/media");
 		// r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
 		// use the sha256 hash of the key as the file name instead of the key itself
 		// this is because the base64 encoded key can be longer than 255 characters.
