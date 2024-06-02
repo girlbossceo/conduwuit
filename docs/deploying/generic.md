@@ -49,7 +49,7 @@ The systemd unit for conduwuit can be found [here](../configuration.md#example-s
 
 Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. The example config can be found at [conduwuit-example.toml](../configuration.md).**Please take a moment to read it. You need to change at least the server name.**
 
-RocksDB (`rocksdb`) is the only supported database backend. SQLite only exists for historical reasons and is not recommended. Any performance issues, storage issues, database issues, etc will not be assisted if using SQLite and you will be asked to migrate to RocksDB first.
+RocksDB is the only supported database backend. SQLite only exists for historical reasons, is not recommended, and will be removed soon (likely in v0.5.0). Any performance issues, storage issues, database issues, etc will not be assisted if using SQLite and you will be asked to migrate to RocksDB first.
 
 ## Setting the correct file permissions
 
@@ -73,6 +73,8 @@ sudo chmod 700 /var/lib/conduwuit/
 ## Setting up the Reverse Proxy
 
 Refer to the documentation or various guides online of your chosen reverse proxy software. A [Caddy](https://caddyserver.com/) example will be provided as this is the recommended reverse proxy for new users and is very trivial to use (handles TLS, reverse proxy headers, etc transparently with proper defaults).
+
+Lighttpd is not supported as it seems to mess with the `X-Matrix` Authorization header, making federation non-functional. If using Apache, you need to use `nocanon` to prevent this.
 
 ### Caddy
 

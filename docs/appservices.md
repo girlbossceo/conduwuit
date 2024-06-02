@@ -12,9 +12,9 @@ and later starting it.
 
 At some point the appservice guide should ask you to add a registration yaml
 file to the homeserver. In Synapse you would do this by adding the path to the
-homeserver.yaml, but in Conduit you can do this from within Matrix:
+homeserver.yaml, but in conduwuit you can do this from within Matrix:
 
-First, go into the #admins room of your homeserver. The first person that
+First, go into the `#admins` room of your homeserver. The first person that
 registered on the homeserver automatically joins it. Then send a message into
 the room like this:
 
@@ -31,13 +31,13 @@ the room like this:
     ```
 
 You can confirm it worked by sending a message like this:
-`@conduit:your.server.name: appservices list`
+`!admin appservices list`
 
 The `@conduit` bot should answer with `Appservices (1): your-bridge`
 
-Then you are done. Conduit will send messages to the appservices and the
+Then you are done. conduwuit will send messages to the appservices and the
 appservice can send requests to the homeserver. You don't need to restart
-Conduit, but if it doesn't work, restarting while the appservice is running
+conduwuit, but if it doesn't work, restarting while the appservice is running
 could help.
 
 ## Appservice-specific instructions
@@ -46,16 +46,6 @@ could help.
 
 To remove an appservice go to your admin room and execute
 
-`@conduit:your.server.name: appservices unregister <name>`
+`!admin appservices unregister <name>`
 
 where `<name>` one of the output of `appservices list`.
-
-### Tested appservices
-
-These appservices have been tested and work with Conduit without any extra steps:
-
-- [matrix-appservice-discord](https://github.com/Half-Shot/matrix-appservice-discord)
-- [mautrix-hangouts](https://github.com/mautrix/hangouts/)
-- [mautrix-telegram](https://github.com/mautrix/telegram/)
-- [mautrix-signal](https://github.com/mautrix/signal/) from version `0.2.2` forward.
-- [heisenbridge](https://github.com/hifi/heisenbridge/)
