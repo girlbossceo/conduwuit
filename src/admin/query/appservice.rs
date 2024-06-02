@@ -17,11 +17,8 @@ pub(crate) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEven
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		Appservice::All => {
@@ -30,11 +27,8 @@ pub(crate) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEven
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 	}

@@ -294,8 +294,7 @@ pub(crate) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<Ro
 			}
 
 			Ok(RoomMessageEventContent::text_plain(format!(
-				"Got non-JSON response which took {ping_time:?} time:\n{0:?}",
-				response
+				"Got non-JSON response which took {ping_time:?} time:\n{response:?}"
 			)))
 		},
 		Err(e) => {

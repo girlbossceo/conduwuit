@@ -14,11 +14,8 @@ pub(crate) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 			let active_requests: Result<Vec<(_, _, _)>> = results.collect();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", active_requests),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					active_requests
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{active_requests:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{active_requests:?}\n</code></pre>"),
 			))
 		},
 		Sending::QueuedRequests {
@@ -96,11 +93,8 @@ pub(crate) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 			let queued_requests = results.collect::<Result<Vec<(_, _)>>>();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", queued_requests),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					queued_requests
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{queued_requests:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{queued_requests:?}\n</code></pre>"),
 			))
 		},
 		Sending::ActiveRequestsFor {
@@ -178,11 +172,8 @@ pub(crate) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 			let active_requests = results.collect::<Result<Vec<(_, _)>>>();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", active_requests),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					active_requests
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{active_requests:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{active_requests:?}\n</code></pre>"),
 			))
 		},
 		Sending::GetLatestEduCount {
@@ -193,11 +184,8 @@ pub(crate) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 	}

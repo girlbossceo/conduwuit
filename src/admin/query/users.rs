@@ -14,11 +14,8 @@ pub(crate) async fn users(subcommand: Users) -> Result<RoomMessageEventContent> 
 			let users = results.collect::<Vec<_>>();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", users),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					users
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{users:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{users:?}\n</code></pre>"),
 			))
 		},
 	}

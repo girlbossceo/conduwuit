@@ -14,11 +14,8 @@ pub(crate) async fn presence(subcommand: Presence) -> Result<RoomMessageEventCon
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		Presence::PresenceSince {
@@ -31,11 +28,8 @@ pub(crate) async fn presence(subcommand: Presence) -> Result<RoomMessageEventCon
 			let presence_since: Vec<(_, _, _)> = results.collect();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", presence_since),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					presence_since
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{presence_since:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{presence_since:?}\n</code></pre>"),
 			))
 		},
 	}

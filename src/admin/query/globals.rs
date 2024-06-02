@@ -12,11 +12,8 @@ pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		Globals::CurrentCount => {
@@ -25,11 +22,8 @@ pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		Globals::LastCheckForUpdatesId => {
@@ -38,11 +32,8 @@ pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		Globals::LoadKeypair => {
@@ -51,11 +42,8 @@ pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		Globals::SigningKeysFor {
@@ -66,11 +54,8 @@ pub(crate) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 	}
