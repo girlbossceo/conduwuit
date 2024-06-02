@@ -30,7 +30,10 @@ pub fn memory_stats() -> String {
 	let mut str = String::new();
 
 	let opaque = std::ptr::from_mut(&mut str).cast::<c_void>();
-	let opts_p: *const c_char = std::ffi::CString::new(opts_s).expect("cstring").into_raw() as *const c_char;
+	let opts_p: *const c_char = std::ffi::CString::new(opts_s)
+		.expect("cstring")
+		.into_raw()
+		.cast_const();
 
 	// SAFETY: calls malloc_stats_print() with our string instance which must remain
 	// in this frame. https://docs.rs/tikv-jemalloc-sys/latest/tikv_jemalloc_sys/fn.malloc_stats_print.html
