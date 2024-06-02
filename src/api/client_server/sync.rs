@@ -494,6 +494,8 @@ async fn handle_left_room(
 async fn process_presence_updates(
 	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, since: u64, syncing_user: &OwnedUserId,
 ) -> Result<()> {
+	use crate::service::presence::Presence;
+
 	// Take presence updates
 	for (user_id, _, presence_bytes) in services().presence.presence_since(since) {
 		if !services()
@@ -504,7 +506,6 @@ async fn process_presence_updates(
 			continue;
 		}
 
-		use crate::service::presence::Presence;
 		let presence_event = Presence::from_json_bytes_to_event(&presence_bytes, &user_id)?;
 		match presence_updates.entry(user_id) {
 			Entry::Vacant(slot) => {

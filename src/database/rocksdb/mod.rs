@@ -261,8 +261,9 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 impl Drop for Engine {
 	fn drop(&mut self) {
-		debug!("Waiting for background tasks to finish...");
 		const BLOCKING: bool = true;
+
+		debug!("Waiting for background tasks to finish...");
 		self.rocks.cancel_all_background_work(BLOCKING);
 
 		debug!("Shutting down background threads");

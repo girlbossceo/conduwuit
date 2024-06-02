@@ -49,11 +49,10 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug,
 	{
-		let dest = dest.replace(services().globals.notification_push_path(), "");
-
-		trace!("Push gateway destination: {dest}");
-
 		const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
+
+		let dest = dest.replace(services().globals.notification_push_path(), "");
+		trace!("Push gateway destination: {dest}");
 
 		let http_request = request
 			.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(""), &VERSIONS)
