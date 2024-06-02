@@ -14,6 +14,8 @@ pub(crate) async fn send_request<T>(registration: Registration, request: T) -> R
 where
 	T: OutgoingRequest + Debug,
 {
+	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
+
 	let Some(dest) = registration.url else {
 		return Ok(None);
 	};
@@ -21,9 +23,6 @@ where
 	trace!("Appservice URL \"{dest}\", Appservice ID: {}", registration.id);
 
 	let hs_token = registration.hs_token.as_str();
-
-	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
-
 	let mut http_request = request
 		.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(hs_token), &VERSIONS)
 		.map_err(|e| {

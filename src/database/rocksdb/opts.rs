@@ -17,13 +17,14 @@ use super::{
 /// columns, therefor columns should only be opened after passing this result
 /// through cf_options().
 pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_cache: &Cache) -> Options {
+	const MIN_PARALLELISM: usize = 2;
+
 	let mut opts = Options::default();
 
 	// Logging
 	set_logging_defaults(&mut opts, config);
 
 	// Processing
-	const MIN_PARALLELISM: usize = 2;
 	let threads = if config.rocksdb_parallelism_threads == 0 {
 		cmp::max(MIN_PARALLELISM, utils::available_parallelism())
 	} else {

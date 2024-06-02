@@ -23,12 +23,12 @@ impl KvTree for RocksDbEngineTree<'_> {
 	}
 
 	fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
-		let mut readoptions = rust_rocksdb::ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-
 		// Optimization can be `true` if key vector is pre-sorted **by the column
 		// comparator**.
 		const SORTED: bool = false;
+
+		let mut readoptions = rust_rocksdb::ReadOptions::default();
+		readoptions.set_total_order_seek(true);
 
 		let mut ret: Vec<Option<Vec<u8>>> = Vec::with_capacity(keys.len());
 		for res in self
