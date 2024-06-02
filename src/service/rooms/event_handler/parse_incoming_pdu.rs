@@ -6,7 +6,7 @@ use crate::{service::pdu::gen_event_id_canonical_json, services, Error, Result};
 
 pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
 	let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-		warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
+		warn!("Error parsing incoming event {pdu:?}: {e:?}");
 		Error::BadServerResponse("Invalid PDU in server response")
 	})?;
 

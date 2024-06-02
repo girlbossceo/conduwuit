@@ -244,7 +244,7 @@ pub(crate) async fn send_transaction_message_route(
 		parsed_pdus.push(match parse_incoming_pdu(pdu) {
 			Ok(t) => t,
 			Err(e) => {
-				warn!("Could not parse PDU: {e}");
+				debug_warn!("Could not parse PDU: {e}");
 				continue;
 			},
 		});
