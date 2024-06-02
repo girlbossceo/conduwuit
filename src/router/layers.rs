@@ -160,7 +160,7 @@ fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_u
 	let details = if let Some(s) = err.downcast_ref::<String>() {
 		s.clone()
 	} else if let Some(s) = err.downcast_ref::<&str>() {
-		s.to_string()
+		(*s).to_owned()
 	} else {
 		"Unknown internal server error occurred.".to_owned()
 	};
