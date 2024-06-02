@@ -481,7 +481,7 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 					// as the room name if we dont have it TODO: do same if we have a room alias for
 					// this
 					let plain_list = room_ids.iter().fold(String::new(), |mut output, room_id| {
-						writeln!(output, "- `{}`", room_id).unwrap();
+						writeln!(output, "- `{room_id}`").unwrap();
 						output
 					});
 
@@ -490,16 +490,13 @@ pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> 
 						output
 					});
 
-					let plain = format!("Rooms:\n{}", plain_list);
-					let html = format!("Rooms:\n<ul>{}</ul>", html_list);
+					let plain = format!("Rooms:\n{plain_list}");
+					let html = format!("Rooms:\n<ul>{html_list}</ul>");
 					Ok(RoomMessageEventContent::text_html(plain, html))
 				},
 				Err(e) => {
 					error!("Failed to list banned rooms: {}", e);
-					Ok(RoomMessageEventContent::text_plain(format!(
-						"Unable to list room aliases: {}",
-						e
-					)))
+					Ok(RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {e}")))
 				},
 			}
 		},

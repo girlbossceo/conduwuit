@@ -14,11 +14,8 @@ pub(crate) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", results),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					results
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
 			))
 		},
 		RoomAlias::LocalAliasesForRoom {
@@ -31,11 +28,8 @@ pub(crate) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 			let aliases: Vec<_> = results.collect();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", aliases),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					aliases
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{aliases:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{aliases:?}\n</code></pre>"),
 			))
 		},
 		RoomAlias::AllLocalAliases => {
@@ -46,11 +40,8 @@ pub(crate) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 			let aliases: Vec<_> = results.collect();
 
 			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{:?}```", aliases),
-				format!(
-					"<p>Query completed in {query_time:?}:</p>\n<pre><code>{:?}\n</code></pre>",
-					aliases
-				),
+				format!("Query completed in {query_time:?}:\n\n```\n{aliases:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{aliases:?}\n</code></pre>"),
 			))
 		},
 	}

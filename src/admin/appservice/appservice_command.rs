@@ -47,7 +47,7 @@ pub(crate) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Res
 	{
 		Some(config) => {
 			let config_str = serde_yaml::to_string(&config).expect("config should've been validated on register");
-			let output = format!("Config for {}:\n\n```yaml\n{}\n```", appservice_identifier, config_str,);
+			let output = format!("Config for {appservice_identifier}:\n\n```yaml\n{config_str}\n```",);
 			let output_html = format!(
 				"Config for {}:\n\n<pre><code class=\"language-yaml\">{}</code></pre>",
 				escape_html(&appservice_identifier),

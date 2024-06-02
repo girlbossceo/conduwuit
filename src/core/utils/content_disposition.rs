@@ -127,9 +127,9 @@ mod tests {
 		};
 
 		// cargo test -- --nocapture
-		println!("{}", SAMPLE);
+		println!("{SAMPLE}");
 		println!("{}", sanitize_filename::sanitize_with_options(SAMPLE, options.clone()));
-		println!("{:?}", SAMPLE);
+		println!("{SAMPLE:?}");
 		println!("{:?}", sanitize_filename::sanitize_with_options(SAMPLE, options.clone()));
 
 		assert_eq!(SANITISED, sanitize_filename::sanitize_with_options(SAMPLE, options.clone()));

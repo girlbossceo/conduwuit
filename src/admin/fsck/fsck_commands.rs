@@ -17,9 +17,8 @@ pub(crate) async fn check_all_users(_body: Vec<&str>) -> Result<RoomMessageEvent
 	let ok_count = users.iter().filter(|user| user.is_ok()).count();
 
 	let message = format!(
-		"Database query completed in {query_time:?}:\n\n```\nTotal entries: {:?}\nFailure/Invalid user count: \
-		 {:?}\nSuccess/Valid user count: {:?}```",
-		total, err_count, ok_count
+		"Database query completed in {query_time:?}:\n\n```\nTotal entries: {total:?}\nFailure/Invalid user count: \
+		 {err_count:?}\nSuccess/Valid user count: {ok_count:?}```"
 	);
 
 	Ok(RoomMessageEventContent::notice_html(message, String::new()))
