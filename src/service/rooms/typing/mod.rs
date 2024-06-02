@@ -44,7 +44,7 @@ impl Service {
 
 		// update federation
 		if user_is_local(user_id) {
-			self.federation_send(room_id, user_id, true)?;
+			Self::federation_send(room_id, user_id, true)?;
 		}
 
 		Ok(())
@@ -70,7 +70,7 @@ impl Service {
 
 		// update federation
 		if user_is_local(user_id) {
-			self.federation_send(room_id, user_id, false)?;
+			Self::federation_send(room_id, user_id, false)?;
 		}
 
 		Ok(())
@@ -126,7 +126,7 @@ impl Service {
 			// update federation
 			for user in removable {
 				if user_is_local(&user) {
-					self.federation_send(room_id, &user, false)?;
+					Self::federation_send(room_id, &user, false)?;
 				}
 			}
 		}
@@ -163,7 +163,7 @@ impl Service {
 		})
 	}
 
-	fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
+	fn federation_send(room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
 		debug_assert!(user_is_local(user_id), "tried to broadcast typing status of remote user",);
 		if !services().globals.config.allow_outgoing_typing {
 			return Ok(());
