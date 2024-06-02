@@ -142,7 +142,7 @@ pub(crate) async fn sync_events_route(
 		.collect::<Vec<_>>();
 
 	// Coalesce database writes for the remainder of this scope.
-	let _cork = services().globals.cork_and_flush()?;
+	let _cork = services().globals.db.cork_and_flush();
 
 	for room_id in all_joined_rooms {
 		let room_id = room_id?;
