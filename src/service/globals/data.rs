@@ -25,15 +25,9 @@ pub trait Data: Send + Sync {
 	async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()>;
 	fn cleanup(&self) -> Result<()>;
 
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn flush(&self) -> Result<()>;
-	fn cork(&self) -> Result<Cork>;
-	fn cork_and_flush(&self) -> Result<Cork>;
+	fn cork(&self) -> Cork;
+	fn cork_and_flush(&self) -> Cork;
 
-	/// TODO: use this?
-	#[allow(dead_code)]
-	fn cork_and_sync(&self) -> Result<Cork>;
 	fn memory_usage(&self) -> String;
 	fn clear_caches(&self, amount: u32);
 	fn load_keypair(&self) -> Result<Ed25519KeyPair>;
@@ -177,13 +171,9 @@ impl Data for KeyValueDatabase {
 
 	fn cleanup(&self) -> Result<()> { self.db.cleanup() }
 
-	fn flush(&self) -> Result<()> { self.db.flush() }
+	fn cork(&self) -> Cork { Cork::new(&self.db, false, false) }
 
-	fn cork(&self) -> Result<Cork> { Ok(Cork::new(&self.db, false, false)) }
-
-	fn cork_and_flush(&self) -> Result<Cork> { Ok(Cork::new(&self.db, true, false)) }
-
-	fn cork_and_sync(&self) -> Result<Cork> { Ok(Cork::new(&self.db, true, true)) }
+	fn cork_and_flush(&self) -> Cork { Cork::new(&self.db, true, false) }
 
 	fn memory_usage(&self) -> String {
 		let auth_chain_cache = self.auth_chain_cache.lock().unwrap().len();

@@ -81,7 +81,7 @@ impl Service {
 	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(pdu_id.to_owned());
-		let _cork = services().globals.cork()?;
+		let _cork = services().globals.db.cork();
 		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.dispatch(Msg {
 			dest,
@@ -94,7 +94,7 @@ impl Service {
 	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
-		let _cork = services().globals.cork()?;
+		let _cork = services().globals.db.cork();
 		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.dispatch(Msg {
 			dest,
@@ -121,7 +121,7 @@ impl Service {
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEvent::Pdu(pdu_id.to_owned())))
 			.collect::<Vec<_>>();
-		let _cork = services().globals.cork()?;
+		let _cork = services().globals.db.cork();
 		let keys = self.db.queue_requests(
 			&requests
 				.iter()
@@ -143,7 +143,7 @@ impl Service {
 	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
-		let _cork = services().globals.cork()?;
+		let _cork = services().globals.db.cork();
 		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.dispatch(Msg {
 			dest,
@@ -170,7 +170,7 @@ impl Service {
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEvent::Edu(serialized.clone())))
 			.collect::<Vec<_>>();
-		let _cork = services().globals.cork()?;
+		let _cork = services().globals.db.cork();
 		let keys = self.db.queue_requests(
 			&requests
 				.iter()

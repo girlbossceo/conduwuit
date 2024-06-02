@@ -1,3 +1,10 @@
+mod client;
+mod data;
+pub(super) mod emerg_access;
+pub(super) mod migrations;
+mod resolver;
+pub(super) mod updates;
+
 use std::{
 	collections::{BTreeMap, HashMap},
 	fs,
@@ -29,14 +36,7 @@ use tokio::{
 use tracing::{error, trace};
 use url::Url;
 
-use crate::{database::Cork, services, Config, Result};
-
-mod client;
-mod data;
-pub(crate) mod emerg_access;
-pub(crate) mod migrations;
-mod resolver;
-pub(crate) mod updates;
+use crate::{services, Config, Result};
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
@@ -193,16 +193,6 @@ impl Service {
 	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
 		self.db.watch(user_id, device_id).await
 	}
-
-	pub fn cleanup(&self) -> Result<()> { self.db.cleanup() }
-
-	/// TODO: use this?
-	#[allow(dead_code)]
-	pub fn flush(&self) -> Result<()> { self.db.flush() }
-
-	pub fn cork(&self) -> Result<Cork> { self.db.cork() }
-
-	pub fn cork_and_flush(&self) -> Result<Cork> { self.db.cork_and_flush() }
 
 	pub fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }
 
