@@ -121,7 +121,7 @@ impl Service {
 			);
 		}
 
-		full_auth_chain.sort();
+		full_auth_chain.sort_unstable();
 		full_auth_chain.dedup();
 		debug!(
 			chain_length = ?full_auth_chain.len(),
