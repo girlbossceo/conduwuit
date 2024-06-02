@@ -97,7 +97,7 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 		.take()
 		.unwrap();
 
-	let s = std::ptr::from_ref(s) as *mut Services;
+	let s: *mut Services = std::ptr::from_ref(s).cast_mut();
 	//SAFETY: Services was instantiated in start() and leaked into the SERVICES
 	// global perusing as 'static for the duration of run_server(). Now we reclaim
 	// it to drop it before unloading the module. If this is not done there will be
