@@ -23,8 +23,6 @@
 let
 # We perform default-feature unification in nix, because some of the dependencies
 # on the nix side depend on feature values.
-workspaceMembers = builtins.map (member: "${inputs.self}/src/${member}")
-  (builtins.attrNames (builtins.readDir "${inputs.self}/src"));
 crateFeatures = path:
   let manifest = lib.importTOML "${path}/Cargo.toml"; in
   lib.remove "default" (lib.attrNames manifest.features) ++
@@ -34,10 +32,8 @@ crateFeatures = path:
       manifest.dependencies);
 crateDefaultFeatures = path:
   (lib.importTOML "${path}/Cargo.toml").features.default;
-allDefaultFeatures = lib.unique
-  (lib.flatten (builtins.map crateDefaultFeatures workspaceMembers));
-allFeatures = lib.unique
-  (lib.flatten (builtins.map crateFeatures workspaceMembers));
+allDefaultFeatures = crateDefaultFeatures "${inputs.self}/src/main";
+allFeatures = crateFeatures "${inputs.self}/src/main";
 features' = lib.unique
   (features ++
     lib.optionals default_features allDefaultFeatures ++
