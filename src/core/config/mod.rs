@@ -1,7 +1,7 @@
 use std::{
 	collections::BTreeMap,
 	fmt::{self, Write as _},
-	net::{IpAddr, Ipv6Addr, SocketAddr},
+	net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 	path::PathBuf,
 };
 
@@ -36,13 +36,20 @@ struct ListeningPort {
 	ports: Either<u16, Vec<u16>>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(transparent)]
+struct ListeningAddr {
+	#[serde(with = "either::serde_untagged")]
+	addrs: Either<IpAddr, Vec<IpAddr>>,
+}
+
 /// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Config {
 	/// [`IpAddr`] conduwuit will listen on (can be IPv4 or IPv6)
 	#[serde(default = "default_address")]
-	pub address: IpAddr,
+	address: ListeningAddr,
 	/// default TCP port(s) conduwuit will listen on
 	#[serde(default = "default_port")]
 	port: ListeningPort,
@@ -471,22 +478,27 @@ impl Config {
 
 	#[must_use]
 	pub fn get_bind_addrs(&self) -> Vec<SocketAddr> {
-		match &self.port.ports {
-			Left(port) => {
-				// Left is only 1 value, so make a vec with 1 value only
-				let port_vec = [port];
+		let mut addrs = Vec::new();
+		for host in &self.get_bind_hosts() {
+			for port in &self.get_bind_ports() {
+				addrs.push(SocketAddr::new(*host, *port));
+			}
+		}
 
-				port_vec
-					.iter()
-					.copied()
-					.map(|port| SocketAddr::from((self.address, *port)))
-					.collect::<Vec<_>>()
-			},
-			Right(ports) => ports
-				.iter()
-				.copied()
-				.map(|port| SocketAddr::from((self.address, port)))
-				.collect::<Vec<_>>(),
+		addrs
+	}
+
+	fn get_bind_hosts(&self) -> Vec<IpAddr> {
+		match &self.address.addrs {
+			Left(addr) => vec![*addr],
+			Right(addrs) => addrs.clone(),
+		}
+	}
+
+	fn get_bind_ports(&self) -> Vec<u16> {
+		match &self.port.ports {
+			Left(port) => vec![*port],
+			Right(ports) => ports.clone(),
 		}
 	}
 
@@ -875,7 +887,11 @@ impl fmt::Display for Config {
 
 fn true_fn() -> bool { true }
 
-fn default_address() -> IpAddr { Ipv6Addr::LOCALHOST.into() }
+fn default_address() -> ListeningAddr {
+	ListeningAddr {
+		addrs: Right(vec![Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()]),
+	}
+}
 
 fn default_port() -> ListeningPort {
 	ListeningPort {
