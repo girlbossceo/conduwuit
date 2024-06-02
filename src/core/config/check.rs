@@ -91,7 +91,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 		return Err(Error::bad_config("Registration token was specified but is empty (\"\")"));
 	}
 
-	if config.max_request_size < 5120000 {
+	if config.max_request_size < 5_120_000 {
 		return Err(Error::bad_config("Max request size is less than 5MB. Please increase it."));
 	}
 
