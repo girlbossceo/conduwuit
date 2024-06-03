@@ -129,6 +129,8 @@ fn resolve_to_reqwest(resolver: Arc<TokioAsyncResolver>, name: Name) -> Resolvin
 			.into_iter()
 			.map(|ip| SocketAddr::new(ip, 0));
 
-		Ok(Box::new(results) as Addrs)
+		let results: Addrs = Box::new(results);
+
+		Ok(results)
 	})
 }
