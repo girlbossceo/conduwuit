@@ -77,11 +77,16 @@ database_backend = "rocksdb"
 # forwarded to the conduwuit instance running on this port
 # Docker users: Don't change this, you'll need to map an external port to this.
 # To listen on multiple ports, specify a vector e.g. [8080, 8448]
+#
+# default if unspecified is 8008
 port = 6167
 
 # default address (IPv4 or IPv6) conduwuit will listen on. Generally you want this to be
 # localhost (127.0.0.1 / ::1). If you are using Docker or a container NAT networking setup, you
 # likely need this to be 0.0.0.0.
+# To listen multiple addresses, specify a vector e.g. ["127.0.0.1", "::1"]
+#
+# default if unspecified is both IPv4 and IPv6 localhost: ["127.0.0.1", "::1"]
 address = "127.0.0.1"
 
 # Max request size for file uploads
@@ -375,15 +380,6 @@ allow_profile_lookup_federation_requests = true
 # Defaults to 256.0
 #db_cache_capacity_mb = 256.0
 
-# Interval in seconds when conduwuit will run database cleanup operations.
-#
-# For SQLite: this will flush the WAL by executing `PRAGMA wal_checkpoint(RESTART)` (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint)
-# For RocksDB: this will run `flush_opt` to flush database memtables to SST files on disk (https://docs.rs/rocksdb/latest/rocksdb/struct.DBCommon.html#method.flush_opt)
-# These operations always run on shutdown.
-#
-# Defaults to 30 minutes (1800 seconds) to avoid IO amplification from too frequent cleanups
-#cleanup_second_interval = 1800
-
 
 ### RocksDB options
 
@@ -491,11 +487,6 @@ allow_profile_lookup_federation_requests = true
 #
 # Defaults to 1 (TolerateCorruptedTailRecords)
 #rocksdb_recovery_mode = 1
-
-# Controls whether memory buffers are written to storage at the fixed interval set by `cleanup_period_interval`
-# even when they are not full. Setting this will increase load on the storage backplane and is never advised
-# under normal circumstances.
-#rocksdb_periodic_cleanup = false
 
 
 ### Domain Name Resolution and Caching

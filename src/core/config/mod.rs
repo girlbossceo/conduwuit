@@ -94,9 +94,6 @@ pub struct Config {
 	#[serde(default = "default_roomid_spacehierarchy_cache_capacity")]
 	pub roomid_spacehierarchy_cache_capacity: u32,
 
-	#[serde(default = "default_cleanup_second_interval")]
-	pub cleanup_second_interval: u32,
-
 	#[serde(default = "default_dns_cache_entries")]
 	pub dns_cache_entries: u32,
 	#[serde(default = "default_dns_min_ttl")]
@@ -248,8 +245,6 @@ pub struct Config {
 	pub rocksdb_repair: bool,
 	#[serde(default)]
 	pub rocksdb_read_only: bool,
-	#[serde(default)]
-	pub rocksdb_periodic_cleanup: bool,
 	#[serde(default)]
 	pub rocksdb_compaction_prio_idle: bool,
 	#[serde(default = "true_fn")]
@@ -541,7 +536,6 @@ impl fmt::Display for Config {
 				"Roomid space hierarchy cache capacity",
 				&self.roomid_spacehierarchy_cache_capacity.to_string(),
 			),
-			("Cleanup interval in seconds", &self.cleanup_second_interval.to_string()),
 			("DNS cache entry limit", &self.dns_cache_entries.to_string()),
 			("DNS minimum TTL", &self.dns_min_ttl.to_string()),
 			("DNS minimum NXDOMAIN TTL", &self.dns_min_ttl_nxdomain.to_string()),
@@ -750,8 +744,6 @@ impl fmt::Display for Config {
 			#[cfg(feature = "rocksdb")]
 			("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string()),
 			#[cfg(feature = "rocksdb")]
-			("RocksDB Periodic Cleanup", &self.rocksdb_periodic_cleanup.to_string()),
-			#[cfg(feature = "rocksdb")]
 			(
 				"RocksDB Compaction Idle Priority",
 				&self.rocksdb_compaction_prio_idle.to_string(),
@@ -928,10 +920,6 @@ fn default_user_visibility_cache_capacity() -> u32 { 100 }
 fn default_stateinfo_cache_capacity() -> u32 { 100 }
 
 fn default_roomid_spacehierarchy_cache_capacity() -> u32 { 100 }
-
-fn default_cleanup_second_interval() -> u32 {
-	1800 // every 30 minutes
-}
 
 fn default_dns_cache_entries() -> u32 { 32768 }
 
