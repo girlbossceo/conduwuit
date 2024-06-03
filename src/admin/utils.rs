@@ -1,5 +1,5 @@
 pub(crate) use conduit::utils::HtmlEscape;
-use ruma::OwnedRoomId;
+use ruma::{OwnedRoomId, RoomId};
 
 use crate::services;
 
@@ -9,9 +9,9 @@ pub(crate) fn escape_html(s: &str) -> String {
 		.replace('>', "&gt;")
 }
 
-pub(crate) fn get_room_info(id: &OwnedRoomId) -> (OwnedRoomId, u64, String) {
+pub(crate) fn get_room_info(id: &RoomId) -> (OwnedRoomId, u64, String) {
 	(
-		id.clone(),
+		id.into(),
 		services()
 			.rooms
 			.state_cache

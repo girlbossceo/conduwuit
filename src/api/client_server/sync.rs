@@ -492,7 +492,7 @@ async fn handle_left_room(
 }
 
 async fn process_presence_updates(
-	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, since: u64, syncing_user: &OwnedUserId,
+	presence_updates: &mut HashMap<OwnedUserId, PresenceEvent>, since: u64, syncing_user: &UserId,
 ) -> Result<()> {
 	use crate::service::presence::Presence;
 

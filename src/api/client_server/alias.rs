@@ -8,7 +8,7 @@ use ruma::{
 		},
 		federation,
 	},
-	OwnedRoomAliasId, OwnedRoomId, OwnedServerName,
+	OwnedRoomAliasId, OwnedServerName, RoomAliasId, RoomId,
 };
 use tracing::debug;
 
@@ -219,7 +219,7 @@ pub async fn get_alias_helper(
 }
 
 fn room_available_servers(
-	room_id: &OwnedRoomId, room_alias: &OwnedRoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
+	room_id: &RoomId, room_alias: &RoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
 ) -> Vec<OwnedServerName> {
 	// find active servers in room state cache to suggest
 	let mut servers: Vec<OwnedServerName> = services()
@@ -260,7 +260,7 @@ fn room_available_servers(
 	servers
 }
 
-async fn alias_checks(room_alias: &OwnedRoomAliasId, appservice_info: &Option<RegistrationInfo>) -> Result<()> {
+async fn alias_checks(room_alias: &RoomAliasId, appservice_info: &Option<RegistrationInfo>) -> Result<()> {
 	if !server_is_ours(room_alias.server_name()) {
 		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 	}

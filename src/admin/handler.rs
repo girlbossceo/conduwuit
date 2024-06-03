@@ -8,7 +8,7 @@ use ruma::{
 		room::message::{Relation::Reply, RoomMessageEventContent},
 		TimelineEventType,
 	},
-	OwnedRoomId, OwnedUserId, ServerName, UserId,
+	OwnedRoomId, OwnedUserId, RoomId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::MutexGuard;
@@ -125,7 +125,7 @@ async fn handle_event(event: AdminRoomEvent, admin_room: OwnedRoomId, server_use
 }
 
 async fn handle_response_error(
-	e: &Error, admin_room: &OwnedRoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
+	e: &Error, admin_room: &RoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
 ) -> Result<()> {
 	error!("Failed to build and append admin room response PDU: \"{e}\"");
 	let error_room_message = RoomMessageEventContent::text_plain(format!(

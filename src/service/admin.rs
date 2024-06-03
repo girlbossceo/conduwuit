@@ -111,9 +111,9 @@ impl Service {
 			.await;
 	}
 
-	async fn receive(&self, event: AdminRoomEvent, room: &OwnedRoomId, user: &UserId) -> Result<(), Error> {
+	async fn receive(&self, event: AdminRoomEvent, room: &RoomId, user: &UserId) -> Result<(), Error> {
 		if let Some(handle) = self.handle.lock().await.as_ref() {
-			handle(event, room.clone(), user.into()).await
+			handle(event, room.into(), user.into()).await
 		} else {
 			Err(Error::Err("Admin module is not loaded.".into()))
 		}

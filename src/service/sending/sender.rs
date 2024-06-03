@@ -406,7 +406,7 @@ async fn send_events(dest: Destination, events: Vec<SendingEvent>) -> SendingRes
 }
 
 #[tracing::instrument(skip(dest, events))]
-async fn send_events_dest_appservice(dest: &Destination, id: &String, events: Vec<SendingEvent>) -> SendingResult {
+async fn send_events_dest_appservice(dest: &Destination, id: &str, events: Vec<SendingEvent>) -> SendingResult {
 	let mut pdu_jsons = Vec::new();
 
 	for event in &events {
@@ -469,7 +469,7 @@ async fn send_events_dest_appservice(dest: &Destination, id: &String, events: Ve
 
 #[tracing::instrument(skip(dest, events))]
 async fn send_events_dest_push(
-	dest: &Destination, userid: &OwnedUserId, pushkey: &String, events: Vec<SendingEvent>,
+	dest: &Destination, userid: &OwnedUserId, pushkey: &str, events: Vec<SendingEvent>,
 ) -> SendingResult {
 	let mut pdus = Vec::new();
 

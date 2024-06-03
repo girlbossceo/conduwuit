@@ -886,7 +886,7 @@ fn default_power_levels_content(
 
 /// if a room is being created with a room alias, run our checks
 async fn room_alias_check(
-	room_alias_name: &String, appservice_info: &Option<RegistrationInfo>,
+	room_alias_name: &str, appservice_info: &Option<RegistrationInfo>,
 ) -> Result<OwnedRoomAliasId> {
 	// Basic checks on the room alias validity
 	if room_alias_name.contains(':') {
@@ -944,7 +944,7 @@ async fn room_alias_check(
 }
 
 /// if a room is being created with a custom room ID, run our checks against it
-fn custom_room_id_check(custom_room_id: &String) -> Result<OwnedRoomId> {
+fn custom_room_id_check(custom_room_id: &str) -> Result<OwnedRoomId> {
 	// apply forbidden room alias checks to custom room IDs too
 	if services()
 		.globals
