@@ -276,14 +276,12 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 
 	pub async fn start(&self) -> Result<()> {
 		debug_info!("Starting services");
+
 		globals::migrations::migrations(&self.db, &self.globals.config).await?;
+		globals::emerg_access::init_emergency_access();
 
 		self.admin.start_handler().await;
-
-		globals::emerg_access::init_emergency_access().await;
-
 		self.sending.start_handler().await;
-
 		if self.globals.config.allow_local_presence {
 			self.presence.start_handler().await;
 		}
