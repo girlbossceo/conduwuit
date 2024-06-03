@@ -645,7 +645,7 @@ incremental = false
 
 [workspace.lints.rust]
 absolute-paths-not-starting-with-crate = "warn"
-#box-pointers = "warn"                                               # TODO
+#box-pointers = "warn"
 deprecated-in-future = "warn"
 elided-lifetimes-in-paths = "warn"
 explicit-outlives-requirements = "warn"
@@ -711,9 +711,8 @@ correctness = "warn"
 ###################
 nursery = "warn"
 
-### some sadness
+## some sadness
 branches_sharing_code = { level = "allow", priority = 1 }            # TODO
-cognitive_complexity = { level = "allow", priority = 1 }             # TODO
 derive_partial_eq_without_eq = { level = "allow", priority = 1 }     # TODO
 equatable_if_let = { level = "allow", priority = 1 }                 # TODO
 future_not_send = { level = "allow", priority = 1 }                  # TODO
