@@ -29,7 +29,7 @@ name = "conduit"
 version = "0.5.0"
 
 [workspace.dependencies.infer]
-version = "0.15"
+version = "0.16"
 default-features = false
 
 [workspace.dependencies.jsonwebtoken]
@@ -114,7 +114,7 @@ features = [
 ]
 
 [workspace.dependencies.serde]
-version = "1.0.201"
+version = "1.0.203"
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
@@ -184,7 +184,7 @@ version = "0.3.30"
 default-features = false
 
 [workspace.dependencies.tokio]
-version = "1.37.0"
+version = "1.38.0"
 features = [
 	"fs",
 	"net",
@@ -261,7 +261,7 @@ version = "2.1.1"
 
 # used to replace the channels of the tokio runtime
 [workspace.dependencies.loole]
-version = "0.3.0"
+version = "0.3.1"
 
 [workspace.dependencies.async-trait]
 version = "0.1.80"
@@ -313,9 +313,6 @@ features = [
 	"bzip2",
 ]
 
-[workspace.dependencies.zstd]
-version = "0.13.1"
-
 # to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
 [workspace.dependencies.axum-server-dual-protocol]
 version = "0.6"
@@ -344,7 +341,7 @@ features = ["rt-tokio"]
 
 # optional sentry metrics for crash/panic reporting
 [workspace.dependencies.sentry]
-version = "0.32.3"
+version = "0.33.0"
 default-features = false
 features = [
     "backtrace",
@@ -360,9 +357,9 @@ features = [
 ]
 
 [workspace.dependencies.sentry-tracing]
-version = "0.32.3"
+version = "0.33.0"
 [workspace.dependencies.sentry-tower]
-version = "0.32.3"
+version = "0.33.0"
 
 # jemalloc usage
 [workspace.dependencies.tikv-jemalloc-sys]
@@ -386,7 +383,7 @@ features = ["bundled"]
 
 # used only by rusqlite
 [workspace.dependencies.parking_lot]
-version = "0.12.2"
+version = "0.12.3"
 
 # used only by rusqlite
 [workspace.dependencies.thread_local]
@@ -400,7 +397,7 @@ default-features = false
 version = "0.2"
 
 [workspace.dependencies.nix]
-version = "0.28.0"
+version = "0.29.0"
 features = ["resource"]
 
 [workspace.dependencies.sd-notify]

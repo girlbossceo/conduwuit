@@ -101,8 +101,6 @@ tokio.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 url.workspace = true
-zstd.optional = true
-zstd.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true

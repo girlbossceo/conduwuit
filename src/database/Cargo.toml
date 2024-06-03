@@ -58,8 +58,6 @@ thread_local.optional = true
 thread_local.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-zstd.optional = true
-zstd.workspace = true
 
 [lints]
 workspace = true
