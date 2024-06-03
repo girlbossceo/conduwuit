@@ -21,6 +21,10 @@ use tracing::Level;
 
 use crate::{request, router};
 
+const CONDUWUIT_CSP: &str =
+	"sandbox; default-src 'none'; font-src 'none'; script-src 'none'; frame-ancestors 'none'; base-uri 'none';";
+const CONDUWUIT_PERMISSIONS_POLICY: &str = "interest-cohort=(),browsing-topics=()";
+
 pub(crate) fn build(server: &Arc<Server>) -> io::Result<axum::routing::IntoMakeService<Router>> {
 	let layers = ServiceBuilder::new();
 
@@ -60,14 +64,11 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<axum::routing::IntoMakeS
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			HeaderName::from_static("permissions-policy"),
-			HeaderValue::from_static("interest-cohort=(),browsing-topics=()"),
+			HeaderValue::from_static(CONDUWUIT_PERMISSIONS_POLICY),
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			header::CONTENT_SECURITY_POLICY,
-			HeaderValue::from_static(
-				"sandbox; default-src 'none'; font-src 'none'; script-src 'none'; plugin-types application/pdf; \
-				 style-src 'unsafe-inline'; object-src 'self'; frame-ancestors 'none'; base-uri 'none';",
-			),
+			HeaderValue::from_static(CONDUWUIT_CSP),
 		))
 		.layer(cors_layer(server))
 		.layer(body_limit_layer(server))
