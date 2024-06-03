@@ -2,8 +2,6 @@ use crate::debug_info;
 
 const ATTACHMENT: &str = "attachment";
 const INLINE: &str = "inline";
-const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
-const IMAGE_SVG_XML: &str = "image/svg+xml";
 
 /// as defined by MSC2702
 const ALLOWED_INLINE_CONTENT_TYPES: [&str; 26] = [
@@ -54,29 +52,6 @@ pub fn content_disposition_type(buf: &[u8], content_type: &Option<String>) -> &'
 	} else {
 		ATTACHMENT
 	}
-}
-
-/// overrides the Content-Type with what we detected
-///
-/// SVG is special-cased due to the MIME type being classified as `text/xml` but
-/// browsers need `image/svg+xml`
-#[must_use]
-#[tracing::instrument(skip(buf))]
-pub fn make_content_type(buf: &[u8], content_type: &Option<String>) -> &'static str {
-	let Some(claimed_content_type) = content_type else {
-		return APPLICATION_OCTET_STREAM;
-	};
-
-	let Some(file_type) = infer::get(buf) else {
-		debug_info!("Failed to infer the file's contents");
-		return APPLICATION_OCTET_STREAM;
-	};
-
-	if claimed_content_type.contains("svg") && file_type.mime_type().contains("xml") {
-		return IMAGE_SVG_XML;
-	}
-
-	file_type.mime_type()
 }
 
 /// sanitises the file name for the Content-Disposition using
