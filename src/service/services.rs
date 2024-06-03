@@ -289,7 +289,7 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 		}
 
 		if self.globals.allow_check_for_updates() {
-			let handle = globals::updates::start_check_for_updates_task().await?;
+			let handle = globals::updates::start_check_for_updates_task();
 
 			#[allow(clippy::let_underscore_must_use)] // needed for shutdown
 			{
