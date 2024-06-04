@@ -69,7 +69,6 @@ figment.workspace = true
 http-body-util.workspace = true
 http.workspace = true
 image.workspace = true
-infer.workspace = true
 ipaddress.workspace = true
 itertools.workspace = true
 libloading.workspace = true

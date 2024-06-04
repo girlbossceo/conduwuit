@@ -1,5 +1,3 @@
-use crate::debug_info;
-
 const ATTACHMENT: &str = "attachment";
 const INLINE: &str = "inline";
 
@@ -35,19 +33,17 @@ const ALLOWED_INLINE_CONTENT_TYPES: [&str; 26] = [
 ];
 
 /// Returns a Content-Disposition of `attachment` or `inline`, depending on the
-/// *parsed* contents of the file uploaded via format magic keys using `infer`
-/// crate (basically libmagic without needing libmagic).
+/// Content-Type against MSC2702 list of safe inline Content-Types
+/// (`ALLOWED_INLINE_CONTENT_TYPES`)
 #[must_use]
-#[tracing::instrument(skip(buf))]
-pub fn content_disposition_type(buf: &[u8], content_type: &Option<String>) -> &'static str {
-	let Some(file_type) = infer::get(buf) else {
-		debug_info!("Failed to infer the file's contents, assuming attachment for Content-Disposition");
+#[tracing::instrument]
+pub fn content_disposition_type(content_type: &Option<String>) -> &'static str {
+	let Some(content_type) = content_type else {
+		// no Content-Type was given to us, assume attachment
 		return ATTACHMENT;
 	};
 
-	debug_info!("detected MIME type: {}", file_type.mime_type());
-
-	if ALLOWED_INLINE_CONTENT_TYPES.contains(&file_type.mime_type()) {
+	if ALLOWED_INLINE_CONTENT_TYPES.contains(&content_type.to_lowercase().as_str()) {
 		INLINE
 	} else {
 		ATTACHMENT
@@ -74,9 +70,9 @@ pub fn sanitise_filename(filename: String) -> String {
 /// `Content-Disposition: attachment/inline; filename=filename.ext`
 ///
 /// else: `Content-Disposition: attachment/inline`
-#[tracing::instrument(skip(file))]
+#[tracing::instrument]
 pub fn make_content_disposition(
-	file: &[u8], content_type: &Option<String>, content_disposition: Option<String>, req_filename: Option<String>,
+	content_type: &Option<String>, content_disposition: Option<String>, req_filename: Option<String>,
 ) -> String {
 	let filename: String;
 
@@ -98,10 +94,10 @@ pub fn make_content_disposition(
 
 	if !filename.is_empty() {
 		// Content-Disposition: attachment/inline; filename=filename.ext
-		format!("{}; filename={}", content_disposition_type(file, content_type), filename)
+		format!("{}; filename={}", content_disposition_type(content_type), filename)
 	} else {
 		// Content-Disposition: attachment/inline
-		String::from(content_disposition_type(file, content_type))
+		String::from(content_disposition_type(content_type))
 	}
 }
 

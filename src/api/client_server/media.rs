@@ -139,7 +139,7 @@ pub(crate) async fn create_content_route(
 				.map(|filename| {
 					format!(
 						"{}; filename={}",
-						content_disposition_type(&body.file, &body.content_type),
+						content_disposition_type(&body.content_type),
 						sanitise_filename(filename.to_owned())
 					)
 				})
@@ -188,7 +188,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 		content_disposition,
 	}) = services().media.get(mxc.clone()).await?
 	{
-		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition, None));
+		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
 
 		Ok(get_content::v3::Response {
 			file,
@@ -212,7 +212,6 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 		})?;
 
 		let content_disposition = Some(make_content_disposition(
-			&response.file,
 			&response.content_type,
 			response.content_disposition,
 			None,
@@ -268,7 +267,6 @@ pub(crate) async fn get_content_as_filename_route(
 	}) = services().media.get(mxc.clone()).await?
 	{
 		let content_disposition = Some(make_content_disposition(
-			&file,
 			&content_type,
 			content_disposition,
 			Some(body.filename.clone()),
@@ -293,7 +291,6 @@ pub(crate) async fn get_content_as_filename_route(
 		{
 			Ok(remote_content_response) => {
 				let content_disposition = Some(make_content_disposition(
-					&remote_content_response.file,
 					&remote_content_response.content_type,
 					remote_content_response.content_disposition,
 					None,
@@ -365,7 +362,7 @@ pub(crate) async fn get_content_thumbnail_route(
 		)
 		.await?
 	{
-		let content_disposition = Some(make_content_disposition(&file, &content_type, content_disposition, None));
+		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
 
 		Ok(get_content_thumbnail::v3::Response {
 			file,
@@ -418,7 +415,6 @@ pub(crate) async fn get_content_thumbnail_route(
 					.await?;
 
 				let content_disposition = Some(make_content_disposition(
-					&get_thumbnail_response.file,
 					&get_thumbnail_response.content_type,
 					get_thumbnail_response.content_disposition,
 					None,
@@ -489,7 +485,6 @@ async fn get_remote_content(
 		.await?;
 
 	let content_disposition = Some(make_content_disposition(
-		&content_response.file,
 		&content_response.content_type,
 		content_response.content_disposition,
 		None,

@@ -28,10 +28,6 @@ name = "conduit"
 [workspace.dependencies.sanitize-filename]
 version = "0.5.0"
 
-[workspace.dependencies.infer]
-version = "0.16"
-default-features = false
-
 [workspace.dependencies.jsonwebtoken]
 version = "9.3.0"
 
