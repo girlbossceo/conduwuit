@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use itertools::Itertools;
 use ruma::{
@@ -29,8 +29,6 @@ pub trait Data: Send + Sync {
 
 	fn update_joined_count(&self, room_id: &RoomId) -> Result<()>;
 
-	fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>>;
-
 	fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool>;
 
 	/// Makes a user forget a room.
@@ -47,6 +45,10 @@ pub trait Data: Send + Sync {
 
 	/// Returns an iterator over all joined members of a room.
 	fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
+
+	/// Returns a vec of all the users joined in a room who are active
+	/// (not guests, not deactivated users)
+	fn active_local_users_in_room(&self, room_id: &RoomId) -> Vec<OwnedUserId>;
 
 	fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>>;
 
@@ -225,13 +227,9 @@ impl Data for KeyValueDatabase {
 		let mut joinedcount = 0_u64;
 		let mut invitedcount = 0_u64;
 		let mut joined_servers = HashSet::new();
-		let mut real_users = HashSet::new();
 
 		for joined in self.room_members(room_id).filter_map(Result::ok) {
 			joined_servers.insert(joined.server_name().to_owned());
-			if user_is_local(&joined) && !services().users.is_deactivated(&joined).unwrap_or(true) {
-				real_users.insert(joined);
-			}
 			joinedcount = joinedcount.saturating_add(1);
 		}
 
@@ -244,11 +242,6 @@ impl Data for KeyValueDatabase {
 
 		self.roomid_invitedcount
 			.insert(room_id.as_bytes(), &invitedcount.to_be_bytes())?;
-
-		self.our_real_users_cache
-			.write()
-			.unwrap()
-			.insert(room_id.to_owned(), Arc::new(real_users));
 
 		for old_joined_server in self.room_servers(room_id).filter_map(Result::ok) {
 			if !joined_servers.remove(&old_joined_server) {
@@ -286,28 +279,6 @@ impl Data for KeyValueDatabase {
 			.remove(room_id);
 
 		Ok(())
-	}
-
-	#[tracing::instrument(skip(self, room_id))]
-	fn get_our_real_users(&self, room_id: &RoomId) -> Result<Arc<HashSet<OwnedUserId>>> {
-		let maybe = self
-			.our_real_users_cache
-			.read()
-			.unwrap()
-			.get(room_id)
-			.cloned();
-		if let Some(users) = maybe {
-			Ok(users)
-		} else {
-			self.update_joined_count(room_id)?;
-			Ok(Arc::clone(
-				self.our_real_users_cache
-					.read()
-					.unwrap()
-					.get(room_id)
-					.unwrap(),
-			))
-		}
 	}
 
 	#[tracing::instrument(skip(self, room_id, appservice))]
@@ -427,6 +398,16 @@ impl Data for KeyValueDatabase {
 			)
 			.map_err(|_| Error::bad_database("User ID in roomuserid_joined is invalid."))
 		}))
+	}
+
+	/// Returns a vec of all our local users joined in a room who are active
+	/// (not guests / not deactivated users)
+	#[tracing::instrument(skip(self))]
+	fn active_local_users_in_room(&self, room_id: &RoomId) -> Vec<OwnedUserId> {
+		self.room_members(room_id)
+			.filter_map(Result::ok)
+			.filter(|user| user_is_local(user) && !services().users.is_deactivated(user).unwrap_or(true))
+			.collect_vec()
 	}
 
 	/// Returns the number of users which are currently in a room

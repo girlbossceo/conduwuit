@@ -1,5 +1,5 @@
 use std::{
-	collections::{BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashMap},
 	path::Path,
 	sync::{Arc, Mutex, RwLock},
 };
@@ -150,7 +150,6 @@ pub struct KeyValueDatabase {
 	pub senderkey_pusher: Arc<dyn KvTree>,
 
 	pub auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[u64]>>>,
-	pub our_real_users_cache: RwLock<HashMap<OwnedRoomId, Arc<HashSet<OwnedUserId>>>>,
 	pub appservice_in_room_cache: RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>,
 	pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
@@ -265,7 +264,6 @@ impl KeyValueDatabase {
 			auth_chain_cache: Mutex::new(LruCache::new(
 				(f64::from(config.auth_chain_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
-			our_real_users_cache: RwLock::new(HashMap::new()),
 			appservice_in_room_cache: RwLock::new(HashMap::new()),
 			lasttimelinecount_cache: Mutex::new(HashMap::new()),
 		})

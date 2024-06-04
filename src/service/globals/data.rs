@@ -177,19 +177,16 @@ impl Data for KeyValueDatabase {
 
 	fn memory_usage(&self) -> String {
 		let auth_chain_cache = self.auth_chain_cache.lock().unwrap().len();
-		let our_real_users_cache = self.our_real_users_cache.read().unwrap().len();
 		let appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().len();
 		let lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().len();
 
 		let max_auth_chain_cache = self.auth_chain_cache.lock().unwrap().capacity();
-		let max_our_real_users_cache = self.our_real_users_cache.read().unwrap().capacity();
 		let max_appservice_in_room_cache = self.appservice_in_room_cache.read().unwrap().capacity();
 		let max_lasttimelinecount_cache = self.lasttimelinecount_cache.lock().unwrap().capacity();
 
 		format!(
 			"\
 auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}
-our_real_users_cache: {our_real_users_cache} / {max_our_real_users_cache}
 appservice_in_room_cache: {appservice_in_room_cache} / {max_appservice_in_room_cache}
 lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n
 {}",
@@ -203,14 +200,10 @@ lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cach
 			*c = LruCache::new(c.capacity());
 		}
 		if amount > 2 {
-			let c = &mut *self.our_real_users_cache.write().unwrap();
-			*c = HashMap::new();
-		}
-		if amount > 3 {
 			let c = &mut *self.appservice_in_room_cache.write().unwrap();
 			*c = HashMap::new();
 		}
-		if amount > 4 {
+		if amount > 3 {
 			let c = &mut *self.lasttimelinecount_cache.lock().unwrap();
 			*c = HashMap::new();
 		}

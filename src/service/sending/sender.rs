@@ -485,7 +485,7 @@ async fn send_events_dest_push(
 						.ok_or_else(|| {
 							(
 								dest.clone(),
-								Error::bad_database("[Push] Event in servernamevent_datas not found in db."),
+								Error::bad_database("[Push] Event in servernameevent_data not found in db."),
 							)
 						})?,
 				);
@@ -567,7 +567,7 @@ async fn send_events_dest_normal(
 							);
 							(
 								dest.clone(),
-								Error::bad_database("[Normal] Event in servernamevent_datas not found in db."),
+								Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
 							)
 						})?,
 				);
