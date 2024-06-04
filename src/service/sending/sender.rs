@@ -159,7 +159,7 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, dest, new_events, statuses))]
+	#[tracing::instrument(skip_all)]
 	fn select_events(
 		&self,
 		dest: &Destination,
@@ -206,7 +206,7 @@ impl Service {
 		Ok(Some(events))
 	}
 
-	#[tracing::instrument(skip(self, dest, statuses))]
+	#[tracing::instrument(skip_all)]
 	fn select_events_current(&self, dest: Destination, statuses: &mut CurTransactionStatus) -> Result<(bool, bool)> {
 		let (mut allow, mut retry) = (true, false);
 		statuses
@@ -234,7 +234,7 @@ impl Service {
 		Ok((allow, retry))
 	}
 
-	#[tracing::instrument(skip(self, server_name))]
+	#[tracing::instrument(skip_all)]
 	fn select_edus(&self, server_name: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
 		// u64: count of last edu
 		let since = self.db.get_latest_educount(server_name)?;
@@ -285,7 +285,6 @@ impl Service {
 }
 
 /// Look for presence
-#[tracing::instrument(skip(server_name, since, max_edu_count, events))]
 fn select_edus_presence(
 	server_name: &ServerName, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
 ) -> Result<bool> {
@@ -330,7 +329,6 @@ fn select_edus_presence(
 }
 
 /// Look for read receipts in this room
-#[tracing::instrument(skip(room_id, since, max_edu_count, events))]
 fn select_edus_receipts(
 	room_id: &RoomId, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
 ) -> Result<bool> {
