@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, mem::size_of};
 
-use argon2::{password_hash::SaltString, PasswordHasher};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
@@ -227,7 +226,7 @@ impl Data for KeyValueDatabase {
 	/// Hash and set the user's password to the Argon2 hash
 	fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
 		if let Some(password) = password {
-			if let Ok(hash) = calculate_password_hash(password) {
+			if let Ok(hash) = utils::hash::password(password) {
 				self.userid_password
 					.insert(user_id.as_bytes(), hash.as_bytes())?;
 				Ok(())
@@ -1020,14 +1019,4 @@ fn get_username_with_valid_password(username: &[u8], password: &[u8]) -> Option<
 			},
 		}
 	}
-}
-
-/// Calculate a new hash for the given password
-fn calculate_password_hash(password: &str) -> Result<String, argon2::password_hash::Error> {
-	let salt = SaltString::generate(rand::thread_rng());
-	services()
-		.globals
-		.argon
-		.hash_password(password.as_bytes(), &salt)
-		.map(|it| it.to_string())
 }

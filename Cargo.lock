@@ -624,7 +624,6 @@ dependencies = [
 name = "conduit_api"
 version = "0.4.1"
 dependencies = [
- "argon2",
  "axum 0.7.5",
  "axum-extra",
  "base64 0.22.1",
@@ -657,6 +656,7 @@ dependencies = [
 name = "conduit_core"
 version = "0.4.1"
 dependencies = [
+ "argon2",
  "axum 0.7.5",
  "axum-server",
  "bytes",
@@ -748,7 +748,6 @@ dependencies = [
 name = "conduit_service"
 version = "0.4.1"
 dependencies = [
- "argon2",
  "async-trait",
  "base64 0.22.1",
  "bytes",

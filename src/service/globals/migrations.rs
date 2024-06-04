@@ -6,10 +6,8 @@ use std::{
 	sync::Arc,
 };
 
-use argon2::{password_hash::SaltString, PasswordHasher, PasswordVerifier};
 use database::KeyValueDatabase;
 use itertools::Itertools;
-use rand::thread_rng;
 use ruma::{
 	events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
 	push::Ruleset,
@@ -67,18 +65,9 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 		if services().globals.database_version()? < 2 {
 			// We accidentally inserted hashed versions of "" into the db instead of just ""
 			for (userid, password) in db.userid_password.iter() {
-				let salt = SaltString::generate(thread_rng());
-				let empty_pass = services()
-					.globals
-					.argon
-					.hash_password(b"", &salt)
-					.expect("our own password to be properly hashed");
-				let empty_hashed_password = services()
-					.globals
-					.argon
-					.verify_password(&password, &empty_pass)
-					.is_ok();
-
+				let empty_pass = utils::hash::password("").expect("our own password to be properly hashed");
+				let password = std::str::from_utf8(&password).expect("password is valid utf-8");
+				let empty_hashed_password = utils::hash::verify_password(password, &empty_pass).is_ok();
 				if empty_hashed_password {
 					db.userid_password.insert(&userid, b"")?;
 				}

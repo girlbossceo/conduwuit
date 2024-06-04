@@ -1,4 +1,3 @@
-use argon2::{PasswordHash, PasswordVerifier};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -21,7 +20,7 @@ use serde::Deserialize;
 use tracing::{debug, info, warn};
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
-use crate::{services, utils, Error, Result, Ruma};
+use crate::{services, utils, utils::hash, Error, Result, Ruma};
 
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -87,15 +86,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 				return Err(Error::BadRequest(ErrorKind::UserDeactivated, "The user has been deactivated"));
 			}
 
-			let parsed_hash = PasswordHash::new(&hash)
-				.map_err(|_| Error::BadServerResponse("Unknown error occurred hashing password."))?;
-
-			if services()
-				.globals
-				.argon
-				.verify_password(password.as_bytes(), &parsed_hash)
-				.is_err()
-			{
+			if hash::verify_password(password, &hash).is_err() {
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."));
 			}
 

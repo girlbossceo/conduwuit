@@ -1,0 +1,72 @@
+use std::sync::Mutex;
+
+use argon2::{
+	password_hash, password_hash::SaltString, Algorithm, Argon2, Params, PasswordHash, PasswordHasher,
+	PasswordVerifier, Version,
+};
+
+const M_COST: u32 = Params::DEFAULT_M_COST; // memory size in 1 KiB blocks
+const T_COST: u32 = Params::DEFAULT_T_COST; // nr of iterations
+const P_COST: u32 = Params::DEFAULT_P_COST; // parallelism
+
+static STATE: Mutex<Option<Argon2<'static>>> = Mutex::new(None);
+
+#[allow(clippy::let_underscore_must_use)]
+pub fn init() {
+	// 19456 Kib blocks, iterations = 2, parallelism = 1
+	// * <https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id>
+	debug_assert!(M_COST == 19_456, "M_COST default changed");
+	debug_assert!(T_COST == 2, "T_COST default changed");
+	debug_assert!(P_COST == 1, "P_COST default changed");
+
+	let algorithm = Algorithm::Argon2id;
+	let version = Version::default();
+	let out_len: Option<usize> = None;
+	let params = Params::new(M_COST, T_COST, P_COST, out_len).expect("valid parameters");
+	let state = Argon2::new(algorithm, version, params);
+	_ = STATE.lock().expect("hashing state locked").insert(state);
+}
+
+pub fn password(password: &str) -> Result<String, password_hash::Error> {
+	let salt = SaltString::generate(rand::thread_rng());
+	STATE
+		.lock()
+		.expect("hashing state locked")
+		.as_ref()
+		.expect("hashing state initialized")
+		.hash_password(password.as_bytes(), &salt)
+		.map(|it| it.to_string())
+}
+
+pub fn verify_password(password: &str, password_hash: &str) -> Result<(), password_hash::Error> {
+	let password_hash = PasswordHash::new(password_hash)?;
+	STATE
+		.lock()
+		.expect("hashing state locked")
+		.as_ref()
+		.expect("hashing state initialized")
+		.verify_password(password.as_bytes(), &password_hash)
+}
+
+#[cfg(test)]
+mod tests {
+	#[test]
+	fn password_hash_and_verify() {
+		use crate::utils::hash;
+		hash::init();
+		let preimage = "temp123";
+		let digest = hash::password(preimage).expect("digest");
+		hash::verify_password(preimage, &digest).expect("verified");
+	}
+
+	#[test]
+	#[should_panic(expected = "unverified")]
+	fn password_hash_and_verify_fail() {
+		use crate::utils::hash;
+		hash::init();
+		let preimage = "temp123";
+		let fakeimage = "temp321";
+		let digest = hash::password(preimage).expect("digest");
+		hash::verify_password(fakeimage, &digest).expect("unverified");
+	}
+}

@@ -5,7 +5,7 @@ use conduit::{
 	config::Config,
 	info,
 	log::{LogLevelReloadHandles, ReloadHandle},
-	utils::sys::maximize_fd_limit,
+	utils::{hash, sys},
 	Error, Result,
 };
 use tokio::runtime;
@@ -31,13 +31,16 @@ pub(crate) struct Server {
 impl Server {
 	pub(crate) fn build(args: Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Server>, Error> {
 		let config = Config::new(args.config)?;
+
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = init_sentry(&config);
 		let (tracing_reload_handle, tracing_flame_guard) = init_tracing(&config);
 
 		config.check()?;
 		#[cfg(unix)]
-		maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
+		sys::maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
+		hash::init();
+
 		info!(
 			server_name = %config.server_name,
 			database_path = ?config.database_path,

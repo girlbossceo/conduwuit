@@ -1,6 +1,7 @@
 pub mod content_disposition;
 pub mod debug;
 pub mod defer;
+pub mod hash;
 pub mod html;
 pub mod json;
 pub mod sys;

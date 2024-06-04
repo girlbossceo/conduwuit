@@ -14,7 +14,6 @@ use std::{
 	time::Instant,
 };
 
-use argon2::Argon2;
 use base64::{engine::general_purpose, Engine as _};
 use data::Data;
 use hickory_resolver::TokioAsyncResolver;
@@ -61,7 +60,6 @@ pub struct Service {
 	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub rotate: RotationHandler,
-	pub argon: Argon2<'static>,
 }
 
 /// Handles "rotation" of long-polling requests. "Rotation" in this context is
@@ -125,13 +123,6 @@ impl Service {
 		// Experimental, partially supported room versions
 		let unstable_room_versions = vec![RoomVersionId::V2, RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
-		// 19456 Kib blocks, iterations = 2, parallelism = 1 for more info https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-		let argon = Argon2::new(
-			argon2::Algorithm::Argon2id,
-			argon2::Version::default(),
-			argon2::Params::new(19456, 2, 1, None).expect("valid parameters"),
-		);
-
 		let mut cidr_range_denylist = Vec::new();
 		for cidr in config.ip_range_denylist.clone() {
 			let cidr = IPAddress::parse(cidr).expect("valid cidr range");
@@ -159,7 +150,6 @@ impl Service {
 			updates_handle: Mutex::new(None),
 			stateres_mutex: Arc::new(Mutex::new(())),
 			rotate: RotationHandler::new(),
-			argon,
 		};
 
 		fs::create_dir_all(s.get_media_folder())?;

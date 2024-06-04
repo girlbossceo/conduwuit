@@ -815,6 +815,10 @@ verbose_file_reads = "warn"
 ###################
 style = "warn"
 
+## some sadness
+# trivial assertions are quite alright
+assertions_on_constants = "allow"
+
 ###################
 suspicious = "warn"
 
