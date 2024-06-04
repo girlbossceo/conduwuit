@@ -4,7 +4,7 @@ use axum::RequestPartsExt;
 use axum_extra::{headers::Authorization, typed_header::TypedHeaderRejectionReason, TypedHeader};
 use http::uri::PathAndQuery;
 use ruma::{
-	api::{client::error::ErrorKind, AuthScheme, IncomingRequest},
+	api::{client::error::ErrorKind, AuthScheme},
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
 use tracing::warn;
@@ -26,11 +26,7 @@ pub(super) struct Auth {
 	pub(super) appservice_info: Option<RegistrationInfo>,
 }
 
-pub(super) async fn auth<T>(request: &mut Request) -> Result<Auth>
-where
-	T: IncomingRequest,
-{
-	let metadata = T::METADATA;
+pub(super) async fn auth(request: &mut Request, metadata: &ruma::api::Metadata) -> Result<Auth> {
 	let token = match &request.auth {
 		Some(TypedHeader(Authorization(bearer))) => Some(bearer.token()),
 		None => request.query.access_token.as_deref(),

@@ -45,8 +45,9 @@ where
 	type Rejection = Error;
 
 	async fn from_request(request: hyper::Request<axum::body::Body>, _state: &S) -> Result<Self, Self::Rejection> {
+		let meta = T::METADATA;
 		let mut request: Request = extract(request).await?;
-		let auth: Auth = auth::auth::<T>(&mut request).await?;
+		let auth: Auth = auth::auth(&mut request, &meta).await?;
 		let body = make_body::<T>(&mut request, &auth)?;
 		Ok(Ruma {
 			body,
