@@ -21,8 +21,8 @@ use tracing::Level;
 
 use crate::{request, router};
 
-const CONDUWUIT_CSP: &str =
-	"sandbox; default-src 'none'; font-src 'none'; script-src 'none'; frame-ancestors 'none'; base-uri 'none';";
+const CONDUWUIT_CSP: &str = "sandbox; default-src 'none'; font-src 'none'; script-src 'none'; frame-ancestors 'none'; \
+                             form-action 'none'; base-uri 'none';";
 const CONDUWUIT_PERMISSIONS_POLICY: &str = "interest-cohort=(),browsing-topics=()";
 
 pub(crate) fn build(server: &Arc<Server>) -> io::Result<axum::routing::IntoMakeService<Router>> {
