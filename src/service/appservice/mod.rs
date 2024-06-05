@@ -140,9 +140,7 @@ impl Service {
 	/// Registers an appservice and returns the ID to the caller
 	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
 		//TODO: Check for collisions between exclusive appservice namespaces
-		services()
-			.appservice
-			.registration_info
+		self.registration_info
 			.write()
 			.await
 			.insert(yaml.id.clone(), yaml.clone().try_into()?);
@@ -157,9 +155,7 @@ impl Service {
 	/// * `service_name` - the name you send to register the service previously
 	pub async fn unregister_appservice(&self, service_name: &str) -> Result<()> {
 		// removes the appservice registration info
-		services()
-			.appservice
-			.registration_info
+		self.registration_info
 			.write()
 			.await
 			.remove(service_name)
