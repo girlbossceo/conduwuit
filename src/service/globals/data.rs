@@ -159,7 +159,13 @@ impl Data for KeyValueDatabase {
 		// One time keys
 		futures.push(self.userid_lastonetimekeyupdate.watch_prefix(&userid_bytes));
 
-		futures.push(Box::pin(services().globals.rotate.watch()));
+		futures.push(Box::pin(async move {
+			let _result = services().server.signal.subscribe().recv().await;
+		}));
+
+		if !services().server.running() {
+			return Ok(());
+		}
 
 		// Wait until one of them finds something
 		trace!(futures = futures.len(), "watch started");

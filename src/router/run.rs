@@ -97,7 +97,6 @@ async fn signal(server: Arc<Server>, tx: Sender<()>, handle: axum_server::Handle
 	}
 
 	server.stopping.store(true, Ordering::Release);
-	services().globals.rotate.fire();
 	if let Err(e) = tx.send(()) {
 		error!("failed sending shutdown transaction to channel: {e}");
 	}

@@ -303,7 +303,6 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 		trace!("Interrupting services...");
 		self.server.stopping.store(true, atomic::Ordering::Release);
 
-		self.globals.rotate.fire();
 		self.sending.interrupt();
 		self.presence.interrupt();
 		self.admin.interrupt();

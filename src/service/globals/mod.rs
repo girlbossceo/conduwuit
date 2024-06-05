@@ -8,7 +8,6 @@ pub(super) mod updates;
 use std::{
 	collections::{BTreeMap, HashMap},
 	fs,
-	future::Future,
 	path::PathBuf,
 	sync::Arc,
 	time::Instant,
@@ -29,7 +28,7 @@ use ruma::{
 	ServerName, UserId,
 };
 use tokio::{
-	sync::{broadcast, Mutex, RwLock},
+	sync::{Mutex, RwLock},
 	task::JoinHandle,
 };
 use tracing::{error, trace};
@@ -59,36 +58,6 @@ pub struct Service {
 	pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
 	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
-	pub rotate: RotationHandler,
-}
-
-/// Handles "rotation" of long-polling requests. "Rotation" in this context is
-/// similar to "rotation" of log files and the like.
-///
-/// This is utilized to have sync workers return early and release read locks on
-/// the database.
-pub struct RotationHandler(broadcast::Sender<()>, ());
-
-impl RotationHandler {
-	fn new() -> Self {
-		let (s, _r) = broadcast::channel(1);
-		Self(s, ())
-	}
-
-	pub fn watch(&self) -> impl Future<Output = ()> {
-		let mut r = self.0.subscribe();
-		#[allow(clippy::let_underscore_must_use)]
-		async move {
-			_ = r.recv().await;
-		}
-	}
-
-	#[allow(clippy::let_underscore_must_use)]
-	pub fn fire(&self) { _ = self.0.send(()); }
-}
-
-impl Default for RotationHandler {
-	fn default() -> Self { Self::new() }
 }
 
 impl Service {
@@ -149,7 +118,6 @@ impl Service {
 			roomid_federationhandletime: RwLock::new(HashMap::new()),
 			updates_handle: Mutex::new(None),
 			stateres_mutex: Arc::new(Mutex::new(())),
-			rotate: RotationHandler::new(),
 		};
 
 		fs::create_dir_all(s.get_media_folder())?;

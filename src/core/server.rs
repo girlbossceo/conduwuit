@@ -1,5 +1,5 @@
 use std::{
-	sync::atomic::{AtomicBool, AtomicU32},
+	sync::atomic::{AtomicBool, AtomicU32, Ordering},
 	time::SystemTime,
 };
 
@@ -65,4 +65,7 @@ impl Server {
 			.as_ref()
 			.expect("runtime handle available in Server")
 	}
+
+	#[inline]
+	pub fn running(&self) -> bool { !self.stopping.load(Ordering::Acquire) }
 }
