@@ -91,8 +91,21 @@ pub(super) async fn auth(
 				appservice_info: Some(*info),
 			})
 		},
-		(AuthScheme::AccessToken, Token::None) => {
-			Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))
+		(AuthScheme::AccessToken, Token::None) => match request.parts.uri.path() {
+			// TODO: can we check this better?
+			"/_matrix/client/v3/voip/turnServer" | "/_matrix/client/r0/voip/turnServer" => {
+				if services().globals.config.turn_allow_guests {
+					Ok(Auth {
+						origin: None,
+						sender_user: None,
+						sender_device: None,
+						appservice_info: None,
+					})
+				} else {
+					Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))
+				}
+			},
+			_ => Err(Error::BadRequest(ErrorKind::MissingToken, "Missing access token.")),
 		},
 		(
 			AuthScheme::AccessToken | AuthScheme::AccessTokenOptional | AuthScheme::None,

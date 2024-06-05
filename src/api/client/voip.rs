@@ -1,11 +1,14 @@
 use std::time::{Duration, SystemTime};
 
 use base64::{engine::general_purpose, Engine as _};
+use conduit::utils;
 use hmac::{Hmac, Mac};
-use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch};
+use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch, UserId};
 use sha1::Sha1;
 
 use crate::{services, Result, Ruma};
+
+const RANDOM_USER_ID_LENGTH: usize = 10;
 
 type HmacSha1 = Hmac<Sha1>;
 
@@ -15,8 +18,6 @@ type HmacSha1 = Hmac<Sha1>;
 pub(crate) async fn turn_server_route(
 	body: Ruma<get_turn_server_info::v3::Request>,
 ) -> Result<get_turn_server_info::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
 	let turn_secret = services().globals.turn_secret().clone();
 
 	let (username, password) = if !turn_secret.is_empty() {
@@ -27,7 +28,15 @@ pub(crate) async fn turn_server_route(
 		)
 		.expect("time is valid");
 
-		let username: String = format!("{}:{}", expiry.get(), sender_user);
+		let user = body.sender_user.unwrap_or_else(|| {
+			UserId::parse_with_server_name(
+				utils::random_string(RANDOM_USER_ID_LENGTH).to_lowercase(),
+				&services().globals.config.server_name,
+			)
+			.unwrap()
+		});
+
+		let username: String = format!("{}:{}", expiry.get(), user);
 
 		let mut mac = HmacSha1::new_from_slice(turn_secret.as_bytes()).expect("HMAC can take key of any size");
 		mac.update(username.as_bytes());
