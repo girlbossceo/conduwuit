@@ -147,10 +147,10 @@
 {"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_safe_media_types_as_inline"}
 {"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_safe_media_types_with_parameters_as_inline"}
 {"Action":"pass","Test":"TestMediaFilenames/Parallel/Unicode/Will_serve_unsafe_media_types_as_attachments"}
-{"Action":"fail","Test":"TestMediaWithoutFileName"}
-{"Action":"fail","Test":"TestMediaWithoutFileName/parallel"}
-{"Action":"fail","Test":"TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_locally"}
-{"Action":"fail","Test":"TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_over_federation"}
+{"Action":"pass","Test":"TestMediaWithoutFileName"}
+{"Action":"pass","Test":"TestMediaWithoutFileName/parallel"}
+{"Action":"pass","Test":"TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_locally"}
+{"Action":"pass","Test":"TestMediaWithoutFileName/parallel/Can_download_without_a_file_name_over_federation"}
 {"Action":"pass","Test":"TestMediaWithoutFileName/parallel/Can_upload_without_a_file_name"}
 {"Action":"fail","Test":"TestNetworkPartitionOrdering"}
 {"Action":"fail","Test":"TestOutboundFederationIgnoresMissingEventWithBadJSONForRoomVersion6"}
