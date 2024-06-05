@@ -6,10 +6,9 @@ extern crate conduit_core as conduit;
 
 use std::{cmp, sync::Arc, time::Duration};
 
-use conduit::{debug_error, debug_info, error, utils::available_parallelism, warn, Error, Result};
+use conduit::{debug_error, debug_info, error, trace, utils::available_parallelism, warn, Error, Result};
 use server::Server;
 use tokio::{runtime, signal};
-use tracing::debug;
 
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
@@ -97,33 +96,39 @@ async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	Ok(())
 }
 
+#[cfg(unix)]
 #[tracing::instrument(skip_all)]
 async fn signal(server: Arc<Server>) {
-	let (mut term, mut quit);
-	#[cfg(unix)]
-	{
-		use signal::unix;
-		quit = unix::signal(unix::SignalKind::quit()).expect("SIGQUIT handler");
-		term = unix::signal(unix::SignalKind::terminate()).expect("SIGTERM handler");
-	};
-
+	use signal::unix;
+	let mut quit = unix::signal(unix::SignalKind::quit()).expect("SIGQUIT handler");
+	let mut term = unix::signal(unix::SignalKind::terminate()).expect("SIGTERM handler");
 	loop {
-		debug!("Installed signal handlers");
+		trace!("Installed signal handlers");
 		let sig: &'static str;
-		#[cfg(unix)]
 		tokio::select! {
+			_ = signal::ctrl_c() => { sig = "SIGINT"; },
+			_ = quit.recv() => { sig = "SIGQUIT"; },
 			_ = term.recv() => { sig = "SIGTERM"; },
-			_ = quit.recv() => { sig = "Ctrl+\\"; },
-			_ = signal::ctrl_c() => { sig = "Ctrl+C"; },
-		}
-		#[cfg(not(unix))]
-		tokio::select! {
-			_ = signal::ctrl_c() => { sig = "Ctrl+C"; },
 		}
 
-		warn!("Received signal {}", sig);
+		warn!("Received {sig}");
 		if let Err(e) = server.server.signal.send(sig) {
 			debug_error!("signal channel: {e}");
+		}
+	}
+}
+
+#[cfg(not(unix))]
+#[tracing::instrument(skip_all)]
+async fn signal(server: Arc<Server>) {
+	loop {
+		tokio::select! {
+			_ = signal::ctrl_c() => {
+				warn!("Received Ctrl+C");
+				if let Err(e) = server.server.signal.send("SIGINT") {
+					debug_error!("signal channel: {e}");
+				}
+			},
 		}
 	}
 }

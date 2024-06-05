@@ -301,7 +301,7 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 
 	pub async fn interrupt(&self) {
 		trace!("Interrupting services...");
-		self.server.interrupt.store(true, atomic::Ordering::Release);
+		self.server.stopping.store(true, atomic::Ordering::Release);
 
 		self.globals.rotate.fire();
 		self.sending.interrupt();
@@ -312,7 +312,7 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 	}
 
 	#[tracing::instrument(skip_all)]
-	pub async fn shutdown(&self) {
+	pub async fn stop(&self) {
 		info!("Shutting down services");
 		self.interrupt().await;
 

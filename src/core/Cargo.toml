@@ -61,7 +61,6 @@ sentry_telemetry = []
 
 [dependencies]
 argon2.workspace = true
-axum-server.workspace = true
 axum.workspace = true
 bytes.workspace = true
 either.workspace = true

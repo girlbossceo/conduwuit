@@ -1,8 +1,5 @@
 use std::{
-	sync::{
-		atomic::{AtomicBool, AtomicU32},
-		Mutex,
-	},
+	sync::atomic::{AtomicBool, AtomicU32},
 	time::SystemTime,
 };
 
@@ -18,23 +15,19 @@ pub struct Server {
 	/// Timestamp server was started; used for uptime.
 	pub started: SystemTime,
 
-	/// Reload/shutdown signal channel. Called from the signal handler or admin
-	/// command to initiate shutdown.
-	pub shutdown: Mutex<Option<axum_server::Handle>>,
-
-	/// Reload/shutdown signal
-	pub signal: broadcast::Sender<&'static str>,
+	/// Reload/shutdown pending indicator; server is shutting down. This is an
+	/// observable used on shutdown and should not be modified.
+	pub stopping: AtomicBool,
 
 	/// Reload/shutdown desired indicator; when false, shutdown is desired. This
 	/// is an observable used on shutdown and modifying is not recommended.
-	pub reload: AtomicBool,
-
-	/// Reload/shutdown pending indicator; server is shutting down. This is an
-	/// observable used on shutdown and should not be modified.
-	pub interrupt: AtomicBool,
+	pub reloading: AtomicBool,
 
 	/// Handle to the runtime
 	pub runtime: Option<runtime::Handle>,
+
+	/// Reload/shutdown signal
+	pub signal: broadcast::Sender<&'static str>,
 
 	/// Log level reload handles.
 	pub tracing_reload_handle: LogLevelReloadHandles,
@@ -53,11 +46,10 @@ impl Server {
 		Self {
 			config,
 			started: SystemTime::now(),
-			shutdown: Mutex::new(None),
-			signal: broadcast::channel::<&'static str>(1).0,
-			reload: AtomicBool::new(false),
-			interrupt: AtomicBool::new(false),
+			stopping: AtomicBool::new(false),
+			reloading: AtomicBool::new(false),
 			runtime,
+			signal: broadcast::channel::<&'static str>(1).0,
 			tracing_reload_handle,
 			requests_spawn_active: AtomicU32::new(0),
 			requests_spawn_finished: AtomicU32::new(0),

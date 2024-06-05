@@ -25,16 +25,12 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	_ = services().admin.handle.lock().await.insert(admin::handle);
 
 	// Setup shutdown/signal handling
+	server.stopping.store(false, Ordering::Release);
 	let handle = ServerHandle::new();
-	_ = server
-		.shutdown
-		.lock()
-		.expect("locked")
-		.insert(handle.clone());
-
-	server.interrupt.store(false, Ordering::Release);
 	let (tx, _) = broadcast::channel::<()>(1);
-	let sigs = server.runtime().spawn(signal(server.clone(), tx.clone()));
+	let sigs = server
+		.runtime()
+		.spawn(signal(server.clone(), tx.clone(), handle.clone()));
 
 	// Serve clients
 	let res = serve::serve(&server, app, handle, tx.subscribe()).await;
@@ -42,10 +38,6 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	// Join the signal handler before we leave.
 	sigs.abort();
 	_ = sigs.await;
-
-	// Reset the axum handle instance; this should be reusable and might be
-	// reload-survivable but better to be safe than sorry.
-	_ = server.shutdown.lock().expect("locked").take();
 
 	// Remove the admin room callback
 	_ = services().admin.handle.lock().await.take();
@@ -76,7 +68,7 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 
 	// Wait for all completions before dropping or we'll lose them to the module
 	// unload and explode.
-	services().shutdown().await;
+	services().stop().await;
 	// Deactivate services(). Any further use will panic the caller.
 	service::fini();
 
@@ -90,7 +82,7 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 }
 
 #[tracing::instrument(skip_all)]
-async fn signal(server: Arc<Server>, tx: Sender<()>) {
+async fn signal(server: Arc<Server>, tx: Sender<()>, handle: axum_server::Handle) {
 	let sig: &'static str = server
 		.signal
 		.subscribe()
@@ -99,26 +91,24 @@ async fn signal(server: Arc<Server>, tx: Sender<()>) {
 		.expect("channel error");
 
 	debug!("Received signal {}", sig);
-	if sig == "Ctrl+C" {
+	if sig == "SIGINT" {
 		let reload = cfg!(unix) && cfg!(debug_assertions);
-		server.reload.store(reload, Ordering::Release);
+		server.reloading.store(reload, Ordering::Release);
 	}
 
-	server.interrupt.store(true, Ordering::Release);
+	server.stopping.store(true, Ordering::Release);
 	services().globals.rotate.fire();
 	if let Err(e) = tx.send(()) {
 		error!("failed sending shutdown transaction to channel: {e}");
 	}
 
-	if let Some(handle) = server.shutdown.lock().expect("locked").as_ref() {
-		let pending = server.requests_spawn_active.load(Ordering::Relaxed);
-		if pending > 0 {
-			let timeout = Duration::from_secs(36);
-			trace!(pending, ?timeout, "Notifying for graceful shutdown");
-			handle.graceful_shutdown(Some(timeout));
-		} else {
-			debug!(pending, "Notifying for immediate shutdown");
-			handle.shutdown();
-		}
+	let pending = server.requests_spawn_active.load(Ordering::Relaxed);
+	if pending > 0 {
+		let timeout = Duration::from_secs(36);
+		trace!(pending, ?timeout, "Notifying for graceful shutdown");
+		handle.graceful_shutdown(Some(timeout));
+	} else {
+		debug!(pending, "Notifying for immediate shutdown");
+		handle.shutdown();
 	}
 }

@@ -44,7 +44,7 @@ pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, boo
 		error!("Running server: {error}");
 		return Err(error);
 	}
-	let reloads = server.server.reload.swap(false, Ordering::AcqRel);
+	let reloads = server.server.reloading.swap(false, Ordering::AcqRel);
 	let stops = !reloads || stale(server).await? <= restart_thresh();
 	let starts = reloads && stops;
 	if stops {
