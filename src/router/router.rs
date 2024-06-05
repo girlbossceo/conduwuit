@@ -2,13 +2,18 @@ use std::sync::Arc;
 
 use axum::{response::IntoResponse, routing::get, Router};
 use conduit::{Error, Server};
+use conduit_service as service;
 use http::Uri;
 use ruma::api::client::error::ErrorKind;
 
 extern crate conduit_api as api;
 
 pub(crate) fn build(server: &Arc<Server>) -> Router {
-	let router = Router::new().fallback(not_found).route("/", get(it_works));
+	let state = service::services();
+	let router = Router::new()
+		.route("/", get(it_works))
+		.fallback(not_found)
+		.with_state(state);
 
 	api::router::build(router, server)
 }
