@@ -1,3 +1,5 @@
+use crate::debug_info;
+
 const ATTACHMENT: &str = "attachment";
 const INLINE: &str = "inline";
 
@@ -36,14 +38,26 @@ const ALLOWED_INLINE_CONTENT_TYPES: [&str; 26] = [
 /// Content-Type against MSC2702 list of safe inline Content-Types
 /// (`ALLOWED_INLINE_CONTENT_TYPES`)
 #[must_use]
-#[tracing::instrument]
 pub fn content_disposition_type(content_type: &Option<String>) -> &'static str {
 	let Some(content_type) = content_type else {
-		// no Content-Type was given to us, assume attachment
+		debug_info!("No Content-Type was given, assuming attachment for Content-Disposition");
 		return ATTACHMENT;
 	};
 
-	if ALLOWED_INLINE_CONTENT_TYPES.contains(&content_type.to_lowercase().as_str()) {
+	// is_sorted is unstable
+	/* debug_assert!(ALLOWED_INLINE_CONTENT_TYPES.is_sorted(),
+	 * "ALLOWED_INLINE_CONTENT_TYPES is not sorted"); */
+
+	let content_type = content_type
+		.split(';')
+		.next()
+		.unwrap_or(content_type)
+		.to_ascii_lowercase();
+
+	if ALLOWED_INLINE_CONTENT_TYPES
+		.binary_search(&content_type.as_str())
+		.is_ok()
+	{
 		INLINE
 	} else {
 		ATTACHMENT
@@ -70,7 +84,6 @@ pub fn sanitise_filename(filename: String) -> String {
 /// `Content-Disposition: attachment/inline; filename=filename.ext`
 ///
 /// else: `Content-Disposition: attachment/inline`
-#[tracing::instrument]
 pub fn make_content_disposition(
 	content_type: &Option<String>, content_disposition: Option<String>, req_filename: Option<String>,
 ) -> String {
