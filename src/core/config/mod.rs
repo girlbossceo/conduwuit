@@ -165,6 +165,8 @@ pub struct Config {
 	#[serde(default)]
 	pub allow_public_room_directory_without_auth: bool,
 	#[serde(default)]
+	pub turn_allow_guests: bool,
+	#[serde(default)]
 	pub lockdown_public_room_directory: bool,
 	#[serde(default)]
 	pub allow_device_name_federation: bool,
