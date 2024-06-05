@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 use ruma::{
-	events::{AnyStrippedStateEvent, AnySyncStateEvent},
+	events::{room::member::MembershipState, AnyStrippedStateEvent, AnySyncStateEvent},
 	serde::Raw,
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
@@ -43,12 +43,23 @@ pub trait Data: Send + Sync {
 	/// know).
 	fn server_rooms<'a>(&'a self, server: &ServerName) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a>;
 
-	/// Returns an iterator over all joined members of a room.
+	/// Returns an iterator of all joined members of a room.
 	fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a>;
 
-	/// Returns a vec of all the users joined in a room who are active
-	/// (not guests, not deactivated users)
-	fn active_local_users_in_room(&self, room_id: &RoomId) -> Vec<OwnedUserId>;
+	/// Returns an iterator of all our local users
+	/// in the room, even if they're deactivated/guests
+	fn local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a>;
+
+	/// Returns an iterator of all our local users in a room who are active (not
+	/// deactivated, not guest)
+	fn active_local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a>;
+
+	/// Returns an iterator of all our local users joined in a room who are
+	/// active (not deactivated, not guest) and have a joined membership state
+	/// in the room
+	fn active_local_joined_users_in_room<'a>(
+		&'a self, room_id: &'a RoomId,
+	) -> Box<dyn Iterator<Item = OwnedUserId> + 'a>;
 
 	fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>>;
 
@@ -381,7 +392,7 @@ impl Data for KeyValueDatabase {
 		}))
 	}
 
-	/// Returns an iterator over all joined members of a room.
+	/// Returns an iterator of all joined members of a room.
 	#[tracing::instrument(skip(self))]
 	fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
@@ -400,14 +411,43 @@ impl Data for KeyValueDatabase {
 		}))
 	}
 
-	/// Returns a vec of all our local users joined in a room who are active
-	/// (not guests / not deactivated users)
+	/// Returns an iterator of all our local users in the room, even if they're
+	/// deactivated/guests
+	fn local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
+		Box::new(
+			self.room_members(room_id)
+				.filter_map(Result::ok)
+				.filter(|user| user_is_local(user)),
+		)
+	}
+
+	/// Returns an iterator of all our local users in a room who are active (not
+	/// deactivated, not guest)
 	#[tracing::instrument(skip(self))]
-	fn active_local_users_in_room(&self, room_id: &RoomId) -> Vec<OwnedUserId> {
-		self.room_members(room_id)
-			.filter_map(Result::ok)
-			.filter(|user| user_is_local(user) && !services().users.is_deactivated(user).unwrap_or(true))
-			.collect_vec()
+	fn active_local_users_in_room<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
+		Box::new(
+			self.local_users_in_room(room_id)
+				.filter(|user| !services().users.is_deactivated(user).unwrap_or(true)),
+		)
+	}
+
+	/// Returns an iterator of all our local users joined in a room who are
+	/// active (not deactivated, not guest) and have a joined membership state
+	/// in the room
+	///
+	/// TODO: why is `roomuserid_joined` not reliable?
+	#[tracing::instrument(skip(self))]
+	fn active_local_joined_users_in_room<'a>(
+		&'a self, room_id: &'a RoomId,
+	) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
+		Box::new(self.active_local_users_in_room(room_id).filter(|user_id| {
+			services()
+				.rooms
+				.state_accessor
+				.get_member(room_id, user_id)
+				.unwrap_or(None)
+				.map_or(false, |membership| membership.membership == MembershipState::Join)
+		}))
 	}
 
 	/// Returns the number of users which are currently in a room
