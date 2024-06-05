@@ -7,7 +7,7 @@ use conduit::{Error, Server};
 use http::Uri;
 use ruma::api::client::error::ErrorKind;
 
-use crate::{client_server, ruma_wrapper::RouterExt, server_server};
+use crate::{client_server, ruma_wrapper::RouterExt, server};
 
 pub fn build(router: Router, server: &Server) -> Router {
 	let config = &server.config;
@@ -188,35 +188,32 @@ pub fn build(router: Router, server: &Server) -> Router {
 
 	if config.allow_federation {
 		router
-			.ruma_route(server_server::get_server_version_route)
-			.route("/_matrix/key/v2/server", get(server_server::get_server_keys_route))
-			.route(
-				"/_matrix/key/v2/server/:key_id",
-				get(server_server::get_server_keys_deprecated_route),
-			)
-			.ruma_route(server_server::get_public_rooms_route)
-			.ruma_route(server_server::get_public_rooms_filtered_route)
-			.ruma_route(server_server::send_transaction_message_route)
-			.ruma_route(server_server::get_event_route)
-			.ruma_route(server_server::get_backfill_route)
-			.ruma_route(server_server::get_missing_events_route)
-			.ruma_route(server_server::get_event_authorization_route)
-			.ruma_route(server_server::get_room_state_route)
-			.ruma_route(server_server::get_room_state_ids_route)
-			.ruma_route(server_server::create_leave_event_template_route)
-			.ruma_route(server_server::create_leave_event_v1_route)
-			.ruma_route(server_server::create_leave_event_v2_route)
-			.ruma_route(server_server::create_join_event_template_route)
-			.ruma_route(server_server::create_join_event_v1_route)
-			.ruma_route(server_server::create_join_event_v2_route)
-			.ruma_route(server_server::create_invite_route)
-			.ruma_route(server_server::get_devices_route)
-			.ruma_route(server_server::get_room_information_route)
-			.ruma_route(server_server::get_profile_information_route)
-			.ruma_route(server_server::get_keys_route)
-			.ruma_route(server_server::claim_keys_route)
-			.ruma_route(server_server::get_hierarchy_route)
-			.ruma_route(server_server::well_known_server)
+			.ruma_route(server::get_server_version_route)
+			.route("/_matrix/key/v2/server", get(server::get_server_keys_route))
+			.route("/_matrix/key/v2/server/:key_id", get(server::get_server_keys_deprecated_route))
+			.ruma_route(server::get_public_rooms_route)
+			.ruma_route(server::get_public_rooms_filtered_route)
+			.ruma_route(server::send_transaction_message_route)
+			.ruma_route(server::get_event_route)
+			.ruma_route(server::get_backfill_route)
+			.ruma_route(server::get_missing_events_route)
+			.ruma_route(server::get_event_authorization_route)
+			.ruma_route(server::get_room_state_route)
+			.ruma_route(server::get_room_state_ids_route)
+			.ruma_route(server::create_leave_event_template_route)
+			.ruma_route(server::create_leave_event_v1_route)
+			.ruma_route(server::create_leave_event_v2_route)
+			.ruma_route(server::create_join_event_template_route)
+			.ruma_route(server::create_join_event_v1_route)
+			.ruma_route(server::create_join_event_v2_route)
+			.ruma_route(server::create_invite_route)
+			.ruma_route(server::get_devices_route)
+			.ruma_route(server::get_room_information_route)
+			.ruma_route(server::get_profile_information_route)
+			.ruma_route(server::get_keys_route)
+			.ruma_route(server::claim_keys_route)
+			.ruma_route(server::get_hierarchy_route)
+			.ruma_route(server::well_known_server)
 			.route("/_conduwuit/local_user_count", get(client_server::conduwuit_local_user_count))
 	} else {
 		router

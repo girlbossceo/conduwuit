@@ -1,7 +1,7 @@
 pub mod client_server;
 pub mod router;
 mod ruma_wrapper;
-pub mod server_server;
+pub mod server;
 
 extern crate conduit_core as conduit;
 extern crate conduit_service as service;
