@@ -67,6 +67,7 @@ dev_release_log_level = [
 ]
 element_hacks = [
 	"conduit-api/element_hacks",
+	"conduit-service/element_hacks",
 ]
 gzip_compression = [
 	"conduit-api/gzip_compression",

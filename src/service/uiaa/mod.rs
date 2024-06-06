@@ -58,9 +58,22 @@ impl Service {
 			AuthData::Password(Password {
 				identifier,
 				password,
+				#[cfg(feature = "element_hacks")]
+				user,
 				..
 			}) => {
-				let UserIdentifier::UserIdOrLocalpart(username) = identifier else {
+				#[cfg(feature = "element_hacks")]
+				let username = if let Some(UserIdentifier::UserIdOrLocalpart(username)) = identifier {
+					username
+				} else if let Some(username) = user {
+					username
+				} else {
+					return Err(Error::BadRequest(ErrorKind::Unrecognized, "Identifier type not recognized."));
+				};
+
+				#[cfg(not(feature = "element_hacks"))]
+				let Some(UserIdentifier::UserIdOrLocalpart(username)) = identifier
+				else {
 					return Err(Error::BadRequest(ErrorKind::Unrecognized, "Identifier type not recognized."));
 				};
 
