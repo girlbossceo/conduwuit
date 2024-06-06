@@ -18,9 +18,8 @@ use ruma::{
 };
 use tracing::{error, info, warn};
 
-use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
+use super::{join_room_by_id_helper, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::{
-	client_server::{self, join_room_by_id_helper},
 	service::user_is_local,
 	services,
 	utils::{self},
@@ -539,7 +538,7 @@ pub(crate) async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Res
 	}
 
 	// Make the user leave all rooms before deactivation
-	client_server::leave_all_rooms(sender_user).await;
+	super::leave_all_rooms(sender_user).await;
 
 	// Remove devices and mark account as deactivated
 	services().users.deactivate_account(sender_user)?;

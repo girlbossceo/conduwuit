@@ -28,8 +28,8 @@ use ruma::{
 use serde_json::{json, value::to_raw_value};
 use tracing::{error, info, warn};
 
+use super::invite_helper;
 use crate::{
-	client_server::invite_helper,
 	service::{appservice::RegistrationInfo, pdu::PduBuilder},
 	services, Error, Result, Ruma,
 };

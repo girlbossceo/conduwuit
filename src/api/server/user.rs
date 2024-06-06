@@ -7,7 +7,7 @@ use ruma::api::{
 };
 
 use crate::{
-	client_server::{claim_keys_helper, get_keys_helper},
+	client::{claim_keys_helper, get_keys_helper},
 	service::user_is_local,
 	services, Error, Result, Ruma,
 };

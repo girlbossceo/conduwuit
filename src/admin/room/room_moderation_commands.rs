@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use api::client_server::{get_alias_helper, leave_room};
+use api::client::{get_alias_helper, leave_room};
 use ruma::{
 	events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
 };

@@ -1,6 +1,6 @@
 use std::{fmt::Write as _, sync::Arc};
 
-use api::client_server::{join_room_by_id_helper, leave_all_rooms};
+use api::client::{join_room_by_id_helper, leave_all_rooms};
 use conduit::utils;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, UserId};
 use tracing::{error, info, warn};

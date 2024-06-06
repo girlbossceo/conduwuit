@@ -6,10 +6,7 @@ use ruma::{
 	directory::Filter,
 };
 
-use crate::{
-	client_server::{self},
-	services, Error, Result, Ruma,
-};
+use crate::{services, Error, Result, Ruma};
 
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
@@ -24,7 +21,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room directory is not public"));
 	}
 
-	let response = client_server::get_public_rooms_filtered_helper(
+	let response = crate::client::get_public_rooms_filtered_helper(
 		None,
 		body.limit,
 		body.since.as_deref(),
@@ -55,7 +52,7 @@ pub(crate) async fn get_public_rooms_route(
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room directory is not public"));
 	}
 
-	let response = client_server::get_public_rooms_filtered_helper(
+	let response = crate::client::get_public_rooms_filtered_helper(
 		None,
 		body.limit,
 		body.since.as_deref(),
