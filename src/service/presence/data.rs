@@ -1,4 +1,4 @@
-use conduit::debug_info;
+use conduit::debug_warn;
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 
 use crate::{
@@ -67,7 +67,7 @@ impl Data for KeyValueDatabase {
 
 		// tighten for state flicker?
 		if !state_changed && last_active_ts <= last_last_active_ts {
-			debug_info!(
+			debug_warn!(
 				"presence spam {:?} last_active_ts:{:?} <= {:?}",
 				user_id,
 				last_active_ts,
