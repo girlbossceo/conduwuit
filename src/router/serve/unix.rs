@@ -1,8 +1,15 @@
 #![cfg(unix)]
 
-use std::{path::Path, sync::Arc};
+use std::{
+	net::{self, IpAddr, Ipv4Addr},
+	path::Path,
+	sync::Arc,
+};
 
-use axum::{extract::Request, routing::IntoMakeService, Router};
+use axum::{
+	extract::{connect_info::IntoMakeServiceWithConnectInfo, Request},
+	Router,
+};
 use conduit::{debug_error, trace, utils, Error, Result, Server};
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
@@ -19,12 +26,15 @@ use tower::{Service, ServiceExt};
 use tracing::{debug, info, warn};
 use utils::unwrap_infallible;
 
+type MakeService = IntoMakeServiceWithConnectInfo<Router, net::SocketAddr>;
+
+static NULL_ADDR: net::SocketAddr = net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
+
 #[tracing::instrument(skip_all)]
-pub(super) async fn serve(
-	server: &Arc<Server>, app: IntoMakeService<Router>, mut shutdown: broadcast::Receiver<()>,
-) -> Result<()> {
+pub(super) async fn serve(server: &Arc<Server>, app: Router, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
 	let mut tasks = JoinSet::<()>::new();
 	let executor = TokioExecutor::new();
+	let app = app.into_make_service_with_connect_info::<net::SocketAddr>();
 	let builder = server::conn::auto::Builder::new(executor);
 	let listener = init(server).await?;
 	loop {
@@ -46,14 +56,14 @@ pub(super) async fn serve(
 
 #[allow(clippy::let_underscore_must_use)]
 async fn accept(
-	server: &Arc<Server>, listener: &UnixListener, tasks: &mut JoinSet<()>, mut app: IntoMakeService<Router>,
+	server: &Arc<Server>, listener: &UnixListener, tasks: &mut JoinSet<()>, mut app: MakeService,
 	builder: server::conn::auto::Builder<TokioExecutor>, conn: (UnixStream, SocketAddr),
 ) {
 	let (socket, remote) = conn;
 	let socket = TokioIo::new(socket);
 	trace!(?listener, ?socket, ?remote, "accepted");
 
-	let called = unwrap_infallible(app.call(()).await);
+	let called = unwrap_infallible(app.call(NULL_ADDR).await);
 	let handler = service_fn(move |req: Request<Incoming>| called.clone().oneshot(req));
 
 	let task = async move {

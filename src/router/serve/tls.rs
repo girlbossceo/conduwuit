@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{routing::IntoMakeService, Router};
+use axum::Router;
 use axum_server::{bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
 #[cfg(feature = "axum_dual_protocol")]
 use axum_server_dual_protocol::ServerExt;
@@ -9,7 +9,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 
 pub(super) async fn serve(
-	server: &Arc<Server>, app: IntoMakeService<Router>, handle: ServerHandle, addrs: Vec<SocketAddr>,
+	server: &Arc<Server>, app: Router, handle: ServerHandle, addrs: Vec<SocketAddr>,
 ) -> Result<()> {
 	let config = &server.config;
 	let tls = config.tls.as_ref().expect("TLS configuration");
@@ -31,6 +31,7 @@ pub(super) async fn serve(
 	}
 
 	let mut join_set = JoinSet::new();
+	let app = app.into_make_service_with_connect_info::<SocketAddr>();
 	if cfg!(feature = "axum_dual_protocol") && tls.dual_protocol {
 		#[cfg(feature = "axum_dual_protocol")]
 		for addr in &addrs {

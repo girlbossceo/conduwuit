@@ -25,7 +25,7 @@ const CONDUWUIT_CSP: &str = "sandbox; default-src 'none'; font-src 'none'; scrip
                              form-action 'none'; base-uri 'none';";
 const CONDUWUIT_PERMISSIONS_POLICY: &str = "interest-cohort=(),browsing-topics=()";
 
-pub(crate) fn build(server: &Arc<Server>) -> io::Result<axum::routing::IntoMakeService<Router>> {
+pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
 	let layers = ServiceBuilder::new();
 
 	#[cfg(feature = "sentry_telemetry")]
@@ -74,10 +74,7 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<axum::routing::IntoMakeS
 		.layer(body_limit_layer(server))
 		.layer(CatchPanicLayer::custom(catch_panic));
 
-	let routes = router::build(server);
-	let layers = routes.layer(layers);
-
-	Ok(layers.into_make_service())
+	Ok(router::build(server).layer(layers))
 }
 
 #[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]

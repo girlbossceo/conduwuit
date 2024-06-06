@@ -3,15 +3,16 @@ use std::{
 	sync::{atomic::Ordering, Arc},
 };
 
-use axum::{routing::IntoMakeService, Router};
+use axum::Router;
 use axum_server::{bind, Handle as ServerHandle};
 use conduit::{debug_info, Result, Server};
 use tokio::task::JoinSet;
 use tracing::info;
 
 pub(super) async fn serve(
-	server: &Arc<Server>, app: IntoMakeService<Router>, handle: ServerHandle, addrs: Vec<SocketAddr>,
+	server: &Arc<Server>, app: Router, handle: ServerHandle, addrs: Vec<SocketAddr>,
 ) -> Result<()> {
+	let app = app.into_make_service_with_connect_info::<SocketAddr>();
 	let mut join_set = JoinSet::new();
 	for addr in &addrs {
 		join_set.spawn_on(bind(*addr).handle(handle.clone()).serve(app.clone()), server.runtime());
