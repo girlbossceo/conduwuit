@@ -1,10 +1,14 @@
 use std::collections::BTreeMap;
 
 use axum::RequestPartsExt;
-use axum_extra::{headers::Authorization, typed_header::TypedHeaderRejectionReason, TypedHeader};
+use axum_extra::{
+	headers::{authorization::Bearer, Authorization},
+	typed_header::TypedHeaderRejectionReason,
+	TypedHeader,
+};
 use http::uri::PathAndQuery;
 use ruma::{
-	api::{client::error::ErrorKind, AuthScheme},
+	api::{client::error::ErrorKind, AuthScheme, Metadata},
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
 use tracing::warn;
@@ -20,14 +24,17 @@ enum Token {
 }
 
 pub(super) struct Auth {
+	pub(super) origin: Option<OwnedServerName>,
 	pub(super) sender_user: Option<OwnedUserId>,
 	pub(super) sender_device: Option<OwnedDeviceId>,
-	pub(super) origin: Option<OwnedServerName>,
 	pub(super) appservice_info: Option<RegistrationInfo>,
 }
 
-pub(super) async fn auth(request: &mut Request, metadata: &ruma::api::Metadata) -> Result<Auth> {
-	let token = match &request.auth {
+pub(super) async fn auth(
+	request: &mut Request, json_body: &Option<CanonicalJsonValue>, metadata: &Metadata,
+) -> Result<Auth> {
+	let bearer: Option<TypedHeader<Authorization<Bearer>>> = request.parts.extract().await?;
+	let token = match &bearer {
 		Some(TypedHeader(Authorization(bearer))) => Some(bearer.token()),
 		None => request.query.access_token.as_deref(),
 	};
@@ -78,9 +85,9 @@ pub(super) async fn auth(request: &mut Request, metadata: &ruma::api::Metadata) 
 		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(request, info)?),
 		(AuthScheme::None | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken, Token::Appservice(info)) => {
 			Ok(Auth {
+				origin: None,
 				sender_user: None,
 				sender_device: None,
-				origin: None,
 				appservice_info: Some(*info),
 			})
 		},
@@ -91,12 +98,12 @@ pub(super) async fn auth(request: &mut Request, metadata: &ruma::api::Metadata) 
 			AuthScheme::AccessToken | AuthScheme::AccessTokenOptional | AuthScheme::None,
 			Token::User((user_id, device_id)),
 		) => Ok(Auth {
+			origin: None,
 			sender_user: Some(user_id),
 			sender_device: Some(device_id),
-			origin: None,
 			appservice_info: None,
 		}),
-		(AuthScheme::ServerSignatures, Token::None) => Ok(auth_server(request).await?),
+		(AuthScheme::ServerSignatures, Token::None) => Ok(auth_server(request, json_body).await?),
 		(AuthScheme::None | AuthScheme::AppserviceToken | AuthScheme::AccessTokenOptional, Token::None) => Ok(Auth {
 			sender_user: None,
 			sender_device: None,
@@ -114,7 +121,7 @@ pub(super) async fn auth(request: &mut Request, metadata: &ruma::api::Metadata) 
 	}
 }
 
-fn auth_appservice(request: &mut Request, info: Box<RegistrationInfo>) -> Result<Auth> {
+fn auth_appservice(request: &Request, info: Box<RegistrationInfo>) -> Result<Auth> {
 	let user_id = request
 		.query
 		.user_id
@@ -139,14 +146,14 @@ fn auth_appservice(request: &mut Request, info: Box<RegistrationInfo>) -> Result
 	}
 
 	Ok(Auth {
+		origin: None,
 		sender_user: Some(user_id),
 		sender_device: None,
-		origin: None,
 		appservice_info: Some(*info),
 	})
 }
 
-async fn auth_server(request: &mut Request) -> Result<Auth> {
+async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValue>) -> Result<Auth> {
 	if !services().globals.allow_federation() {
 		return Err(Error::bad_config("Federation is disabled."));
 	}
@@ -167,15 +174,11 @@ async fn auth_server(request: &mut Request) -> Result<Auth> {
 			Error::BadRequest(ErrorKind::forbidden(), msg)
 		})?;
 
-	let origin_signatures = BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig))]);
-
-	let signatures = BTreeMap::from_iter([(
-		x_matrix.origin.as_str().to_owned(),
-		CanonicalJsonValue::Object(origin_signatures),
-	)]);
+	let origin = &x_matrix.origin;
+	let signatures = BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig))]);
+	let signatures = BTreeMap::from_iter([(origin.as_str().to_owned(), CanonicalJsonValue::Object(signatures))]);
 
 	let server_destination = services().globals.server_name().as_str().to_owned();
-
 	if let Some(destination) = x_matrix.destination.as_ref() {
 		if destination != &server_destination {
 			return Err(Error::BadRequest(ErrorKind::forbidden(), "Invalid authorization."));
@@ -197,22 +200,19 @@ async fn auth_server(request: &mut Request) -> Result<Auth> {
 			CanonicalJsonValue::String(request.parts.method.to_string()),
 		),
 		("uri".to_owned(), signature_uri),
-		(
-			"origin".to_owned(),
-			CanonicalJsonValue::String(x_matrix.origin.as_str().to_owned()),
-		),
+		("origin".to_owned(), CanonicalJsonValue::String(origin.as_str().to_owned())),
 		("destination".to_owned(), CanonicalJsonValue::String(server_destination)),
 		("signatures".to_owned(), CanonicalJsonValue::Object(signatures)),
 	]);
 
-	if let Some(json_body) = &request.json {
+	if let Some(json_body) = json_body {
 		request_map.insert("content".to_owned(), json_body.clone());
 	};
 
 	let keys_result = services()
 		.rooms
 		.event_handler
-		.fetch_signing_keys_for_server(&x_matrix.origin, vec![x_matrix.key.clone()])
+		.fetch_signing_keys_for_server(origin, vec![x_matrix.key.clone()])
 		.await;
 
 	let keys = keys_result.map_err(|e| {
@@ -220,17 +220,17 @@ async fn auth_server(request: &mut Request) -> Result<Auth> {
 		Error::BadRequest(ErrorKind::forbidden(), "Failed to fetch signing keys.")
 	})?;
 
-	let pub_key_map = BTreeMap::from_iter([(x_matrix.origin.as_str().to_owned(), keys)]);
+	let pub_key_map = BTreeMap::from_iter([(origin.as_str().to_owned(), keys)]);
 
 	match ruma::signatures::verify_json(&pub_key_map, &request_map) {
 		Ok(()) => Ok(Auth {
+			origin: Some(origin.clone()),
 			sender_user: None,
 			sender_device: None,
-			origin: Some(x_matrix.origin),
 			appservice_info: None,
 		}),
 		Err(e) => {
-			warn!("Failed to verify json request from {}: {e}\n{request_map:?}", x_matrix.origin);
+			warn!("Failed to verify json request from {origin}: {e}\n{request_map:?}");
 
 			if request.parts.uri.to_string().contains('@') {
 				warn!(
