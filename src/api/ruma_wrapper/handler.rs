@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use axum::{
+	extract::FromRequestParts,
 	response::IntoResponse,
 	routing::{on, MethodFilter},
 	Router,
@@ -32,27 +33,38 @@ pub(in super::super) trait RumaHandler<T> {
 	fn add_route(&self, router: Router, path: &str) -> Router;
 }
 
-impl<Req, E, F, Fut> RumaHandler<Ruma<Req>> for F
-where
-	Req: IncomingRequest + Send + 'static,
-	F: FnOnce(Ruma<Req>) -> Fut + Clone + Send + Sync + 'static,
-	Fut: Future<Output = Result<Req::OutgoingResponse, E>> + Send,
-	E: IntoResponse,
-{
-	fn add_routes(&self, router: Router) -> Router {
-		Req::METADATA
-			.history
-			.all_paths()
-			.fold(router, |router, path| self.add_route(router, path))
-	}
+macro_rules! ruma_handler {
+	( $($tx:ident),* $(,)? ) => {
+		#[allow(non_snake_case)]
+		impl<Req, Ret, Fut, Fun, $($tx,)*> RumaHandler<($($tx,)* Ruma<Req>,)> for Fun
+		where
+			Req: IncomingRequest + Send + 'static,
+			Ret: IntoResponse,
+			Fut: Future<Output = Result<Req::OutgoingResponse, Ret>> + Send,
+			Fun: FnOnce($($tx,)* Ruma<Req>) -> Fut + Clone + Send + Sync + 'static,
+			$( $tx: FromRequestParts<()> + Send + 'static, )*
+		{
+			fn add_routes(&self, router: Router) -> Router {
+				Req::METADATA
+					.history
+					.all_paths()
+					.fold(router, |router, path| self.add_route(router, path))
+			}
 
-	fn add_route(&self, router: Router, path: &str) -> Router {
-		let handle = self.clone();
-		let method = method_to_filter(&Req::METADATA.method);
-		let action = |req| async { handle(req).await.map(RumaResponse) };
-		router.route(path, on(method, action))
+			fn add_route(&self, router: Router, path: &str) -> Router {
+				let handle = self.clone();
+				let method = method_to_filter(&Req::METADATA.method);
+				let action = |$($tx,)* req| async { handle($($tx,)* req).await.map(RumaResponse) };
+				router.route(path, on(method, action))
+			}
+		}
 	}
 }
+ruma_handler!();
+ruma_handler!(T1);
+ruma_handler!(T1, T2);
+ruma_handler!(T1, T2, T3);
+ruma_handler!(T1, T2, T3, T4);
 
 const fn method_to_filter(method: &Method) -> MethodFilter {
 	match *method {
