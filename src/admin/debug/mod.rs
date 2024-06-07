@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use debug_commands::{first_pdu_in_room, latest_pdu_in_room};
+use debug_commands::{first_pdu_in_room, force_set_room_state_from_server, latest_pdu_in_room};
 use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
 
 use self::debug_commands::{
@@ -123,6 +123,27 @@ pub(crate) enum DebugCommand {
 		room_id: Box<RoomId>,
 	},
 
+	/// - Forcefully replaces the room state of our local copy of the specified
+	///   room, with the copy (auth chain and room state events) the specified
+	///   remote server says.
+	///
+	/// A common desire for room deletion is to simply "reset" our copy of the
+	/// room. While this admin command is not a replacement for that, if you
+	/// know you have split/broken room state and you know another server in the
+	/// room that has the best/working room state, this command can let you use
+	/// their room state. Such example is your server saying users are in a
+	/// room, but other servers are saying they're not in the room in question.
+	///
+	/// This command will get the latest PDU in the room we know about, and
+	/// request the room state at that point in time via
+	/// `/_matrix/federation/v1/state/{roomId}`.
+	ForceSetRoomStateFromServer {
+		/// The impacted room ID
+		room_id: Box<RoomId>,
+		/// The server we will use to query the room state for
+		server_name: Box<ServerName>,
+	},
+
 	/// - Runs a server name through conduwuit's true destination resolution
 	///   process
 	///
@@ -174,6 +195,10 @@ pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 			server,
 			force,
 		} => get_remote_pdu_list(body, server, force).await?,
+		DebugCommand::ForceSetRoomStateFromServer {
+			room_id,
+			server_name,
+		} => force_set_room_state_from_server(body, server_name, room_id).await?,
 		DebugCommand::ResolveTrueDestination {
 			server_name,
 			no_cache,
