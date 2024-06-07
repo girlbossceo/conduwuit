@@ -3,10 +3,12 @@ pub(crate) mod appservice;
 pub(crate) mod globals;
 pub(crate) mod presence;
 pub(crate) mod room_alias;
+pub(crate) mod room_state_cache;
 pub(crate) mod sending;
 pub(crate) mod users;
 
 use clap::Subcommand;
+use room_state_cache::room_state_cache;
 use ruma::{
 	events::{room::message::RoomMessageEventContent, RoomAccountDataEventType},
 	RoomAliasId, RoomId, ServerName, UserId,
@@ -37,6 +39,10 @@ pub(crate) enum QueryCommand {
 	/// - rooms/alias.rs iterators and getters
 	#[command(subcommand)]
 	RoomAlias(RoomAlias),
+
+	/// - rooms/state_cache iterators and getters
+	#[command(subcommand)]
+	RoomStateCache(RoomStateCache),
 
 	/// - globals.rs iterators and getters
 	#[command(subcommand)]
@@ -129,6 +135,73 @@ pub(crate) enum RoomAlias {
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
+pub(crate) enum RoomStateCache {
+	RoomServers {
+		room_id: Box<RoomId>,
+	},
+
+	ServerRooms {
+		server: Box<ServerName>,
+	},
+
+	RoomMembers {
+		room_id: Box<RoomId>,
+	},
+
+	LocalUsersInRoom {
+		room_id: Box<RoomId>,
+	},
+
+	ActiveLocalUsersInRoom {
+		room_id: Box<RoomId>,
+	},
+
+	RoomJoinedCount {
+		room_id: Box<RoomId>,
+	},
+
+	RoomInvitedCount {
+		room_id: Box<RoomId>,
+	},
+
+	RoomUserOnceJoined {
+		room_id: Box<RoomId>,
+	},
+
+	RoomMembersInvited {
+		room_id: Box<RoomId>,
+	},
+
+	GetInviteCount {
+		room_id: Box<RoomId>,
+		user_id: Box<UserId>,
+	},
+
+	GetLeftCount {
+		room_id: Box<RoomId>,
+		user_id: Box<UserId>,
+	},
+
+	RoomsJoined {
+		user_id: Box<UserId>,
+	},
+
+	RoomsLeft {
+		user_id: Box<UserId>,
+	},
+
+	RoomsInvited {
+		user_id: Box<UserId>,
+	},
+
+	InviteState {
+		user_id: Box<UserId>,
+		room_id: Box<RoomId>,
+	},
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/globals.rs
 pub(crate) enum Globals {
 	DatabaseVersion,
@@ -216,6 +289,7 @@ pub(crate) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<R
 		QueryCommand::Appservice(command) => appservice(command).await?,
 		QueryCommand::Presence(command) => presence(command).await?,
 		QueryCommand::RoomAlias(command) => room_alias(command).await?,
+		QueryCommand::RoomStateCache(command) => room_state_cache(command).await?,
 		QueryCommand::Globals(command) => globals(command).await?,
 		QueryCommand::Sending(command) => sending(command).await?,
 		QueryCommand::Users(command) => users(command).await?,
