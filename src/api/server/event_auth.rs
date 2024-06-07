@@ -17,18 +17,22 @@ pub(crate) async fn get_event_authorization_route(
 ) -> Result<get_event_authorization::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	if !services()
-		.rooms
-		.state_cache
-		.server_in_room(origin, &body.room_id)?
-	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
-	}
-
 	services()
 		.rooms
 		.event_handler
 		.acl_check(origin, &body.room_id)?;
+
+	if !services()
+		.rooms
+		.state_accessor
+		.is_world_readable(&body.room_id)?
+		&& !services()
+			.rooms
+			.state_cache
+			.server_in_room(origin, &body.room_id)?
+	{
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
+	}
 
 	let event = services()
 		.rooms
