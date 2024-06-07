@@ -93,7 +93,7 @@ impl Service {
 		}
 
 		// 1.3.1 Check room ACL on origin field/server
-		services().rooms.event_handler.acl_check(origin, room_id)?;
+		self.acl_check(origin, room_id)?;
 
 		// 1.3.2 Check room ACL on sender's server name
 		let sender: OwnedUserId = serde_json::from_value(
@@ -105,10 +105,7 @@ impl Service {
 		)
 		.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid"))?;
 
-		services()
-			.rooms
-			.event_handler
-			.acl_check(sender.server_name(), room_id)?;
+		self.acl_check(sender.server_name(), room_id)?;
 
 		// Fetch create event
 		let create_event = services()
@@ -199,9 +196,7 @@ impl Service {
 			.await
 			.insert(room_id.to_owned(), (event_id.to_owned(), start_time));
 
-		let r = services()
-			.rooms
-			.event_handler
+		let r = self
 			.upgrade_outlier_to_timeline_pdu(incoming_pdu, val, &create_event, origin, room_id, pub_key_map)
 			.await;
 
