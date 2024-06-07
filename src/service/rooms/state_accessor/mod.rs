@@ -259,20 +259,14 @@ impl Service {
 	}
 
 	pub fn get_name(&self, room_id: &RoomId) -> Result<Option<String>> {
-		services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomName, "")?
+		self.room_state_get(room_id, &StateEventType::RoomName, "")?
 			.map_or(Ok(None), |s| {
 				Ok(serde_json::from_str(s.content.get()).map_or_else(|_| None, |c: RoomNameEventContent| Some(c.name)))
 			})
 	}
 
 	pub fn get_avatar(&self, room_id: &RoomId) -> Result<ruma::JsOption<RoomAvatarEventContent>> {
-		services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomAvatar, "")?
+		self.room_state_get(room_id, &StateEventType::RoomAvatar, "")?
 			.map_or(Ok(ruma::JsOption::Undefined), |s| {
 				serde_json::from_str(s.content.get())
 					.map_err(|_| Error::bad_database("Invalid room avatar event in database."))
@@ -280,10 +274,7 @@ impl Service {
 	}
 
 	pub fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<RoomMemberEventContent>> {
-		services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
+		self.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
 			.map_or(Ok(None), |s| {
 				serde_json::from_str(s.content.get())
 					.map_err(|_| Error::bad_database("Invalid room member event in database."))
@@ -309,5 +300,25 @@ impl Service {
 			.timeline
 			.create_hash_and_sign_event(new_event, sender, room_id, state_lock)
 			.is_ok())
+	}
+
+	/// Checks if guests are able to view room content without joining
+	pub fn is_world_readable(&self, room_id: &RoomId) -> Result<bool, Error> {
+		Ok(self
+			.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
+			.map_or(Ok(false), |s| {
+				serde_json::from_str(s.content.get())
+					.map(|c: RoomHistoryVisibilityEventContent| {
+						c.history_visibility == HistoryVisibility::WorldReadable
+					})
+					.map_err(|e| {
+						error!(
+							"Invalid room history visibility event in database for room {room_id}, assuming not world \
+							 readable: {e} "
+						);
+						Error::bad_database("Invalid room history visibility event in database.")
+					})
+			})
+			.unwrap_or(false))
 	}
 }
