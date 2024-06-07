@@ -164,10 +164,12 @@ pub(crate) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventConte
 	))
 }
 
-pub(crate) async fn delete_past_remote_media(_body: Vec<&str>, duration: String) -> Result<RoomMessageEventContent> {
+pub(crate) async fn delete_past_remote_media(
+	_body: Vec<&str>, duration: String, force: bool,
+) -> Result<RoomMessageEventContent> {
 	let deleted_count = services()
 		.media
-		.delete_all_remote_media_at_after_time(duration)
+		.delete_all_remote_media_at_after_time(duration, force)
 		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
