@@ -32,6 +32,9 @@ pub(crate) enum MediaCommand {
 		/// - The duration (at or after), e.g. "5m" to delete all media in the
 		///   past 5 minutes
 		duration: String,
+		/// Continues deleting remote media if an undeletable object is found
+		#[arg(short, long)]
+		force: bool,
 	},
 }
 
@@ -44,6 +47,7 @@ pub(crate) async fn process(command: MediaCommand, body: Vec<&str>) -> Result<Ro
 		MediaCommand::DeleteList => delete_list(body).await?,
 		MediaCommand::DeletePastRemoteMedia {
 			duration,
-		} => delete_past_remote_media(body, duration).await?,
+			force,
+		} => delete_past_remote_media(body, duration, force).await?,
 	})
 }

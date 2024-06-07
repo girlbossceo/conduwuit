@@ -182,7 +182,7 @@ impl Service {
 
 	/// Deletes all remote only media files in the given at or after
 	/// time/duration. Returns a u32 with the amount of media files deleted.
-	pub async fn delete_all_remote_media_at_after_time(&self, time: String) -> Result<usize> {
+	pub async fn delete_all_remote_media_at_after_time(&self, time: String, force: bool) -> Result<usize> {
 		let all_keys = self.db.get_all_media_keys();
 
 		let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
@@ -258,11 +258,17 @@ impl Service {
 					debug!("btime is unsupported, using mtime instead");
 					file_metadata.modified()?
 				},
-				Err(err) => return Err(err.into()),
+				Err(err) => {
+					if force {
+						error!("Could not delete MXC path {:?}: {:?}. Skipping...", path, err);
+						continue;
+					}
+					return Err(err.into());
+				},
 			};
 			debug!("File created at: {:?}", file_created_at);
 
-			if file_created_at >= user_duration {
+			if file_created_at <= user_duration {
 				debug!("File is within user duration, pushing to list of file paths and keys to delete.");
 				remote_mxcs.push(mxc.to_string());
 			}
