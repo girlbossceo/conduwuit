@@ -46,6 +46,7 @@ axum_dual_protocol = [
 ]
 
 [dependencies]
+axum-client-ip.workspace = true
 axum-server-dual-protocol.optional = true
 axum-server-dual-protocol.workspace = true
 axum-server.workspace = true

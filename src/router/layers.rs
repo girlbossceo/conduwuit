@@ -4,6 +4,7 @@ use axum::{
 	extract::{DefaultBodyLimit, MatchedPath},
 	Router,
 };
+use axum_client_ip::SecureClientIpSource;
 use conduit::Server;
 use http::{
 	header::{self, HeaderName},
@@ -46,6 +47,7 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
 				.on_response(DefaultOnResponse::new().level(Level::DEBUG)),
 		)
 		.layer(axum::middleware::from_fn_with_state(Arc::clone(server), request::handle))
+		.layer(SecureClientIpSource::ConnectInfo.into_extension())
 		.layer(SetResponseHeaderLayer::if_not_present(
 			HeaderName::from_static("origin-agent-cluster"), // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin-Agent-Cluster
 			HeaderValue::from_static("?1"),

@@ -33,6 +33,7 @@ brotli_compression = [
 ]
 
 [dependencies]
+axum-client-ip.workspace = true
 axum-extra.workspace = true
 axum.workspace = true
 base64.workspace = true
