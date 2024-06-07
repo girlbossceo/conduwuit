@@ -63,11 +63,7 @@ impl Service {
 			}
 
 			let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
-			if let Some(cached) = services()
-				.rooms
-				.auth_chain
-				.get_cached_eventid_authchain(&chunk_key)?
-			{
+			if let Some(cached) = self.get_cached_eventid_authchain(&chunk_key)? {
 				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
 				hits = hits.saturating_add(1);
@@ -78,20 +74,13 @@ impl Service {
 			let mut misses2: usize = 0;
 			let mut chunk_cache = Vec::with_capacity(chunk.len());
 			for (sevent_id, event_id) in chunk {
-				if let Some(cached) = services()
-					.rooms
-					.auth_chain
-					.get_cached_eventid_authchain(&[sevent_id])?
-				{
+				if let Some(cached) = self.get_cached_eventid_authchain(&[sevent_id])? {
 					trace!(?event_id, "Found cache entry for event");
 					chunk_cache.extend(cached.iter().copied());
 					hits2 = hits2.saturating_add(1);
 				} else {
 					let auth_chain = self.get_auth_chain_inner(room_id, event_id)?;
-					services()
-						.rooms
-						.auth_chain
-						.cache_auth_chain(vec![sevent_id], &auth_chain)?;
+					self.cache_auth_chain(vec![sevent_id], &auth_chain)?;
 					chunk_cache.extend(auth_chain.iter());
 					misses2 = misses2.saturating_add(1);
 					debug!(
@@ -106,10 +95,7 @@ impl Service {
 
 			chunk_cache.sort_unstable();
 			chunk_cache.dedup();
-			services()
-				.rooms
-				.auth_chain
-				.cache_auth_chain_vec(chunk_key, &chunk_cache)?;
+			self.cache_auth_chain_vec(chunk_key, &chunk_cache)?;
 			full_auth_chain.extend(chunk_cache.iter());
 			misses = misses.saturating_add(1);
 			debug!(
