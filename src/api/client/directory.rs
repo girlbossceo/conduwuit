@@ -14,7 +14,6 @@ use ruma::{
 			canonical_alias::RoomCanonicalAliasEventContent,
 			create::RoomCreateEventContent,
 			guest_access::{GuestAccess, RoomGuestAccessEventContent},
-			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			topic::RoomTopicEventContent,
 		},
@@ -261,21 +260,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 							})
 					})
 					.unwrap_or(None),
-				world_readable: services()
-					.rooms
-					.state_accessor
-					.room_state_get(&room_id, &StateEventType::RoomHistoryVisibility, "")?
-					.map_or(Ok(false), |s| {
-						serde_json::from_str(s.content.get())
-							.map(|c: RoomHistoryVisibilityEventContent| {
-								c.history_visibility == HistoryVisibility::WorldReadable
-							})
-                            .map_err(|e| {
-                                error!(
-                                    "Invalid room history visibility event in database for room {room_id}, assuming is \"shared\": {e}",
-                                );
-                                Error::bad_database("Invalid room history visibility event in database.")
-                            })}).unwrap_or(false),
+				world_readable: services().rooms.state_accessor.is_world_readable(&room_id)?,
 				guest_can_join: services()
 					.rooms
 					.state_accessor
