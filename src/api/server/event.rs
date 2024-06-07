@@ -28,10 +28,11 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	let room_id =
 		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
-	if !services()
-		.rooms
-		.state_cache
-		.server_in_room(origin, room_id)?
+	if !services().rooms.state_accessor.is_world_readable(room_id)?
+		&& !services()
+			.rooms
+			.state_cache
+			.server_in_room(origin, room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
