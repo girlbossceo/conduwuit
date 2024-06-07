@@ -73,11 +73,7 @@ impl Service {
 
 		match dir {
 			Direction::Forward => {
-				let relations_until =
-					&services()
-						.rooms
-						.pdu_metadata
-						.relations_until(sender_user, room_id, target, from, depth)?;
+				let relations_until = &self.relations_until(sender_user, room_id, target, from, depth)?;
 				let events_after: Vec<_> = relations_until // TODO: should be relations_after
                     .iter()
                     .filter(|(_, pdu)| {
@@ -123,11 +119,7 @@ impl Service {
 				})
 			},
 			Direction::Backward => {
-				let relations_until =
-					&services()
-						.rooms
-						.pdu_metadata
-						.relations_until(sender_user, room_id, target, from, depth)?;
+				let relations_until = &self.relations_until(sender_user, room_id, target, from, depth)?;
 				let events_before: Vec<_> = relations_until
                     .iter()
                     .filter(|(_, pdu)| {
