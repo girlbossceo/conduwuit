@@ -494,11 +494,7 @@ impl Service {
 		}
 
 		if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {
-			if let Some(related_pducount) = services()
-				.rooms
-				.timeline
-				.get_pdu_count(&content.relates_to.event_id)?
-			{
+			if let Some(related_pducount) = self.get_pdu_count(&content.relates_to.event_id)? {
 				services()
 					.rooms
 					.pdu_metadata
@@ -513,11 +509,7 @@ impl Service {
 				} => {
 					// We need to do it again here, because replies don't have
 					// event_id as a top level field
-					if let Some(related_pducount) = services()
-						.rooms
-						.timeline
-						.get_pdu_count(&in_reply_to.event_id)?
-					{
+					if let Some(related_pducount) = self.get_pdu_count(&in_reply_to.event_id)? {
 						services()
 							.rooms
 							.pdu_metadata
@@ -646,7 +638,7 @@ impl Service {
 		// Our depth is the maximum depth of prev_events + 1
 		let depth = prev_events
 			.iter()
-			.filter_map(|event_id| Some(services().rooms.timeline.get_pdu(event_id).ok()??.depth))
+			.filter_map(|event_id| Some(self.get_pdu(event_id).ok()??.depth))
 			.max()
 			.unwrap_or_else(|| uint!(0))
 			+ uint!(1);
@@ -945,9 +937,7 @@ impl Service {
 			return Ok(None);
 		}
 
-		let pdu_id = services()
-			.rooms
-			.timeline
+		let pdu_id = self
 			.append_pdu(pdu, pdu_json, new_room_leaves, state_lock)
 			.await?;
 
@@ -1138,7 +1128,7 @@ impl Service {
 		let mutex_lock = mutex.lock().await;
 
 		// Skip the PDU if we already have it as a timeline event
-		if let Some(pdu_id) = services().rooms.timeline.get_pdu_id(&event_id)? {
+		if let Some(pdu_id) = self.get_pdu_id(&event_id)? {
 			info!("We already know {event_id} at {pdu_id:?}");
 			return Ok(());
 		}
