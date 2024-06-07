@@ -408,9 +408,7 @@ impl Service {
 			})?
 			.flatten();
 
-		let mut servers: Vec<OwnedServerName> = services()
-			.rooms
-			.state_cache
+		let mut servers: Vec<OwnedServerName> = self
 			.room_members(room_id)
 			.filter_map(Result::ok)
 			.counts_by(|user| user.server_name().to_owned())
