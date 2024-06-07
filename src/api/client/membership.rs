@@ -1302,7 +1302,7 @@ async fn make_join_request(
 	make_join_response_and_server
 }
 
-async fn validate_and_add_event_id(
+pub async fn validate_and_add_event_id(
 	pdu: &RawJsonValue, room_version: &RoomVersionId, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> Result<(OwnedEventId, CanonicalJsonObject)> {
 	let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {

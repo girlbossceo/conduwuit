@@ -47,7 +47,7 @@ pub(super) use filter::*;
 pub(super) use keys::*;
 pub(super) use media::*;
 pub(super) use membership::*;
-pub use membership::{join_room_by_id_helper, leave_all_rooms, leave_room};
+pub use membership::{join_room_by_id_helper, leave_all_rooms, leave_room, validate_and_add_event_id};
 pub(super) use message::*;
 pub(super) use presence::*;
 pub(super) use profile::*;
