@@ -702,6 +702,44 @@ allow_profile_lookup_federation_requests = true
 #typing_client_timeout_max_s = 45
 
 
+### TURN / VoIP
+
+# vector list of TURN URIs/servers to use
+#
+# No default
+#turn_uris = ["turn:example.turn.uri?transport=udp", "turn:example.turn.uri?transport=tcp"]
+
+# TURN secret to use for generating the HMAC-SHA1 hash apart of username and password generation
+#
+# this is more secure, but if needed you can use traditional username/password below.
+#
+# no default
+#turn_secret = ""
+
+# TURN username to provide the client
+#
+# no default
+#turn_username = ""
+
+# TURN password to provide the client
+#
+# no default
+#turn_password = ""
+
+# TURN TTL
+#
+# Default is 86400 seconds
+#turn_ttl = 86400
+
+# allow guests/unauthenticated users to access TURN credentials
+#
+# this is the equivalent of Synapse's `turn_allow_guests` config option. this allows
+# any unauthenticated user to call `/_matrix/client/v3/voip/turnServer`.
+#
+# defaults to false
+#turn_allow_guests = false
+
+
 # Other options not in [global]:
 #
 #
