@@ -355,7 +355,7 @@ impl Service {
 		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
 		content: &serde_json::value::RawValue,
 	) -> Result<StateMap<Arc<PduEvent>>> {
-		let Some(shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? else {
+		let Some(shortstatehash) = self.get_room_shortstatehash(room_id)? else {
 			return Ok(HashMap::new());
 		};
 
