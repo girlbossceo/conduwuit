@@ -290,7 +290,7 @@ impl Service {
 		let mut keys = self.db.signing_keys_for(origin)?;
 		if origin == self.server_name() {
 			keys.insert(
-				format!("ed25519:{}", services().globals.keypair().version())
+				format!("ed25519:{}", self.keypair().version())
 					.try_into()
 					.expect("found invalid server signing keys in DB"),
 				VerifyKey {
