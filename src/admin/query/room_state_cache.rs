@@ -5,6 +5,22 @@ use crate::{services, Result};
 
 pub(crate) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomMessageEventContent> {
 	match subcommand {
+		RoomStateCache::ServerInRoom {
+			server,
+			room_id,
+		} => {
+			let timer = tokio::time::Instant::now();
+			let result = services()
+				.rooms
+				.state_cache
+				.server_in_room(&server, &room_id);
+			let query_time = timer.elapsed();
+
+			Ok(RoomMessageEventContent::text_html(
+				format!("Query completed in {query_time:?}:\n\n```\n{result:?}```"),
+				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{result:?}\n</code></pre>"),
+			))
+		},
 		RoomStateCache::RoomServers {
 			room_id,
 		} => {

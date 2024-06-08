@@ -136,6 +136,11 @@ pub(crate) enum RoomAlias {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 pub(crate) enum RoomStateCache {
+	ServerInRoom {
+		server: Box<ServerName>,
+		room_id: Box<RoomId>,
+	},
+
 	RoomServers {
 		room_id: Box<RoomId>,
 	},
