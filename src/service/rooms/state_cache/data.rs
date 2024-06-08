@@ -121,10 +121,8 @@ impl Data for KeyValueDatabase {
 
 	fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		let roomid = room_id.as_bytes().to_vec();
-		let mut roomid_prefix = room_id.as_bytes().to_vec();
-		roomid_prefix.push(0xFF);
 
-		let mut roomuser_id = roomid_prefix.clone();
+		let mut roomuser_id = roomid.clone();
 		roomuser_id.push(0xFF);
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
@@ -139,13 +137,10 @@ impl Data for KeyValueDatabase {
 		self.userroomid_leftstate.remove(&userroom_id)?;
 		self.roomuserid_leftcount.remove(&roomuser_id)?;
 
-		if self
-			.roomuserid_joined
-			.scan_prefix(roomid_prefix.clone())
-			.count() == 0
+		if self.roomuserid_joined.scan_prefix(roomid.clone()).count() == 0
 			&& self
 				.roomuserid_invitecount
-				.scan_prefix(roomid_prefix)
+				.scan_prefix(roomid.clone())
 				.count() == 0
 		{
 			self.roomid_inviteviaservers.remove(&roomid)?;
@@ -198,10 +193,9 @@ impl Data for KeyValueDatabase {
 
 	fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		let roomid = room_id.as_bytes().to_vec();
-		let mut roomid_prefix = room_id.as_bytes().to_vec();
-		roomid_prefix.push(0xFF);
 
-		let mut roomuser_id = roomid_prefix.clone();
+		let mut roomuser_id = roomid.clone();
+		roomuser_id.push(0xFF);
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
 		let mut userroom_id = user_id.as_bytes().to_vec();
@@ -219,13 +213,10 @@ impl Data for KeyValueDatabase {
 		self.userroomid_invitestate.remove(&userroom_id)?;
 		self.roomuserid_invitecount.remove(&roomuser_id)?;
 
-		if self
-			.roomuserid_joined
-			.scan_prefix(roomid_prefix.clone())
-			.count() == 0
+		if self.roomuserid_joined.scan_prefix(roomid.clone()).count() == 0
 			&& self
 				.roomuserid_invitecount
-				.scan_prefix(roomid_prefix)
+				.scan_prefix(roomid.clone())
 				.count() == 0
 		{
 			self.roomid_inviteviaservers.remove(&roomid)?;
@@ -434,8 +425,6 @@ impl Data for KeyValueDatabase {
 	/// Returns an iterator of all our local users joined in a room who are
 	/// active (not deactivated, not guest) and have a joined membership state
 	/// in the room
-	///
-	/// TODO: why is `roomuserid_joined` not reliable?
 	#[tracing::instrument(skip(self))]
 	fn active_local_joined_users_in_room<'a>(
 		&'a self, room_id: &'a RoomId,
