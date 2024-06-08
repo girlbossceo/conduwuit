@@ -81,6 +81,8 @@ pub enum Error {
 	#[error("{0} in {1}")]
 	InconsistentRoomState(&'static str, ruma::OwnedRoomId),
 	#[error("{0}")]
+	TracingFilter(#[from] tracing_subscriber::filter::ParseError),
+	#[error("{0}")]
 	AdminCommand(&'static str),
 	#[error("{0}")]
 	Err(String),
