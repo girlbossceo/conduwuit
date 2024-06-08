@@ -6,6 +6,7 @@ use std::{
 	sync::Arc,
 };
 
+use conduit::{debug_info, debug_warn};
 use database::KeyValueDatabase;
 use itertools::Itertools;
 use ruma::{
@@ -547,6 +548,37 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 			}
 		}
 
+		if db
+			.global
+			.get(b"fix_bad_double_separator_in_state_cache")?
+			.is_none()
+		{
+			warn!("Fixing bad double separator in state_cache roomuserid_joined");
+			let mut iter_count: usize = 0;
+			for (mut key, value) in db.roomuserid_joined.iter() {
+				iter_count = iter_count.saturating_add(1);
+				debug_info!(%iter_count);
+				let first_sep_index = key.iter().position(|&i| i == 0xFF).unwrap();
+
+				if key
+					.iter()
+					.get(first_sep_index..=first_sep_index + 1)
+					.copied()
+					.collect_vec() == vec![0xFF, 0xFF]
+				{
+					debug_warn!("Found bad key: {key:?}");
+					db.roomuserid_joined.remove(&key)?;
+
+					key.remove(first_sep_index);
+					debug_warn!("Fixed key: {key:?}");
+					db.roomuserid_joined.insert(&key, &value)?;
+				}
+			}
+
+			db.global
+				.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
+		}
+
 		assert_eq!(
 			services().globals.database_version().unwrap(),
 			latest_database_version,
@@ -613,6 +645,9 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 		services()
 			.globals
 			.bump_database_version(latest_database_version)?;
+
+		db.global
+			.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
 
 		// Create the admin room and server user on first run
 		services().admin.create_admin_room().await?;
