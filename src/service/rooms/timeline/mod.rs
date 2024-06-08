@@ -310,7 +310,7 @@ impl Service {
 		let mut push_target = services()
 			.rooms
 			.state_cache
-			.active_local_joined_users_in_room(&pdu.room_id)
+			.active_local_users_in_room(&pdu.room_id)
 			.collect_vec();
 
 		if pdu.kind == TimelineEventType::RoomMember {

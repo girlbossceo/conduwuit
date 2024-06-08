@@ -281,20 +281,10 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self))]
-	/// Returns an iterator of all our local users in a room who are active (not
-	/// deactivated, not guest)
+	/// Returns an iterator of all our local joined users in a room who are
+	/// active (not deactivated, not guest)
 	pub fn active_local_users_in_room<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = OwnedUserId> + 'a {
 		self.db.active_local_users_in_room(room_id)
-	}
-
-	#[tracing::instrument(skip(self))]
-	/// Returns an iterator of all our local users joined in a room who are
-	/// active (not deactivated, not guest) and have a joined membership state
-	/// in the room
-	pub fn active_local_joined_users_in_room<'a>(
-		&'a self, room_id: &'a RoomId,
-	) -> impl Iterator<Item = OwnedUserId> + 'a {
-		self.db.active_local_joined_users_in_room(room_id)
 	}
 
 	#[tracing::instrument(skip(self))]
