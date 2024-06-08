@@ -49,31 +49,7 @@ impl LogLevelReloadHandles {
 		for handle in &self.inner.handles {
 			handle.reload(new_value.clone())?;
 		}
+
 		Ok(())
 	}
-}
-
-#[macro_export]
-macro_rules! error {
-    ( $($x:tt)+ ) => { tracing::error!( $($x)+ ); }
-}
-
-#[macro_export]
-macro_rules! warn {
-    ( $($x:tt)+ ) => { tracing::warn!( $($x)+ ); }
-}
-
-#[macro_export]
-macro_rules! info {
-    ( $($x:tt)+ ) => { tracing::info!( $($x)+ ); }
-}
-
-#[macro_export]
-macro_rules! debug {
-    ( $($x:tt)+ ) => { tracing::debug!( $($x)+ ); }
-}
-
-#[macro_export]
-macro_rules! trace {
-    ( $($x:tt)+ ) => { tracing::trace!( $($x)+ ); }
 }
