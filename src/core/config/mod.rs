@@ -409,7 +409,7 @@ impl Config {
 				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		};
 
-		let config = match raw_config.extract::<Config>() {
+		let config = match raw_config.extract::<Self>() {
 			Err(e) => return Err(Error::BadConfig(format!("{e}"))),
 			Ok(config) => config,
 		};

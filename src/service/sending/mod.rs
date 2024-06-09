@@ -259,19 +259,19 @@ impl Destination {
 	#[tracing::instrument(skip(self))]
 	pub fn get_prefix(&self) -> Vec<u8> {
 		let mut prefix = match self {
-			Destination::Appservice(server) => {
+			Self::Appservice(server) => {
 				let mut p = b"+".to_vec();
 				p.extend_from_slice(server.as_bytes());
 				p
 			},
-			Destination::Push(user, pushkey) => {
+			Self::Push(user, pushkey) => {
 				let mut p = b"$".to_vec();
 				p.extend_from_slice(user.as_bytes());
 				p.push(0xFF);
 				p.extend_from_slice(pushkey.as_bytes());
 				p
 			},
-			Destination::Normal(server) => {
+			Self::Normal(server) => {
 				let mut p = Vec::new();
 				p.extend_from_slice(server.as_bytes());
 				p

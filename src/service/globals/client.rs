@@ -15,8 +15,8 @@ pub struct Client {
 }
 
 impl Client {
-	pub fn new(config: &Config, resolver: &Arc<resolver::Resolver>) -> Client {
-		Client {
+	pub fn new(config: &Config, resolver: &Arc<resolver::Resolver>) -> Self {
+		Self {
 			default: Self::base(config)
 				.unwrap()
 				.dns_resolver(resolver.clone())

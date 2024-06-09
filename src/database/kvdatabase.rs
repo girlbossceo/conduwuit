@@ -157,7 +157,7 @@ pub struct KeyValueDatabase {
 impl KeyValueDatabase {
 	/// Load an existing database or create a new one.
 	#[allow(clippy::too_many_lines)]
-	pub async fn load_or_create(server: &Arc<Server>) -> Result<KeyValueDatabase> {
+	pub async fn load_or_create(server: &Arc<Server>) -> Result<Self> {
 		let config = &server.config;
 		check_db_setup(config)?;
 		let builder = build(config)?;

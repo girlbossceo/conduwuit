@@ -421,8 +421,8 @@ impl FedDest {
 impl fmt::Display for FedDest {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			FedDest::Named(host, port) => write!(f, "{host}{port}"),
-			FedDest::Literal(addr) => write!(f, "{addr}"),
+			Self::Named(host, port) => write!(f, "{host}{port}"),
+			Self::Literal(addr) => write!(f, "{addr}"),
 		}
 	}
 }

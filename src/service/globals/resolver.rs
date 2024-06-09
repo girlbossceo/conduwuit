@@ -83,7 +83,7 @@ impl Resolver {
 
 		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
 		let overrides = Arc::new(StdRwLock::new(TlsNameMap::new()));
-		Resolver {
+		Self {
 			destinations: Arc::new(RwLock::new(WellKnownMap::new())),
 			overrides: overrides.clone(),
 			resolver: resolver.clone(),

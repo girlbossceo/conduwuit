@@ -211,7 +211,7 @@ impl Arena {
 	fn new(root: OwnedRoomId, max_depth: usize) -> Self {
 		let zero_depth = max_depth == 0;
 
-		Arena {
+		Self {
 			nodes: vec![Node {
 				parent: None,
 				next_sibling: None,
@@ -248,7 +248,7 @@ impl FromStr for PagnationToken {
 		let mut values = value.split('_');
 
 		let mut pag_tok = || {
-			Some(PagnationToken {
+			Some(Self {
 				skip: UInt::from_str(values.next()?).ok()?,
 				limit: UInt::from_str(values.next()?).ok()?,
 				max_depth: UInt::from_str(values.next()?).ok()?,
@@ -316,7 +316,7 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 			..
 		} = value.summary;
 
-		SpaceHierarchyRoomsChunk {
+		Self {
 			canonical_alias,
 			name,
 			num_joined_members,

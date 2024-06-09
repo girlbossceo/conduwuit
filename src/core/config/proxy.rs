@@ -42,11 +42,11 @@ pub enum ProxyConfig {
 impl ProxyConfig {
 	pub fn to_proxy(&self) -> Result<Option<Proxy>> {
 		Ok(match self.clone() {
-			ProxyConfig::None => None,
-			ProxyConfig::Global {
+			Self::None => None,
+			Self::Global {
 				url,
 			} => Some(Proxy::all(url)?),
-			ProxyConfig::ByDomain(proxies) => Some(Proxy::custom(move |url| {
+			Self::ByDomain(proxies) => Some(Proxy::custom(move |url| {
 				proxies.iter().find_map(|proxy| proxy.for_url(url)).cloned() // first matching
 				                                             // proxy
 			})),
@@ -108,18 +108,18 @@ enum WildCardedDomain {
 impl WildCardedDomain {
 	fn matches(&self, domain: &str) -> bool {
 		match self {
-			WildCardedDomain::WildCard => true,
-			WildCardedDomain::WildCarded(d) => domain.ends_with(d),
-			WildCardedDomain::Exact(d) => domain == d,
+			Self::WildCard => true,
+			Self::WildCarded(d) => domain.ends_with(d),
+			Self::Exact(d) => domain == d,
 		}
 	}
 
 	fn more_specific_than(&self, other: &Self) -> bool {
 		match (self, other) {
-			(WildCardedDomain::WildCard, WildCardedDomain::WildCard) => false,
-			(_, WildCardedDomain::WildCard) => true,
-			(WildCardedDomain::Exact(a), WildCardedDomain::WildCarded(_)) => other.matches(a),
-			(WildCardedDomain::WildCarded(a), WildCardedDomain::WildCarded(b)) => a != b && a.ends_with(b),
+			(Self::WildCard, Self::WildCard) => false,
+			(_, Self::WildCard) => true,
+			(Self::Exact(a), Self::WildCarded(_)) => other.matches(a),
+			(Self::WildCarded(a), Self::WildCarded(b)) => a != b && a.ends_with(b),
 			_ => false,
 		}
 	}
@@ -130,11 +130,11 @@ impl std::str::FromStr for WildCardedDomain {
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		// maybe do some domain validation?
 		Ok(if s.starts_with("*.") {
-			WildCardedDomain::WildCarded(s[1..].to_owned())
+			Self::WildCarded(s[1..].to_owned())
 		} else if s == "*" {
-			WildCardedDomain::WildCarded(String::new())
+			Self::WildCarded(String::new())
 		} else {
-			WildCardedDomain::Exact(s.to_owned())
+			Self::Exact(s.to_owned())
 		})
 	}
 }

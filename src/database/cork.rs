@@ -11,7 +11,7 @@ pub struct Cork {
 impl Cork {
 	pub fn new(db: &Arc<dyn KeyValueDatabaseEngine>, flush: bool, sync: bool) -> Self {
 		db.cork().unwrap();
-		Cork {
+		Self {
 			db: db.clone(),
 			flush,
 			sync,

@@ -29,8 +29,8 @@ impl PduCount {
 	#[must_use]
 	pub fn stringify(&self) -> String {
 		match self {
-			PduCount::Backfilled(x) => format!("-{x}"),
-			PduCount::Normal(x) => x.to_string(),
+			Self::Backfilled(x) => format!("-{x}"),
+			Self::Normal(x) => x.to_string(),
 		}
 	}
 }
@@ -42,10 +42,10 @@ impl PartialOrd for PduCount {
 impl Ord for PduCount {
 	fn cmp(&self, other: &Self) -> Ordering {
 		match (self, other) {
-			(PduCount::Normal(s), PduCount::Normal(o)) => s.cmp(o),
-			(PduCount::Backfilled(s), PduCount::Backfilled(o)) => o.cmp(s),
-			(PduCount::Normal(_), PduCount::Backfilled(_)) => Ordering::Greater,
-			(PduCount::Backfilled(_), PduCount::Normal(_)) => Ordering::Less,
+			(Self::Normal(s), Self::Normal(o)) => s.cmp(o),
+			(Self::Backfilled(s), Self::Backfilled(o)) => o.cmp(s),
+			(Self::Normal(_), Self::Backfilled(_)) => Ordering::Greater,
+			(Self::Backfilled(_), Self::Normal(_)) => Ordering::Less,
 		}
 	}
 }

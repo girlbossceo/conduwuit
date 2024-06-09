@@ -75,7 +75,7 @@ impl TryFrom<Vec<Namespace>> for NamespaceRegex {
 			}
 		}
 
-		Ok(NamespaceRegex {
+		Ok(Self {
 			exclusive: if exclusive.is_empty() {
 				None
 			} else {
@@ -102,8 +102,8 @@ pub struct RegistrationInfo {
 impl TryFrom<Registration> for RegistrationInfo {
 	type Error = regex::Error;
 
-	fn try_from(value: Registration) -> Result<RegistrationInfo, regex::Error> {
-		Ok(RegistrationInfo {
+	fn try_from(value: Registration) -> Result<Self, regex::Error> {
+		Ok(Self {
 			users: value.namespaces.users.clone().try_into()?,
 			aliases: value.namespaces.aliases.clone().try_into()?,
 			rooms: value.namespaces.rooms.clone().try_into()?,

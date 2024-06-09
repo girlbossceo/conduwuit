@@ -29,7 +29,7 @@ pub(crate) struct Server {
 }
 
 impl Server {
-	pub(crate) fn build(args: Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Server>, Error> {
+	pub(crate) fn build(args: Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Self>, Error> {
 		let config = Config::new(args.config)?;
 
 		#[cfg(feature = "sentry_telemetry")]
@@ -49,7 +49,7 @@ impl Server {
 			conduit::version::conduwuit(),
 		);
 
-		Ok(Arc::new(Server {
+		Ok(Arc::new(Self {
 			server: Arc::new(conduit::Server::new(config, runtime.cloned(), tracing_reload_handle)),
 
 			_tracing_flame_guard: tracing_flame_guard,

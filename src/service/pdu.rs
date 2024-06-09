@@ -56,7 +56,7 @@ pub struct PduEvent {
 
 impl PduEvent {
 	#[tracing::instrument(skip(self))]
-	pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &PduEvent) -> crate::Result<()> {
+	pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> crate::Result<()> {
 		self.unsigned = None;
 
 		let mut content = serde_json::from_str(self.content.get())

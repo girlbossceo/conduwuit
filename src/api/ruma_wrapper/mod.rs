@@ -55,7 +55,7 @@ where
 		let mut request = request::from(request).await?;
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&request.body).ok();
 		let auth = auth::auth(&mut request, &json_body, &T::METADATA).await?;
-		Ok(Ruma {
+		Ok(Self {
 			body: make_body::<T>(&mut request, &mut json_body, &auth)?,
 			origin: auth.origin,
 			sender_user: auth.sender_user,

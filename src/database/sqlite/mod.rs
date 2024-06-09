@@ -113,7 +113,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 		let writer = Mutex::new(Engine::prepare_conn(&path, cache_size_per_thread)?);
 
-		let arc = Arc::new(Engine {
+		let arc = Self::new(Engine {
 			writer,
 			read_conn_tls: ThreadLocal::new(),
 			read_iterator_conn_tls: ThreadLocal::new(),
@@ -131,7 +131,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		)?;
 
 		Ok(Arc::new(SqliteTable {
-			engine: Arc::clone(self),
+			engine: Self::clone(self),
 			name: name.to_owned(),
 			watchers: Watchers::default(),
 		}))

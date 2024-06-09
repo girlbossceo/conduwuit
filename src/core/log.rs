@@ -21,7 +21,7 @@ pub trait ReloadHandle<L> {
 }
 
 impl<L, S> ReloadHandle<L> for reload::Handle<L, S> {
-	fn reload(&self, new_value: L) -> Result<(), reload::Error> { reload::Handle::reload(self, new_value) }
+	fn reload(&self, new_value: L) -> Result<(), reload::Error> { Self::reload(self, new_value) }
 }
 
 struct LogLevelReloadHandlesInner {
@@ -37,8 +37,8 @@ pub struct LogLevelReloadHandles {
 
 impl LogLevelReloadHandles {
 	#[must_use]
-	pub fn new(handles: Vec<Box<dyn ReloadHandle<EnvFilter> + Send + Sync>>) -> LogLevelReloadHandles {
-		LogLevelReloadHandles {
+	pub fn new(handles: Vec<Box<dyn ReloadHandle<EnvFilter> + Send + Sync>>) -> Self {
+		Self {
 			inner: Arc::new(LogLevelReloadHandlesInner {
 				handles,
 			}),

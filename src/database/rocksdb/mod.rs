@@ -84,7 +84,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			db.latest_sequence_number(),
 			load_time.elapsed()
 		);
-		Ok(Arc::new(Engine {
+		Ok(Self::new(Engine {
 			config: config.clone(),
 			row_cache,
 			col_cache,
@@ -110,7 +110,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 		Ok(Arc::new(RocksDbEngineTree {
 			name,
-			db: Arc::clone(self),
+			db: Self::clone(self),
 			watchers: Watchers::default(),
 		}))
 	}
