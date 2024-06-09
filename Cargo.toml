@@ -715,7 +715,6 @@ correctness = "warn"
 nursery = "warn"
 
 ## some sadness
-future_not_send = { level = "allow", priority = 1 }                  # TODO
 missing_const_for_fn = { level = "allow", priority = 1 }             # TODO
 needless_collect = { level = "allow", priority = 1 }                 # TODO
 option_if_let_else = { level = "allow", priority = 1 }               # TODO

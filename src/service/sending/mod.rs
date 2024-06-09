@@ -219,7 +219,7 @@ impl Service {
 	#[tracing::instrument(skip(self, request), name = "request")]
 	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
-		T: OutgoingRequest + Debug,
+		T: OutgoingRequest + Debug + Send,
 	{
 		let client = &services().globals.client.federation;
 		send::send(client, dest, request).await
@@ -233,7 +233,7 @@ impl Service {
 		&self, registration: Registration, request: T,
 	) -> Result<Option<T::IncomingResponse>>
 	where
-		T: OutgoingRequest + Debug,
+		T: OutgoingRequest + Debug + Send,
 	{
 		appservice::send_request(registration, request).await
 	}

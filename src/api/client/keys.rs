@@ -248,7 +248,7 @@ pub(crate) async fn get_key_changes_route(
 	})
 }
 
-pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool>(
+pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	sender_user: Option<&UserId>, device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>, allowed_signatures: F,
 	include_display_names: bool,
 ) -> Result<get_keys::v3::Response> {

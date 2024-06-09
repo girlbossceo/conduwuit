@@ -12,7 +12,7 @@ use crate::{debug_error, services, utils, Error, Result};
 /// registration file
 pub(crate) async fn send_request<T>(registration: Registration, request: T) -> Result<Option<T::IncomingResponse>>
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
 

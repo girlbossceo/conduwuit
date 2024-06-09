@@ -28,7 +28,7 @@ impl super::Service {
 		&'a self, events: E, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()>
 	where
-		E: IntoIterator<Item = &'a BTreeMap<String, CanonicalJsonValue>>,
+		E: IntoIterator<Item = &'a BTreeMap<String, CanonicalJsonValue>> + Send,
 	{
 		let mut server_key_ids = HashMap::new();
 		for event in events {

@@ -18,7 +18,7 @@ use crate::{debug_error, debug_warn, services, Error, Result};
 #[tracing::instrument(skip_all, name = "send")]
 pub async fn send<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	if !services().globals.allow_federation() {
 		return Err(Error::bad_config("Federation is disabled."));
@@ -33,7 +33,7 @@ async fn execute<T>(
 	client: &Client, dest: &ServerName, actual: &ActualDest, request: Request,
 ) -> Result<T::IncomingResponse>
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	let method = request.method().clone();
 	let url = request.url().clone();
@@ -50,7 +50,7 @@ where
 
 async fn prepare<T>(dest: &ServerName, actual: &ActualDest, req: T) -> Result<Request>
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_5];
 
@@ -72,7 +72,7 @@ async fn handle_response<T>(
 	dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url, mut response: Response,
 ) -> Result<T::IncomingResponse>
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	trace!("Received response from {} for {} with {}", actual.string, url, response.url());
 	let status = response.status();
@@ -121,7 +121,7 @@ fn handle_error<T>(
 	_dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url, mut e: reqwest::Error,
 ) -> Result<T::IncomingResponse>
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	if e.is_timeout() || e.is_connect() {
 		e = e.without_url();
@@ -144,7 +144,7 @@ where
 
 fn sign_request<T>(dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
 where
-	T: OutgoingRequest + Debug,
+	T: OutgoingRequest + Debug + Send,
 {
 	let mut req_map = serde_json::Map::new();
 	if !http_request.body().is_empty() {

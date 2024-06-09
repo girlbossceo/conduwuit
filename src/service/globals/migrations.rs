@@ -528,15 +528,20 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 
 		#[cfg(feature = "sha256_media")]
 		{
+			use std::path::PathBuf;
 			if services().globals.database_version()? < 14 && cfg!(feature = "sha256_media") {
 				warn!("sha256_media feature flag is enabled, migrating legacy base64 file names to sha256 file names");
 				// Move old media files to new names
+				let mut changes = Vec::<(PathBuf, PathBuf)>::new();
 				for (key, _) in db.mediaid_file.iter() {
 					let old_path = services().globals.get_media_file(&key);
 					debug!("Old file path: {old_path:?}");
 					let path = services().globals.get_media_file_new(&key);
 					debug!("New file path: {path:?}");
-					// move the file to the new location
+					changes.push((old_path, path));
+				}
+				// move the file to the new location
+				for (old_path, path) in changes {
 					if old_path.exists() {
 						tokio::fs::rename(&old_path, &path).await?;
 					}

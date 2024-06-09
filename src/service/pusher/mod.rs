@@ -47,7 +47,7 @@ impl Service {
 	#[tracing::instrument(skip(self, dest, request))]
 	pub async fn send_request<T>(&self, dest: &str, request: T) -> Result<T::IncomingResponse>
 	where
-		T: OutgoingRequest + Debug,
+		T: OutgoingRequest + Debug + Send,
 	{
 		const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
 
