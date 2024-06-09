@@ -10,13 +10,13 @@ use conduit::{debug_info, debug_warn};
 use database::KeyValueDatabase;
 use itertools::Itertools;
 use ruma::{
-	events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
+	events::{push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType},
 	push::Ruleset,
 	EventId, OwnedRoomId, RoomId, UserId,
 };
 use tracing::{debug, error, info, warn};
 
-use crate::{services, utils, Config, Error, Result};
+use crate::{globals::data::Data, services, utils, Config, Error, Result};
 
 pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
@@ -555,6 +555,9 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 		{
 			warn!("Fixing bad double separator in state_cache roomuserid_joined");
 			let mut iter_count: usize = 0;
+
+			let _cork = db.cork();
+
 			for (mut key, value) in db.roomuserid_joined.iter() {
 				iter_count = iter_count.saturating_add(1);
 				debug_info!(%iter_count);
@@ -575,8 +578,99 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 				}
 			}
 
+			db.cleanup()?;
+
+			warn!("Finished fixing");
+
 			db.global
 				.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
+		}
+
+		if db
+			.global
+			.get(b"retroactively_fix_bad_data_from_roomuserid_joined")?
+			.is_none()
+		{
+			warn!("Retroactively fixing bad data from broken roomuserid_joined");
+
+			let room_ids = services()
+				.rooms
+				.metadata
+				.iter_ids()
+				.filter_map(Result::ok)
+				.collect_vec();
+
+			let _cork = db.cork();
+
+			for room_id in room_ids.clone() {
+				debug_info!("Fixing room {room_id}");
+
+				let users_in_room = services()
+					.rooms
+					.state_cache
+					.room_members(&room_id)
+					.filter_map(Result::ok)
+					.collect_vec();
+
+				let joined_members = users_in_room
+					.iter()
+					.filter(|user_id| {
+						services()
+							.rooms
+							.state_accessor
+							.get_member(&room_id, user_id)
+							.unwrap_or(None)
+							.map_or(false, |membership| membership.membership == MembershipState::Join)
+					})
+					.collect_vec();
+
+				let non_joined_members = users_in_room
+					.iter()
+					.filter(|user_id| {
+						services()
+							.rooms
+							.state_accessor
+							.get_member(&room_id, user_id)
+							.unwrap_or(None)
+							.map_or(false, |membership| {
+								membership.membership == MembershipState::Leave
+									|| membership.membership == MembershipState::Ban
+							})
+					})
+					.collect_vec();
+
+				for user_id in joined_members {
+					debug_info!("User is joined, marking as joined");
+					services()
+						.rooms
+						.state_cache
+						.mark_as_joined(user_id, &room_id)?;
+				}
+
+				for user_id in non_joined_members {
+					debug_info!("User is left or banned, marking as left");
+					services()
+						.rooms
+						.state_cache
+						.mark_as_left(user_id, &room_id)?;
+				}
+			}
+
+			for room_id in room_ids {
+				debug_info!(
+					"Updating joined count for room {room_id} to fix servers in room after correcting membership \
+					 states"
+				);
+
+				services().rooms.state_cache.update_joined_count(&room_id)?;
+			}
+
+			db.cleanup()?;
+
+			warn!("Finished fixing");
+
+			db.global
+				.insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
 		}
 
 		assert_eq!(
@@ -648,6 +742,8 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 
 		db.global
 			.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
+		db.global
+			.insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
 
 		// Create the admin room and server user on first run
 		services().admin.create_admin_room().await?;

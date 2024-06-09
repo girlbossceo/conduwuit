@@ -217,6 +217,22 @@ impl Service {
 		self.db.appservice_in_room(room_id, appservice)
 	}
 
+	/// Direct DB function to directly mark a user as left. It is not
+	/// recommended to use this directly. You most likely should use
+	/// `update_membership` instead
+	#[tracing::instrument(skip(self))]
+	pub fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+		self.db.mark_as_left(user_id, room_id)
+	}
+
+	/// Direct DB function to directly mark a user as joined. It is not
+	/// recommended to use this directly. You most likely should use
+	/// `update_membership` instead
+	#[tracing::instrument(skip(self))]
+	pub fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
+		self.db.mark_as_joined(user_id, room_id)
+	}
+
 	/// Makes a user forget a room.
 	#[tracing::instrument(skip(self))]
 	pub fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> { self.db.forget(room_id, user_id) }

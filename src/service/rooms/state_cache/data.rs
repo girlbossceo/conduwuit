@@ -130,14 +130,7 @@ impl Data for KeyValueDatabase {
 		self.userroomid_leftstate.remove(&userroom_id)?;
 		self.roomuserid_leftcount.remove(&roomuser_id)?;
 
-		if self.roomuserid_joined.scan_prefix(roomid.clone()).count() == 0
-			&& self
-				.roomuserid_invitecount
-				.scan_prefix(roomid.clone())
-				.count() == 0
-		{
-			self.roomid_inviteviaservers.remove(&roomid)?;
-		}
+		self.roomid_inviteviaservers.remove(&roomid)?;
 
 		Ok(())
 	}
@@ -206,14 +199,7 @@ impl Data for KeyValueDatabase {
 		self.userroomid_invitestate.remove(&userroom_id)?;
 		self.roomuserid_invitecount.remove(&roomuser_id)?;
 
-		if self.roomuserid_joined.scan_prefix(roomid.clone()).count() == 0
-			&& self
-				.roomuserid_invitecount
-				.scan_prefix(roomid.clone())
-				.count() == 0
-		{
-			self.roomid_inviteviaservers.remove(&roomid)?;
-		}
+		self.roomid_inviteviaservers.remove(&roomid)?;
 
 		Ok(())
 	}
@@ -654,8 +640,7 @@ impl Data for KeyValueDatabase {
 
 	#[tracing::instrument(skip(self))]
 	fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
-		let mut key = room_id.as_bytes().to_vec();
-		key.push(0xFF);
+		let key = room_id.as_bytes().to_vec();
 
 		self.roomid_inviteviaservers
 			.get(&key)?
