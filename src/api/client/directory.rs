@@ -13,7 +13,6 @@ use ruma::{
 			avatar::RoomAvatarEventContent,
 			canonical_alias::RoomCanonicalAliasEventContent,
 			create::RoomCreateEventContent,
-			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			topic::RoomTopicEventContent,
 		},
@@ -264,12 +263,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 				guest_can_join: services()
 					.rooms
 					.state_accessor
-					.room_state_get(&room_id, &StateEventType::RoomGuestAccess, "")?
-					.map_or(Ok(false), |s| {
-						serde_json::from_str(s.content.get())
-							.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
-							.map_err(|_| Error::bad_database("Invalid room guest access event in database."))
-					})?,
+					.guest_can_join(&room_id)?,
 				avatar_url: services()
 					.rooms
 					.state_accessor

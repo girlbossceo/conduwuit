@@ -17,7 +17,6 @@ use ruma::{
 			avatar::RoomAvatarEventContent,
 			canonical_alias::RoomCanonicalAliasEventContent,
 			create::RoomCreateEventContent,
-			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent, RoomMembership},
 			topic::RoomTopicEventContent,
 		},
@@ -591,7 +590,7 @@ impl Service {
 				})
 				.unwrap_or(None),
 			world_readable: services().rooms.state_accessor.is_world_readable(room_id)?,
-			guest_can_join: guest_can_join(room_id)?,
+			guest_can_join: services().rooms.state_accessor.guest_can_join(room_id)?,
 			avatar_url: services()
                 .rooms
                 .state_accessor
@@ -845,19 +844,6 @@ fn is_accessable_child_recurse(
 		// If you need to go up 10 parents, we just assume it is inaccessable
 		Ok(false)
 	}
-}
-
-/// Checks if guests are able to join a given room
-fn guest_can_join(room_id: &RoomId) -> Result<bool, Error> {
-	services()
-		.rooms
-		.state_accessor
-		.room_state_get(room_id, &StateEventType::RoomGuestAccess, "")?
-		.map_or(Ok(false), |s| {
-			serde_json::from_str(s.content.get())
-				.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
-				.map_err(|_| Error::bad_database("Invalid room guest access event in database."))
-		})
 }
 
 /// Returns the join rule for a given room

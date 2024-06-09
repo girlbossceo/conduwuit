@@ -10,6 +10,7 @@ use ruma::{
 	events::{
 		room::{
 			avatar::RoomAvatarEventContent,
+			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 			name::RoomNameEventContent,
@@ -304,8 +305,7 @@ impl Service {
 
 	/// Checks if guests are able to view room content without joining
 	pub fn is_world_readable(&self, room_id: &RoomId) -> Result<bool, Error> {
-		Ok(self
-			.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
+		self.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
 			.map_or(Ok(false), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| {
@@ -319,6 +319,15 @@ impl Service {
 						Error::bad_database("Invalid room history visibility event in database.")
 					})
 			})
-			.unwrap_or(false))
+	}
+
+	/// Checks if guests are able to join a given room
+	pub fn guest_can_join(&self, room_id: &RoomId) -> Result<bool, Error> {
+		self.room_state_get(room_id, &StateEventType::RoomGuestAccess, "")?
+			.map_or(Ok(false), |s| {
+				serde_json::from_str(s.content.get())
+					.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
+					.map_err(|_| Error::bad_database("Invalid room guest access event in database."))
+			})
 	}
 }
