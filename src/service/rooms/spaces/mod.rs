@@ -233,7 +233,7 @@ impl Arena {
 }
 
 // Note: perhaps use some better form of token rather than just room count
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct PagnationToken {
 	pub skip: UInt,
 	pub limit: UInt,
