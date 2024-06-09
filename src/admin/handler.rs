@@ -81,7 +81,8 @@ async fn handle_event(event: AdminRoomEvent, admin_room: OwnedRoomId, server_use
 	let (mut message_content, reply) = match event {
 		AdminRoomEvent::SendMessage(content) => (content, None),
 		AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
-			(process_admin_message(room_message).await, Some(reply_id))
+			// This future is ~8 KiB so it's better to start it off the stack.
+			(Box::pin(process_admin_message(room_message)).await, Some(reply_id))
 		},
 	};
 
