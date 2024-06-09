@@ -30,7 +30,7 @@ use ruma::{
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::RwLock;
+use tokio::sync::{MutexGuard, RwLock};
 use tracing::{debug, error, info, trace, warn};
 
 use super::get_alias_helper;
@@ -627,7 +627,7 @@ pub(crate) async fn joined_members_route(
 
 pub async fn join_room_by_id_helper(
 	sender_user: Option<&UserId>, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>,
+	third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = sender_user.expect("user is authenticated");
 
@@ -655,27 +655,468 @@ pub async fn join_room_by_id_helper(
 		.state_cache
 		.server_in_room(services().globals.server_name(), room_id)?
 	{
-		info!("Joining {room_id} over federation.");
+		join_room_by_id_helper_remote(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
+	} else {
+		join_room_by_id_helper_local(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
+	}
+}
 
+async fn join_room_by_id_helper_remote(
+	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: MutexGuard<'_, ()>,
+) -> Result<join_room_by_id::v3::Response> {
+	info!("Joining {room_id} over federation.");
+
+	let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
+
+	info!("make_join finished");
+
+	let room_version_id = match make_join_response.room_version {
+		Some(room_version)
+			if services()
+				.globals
+				.supported_room_versions()
+				.contains(&room_version) =>
+		{
+			room_version
+		},
+		_ => return Err(Error::BadServerResponse("Room version is not supported")),
+	};
+
+	let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
+		.map_err(|_| Error::BadServerResponse("Invalid make_join event json received from server."))?;
+
+	let join_authorized_via_users_server = join_event_stub
+		.get("content")
+		.map(|s| {
+			s.as_object()?
+				.get("join_authorised_via_users_server")?
+				.as_str()
+		})
+		.and_then(|s| OwnedUserId::try_from(s.unwrap_or_default()).ok());
+
+	// TODO: Is origin needed?
+	join_event_stub.insert(
+		"origin".to_owned(),
+		CanonicalJsonValue::String(services().globals.server_name().as_str().to_owned()),
+	);
+	join_event_stub.insert(
+		"origin_server_ts".to_owned(),
+		CanonicalJsonValue::Integer(
+			utils::millis_since_unix_epoch()
+				.try_into()
+				.expect("Timestamp is valid js_int value"),
+		),
+	);
+	join_event_stub.insert(
+		"content".to_owned(),
+		to_canonical_value(RoomMemberEventContent {
+			membership: MembershipState::Join,
+			displayname: services().users.displayname(sender_user)?,
+			avatar_url: services().users.avatar_url(sender_user)?,
+			is_direct: None,
+			third_party_invite: None,
+			blurhash: services().users.blurhash(sender_user)?,
+			reason,
+			join_authorized_via_users_server: join_authorized_via_users_server.clone(),
+		})
+		.expect("event is valid, we just created it"),
+	);
+
+	// We keep the "event_id" in the pdu only in v1 or
+	// v2 rooms
+	match room_version_id {
+		RoomVersionId::V1 | RoomVersionId::V2 => {},
+		_ => {
+			join_event_stub.remove("event_id");
+		},
+	};
+
+	// In order to create a compatible ref hash (EventID) the `hashes` field needs
+	// to be present
+	ruma::signatures::hash_and_sign_event(
+		services().globals.server_name().as_str(),
+		services().globals.keypair(),
+		&mut join_event_stub,
+		&room_version_id,
+	)
+	.expect("event is valid, we just created it");
+
+	// Generate event id
+	let event_id = format!(
+		"${}",
+		ruma::signatures::reference_hash(&join_event_stub, &room_version_id)
+			.expect("ruma can calculate reference hashes")
+	);
+	let event_id = <&EventId>::try_from(event_id.as_str()).expect("ruma's reference hashes are valid event ids");
+
+	// Add event_id back
+	join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
+
+	// It has enough fields to be called a proper event now
+	let mut join_event = join_event_stub;
+
+	info!("Asking {remote_server} for send_join in room {room_id}");
+	let send_join_response = services()
+		.sending
+		.send_federation_request(
+			&remote_server,
+			federation::membership::create_join_event::v2::Request {
+				room_id: room_id.to_owned(),
+				event_id: event_id.to_owned(),
+				pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+				omit_members: false,
+			},
+		)
+		.await?;
+
+	info!("send_join finished");
+
+	if join_authorized_via_users_server.is_some() {
+		match &room_version_id {
+			RoomVersionId::V1
+			| RoomVersionId::V2
+			| RoomVersionId::V3
+			| RoomVersionId::V4
+			| RoomVersionId::V5
+			| RoomVersionId::V6
+			| RoomVersionId::V7 => {
+				warn!(
+					"Found `join_authorised_via_users_server` but room {} is version {}. Ignoring.",
+					room_id, &room_version_id
+				);
+			},
+			// only room versions 8 and above using `join_authorized_via_users_server` (restricted joins) need to
+			// validate and send signatures
+			RoomVersionId::V8 | RoomVersionId::V9 | RoomVersionId::V10 | RoomVersionId::V11 => {
+				if let Some(signed_raw) = &send_join_response.room_state.event {
+					info!(
+						"There is a signed event. This room is probably using restricted joins. Adding signature to \
+						 our event"
+					);
+					let Ok((signed_event_id, signed_value)) = gen_event_id_canonical_json(signed_raw, &room_version_id)
+					else {
+						// Event could not be converted to canonical json
+						return Err(Error::BadRequest(
+							ErrorKind::InvalidParam,
+							"Could not convert event to canonical json.",
+						));
+					};
+
+					if signed_event_id != event_id {
+						return Err(Error::BadRequest(
+							ErrorKind::InvalidParam,
+							"Server sent event with wrong event id",
+						));
+					}
+
+					match signed_value["signatures"]
+						.as_object()
+						.ok_or(Error::BadRequest(
+							ErrorKind::InvalidParam,
+							"Server sent invalid signatures type",
+						))
+						.and_then(|e| {
+							e.get(remote_server.as_str())
+								.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Server did not send its signature"))
+						}) {
+						Ok(signature) => {
+							join_event
+								.get_mut("signatures")
+								.expect("we created a valid pdu")
+								.as_object_mut()
+								.expect("we created a valid pdu")
+								.insert(remote_server.to_string(), signature.clone());
+						},
+						Err(e) => {
+							warn!(
+								"Server {remote_server} sent invalid signature in sendjoin signatures for event \
+								 {signed_value:?}: {e:?}",
+							);
+						},
+					}
+				}
+			},
+			_ => {
+				warn!(
+					"Unexpected or unsupported room version {} for room {}",
+					&room_version_id, room_id
+				);
+				return Err(Error::BadRequest(
+					ErrorKind::BadJson,
+					"Unexpected or unsupported room version found",
+				));
+			},
+		}
+	}
+
+	services().rooms.short.get_or_create_shortroomid(room_id)?;
+
+	info!("Parsing join event");
+	let parsed_join_pdu = PduEvent::from_id_val(event_id, join_event.clone())
+		.map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
+
+	let mut state = HashMap::new();
+	let pub_key_map = RwLock::new(BTreeMap::new());
+
+	info!("Fetching join signing keys");
+	services()
+		.rooms
+		.event_handler
+		.fetch_join_signing_keys(&send_join_response, &room_version_id, &pub_key_map)
+		.await?;
+
+	info!("Going through send_join response room_state");
+	for result in send_join_response
+		.room_state
+		.state
+		.iter()
+		.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
+	{
+		let Ok((event_id, value)) = result.await else {
+			continue;
+		};
+
+		let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
+			warn!("Invalid PDU in send_join response: {} {:?}", e, value);
+			Error::BadServerResponse("Invalid PDU in send_join response.")
+		})?;
+
+		services()
+			.rooms
+			.outlier
+			.add_pdu_outlier(&event_id, &value)?;
+		if let Some(state_key) = &pdu.state_key {
+			let shortstatekey = services()
+				.rooms
+				.short
+				.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)?;
+			state.insert(shortstatekey, pdu.event_id.clone());
+		}
+	}
+
+	info!("Going through send_join response auth_chain");
+	for result in send_join_response
+		.room_state
+		.auth_chain
+		.iter()
+		.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
+	{
+		let Ok((event_id, value)) = result.await else {
+			continue;
+		};
+
+		services()
+			.rooms
+			.outlier
+			.add_pdu_outlier(&event_id, &value)?;
+	}
+
+	debug!("Running send_join auth check");
+
+	let auth_check = state_res::event_auth::auth_check(
+		&state_res::RoomVersion::new(&room_version_id).expect("room version is supported"),
+		&parsed_join_pdu,
+		None::<PduEvent>, // TODO: third party invite
+		|k, s| {
+			services()
+				.rooms
+				.timeline
+				.get_pdu(
+					state.get(
+						&services()
+							.rooms
+							.short
+							.get_or_create_shortstatekey(&k.to_string().into(), s)
+							.ok()?,
+					)?,
+				)
+				.ok()?
+		},
+	)
+	.map_err(|e| {
+		warn!("Auth check failed: {e}");
+		Error::BadRequest(ErrorKind::forbidden(), "Auth check failed")
+	})?;
+
+	if !auth_check {
+		return Err(Error::BadRequest(ErrorKind::forbidden(), "Auth check failed"));
+	}
+
+	info!("Saving state from send_join");
+	let (statehash_before_join, new, removed) = services().rooms.state_compressor.save_state(
+		room_id,
+		Arc::new(
+			state
+				.into_iter()
+				.map(|(k, id)| {
+					services()
+						.rooms
+						.state_compressor
+						.compress_state_event(k, &id)
+				})
+				.collect::<Result<_>>()?,
+		),
+	)?;
+
+	services()
+		.rooms
+		.state
+		.force_state(room_id, statehash_before_join, new, removed, &state_lock)
+		.await?;
+
+	info!("Updating joined counts for new room");
+	services().rooms.state_cache.update_joined_count(room_id)?;
+
+	// We append to state before appending the pdu, so we don't have a moment in
+	// time with the pdu without it's state. This is okay because append_pdu can't
+	// fail.
+	let statehash_after_join = services().rooms.state.append_to_state(&parsed_join_pdu)?;
+
+	info!("Appending new room join event");
+	services()
+		.rooms
+		.timeline
+		.append_pdu(
+			&parsed_join_pdu,
+			join_event,
+			vec![(*parsed_join_pdu.event_id).to_owned()],
+			&state_lock,
+		)
+		.await?;
+
+	info!("Setting final room state for new room");
+	// We set the room state after inserting the pdu, so that we never have a moment
+	// in time where events in the current room state do not exist
+	services()
+		.rooms
+		.state
+		.set_room_state(room_id, statehash_after_join, &state_lock)?;
+
+	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
+}
+
+async fn join_room_by_id_helper_local(
+	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: MutexGuard<'_, ()>,
+) -> Result<join_room_by_id::v3::Response> {
+	info!("We can join locally");
+
+	let join_rules_event =
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+
+	let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
+		.as_ref()
+		.map(|join_rules_event| {
+			serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
+				warn!("Invalid join rules event: {}", e);
+				Error::bad_database("Invalid join rules event in db.")
+			})
+		})
+		.transpose()?;
+
+	let restriction_rooms = match join_rules_event_content {
+		Some(RoomJoinRulesEventContent {
+			join_rule: JoinRule::Restricted(restricted) | JoinRule::KnockRestricted(restricted),
+		}) => restricted
+			.allow
+			.into_iter()
+			.filter_map(|a| match a {
+				AllowRule::RoomMembership(r) => Some(r.room_id),
+				_ => None,
+			})
+			.collect(),
+		_ => Vec::new(),
+	};
+
+	let local_members = services()
+		.rooms
+		.state_cache
+		.room_members(room_id)
+		.filter_map(Result::ok)
+		.filter(|user| user_is_local(user))
+		.collect::<Vec<OwnedUserId>>();
+
+	let mut authorized_user: Option<OwnedUserId> = None;
+
+	if restriction_rooms.iter().any(|restriction_room_id| {
+		services()
+			.rooms
+			.state_cache
+			.is_joined(sender_user, restriction_room_id)
+			.unwrap_or(false)
+	}) {
+		for user in local_members {
+			if services()
+				.rooms
+				.state_accessor
+				.user_can_invite(room_id, &user, sender_user, &state_lock)
+				.await
+				.unwrap_or(false)
+			{
+				authorized_user = Some(user);
+				break;
+			}
+		}
+	}
+
+	let event = RoomMemberEventContent {
+		membership: MembershipState::Join,
+		displayname: services().users.displayname(sender_user)?,
+		avatar_url: services().users.avatar_url(sender_user)?,
+		is_direct: None,
+		third_party_invite: None,
+		blurhash: services().users.blurhash(sender_user)?,
+		reason: reason.clone(),
+		join_authorized_via_users_server: authorized_user,
+	};
+
+	// Try normal join first
+	let error = match services()
+		.rooms
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder {
+				event_type: TimelineEventType::RoomMember,
+				content: to_raw_value(&event).expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: Some(sender_user.to_string()),
+				redacts: None,
+			},
+			sender_user,
+			room_id,
+			&state_lock,
+		)
+		.await
+	{
+		Ok(_event_id) => return Ok(join_room_by_id::v3::Response::new(room_id.to_owned())),
+		Err(e) => e,
+	};
+
+	if !restriction_rooms.is_empty()
+		&& servers
+			.iter()
+			.any(|server_name| !server_is_ours(server_name))
+	{
+		info!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
 		let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
 
-		info!("make_join finished");
-
 		let room_version_id = match make_join_response.room_version {
-			Some(room_version)
+			Some(room_version_id)
 				if services()
 					.globals
 					.supported_room_versions()
-					.contains(&room_version) =>
+					.contains(&room_version_id) =>
 			{
-				room_version
+				room_version_id
 			},
 			_ => return Err(Error::BadServerResponse("Room version is not supported")),
 		};
-
 		let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
 			.map_err(|_| Error::BadServerResponse("Invalid make_join event json received from server."))?;
-
 		let join_authorized_via_users_server = join_event_stub
 			.get("content")
 			.map(|s| {
@@ -684,7 +1125,6 @@ pub async fn join_room_by_id_helper(
 					.as_str()
 			})
 			.and_then(|s| OwnedUserId::try_from(s.unwrap_or_default()).ok());
-
 		// TODO: Is origin needed?
 		join_event_stub.insert(
 			"origin".to_owned(),
@@ -708,7 +1148,7 @@ pub async fn join_room_by_id_helper(
 				third_party_invite: None,
 				blurhash: services().users.blurhash(sender_user)?,
 				reason,
-				join_authorized_via_users_server: join_authorized_via_users_server.clone(),
+				join_authorized_via_users_server,
 			})
 			.expect("event is valid, we just created it"),
 		);
@@ -744,9 +1184,8 @@ pub async fn join_room_by_id_helper(
 		join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
 
 		// It has enough fields to be called a proper event now
-		let mut join_event = join_event_stub;
+		let join_event = join_event_stub;
 
-		info!("Asking {remote_server} for send_join in room {room_id}");
 		let send_join_response = services()
 			.sending
 			.send_federation_request(
@@ -760,470 +1199,39 @@ pub async fn join_room_by_id_helper(
 			)
 			.await?;
 
-		info!("send_join finished");
+		if let Some(signed_raw) = send_join_response.room_state.event {
+			let Ok((signed_event_id, signed_value)) = gen_event_id_canonical_json(&signed_raw, &room_version_id) else {
+				// Event could not be converted to canonical json
+				return Err(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Could not convert event to canonical json.",
+				));
+			};
 
-		if join_authorized_via_users_server.is_some() {
-			match &room_version_id {
-				RoomVersionId::V1
-				| RoomVersionId::V2
-				| RoomVersionId::V3
-				| RoomVersionId::V4
-				| RoomVersionId::V5
-				| RoomVersionId::V6
-				| RoomVersionId::V7 => {
-					warn!(
-						"Found `join_authorised_via_users_server` but room {} is version {}. Ignoring.",
-						room_id, &room_version_id
-					);
-				},
-				// only room versions 8 and above using `join_authorized_via_users_server` (restricted joins) need to
-				// validate and send signatures
-				RoomVersionId::V8 | RoomVersionId::V9 | RoomVersionId::V10 | RoomVersionId::V11 => {
-					if let Some(signed_raw) = &send_join_response.room_state.event {
-						info!(
-							"There is a signed event. This room is probably using restricted joins. Adding signature \
-							 to our event"
-						);
-						let Ok((signed_event_id, signed_value)) =
-							gen_event_id_canonical_json(signed_raw, &room_version_id)
-						else {
-							// Event could not be converted to canonical json
-							return Err(Error::BadRequest(
-								ErrorKind::InvalidParam,
-								"Could not convert event to canonical json.",
-							));
-						};
-
-						if signed_event_id != event_id {
-							return Err(Error::BadRequest(
-								ErrorKind::InvalidParam,
-								"Server sent event with wrong event id",
-							));
-						}
-
-						match signed_value["signatures"]
-							.as_object()
-							.ok_or(Error::BadRequest(
-								ErrorKind::InvalidParam,
-								"Server sent invalid signatures type",
-							))
-							.and_then(|e| {
-								e.get(remote_server.as_str()).ok_or(Error::BadRequest(
-									ErrorKind::InvalidParam,
-									"Server did not send its signature",
-								))
-							}) {
-							Ok(signature) => {
-								join_event
-									.get_mut("signatures")
-									.expect("we created a valid pdu")
-									.as_object_mut()
-									.expect("we created a valid pdu")
-									.insert(remote_server.to_string(), signature.clone());
-							},
-							Err(e) => {
-								warn!(
-									"Server {remote_server} sent invalid signature in sendjoin signatures for event \
-									 {signed_value:?}: {e:?}",
-								);
-							},
-						}
-					}
-				},
-				_ => {
-					warn!(
-						"Unexpected or unsupported room version {} for room {}",
-						&room_version_id, room_id
-					);
-					return Err(Error::BadRequest(
-						ErrorKind::BadJson,
-						"Unexpected or unsupported room version found",
-					));
-				},
+			if signed_event_id != event_id {
+				return Err(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Server sent event with wrong event id",
+				));
 			}
-		}
 
-		services().rooms.short.get_or_create_shortroomid(room_id)?;
-
-		info!("Parsing join event");
-		let parsed_join_pdu = PduEvent::from_id_val(event_id, join_event.clone())
-			.map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
-
-		let mut state = HashMap::new();
-		let pub_key_map = RwLock::new(BTreeMap::new());
-
-		info!("Fetching join signing keys");
-		services()
-			.rooms
-			.event_handler
-			.fetch_join_signing_keys(&send_join_response, &room_version_id, &pub_key_map)
-			.await?;
-
-		info!("Going through send_join response room_state");
-		for result in send_join_response
-			.room_state
-			.state
-			.iter()
-			.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
-		{
-			let Ok((event_id, value)) = result.await else {
-				continue;
-			};
-
-			let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
-				warn!("Invalid PDU in send_join response: {} {:?}", e, value);
-				Error::BadServerResponse("Invalid PDU in send_join response.")
-			})?;
-
+			drop(state_lock);
+			let pub_key_map = RwLock::new(BTreeMap::new());
 			services()
 				.rooms
-				.outlier
-				.add_pdu_outlier(&event_id, &value)?;
-			if let Some(state_key) = &pdu.state_key {
-				let shortstatekey = services()
-					.rooms
-					.short
-					.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)?;
-				state.insert(shortstatekey, pdu.event_id.clone());
-			}
-		}
-
-		info!("Going through send_join response auth_chain");
-		for result in send_join_response
-			.room_state
-			.auth_chain
-			.iter()
-			.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
-		{
-			let Ok((event_id, value)) = result.await else {
-				continue;
-			};
-
-			services()
-				.rooms
-				.outlier
-				.add_pdu_outlier(&event_id, &value)?;
-		}
-
-		debug!("Running send_join auth check");
-
-		let auth_check = state_res::event_auth::auth_check(
-			&state_res::RoomVersion::new(&room_version_id).expect("room version is supported"),
-			&parsed_join_pdu,
-			None::<PduEvent>, // TODO: third party invite
-			|k, s| {
-				services()
-					.rooms
-					.timeline
-					.get_pdu(
-						state.get(
-							&services()
-								.rooms
-								.short
-								.get_or_create_shortstatekey(&k.to_string().into(), s)
-								.ok()?,
-						)?,
-					)
-					.ok()?
-			},
-		)
-		.map_err(|e| {
-			warn!("Auth check failed: {e}");
-			Error::BadRequest(ErrorKind::forbidden(), "Auth check failed")
-		})?;
-
-		if !auth_check {
-			return Err(Error::BadRequest(ErrorKind::forbidden(), "Auth check failed"));
-		}
-
-		info!("Saving state from send_join");
-		let (statehash_before_join, new, removed) = services().rooms.state_compressor.save_state(
-			room_id,
-			Arc::new(
-				state
-					.into_iter()
-					.map(|(k, id)| {
-						services()
-							.rooms
-							.state_compressor
-							.compress_state_event(k, &id)
-					})
-					.collect::<Result<_>>()?,
-			),
-		)?;
-
-		services()
-			.rooms
-			.state
-			.force_state(room_id, statehash_before_join, new, removed, &state_lock)
-			.await?;
-
-		info!("Updating joined counts for new room");
-		services().rooms.state_cache.update_joined_count(room_id)?;
-
-		// We append to state before appending the pdu, so we don't have a moment in
-		// time with the pdu without it's state. This is okay because append_pdu can't
-		// fail.
-		let statehash_after_join = services().rooms.state.append_to_state(&parsed_join_pdu)?;
-
-		info!("Appending new room join event");
-		services()
-			.rooms
-			.timeline
-			.append_pdu(
-				&parsed_join_pdu,
-				join_event,
-				vec![(*parsed_join_pdu.event_id).to_owned()],
-				&state_lock,
-			)
-			.await?;
-
-		info!("Setting final room state for new room");
-		// We set the room state after inserting the pdu, so that we never have a moment
-		// in time where events in the current room state do not exist
-		services()
-			.rooms
-			.state
-			.set_room_state(room_id, statehash_after_join, &state_lock)?;
-	} else {
-		info!("We can join locally");
-
-		let join_rules_event =
-			services()
-				.rooms
-				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
-
-		let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
-			.as_ref()
-			.map(|join_rules_event| {
-				serde_json::from_str(join_rules_event.content.get()).map_err(|e| {
-					warn!("Invalid join rules event: {}", e);
-					Error::bad_database("Invalid join rules event in db.")
-				})
-			})
-			.transpose()?;
-
-		let restriction_rooms = match join_rules_event_content {
-			Some(RoomJoinRulesEventContent {
-				join_rule: JoinRule::Restricted(restricted) | JoinRule::KnockRestricted(restricted),
-			}) => restricted
-				.allow
-				.into_iter()
-				.filter_map(|a| match a {
-					AllowRule::RoomMembership(r) => Some(r.room_id),
-					_ => None,
-				})
-				.collect(),
-			_ => Vec::new(),
-		};
-
-		let local_members = services()
-			.rooms
-			.state_cache
-			.room_members(room_id)
-			.filter_map(Result::ok)
-			.filter(|user| user_is_local(user))
-			.collect::<Vec<OwnedUserId>>();
-
-		let mut authorized_user: Option<OwnedUserId> = None;
-
-		if restriction_rooms.iter().any(|restriction_room_id| {
-			services()
-				.rooms
-				.state_cache
-				.is_joined(sender_user, restriction_room_id)
-				.unwrap_or(false)
-		}) {
-			for user in local_members {
-				if services()
-					.rooms
-					.state_accessor
-					.user_can_invite(room_id, &user, sender_user, &state_lock)
-					.await
-					.unwrap_or(false)
-				{
-					authorized_user = Some(user);
-					break;
-				}
-			}
-		}
-
-		let event = RoomMemberEventContent {
-			membership: MembershipState::Join,
-			displayname: services().users.displayname(sender_user)?,
-			avatar_url: services().users.avatar_url(sender_user)?,
-			is_direct: None,
-			third_party_invite: None,
-			blurhash: services().users.blurhash(sender_user)?,
-			reason: reason.clone(),
-			join_authorized_via_users_server: authorized_user,
-		};
-
-		// Try normal join first
-		let error = match services()
-			.rooms
-			.timeline
-			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomMember,
-					content: to_raw_value(&event).expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(sender_user.to_string()),
-					redacts: None,
-				},
-				sender_user,
-				room_id,
-				&state_lock,
-			)
-			.await
-		{
-			Ok(_event_id) => return Ok(join_room_by_id::v3::Response::new(room_id.to_owned())),
-			Err(e) => e,
-		};
-
-		if !restriction_rooms.is_empty()
-			&& servers
-				.iter()
-				.any(|server_name| !server_is_ours(server_name))
-		{
-			info!(
-				"We couldn't do the join locally, maybe federation can help to satisfy the restricted join \
-				 requirements"
-			);
-			let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
-
-			let room_version_id = match make_join_response.room_version {
-				Some(room_version_id)
-					if services()
-						.globals
-						.supported_room_versions()
-						.contains(&room_version_id) =>
-				{
-					room_version_id
-				},
-				_ => return Err(Error::BadServerResponse("Room version is not supported")),
-			};
-			let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
-				.map_err(|_| Error::BadServerResponse("Invalid make_join event json received from server."))?;
-			let join_authorized_via_users_server = join_event_stub
-				.get("content")
-				.map(|s| {
-					s.as_object()?
-						.get("join_authorised_via_users_server")?
-						.as_str()
-				})
-				.and_then(|s| OwnedUserId::try_from(s.unwrap_or_default()).ok());
-			// TODO: Is origin needed?
-			join_event_stub.insert(
-				"origin".to_owned(),
-				CanonicalJsonValue::String(services().globals.server_name().as_str().to_owned()),
-			);
-			join_event_stub.insert(
-				"origin_server_ts".to_owned(),
-				CanonicalJsonValue::Integer(
-					utils::millis_since_unix_epoch()
-						.try_into()
-						.expect("Timestamp is valid js_int value"),
-				),
-			);
-			join_event_stub.insert(
-				"content".to_owned(),
-				to_canonical_value(RoomMemberEventContent {
-					membership: MembershipState::Join,
-					displayname: services().users.displayname(sender_user)?,
-					avatar_url: services().users.avatar_url(sender_user)?,
-					is_direct: None,
-					third_party_invite: None,
-					blurhash: services().users.blurhash(sender_user)?,
-					reason,
-					join_authorized_via_users_server,
-				})
-				.expect("event is valid, we just created it"),
-			);
-
-			// We keep the "event_id" in the pdu only in v1 or
-			// v2 rooms
-			match room_version_id {
-				RoomVersionId::V1 | RoomVersionId::V2 => {},
-				_ => {
-					join_event_stub.remove("event_id");
-				},
-			};
-
-			// In order to create a compatible ref hash (EventID) the `hashes` field needs
-			// to be present
-			ruma::signatures::hash_and_sign_event(
-				services().globals.server_name().as_str(),
-				services().globals.keypair(),
-				&mut join_event_stub,
-				&room_version_id,
-			)
-			.expect("event is valid, we just created it");
-
-			// Generate event id
-			let event_id = format!(
-				"${}",
-				ruma::signatures::reference_hash(&join_event_stub, &room_version_id)
-					.expect("ruma can calculate reference hashes")
-			);
-			let event_id =
-				<&EventId>::try_from(event_id.as_str()).expect("ruma's reference hashes are valid event ids");
-
-			// Add event_id back
-			join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
-
-			// It has enough fields to be called a proper event now
-			let join_event = join_event_stub;
-
-			let send_join_response = services()
-				.sending
-				.send_federation_request(
-					&remote_server,
-					federation::membership::create_join_event::v2::Request {
-						room_id: room_id.to_owned(),
-						event_id: event_id.to_owned(),
-						pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
-						omit_members: false,
-					},
-				)
+				.event_handler
+				.fetch_required_signing_keys([&signed_value], &pub_key_map)
 				.await?;
-
-			if let Some(signed_raw) = send_join_response.room_state.event {
-				let Ok((signed_event_id, signed_value)) = gen_event_id_canonical_json(&signed_raw, &room_version_id)
-				else {
-					// Event could not be converted to canonical json
-					return Err(Error::BadRequest(
-						ErrorKind::InvalidParam,
-						"Could not convert event to canonical json.",
-					));
-				};
-
-				if signed_event_id != event_id {
-					return Err(Error::BadRequest(
-						ErrorKind::InvalidParam,
-						"Server sent event with wrong event id",
-					));
-				}
-
-				drop(state_lock);
-				let pub_key_map = RwLock::new(BTreeMap::new());
-				services()
-					.rooms
-					.event_handler
-					.fetch_required_signing_keys([&signed_value], &pub_key_map)
-					.await?;
-				services()
-					.rooms
-					.event_handler
-					.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true, &pub_key_map)
-					.await?;
-			} else {
-				return Err(error);
-			}
+			services()
+				.rooms
+				.event_handler
+				.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true, &pub_key_map)
+				.await?;
 		} else {
 			return Err(error);
 		}
+	} else {
+		return Err(error);
 	}
 
 	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
