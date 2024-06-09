@@ -1042,8 +1042,7 @@ fn load_timeline(
 	sender_user: &UserId, room_id: &RoomId, roomsincecount: PduCount, limit: u64,
 ) -> Result<(Vec<(PduCount, PduEvent)>, bool), Error> {
 	let timeline_pdus;
-	let limited;
-	if services()
+	let limited = if services()
 		.rooms
 		.timeline
 		.last_timeline_count(sender_user, room_id)?
@@ -1073,11 +1072,11 @@ fn load_timeline(
 
 		// They /sync response doesn't always return all messages, so we say the output
 		// is limited unless there are events in non_timeline_pdus
-		limited = non_timeline_pdus.next().is_some();
+		non_timeline_pdus.next().is_some()
 	} else {
 		timeline_pdus = Vec::new();
-		limited = false;
-	}
+		false
+	};
 	Ok((timeline_pdus, limited))
 }
 

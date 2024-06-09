@@ -173,8 +173,7 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 
 	// UIAA
 	let mut uiaainfo;
-	let skip_auth;
-	if services().globals.config.registration_token.is_some() {
+	let skip_auth = if services().globals.config.registration_token.is_some() {
 		// Registration token required
 		uiaainfo = UiaaInfo {
 			flows: vec![AuthFlow {
@@ -185,7 +184,7 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 			session: None,
 			auth_error: None,
 		};
-		skip_auth = body.appservice_info.is_some();
+		body.appservice_info.is_some()
 	} else {
 		// No registration token necessary, but clients must still go through the flow
 		uiaainfo = UiaaInfo {
@@ -197,8 +196,8 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 			session: None,
 			auth_error: None,
 		};
-		skip_auth = body.appservice_info.is_some() || is_guest;
-	}
+		body.appservice_info.is_some() || is_guest
+	};
 
 	if !skip_auth {
 		if let Some(auth) = &body.auth {

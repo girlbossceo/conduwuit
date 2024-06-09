@@ -721,7 +721,6 @@ option_if_let_else = { level = "allow", priority = 1 }               # TODO
 redundant_pub_crate = { level = "allow", priority = 1 }              # TODO
 significant_drop_in_scrutinee = { level = "allow", priority = 1 }    # TODO
 significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
-useless_let_if_seq = { level = "allow", priority = 1 }               # TODO
 
 ###################
 pedantic = "warn"
