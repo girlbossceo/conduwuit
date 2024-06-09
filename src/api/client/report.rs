@@ -104,14 +104,14 @@ fn is_report_valid(
 		));
 	}
 
-	if let Some(true) = score.map(|s| s > int!(0) || s < int!(-100)) {
+	if score.map(|s| s > int!(0) || s < int!(-100)) == Some(true) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Invalid score, must be within 0 to -100",
 		));
 	};
 
-	if let Some(true) = reason.clone().map(|s| s.len() >= 750) {
+	if reason.clone().map(|s| s.len() >= 750) == Some(true) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Reason too long, should be 750 characters or fewer",

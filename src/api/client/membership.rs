@@ -631,7 +631,7 @@ pub async fn join_room_by_id_helper(
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = sender_user.expect("user is authenticated");
 
-	if let Ok(true) = services().rooms.state_cache.is_joined(sender_user, room_id) {
+	if matches!(services().rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
 		info!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
 			room_id: room_id.into(),

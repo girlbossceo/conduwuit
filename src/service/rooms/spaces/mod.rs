@@ -108,7 +108,7 @@ impl Arena {
 			//    whole space tree.
 			//
 			// You should only ever encounter a traversed node when going up through parents
-			while let Some(true) = self.traversed(current) {
+			while self.traversed(current) == Some(true) {
 				if let Some(next) = self.next_sibling(current) {
 					current = next;
 				} else if let Some(parent) = self.parent(current) {
@@ -821,12 +821,15 @@ fn is_accessable_child_recurse(
 			SpaceRoomJoinRule::Restricted => {
 				for room in allowed_room_ids {
 					if let Ok((join_rule, allowed_room_ids)) = get_join_rule(room) {
-						if let Ok(true) = is_accessable_child_recurse(
-							room,
-							&join_rule,
-							identifier,
-							&allowed_room_ids,
-							recurse_num + 1,
+						if matches!(
+							is_accessable_child_recurse(
+								room,
+								&join_rule,
+								identifier,
+								&allowed_room_ids,
+								recurse_num + 1,
+							),
+							Ok(true)
 						) {
 							return Ok(true);
 						}
