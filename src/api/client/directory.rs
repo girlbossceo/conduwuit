@@ -13,7 +13,6 @@ use ruma::{
 			avatar::RoomAvatarEventContent,
 			create::RoomCreateEventContent,
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
-			topic::RoomTopicEventContent,
 		},
 		StateEventType,
 	},
@@ -243,15 +242,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 				topic: services()
 					.rooms
 					.state_accessor
-					.room_state_get(&room_id, &StateEventType::RoomTopic, "")?
-					.map_or(Ok(None), |s| {
-						serde_json::from_str(s.content.get())
-							.map(|c: RoomTopicEventContent| Some(c.topic))
-							.map_err(|e| {
-								error!("Invalid room topic event in database for room {room_id}: {e}");
-								Error::bad_database("Invalid room topic event in database.")
-							})
-					})
+					.get_room_topic(&room_id)
 					.unwrap_or(None),
 				world_readable: services().rooms.state_accessor.is_world_readable(&room_id)?,
 				guest_can_join: services()

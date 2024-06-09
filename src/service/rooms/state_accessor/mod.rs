@@ -15,6 +15,7 @@ use ruma::{
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 			name::RoomNameEventContent,
+			topic::RoomTopicEventContent,
 		},
 		StateEventType,
 	},
@@ -339,6 +340,19 @@ impl Service {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomCanonicalAliasEventContent| c.alias)
 					.map_err(|_| Error::bad_database("Invalid canonical alias event in database."))
+			})
+	}
+
+	/// Gets the room topic
+	pub fn get_room_topic(&self, room_id: &RoomId) -> Result<Option<String>, Error> {
+		self.room_state_get(room_id, &StateEventType::RoomTopic, "")?
+			.map_or(Ok(None), |s| {
+				serde_json::from_str(s.content.get())
+					.map(|c: RoomTopicEventContent| Some(c.topic))
+					.map_err(|e| {
+						error!("Invalid room topic event in database for room {room_id}: {e}");
+						Error::bad_database("Invalid room topic event in database.")
+					})
 			})
 	}
 }
