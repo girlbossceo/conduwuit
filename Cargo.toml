@@ -715,7 +715,6 @@ correctness = "warn"
 nursery = "warn"
 
 ## some sadness
-branches_sharing_code = { level = "allow", priority = 1 }            # TODO
 derive_partial_eq_without_eq = { level = "allow", priority = 1 }     # TODO
 equatable_if_let = { level = "allow", priority = 1 }                 # TODO
 future_not_send = { level = "allow", priority = 1 }                  # TODO

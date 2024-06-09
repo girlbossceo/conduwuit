@@ -91,11 +91,10 @@ impl Service {
 		let mut users = Vec::new();
 		if let Some(userids) = self.db.get_participants(root_id)? {
 			users.extend_from_slice(&userids);
-			users.push(pdu.sender.clone());
 		} else {
 			users.push(root_pdu.sender);
-			users.push(pdu.sender.clone());
 		}
+		users.push(pdu.sender.clone());
 
 		self.db.update_participants(root_id, &users)
 	}

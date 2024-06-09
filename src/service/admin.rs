@@ -529,10 +529,8 @@ impl Service {
             &room_id,
             &state_lock,
         ).await?;
-
-			Ok(())
-		} else {
-			Ok(())
 		}
+
+		Ok(())
 	}
 }

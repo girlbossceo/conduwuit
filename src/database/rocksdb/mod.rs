@@ -182,7 +182,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 
 		let options = BackupEngineOptions::new(path.unwrap())?;
 		let mut engine = BackupEngine::open(&options, &self.env)?;
-		let ret = if self.config.database_backups_to_keep > 0 {
+		if self.config.database_backups_to_keep > 0 {
 			if let Err(e) = engine.create_new_backup_flush(&self.rocks, true) {
 				return Err(Box::new(e));
 			}
@@ -193,10 +193,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 				"Created database backup #{} using {} bytes in {} files",
 				info.backup_id, info.size, info.num_files,
 			);
-			Ok(())
-		} else {
-			Ok(())
-		};
+		}
 
 		if self.config.database_backups_to_keep >= 0 {
 			let keep = u32::try_from(self.config.database_backups_to_keep)?;
@@ -205,7 +202,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			}
 		}
 
-		ret
+		Ok(())
 	}
 
 	fn backup_list(&self) -> Result<String> {
