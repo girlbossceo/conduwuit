@@ -60,12 +60,12 @@ impl Service {
 		let mut futures: SendingFutures<'_> = FuturesUnordered::new();
 		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
 
-		self.initial_transactions(&mut futures, &mut statuses);
+		self.initial_transactions(&futures, &mut statuses);
 		loop {
 			debug_assert!(!receiver.is_closed(), "channel error");
 			tokio::select! {
 				request = receiver.recv_async() => match request {
-					Ok(request) => self.handle_request(request, &mut futures, &mut statuses),
+					Ok(request) => self.handle_request(request, &futures, &mut statuses),
 					Err(_) => return Ok(()),
 				},
 				Some(response) = futures.next() => {
@@ -98,7 +98,7 @@ impl Service {
 	}
 
 	fn handle_response_ok(
-		&self, dest: &Destination, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus,
+		&self, dest: &Destination, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {
 		let _cork = services().globals.db.cork();
 		self.db
@@ -125,7 +125,7 @@ impl Service {
 		}
 	}
 
-	fn handle_request(&self, msg: Msg, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+	fn handle_request(&self, msg: Msg, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
 		let iv = vec![(msg.event, msg.queue_id)];
 		if let Ok(Some(events)) = self.select_events(&msg.dest, iv, statuses) {
 			if !events.is_empty() {
@@ -136,7 +136,7 @@ impl Service {
 		}
 	}
 
-	fn initial_transactions(&self, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+	fn initial_transactions(&self, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
 		let keep = usize::try_from(self.startup_netburst_keep).unwrap_or(usize::MAX);
 		let mut txns = HashMap::<Destination, Vec<SendingEvent>>::new();
 		for (key, dest, event) in self.db.active_requests().filter_map(Result::ok) {
