@@ -15,7 +15,6 @@ use ruma::{
 	events::{
 		room::{
 			avatar::RoomAvatarEventContent,
-			canonical_alias::RoomCanonicalAliasEventContent,
 			create::RoomCreateEventContent,
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent, RoomMembership},
 			topic::RoomTopicEventContent,
@@ -558,12 +557,7 @@ impl Service {
 			canonical_alias: services()
 				.rooms
 				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomCanonicalAlias, "")?
-				.map_or(Ok(None), |s| {
-					serde_json::from_str(s.content.get())
-						.map(|c: RoomCanonicalAliasEventContent| c.alias)
-						.map_err(|_| Error::bad_database("Invalid canonical alias event in database."))
-				})?,
+				.get_canonical_alias(room_id)?,
 			name: services().rooms.state_accessor.get_name(room_id)?,
 			num_joined_members: services()
 				.rooms

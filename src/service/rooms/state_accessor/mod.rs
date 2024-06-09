@@ -10,6 +10,7 @@ use ruma::{
 	events::{
 		room::{
 			avatar::RoomAvatarEventContent,
+			canonical_alias::RoomCanonicalAliasEventContent,
 			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			member::{MembershipState, RoomMemberEventContent},
@@ -17,7 +18,7 @@ use ruma::{
 		},
 		StateEventType,
 	},
-	EventId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
+	EventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::sync::MutexGuard;
@@ -328,6 +329,16 @@ impl Service {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
 					.map_err(|_| Error::bad_database("Invalid room guest access event in database."))
+			})
+	}
+
+	/// Gets the primary alias from canonical alias event
+	pub fn get_canonical_alias(&self, room_id: &RoomId) -> Result<Option<OwnedRoomAliasId>, Error> {
+		self.room_state_get(room_id, &StateEventType::RoomCanonicalAlias, "")?
+			.map_or(Ok(None), |s| {
+				serde_json::from_str(s.content.get())
+					.map(|c: RoomCanonicalAliasEventContent| c.alias)
+					.map_err(|_| Error::bad_database("Invalid canonical alias event in database."))
 			})
 	}
 }
