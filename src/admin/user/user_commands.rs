@@ -1,20 +1,29 @@
-use std::{fmt::Write as _, sync::Arc};
+use std::fmt::Write as _;
 
 use api::client::{join_room_by_id_helper, leave_all_rooms};
 use conduit::utils;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, UserId};
+use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use tracing::{error, info, warn};
 
-use crate::{escape_html, get_room_info, services, user_is_local, Result};
+use crate::{
+	escape_html, get_room_info, services,
+	utils::{parse_active_local_user_id, parse_local_user_id},
+	Result,
+};
 
 const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
 
 pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match services().users.list_local_users() {
 		Ok(users) => {
-			let mut msg = format!("Found {} local user account(s):\n", users.len());
-			msg += &users.join("\n");
-			Ok(RoomMessageEventContent::text_plain(&msg))
+			let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
+			plain_msg += &users.join("\n");
+			plain_msg += "\n```";
+
+			let mut html_msg = format!("<p>Found {} local user account(s):</p><pre><code>", users.len());
+			html_msg += &users.join("\n");
+			html_msg += "\n</code></pre>";
+			Ok(RoomMessageEventContent::text_html(&plain_msg, &html_msg))
 		},
 		Err(e) => Ok(RoomMessageEventContent::text_plain(e.to_string())),
 	}
@@ -23,34 +32,15 @@ pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 pub(crate) async fn create(
 	_body: Vec<&str>, username: String, password: Option<String>,
 ) -> Result<RoomMessageEventContent> {
-	let password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
-
 	// Validate user id
-	let user_id =
-		match UserId::parse_with_server_name(username.as_str().to_lowercase(), services().globals.server_name()) {
-			Ok(id) => id,
-			Err(e) => {
-				return Ok(RoomMessageEventContent::text_plain(format!(
-					"The supplied username is not a valid username: {e}"
-				)))
-			},
-		};
-
-	if !user_is_local(&user_id) {
-		return Ok(RoomMessageEventContent::text_plain(format!(
-			"User {user_id} does not belong to our server."
-		)));
-	}
-
-	if user_id.is_historical() {
-		return Ok(RoomMessageEventContent::text_plain(format!(
-			"Userid {user_id} is not allowed due to historical"
-		)));
-	}
+	let user_id = parse_local_user_id(&username)?;
 
 	if services().users.exists(&user_id)? {
 		return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
 	}
+
+	let password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
+
 	// Create user
 	services().users.create(&user_id, Some(password.as_str()))?;
 
@@ -134,76 +124,43 @@ pub(crate) async fn deactivate(
 	_body: Vec<&str>, leave_rooms: bool, user_id: String,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id =
-		match UserId::parse_with_server_name(user_id.as_str().to_lowercase(), services().globals.server_name()) {
-			Ok(id) => Arc::<UserId>::from(id),
-			Err(e) => {
-				return Ok(RoomMessageEventContent::text_plain(format!(
-					"The supplied username is not a valid username: {e}"
-				)))
-			},
-		};
+	let user_id = parse_local_user_id(&user_id)?;
 
-	// check if user belongs to our server
-	if user_id.server_name() != services().globals.server_name() {
-		return Ok(RoomMessageEventContent::text_plain(format!(
-			"User {user_id} does not belong to our server."
-		)));
-	}
-
-	// don't deactivate the conduit service account
+	// don't deactivate the server service account
 	if user_id
 		== UserId::parse_with_server_name("conduit", services().globals.server_name()).expect("conduit user exists")
 	{
 		return Ok(RoomMessageEventContent::text_plain(
-			"Not allowed to deactivate the Conduit service account.",
+			"Not allowed to deactivate the server service account.",
 		));
 	}
 
-	if services().users.exists(&user_id)? {
-		RoomMessageEventContent::text_plain(format!("Making {user_id} leave all rooms before deactivation..."));
+	services().users.deactivate_account(&user_id)?;
 
-		services().users.deactivate_account(&user_id)?;
-
-		if leave_rooms {
-			leave_all_rooms(&user_id).await;
-		}
-
-		Ok(RoomMessageEventContent::text_plain(format!(
-			"User {user_id} has been deactivated"
-		)))
-	} else {
-		Ok(RoomMessageEventContent::text_plain(format!(
-			"User {user_id} doesn't exist on this server"
-		)))
+	if leave_rooms {
+		services()
+			.admin
+			.send_message(RoomMessageEventContent::text_plain(format!(
+				"Making {user_id} leave all rooms after deactivation..."
+			)))
+			.await;
+		leave_all_rooms(&user_id).await;
 	}
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"User {user_id} has been deactivated"
+	)))
 }
 
 pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
-	// Validate user id
-	let user_id =
-		match UserId::parse_with_server_name(username.as_str().to_lowercase(), services().globals.server_name()) {
-			Ok(id) => Arc::<UserId>::from(id),
-			Err(e) => {
-				return Ok(RoomMessageEventContent::text_plain(format!(
-					"The supplied username is not a valid username: {e}"
-				)))
-			},
-		};
+	let user_id = parse_local_user_id(&username)?;
 
-	// check if user belongs to our server
-	if user_id.server_name() != services().globals.server_name() {
-		return Ok(RoomMessageEventContent::text_plain(format!(
-			"User {user_id} does not belong to our server."
-		)));
-	}
-
-	// Check if the specified user is valid
-	if !services().users.exists(&user_id)?
-		|| user_id
-			== UserId::parse_with_server_name("conduit", services().globals.server_name()).expect("conduit user exists")
+	if user_id
+		== UserId::parse_with_server_name("conduit", services().globals.server_name()).expect("conduit user exists")
 	{
-		return Ok(RoomMessageEventContent::text_plain("The specified user does not exist!"));
+		return Ok(RoomMessageEventContent::text_plain(
+			"Not allowed to set the password for the server account. Please use the emergency password config option.",
+		));
 	}
 
 	let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
@@ -222,106 +179,95 @@ pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result
 }
 
 pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bool) -> Result<RoomMessageEventContent> {
-	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
-
-		let mut user_ids: Vec<&UserId> = Vec::new();
-
-		for &username in &usernames {
-			match <&UserId>::try_from(username) {
-				Ok(user_id) => user_ids.push(user_id),
-				Err(e) => {
-					return Ok(RoomMessageEventContent::text_plain(format!(
-						"{username} is not a valid username: {e}"
-					)))
-				},
-			}
-		}
-
-		let mut deactivation_count: usize = 0;
-		let mut admins = Vec::new();
-
-		if !force {
-			user_ids.retain(|&user_id| match services().users.is_admin(user_id) {
-				Ok(is_admin) => {
-					if is_admin {
-						admins.push(user_id.localpart());
-						false
-					} else {
-						true
-					}
-				},
-				Err(_) => false,
-			});
-		}
-
-		for &user_id in &user_ids {
-			// check if user belongs to our server and skips over non-local users
-			if user_id.server_name() != services().globals.server_name() {
-				continue;
-			}
-
-			// don't deactivate the conduit service account
-			if user_id
-				== UserId::parse_with_server_name("conduit", services().globals.server_name())
-					.expect("conduit user exists")
-			{
-				continue;
-			}
-
-			// user does not exist on our server
-			if !services().users.exists(user_id)? {
-				continue;
-			}
-
-			if services().users.deactivate_account(user_id).is_ok() {
-				deactivation_count = deactivation_count.saturating_add(1);
-			}
-		}
-
-		if leave_rooms || force {
-			for &user_id in &user_ids {
-				leave_all_rooms(user_id).await;
-			}
-		}
-
-		if admins.is_empty() {
-			Ok(RoomMessageEventContent::text_plain(format!(
-				"Deactivated {deactivation_count} accounts."
-			)))
-		} else {
-			Ok(RoomMessageEventContent::text_plain(format!(
-				"Deactivated {} accounts.\nSkipped admin accounts: {}. Use --force to deactivate admin accounts",
-				deactivation_count,
-				admins.join(", ")
-			)))
-		}
-	} else {
-		Ok(RoomMessageEventContent::text_plain(
+	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
+		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
-		))
+		));
+	}
+
+	let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+
+	let mut user_ids: Vec<OwnedUserId> = Vec::with_capacity(usernames.len());
+	let mut admins = Vec::new();
+
+	for username in usernames {
+		match parse_active_local_user_id(username) {
+			Ok(user_id) => {
+				if services().users.is_admin(&user_id)? && !force {
+					services()
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"{username} is an admin and --force is not set, skipping over"
+						)))
+						.await;
+					admins.push(username);
+					continue;
+				}
+
+				// don't deactivate the server service account
+				if user_id
+					== UserId::parse_with_server_name("conduit", services().globals.server_name())
+						.expect("server user exists")
+				{
+					services()
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"{username} is the server service account, skipping over"
+						)))
+						.await;
+					continue;
+				}
+
+				user_ids.push(user_id);
+			},
+			Err(e) => {
+				services()
+					.admin
+					.send_message(RoomMessageEventContent::text_plain(format!(
+						"{username} is not a valid username, skipping over: {e}"
+					)))
+					.await;
+				continue;
+			},
+		}
+	}
+
+	let mut deactivation_count: usize = 0;
+
+	for user_id in user_ids {
+		match services().users.deactivate_account(&user_id) {
+			Ok(()) => {
+				deactivation_count = deactivation_count.saturating_add(1);
+				if leave_rooms || force {
+					info!("Forcing user {user_id} to leave all rooms apart of deactivate-all");
+					leave_all_rooms(&user_id).await;
+				}
+			},
+			Err(e) => {
+				services()
+					.admin
+					.send_message(RoomMessageEventContent::text_plain(format!("Failed deactivating user: {e}")))
+					.await;
+			},
+		}
+	}
+
+	if admins.is_empty() {
+		Ok(RoomMessageEventContent::text_plain(format!(
+			"Deactivated {deactivation_count} accounts."
+		)))
+	} else {
+		Ok(RoomMessageEventContent::text_plain(format!(
+			"Deactivated {deactivation_count} accounts.\nSkipped admin accounts: {}. Use --force to deactivate admin \
+			 accounts",
+			admins.join(", ")
+		)))
 	}
 }
 
 pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id =
-		match UserId::parse_with_server_name(user_id.as_str().to_lowercase(), services().globals.server_name()) {
-			Ok(id) => Arc::<UserId>::from(id),
-			Err(e) => {
-				return Ok(RoomMessageEventContent::text_plain(format!(
-					"The supplied username is not a valid username: {e}"
-				)))
-			},
-		};
-
-	if !user_is_local(&user_id) {
-		return Ok(RoomMessageEventContent::text_plain("User does not belong to our server."));
-	}
-
-	if !services().users.exists(&user_id)? {
-		return Ok(RoomMessageEventContent::text_plain("User does not exist on this server."));
-	}
+	let user_id = parse_local_user_id(&user_id)?;
 
 	let mut rooms: Vec<(OwnedRoomId, u64, String)> = services()
 		.rooms
@@ -347,6 +293,7 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 			.collect::<Vec<_>>()
 			.join("\n")
 	);
+
 	let output_html = format!(
 		"<table><caption>Rooms {user_id} Joined \
 		 ({})</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
@@ -365,5 +312,6 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 				output
 			})
 	);
+
 	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
 }
