@@ -4,7 +4,11 @@ mod server;
 
 extern crate conduit_core as conduit;
 
-use std::{cmp, sync::Arc, time::Duration};
+use std::{
+	cmp,
+	sync::{atomic::Ordering, Arc},
+	time::Duration,
+};
 
 use conduit::{debug_error, debug_info, error, trace, utils::available_parallelism, warn, Error, Result};
 use server::Server;
@@ -100,8 +104,13 @@ async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 #[tracing::instrument(skip_all)]
 async fn signal(server: Arc<Server>) {
 	use signal::unix;
-	let mut quit = unix::signal(unix::SignalKind::quit()).expect("SIGQUIT handler");
-	let mut term = unix::signal(unix::SignalKind::terminate()).expect("SIGTERM handler");
+	use unix::SignalKind;
+
+	const CONSOLE: bool = cfg!(feature = "console");
+	const RELOADING: bool = cfg!(all(unix, debug_assertions, not(CONSOLE)));
+
+	let mut quit = unix::signal(SignalKind::quit()).expect("SIGQUIT handler");
+	let mut term = unix::signal(SignalKind::terminate()).expect("SIGTERM handler");
 	loop {
 		trace!("Installed signal handlers");
 		let sig: &'static str;
@@ -109,6 +118,16 @@ async fn signal(server: Arc<Server>) {
 			_ = signal::ctrl_c() => { sig = "SIGINT"; },
 			_ = quit.recv() => { sig = "SIGQUIT"; },
 			_ = term.recv() => { sig = "SIGTERM"; },
+		}
+
+		// Indicate the SIGINT is requesting a hot-reload.
+		if RELOADING && sig == "SIGINT" {
+			server.server.reloading.store(true, Ordering::Release);
+		}
+
+		// Indicate the signal is requesting a shutdown
+		if matches!(sig, "SIGQUIT" | "SIGTERM") || (!CONSOLE && sig == "SIGINT") {
+			server.server.stopping.store(true, Ordering::Release);
 		}
 
 		warn!("Received {sig}");

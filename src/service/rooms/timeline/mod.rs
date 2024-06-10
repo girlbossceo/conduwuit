@@ -498,7 +498,7 @@ impl Service {
 						{
 							services()
 								.admin
-								.process_message(body, pdu.event_id.clone())
+								.command(body, Some(pdu.event_id.clone()))
 								.await;
 						}
 					}

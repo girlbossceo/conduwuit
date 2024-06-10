@@ -17,19 +17,23 @@ crate-type = [
 ]
 
 [features]
-element_hacks = []
+brotli_compression = [
+	"reqwest/brotli",
+]
+console = [
+	"dep:rustyline",
+	"dep:termimad",
+]
 dev_release_log_level = []
+element_hacks = []
+gzip_compression = [
+	"reqwest/gzip",
+]
 release_max_log_level = [
 	"tracing/max_level_trace",
 	"tracing/release_max_level_info",
 	"log/max_level_trace",
 	"log/release_max_level_info",
-]
-gzip_compression = [
-	"reqwest/gzip",
-]
-brotli_compression = [
-	"reqwest/brotli",
 ]
 sha256_media = [
 	"dep:sha2",
@@ -57,11 +61,15 @@ regex.workspace = true
 reqwest.workspace = true
 ruma-identifiers-validation.workspace = true
 ruma.workspace = true
+rustyline.workspace = true
+rustyline.optional = true
 serde_json.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 sha2.optional = true
 sha2.workspace = true
+termimad.workspace = true
+termimad.optional = true
 tokio.workspace = true
 tracing.workspace = true
 url.workspace = true

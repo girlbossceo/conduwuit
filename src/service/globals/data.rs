@@ -160,7 +160,9 @@ impl Data for KeyValueDatabase {
 		futures.push(self.userid_lastonetimekeyupdate.watch_prefix(&userid_bytes));
 
 		futures.push(Box::pin(async move {
-			let _result = services().server.signal.subscribe().recv().await;
+			while services().server.running() {
+				let _result = services().server.signal.subscribe().recv().await;
+			}
 		}));
 
 		if !services().server.running() {

@@ -58,6 +58,9 @@ brotli_compression = [
 	"conduit-router/brotli_compression",
 	"conduit-service/brotli_compression",
 ]
+console = [
+	"conduit-service/console",
+]
 dev_release_log_level = [
 	"conduit-admin/dev_release_log_level",
 	"conduit-api/dev_release_log_level",

@@ -11,6 +11,7 @@ pub use server::Server;
 pub use suppress::Suppress;
 pub use tracing::Level;
 pub use tracing_core::{Event, Metadata};
+pub use tracing_subscriber::EnvFilter;
 
 // Wraps for logging macros. Use these macros rather than extern tracing:: or
 // log:: crates in project code. ::log and ::tracing can still be used if

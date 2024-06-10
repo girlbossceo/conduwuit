@@ -354,10 +354,7 @@ pub(crate) async fn register_route(
 				.room_joined_count(&admin_room)?
 				== Some(1)
 			{
-				services()
-					.admin
-					.make_user_admin(&user_id, displayname)
-					.await?;
+				service::admin::make_user_admin(&user_id, displayname).await?;
 
 				warn!("Granting {user_id} admin privileges as the first user");
 			}

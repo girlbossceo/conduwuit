@@ -83,20 +83,23 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 
 #[tracing::instrument(skip_all)]
 async fn signal(server: Arc<Server>, tx: Sender<()>, handle: axum_server::Handle) {
-	let sig: &'static str = server
-		.signal
-		.subscribe()
-		.recv()
-		.await
-		.expect("channel error");
+	loop {
+		let sig: &'static str = server
+			.signal
+			.subscribe()
+			.recv()
+			.await
+			.expect("channel error");
 
-	debug!("Received signal {}", sig);
-	if sig == "SIGINT" {
-		let reload = cfg!(unix) && cfg!(debug_assertions);
-		server.reloading.store(reload, Ordering::Release);
+		if !server.running() {
+			handle_shutdown(&server, &tx, &handle, sig).await;
+			break;
+		}
 	}
+}
 
-	server.stopping.store(true, Ordering::Release);
+async fn handle_shutdown(server: &Arc<Server>, tx: &Sender<()>, handle: &axum_server::Handle, sig: &str) {
+	debug!("Received signal {}", sig);
 	if let Err(e) = tx.send(()) {
 		error!("failed sending shutdown transaction to channel: {e}");
 	}

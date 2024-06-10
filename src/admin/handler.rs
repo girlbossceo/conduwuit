@@ -1,24 +1,19 @@
-use std::sync::Arc;
-
 use clap::Parser;
+use conduit::trace;
 use regex::Regex;
 use ruma::{
 	events::{
 		relation::InReplyTo,
 		room::message::{Relation::Reply, RoomMessageEventContent},
-		TimelineEventType,
 	},
-	OwnedRoomId, OwnedUserId, RoomId, ServerName, UserId,
+	ServerName,
 };
-use serde_json::value::to_raw_value;
-use tokio::sync::MutexGuard;
-use tracing::error;
 
 extern crate conduit_service as service;
 
-use conduit::{Error, Result};
-pub(crate) use service::admin::{AdminRoomEvent, Service};
-use service::{admin::HandlerResult, pdu::PduBuilder};
+use conduit::Result;
+use service::admin::HandlerResult;
+pub(crate) use service::admin::{AdminEvent, Service};
 
 use self::{fsck::FsckCommand, tester::TesterCommands};
 use crate::{
@@ -30,7 +25,7 @@ pub(crate) const PAGE_SIZE: usize = 100;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
-#[command(name = "@conduit:server.name:", version = env!("CARGO_PKG_VERSION"))]
+#[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
 pub(crate) enum AdminCommand {
 	#[command(subcommand)]
 	/// - Commands for managing appservices
@@ -73,85 +68,29 @@ pub(crate) enum AdminCommand {
 }
 
 #[must_use]
-pub fn handle(event: AdminRoomEvent, room: OwnedRoomId, user: OwnedUserId) -> HandlerResult {
-	Box::pin(handle_event(event, room, user))
-}
+pub fn handle(event: AdminEvent) -> HandlerResult { Box::pin(handle_event(event)) }
 
-async fn handle_event(event: AdminRoomEvent, admin_room: OwnedRoomId, server_user: OwnedUserId) -> Result<()> {
-	let (mut message_content, reply) = match event {
-		AdminRoomEvent::SendMessage(content) => (content, None),
-		AdminRoomEvent::ProcessMessage(room_message, reply_id) => {
-			// This future is ~8 KiB so it's better to start it off the stack.
-			(Box::pin(process_admin_message(room_message)).await, Some(reply_id))
+#[tracing::instrument(skip_all, name = "admin")]
+async fn handle_event(event: AdminEvent) -> Result<AdminEvent> { Ok(AdminEvent::Reply(process_event(event).await)) }
+
+async fn process_event(event: AdminEvent) -> Option<RoomMessageEventContent> {
+	let (mut message_content, reply_id) = match event {
+		AdminEvent::Command(room_message, reply_id) => (Box::pin(process_admin_message(room_message)).await, reply_id),
+		AdminEvent::Notice(content) => (content, None),
+		AdminEvent::Reply(_) => return None,
+	};
+
+	message_content.relates_to = reply_id.map(|reply_id| Reply {
+		in_reply_to: InReplyTo {
+			event_id: reply_id.into(),
 		},
-	};
+	});
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(admin_room.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
-
-	if let Some(reply) = reply {
-		message_content.relates_to = Some(Reply {
-			in_reply_to: InReplyTo {
-				event_id: reply.into(),
-			},
-		});
-	}
-
-	let response_pdu = PduBuilder {
-		event_type: TimelineEventType::RoomMessage,
-		content: to_raw_value(&message_content).expect("event is valid, we just created it"),
-		unsigned: None,
-		state_key: None,
-		redacts: None,
-	};
-
-	if let Err(e) = services()
-		.rooms
-		.timeline
-		.build_and_append_pdu(response_pdu, &server_user, &admin_room, &state_lock)
-		.await
-	{
-		handle_response_error(&e, &admin_room, &server_user, &state_lock).await?;
-	}
-
-	Ok(())
-}
-
-async fn handle_response_error(
-	e: &Error, admin_room: &RoomId, server_user: &UserId, state_lock: &MutexGuard<'_, ()>,
-) -> Result<()> {
-	error!("Failed to build and append admin room response PDU: \"{e}\"");
-	let error_room_message = RoomMessageEventContent::text_plain(format!(
-		"Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command may have finished \
-		 successfully, but we could not return the output."
-	));
-
-	let response_pdu = PduBuilder {
-		event_type: TimelineEventType::RoomMessage,
-		content: to_raw_value(&error_room_message).expect("event is valid, we just created it"),
-		unsigned: None,
-		state_key: None,
-		redacts: None,
-	};
-
-	services()
-		.rooms
-		.timeline
-		.build_and_append_pdu(response_pdu, server_user, admin_room, state_lock)
-		.await?;
-
-	Ok(())
+	Some(message_content)
 }
 
 // Parse and process a message from the admin room
+#[tracing::instrument(name = "process")]
 async fn process_admin_message(room_message: String) -> RoomMessageEventContent {
 	let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
 	let command_line = lines.next().expect("each string has at least one line");
@@ -181,8 +120,12 @@ async fn process_admin_message(room_message: String) -> RoomMessageEventContent 
 
 // Parse chat messages from the admin room into an AdminCommand object
 fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
-	// Note: argv[0] is `@conduit:servername:`, which is treated as the main command
 	let mut argv = command_line.split_whitespace().collect::<Vec<_>>();
+
+	// First indice has to be "admin" but for console convenience we add it here
+	if !argv.is_empty() && !argv[0].ends_with("admin") {
+		argv.insert(0, "admin");
+	}
 
 	// Replace `help command` with `command --help`
 	// Clap has a help subcommand, but it omits the long help description.
@@ -213,9 +156,11 @@ fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
 		argv[3] = &command_with_dashes_argv3;
 	}
 
+	trace!(?command_line, ?argv, "parse");
 	AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
 }
 
+#[tracing::instrument(skip_all, name = "command")]
 async fn process_admin_command(command: AdminCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let reply_message_content = match command {
 		AdminCommand::Appservices(command) => appservice::process(command, body).await?,
