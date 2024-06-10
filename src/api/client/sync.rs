@@ -611,7 +611,7 @@ async fn load_joined_room(
 					.unwrap_or(0);
 
 				// Recalculate heroes (first 5 members)
-				let mut heroes = Vec::new();
+				let mut heroes: Vec<OwnedUserId> = Vec::with_capacity(5);
 
 				if joined_member_count.saturating_add(invited_member_count) <= 5 {
 					// Go through all PDUs and for each member event, check if the user is still
@@ -636,7 +636,7 @@ async fn load_joined_room(
 								&& (services().rooms.state_cache.is_joined(&user_id, room_id)?
 									|| services().rooms.state_cache.is_invited(&user_id, room_id)?)
 							{
-								Ok::<_, Error>(Some(state_key.clone()))
+								Ok::<_, Error>(Some(user_id))
 							} else {
 								Ok(None)
 							}
@@ -644,12 +644,11 @@ async fn load_joined_room(
 							Ok(None)
 						}
 					})
-					// Filter out buggy users
 					.filter_map(Result::ok)
 					// Filter for possible heroes
 					.flatten()
 					{
-						if heroes.contains(&hero) || hero == sender_user.as_str() {
+						if heroes.contains(&hero) || hero == sender_user {
 							continue;
 						}
 
@@ -1584,6 +1583,7 @@ pub(crate) async fn sync_events_v4_route(
 				),
 				num_live: None, // Count events in timeline greater than global sync counter
 				timestamp: None,
+				heroes: None,
 			},
 		);
 	}
