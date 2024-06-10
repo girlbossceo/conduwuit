@@ -1,7 +1,8 @@
 pub(crate) mod user_commands;
 
 use clap::Subcommand;
-use ruma::events::room::message::RoomMessageEventContent;
+use ruma::{events::room::message::RoomMessageEventContent, RoomId};
+use user_commands::{delete_room_tag, get_room_tags, put_room_tag};
 
 use self::user_commands::{create, deactivate, deactivate_all, list, list_joined_rooms, reset_password};
 use crate::Result;
@@ -62,6 +63,32 @@ pub(crate) enum UserCommand {
 	ListJoinedRooms {
 		user_id: String,
 	},
+
+	/// - Puts a room tag for the specified user and room ID.
+	///
+	/// This is primarily useful if you'd like to set your admin room
+	/// to the special "System Alerts" section in Element as a way to
+	/// permanently see your admin room without it being buried away in your
+	/// favourites or rooms. To do this, you would pass your user, your admin
+	/// room's internal ID, and the tag name `m.server_notice`.
+	PutRoomTag {
+		user_id: String,
+		room_id: Box<RoomId>,
+		tag: String,
+	},
+
+	/// - Deletes the room tag for the specified user and room ID
+	DeleteRoomTag {
+		user_id: String,
+		room_id: Box<RoomId>,
+		tag: String,
+	},
+
+	/// - Gets all the room tags for the specified user and room ID
+	GetRoomTags {
+		user_id: String,
+		room_id: Box<RoomId>,
+	},
 }
 
 pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -85,5 +112,19 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 		UserCommand::ListJoinedRooms {
 			user_id,
 		} => list_joined_rooms(body, user_id).await?,
+		UserCommand::PutRoomTag {
+			user_id,
+			room_id,
+			tag,
+		} => put_room_tag(body, user_id, room_id, tag).await?,
+		UserCommand::DeleteRoomTag {
+			user_id,
+			room_id,
+			tag,
+		} => delete_room_tag(body, user_id, room_id, tag).await?,
+		UserCommand::GetRoomTags {
+			user_id,
+			room_id,
+		} => get_room_tags(body, user_id, room_id).await?,
 	})
 }

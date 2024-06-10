@@ -1,8 +1,15 @@
-use std::fmt::Write as _;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{join_room_by_id_helper, leave_all_rooms};
 use conduit::utils;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomId, UserId};
+use ruma::{
+	events::{
+		room::message::RoomMessageEventContent,
+		tag::{TagEvent, TagEventContent, TagInfo},
+		RoomAccountDataEventType,
+	},
+	OwnedRoomId, OwnedUserId, RoomId, UserId,
+};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -314,4 +321,95 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 	);
 
 	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+}
+
+pub(crate) async fn put_room_tag(
+	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
+) -> Result<RoomMessageEventContent> {
+	let user_id = parse_active_local_user_id(&user_id)?;
+
+	let event = services()
+		.account_data
+		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
+
+	let mut tags_event = event.map_or_else(
+		|| TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		},
+		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
+	);
+
+	tags_event
+		.content
+		.tags
+		.insert(tag.clone().into(), TagInfo::new());
+
+	services().account_data.update(
+		Some(&room_id),
+		&user_id,
+		RoomAccountDataEventType::Tag,
+		&serde_json::to_value(tags_event).expect("to json value always works"),
+	)?;
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Successfully updated room account data for {user_id} and room {room_id} with tag {tag}"
+	)))
+}
+
+pub(crate) async fn delete_room_tag(
+	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
+) -> Result<RoomMessageEventContent> {
+	let user_id = parse_active_local_user_id(&user_id)?;
+
+	let event = services()
+		.account_data
+		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
+
+	let mut tags_event = event.map_or_else(
+		|| TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		},
+		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
+	);
+
+	tags_event.content.tags.remove(&tag.clone().into());
+
+	services().account_data.update(
+		Some(&room_id),
+		&user_id,
+		RoomAccountDataEventType::Tag,
+		&serde_json::to_value(tags_event).expect("to json value always works"),
+	)?;
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Successfully updated room account data for {user_id} and room {room_id}, deleting room tag {tag}"
+	)))
+}
+
+pub(crate) async fn get_room_tags(
+	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>,
+) -> Result<RoomMessageEventContent> {
+	let user_id = parse_active_local_user_id(&user_id)?;
+
+	let event = services()
+		.account_data
+		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
+
+	let tags_event = event.map_or_else(
+		|| TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		},
+		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
+	);
+
+	Ok(RoomMessageEventContent::text_html(
+		format!("<pre><code>\n{:?}\n</code></pre>", tags_event.content.tags),
+		format!("```\n{:?}\n```", tags_event.content.tags),
+	))
 }
