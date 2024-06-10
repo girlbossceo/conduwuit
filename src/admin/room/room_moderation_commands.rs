@@ -6,11 +6,8 @@ use ruma::{
 };
 use tracing::{debug, error, info, warn};
 
-use super::{
-	super::{escape_html, Service},
-	RoomModerationCommand,
-};
-use crate::{services, user_is_local, Result};
+use super::{super::Service, RoomModerationCommand};
+use crate::{escape_html, get_room_info, services, user_is_local, Result};
 
 pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
@@ -479,26 +476,51 @@ async fn list_banned_rooms(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 
 	match rooms {
 		Ok(room_ids) => {
-			// TODO: add room name from our state cache if available, default to the room ID
-			// as the room name if we dont have it TODO: do same if we have a room alias for
-			// this
-			let plain_list = room_ids.iter().fold(String::new(), |mut output, room_id| {
-				writeln!(output, "- `{room_id}`").unwrap();
-				output
-			});
+			if room_ids.is_empty() {
+				return Ok(RoomMessageEventContent::text_plain("No rooms are banned."));
+			}
 
-			let html_list = room_ids.iter().fold(String::new(), |mut output, room_id| {
-				writeln!(output, "<li><code>{}</code></li>", escape_html(room_id.as_ref())).unwrap();
-				output
-			});
+			let mut rooms = room_ids
+				.into_iter()
+				.map(|room_id| get_room_info(&room_id))
+				.collect::<Vec<_>>();
+			rooms.sort_by_key(|r| r.1);
+			rooms.reverse();
 
-			let plain = format!("Rooms:\n{plain_list}");
-			let html = format!("Rooms:\n<ul>{html_list}</ul>");
-			Ok(RoomMessageEventContent::text_html(plain, html))
+			let output_plain = format!(
+				"Rooms Banned ({}):\n```\n{}```",
+				rooms.len(),
+				rooms
+					.iter()
+					.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+					.collect::<Vec<_>>()
+					.join("\n")
+			);
+
+			let output_html = format!(
+				"<table><caption>Rooms Banned ({}) \
+				 </caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
+				rooms.len(),
+				rooms
+					.iter()
+					.fold(String::new(), |mut output, (id, members, name)| {
+						writeln!(
+							output,
+							"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
+							id,
+							members,
+							escape_html(name.as_ref())
+						)
+						.expect("should be able to write to string buffer");
+						output
+					})
+			);
+
+			Ok(RoomMessageEventContent::text_html(output_plain, output_html))
 		},
 		Err(e) => {
 			error!("Failed to list banned rooms: {}", e);
-			Ok(RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {e}")))
+			Ok(RoomMessageEventContent::text_plain(format!("Unable to list banned rooms: {e}")))
 		},
 	}
 }
