@@ -3,26 +3,26 @@ use ruma::{api::appservice::Registration, events::room::message::RoomMessageEven
 use crate::{escape_html, services, Result};
 
 pub(crate) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if body.len() > 2 && body[0].trim().starts_with("```") && body.last().unwrap().trim() == "```" {
-		let appservice_config = body[1..body.len().checked_sub(1).unwrap()].join("\n");
-		let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
-		match parsed_config {
-			Ok(yaml) => match services().appservice.register_appservice(yaml).await {
-				Ok(id) => Ok(RoomMessageEventContent::text_plain(format!(
-					"Appservice registered with ID: {id}."
-				))),
-				Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
-					"Failed to register appservice: {e}"
-				))),
-			},
-			Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
-				"Could not parse appservice config: {e}"
-			))),
-		}
-	} else {
-		Ok(RoomMessageEventContent::text_plain(
+	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
+		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
-		))
+		));
+	}
+
+	let appservice_config = body[1..body.len().checked_sub(1).unwrap()].join("\n");
+	let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
+	match parsed_config {
+		Ok(yaml) => match services().appservice.register_appservice(yaml).await {
+			Ok(id) => Ok(RoomMessageEventContent::text_plain(format!(
+				"Appservice registered with ID: {id}."
+			))),
+			Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+				"Failed to register appservice: {e}"
+			))),
+		},
+		Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+			"Could not parse appservice config: {e}"
+		))),
 	}
 }
 
