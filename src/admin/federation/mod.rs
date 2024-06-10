@@ -2,7 +2,7 @@ use clap::Subcommand;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
 
 use self::federation_commands::{
-	disable_room, enable_room, fetch_support_well_known, incoming_federeation, remote_user_in_rooms,
+	disable_room, enable_room, fetch_support_well_known, incoming_federation, remote_user_in_rooms,
 };
 use crate::Result;
 
@@ -51,7 +51,7 @@ pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Resu
 		FederationCommand::EnableRoom {
 			room_id,
 		} => enable_room(body, room_id).await?,
-		FederationCommand::IncomingFederation => incoming_federeation(body).await?,
+		FederationCommand::IncomingFederation => incoming_federation(body).await?,
 		FederationCommand::FetchSupportWellKnown {
 			server_name,
 		} => fetch_support_well_known(body, server_name).await?,

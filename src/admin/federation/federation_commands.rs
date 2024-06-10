@@ -14,7 +14,7 @@ pub(crate) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Resul
 	Ok(RoomMessageEventContent::text_plain("Room enabled."))
 }
 
-pub(crate) async fn incoming_federeation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(crate) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let map = services().globals.roomid_federationhandletime.read().await;
 	let mut msg = format!("Handling {} incoming pdus:\n", map.len());
 
