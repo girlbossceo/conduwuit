@@ -377,7 +377,7 @@ impl Service {
 	pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> { self.db.is_left(user_id, room_id) }
 
 	#[tracing::instrument(skip(self))]
-	pub fn servers_invite_via(&self, room_id: &RoomId) -> Result<Option<Vec<OwnedServerName>>> {
+	pub fn servers_invite_via(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + '_ {
 		self.db.servers_invite_via(room_id)
 	}
 
