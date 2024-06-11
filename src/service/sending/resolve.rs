@@ -75,6 +75,7 @@ pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDe
 /// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
+#[tracing::instrument(skip_all, name = "actual")]
 pub async fn resolve_actual_dest(dest: &ServerName, cache: bool) -> Result<(FedDest, String)> {
 	trace!("Finding actual destination for {dest}");
 	let mut host = dest.as_str().to_owned();

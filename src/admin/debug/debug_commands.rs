@@ -1,11 +1,15 @@
 use std::{
 	collections::{BTreeMap, HashMap},
-	sync::Arc,
+	sync::{Arc, Mutex},
 	time::Instant,
 };
 
-use api::client::validate_and_add_event_id;
-use conduit::{utils::HtmlEscape, Error, Result};
+use conduit::{
+	debug, info, log,
+	log::{capture, Capture},
+	utils::HtmlEscape,
+	warn, Error, Result,
+};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
@@ -13,8 +17,9 @@ use ruma::{
 };
 use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve::resolve_actual_dest, services, PduEvent};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
 use tracing_subscriber::EnvFilter;
+
+use crate::api::client::validate_and_add_event_id;
 
 pub(crate) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
@@ -635,11 +640,24 @@ pub(crate) async fn resolve_true_destination(
 		));
 	}
 
-	let (actual_dest, hostname_uri) = resolve_actual_dest(&server_name, !no_cache).await?;
+	let filter: &capture::Filter = &|data| {
+		data.level() <= log::Level::DEBUG
+			&& data.mod_name().starts_with("conduit")
+			&& matches!(data.span_name(), "actual" | "well-known" | "srv")
+	};
 
-	Ok(RoomMessageEventContent::text_plain(format!(
-		"Actual destination: {actual_dest} | Hostname URI: {hostname_uri}"
-	)))
+	let state = &services().server.log.capture;
+	let logs = Arc::new(Mutex::new(String::new()));
+	let capture = Capture::new(state, Some(filter), capture::to_html(&logs));
+	let (actual_dest, hostname_uri);
+	{
+		let _capture_scope = capture.start();
+		(actual_dest, hostname_uri) = resolve_actual_dest(&server_name, !no_cache).await?;
+	};
+
+	let plain = format!("Actual destination: {actual_dest} | Hostname URI: {hostname_uri}");
+	let html = format!("{}<br>{plain}", logs.lock().expect("locked"));
+	Ok(RoomMessageEventContent::text_html(plain, html))
 }
 
 #[must_use]
