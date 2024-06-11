@@ -7,6 +7,7 @@ use crate::Result;
 pub(crate) mod room_alias_commands;
 pub(crate) mod room_commands;
 pub(crate) mod room_directory_commands;
+pub(crate) mod room_info_commands;
 pub(crate) mod room_moderation_commands;
 
 #[cfg_attr(test, derive(Debug))]
@@ -16,6 +17,10 @@ pub(crate) enum RoomCommand {
 	List {
 		page: Option<usize>,
 	},
+
+	#[command(subcommand)]
+	/// - View information about a room we know about
+	Info(RoomInfoCommand),
 
 	#[command(subcommand)]
 	/// - Manage moderation of remote or local rooms
@@ -28,6 +33,23 @@ pub(crate) enum RoomCommand {
 	#[command(subcommand)]
 	/// - Manage the room directory
 	Directory(RoomDirectoryCommand),
+}
+
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+pub(crate) enum RoomInfoCommand {
+	/// - List joined members in a room
+	ListJoinedMembers {
+		room_id: Box<RoomId>,
+	},
+
+	/// - Displays room topic
+	///
+	/// Room topics can be huge, so this is in its
+	/// own separate command
+	ViewRoomTopic {
+		room_id: Box<RoomId>,
+	},
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -147,6 +169,8 @@ pub(crate) enum RoomModerationCommand {
 
 pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
+		RoomCommand::Info(command) => room_info_commands::process(command, body).await?,
+
 		RoomCommand::Alias(command) => room_alias_commands::process(command, body).await?,
 
 		RoomCommand::Directory(command) => room_directory_commands::process(command, body).await?,
