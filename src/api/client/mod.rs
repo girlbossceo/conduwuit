@@ -51,6 +51,7 @@ pub use membership::{join_room_by_id_helper, leave_all_rooms, leave_room, valida
 pub(super) use message::*;
 pub(super) use presence::*;
 pub(super) use profile::*;
+pub use profile::{update_all_rooms, update_avatar_url, update_displayname};
 pub(super) use push::*;
 pub(super) use read_marker::*;
 pub(super) use redact::*;

@@ -307,7 +307,7 @@ impl Data for KeyValueDatabase {
 			.transpose()
 	}
 
-	/// Sets a new avatar_url or removes it if avatar_url is None.
+	/// Sets a new blurhash or removes it if blurhash is None.
 	fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
 		if let Some(blurhash) = blurhash {
 			self.userid_blurhash

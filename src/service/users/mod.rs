@@ -299,7 +299,7 @@ impl Service {
 	/// Get the blurhash of a user.
 	pub fn blurhash(&self, user_id: &UserId) -> Result<Option<String>> { self.db.blurhash(user_id) }
 
-	/// Sets a new avatar_url or removes it if avatar_url is None.
+	/// Sets a new blurhash or removes it if blurhash is None.
 	pub async fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
 		self.db.set_blurhash(user_id, blurhash)
 	}
