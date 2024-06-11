@@ -1,3 +1,4 @@
+use axum_client_ip::InsecureClientIp;
 use ruma::{
 	api::{
 		client::{
@@ -27,8 +28,9 @@ use crate::{service::server_is_ours, services, Error, Result, Ruma};
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn get_public_rooms_filtered_route(
-	body: Ruma<get_public_rooms_filtered::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
 	if let Some(server) = &body.server {
 		if services()
@@ -52,8 +54,8 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	)
 	.await
 	.map_err(|e| {
-		warn!("Failed to return our /publicRooms: {e}");
-		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+		warn!(?body.server, "Failed to return /publicRooms: {e}");
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return the requested server's public room list.")
 	})?;
 
 	Ok(response)
@@ -64,8 +66,9 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn get_public_rooms_route(
-	body: Ruma<get_public_rooms::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
 	if let Some(server) = &body.server {
 		if services()
@@ -89,8 +92,8 @@ pub(crate) async fn get_public_rooms_route(
 	)
 	.await
 	.map_err(|e| {
-		warn!("Failed to return our /publicRooms: {e}");
-		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+		warn!(?body.server, "Failed to return /publicRooms: {e}");
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return the requested server's public room list.")
 	})?;
 
 	Ok(get_public_rooms::v3::Response {
@@ -106,8 +109,9 @@ pub(crate) async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 ///
 /// - TODO: Access control checks
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn set_room_visibility_route(
-	body: Ruma<set_room_visibility::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

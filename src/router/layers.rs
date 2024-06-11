@@ -37,7 +37,6 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
 
 	let layers = layers
 		.sensitive_headers([header::AUTHORIZATION])
-		.sensitive_request_headers([HeaderName::from_static("x-forwarded-for")].into())
 		.layer(axum::middleware::from_fn_with_state(Arc::clone(server), request::spawn))
 		.layer(
 			TraceLayer::new_for_http()

@@ -1,3 +1,4 @@
+use axum_client_ip::InsecureClientIp;
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
@@ -16,7 +17,10 @@ use crate::{
 /// # `PUT /_matrix/federation/v2/invite/{roomId}/{eventId}`
 ///
 /// Invites a remote user to a room.
-pub(crate) async fn create_invite_route(body: Ruma<create_invite::v2::Request>) -> Result<create_invite::v2::Response> {
+#[tracing::instrument(skip_all, fields(%client_ip))]
+pub(crate) async fn create_invite_route(
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<create_invite::v2::Request>,
+) -> Result<create_invite::v2::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	// ACL check origin

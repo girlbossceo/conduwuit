@@ -7,8 +7,7 @@ pub mod json;
 pub mod sys;
 
 use std::{
-	cmp,
-	cmp::Ordering,
+	cmp::{self, Ordering},
 	time::{SystemTime, UNIX_EPOCH},
 };
 

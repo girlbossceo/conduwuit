@@ -5,6 +5,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use axum_client_ip::InsecureClientIp;
 use ruma::{
 	api::{
 		client::{
@@ -141,8 +142,9 @@ async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_na
 ///   rules locally
 /// - If the server does not know about the room: asks other servers over
 ///   federation
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn join_room_by_id_route(
-	body: Ruma<join_room_by_id::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<join_room_by_id::v3::Request>,
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -193,8 +195,9 @@ pub(crate) async fn join_room_by_id_route(
 /// - If the server does not know about the room: use the server name query
 ///   param if specified. if not specified, asks other servers over federation
 ///   via room alias server name and room ID server name
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn join_room_by_id_or_alias_route(
-	body: Ruma<join_room_by_id_or_alias::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<join_room_by_id_or_alias::v3::Request>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
 	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
 	let body = body.body;
@@ -295,7 +298,10 @@ pub(crate) async fn leave_room_route(body: Ruma<leave_room::v3::Request>) -> Res
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
 ///
 /// Tries to send an invite event into the room.
-pub(crate) async fn invite_user_route(body: Ruma<invite_user::v3::Request>) -> Result<invite_user::v3::Response> {
+#[tracing::instrument(skip_all, fields(%client_ip))]
+pub(crate) async fn invite_user_route(
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<invite_user::v3::Request>,
+) -> Result<invite_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	if !services().users.is_admin(sender_user)? && services().globals.block_non_admin_invites() {

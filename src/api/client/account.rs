@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use axum_client_ip::InsecureClientIp;
 use conduit::debug_info;
 use register::RegistrationKind;
 use ruma::{
@@ -39,8 +40,9 @@ const RANDOM_USER_ID_LENGTH: usize = 10;
 ///
 /// Note: This will not reserve the username, so the username might become
 /// invalid when trying to register
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn get_register_available_route(
-	body: Ruma<get_username_availability::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_username_availability::v3::Request>,
 ) -> Result<get_username_availability::v3::Response> {
 	// Validate user id
 	let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), services().globals.server_name())
@@ -87,7 +89,10 @@ pub(crate) async fn get_register_available_route(
 /// - If `inhibit_login` is false: Creates a device and returns device id and
 ///   access_token
 #[allow(clippy::doc_markdown)]
-pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<register::v3::Response> {
+#[tracing::instrument(skip_all, fields(%client_ip))]
+pub(crate) async fn register_route(
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<register::v3::Request>,
+) -> Result<register::v3::Response> {
 	if !services().globals.allow_registration() && body.appservice_info.is_none() {
 		info!(
 			"Registration disabled and request not from known appservice, rejecting registration attempt for username \
@@ -104,8 +109,8 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 			|| (services().globals.allow_registration() && services().globals.config.registration_token.is_some()))
 	{
 		info!(
-			"Guest registration disabled / registration enabled with token configured, rejecting guest registration, \
-			 initial device name: {:?}",
+			"Guest registration disabled / registration enabled with token configured, rejecting guest registration \
+			 attempt, initial device name: {:?}",
 			body.initial_device_display_name
 		);
 		return Err(Error::BadRequest(
@@ -297,14 +302,14 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 		services()
 			.admin
 			.send_message(RoomMessageEventContent::notice_plain(format!(
-				"New user \"{user_id}\" registered on this server."
+				"New user \"{user_id}\" registered on this server from IP {client_ip}."
 			)))
 			.await;
 	}
 
 	// log in conduit admin channel if a guest registered
 	if body.appservice_info.is_none() && is_guest && services().globals.log_guest_registrations() {
-		info!("New guest user \"{user_id}\" registered on this server.");
+		info!("New guest user \"{user_id}\" registered on this server from IP.");
 
 		if let Some(device_display_name) = &body.initial_device_display_name {
 			if body
@@ -316,14 +321,15 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 					.admin
 					.send_message(RoomMessageEventContent::notice_plain(format!(
 						"Guest user \"{user_id}\" with device display name `{device_display_name}` registered on this \
-						 server."
+						 server from IP {client_ip}."
 					)))
 					.await;
 			} else {
 				services()
 					.admin
 					.send_message(RoomMessageEventContent::notice_plain(format!(
-						"Guest user \"{user_id}\" with no device display name registered on this server.",
+						"Guest user \"{user_id}\" with no device display name registered on this server from IP \
+						 {client_ip}.",
 					)))
 					.await;
 			}
@@ -331,7 +337,8 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 			services()
 				.admin
 				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"Guest user \"{user_id}\" with no device display name registered on this server.",
+					"Guest user \"{user_id}\" with no device display name registered on this server from IP \
+					 {client_ip}.",
 				)))
 				.await;
 		}
@@ -352,7 +359,7 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 					.make_user_admin(&user_id, displayname)
 					.await?;
 
-				warn!("Granting {} admin privileges as the first user", user_id);
+				warn!("Granting {user_id} admin privileges as the first user");
 			}
 		}
 	}
@@ -416,8 +423,9 @@ pub(crate) async fn register_route(body: Ruma<register::v3::Request>) -> Result<
 ///   last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn change_password_route(
-	body: Ruma<change_password::v3::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<change_password::v3::Request>,
 ) -> Result<change_password::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -466,7 +474,7 @@ pub(crate) async fn change_password_route(
 		}
 	}
 
-	info!("User {} changed their password.", sender_user);
+	info!("User {sender_user} changed their password.");
 	services()
 		.admin
 		.send_message(RoomMessageEventContent::notice_plain(format!(
@@ -504,7 +512,10 @@ pub(crate) async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoa
 /// - Forgets all to-device events
 /// - Triggers device list updates
 /// - Removes ability to log in again
-pub(crate) async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Result<deactivate::v3::Response> {
+#[tracing::instrument(skip_all, fields(%client_ip))]
+pub(crate) async fn deactivate_route(
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<deactivate::v3::Request>,
+) -> Result<deactivate::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -542,7 +553,7 @@ pub(crate) async fn deactivate_route(body: Ruma<deactivate::v3::Request>) -> Res
 	// Remove devices and mark account as deactivated
 	services().users.deactivate_account(sender_user)?;
 
-	info!("User {} deactivated their account.", sender_user);
+	info!("User {sender_user} deactivated their account.");
 	services()
 		.admin
 		.send_message(RoomMessageEventContent::notice_plain(format!(

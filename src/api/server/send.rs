@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
+use axum_client_ip::InsecureClientIp;
 use conduit::debug_warn;
 use ruma::{
 	api::{
@@ -25,8 +26,9 @@ use crate::{
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
+#[tracing::instrument(skip_all, fields(%client_ip))]
 pub(crate) async fn send_transaction_message_route(
-	body: Ruma<send_transaction_message::v1::Request>,
+	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
