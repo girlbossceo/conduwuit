@@ -302,7 +302,7 @@ dependencies = [
 [[package]]
 name = "axum-server"
 version = "0.6.0"
-source = "git+https://github.com/lexe-app/axum-server?branch=phlip9/fix-graceful-shutdown#8e3368d899079818934e61cc9c839abcbbcada8a"
+source = "git+https://github.com/girlbossceo/axum-server?branch=phlip9/fix-graceful-shutdown#8e3368d899079818934e61cc9c839abcbbcada8a"
 dependencies = [
  "arc-swap",
  "bytes",
