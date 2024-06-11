@@ -26,11 +26,11 @@ pub(crate) enum UserCommand {
 
 	/// - Deactivate a user
 	///
-	/// User will not be removed from all rooms by default.
-	/// Use --leave-rooms to force the user to leave all rooms
+	/// User will be removed from all rooms by default.
+	/// Use --no-leave-rooms to not leave all rooms by default.
 	Deactivate {
 		#[arg(short, long)]
-		leave_rooms: bool,
+		no_leave_rooms: bool,
 		user_id: String,
 	},
 
@@ -38,8 +38,10 @@ pub(crate) enum UserCommand {
 	///
 	/// Recommended to use in conjunction with list-local-users.
 	///
-	/// Users will not be removed from joined rooms by default.
-	/// Can be overridden with --leave-rooms OR the --force flag.
+	/// Users will be removed from joined rooms by default.
+	///
+	/// Can be overridden with --no-leave-rooms.
+	///
 	/// Removing a mass amount of users from a room may cause a significant
 	/// amount of leave events. The time to leave rooms may depend significantly
 	/// on joined rooms and servers.
@@ -49,7 +51,7 @@ pub(crate) enum UserCommand {
 	DeactivateAll {
 		#[arg(short, long)]
 		/// Remove users from their joined rooms
-		leave_rooms: bool,
+		no_leave_rooms: bool,
 		#[arg(short, long)]
 		/// Also deactivate admin accounts and will assume leave all rooms too
 		force: bool,
@@ -99,16 +101,16 @@ pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 			password,
 		} => create(body, username, password).await?,
 		UserCommand::Deactivate {
-			leave_rooms,
+			no_leave_rooms,
 			user_id,
-		} => deactivate(body, leave_rooms, user_id).await?,
+		} => deactivate(body, no_leave_rooms, user_id).await?,
 		UserCommand::ResetPassword {
 			username,
 		} => reset_password(body, username).await?,
 		UserCommand::DeactivateAll {
-			leave_rooms,
+			no_leave_rooms,
 			force,
-		} => deactivate_all(body, leave_rooms, force).await?,
+		} => deactivate_all(body, no_leave_rooms, force).await?,
 		UserCommand::ListJoinedRooms {
 			user_id,
 		} => list_joined_rooms(body, user_id).await?,

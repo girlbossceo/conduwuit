@@ -128,7 +128,7 @@ pub(crate) async fn create(
 }
 
 pub(crate) async fn deactivate(
-	_body: Vec<&str>, leave_rooms: bool, user_id: String,
+	_body: Vec<&str>, no_leave_rooms: bool, user_id: String,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
 	let user_id = parse_local_user_id(&user_id)?;
@@ -144,7 +144,7 @@ pub(crate) async fn deactivate(
 
 	services().users.deactivate_account(&user_id)?;
 
-	if leave_rooms {
+	if !no_leave_rooms {
 		services()
 			.admin
 			.send_message(RoomMessageEventContent::text_plain(format!(
@@ -185,7 +185,9 @@ pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result
 	}
 }
 
-pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bool) -> Result<RoomMessageEventContent> {
+pub(crate) async fn deactivate_all(
+	body: Vec<&str>, no_leave_rooms: bool, force: bool,
+) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -245,7 +247,7 @@ pub(crate) async fn deactivate_all(body: Vec<&str>, leave_rooms: bool, force: bo
 		match services().users.deactivate_account(&user_id) {
 			Ok(()) => {
 				deactivation_count = deactivation_count.saturating_add(1);
-				if leave_rooms || force {
+				if !no_leave_rooms {
 					info!("Forcing user {user_id} to leave all rooms apart of deactivate-all");
 					leave_all_rooms(&user_id).await;
 				}
