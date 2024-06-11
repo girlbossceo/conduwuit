@@ -1,6 +1,7 @@
 use std::{
 	cmp,
 	collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+	net::IpAddr,
 	sync::Arc,
 	time::{Duration, Instant},
 };
@@ -36,13 +37,12 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::get_alias_helper;
 use crate::{
+	client::{update_avatar_url, update_displayname},
 	service::{
 		pdu::{gen_event_id_canonical_json, PduBuilder},
 		server_is_ours, user_is_local,
 	},
-	services,
-	utils::{self},
-	Error, PduEvent, Result, Ruma,
+	services, utils, Error, PduEvent, Result, Ruma,
 };
 
 /// Checks if the room is banned in any way possible and the sender user is not
@@ -51,7 +51,9 @@ use crate::{
 /// Performs automatic deactivation if `auto_deactivate_banned_room_attempts` is
 /// enabled
 #[tracing::instrument]
-async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_name: Option<&ServerName>) -> Result<()> {
+async fn banned_room_check(
+	user_id: &UserId, room_id: Option<&RoomId>, server_name: Option<&ServerName>, client_ip: IpAddr,
+) -> Result<()> {
 	if !services().users.is_admin(user_id)? {
 		if let Some(room_id) = room_id {
 			if services().rooms.metadata.is_banned(room_id)?
@@ -63,7 +65,7 @@ async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_na
 			{
 				warn!(
 					"User {user_id} who is not an admin attempted to send an invite for or attempted to join a banned \
-					 room or banned room server name: {room_id}."
+					 room or banned room server name: {room_id}"
 				);
 
 				if services()
@@ -75,15 +77,25 @@ async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_na
 					services()
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
-							"Automatically deactivating user {user_id} due to attempted banned room join"
+							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
+							 {client_ip}"
 						)))
 						.await;
 
-					// ignore errors
-					leave_all_rooms(user_id).await;
 					if let Err(e) = services().users.deactivate_account(user_id) {
-						warn!(%e, "Failed to deactivate account");
+						warn!(%user_id, %e, "Failed to deactivate account");
 					}
+
+					let all_joined_rooms: Vec<OwnedRoomId> = services()
+						.rooms
+						.state_cache
+						.rooms_joined(user_id)
+						.filter_map(Result::ok)
+						.collect();
+
+					update_displayname(user_id.into(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(user_id.into(), None, None, all_joined_rooms).await?;
+					leave_all_rooms(user_id).await;
 				}
 
 				return Err(Error::BadRequest(
@@ -112,15 +124,25 @@ async fn banned_room_check(user_id: &UserId, room_id: Option<&RoomId>, server_na
 					services()
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
-							"Automatically deactivating user {user_id} due to attempted banned room join"
+							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
+							 {client_ip}"
 						)))
 						.await;
 
-					// ignore errors
-					leave_all_rooms(user_id).await;
 					if let Err(e) = services().users.deactivate_account(user_id) {
-						warn!(%e, "Failed to deactivate account");
+						warn!(%user_id, %e, "Failed to deactivate account");
 					}
+
+					let all_joined_rooms: Vec<OwnedRoomId> = services()
+						.rooms
+						.state_cache
+						.rooms_joined(user_id)
+						.filter_map(Result::ok)
+						.collect();
+
+					update_displayname(user_id.into(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(user_id.into(), None, None, all_joined_rooms).await?;
+					leave_all_rooms(user_id).await;
 				}
 
 				return Err(Error::BadRequest(
@@ -148,7 +170,7 @@ pub(crate) async fn join_room_by_id_route(
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name()).await?;
+	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name(), client_ip).await?;
 
 	// There is no body.server_name for /roomId/join
 	let mut servers = services()
@@ -204,7 +226,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 
 	let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
 		Ok(room_id) => {
-			banned_room_check(sender_user, Some(&room_id), room_id.server_name()).await?;
+			banned_room_check(sender_user, Some(&room_id), room_id.server_name(), client_ip).await?;
 
 			let mut servers = body.server_name.clone();
 			servers.extend(
@@ -238,7 +260,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 		Err(room_alias) => {
 			let response = get_alias_helper(room_alias.clone(), Some(body.server_name.clone())).await?;
 
-			banned_room_check(sender_user, Some(&response.room_id), Some(room_alias.server_name())).await?;
+			banned_room_check(sender_user, Some(&response.room_id), Some(room_alias.server_name()), client_ip).await?;
 
 			let mut servers = body.server_name;
 			servers.extend(response.servers);
@@ -315,7 +337,7 @@ pub(crate) async fn invite_user_route(
 		));
 	}
 
-	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name()).await?;
+	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name(), client_ip).await?;
 
 	if let invite_user::v3::InvitationRecipient::UserId {
 		user_id,
@@ -1578,11 +1600,11 @@ pub async fn leave_all_rooms(user_id: &UserId) {
 		};
 
 		// ignore errors
-		if let Err(e) = services().rooms.state_cache.forget(&room_id, user_id) {
-			warn!(%e, "Failed to forget room");
-		}
 		if let Err(e) = leave_room(user_id, &room_id, None).await {
-			warn!(%e, "Failed to leave room");
+			warn!(%room_id, %user_id, %e, "Failed to leave room");
+		}
+		if let Err(e) = services().rooms.state_cache.forget(&room_id, user_id) {
+			warn!(%room_id, %user_id, %e, "Failed to forget room");
 		}
 	}
 }

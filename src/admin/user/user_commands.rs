@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
-use api::client::{join_room_by_id_helper, leave_all_rooms};
+use api::client::{join_room_by_id_helper, leave_all_rooms, update_avatar_url, update_displayname};
 use conduit::utils;
 use ruma::{
 	events::{
@@ -151,6 +151,15 @@ pub(crate) async fn deactivate(
 				"Making {user_id} leave all rooms after deactivation..."
 			)))
 			.await;
+
+		let all_joined_rooms: Vec<OwnedRoomId> = services()
+			.rooms
+			.state_cache
+			.rooms_joined(&user_id)
+			.filter_map(Result::ok)
+			.collect();
+		update_displayname(user_id.clone(), None, all_joined_rooms.clone()).await?;
+		update_avatar_url(user_id.clone(), None, None, all_joined_rooms).await?;
 		leave_all_rooms(&user_id).await;
 	}
 
@@ -249,6 +258,14 @@ pub(crate) async fn deactivate_all(
 				deactivation_count = deactivation_count.saturating_add(1);
 				if !no_leave_rooms {
 					info!("Forcing user {user_id} to leave all rooms apart of deactivate-all");
+					let all_joined_rooms: Vec<OwnedRoomId> = services()
+						.rooms
+						.state_cache
+						.rooms_joined(&user_id)
+						.filter_map(Result::ok)
+						.collect();
+					update_displayname(user_id.clone(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(user_id.clone(), None, None, all_joined_rooms).await?;
 					leave_all_rooms(&user_id).await;
 				}
 			},

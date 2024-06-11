@@ -15,7 +15,7 @@ use ruma::{
 		uiaa::{AuthFlow, AuthType, UiaaInfo},
 	},
 	events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
-	push, UserId,
+	push, OwnedRoomId, UserId,
 };
 use tracing::{error, info, warn};
 
@@ -549,6 +549,16 @@ pub(crate) async fn deactivate_route(
 
 	// Remove devices and mark account as deactivated
 	services().users.deactivate_account(sender_user)?;
+
+	// Remove profile pictures and display name
+	let all_joined_rooms: Vec<OwnedRoomId> = services()
+		.rooms
+		.state_cache
+		.rooms_joined(sender_user)
+		.filter_map(Result::ok)
+		.collect();
+	super::update_displayname(sender_user.clone(), None, all_joined_rooms.clone()).await?;
+	super::update_avatar_url(sender_user.clone(), None, None, all_joined_rooms).await?;
 
 	// Make the user leave all rooms before deactivation
 	super::leave_all_rooms(sender_user).await;
