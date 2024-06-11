@@ -1,4 +1,5 @@
 pub mod color;
+pub mod fmt;
 mod reload;
 
 pub use reload::ReloadHandle;
