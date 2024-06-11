@@ -97,6 +97,7 @@ tikv-jemalloc-ctl.workspace = true
 tikv-jemalloc-sys.optional = true
 tikv-jemalloc-sys.workspace = true
 tokio.workspace = true
+tracing-core.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 url.workspace = true

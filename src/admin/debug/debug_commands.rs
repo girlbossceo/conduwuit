@@ -344,11 +344,7 @@ pub(crate) async fn change_log_level(
 			},
 		};
 
-		match services()
-			.server
-			.tracing_reload_handle
-			.reload(&old_filter_layer)
-		{
+		match services().server.log.reload.reload(&old_filter_layer) {
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Successfully changed log level back to config value {}",
@@ -373,11 +369,7 @@ pub(crate) async fn change_log_level(
 			},
 		};
 
-		match services()
-			.server
-			.tracing_reload_handle
-			.reload(&new_filter_layer)
-		{
+		match services().server.log.reload.reload(&new_filter_layer) {
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain("Successfully changed log level"));
 			},

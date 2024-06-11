@@ -701,6 +701,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tracing",
+ "tracing-core",
  "tracing-subscriber",
  "url",
 ]

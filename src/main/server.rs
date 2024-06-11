@@ -4,7 +4,7 @@ use conduit::{
 	config,
 	config::Config,
 	info,
-	log::{LogLevelReloadHandles, ReloadHandle},
+	log::{self, capture, LogLevelReloadHandles, ReloadHandle},
 	utils::{hash, sys},
 	Error, Result,
 };
@@ -34,7 +34,7 @@ impl Server {
 
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = init_sentry(&config);
-		let (tracing_reload_handle, tracing_flame_guard) = init_tracing(&config);
+		let (tracing_reload_handle, tracing_flame_guard, capture) = init_tracing(&config);
 
 		config.check()?;
 		#[cfg(unix)]
@@ -50,7 +50,14 @@ impl Server {
 		);
 
 		Ok(Arc::new(Self {
-			server: Arc::new(conduit::Server::new(config, runtime.cloned(), tracing_reload_handle)),
+			server: Arc::new(conduit::Server::new(
+				config,
+				runtime.cloned(),
+				log::Server {
+					reload: tracing_reload_handle,
+					capture,
+				},
+			)),
 
 			_tracing_flame_guard: tracing_flame_guard,
 
@@ -100,7 +107,7 @@ type TracingFlameGuard = ();
 // clippy thinks the filter_layer clones are redundant if the next usage is
 // behind a disabled feature.
 #[allow(clippy::redundant_clone)]
-fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
+fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>) {
 	let registry = Registry::default();
 	let fmt_layer = tracing_subscriber::fmt::Layer::new();
 	let filter_layer = match EnvFilter::try_new(&config.log) {
@@ -122,7 +129,12 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 
 	let (fmt_reload_filter, fmt_reload_handle) = reload::Layer::new(filter_layer.clone());
 	reload_handles.push(Box::new(fmt_reload_handle));
-	let subscriber = subscriber.with(fmt_layer.with_filter(fmt_reload_filter));
+
+	let cap_state = Arc::new(capture::State::new());
+	let cap_layer = capture::Layer::new(&cap_state);
+	let subscriber = subscriber
+		.with(fmt_layer.with_filter(fmt_reload_filter))
+		.with(cap_layer);
 
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
@@ -185,5 +197,5 @@ fn init_tracing(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard) {
 		 needs access to trace-level events. 'release_max_log_level' must be disabled to use tokio-console."
 	);
 
-	(LogLevelReloadHandles::new(reload_handles), flame_guard)
+	(LogLevelReloadHandles::new(reload_handles), flame_guard, cap_state)
 }

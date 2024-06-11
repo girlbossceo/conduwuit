@@ -5,7 +5,7 @@ use std::{
 
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config::Config, log::LogLevelReloadHandles};
+use crate::{config::Config, log};
 
 /// Server runtime state; public portion
 pub struct Server {
@@ -29,8 +29,8 @@ pub struct Server {
 	/// Reload/shutdown signal
 	pub signal: broadcast::Sender<&'static str>,
 
-	/// Log level reload handles.
-	pub tracing_reload_handle: LogLevelReloadHandles,
+	/// Logging subsystem state
+	pub log: log::Server,
 
 	/// TODO: move stats
 	pub requests_spawn_active: AtomicU32,
@@ -42,7 +42,7 @@ pub struct Server {
 
 impl Server {
 	#[must_use]
-	pub fn new(config: Config, runtime: Option<runtime::Handle>, tracing_reload_handle: LogLevelReloadHandles) -> Self {
+	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: log::Server) -> Self {
 		Self {
 			config,
 			started: SystemTime::now(),
@@ -50,7 +50,7 @@ impl Server {
 			reloading: AtomicBool::new(false),
 			runtime,
 			signal: broadcast::channel::<&'static str>(1).0,
-			tracing_reload_handle,
+			log,
 			requests_spawn_active: AtomicU32::new(0),
 			requests_spawn_finished: AtomicU32::new(0),
 			requests_handle_active: AtomicU32::new(0),

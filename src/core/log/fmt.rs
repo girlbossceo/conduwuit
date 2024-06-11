@@ -11,7 +11,7 @@ where
 	let level = level.as_str().to_uppercase();
 	write!(
 		out,
-		"<font data-mx-color=\"{color}\"><code>{level:>5}</code></font> <code>{span:<12}</code> <code>{msg}</code><br>"
+		"<font data-mx-color=\"{color}\"><code>{level:>5}</code></font> <code>{span:^12}</code> <code>{msg}</code><br>"
 	)?;
 
 	Ok(())

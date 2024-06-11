@@ -159,6 +159,8 @@ default-features = false
 [workspace.dependencies.tracing-subscriber]
 version = "0.3.18"
 features = ["env-filter"]
+[workspace.dependencies.tracing-core]
+version = "0.1.32"
 
 # for URL previews
 [workspace.dependencies.webpage]
