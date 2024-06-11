@@ -236,10 +236,18 @@ impl Service {
 							"prev_content".to_owned(),
 							CanonicalJsonValue::Object(
 								utils::to_canonical_object(prev_state.content.clone()).map_err(|e| {
-									error!("Failed to convert prev_state to canonical JSON: {}", e);
+									error!("Failed to convert prev_state to canonical JSON: {e}");
 									Error::bad_database("Failed to convert prev_state to canonical JSON.")
 								})?,
 							),
+						);
+						unsigned.insert(
+							String::from("prev_sender"),
+							CanonicalJsonValue::String(prev_state.sender.clone().to_string()),
+						);
+						unsigned.insert(
+							String::from("replaces_state"),
+							CanonicalJsonValue::String(prev_state.event_id.clone().to_string()),
 						);
 					}
 				}
@@ -659,6 +667,10 @@ impl Service {
 				unsigned.insert(
 					"prev_sender".to_owned(),
 					serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
+				);
+				unsigned.insert(
+					"replaces_state".to_owned(),
+					serde_json::to_value(&prev_pdu.event_id).expect("EventId is valid json"),
 				);
 			}
 		}
