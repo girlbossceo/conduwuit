@@ -85,6 +85,8 @@ pub enum Error {
 	#[error("{0}")]
 	AdminCommand(&'static str),
 	#[error("{0}")]
+	Fmt(#[from] fmt::Error),
+	#[error("{0}")]
 	Err(String),
 }
 
