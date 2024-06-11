@@ -87,6 +87,8 @@ pub enum Error {
 	#[error("{0}")]
 	Fmt(#[from] fmt::Error),
 	#[error("{0}")]
+	Mxid(#[from] ruma::IdParseError),
+	#[error("{0}")]
 	Err(String),
 }
 
