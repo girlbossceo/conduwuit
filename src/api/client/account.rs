@@ -547,11 +547,11 @@ pub(crate) async fn deactivate_route(
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
-	// Make the user leave all rooms before deactivation
-	super::leave_all_rooms(sender_user).await;
-
 	// Remove devices and mark account as deactivated
 	services().users.deactivate_account(sender_user)?;
+
+	// Make the user leave all rooms before deactivation
+	super::leave_all_rooms(sender_user).await;
 
 	info!("User {sender_user} deactivated their account.");
 	services()
