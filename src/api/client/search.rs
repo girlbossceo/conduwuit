@@ -166,11 +166,8 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 		.take(limit)
 		.collect();
 
-	let next_batch = if results.len() < limit {
-		None
-	} else {
-		Some(next_batch.to_string())
-	};
+	let more_unloaded_results = searches.iter_mut().any(|s| s.peek().is_some());
+	let next_batch = more_unloaded_results.then(|| next_batch.to_string());
 
 	Ok(search_events::v3::Response::new(ResultCategories {
 		room_events: ResultRoomEvents {
