@@ -648,16 +648,18 @@ pub(crate) async fn resolve_true_destination(
 
 	let state = &services().server.log.capture;
 	let logs = Arc::new(Mutex::new(String::new()));
-	let capture = Capture::new(state, Some(filter), capture::to_html(&logs));
+	let capture = Capture::new(state, Some(filter), capture::fmt_markdown(logs.clone()));
 	let (actual_dest, hostname_uri);
 	{
 		let _capture_scope = capture.start();
 		(actual_dest, hostname_uri) = resolve_actual_dest(&server_name, !no_cache).await?;
 	};
 
-	let plain = format!("Actual destination: {actual_dest} | Hostname URI: {hostname_uri}");
-	let html = format!("{}<br>{plain}", logs.lock().expect("locked"));
-	Ok(RoomMessageEventContent::text_html(plain, html))
+	let msg = format!(
+		"{}\nDestination: {actual_dest}\nHostname URI: {hostname_uri}",
+		logs.lock().expect("locked")
+	);
+	Ok(RoomMessageEventContent::text_markdown(msg))
 }
 
 #[must_use]

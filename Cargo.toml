@@ -280,6 +280,7 @@ features = [
     "appservice-api-c",
     "client-api",
     "federation-api",
+    "markdown",
     "push-gateway-api-c",
     "state-res",
     "unstable-exhaustive-types",

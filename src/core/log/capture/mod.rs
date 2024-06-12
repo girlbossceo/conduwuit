@@ -10,7 +10,7 @@ pub use data::Data;
 use guard::Guard;
 pub use layer::{Layer, Value};
 pub use state::State;
-pub use util::to_html;
+pub use util::*;
 
 pub type Filter = dyn Fn(Data<'_>) -> bool + Send + Sync + 'static;
 pub type Closure = dyn FnMut(Data<'_>) + Send + Sync + 'static;
