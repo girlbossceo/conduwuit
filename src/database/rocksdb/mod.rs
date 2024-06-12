@@ -51,7 +51,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		let mut col_cache = HashMap::new();
 		col_cache.insert("primary".to_owned(), Cache::new_lru_cache(col_cache_capacity_bytes));
 
-		let mut db_env = Env::new()?;
+		let mut db_env = Env::new().or_else(or_else)?;
 		let row_cache = Cache::new_lru_cache(row_cache_capacity_bytes);
 		let db_opts = db_options(config, &mut db_env, &row_cache, col_cache.get("primary").expect("cache"));
 
@@ -73,12 +73,13 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			.collect::<Vec<_>>();
 
 		debug!("Opening database...");
-		let db = if config.rocksdb_read_only {
-			Db::<MultiThreaded>::open_cf_for_read_only(&db_opts, &config.database_path, cfs.clone(), false)?
+		let res = if config.rocksdb_read_only {
+			Db::<MultiThreaded>::open_cf_for_read_only(&db_opts, &config.database_path, cfs.clone(), false)
 		} else {
-			Db::<MultiThreaded>::open_cf_descriptors(&db_opts, &config.database_path, cfds)?
+			Db::<MultiThreaded>::open_cf_descriptors(&db_opts, &config.database_path, cfds)
 		};
 
+		let db = res.or_else(or_else)?;
 		info!(
 			"Opened database at sequence number {} in {:?}",
 			db.latest_sequence_number(),
@@ -115,17 +116,9 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		}))
 	}
 
-	fn flush(&self) -> Result<()> {
-		DBCommon::flush_wal(&self.rocks, false)?;
+	fn flush(&self) -> Result<()> { result(DBCommon::flush_wal(&self.rocks, false)) }
 
-		Ok(())
-	}
-
-	fn sync(&self) -> Result<()> {
-		DBCommon::flush_wal(&self.rocks, true)?;
-
-		Ok(())
-	}
+	fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.rocks, true)) }
 
 	fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
 
@@ -146,7 +139,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
-		let stats = get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache]))?;
+		let stats = get_memory_usage_stats(Some(&[&self.rocks]), Some(&[&self.row_cache])).or_else(or_else)?;
 		writeln!(
 			res,
 			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB",
@@ -168,10 +161,7 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 	fn cleanup(&self) -> Result<()> {
 		debug!("Running flush_opt");
 		let flushoptions = rust_rocksdb::FlushOptions::default();
-
-		DBCommon::flush_opt(&self.rocks, &flushoptions)?;
-
-		Ok(())
+		result(DBCommon::flush_opt(&self.rocks, &flushoptions))
 	}
 
 	fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -214,8 +204,8 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 		}
 
 		let mut res = String::new();
-		let options = BackupEngineOptions::new(path.unwrap())?;
-		let engine = BackupEngine::open(&options, &self.env)?;
+		let options = BackupEngineOptions::new(path.expect("valid path")).or_else(or_else)?;
+		let engine = BackupEngine::open(&options, &self.env).or_else(or_else)?;
 		for info in engine.get_backup_info() {
 			writeln!(
 				res,
@@ -275,3 +265,15 @@ impl Drop for Engine {
 		self.env.join_all_threads();
 	}
 }
+
+#[inline]
+fn result<T>(r: std::result::Result<T, rust_rocksdb::Error>) -> Result<T, conduit::Error> {
+	r.map_or_else(or_else, and_then)
+}
+
+#[inline(always)]
+fn and_then<T>(t: T) -> Result<T, conduit::Error> { Ok(t) }
+
+fn or_else<T>(e: rust_rocksdb::Error) -> Result<T, conduit::Error> { Err(map_err(e)) }
+
+fn map_err(e: rust_rocksdb::Error) -> conduit::Error { conduit::Error::Database(e.into_string()) }

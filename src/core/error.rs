@@ -25,12 +25,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Error)]
 pub enum Error {
-	#[cfg(feature = "rocksdb")]
-	#[error("There was a problem with the connection to the rocksdb database: {source}")]
-	RocksDb {
-		#[from]
-		source: rust_rocksdb::Error,
-	},
+	#[error("{0}")]
+	Database(String),
 	#[error("Could not generate an image: {source}")]
 	Image {
 		#[from]
@@ -114,8 +110,7 @@ impl Error {
 		let db_error = String::from("Database or I/O error occurred.");
 
 		match self {
-			#[cfg(feature = "rocksdb")]
-			Self::RocksDb {
+			Self::Database {
 				..
 			} => db_error,
 			Self::Io {

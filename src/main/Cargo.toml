@@ -83,7 +83,6 @@ hardened_malloc = [
 ]
 io_uring = [
 	"conduit-admin/io_uring",
-	"conduit-core/io_uring",
 	"conduit-database/io_uring",
 ]
 jemalloc = [
@@ -119,7 +118,6 @@ release_max_log_level = [
 ]
 rocksdb = [
 	"conduit-admin/rocksdb",
-	"conduit-core/rocksdb",
 	"conduit-database/rocksdb",
 ]
 sentry_telemetry = [

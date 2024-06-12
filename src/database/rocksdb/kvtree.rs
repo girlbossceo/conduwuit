@@ -2,7 +2,10 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use conduit::{utils, Result};
 
-use super::{rust_rocksdb::WriteBatchWithTransaction, watchers::Watchers, Engine, KeyValueDatabaseEngine, KvTree};
+use super::{
+	or_else, result, rust_rocksdb::WriteBatchWithTransaction, watchers::Watchers, Engine, KeyValueDatabaseEngine,
+	KvTree,
+};
 
 pub(crate) struct RocksDbEngineTree<'a> {
 	pub(crate) db: Arc<Engine>,
@@ -19,7 +22,7 @@ impl KvTree for RocksDbEngineTree<'_> {
 		let mut readoptions = rust_rocksdb::ReadOptions::default();
 		readoptions.set_total_order_seek(true);
 
-		Ok(self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?)
+		result(self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions))
 	}
 
 	fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
@@ -36,9 +39,10 @@ impl KvTree for RocksDbEngineTree<'_> {
 			.rocks
 			.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, &readoptions)
 		{
-			match res? {
-				Some(res) => ret.push(Some((*res).to_vec())),
-				None => ret.push(None),
+			match res {
+				Ok(Some(res)) => ret.push(Some((*res).to_vec())),
+				Ok(None) => ret.push(None),
+				Err(e) => return or_else(e),
 			}
 		}
 
@@ -50,7 +54,8 @@ impl KvTree for RocksDbEngineTree<'_> {
 
 		self.db
 			.rocks
-			.put_cf_opt(&self.cf(), key, value, &writeoptions)?;
+			.put_cf_opt(&self.cf(), key, value, &writeoptions)
+			.or_else(or_else)?;
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -70,25 +75,25 @@ impl KvTree for RocksDbEngineTree<'_> {
 			batch.put_cf(&self.cf(), key, value);
 		}
 
-		let result = self.db.rocks.write_opt(batch, &writeoptions);
+		let res = self.db.rocks.write_opt(batch, &writeoptions);
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(result?)
+		result(res)
 	}
 
 	fn remove(&self, key: &[u8]) -> Result<()> {
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
-		let result = self.db.rocks.delete_cf_opt(&self.cf(), key, &writeoptions);
+		let res = self.db.rocks.delete_cf_opt(&self.cf(), key, &writeoptions);
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(result?)
+		result(res)
 	}
 
 	fn remove_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
@@ -100,13 +105,13 @@ impl KvTree for RocksDbEngineTree<'_> {
 			batch.delete_cf(&self.cf(), key);
 		}
 
-		let result = self.db.rocks.write_opt(batch, &writeoptions);
+		let res = self.db.rocks.write_opt(batch, &writeoptions);
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(result?)
+		result(res)
 	}
 
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
@@ -151,11 +156,16 @@ impl KvTree for RocksDbEngineTree<'_> {
 		readoptions.set_total_order_seek(true);
 		let writeoptions = rust_rocksdb::WriteOptions::default();
 
-		let old = self.db.rocks.get_cf_opt(&self.cf(), key, &readoptions)?;
+		let old = self
+			.db
+			.rocks
+			.get_cf_opt(&self.cf(), key, &readoptions)
+			.or_else(or_else)?;
 		let new = utils::increment(old.as_deref());
 		self.db
 			.rocks
-			.put_cf_opt(&self.cf(), key, new, &writeoptions)?;
+			.put_cf_opt(&self.cf(), key, new, &writeoptions)
+			.or_else(or_else)?;
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -172,12 +182,19 @@ impl KvTree for RocksDbEngineTree<'_> {
 		let mut batch = WriteBatchWithTransaction::<false>::default();
 
 		for key in iter {
-			let old = self.db.rocks.get_cf_opt(&self.cf(), &key, &readoptions)?;
+			let old = self
+				.db
+				.rocks
+				.get_cf_opt(&self.cf(), &key, &readoptions)
+				.or_else(or_else)?;
 			let new = utils::increment(old.as_deref());
 			batch.put_cf(&self.cf(), key, new);
 		}
 
-		self.db.rocks.write_opt(batch, &writeoptions)?;
+		self.db
+			.rocks
+			.write_opt(batch, &writeoptions)
+			.or_else(or_else)?;
 
 		if !self.db.corked() {
 			self.db.flush()?;

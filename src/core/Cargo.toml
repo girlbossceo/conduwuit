@@ -24,14 +24,10 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-rocksdb = [
-	"dep:rust-rocksdb",
-]
 jemalloc = [
 	"dep:tikv-jemalloc-sys",
 	"dep:tikv-jemalloc-ctl",
 	"dep:tikv-jemallocator",
-	"rust-rocksdb/jemalloc",
 ]
 jemalloc_prof = [
 	"tikv-jemalloc-sys/profiling",
@@ -39,18 +35,13 @@ jemalloc_prof = [
 hardened_malloc = [
 	"dep:hardened_malloc-rs"
 ]
-io_uring = [
-	"rust-rocksdb/io-uring",
-]
-zstd_compression = [
-	"rust-rocksdb/zstd",
-]
 gzip_compression = [
 	"reqwest/gzip",
 ]
 brotli_compression = [
 	"reqwest/brotli",
 ]
+zstd_compression =[]
 perf_measurements = []
 sentry_telemetry = []
 
@@ -72,8 +63,13 @@ regex.workspace = true
 reqwest.workspace = true
 ring.workspace = true
 ruma.workspace = true
+<<<<<<< HEAD
 rust-rocksdb.optional = true
 rust-rocksdb.workspace = true
+=======
+rusqlite.optional = true
+rusqlite.workspace = true
+>>>>>>> 6963b38f (convert rocksdb errors locally; remove from Error.)
 sanitize-filename.workspace = true
 serde_json.workspace = true
 serde_regex.workspace = true

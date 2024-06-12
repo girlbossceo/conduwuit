@@ -675,7 +675,6 @@ dependencies = [
  "reqwest",
  "ring",
  "ruma",
- "rust-rocksdb-uwu",
  "sanitize-filename",
  "serde",
  "serde_json",
