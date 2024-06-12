@@ -21,7 +21,14 @@ pub struct Service {
 impl Service {
 	#[tracing::instrument(skip(self))]
 	pub fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
-		self.db.set_alias(alias, room_id, user_id)
+		if alias == services().globals.admin_alias && user_id != services().globals.server_user {
+			Err(Error::BadRequest(
+				ErrorKind::forbidden(),
+				"Only the server user can set this alias",
+			))
+		} else {
+			self.db.set_alias(alias, room_id, user_id)
+		}
 	}
 
 	#[tracing::instrument(skip(self))]
