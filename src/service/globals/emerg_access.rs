@@ -42,9 +42,12 @@ fn set_emergency_access() -> Result<bool> {
 
 	if pwd_set {
 		warn!(
-			"The Conduit account emergency password is set! Please unset it as soon as you finish admin account \
-			 recovery!"
+			"The server account emergency password is set! Please unset it as soon as you finish admin account \
+			 recovery! You will be logged out of the server service account when you finish."
 		);
+	} else {
+		// logs out any users still in the server service account and removes sessions
+		services().users.deactivate_account(conduit_user)?;
 	}
 
 	Ok(pwd_set)
