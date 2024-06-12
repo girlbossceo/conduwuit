@@ -489,7 +489,13 @@ impl Service {
 					// the administrator can execute commands as conduit
 					let from_conduit = pdu.sender == server_user && services().globals.emergency_password().is_none();
 					if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
-						if to_conduit && !from_conduit && admin_room == pdu.room_id {
+						if to_conduit
+							&& !from_conduit && admin_room == pdu.room_id
+							&& services()
+								.rooms
+								.state_cache
+								.is_joined(&UserId::parse(server_user).unwrap(), &admin_room)?
+						{
 							services()
 								.admin
 								.process_message(body, pdu.event_id.clone())
