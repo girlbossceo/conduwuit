@@ -7,6 +7,8 @@ type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a
 pub trait Data: Send + Sync {
 	fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()>;
 
+	fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()>;
+
 	fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a>;
 }
 
@@ -32,6 +34,22 @@ impl Data for KeyValueDatabase {
 		});
 
 		self.tokenids.insert_batch(&mut batch)
+	}
+
+	fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
+		let batch = tokenize(message_body).map(|word| {
+			let mut key = shortroomid.to_be_bytes().to_vec();
+			key.extend_from_slice(word.as_bytes());
+			key.push(0xFF);
+			key.extend_from_slice(pdu_id); // TODO: currently we save the room id a second time here
+			key
+		});
+
+		for token in batch {
+			self.tokenids.remove(&token)?;
+		}
+
+		Ok(())
 	}
 
 	fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
