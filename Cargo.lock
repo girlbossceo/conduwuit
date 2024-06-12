@@ -610,7 +610,6 @@ dependencies = [
  "loole",
  "regex",
  "ruma",
- "rust-rocksdb-uwu",
  "serde",
  "serde_json",
  "serde_yaml",

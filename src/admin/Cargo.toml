@@ -24,18 +24,7 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-rocksdb = [
-	"dep:rust-rocksdb",
-]
-jemalloc = [
-	"rust-rocksdb/jemalloc",
-]
-io_uring = [
-	"rust-rocksdb/io-uring",
-]
-zstd_compression = [
-	"rust-rocksdb/zstd",
-]
+rocksdb = []
 
 [dependencies]
 clap.workspace = true
@@ -48,8 +37,6 @@ log.workspace = true
 loole.workspace = true
 regex.workspace = true
 ruma.workspace = true
-rust-rocksdb.optional = true
-rust-rocksdb.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
