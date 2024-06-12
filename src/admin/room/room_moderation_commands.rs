@@ -33,12 +33,10 @@ async fn ban_room(
 ) -> Result<RoomMessageEventContent> {
 	debug!("Got room alias or ID: {}", room);
 
-	let admin_room_alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
-		.try_into()
-		.expect("#admins:server_name is a valid alias name");
+	let admin_room_alias = &services().globals.admin_alias;
 
-	if let Some(admin_room_id) = Service::get_admin_room().await? {
-		if room.to_string().eq(&admin_room_id) || room.to_string().eq(&admin_room_alias) {
+	if let Some(admin_room_id) = Service::get_admin_room()? {
+		if room.to_string().eq(&admin_room_id) || room.to_string().eq(admin_room_alias) {
 			return Ok(RoomMessageEventContent::text_plain("Not allowed to ban the admin room."));
 		}
 	}
@@ -192,9 +190,7 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 
 	let rooms_s = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
 
-	let admin_room_alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
-		.try_into()
-		.expect("#admins:server_name is a valid alias name");
+	let admin_room_alias = &services().globals.admin_alias;
 
 	let mut room_ban_count: usize = 0;
 	let mut room_ids: Vec<OwnedRoomId> = Vec::new();
@@ -202,8 +198,8 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 	for &room in &rooms_s {
 		match <&RoomOrAliasId>::try_from(room) {
 			Ok(room_alias_or_id) => {
-				if let Some(admin_room_id) = Service::get_admin_room().await? {
-					if room.to_owned().eq(&admin_room_id) || room.to_owned().eq(&admin_room_alias) {
+				if let Some(admin_room_id) = Service::get_admin_room()? {
+					if room.to_owned().eq(&admin_room_id) || room.to_owned().eq(admin_room_alias) {
 						info!("User specified admin room in bulk ban list, ignoring");
 						continue;
 					}

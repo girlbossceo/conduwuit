@@ -58,8 +58,7 @@ impl Service {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Alias not found."));
 		};
 
-		let server_user =
-			UserId::parse_with_server_name(String::from("conduit"), services().globals.server_name()).unwrap();
+		let server_user = &services().globals.server_user;
 
 		// The creator of an alias can remove it
 		if self

@@ -8,7 +8,7 @@ use ruma::{
 		tag::{TagEvent, TagEventContent, TagInfo},
 		RoomAccountDataEventType,
 	},
-	OwnedRoomId, OwnedUserId, RoomId, UserId,
+	OwnedRoomId, OwnedUserId, RoomId,
 };
 use tracing::{error, info, warn};
 
@@ -134,9 +134,7 @@ pub(crate) async fn deactivate(
 	let user_id = parse_local_user_id(&user_id)?;
 
 	// don't deactivate the server service account
-	if user_id
-		== UserId::parse_with_server_name("conduit", services().globals.server_name()).expect("conduit user exists")
-	{
+	if user_id == services().globals.server_user {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to deactivate the server service account.",
 		));
@@ -171,9 +169,7 @@ pub(crate) async fn deactivate(
 pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(&username)?;
 
-	if user_id
-		== UserId::parse_with_server_name("conduit", services().globals.server_name()).expect("conduit user exists")
-	{
+	if user_id == services().globals.server_user {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to set the password for the server account. Please use the emergency password config option.",
 		));
@@ -223,10 +219,7 @@ pub(crate) async fn deactivate_all(
 				}
 
 				// don't deactivate the server service account
-				if user_id
-					== UserId::parse_with_server_name("conduit", services().globals.server_name())
-						.expect("server user exists")
-				{
+				if user_id == services().globals.server_user {
 					services()
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(

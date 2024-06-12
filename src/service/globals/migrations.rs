@@ -22,10 +22,9 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 	// Matrix resource ownership is based on the server name; changing it
 	// requires recreating the database from scratch.
 	if services().users.count()? > 0 {
-		let conduit_user =
-			UserId::parse_with_server_name("conduit", &config.server_name).expect("@conduit:server_name is valid");
+		let conduit_user = &services().globals.server_user;
 
-		if !services().users.exists(&conduit_user)? {
+		if !services().users.exists(conduit_user)? {
 			error!("The {} server user does not exist, and the database is not new.", conduit_user);
 			return Err(Error::bad_database(
 				"Cannot reuse an existing database after changing the server name, please delete the old one first.",

@@ -216,7 +216,7 @@ async fn allowed_to_send_state_event(
 		},
 		// admin room is a sensitive room, it should not ever be made public
 		StateEventType::RoomJoinRules => {
-			if let Some(admin_room_id) = service::admin::Service::get_admin_room().await? {
+			if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
 				if admin_room_id == room_id {
 					if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(json.json().get()) {
 						if join_rule.join_rule == JoinRule::Public {
@@ -231,7 +231,7 @@ async fn allowed_to_send_state_event(
 		},
 		// admin room is a sensitive room, it should not ever be made world readable
 		StateEventType::RoomHistoryVisibility => {
-			if let Some(admin_room_id) = service::admin::Service::get_admin_room().await? {
+			if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
 				if admin_room_id == room_id {
 					if let Ok(visibility_content) =
 						serde_json::from_str::<RoomHistoryVisibilityEventContent>(json.json().get())

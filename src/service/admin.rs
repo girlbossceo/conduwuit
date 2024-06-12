@@ -19,7 +19,7 @@ use ruma::{
 		},
 		TimelineEventType,
 	},
-	EventId, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomVersionId, UserId,
+	EventId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::{sync::Mutex, task::JoinHandle};
@@ -69,18 +69,17 @@ impl Service {
 
 	async fn handler(self: &Arc<Self>) -> Result<()> {
 		let receiver = self.receiver.lock().await;
-		let Ok(Some(admin_room)) = Self::get_admin_room().await else {
+		let Ok(Some(admin_room)) = Self::get_admin_room() else {
 			return Ok(());
 		};
 
-		let server_user = UserId::parse_with_server_name(String::from("conduit"), services().globals.server_name())
-			.expect("server's username is valid");
+		let server_user = &services().globals.server_user;
 
 		loop {
 			debug_assert!(!receiver.is_closed(), "channel closed");
 			tokio::select! {
 				event = receiver.recv_async() => match event {
-					Ok(event) => self.receive(event, &admin_room, &server_user).await?,
+					Ok(event) => self.receive(event, &admin_room, server_user).await?,
 					Err(_e) => return Ok(()),
 				}
 			}
@@ -130,15 +129,11 @@ impl Service {
 	///
 	/// Errors are propagated from the database, and will have None if there is
 	/// no admin room
-	pub async fn get_admin_room() -> Result<Option<OwnedRoomId>> {
-		let admin_room_alias: Box<RoomAliasId> = format!("#admins:{}", services().globals.server_name())
-			.try_into()
-			.expect("#admins:server_name is a valid alias name");
-
+	pub fn get_admin_room() -> Result<Option<OwnedRoomId>> {
 		services()
 			.rooms
 			.alias
-			.resolve_local_alias(&admin_room_alias)
+			.resolve_local_alias(&services().globals.admin_alias)
 	}
 
 	/// Create the admin room.
@@ -162,10 +157,9 @@ impl Service {
 		let state_lock = mutex_state.lock().await;
 
 		// Create a user for the server
-		let server_user = UserId::parse_with_server_name("conduit", services().globals.server_name())
-			.expect("@conduit:server_name is valid");
+		let server_user = &services().globals.server_user;
 
-		services().users.create(&server_user, None)?;
+		services().users.create(server_user, None)?;
 
 		let room_version = services().globals.default_room_version();
 		let mut content = match room_version {
@@ -205,7 +199,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -233,7 +227,7 @@ impl Service {
 					state_key: Some(server_user.to_string()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -258,7 +252,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -277,7 +271,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -296,7 +290,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -315,7 +309,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -335,7 +329,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -355,16 +349,14 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
 			.await?;
 
 		// 6. Room alias
-		let alias: OwnedRoomAliasId = format!("#admins:{}", services().globals.server_name())
-			.try_into()
-			.expect("#admins:server_name is a valid alias name");
+		let alias = &services().globals.admin_alias;
 
 		services()
 			.rooms
@@ -381,7 +373,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -390,7 +382,7 @@ impl Service {
 		services()
 			.rooms
 			.alias
-			.set_alias(&alias, &room_id, &server_user)?;
+			.set_alias(alias, &room_id, server_user)?;
 
 		// 7. (ad-hoc) Disable room previews for everyone by default
 		services()
@@ -407,7 +399,7 @@ impl Service {
 					state_key: Some(String::new()),
 					redacts: None,
 				},
-				&server_user,
+				server_user,
 				&room_id,
 				&state_lock,
 			)
@@ -420,7 +412,7 @@ impl Service {
 	///
 	/// In conduit, this is equivalent to granting admin privileges.
 	pub async fn make_user_admin(&self, user_id: &UserId, displayname: String) -> Result<()> {
-		if let Some(room_id) = Self::get_admin_room().await? {
+		if let Some(room_id) = Self::get_admin_room()? {
 			let mutex_state = Arc::clone(
 				services()
 					.globals
@@ -433,8 +425,7 @@ impl Service {
 			let state_lock = mutex_state.lock().await;
 
 			// Use the server user to grant the new admin's power level
-			let server_user = UserId::parse_with_server_name("conduit", services().globals.server_name())
-				.expect("@conduit:server_name is valid");
+			let server_user = &services().globals.server_user;
 
 			// Invite and join the real user
 			services()
@@ -458,7 +449,7 @@ impl Service {
 						state_key: Some(user_id.to_string()),
 						redacts: None,
 					},
-					&server_user,
+					server_user,
 					&room_id,
 					&state_lock,
 				)
@@ -510,7 +501,7 @@ impl Service {
 						state_key: Some(String::new()),
 						redacts: None,
 					},
-					&server_user,
+					server_user,
 					&room_id,
 					&state_lock,
 				)
@@ -529,7 +520,7 @@ impl Service {
                 state_key: None,
                 redacts: None,
             },
-            &server_user,
+            server_user,
             &room_id,
             &state_lock,
         ).await?;
@@ -540,7 +531,7 @@ impl Service {
 
 	/// Checks whether a given user is an admin of this server
 	pub async fn user_is_admin(&self, user_id: &UserId) -> Result<bool> {
-		let Ok(Some(admin_room)) = Self::get_admin_room().await else {
+		let Ok(Some(admin_room)) = Self::get_admin_room() else {
 			return Ok(false);
 		};
 

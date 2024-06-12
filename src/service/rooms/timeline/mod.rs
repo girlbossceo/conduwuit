@@ -477,24 +477,24 @@ impl Service {
 						.search
 						.index_pdu(shortroomid, &pdu_id, &body)?;
 
-					let server_user = format!("@conduit:{}", services().globals.server_name());
+					let server_user = &services().globals.server_user;
 
 					let to_conduit = body.starts_with(&format!("{server_user}: "))
 						|| body.starts_with(&format!("{server_user} "))
 						|| body.starts_with("!admin")
 						|| body == format!("{server_user}:")
-						|| body == server_user;
+						|| body == *server_user;
 
 					// This will evaluate to false if the emergency password is set up so that
 					// the administrator can execute commands as conduit
-					let from_conduit = pdu.sender == server_user && services().globals.emergency_password().is_none();
-					if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
+					let from_conduit = pdu.sender == *server_user && services().globals.emergency_password().is_none();
+					if let Some(admin_room) = service::admin::Service::get_admin_room()? {
 						if to_conduit
 							&& !from_conduit && admin_room == pdu.room_id
 							&& services()
 								.rooms
 								.state_cache
-								.is_joined(&UserId::parse(server_user).unwrap(), &admin_room)?
+								.is_joined(server_user, &admin_room)?
 						{
 							services()
 								.admin
@@ -795,7 +795,7 @@ impl Service {
 		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
-		if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
+		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
 			if admin_room == room_id {
 				match pdu.event_type() {
 					TimelineEventType::RoomEncryption => {
@@ -810,8 +810,8 @@ impl Service {
 							.state_key()
 							.filter(|v| v.starts_with('@'))
 							.unwrap_or(sender.as_str());
-						let server_name = services().globals.server_name();
-						let server_user = format!("@conduit:{server_name}");
+						let server_user = &services().globals.server_user.to_string();
+
 						let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
 							.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
