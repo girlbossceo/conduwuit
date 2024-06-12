@@ -347,7 +347,7 @@ pub(crate) async fn register_route(
 	// If this is the first real user, grant them admin privileges except for guest
 	// users Note: the server user, @conduit:servername, is generated first
 	if !is_guest {
-		if let Some(admin_room) = service::admin::Service::get_admin_room().await? {
+		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
 			if services()
 				.rooms
 				.state_cache

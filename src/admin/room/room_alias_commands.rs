@@ -1,13 +1,12 @@
 use std::fmt::Write;
 
-use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, UserId};
+use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId};
 
 use super::RoomAliasCommand;
 use crate::{escape_html, services, Result};
 
 pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let server_user = UserId::parse_with_server_name(String::from("conduit"), services().globals.server_name())
-		.expect("server's username is valid");
+	let server_user = &services().globals.server_user;
 
 	match command {
 		RoomAliasCommand::Set {
@@ -34,7 +33,7 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					(true, Ok(Some(id))) => match services()
 						.rooms
 						.alias
-						.set_alias(&room_alias, &room_id, &server_user)
+						.set_alias(&room_alias, &room_id, server_user)
 					{
 						Ok(()) => Ok(RoomMessageEventContent::text_plain(format!(
 							"Successfully overwrote alias (formerly {id})"
@@ -47,7 +46,7 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					(_, Ok(None)) => match services()
 						.rooms
 						.alias
-						.set_alias(&room_alias, &room_id, &server_user)
+						.set_alias(&room_alias, &room_id, server_user)
 					{
 						Ok(()) => Ok(RoomMessageEventContent::text_plain("Successfully set alias")),
 						Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))),
@@ -60,7 +59,7 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					Ok(Some(id)) => match services()
 						.rooms
 						.alias
-						.remove_alias(&room_alias, &server_user)
+						.remove_alias(&room_alias, server_user)
 						.await
 					{
 						Ok(()) => Ok(RoomMessageEventContent::text_plain(format!("Removed alias from {id}"))),

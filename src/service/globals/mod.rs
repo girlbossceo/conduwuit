@@ -24,8 +24,8 @@ use ruma::{
 		federation::discovery::{ServerSigningKeys, VerifyKey},
 	},
 	serde::Base64,
-	DeviceId, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomVersionId,
-	ServerName, UserId,
+	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
+	RoomAliasId, RoomVersionId, ServerName, UserId,
 };
 use tokio::{
 	sync::{Mutex, RwLock},
@@ -58,6 +58,8 @@ pub struct Service {
 	pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
 	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
+	pub server_user: OwnedUserId,
+	pub admin_alias: OwnedRoomAliasId,
 }
 
 impl Service {
@@ -118,6 +120,10 @@ impl Service {
 			roomid_federationhandletime: RwLock::new(HashMap::new()),
 			updates_handle: Mutex::new(None),
 			stateres_mutex: Arc::new(Mutex::new(())),
+			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
+				.expect("#admins:server_name is valid alias name"),
+			server_user: UserId::parse_with_server_name(String::from("conduit"), &config.server_name)
+				.expect("@conduit:server_name is valid"),
 		};
 
 		fs::create_dir_all(s.get_media_folder())?;
