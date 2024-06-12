@@ -133,6 +133,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 
 	let results: Vec<_> = results
 		.iter()
+		.skip(skip)
 		.filter_map(|result| {
 			services()
 				.rooms
@@ -162,7 +163,6 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 			})
 		})
 		.filter_map(Result::ok)
-		.skip(skip)
 		.take(limit)
 		.collect();
 
