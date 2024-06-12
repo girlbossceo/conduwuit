@@ -72,8 +72,9 @@ impl Service {
 		let Ok(Some(admin_room)) = Self::get_admin_room().await else {
 			return Ok(());
 		};
-		let server_name = services().globals.server_name();
-		let server_user = UserId::parse(format!("@conduit:{server_name}")).expect("server's username is valid");
+
+		let server_user = UserId::parse_with_server_name(String::from("conduit"), services().globals.server_name())
+			.expect("server's username is valid");
 
 		loop {
 			debug_assert!(!receiver.is_closed(), "channel closed");
@@ -386,7 +387,10 @@ impl Service {
 			)
 			.await?;
 
-		services().rooms.alias.set_alias(&alias, &room_id)?;
+		services()
+			.rooms
+			.alias
+			.set_alias(&alias, &room_id, &server_user)?;
 
 		// 7. (ad-hoc) Disable room previews for everyone by default
 		services()
@@ -532,5 +536,14 @@ impl Service {
 		}
 
 		Ok(())
+	}
+
+	/// Checks whether a given user is an admin of this server
+	pub async fn user_is_admin(&self, user_id: &UserId) -> Result<bool> {
+		let Ok(Some(admin_room)) = Self::get_admin_room().await else {
+			return Ok(false);
+		};
+
+		services().rooms.state_cache.is_joined(user_id, &admin_room)
 	}
 }
