@@ -21,6 +21,11 @@ use tracing::warn;
 
 use crate::{services, Error};
 
+#[derive(Deserialize)]
+struct ExtractRedactedBecause {
+	redacted_because: Option<serde::de::IgnoredAny>,
+}
+
 /// Content hashes of a PDU.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventHash {
@@ -74,6 +79,19 @@ impl PduEvent {
 		self.content = to_raw_value(&content).expect("to string always works");
 
 		Ok(())
+	}
+
+	#[must_use]
+	pub fn is_redacted(&self) -> bool {
+		let Some(unsigned) = &self.unsigned else {
+			return false;
+		};
+
+		let Ok(unsigned) = ExtractRedactedBecause::deserialize(&**unsigned) else {
+			return false;
+		};
+
+		unsigned.redacted_because.is_some()
 	}
 
 	pub fn remove_transaction_id(&mut self) -> crate::Result<()> {
