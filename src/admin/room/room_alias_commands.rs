@@ -1,11 +1,14 @@
 use std::fmt::Write;
 
-use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId};
+use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, UserId};
 
 use super::RoomAliasCommand;
 use crate::{escape_html, services, Result};
 
 pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let server_user = UserId::parse_with_server_name(String::from("conduit"), services().globals.server_name())
+		.expect("server's username is valid");
+
 	match command {
 		RoomAliasCommand::Set {
 			ref room_alias_localpart,
@@ -28,7 +31,11 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					room_id,
 					..
 				} => match (force, services().rooms.alias.resolve_local_alias(&room_alias)) {
-					(true, Ok(Some(id))) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
+					(true, Ok(Some(id))) => match services()
+						.rooms
+						.alias
+						.set_alias(&room_alias, &room_id, &server_user)
+					{
 						Ok(()) => Ok(RoomMessageEventContent::text_plain(format!(
 							"Successfully overwrote alias (formerly {id})"
 						))),
@@ -37,7 +44,11 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					(false, Ok(Some(id))) => Ok(RoomMessageEventContent::text_plain(format!(
 						"Refusing to overwrite in use alias for {id}, use -f or --force to overwrite"
 					))),
-					(_, Ok(None)) => match services().rooms.alias.set_alias(&room_alias, &room_id) {
+					(_, Ok(None)) => match services()
+						.rooms
+						.alias
+						.set_alias(&room_alias, &room_id, &server_user)
+					{
 						Ok(()) => Ok(RoomMessageEventContent::text_plain("Successfully set alias")),
 						Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))),
 					},
@@ -46,7 +57,12 @@ pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 				RoomAliasCommand::Remove {
 					..
 				} => match services().rooms.alias.resolve_local_alias(&room_alias) {
-					Ok(Some(id)) => match services().rooms.alias.remove_alias(&room_alias) {
+					Ok(Some(id)) => match services()
+						.rooms
+						.alias
+						.remove_alias(&room_alias, &server_user)
+						.await
+					{
 						Ok(()) => Ok(RoomMessageEventContent::text_plain(format!("Removed alias from {id}"))),
 						Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))),
 					},

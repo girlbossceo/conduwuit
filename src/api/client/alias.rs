@@ -22,6 +22,8 @@ use crate::{
 ///
 /// Creates a new room alias on this server.
 pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result<create_alias::v3::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
 	alias_checks(&body.room_alias, &body.appservice_info).await?;
 
 	// this isn't apart of alias_checks or delete alias route because we should
@@ -43,17 +45,10 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 		return Err(Error::Conflict("Alias already exists."));
 	}
 
-	if services()
+	services()
 		.rooms
 		.alias
-		.set_alias(&body.room_alias, &body.room_id)
-		.is_err()
-	{
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Invalid room alias. Alias must be in the form of '#localpart:server_name'",
-		));
-	};
+		.set_alias(&body.room_alias, &body.room_id, sender_user)?;
 
 	Ok(create_alias::v3::Response::new())
 }
@@ -62,10 +57,12 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 ///
 /// Deletes a room alias from this server.
 ///
-/// - TODO: additional access control checks
 /// - TODO: Update canonical alias event
 pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
 	alias_checks(&body.room_alias, &body.appservice_info).await?;
+
 	if services()
 		.rooms
 		.alias
@@ -75,17 +72,11 @@ pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) ->
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
 	}
 
-	if services()
+	services()
 		.rooms
 		.alias
-		.remove_alias(&body.room_alias)
-		.is_err()
-	{
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Invalid room alias. Alias must be in the form of '#localpart:server_name'",
-		));
-	};
+		.remove_alias(&body.room_alias, sender_user)
+		.await?;
 
 	// TODO: update alt_aliases?
 

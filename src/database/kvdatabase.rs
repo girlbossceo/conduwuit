@@ -57,6 +57,7 @@ pub struct KeyValueDatabase {
 	pub eventid_pduid: Arc<dyn KvTree>,
 	pub roomid_pduleaves: Arc<dyn KvTree>,
 	pub alias_roomid: Arc<dyn KvTree>,
+	pub alias_userid: Arc<dyn KvTree>,  // UserId = AliasId (User who created the alias)
 	pub aliasid_alias: Arc<dyn KvTree>, // AliasId = RoomId + Count
 	pub publicroomids: Arc<dyn KvTree>,
 
@@ -193,6 +194,7 @@ impl KeyValueDatabase {
 			roomid_pduleaves: builder.open_tree("roomid_pduleaves")?,
 
 			alias_roomid: builder.open_tree("alias_roomid")?,
+			alias_userid: builder.open_tree("alias_userid")?,
 			aliasid_alias: builder.open_tree("aliasid_alias")?,
 			publicroomids: builder.open_tree("publicroomids")?,
 

@@ -1,16 +1,19 @@
-use ruma::{api::client::error::ErrorKind, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId};
+use ruma::{api::client::error::ErrorKind, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, UserId};
 
 use crate::{services, utils, Error, KeyValueDatabase, Result};
 
 pub trait Data: Send + Sync {
 	/// Creates or updates the alias to the given room id.
-	fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId) -> Result<()>;
+	fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()>;
 
 	/// Forgets about an alias. Returns an error if the alias did not exist.
 	fn remove_alias(&self, alias: &RoomAliasId) -> Result<()>;
 
 	/// Looks up the roomid for the given alias.
 	fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>>;
+
+	/// Finds the user who assigned the given alias to a room
+	fn who_created_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedUserId>>;
 
 	/// Returns all local aliases that point to the given room
 	fn local_aliases_for_room<'a>(
@@ -22,13 +25,19 @@ pub trait Data: Send + Sync {
 }
 
 impl Data for KeyValueDatabase {
-	fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId) -> Result<()> {
+	fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
+		// Comes first as we don't want a stuck alias
+		self.alias_userid
+			.insert(alias.alias().as_bytes(), user_id.as_bytes())?;
+
 		self.alias_roomid
 			.insert(alias.alias().as_bytes(), room_id.as_bytes())?;
+
 		let mut aliasid = room_id.as_bytes().to_vec();
 		aliasid.push(0xFF);
 		aliasid.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
 		self.aliasid_alias.insert(&aliasid, alias.as_bytes())?;
+
 		Ok(())
 	}
 
@@ -40,10 +49,14 @@ impl Data for KeyValueDatabase {
 			for (key, _) in self.aliasid_alias.scan_prefix(prefix) {
 				self.aliasid_alias.remove(&key)?;
 			}
+
 			self.alias_roomid.remove(alias.alias().as_bytes())?;
+
+			self.alias_userid.remove(alias.alias().as_bytes())?;
 		} else {
-			return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
+			return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist or is invalid."));
 		}
+
 		Ok(())
 	}
 
@@ -56,6 +69,19 @@ impl Data for KeyValueDatabase {
 						.map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid unicode."))?,
 				)
 				.map_err(|_| Error::bad_database("Room ID in alias_roomid is invalid."))
+			})
+			.transpose()
+	}
+
+	fn who_created_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedUserId>> {
+		self.alias_userid
+			.get(alias.alias().as_bytes())?
+			.map(|bytes| {
+				UserId::parse(
+					utils::string_from_bytes(&bytes)
+						.map_err(|_| Error::bad_database("User ID in alias_userid is invalid unicode."))?,
+				)
+				.map_err(|_| Error::bad_database("User ID in alias_roomid is invalid."))
 			})
 			.transpose()
 	}
