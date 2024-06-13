@@ -3,10 +3,12 @@ pub mod color;
 pub mod fmt;
 mod reload;
 mod server;
+mod suppress;
 
 pub use capture::Capture;
 pub use reload::{LogLevelReloadHandles, ReloadHandle};
 pub use server::Server;
+pub use suppress::Suppress;
 pub use tracing::Level;
 pub use tracing_core::{Event, Metadata};
 
