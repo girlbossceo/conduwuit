@@ -90,9 +90,8 @@ async fn process_event(event: AdminEvent) -> Option<RoomMessageEventContent> {
 }
 
 // Parse and process a message from the admin room
-#[tracing::instrument(name = "process")]
-async fn process_admin_message(room_message: String) -> RoomMessageEventContent {
-	let mut lines = room_message.lines().filter(|l| !l.trim().is_empty());
+async fn process_admin_message(msg: String) -> RoomMessageEventContent {
+	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
 	let command_line = lines.next().expect("each string has at least one line");
 	let body = lines.collect::<Vec<_>>();
 
@@ -122,8 +121,14 @@ async fn process_admin_message(room_message: String) -> RoomMessageEventContent 
 fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
 	let mut argv = command_line.split_whitespace().collect::<Vec<_>>();
 
+	// Remove any escapes that came with a server-side escape command
+	if !argv.is_empty() && argv[0].ends_with("admin") {
+		argv[0] = argv[0].trim_start_matches('\\');
+	}
+
 	// First indice has to be "admin" but for console convenience we add it here
-	if !argv.is_empty() && !argv[0].ends_with("admin") {
+	let server_user = services().globals.server_user.as_str();
+	if !argv.is_empty() && !argv[0].ends_with("admin") && !argv[0].starts_with(server_user) {
 		argv.insert(0, "admin");
 	}
 

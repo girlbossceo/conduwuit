@@ -338,6 +338,8 @@ pub struct Config {
 
 	#[serde(default)]
 	pub block_non_admin_invites: bool,
+	#[serde(default = "true_fn")]
+	pub admin_escape_commands: bool,
 
 	#[serde(default)]
 	pub sentry: bool,
@@ -610,6 +612,7 @@ impl fmt::Display for Config {
 				"Block non-admin room invites (local and remote, admins can still send and receive invites)",
 				&self.block_non_admin_invites.to_string(),
 			),
+			("Enable admin escape commands", &self.admin_escape_commands.to_string()),
 			("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string()),
 			("Allow incoming federated typing", &self.allow_incoming_typing.to_string()),
 			(

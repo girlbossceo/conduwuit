@@ -35,10 +35,10 @@ use tracing::{debug, error, info, warn};
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{
+	admin,
 	server_is_ours,
 	//api::server_server,
 	service::{
-		self,
 		appservice::NamespaceRegex,
 		pdu::{EventHash, PduBuilder},
 		rooms::event_handler::parse_incoming_pdu,
@@ -477,30 +477,11 @@ impl Service {
 						.search
 						.index_pdu(shortroomid, &pdu_id, &body)?;
 
-					let server_user = &services().globals.server_user;
-
-					let to_conduit = body.starts_with(&format!("{server_user}: "))
-						|| body.starts_with(&format!("{server_user} "))
-						|| body.starts_with("!admin")
-						|| body == format!("{server_user}:")
-						|| body == *server_user;
-
-					// This will evaluate to false if the emergency password is set up so that
-					// the administrator can execute commands as conduit
-					let from_conduit = pdu.sender == *server_user && services().globals.emergency_password().is_none();
-					if let Some(admin_room) = service::admin::Service::get_admin_room()? {
-						if to_conduit
-							&& !from_conduit && admin_room == pdu.room_id
-							&& services()
-								.rooms
-								.state_cache
-								.is_joined(server_user, &admin_room)?
-						{
-							services()
-								.admin
-								.command(body, Some(pdu.event_id.clone()))
-								.await;
-						}
+					if admin::is_admin_command(pdu, &body).await {
+						services()
+							.admin
+							.command(body, Some(pdu.event_id.clone()))
+							.await;
 					}
 				}
 			},
@@ -795,7 +776,7 @@ impl Service {
 		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
-		if let Some(admin_room) = service::admin::Service::get_admin_room()? {
+		if let Some(admin_room) = admin::Service::get_admin_room()? {
 			if admin_room == room_id {
 				match pdu.event_type() {
 					TimelineEventType::RoomEncryption => {
@@ -1222,6 +1203,7 @@ impl Service {
 		Ok(())
 	}
 }
+
 #[cfg(test)]
 mod tests {
 	use super::*;
