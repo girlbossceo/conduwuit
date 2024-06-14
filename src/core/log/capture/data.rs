@@ -1,9 +1,10 @@
 use tracing::Level;
 use tracing_core::{span::Current, Event};
 
-use super::layer::Value;
+use super::{layer::Value, Layer};
 
 pub struct Data<'a> {
+	pub layer: &'a Layer,
 	pub event: &'a Event<'a>,
 	pub current: &'a Current,
 	pub values: Option<&'a mut [Value]>,

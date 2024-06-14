@@ -40,12 +40,12 @@ where
 			.read()
 			.expect("shared lock")
 			.iter()
-			.filter(|capture| filter(capture, event, &ctx))
-			.for_each(|capture| handle(capture, event, &ctx));
+			.filter(|capture| filter(self, capture, event, &ctx))
+			.for_each(|capture| handle(self, capture, event, &ctx));
 	}
 }
 
-fn handle<S>(capture: &Capture, event: &Event<'_>, ctx: &Context<'_, S>)
+fn handle<S>(layer: &Layer, capture: &Capture, event: &Event<'_>, ctx: &Context<'_, S>)
 where
 	S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -56,18 +56,20 @@ where
 
 	let mut closure = capture.closure.lock().expect("exclusive lock");
 	closure(Data {
+		layer,
 		event,
 		current: &ctx.current_span(),
 		values: Some(&mut visitor.values),
 	});
 }
 
-fn filter<S>(capture: &Capture, event: &Event<'_>, ctx: &Context<'_, S>) -> bool
+fn filter<S>(layer: &Layer, capture: &Capture, event: &Event<'_>, ctx: &Context<'_, S>) -> bool
 where
 	S: Subscriber + for<'a> LookupSpan<'a>,
 {
 	capture.filter.as_ref().map_or(true, |filter| {
 		filter(Data {
+			layer,
 			event,
 			current: &ctx.current_span(),
 			values: None,
