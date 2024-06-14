@@ -352,8 +352,8 @@ pub(crate) async fn send_transaction_message_route(
 						.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)?;
 				}
 			},
-			Edu::_Custom(custom) => {
-				debug_warn!(?custom, "received custom/unknown EDU");
+			Edu::_Custom(ref _custom) => {
+				debug_warn!(?edu, "received custom/unknown EDU");
 			},
 		}
 	}
