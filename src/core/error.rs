@@ -7,7 +7,11 @@ use http_body_util::Full;
 use ruma::{
 	api::{
 		client::{
-			error::{Error as RumaError, ErrorBody, ErrorKind},
+			error::ErrorKind::{
+				Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed,
+				ThreepidDenied, TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated,
+				WrongRoomKeysVersion,
+			},
 			uiaa::{UiaaInfo, UiaaResponse},
 		},
 		OutgoingResponse,
@@ -16,68 +20,56 @@ use ruma::{
 };
 use thiserror::Error;
 use tracing::error;
-use ErrorKind::{
-	Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed, ThreepidDenied,
-	TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated, WrongRoomKeysVersion,
-};
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Error)]
 pub enum Error {
+	// std
 	#[error("{0}")]
-	Database(String),
-	#[error("Could not generate an image: {source}")]
-	Image {
-		#[from]
-		source: image::error::ImageError,
-	},
-	#[error("Could not connect to server: {source}")]
-	Reqwest {
-		#[from]
-		source: reqwest::Error,
-	},
-	#[error("Could build regular expression: {source}")]
-	Regex {
-		#[from]
-		source: regex::Error,
-	},
-	#[error("Remote server {0} responded with: {1}")]
-	Federation(OwnedServerName, RumaError),
-	#[error("Could not do this io: {source}")]
-	Io {
-		#[from]
-		source: std::io::Error,
-	},
-	#[error("There was a problem with your configuration: {0}")]
-	BadConfig(String),
-	#[error("{0}")]
-	BadServerResponse(&'static str),
-	#[error("{0}")]
-	/// Don't create this directly. Use Error::bad_database instead.
-	BadDatabase(&'static str),
-	#[error("uiaa")]
-	Uiaa(UiaaInfo),
-	#[error("{0}: {1}")]
-	BadRequest(ErrorKind, &'static str),
-	#[error("{0}")]
-	Conflict(&'static str), // This is only needed for when a room alias already exists
+	Fmt(#[from] fmt::Error),
+	#[error("I/O error: {0}")]
+	Io(#[from] std::io::Error),
+
+	// third-party
+	#[error("Regex error: {0}")]
+	Regex(#[from] regex::Error),
+	#[error("Tracing filter error: {0}")]
+	TracingFilter(#[from] tracing_subscriber::filter::ParseError),
+	#[error("Image error: {0}")]
+	Image(#[from] image::error::ImageError),
+	#[error("Request error: {0}")]
+	Reqwest(#[from] reqwest::Error),
 	#[error("{0}")]
 	Extension(#[from] axum::extract::rejection::ExtensionRejection),
 	#[error("{0}")]
 	Path(#[from] axum::extract::rejection::PathRejection),
-	#[error("from {0}: {1}")]
-	Redaction(OwnedServerName, ruma::canonical_json::RedactionError),
-	#[error("{0} in {1}")]
-	InconsistentRoomState(&'static str, ruma::OwnedRoomId),
-	#[error("{0}")]
-	TracingFilter(#[from] tracing_subscriber::filter::ParseError),
-	#[error("{0}")]
-	AdminCommand(&'static str),
-	#[error("{0}")]
-	Fmt(#[from] fmt::Error),
+
+	// ruma
 	#[error("{0}")]
 	Mxid(#[from] ruma::IdParseError),
+	#[error("{0}: {1}")]
+	BadRequest(ruma::api::client::error::ErrorKind, &'static str),
+	#[error("from {0}: {1}")]
+	Redaction(OwnedServerName, ruma::canonical_json::RedactionError),
+	#[error("Remote server {0} responded with: {1}")]
+	Federation(OwnedServerName, ruma::api::client::error::Error),
+	#[error("{0} in {1}")]
+	InconsistentRoomState(&'static str, ruma::OwnedRoomId),
+
+	// conduwuit
+	#[error("There was a problem with your configuration: {0}")]
+	BadConfig(String),
+	#[error("{0}")]
+	BadDatabase(&'static str),
+	#[error("{0}")]
+	Database(String),
+	#[error("{0}")]
+	BadServerResponse(&'static str),
+	#[error("{0}")]
+	Conflict(&'static str), // This is only needed for when a room alias already exists
+	#[error("uiaa")]
+	Uiaa(UiaaInfo),
+
+	// unique / untyped
 	#[error("{0}")]
 	Err(String),
 }
@@ -94,7 +86,7 @@ impl Error {
 	}
 
 	/// Returns the Matrix error code / error kind
-	pub fn error_code(&self) -> ErrorKind {
+	pub fn error_code(&self) -> ruma::api::client::error::ErrorKind {
 		if let Self::Federation(_, error) = self {
 			return error.error_kind().unwrap_or_else(|| &Unknown).clone();
 		}
@@ -107,15 +99,13 @@ impl Error {
 
 	/// Sanitizes public-facing errors that can leak sensitive information.
 	pub fn sanitized_error(&self) -> String {
-		let db_error = String::from("Database or I/O error occurred.");
-
 		match self {
 			Self::Database {
 				..
-			} => db_error,
+			} => String::from("Database error occurred."),
 			Self::Io {
 				..
-			} => db_error,
+			} => String::from("I/O error occurred."),
 			_ => self.to_string(),
 		}
 	}
@@ -142,6 +132,8 @@ impl From<Error> for RumaResponse<UiaaResponse> {
 
 impl Error {
 	pub fn to_response(&self) -> RumaResponse<UiaaResponse> {
+		use ruma::api::client::error::{Error as RumaError, ErrorBody};
+
 		if let Self::Uiaa(uiaainfo) = self {
 			return RumaResponse(UiaaResponse::AuthResponse(uiaainfo.clone()));
 		}

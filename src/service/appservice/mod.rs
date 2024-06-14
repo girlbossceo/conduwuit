@@ -159,7 +159,7 @@ impl Service {
 			.write()
 			.await
 			.remove(service_name)
-			.ok_or_else(|| crate::Error::AdminCommand("Appservice not found"))?;
+			.ok_or_else(|| crate::Error::Err("Appservice not found".to_owned()))?;
 
 		// remove the appservice from the database
 		self.db.unregister_appservice(service_name)?;
