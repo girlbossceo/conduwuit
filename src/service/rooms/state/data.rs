@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
+use conduit::utils::mutex_map;
 use ruma::{EventId, OwnedEventId, RoomId};
-use tokio::sync::MutexGuard;
 
 use crate::{utils, Error, KeyValueDatabase, Result};
 
@@ -14,7 +14,7 @@ pub trait Data: Send + Sync {
 		&self,
 		room_id: &RoomId,
 		new_shortstatehash: u64,
-		_mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()>;
 
 	/// Associates a state with an event.
@@ -28,7 +28,7 @@ pub trait Data: Send + Sync {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		_mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()>;
 }
 
@@ -47,7 +47,7 @@ impl Data for KeyValueDatabase {
 		&self,
 		room_id: &RoomId,
 		new_shortstatehash: u64,
-		_mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.roomid_shortstatehash
 			.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
@@ -80,7 +80,7 @@ impl Data for KeyValueDatabase {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		_mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);

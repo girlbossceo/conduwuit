@@ -1,4 +1,4 @@
-use std::{cmp::max, collections::BTreeMap, sync::Arc};
+use std::{cmp::max, collections::BTreeMap};
 
 use conduit::{debug_info, debug_warn};
 use ruma::{
@@ -89,18 +89,8 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 		));
 	}
 
-	services().rooms.short.get_or_create_shortroomid(&room_id)?;
-
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
+	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
 
 	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
 		Some(room_alias_check(alias, &body.appservice_info).await?)
@@ -577,21 +567,17 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 
 	// Create a replacement room
 	let replacement_room = RoomId::new(services().globals.server_name());
-	services()
+
+	let _short_id = services()
 		.rooms
 		.short
 		.get_or_create_shortroomid(&replacement_room)?;
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(body.room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 
 	// Send a m.room.tombstone event to the old room to indicate that it is not
 	// intended to be used any further Fail if the sender does not have the required
@@ -619,16 +605,11 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 
 	// Change lock to replacement room
 	drop(state_lock);
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(replacement_room.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&replacement_room)
+		.await;
 
 	// Get the old room creation event
 	let mut create_event_content = serde_json::from_str::<CanonicalJsonObject>(

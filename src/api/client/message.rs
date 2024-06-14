@@ -1,7 +1,4 @@
-use std::{
-	collections::{BTreeMap, HashSet},
-	sync::Arc,
-};
+use std::collections::{BTreeMap, HashSet};
 
 use conduit::PduCount;
 use ruma::{
@@ -32,16 +29,11 @@ pub(crate) async fn send_message_event_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_deref();
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(body.room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 
 	// Forbid m.room.encrypted if encryption is disabled
 	if MessageLikeEventType::RoomEncrypted == body.event_type && !services().globals.allow_encryption() {

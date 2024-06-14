@@ -172,18 +172,7 @@ async fn send_state_event_for_key_helper(
 	sender: &UserId, room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>, state_key: String,
 ) -> Result<Arc<EventId>> {
 	allowed_to_send_state_event(room_id, event_type, json).await?;
-
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.to_owned())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
-
+	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 	let event_id = services()
 		.rooms
 		.timeline

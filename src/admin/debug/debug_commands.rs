@@ -595,17 +595,7 @@ pub(crate) async fn force_set_room_state_from_server(
 		.state_compressor
 		.save_state(room_id.clone().as_ref(), new_room_state)?;
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.clone().into())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
-
+	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
 	services()
 		.rooms
 		.state

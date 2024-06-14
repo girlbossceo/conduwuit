@@ -4,6 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
+use conduit::utils::mutex_map;
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{
@@ -22,7 +23,6 @@ use ruma::{
 	EventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::MutexGuard;
 use tracing::{error, warn};
 
 use crate::{service::pdu::PduBuilder, services, Error, PduEvent, Result};
@@ -285,7 +285,7 @@ impl Service {
 	}
 
 	pub async fn user_can_invite(
-		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &MutexGuard<'_, ()>,
+		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &mutex_map::Guard<()>,
 	) -> Result<bool> {
 		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
 			.expect("Event content always serializes");

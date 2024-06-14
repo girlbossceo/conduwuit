@@ -7,6 +7,7 @@ use std::{
 };
 
 use axum_client_ip::InsecureClientIp;
+use conduit::utils::mutex_map;
 use ruma::{
 	api::{
 		client::{
@@ -32,7 +33,7 @@ use ruma::{
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::{MutexGuard, RwLock};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 
 use super::get_alias_helper;
@@ -373,16 +374,11 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(body.room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 
 	services()
 		.rooms
@@ -442,16 +438,11 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 			},
 		)?;
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(body.room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 
 	services()
 		.rooms
@@ -496,16 +487,11 @@ pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Res
 	event.reason.clone_from(&body.reason);
 	event.join_authorized_via_users_server = None;
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(body.room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 
 	services()
 		.rooms
@@ -670,16 +656,7 @@ pub async fn join_room_by_id_helper(
 		});
 	}
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.to_owned())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 
 	// Ask a remote server if we are not participating in this room
 	if !services()
@@ -695,7 +672,7 @@ pub async fn join_room_by_id_helper(
 
 async fn join_room_by_id_helper_remote(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>, state_lock: MutexGuard<'_, ()>,
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
 ) -> Result<join_room_by_id::v3::Response> {
 	info!("Joining {room_id} over federation.");
 
@@ -1030,7 +1007,7 @@ async fn join_room_by_id_helper_remote(
 
 async fn join_room_by_id_helper_local(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>, state_lock: MutexGuard<'_, ()>,
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
 ) -> Result<join_room_by_id::v3::Response> {
 	info!("We can join locally");
 
@@ -1413,17 +1390,7 @@ pub(crate) async fn invite_helper(
 
 	if !user_is_local(user_id) {
 		let (pdu, pdu_json, invite_room_state) = {
-			let mutex_state = Arc::clone(
-				services()
-					.globals
-					.roomid_mutex_state
-					.write()
-					.await
-					.entry(room_id.to_owned())
-					.or_default(),
-			);
-			let state_lock = mutex_state.lock().await;
-
+			let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 			let content = to_raw_value(&RoomMemberEventContent {
 				avatar_url: services().users.avatar_url(user_id)?,
 				displayname: None,
@@ -1535,16 +1502,7 @@ pub(crate) async fn invite_helper(
 		));
 	}
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.to_owned())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 
 	services()
 		.rooms
@@ -1638,16 +1596,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			true,
 		)?;
 	} else {
-		let mutex_state = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_state
-				.write()
-				.await
-				.entry(room_id.to_owned())
-				.or_default(),
-		);
-		let state_lock = mutex_state.lock().await;
+		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 
 		let member_event =
 			services()

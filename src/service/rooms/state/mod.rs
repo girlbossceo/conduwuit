@@ -4,6 +4,7 @@ use std::{
 	sync::Arc,
 };
 
+use conduit::utils::mutex_map;
 use data::Data;
 use ruma::{
 	api::client::error::ErrorKind,
@@ -15,7 +16,6 @@ use ruma::{
 	state_res::{self, StateMap},
 	EventId, OwnedEventId, RoomId, RoomVersionId, UserId,
 };
-use tokio::sync::MutexGuard;
 use tracing::warn;
 
 use super::state_compressor::CompressedStateEvent;
@@ -33,7 +33,7 @@ impl Service {
 		shortstatehash: u64,
 		statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
-		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		for event_id in statediffnew.iter().filter_map(|new| {
 			services()
@@ -299,12 +299,12 @@ impl Service {
 	}
 
 	/// Set the state hash to a new version, but does not update state_cache.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self, mutex_lock))]
 	pub fn set_room_state(
 		&self,
 		room_id: &RoomId,
 		shortstatehash: u64,
-		mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.db.set_room_state(room_id, shortstatehash, mutex_lock)
 	}
@@ -343,7 +343,7 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.db
 			.set_forward_extremities(room_id, event_ids, state_lock)

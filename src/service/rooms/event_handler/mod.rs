@@ -530,18 +530,8 @@ impl Service {
 		// 13. Use state resolution to find new room state
 
 		// We start looking at current room state now, so lets lock the room
-		let mutex_state = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_state
-				.write()
-				.await
-				.entry(room_id.to_owned())
-				.or_default(),
-		);
-
 		trace!("Locking the room");
-		let state_lock = mutex_state.lock().await;
+		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 
 		// Now we calculate the set of extremities this room has after the incoming
 		// event has been applied. We start with the previous extremities (aka leaves)

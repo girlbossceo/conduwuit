@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_leave_event},
 	events::{
@@ -37,18 +35,11 @@ pub(crate) async fn create_leave_event_template_route(
 		.acl_check(origin, &body.room_id)?;
 
 	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
-
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(body.room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
-
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 	let content = to_raw_value(&RoomMemberEventContent {
 		avatar_url: None,
 		blurhash: None,

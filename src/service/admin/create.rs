@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use conduit::{Error, Result};
 use ruma::{
@@ -32,18 +32,9 @@ use crate::{pdu::PduBuilder, services};
 pub async fn create_admin_room() -> Result<()> {
 	let room_id = RoomId::new(services().globals.server_name());
 
-	services().rooms.short.get_or_create_shortroomid(&room_id)?;
+	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.clone())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
+	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
 
 	// Create a user for the server
 	let server_user = &services().globals.server_user;

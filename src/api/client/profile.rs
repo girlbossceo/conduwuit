@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ruma::{
 	api::{
 		client::{
@@ -355,17 +353,7 @@ pub async fn update_avatar_url(
 
 pub async fn update_all_rooms(all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: OwnedUserId) {
 	for (pdu_builder, room_id) in all_joined_rooms {
-		let mutex_state = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_state
-				.write()
-				.await
-				.entry(room_id.clone())
-				.or_default(),
-		);
-		let state_lock = mutex_state.lock().await;
-
+		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 		if let Err(e) = services()
 			.rooms
 			.timeline

@@ -30,7 +30,7 @@ use ruma::{
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use super::state_compressor::CompressedStateEvent;
@@ -44,7 +44,7 @@ use crate::{
 		rooms::event_handler::parse_incoming_pdu,
 	},
 	services,
-	utils::{self},
+	utils::{self, mutex_map},
 	Error,
 	PduCount,
 	PduEvent,
@@ -200,13 +200,13 @@ impl Service {
 	/// happens in `append_pdu`.
 	///
 	/// Returns pdu id
-	#[tracing::instrument(skip(self, pdu, pdu_json, leaves))]
+	#[tracing::instrument(skip_all)]
 	pub async fn append_pdu(
 		&self,
 		pdu: &PduEvent,
 		mut pdu_json: CanonicalJsonObject,
 		leaves: Vec<OwnedEventId>,
-		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Vec<u8>> {
 		// Coalesce database writes for the remainder of this scope.
 		let _cork = services().globals.db.cork_and_flush();
@@ -581,7 +581,7 @@ impl Service {
 		pdu_builder: PduBuilder,
 		sender: &UserId,
 		room_id: &RoomId,
-		_mutex_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<(PduEvent, CanonicalJsonObject)> {
 		let PduBuilder {
 			event_type,
@@ -768,7 +768,7 @@ impl Service {
 		pdu_builder: PduBuilder,
 		sender: &UserId,
 		room_id: &RoomId,
-		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
 		if let Some(admin_room) = admin::Service::get_admin_room()? {
@@ -909,7 +909,7 @@ impl Service {
 		new_room_leaves: Vec<OwnedEventId>,
 		state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 		soft_fail: bool,
-		state_lock: &MutexGuard<'_, ()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Option<Vec<u8>>> {
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't

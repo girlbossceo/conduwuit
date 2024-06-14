@@ -4,7 +4,7 @@ mod grant;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use conduit::{Error, Result};
+use conduit::{utils::mutex_map, Error, Result};
 pub use create::create_admin_room;
 pub use grant::make_user_admin;
 use ruma::{
@@ -15,10 +15,7 @@ use ruma::{
 	EventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::{
-	sync::{Mutex, MutexGuard},
-	task::JoinHandle,
-};
+use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::error;
 
 use crate::{pdu::PduBuilder, services, PduEvent};
@@ -218,17 +215,7 @@ async fn respond_to_room(content: &RoomMessageEventContent, room_id: &RoomId, us
 		"sender is not admin"
 	);
 
-	let mutex_state = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_state
-			.write()
-			.await
-			.entry(room_id.to_owned())
-			.or_default(),
-	);
-	let state_lock = mutex_state.lock().await;
-
+	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 	let response_pdu = PduBuilder {
 		event_type: TimelineEventType::RoomMessage,
 		content: to_raw_value(content).expect("event is valid, we just created it"),
@@ -250,7 +237,7 @@ async fn respond_to_room(content: &RoomMessageEventContent, room_id: &RoomId, us
 }
 
 async fn handle_response_error(
-	e: &Error, room_id: &RoomId, user_id: &UserId, state_lock: &MutexGuard<'_, ()>,
+	e: &Error, room_id: &RoomId, user_id: &UserId, state_lock: &mutex_map::Guard<()>,
 ) -> Result<()> {
 	error!("Failed to build and append admin room response PDU: \"{e}\"");
 	let error_room_message = RoomMessageEventContent::text_plain(format!(
