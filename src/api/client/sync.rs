@@ -1,7 +1,6 @@
 use std::{
 	cmp::Ordering,
 	collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
-	sync::Arc,
 	time::Duration,
 };
 
@@ -197,20 +196,9 @@ pub(crate) async fn sync_events_route(
 	for result in all_invited_rooms {
 		let (room_id, invite_state_events) = result?;
 
-		{
-			// Get and drop the lock to wait for remaining operations to finish
-			let mutex_insert = Arc::clone(
-				services()
-					.globals
-					.roomid_mutex_insert
-					.write()
-					.await
-					.entry(room_id.clone())
-					.or_default(),
-			);
-			let insert_lock = mutex_insert.lock().await;
-			drop(insert_lock);
-		};
+		// Get and drop the lock to wait for remaining operations to finish
+		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
+		drop(insert_lock);
 
 		let invite_count = services()
 			.rooms
@@ -332,20 +320,9 @@ async fn handle_left_room(
 	since: u64, room_id: &RoomId, sender_user: &UserId, left_rooms: &mut BTreeMap<ruma::OwnedRoomId, LeftRoom>,
 	next_batch_string: &str, full_state: bool, lazy_load_enabled: bool,
 ) -> Result<()> {
-	{
-		// Get and drop the lock to wait for remaining operations to finish
-		let mutex_insert = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_insert
-				.write()
-				.await
-				.entry(room_id.to_owned())
-				.or_default(),
-		);
-		let insert_lock = mutex_insert.lock().await;
-		drop(insert_lock);
-	};
+	// Get and drop the lock to wait for remaining operations to finish
+	let insert_lock = services().globals.roomid_mutex_insert.lock(room_id).await;
+	drop(insert_lock);
 
 	let left_count = services()
 		.rooms
@@ -544,21 +521,10 @@ async fn load_joined_room(
 	next_batch: u64, next_batchcount: PduCount, lazy_load_enabled: bool, lazy_load_send_redundant: bool,
 	full_state: bool, device_list_updates: &mut HashSet<OwnedUserId>, left_encrypted_users: &mut HashSet<OwnedUserId>,
 ) -> Result<JoinedRoom> {
-	{
-		// Get and drop the lock to wait for remaining operations to finish
-		// This will make sure the we have all events until next_batch
-		let mutex_insert = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_insert
-				.write()
-				.await
-				.entry(room_id.to_owned())
-				.or_default(),
-		);
-		let insert_lock = mutex_insert.lock().await;
-		drop(insert_lock);
-	};
+	// Get and drop the lock to wait for remaining operations to finish
+	// This will make sure the we have all events until next_batch
+	let insert_lock = services().globals.roomid_mutex_insert.lock(room_id).await;
+	drop(insert_lock);
 
 	let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10)?;
 

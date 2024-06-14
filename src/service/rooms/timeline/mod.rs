@@ -271,16 +271,11 @@ impl Service {
 			.state
 			.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
 
-		let mutex_insert = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_insert
-				.write()
-				.await
-				.entry(pdu.room_id.clone())
-				.or_default(),
-		);
-		let insert_lock = mutex_insert.lock().await;
+		let insert_lock = services()
+			.globals
+			.roomid_mutex_insert
+			.lock(&pdu.room_id)
+			.await;
 
 		let count1 = services().globals.next_count()?;
 		// Mark as read first so the sending client doesn't get a notification even if
@@ -1165,16 +1160,7 @@ impl Service {
 			.get_shortroomid(&room_id)?
 			.expect("room exists");
 
-		let mutex_insert = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_insert
-				.write()
-				.await
-				.entry(room_id.clone())
-				.or_default(),
-		);
-		let insert_lock = mutex_insert.lock().await;
+		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
 
 		let count = services().globals.next_count()?;
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
