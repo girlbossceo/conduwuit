@@ -4,6 +4,7 @@ pub mod defer;
 pub mod hash;
 pub mod html;
 pub mod json;
+pub mod mutex_map;
 pub mod sys;
 
 use std::{
@@ -14,6 +15,7 @@ use std::{
 pub use debug::slice_truncated as debug_slice_truncated;
 pub use html::Escape as HtmlEscape;
 pub use json::{deserialize_from_str, to_canonical_object};
+pub use mutex_map::MutexMap;
 use rand::prelude::*;
 use ring::digest;
 use ruma::OwnedUserId;
