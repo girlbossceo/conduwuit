@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, time::Instant};
 
 use axum_client_ip::InsecureClientIp;
 use conduit::debug_warn;
@@ -107,16 +107,11 @@ pub(crate) async fn send_transaction_message_route(
 	let mut resolved_map = BTreeMap::new();
 	for (event_id, value, room_id) in parsed_pdus {
 		let pdu_start_time = Instant::now();
-		let mutex = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_federation
-				.write()
-				.await
-				.entry(room_id.clone())
-				.or_default(),
-		);
-		let mutex_lock = mutex.lock().await;
+		let mutex_lock = services()
+			.globals
+			.roomid_mutex_federation
+			.lock(&room_id)
+			.await;
 		resolved_map.insert(
 			event_id.clone(),
 			services()

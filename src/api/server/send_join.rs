@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
@@ -148,16 +148,11 @@ async fn create_join_event(
 		.fetch_required_signing_keys([&value], &pub_key_map)
 		.await?;
 
-	let mutex = Arc::clone(
-		services()
-			.globals
-			.roomid_mutex_federation
-			.write()
-			.await
-			.entry(room_id.to_owned())
-			.or_default(),
-	);
-	let mutex_lock = mutex.lock().await;
+	let mutex_lock = services()
+		.globals
+		.roomid_mutex_federation
+		.lock(room_id)
+		.await;
 	let pdu_id: Vec<u8> = services()
 		.rooms
 		.event_handler

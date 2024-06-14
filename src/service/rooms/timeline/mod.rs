@@ -1122,16 +1122,11 @@ impl Service {
 		let (event_id, value, room_id) = parse_incoming_pdu(&pdu)?;
 
 		// Lock so we cannot backfill the same pdu twice at the same time
-		let mutex = Arc::clone(
-			services()
-				.globals
-				.roomid_mutex_federation
-				.write()
-				.await
-				.entry(room_id.clone())
-				.or_default(),
-		);
-		let mutex_lock = mutex.lock().await;
+		let mutex_lock = services()
+			.globals
+			.roomid_mutex_federation
+			.lock(&room_id)
+			.await;
 
 		// Skip the PDU if we already have it as a timeline event
 		if let Some(pdu_id) = self.get_pdu_id(&event_id)? {
