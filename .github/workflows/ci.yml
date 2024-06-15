@@ -30,6 +30,8 @@ env:
     TERM: ansi
     # Publishing to my nix binary cache
     ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+    # conduwuit.cachix.org
+    CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     # Just in case incremental is still being set to true, speeds up CI
     CARGO_INCREMENTAL: 0
     # Custom nix binary cache if fork is being used
@@ -83,8 +85,8 @@ jobs:
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems
-                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
                   EOF
 
             - name: Use alternative Nix binary caches if specified

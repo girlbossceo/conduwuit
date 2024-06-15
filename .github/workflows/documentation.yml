@@ -16,6 +16,8 @@ env:
   TERM: ansi
   # Publishing to my nix binary cache
   ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+  # conduwuit.cachix.org
+  CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
   # Custom nix binary cache if fork is being used
   ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
   ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
@@ -70,8 +72,8 @@ jobs:
       - name: Apply Nix binary cache configuration
         run: |
             sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-            extra-substituters = https://attic.kennel.juneis.dog/conduihttps://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems
-            extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wkconduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTEcache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
+            extra-substituters = https://attic.kennel.juneis.dog/conduihttps://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+            extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wkconduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTEcache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
             EOF
 
       - name: Use alternative Nix binary caches if specified
