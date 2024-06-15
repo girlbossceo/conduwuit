@@ -12,8 +12,8 @@ use ruma::{
 extern crate conduit_service as service;
 
 use conduit::Result;
-use service::admin::HandlerResult;
-pub(crate) use service::admin::{AdminEvent, Service};
+pub(crate) use service::admin::{Command, Service};
+use service::admin::{CommandResult, HandlerResult};
 
 use self::{fsck::FsckCommand, tester::TesterCommands};
 use crate::{
@@ -68,25 +68,18 @@ pub(crate) enum AdminCommand {
 }
 
 #[must_use]
-pub fn handle(event: AdminEvent) -> HandlerResult { Box::pin(handle_event(event)) }
+pub fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(command)) }
 
 #[tracing::instrument(skip_all, name = "admin")]
-async fn handle_event(event: AdminEvent) -> Result<AdminEvent> { Ok(AdminEvent::Reply(process_event(event).await)) }
-
-async fn process_event(event: AdminEvent) -> Option<RoomMessageEventContent> {
-	let (mut message_content, reply_id) = match event {
-		AdminEvent::Command(room_message, reply_id) => (Box::pin(process_admin_message(room_message)).await, reply_id),
-		AdminEvent::Notice(content) => (content, None),
-		AdminEvent::Reply(_) => return None,
-	};
-
-	message_content.relates_to = reply_id.map(|reply_id| Reply {
+async fn handle_command(command: Command) -> CommandResult {
+	let mut content = process_admin_message(command.command).await;
+	content.relates_to = command.reply_id.map(|event_id| Reply {
 		in_reply_to: InReplyTo {
-			event_id: reply_id.into(),
+			event_id,
 		},
 	});
 
-	Some(message_content)
+	Ok(Some(content))
 }
 
 // Parse and process a message from the admin room

@@ -475,7 +475,7 @@ impl Service {
 					if admin::is_admin_command(pdu, &body).await {
 						services()
 							.admin
-							.command(body, Some(pdu.event_id.clone()))
+							.command(body, Some((*pdu.event_id).into()))
 							.await;
 					}
 				}

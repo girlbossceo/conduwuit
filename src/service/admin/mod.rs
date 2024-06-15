@@ -7,12 +7,13 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use conduit::{utils::mutex_map, Error, Result};
 pub use create::create_admin_room;
 pub use grant::make_user_admin;
+use loole::{Receiver, Sender};
 use ruma::{
 	events::{
 		room::message::{Relation, RoomMessageEventContent},
 		TimelineEventType,
 	},
-	EventId, OwnedRoomId, RoomId, UserId,
+	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
 use tokio::{sync::Mutex, task::JoinHandle};
@@ -20,12 +21,16 @@ use tracing::error;
 
 use crate::{pdu::PduBuilder, services, user_is_local, PduEvent};
 
-pub type HandlerResult = Pin<Box<dyn Future<Output = Result<AdminEvent, Error>> + Send>>;
-pub type Handler = fn(AdminEvent) -> HandlerResult;
+const COMMAND_QUEUE_LIMIT: usize = 512;
+
+pub type CommandOutput = Option<RoomMessageEventContent>;
+pub type CommandResult = Result<CommandOutput, Error>;
+pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
+pub type Handler = fn(Command) -> HandlerResult;
 
 pub struct Service {
-	sender: loole::Sender<AdminEvent>,
-	receiver: Mutex<loole::Receiver<AdminEvent>>,
+	sender: Sender<Command>,
+	receiver: Mutex<Receiver<Command>>,
 	handler_join: Mutex<Option<JoinHandle<()>>>,
 	pub handle: Mutex<Option<Handler>>,
 	#[cfg(feature = "console")]
@@ -33,16 +38,15 @@ pub struct Service {
 }
 
 #[derive(Debug)]
-pub enum AdminEvent {
-	Command(String, Option<Arc<EventId>>),
-	Reply(Option<RoomMessageEventContent>),
-	Notice(RoomMessageEventContent),
+pub struct Command {
+	pub command: String,
+	pub reply_id: Option<OwnedEventId>,
 }
 
 impl Service {
 	#[must_use]
 	pub fn build() -> Arc<Self> {
-		let (sender, receiver) = loole::unbounded();
+		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
 		Arc::new(Self {
 			sender,
 			receiver: Mutex::new(receiver),
@@ -51,6 +55,18 @@ impl Service {
 			#[cfg(feature = "console")]
 			console: console::Console::new(),
 		})
+	}
+
+	pub async fn start_handler(self: &Arc<Self>) {
+		let self_ = Arc::clone(self);
+		let handle = services().server.runtime().spawn(async move {
+			self_
+				.handler()
+				.await
+				.expect("Failed to initialize admin room handler");
+		});
+
+		_ = self.handler_join.lock().await.insert(handle);
 	}
 
 	pub fn interrupt(&self) {
@@ -75,16 +91,39 @@ impl Service {
 		}
 	}
 
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to initialize admin room handler");
-		});
+	pub async fn send_text(&self, body: &str) {
+		self.send_message(RoomMessageEventContent::text_plain(body))
+			.await;
+	}
 
-		_ = self.handler_join.lock().await.insert(handle);
+	pub async fn send_message(&self, message_content: RoomMessageEventContent) {
+		if let Ok(Some(room_id)) = Self::get_admin_room() {
+			let user_id = &services().globals.server_user;
+			respond_to_room(message_content, &room_id, user_id).await;
+		}
+	}
+
+	pub async fn command(&self, command: String, reply_id: Option<OwnedEventId>) {
+		self.send(Command {
+			command,
+			reply_id,
+		})
+		.await;
+	}
+
+	pub async fn command_in_place(
+		&self, command: String, reply_id: Option<OwnedEventId>,
+	) -> Result<Option<RoomMessageEventContent>> {
+		self.process_command(Command {
+			command,
+			reply_id,
+		})
+		.await
+	}
+
+	async fn send(&self, message: Command) {
+		debug_assert!(!self.sender.is_closed(), "channel closed");
+		self.sender.send_async(message).await.expect("message sent");
 	}
 
 	async fn handler(self: &Arc<Self>) -> Result<()> {
@@ -93,8 +132,8 @@ impl Service {
 		loop {
 			debug_assert!(!receiver.is_closed(), "channel closed");
 			tokio::select! {
-				event = receiver.recv_async() => match event {
-					Ok(event) => self.receive(event).await,
+				command = receiver.recv_async() => match command {
+					Ok(command) => self.handle_command(command).await,
 					Err(_) => return Ok(()),
 				},
 				sig = signals.recv() => match sig {
@@ -105,52 +144,24 @@ impl Service {
 		}
 	}
 
-	pub async fn send_text(&self, body: &str) {
-		self.send_message(RoomMessageEventContent::text_plain(body))
-			.await;
-	}
-
-	pub async fn send_message(&self, message_content: RoomMessageEventContent) {
-		self.send(AdminEvent::Notice(message_content)).await;
-	}
-
-	pub async fn command(&self, command: String, event_id: Option<Arc<EventId>>) {
-		self.send(AdminEvent::Command(command, event_id)).await;
-	}
-
-	pub async fn command_in_place(
-		&self, command: String, event_id: Option<Arc<EventId>>,
-	) -> Result<Option<RoomMessageEventContent>> {
-		match self.handle(AdminEvent::Command(command, event_id)).await? {
-			AdminEvent::Reply(content) => Ok(content),
-			_ => Ok(None),
-		}
-	}
-
-	async fn send(&self, message: AdminEvent) {
-		debug_assert!(!self.sender.is_full(), "channel full");
-		debug_assert!(!self.sender.is_closed(), "channel closed");
-		self.sender.send(message).expect("message sent");
-	}
-
-	async fn receive(&self, event: AdminEvent) {
-		if let Ok(AdminEvent::Reply(content)) = self.handle(event).await {
-			handle_response(content).await;
-		}
-	}
-
-	async fn handle(&self, event: AdminEvent) -> Result<AdminEvent, Error> {
-		if let Some(handle) = self.handle.lock().await.as_ref() {
-			handle(event).await
-		} else {
-			Err(Error::Err("Admin module is not loaded.".into()))
-		}
-	}
-
 	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {
 		#[cfg(feature = "console")]
 		if sig == "SIGINT" && services().server.running() {
 			self.console.start().await;
+		}
+	}
+
+	async fn handle_command(&self, command: Command) {
+		if let Ok(Some(output)) = self.process_command(command).await {
+			handle_response(output).await;
+		}
+	}
+
+	async fn process_command(&self, command: Command) -> CommandResult {
+		if let Some(handle) = self.handle.lock().await.as_ref() {
+			handle(command).await
+		} else {
+			Err(Error::Err("Admin module is not loaded.".into()))
 		}
 	}
 
@@ -186,26 +197,28 @@ impl Service {
 	}
 }
 
-async fn handle_response(content: Option<RoomMessageEventContent>) {
-	if let Some(content) = content.as_ref() {
-		if let Some(Relation::Reply {
-			in_reply_to,
-		}) = content.relates_to.as_ref()
-		{
-			if let Ok(Some(pdu)) = services().rooms.timeline.get_pdu(&in_reply_to.event_id) {
-				let response_sender = if is_admin_room(&pdu.room_id) {
-					&services().globals.server_user
-				} else {
-					&pdu.sender
-				};
+async fn handle_response(content: RoomMessageEventContent) {
+	let Some(Relation::Reply {
+		in_reply_to,
+	}) = content.relates_to.as_ref()
+	else {
+		return;
+	};
 
-				respond_to_room(content, &pdu.room_id, response_sender).await;
-			}
-		}
-	}
+	let Ok(Some(pdu)) = services().rooms.timeline.get_pdu(&in_reply_to.event_id) else {
+		return;
+	};
+
+	let response_sender = if is_admin_room(&pdu.room_id) {
+		&services().globals.server_user
+	} else {
+		&pdu.sender
+	};
+
+	respond_to_room(content, &pdu.room_id, response_sender).await;
 }
 
-async fn respond_to_room(content: &RoomMessageEventContent, room_id: &RoomId, user_id: &UserId) {
+async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, user_id: &UserId) {
 	assert!(
 		services()
 			.admin
@@ -218,7 +231,7 @@ async fn respond_to_room(content: &RoomMessageEventContent, room_id: &RoomId, us
 	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 	let response_pdu = PduBuilder {
 		event_type: TimelineEventType::RoomMessage,
-		content: to_raw_value(content).expect("event is valid, we just created it"),
+		content: to_raw_value(&content).expect("event is valid, we just created it"),
 		unsigned: None,
 		state_key: None,
 		redacts: None,
