@@ -19,6 +19,8 @@ env:
   # Custom nix binary cache if fork is being used
   ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
   ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
+  # Get error output from nix that we can actually use
+  NIX_CONFIG: show-trace = true
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
