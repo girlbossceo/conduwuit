@@ -18,7 +18,7 @@ use serde_json::value::to_raw_value;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::error;
 
-use crate::{pdu::PduBuilder, services, PduEvent};
+use crate::{pdu::PduBuilder, services, user_is_local, PduEvent};
 
 pub type HandlerResult = Pin<Box<dyn Future<Output = Result<AdminEvent, Error>> + Send>>;
 pub type Handler = fn(AdminEvent) -> HandlerResult;
@@ -273,6 +273,11 @@ pub async fn is_admin_command(pdu: &PduEvent, body: &str) -> bool {
 
 	// Expected backward branch
 	if !is_public_escape && !is_public_prefix {
+		return false;
+	}
+
+	// only allow public escaped commands by local admins
+	if is_public_escape && !user_is_local(&pdu.sender) {
 		return false;
 	}
 
