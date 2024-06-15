@@ -35,9 +35,6 @@ env:
     # Custom nix binary cache if fork is being used
     ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
     ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
-    # Use the all-features devshell instead of default, to ensure that features
-    # match between nix and cargo
-    DIRENV_DEVSHELL: all-features
     # Get error output from nix that we can actually use
     NIX_CONFIG: show-trace = true
 
