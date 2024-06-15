@@ -209,6 +209,7 @@ jobs:
             - name: Build static ${{ matrix.target }}
               run: |
                   CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
+                  SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
                   bin/nix-build-and-cache just .#static-${{ matrix.target }}
                   mkdir -v -p target/release/
