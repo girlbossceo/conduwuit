@@ -73,6 +73,9 @@ jobs:
 
             - name: Configure Magic Nix Cache
               uses: DeterminateSystems/magic-nix-cache-action@main
+              with:
+                diagnostic-endpoint: ""
+                upstream-cache: "https://attic.kennel.juneis.dog"
 
             - name: Apply Nix binary cache configuration
               run: |
