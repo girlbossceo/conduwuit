@@ -15,7 +15,7 @@ pub(crate) fn build(server: &Arc<Server>) -> Router {
 		.fallback(not_found)
 		.with_state(state);
 
-	api::router::build(router, server)
+	api::routes::build(router, server)
 }
 
 async fn not_found(_uri: Uri) -> impl IntoResponse {

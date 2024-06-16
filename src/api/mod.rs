@@ -1,5 +1,5 @@
 pub mod client;
-pub mod router;
+pub mod routes;
 mod ruma_wrapper;
 pub mod server;
 
