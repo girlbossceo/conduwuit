@@ -130,7 +130,6 @@ impl Service {
 		let receiver = self.receiver.lock().await;
 		let mut signals = services().server.signal.subscribe();
 		loop {
-			debug_assert!(!receiver.is_closed(), "channel closed");
 			tokio::select! {
 				command = receiver.recv_async() => match command {
 					Ok(command) => self.handle_command(command).await,
@@ -146,10 +145,7 @@ impl Service {
 
 	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {
 		#[cfg(feature = "console")]
-		if sig == "SIGINT" && services().server.running() {
-			self.console.interrupt();
-			self.console.start().await;
-		}
+		self.console.handle_signal(sig).await;
 	}
 
 	async fn handle_command(&self, command: Command) {

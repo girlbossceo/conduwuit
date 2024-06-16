@@ -21,7 +21,7 @@ brotli_compression = [
 	"reqwest/brotli",
 ]
 console = [
-	"dep:rustyline",
+	"dep:rustyline-async",
 	"dep:termimad",
 ]
 dev_release_log_level = []
@@ -61,8 +61,8 @@ regex.workspace = true
 reqwest.workspace = true
 ruma-identifiers-validation.workspace = true
 ruma.workspace = true
-rustyline.workspace = true
-rustyline.optional = true
+rustyline-async.workspace = true
+rustyline-async.optional = true
 serde_json.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
