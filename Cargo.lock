@@ -302,7 +302,7 @@ dependencies = [
 [[package]]
 name = "axum-server"
 version = "0.6.0"
-source = "git+https://github.com/girlbossceo/axum-server?branch=phlip9/fix-graceful-shutdown#8e3368d899079818934e61cc9c839abcbbcada8a"
+source = "git+https://github.com/girlbossceo/axum-server?rev=8e3368d899079818934e61cc9c839abcbbcada8a#8e3368d899079818934e61cc9c839abcbbcada8a"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -3075,7 +3075,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.10.1"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "assign",
  "js_int",
@@ -3095,7 +3095,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3107,7 +3107,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.18.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "as_variant",
  "assign",
@@ -3130,7 +3130,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "as_variant",
  "base64 0.22.1",
@@ -3160,7 +3160,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.28.1"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "as_variant",
  "indexmap 2.2.6",
@@ -3183,7 +3183,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3195,7 +3195,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.5"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "js_int",
  "thiserror",
@@ -3204,7 +3204,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3214,7 +3214,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "once_cell",
  "proc-macro-crate",
@@ -3229,7 +3229,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3241,7 +3241,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.15.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -3257,7 +3257,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.11.0"
-source = "git+https://github.com/girlbossceo/ruwuma?branch=conduwuit-changes#fd686e77950680462377c9105dfb4136dd49c7a0"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=fd686e77950680462377c9105dfb4136dd49c7a0#fd686e77950680462377c9105dfb4136dd49c7a0"
 dependencies = [
  "itertools 0.12.1",
  "js_int",

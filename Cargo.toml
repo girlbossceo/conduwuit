@@ -273,7 +273,8 @@ version = "0.1.2"
 # Used for matrix spec type definitions and helpers
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
-branch = "conduwuit-changes"
+#branch = "conduwuit-changes"
+rev = "fd686e77950680462377c9105dfb4136dd49c7a0"
 features = [
     "compat",
     "rand",
@@ -300,7 +301,7 @@ features = [
 
 [workspace.dependencies.ruma-identifiers-validation]
 git = "https://github.com/girlbossceo/ruwuma"
-branch = "conduwuit-changes"
+rev = "fd686e77950680462377c9105dfb4136dd49c7a0"
 
 [workspace.dependencies.rust-rocksdb]
 path = "deps/rust-rocksdb"
@@ -427,6 +428,7 @@ version = "0.29.2"
 
 # backport of [https://github.com/tokio-rs/tracing/pull/2956] to the 0.1.x branch of tracing.
 # we can switch back to upstream if #2956 is merged and backported in the upstream repo.
+# https://github.com/girlbossceo/tracing/commit/b348dca742af641c47bc390261f60711c2af573c
 [patch.crates-io.tracing-subscriber]
 git = "https://github.com/girlbossceo/tracing"
 rev = "b348dca742af641c47bc390261f60711c2af573c"
@@ -441,9 +443,10 @@ git = "https://github.com/girlbossceo/tracing"
 rev = "b348dca742af641c47bc390261f60711c2af573c"
 
 # fixes hyper graceful shutdowns [https://github.com/programatik29/axum-server/issues/114]
+# https://github.com/girlbossceo/axum-server/commit/8e3368d899079818934e61cc9c839abcbbcada8a
 [patch.crates-io.axum-server]
 git = "https://github.com/girlbossceo/axum-server"
-branch = "phlip9/fix-graceful-shutdown"
+rev = "8e3368d899079818934e61cc9c839abcbbcada8a"
 
 #
 # Our crates
