@@ -1,4 +1,4 @@
-use std::mem;
+use std::mem::size_of;
 
 use ruma::{
 	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
@@ -86,10 +86,10 @@ impl Data for KeyValueDatabase {
 				.iter_from(&first_possible_edu, false)
 				.take_while(move |(k, _)| k.starts_with(&prefix2))
 				.map(move |(k, v)| {
-					let count = utils::u64_from_bytes(&k[prefix.len()..prefix.len() + mem::size_of::<u64>()])
+					let count = utils::u64_from_bytes(&k[prefix.len()..prefix.len() + size_of::<u64>()])
 						.map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
 					let user_id = UserId::parse(
-						utils::string_from_bytes(&k[prefix.len() + mem::size_of::<u64>() + 1..])
+						utils::string_from_bytes(&k[prefix.len() + size_of::<u64>() + 1..])
 							.map_err(|_| Error::bad_database("Invalid readreceiptid userid bytes in db."))?,
 					)
 					.map_err(|_| Error::bad_database("Invalid readreceiptid userid in db."))?;
