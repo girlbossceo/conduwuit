@@ -1,14 +1,15 @@
 pub(crate) mod clap;
 mod mods;
 mod server;
+mod signal;
 
 extern crate conduit_core as conduit;
 
 use std::{cmp, sync::Arc, time::Duration};
 
-use conduit::{debug_error, debug_info, error, trace, utils::available_parallelism, warn, Error, Result};
+use conduit::{debug_info, error, utils::available_parallelism, Error, Result};
 use server::Server;
-use tokio::{runtime, signal};
+use tokio::runtime;
 
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
@@ -26,7 +27,7 @@ fn main() -> Result<(), Error> {
 		.expect("built runtime");
 
 	let server: Arc<Server> = Server::build(args, Some(runtime.handle()))?;
-	runtime.spawn(signal(server.clone()));
+	runtime.spawn(signal::signal(server.clone()));
 	runtime.block_on(async_main(&server))?;
 
 	// explicit drop here to trace thread and tls dtors
@@ -94,54 +95,4 @@ async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 
 	debug_info!("Exit runtime");
 	Ok(())
-}
-
-#[cfg(unix)]
-#[tracing::instrument(skip_all)]
-async fn signal(server: Arc<Server>) {
-	use signal::unix;
-	use unix::SignalKind;
-
-	const CONSOLE: bool = cfg!(feature = "console");
-	const RELOADING: bool = cfg!(all(conduit_mods, not(CONSOLE)));
-
-	let mut quit = unix::signal(SignalKind::quit()).expect("SIGQUIT handler");
-	let mut term = unix::signal(SignalKind::terminate()).expect("SIGTERM handler");
-	loop {
-		trace!("Installed signal handlers");
-		let sig: &'static str;
-		tokio::select! {
-			_ = signal::ctrl_c() => { sig = "SIGINT"; },
-			_ = quit.recv() => { sig = "SIGQUIT"; },
-			_ = term.recv() => { sig = "SIGTERM"; },
-		}
-
-		warn!("Received {sig}");
-		let result = if RELOADING && sig == "SIGINT" {
-			server.server.reload()
-		} else if matches!(sig, "SIGQUIT" | "SIGTERM") || (!CONSOLE && sig == "SIGINT") {
-			server.server.shutdown()
-		} else {
-			server.server.signal(sig)
-		};
-
-		if let Err(e) = result {
-			debug_error!(?sig, "signal: {e}");
-		}
-	}
-}
-
-#[cfg(not(unix))]
-#[tracing::instrument(skip_all)]
-async fn signal(server: Arc<Server>) {
-	loop {
-		tokio::select! {
-			_ = signal::ctrl_c() => {
-				warn!("Received Ctrl+C");
-				if let Err(e) = server.server.signal.send("SIGINT") {
-					debug_error!("signal channel: {e}");
-				}
-			},
-		}
-	}
 }
