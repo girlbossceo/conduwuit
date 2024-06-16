@@ -5,7 +5,7 @@ use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId};
 use super::RoomAliasCommand;
 use crate::{escape_html, services, Result};
 
-pub(crate) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let server_user = &services().globals.server_user;
 
 	match command {

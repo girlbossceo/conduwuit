@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{join_room_by_id_helper, leave_all_rooms, update_avatar_url, update_displayname};
-use conduit::utils;
+use conduit::{utils, Result};
 use ruma::{
 	events::{
 		room::message::RoomMessageEventContent,
@@ -15,12 +15,11 @@ use tracing::{error, info, warn};
 use crate::{
 	escape_html, get_room_info, services,
 	utils::{parse_active_local_user_id, parse_local_user_id},
-	Result,
 };
 
 const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
 
-pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match services().users.list_local_users() {
 		Ok(users) => {
 			let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
@@ -36,7 +35,7 @@ pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	}
 }
 
-pub(crate) async fn create(
+pub(super) async fn create(
 	_body: Vec<&str>, username: String, password: Option<String>,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
@@ -127,7 +126,7 @@ pub(crate) async fn create(
 	)))
 }
 
-pub(crate) async fn deactivate(
+pub(super) async fn deactivate(
 	_body: Vec<&str>, no_leave_rooms: bool, user_id: String,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
@@ -166,7 +165,7 @@ pub(crate) async fn deactivate(
 	)))
 }
 
-pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(&username)?;
 
 	if user_id == services().globals.server_user {
@@ -190,7 +189,7 @@ pub(crate) async fn reset_password(_body: Vec<&str>, username: String) -> Result
 	}
 }
 
-pub(crate) async fn deactivate_all(
+pub(super) async fn deactivate_all(
 	body: Vec<&str>, no_leave_rooms: bool, force: bool,
 ) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
@@ -284,7 +283,7 @@ pub(crate) async fn deactivate_all(
 	}
 }
 
-pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
 	let user_id = parse_local_user_id(&user_id)?;
 
@@ -335,7 +334,7 @@ pub(crate) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
 }
 
-pub(crate) async fn put_room_tag(
+pub(super) async fn put_room_tag(
 	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(&user_id)?;
@@ -370,7 +369,7 @@ pub(crate) async fn put_room_tag(
 	)))
 }
 
-pub(crate) async fn delete_room_tag(
+pub(super) async fn delete_room_tag(
 	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(&user_id)?;
@@ -402,7 +401,7 @@ pub(crate) async fn delete_room_tag(
 	)))
 }
 
-pub(crate) async fn get_room_tags(
+pub(super) async fn get_room_tags(
 	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(&user_id)?;

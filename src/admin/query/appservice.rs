@@ -4,7 +4,7 @@ use super::Appservice;
 use crate::{services, Result};
 
 /// All the getters and iterators from src/database/key_value/appservice.rs
-pub(crate) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEventContent> {
+pub(super) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		Appservice::GetRegistration {
 			appservice_id,

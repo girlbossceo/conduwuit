@@ -4,6 +4,7 @@ use std::{
 	time::Instant,
 };
 
+use api::client::validate_and_add_event_id;
 use conduit::{
 	debug, info, log,
 	log::{capture, Capture},
@@ -19,15 +20,13 @@ use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve::resolv
 use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
-use crate::api::client::validate_and_add_event_id;
-
-pub(crate) async fn echo(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
+pub(super) async fn echo(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
 	let message = message.join(" ");
 
 	Ok(RoomMessageEventContent::notice_plain(message))
 }
 
-pub(crate) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
 	if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
 		let room_id_str = event
@@ -53,7 +52,7 @@ pub(crate) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> 
 	}
 }
 
-pub(crate) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -81,7 +80,7 @@ pub(crate) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent
 	}
 }
 
-pub(crate) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let mut outlier = false;
 	let mut pdu_json = services()
 		.rooms
@@ -119,7 +118,7 @@ pub(crate) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<
 	}
 }
 
-pub(crate) async fn get_remote_pdu_list(
+pub(super) async fn get_remote_pdu_list(
 	body: Vec<&str>, server: Box<ServerName>, force: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
@@ -166,7 +165,7 @@ pub(crate) async fn get_remote_pdu_list(
 	Ok(RoomMessageEventContent::text_plain("Fetched list of remote PDUs."))
 }
 
-pub(crate) async fn get_remote_pdu(
+pub(super) async fn get_remote_pdu(
 	_body: Vec<&str>, event_id: Box<EventId>, server: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
@@ -256,7 +255,7 @@ pub(crate) async fn get_remote_pdu(
 	}
 }
 
-pub(crate) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	let room_state = services()
 		.rooms
 		.state_accessor
@@ -289,7 +288,7 @@ pub(crate) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Re
 	))
 }
 
-pub(crate) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
+pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
 	if server == services().globals.server_name() {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to send federation requests to ourselves.",
@@ -332,7 +331,7 @@ pub(crate) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<Ro
 	}
 }
 
-pub(crate) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	// Force E2EE device list updates for all users
 	for user_id in services().users.iter().filter_map(Result::ok) {
 		services().users.mark_device_key_update(&user_id)?;
@@ -342,7 +341,7 @@ pub(crate) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMe
 	))
 }
 
-pub(crate) async fn change_log_level(
+pub(super) async fn change_log_level(
 	_body: Vec<&str>, filter: Option<String>, reset: bool,
 ) -> Result<RoomMessageEventContent> {
 	if reset {
@@ -395,7 +394,7 @@ pub(crate) async fn change_log_level(
 	Ok(RoomMessageEventContent::text_plain("No log level was specified."))
 }
 
-pub(crate) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -418,7 +417,7 @@ pub(crate) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent
 	}
 }
 
-pub(crate) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -449,7 +448,7 @@ pub(crate) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventConte
 }
 
 #[tracing::instrument(skip(_body))]
-pub(crate) async fn first_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn first_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	if !services()
 		.rooms
 		.state_cache
@@ -470,7 +469,7 @@ pub(crate) async fn first_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) ->
 }
 
 #[tracing::instrument(skip(_body))]
-pub(crate) async fn latest_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn latest_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	if !services()
 		.rooms
 		.state_cache
@@ -491,7 +490,7 @@ pub(crate) async fn latest_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -
 }
 
 #[tracing::instrument(skip(_body))]
-pub(crate) async fn force_set_room_state_from_server(
+pub(super) async fn force_set_room_state_from_server(
 	_body: Vec<&str>, server_name: Box<ServerName>, room_id: Box<RoomId>,
 ) -> Result<RoomMessageEventContent> {
 	if !services()
@@ -621,7 +620,7 @@ pub(crate) async fn force_set_room_state_from_server(
 	))
 }
 
-pub(crate) async fn resolve_true_destination(
+pub(super) async fn resolve_true_destination(
 	_body: Vec<&str>, server_name: Box<ServerName>, no_cache: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
@@ -659,7 +658,7 @@ pub(crate) async fn resolve_true_destination(
 }
 
 #[must_use]
-pub(crate) fn memory_stats() -> RoomMessageEventContent {
+pub(super) fn memory_stats() -> RoomMessageEventContent {
 	let html_body = conduit::alloc::memory_stats();
 
 	if html_body.is_empty() {

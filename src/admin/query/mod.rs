@@ -1,13 +1,14 @@
-pub(crate) mod account_data;
-pub(crate) mod appservice;
-pub(crate) mod globals;
-pub(crate) mod presence;
-pub(crate) mod room_alias;
-pub(crate) mod room_state_cache;
-pub(crate) mod sending;
-pub(crate) mod users;
+mod account_data;
+mod appservice;
+mod globals;
+mod presence;
+mod room_alias;
+mod room_state_cache;
+mod sending;
+mod users;
 
 use clap::Subcommand;
+use conduit::Result;
 use room_state_cache::room_state_cache;
 use ruma::{
 	events::{room::message::RoomMessageEventContent, RoomAccountDataEventType},
@@ -18,12 +19,11 @@ use self::{
 	account_data::account_data, appservice::appservice, globals::globals, presence::presence, room_alias::room_alias,
 	sending::sending, users::users,
 };
-use crate::Result;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// Query tables from database
-pub(crate) enum QueryCommand {
+pub(super) enum QueryCommand {
 	/// - account_data.rs iterators and getters
 	#[command(subcommand)]
 	AccountData(AccountData),
@@ -60,7 +60,7 @@ pub(crate) enum QueryCommand {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/account_data.rs
-pub(crate) enum AccountData {
+pub(super) enum AccountData {
 	/// - Returns all changes to the account data that happened after `since`.
 	ChangesSince {
 		/// Full user ID
@@ -85,7 +85,7 @@ pub(crate) enum AccountData {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/appservice.rs
-pub(crate) enum Appservice {
+pub(super) enum Appservice {
 	/// - Gets the appservice registration info/details from the ID as a string
 	GetRegistration {
 		/// Appservice registration ID
@@ -99,7 +99,7 @@ pub(crate) enum Appservice {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/presence.rs
-pub(crate) enum Presence {
+pub(super) enum Presence {
 	/// - Returns the latest presence event for the given user.
 	GetPresence {
 		/// Full user ID
@@ -117,7 +117,7 @@ pub(crate) enum Presence {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/rooms/alias.rs
-pub(crate) enum RoomAlias {
+pub(super) enum RoomAlias {
 	ResolveLocalAlias {
 		/// Full room alias
 		alias: Box<RoomAliasId>,
@@ -135,7 +135,7 @@ pub(crate) enum RoomAlias {
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum RoomStateCache {
+pub(super) enum RoomStateCache {
 	ServerInRoom {
 		server: Box<ServerName>,
 		room_id: Box<RoomId>,
@@ -208,7 +208,7 @@ pub(crate) enum RoomStateCache {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/globals.rs
-pub(crate) enum Globals {
+pub(super) enum Globals {
 	DatabaseVersion,
 
 	CurrentCount,
@@ -227,7 +227,7 @@ pub(crate) enum Globals {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/sending.rs
-pub(crate) enum Sending {
+pub(super) enum Sending {
 	/// - Queries database for all `servercurrentevent_data`
 	ActiveRequests,
 
@@ -283,12 +283,12 @@ pub(crate) enum Sending {
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 /// All the getters and iterators from src/database/key_value/users.rs
-pub(crate) enum Users {
+pub(super) enum Users {
 	Iter,
 }
 
 /// Processes admin query commands
-pub(crate) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		QueryCommand::AccountData(command) => account_data(command).await?,
 		QueryCommand::Appservice(command) => appservice(command).await?,

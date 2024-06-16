@@ -1,18 +1,18 @@
+mod room_alias_commands;
+mod room_commands;
+mod room_directory_commands;
+mod room_info_commands;
+mod room_moderation_commands;
+
 use clap::Subcommand;
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, RoomOrAliasId};
 
 use self::room_commands::list;
-use crate::Result;
-
-pub(crate) mod room_alias_commands;
-pub(crate) mod room_commands;
-pub(crate) mod room_directory_commands;
-pub(crate) mod room_info_commands;
-pub(crate) mod room_moderation_commands;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum RoomCommand {
+pub(super) enum RoomCommand {
 	/// - List all rooms the server knows about
 	List {
 		page: Option<usize>,
@@ -37,7 +37,7 @@ pub(crate) enum RoomCommand {
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum RoomInfoCommand {
+pub(super) enum RoomInfoCommand {
 	/// - List joined members in a room
 	ListJoinedMembers {
 		room_id: Box<RoomId>,
@@ -54,7 +54,7 @@ pub(crate) enum RoomInfoCommand {
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum RoomAliasCommand {
+pub(super) enum RoomAliasCommand {
 	/// - Make an alias point to a room.
 	Set {
 		#[arg(short, long)]
@@ -90,7 +90,7 @@ pub(crate) enum RoomAliasCommand {
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum RoomDirectoryCommand {
+pub(super) enum RoomDirectoryCommand {
 	/// - Publish a room to the room directory
 	Publish {
 		/// The room id of the room to publish
@@ -111,7 +111,7 @@ pub(crate) enum RoomDirectoryCommand {
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum RoomModerationCommand {
+pub(super) enum RoomModerationCommand {
 	/// - Bans a room from local users joining and evicts all our local users
 	///   from the room. Also blocks any invites (local and remote) for the
 	///   banned room.
@@ -167,7 +167,7 @@ pub(crate) enum RoomModerationCommand {
 	ListBannedRooms,
 }
 
-pub(crate) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		RoomCommand::Info(command) => room_info_commands::process(command, body).await?,
 

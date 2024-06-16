@@ -1,9 +1,10 @@
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, EventId, MxcUri};
 use tracing::{debug, info};
 
-use crate::{services, Result};
+use crate::services;
 
-pub(crate) async fn delete(
+pub(super) async fn delete(
 	_body: Vec<&str>, mxc: Option<Box<MxcUri>>, event_id: Option<Box<EventId>>,
 ) -> Result<RoomMessageEventContent> {
 	if event_id.is_some() && mxc.is_some() {
@@ -137,7 +138,7 @@ pub(crate) async fn delete(
 	))
 }
 
-pub(crate) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -164,7 +165,7 @@ pub(crate) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventConte
 	)))
 }
 
-pub(crate) async fn delete_past_remote_media(
+pub(super) async fn delete_past_remote_media(
 	_body: Vec<&str>, duration: String, force: bool,
 ) -> Result<RoomMessageEventContent> {
 	let deleted_count = services()

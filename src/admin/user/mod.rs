@@ -1,15 +1,14 @@
-pub(crate) mod user_commands;
+mod commands;
 
 use clap::Subcommand;
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId};
-use user_commands::{delete_room_tag, get_room_tags, put_room_tag};
 
-use self::user_commands::{create, deactivate, deactivate_all, list, list_joined_rooms, reset_password};
-use crate::Result;
+use self::commands::*;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum UserCommand {
+pub(super) enum UserCommand {
 	/// - Create a new user
 	Create {
 		/// Username of the new user
@@ -93,7 +92,7 @@ pub(crate) enum UserCommand {
 	},
 }
 
-pub(crate) async fn process(command: UserCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: UserCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		UserCommand::List => list(body).await?,
 		UserCommand::Create {

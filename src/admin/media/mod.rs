@@ -1,14 +1,14 @@
+mod commands;
+
 use clap::Subcommand;
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, EventId, MxcUri};
 
-use self::media_commands::{delete, delete_list, delete_past_remote_media};
-use crate::Result;
-
-pub(crate) mod media_commands;
+use self::commands::*;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum MediaCommand {
+pub(super) enum MediaCommand {
 	/// - Deletes a single media file from our database and on the filesystem
 	///   via a single MXC URL
 	Delete {
@@ -38,7 +38,7 @@ pub(crate) enum MediaCommand {
 	},
 }
 
-pub(crate) async fn process(command: MediaCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: MediaCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		MediaCommand::Delete {
 			mxc,

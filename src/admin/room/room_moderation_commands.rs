@@ -9,7 +9,7 @@ use tracing::{debug, error, info, warn};
 use super::{super::Service, RoomModerationCommand};
 use crate::{escape_html, get_room_info, services, user_is_local, Result};
 
-pub(crate) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
 		RoomModerationCommand::BanRoom {
 			force,

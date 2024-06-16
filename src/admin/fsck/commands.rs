@@ -1,11 +1,12 @@
+use conduit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::{services, Result};
+use crate::services;
 
 /// Uses the iterator in `src/database/key_value/users.rs` to iterator over
 /// every user in our database (remote and local). Reports total count, any
 /// errors if there were any, etc
-pub(crate) async fn check_all_users(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn check_all_users(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let results = services().users.db.iter();
 	let query_time = timer.elapsed();

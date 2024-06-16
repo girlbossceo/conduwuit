@@ -5,7 +5,7 @@ use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
 use super::RoomDirectoryCommand;
 use crate::{escape_html, get_room_info, handler::PAGE_SIZE, services, Result};
 
-pub(crate) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
 		RoomDirectoryCommand::Publish {
 			room_id,

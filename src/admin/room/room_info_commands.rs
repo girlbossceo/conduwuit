@@ -6,7 +6,7 @@ use service::services;
 use super::RoomInfoCommand;
 use crate::{escape_html, Result};
 
-pub(crate) async fn process(command: RoomInfoCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: RoomInfoCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
 		RoomInfoCommand::ListJoinedMembers {
 			room_id,

@@ -4,10 +4,10 @@ use crate::Result;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(clap::Subcommand)]
-pub(crate) enum TesterCommands {
+pub(super) enum TesterCommands {
 	Tester,
 }
-pub(crate) async fn process(command: TesterCommands, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: TesterCommands, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		TesterCommands::Tester => RoomMessageEventContent::notice_plain(String::from("completed")),
 	})

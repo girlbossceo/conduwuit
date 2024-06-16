@@ -1,18 +1,14 @@
+mod commands;
+
 use clap::Subcommand;
-use debug_commands::{first_pdu_in_room, force_set_room_state_from_server, latest_pdu_in_room};
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
 
-use self::debug_commands::{
-	change_log_level, echo, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_remote_pdu_list,
-	get_room_state, memory_stats, parse_pdu, ping, resolve_true_destination, sign_json, verify_json,
-};
-use crate::Result;
-
-pub(crate) mod debug_commands;
+use self::commands::*;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum DebugCommand {
+pub(super) enum DebugCommand {
 	/// - Echo input of admin command
 	Echo {
 		message: Vec<String>,
@@ -163,7 +159,7 @@ pub(crate) enum DebugCommand {
 	MemoryStats,
 }
 
-pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		DebugCommand::Echo {
 			message,

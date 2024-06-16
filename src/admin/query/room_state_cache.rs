@@ -3,7 +3,7 @@ use ruma::events::room::message::RoomMessageEventContent;
 use super::RoomStateCache;
 use crate::{services, Result};
 
-pub(crate) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomMessageEventContent> {
+pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomMessageEventContent> {
 	match subcommand {
 		RoomStateCache::ServerInRoom {
 			server,

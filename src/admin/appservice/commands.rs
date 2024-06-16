@@ -2,7 +2,7 @@ use ruma::{api::appservice::Registration, events::room::message::RoomMessageEven
 
 use crate::{escape_html, services, Result};
 
-pub(crate) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -26,7 +26,7 @@ pub(crate) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent>
 	}
 }
 
-pub(crate) async fn unregister(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn unregister(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
 	match services()
 		.appservice
 		.unregister_appservice(&appservice_identifier)
@@ -39,7 +39,7 @@ pub(crate) async fn unregister(_body: Vec<&str>, appservice_identifier: String) 
 	}
 }
 
-pub(crate) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
 	match services()
 		.appservice
 		.get_registration(&appservice_identifier)
@@ -59,7 +59,7 @@ pub(crate) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Res
 	}
 }
 
-pub(crate) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let appservices = services().appservice.iter_ids().await;
 	let output = format!("Appservices ({}): {}", appservices.len(), appservices.join(", "));
 	Ok(RoomMessageEventContent::text_plain(output))

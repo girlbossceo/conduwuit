@@ -1,14 +1,14 @@
-pub(crate) mod server_commands;
+mod commands;
 
 use clap::Subcommand;
+use conduit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use self::server_commands::*;
-use crate::Result;
+use self::commands::*;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum ServerCommand {
+pub(super) enum ServerCommand {
 	/// - Time elapsed since startup
 	Uptime,
 
@@ -57,7 +57,7 @@ pub(crate) enum ServerCommand {
 	Shutdown,
 }
 
-pub(crate) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		ServerCommand::Uptime => uptime(body).await?,
 		ServerCommand::ShowConfig => show_config(body).await?,

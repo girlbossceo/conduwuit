@@ -4,17 +4,17 @@ use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, 
 
 use crate::{escape_html, get_room_info, services, utils::HtmlEscape, Result};
 
-pub(crate) async fn disable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn disable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	services().rooms.metadata.disable_room(&room_id, true)?;
 	Ok(RoomMessageEventContent::text_plain("Room disabled."))
 }
 
-pub(crate) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	services().rooms.metadata.disable_room(&room_id, false)?;
 	Ok(RoomMessageEventContent::text_plain("Room enabled."))
 }
 
-pub(crate) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let map = services().globals.roomid_federationhandletime.read().await;
 	let mut msg = format!("Handling {} incoming pdus:\n", map.len());
 
@@ -26,7 +26,7 @@ pub(crate) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageE
 	Ok(RoomMessageEventContent::text_plain(&msg))
 }
 
-pub(crate) async fn fetch_support_well_known(
+pub(super) async fn fetch_support_well_known(
 	_body: Vec<&str>, server_name: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	let response = services()
@@ -72,7 +72,7 @@ pub(crate) async fn fetch_support_well_known(
 	))
 }
 
-pub(crate) async fn remote_user_in_rooms(_body: Vec<&str>, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn remote_user_in_rooms(_body: Vec<&str>, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {
 	if user_id.server_name() == services().globals.config.server_name {
 		return Ok(RoomMessageEventContent::text_plain(
 			"User belongs to our server, please use `list-joined-rooms` user admin command instead.",

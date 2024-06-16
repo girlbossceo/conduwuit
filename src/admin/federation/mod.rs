@@ -1,16 +1,14 @@
+mod commands;
+
 use clap::Subcommand;
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
 
-use self::federation_commands::{
-	disable_room, enable_room, fetch_support_well_known, incoming_federation, remote_user_in_rooms,
-};
-use crate::Result;
-
-pub(crate) mod federation_commands;
+use self::commands::*;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(crate) enum FederationCommand {
+pub(super) enum FederationCommand {
 	/// - List all rooms we are currently handling an incoming pdu from
 	IncomingFederation,
 
@@ -43,7 +41,7 @@ pub(crate) enum FederationCommand {
 	},
 }
 
-pub(crate) async fn process(command: FederationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: FederationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
 		FederationCommand::DisableRoom {
 			room_id,

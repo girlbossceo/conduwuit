@@ -4,7 +4,7 @@ use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
 
 use crate::{escape_html, get_room_info, handler::PAGE_SIZE, services, Result};
 
-pub(crate) async fn list(_body: Vec<&str>, page: Option<usize>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list(_body: Vec<&str>, page: Option<usize>) -> Result<RoomMessageEventContent> {
 	// TODO: i know there's a way to do this with clap, but i can't seem to find it
 	let page = page.unwrap_or(1);
 	let mut rooms = services()

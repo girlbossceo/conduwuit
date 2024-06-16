@@ -1,9 +1,9 @@
-use conduit::warn;
+use conduit::{warn, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::{services, Result};
+use crate::services;
 
-pub(crate) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let seconds = services()
 		.server
 		.started
@@ -21,12 +21,12 @@ pub(crate) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 	Ok(RoomMessageEventContent::notice_plain(result))
 }
 
-pub(crate) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
 	Ok(RoomMessageEventContent::text_plain(format!("{}", services().globals.config)))
 }
 
-pub(crate) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let response0 = services().memory_usage().await;
 	let response1 = services().globals.db.memory_usage();
 	let response2 = conduit::alloc::memory_usage();
@@ -41,19 +41,19 @@ pub(crate) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	)))
 }
 
-pub(crate) async fn clear_database_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
+pub(super) async fn clear_database_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
 	services().globals.db.clear_caches(amount);
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }
 
-pub(crate) async fn clear_service_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
+pub(super) async fn clear_service_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
 	services().clear_caches(amount).await;
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }
 
-pub(crate) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let result = services().globals.db.backup_list()?;
 
 	if result.is_empty() {
@@ -63,7 +63,7 @@ pub(crate) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	}
 }
 
-pub(crate) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if !cfg!(feature = "rocksdb") {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Only RocksDB supports online backups in conduwuit.",
@@ -87,7 +87,7 @@ pub(crate) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEvent
 	Ok(RoomMessageEventContent::text_plain(&result))
 }
 
-pub(crate) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if !cfg!(feature = "rocksdb") {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Only RocksDB supports listing files in conduwuit.",
@@ -98,7 +98,7 @@ pub(crate) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageE
 	Ok(RoomMessageEventContent::notice_html(String::new(), result))
 }
 
-pub(crate) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
+pub(super) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
 	let message = message.join(" ");
 	services().admin.send_text(&message).await;
 
@@ -106,20 +106,20 @@ pub(crate) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Resu
 }
 
 #[cfg(conduit_mods)]
-pub(crate) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	services().server.reload()?;
 
 	Ok(RoomMessageEventContent::notice_plain("Reloading server..."))
 }
 
 #[cfg(unix)]
-pub(crate) async fn restart(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn restart(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	services().server.restart()?;
 
 	Ok(RoomMessageEventContent::notice_plain("Restarting server..."))
 }
 
-pub(crate) async fn shutdown(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn shutdown(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	warn!("shutdown command");
 	services().server.shutdown()?;
 
