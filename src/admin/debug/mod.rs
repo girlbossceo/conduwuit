@@ -3,7 +3,7 @@ use debug_commands::{first_pdu_in_room, force_set_room_state_from_server, latest
 use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
 
 use self::debug_commands::{
-	change_log_level, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_remote_pdu_list,
+	change_log_level, echo, force_device_list_updates, get_auth_chain, get_pdu, get_remote_pdu, get_remote_pdu_list,
 	get_room_state, memory_stats, parse_pdu, ping, resolve_true_destination, sign_json, verify_json,
 };
 use crate::Result;
@@ -13,6 +13,11 @@ pub(crate) mod debug_commands;
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
 pub(crate) enum DebugCommand {
+	/// - Echo input of admin command
+	Echo {
+		message: Vec<String>,
+	},
+
 	/// - Get the auth_chain of a PDU
 	GetAuthChain {
 		/// An event ID (the $ character followed by the base64 reference hash)
@@ -160,6 +165,9 @@ pub(crate) enum DebugCommand {
 
 pub(crate) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
+		DebugCommand::Echo {
+			message,
+		} => echo(body, message).await?,
 		DebugCommand::GetAuthChain {
 			event_id,
 		} => get_auth_chain(body, event_id).await?,

@@ -21,6 +21,12 @@ use tracing_subscriber::EnvFilter;
 
 use crate::api::client::validate_and_add_event_id;
 
+pub(crate) async fn echo(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
+	let message = message.join(" ");
+
+	Ok(RoomMessageEventContent::notice_plain(message))
+}
+
 pub(crate) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
 	if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
