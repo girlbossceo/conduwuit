@@ -167,7 +167,6 @@ jobs:
         name: Build
         runs-on: ubuntu-latest
         needs: tests
-        if: github.event.pull_request.draft != true
         strategy:
             matrix:
                 include:
