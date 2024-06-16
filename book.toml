@@ -2,12 +2,18 @@
 title = "conduwuit"
 description = "conduwuit, which is a well-maintained fork of Conduit, is a simple, fast and reliable chat server for the Matrix protocol"
 language = "en"
+authors = ["strawberry (June)"]
+text-direction = "ltr"
 multilingual = false
 src = "docs"
 
 [build]
 build-dir = "public"
 create-missing = true
+extra-watch-dirs = ["debian", "docs"]
+
+[rust]
+edition = "2021"
 
 [output.html]
 git-repository-url = "https://github.com/girlbossceo/conduwuit"

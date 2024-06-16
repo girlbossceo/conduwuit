@@ -19,6 +19,7 @@ stdenv.mkDerivation {
       "debian/conduwuit.service"
       "debian/README.md"
       "docs"
+      "theme"
     ];
   };
 
@@ -27,7 +28,6 @@ stdenv.mkDerivation {
   ];
 
   buildPhase = ''
-    mdbook build
-    mv public $out
+    mdbook build -d $out
   '';
 }
