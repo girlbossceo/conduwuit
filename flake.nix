@@ -1,6 +1,7 @@
 {
   inputs = {
     attic.url = "github:zhaofengli/attic?ref=main";
+    cachix.url = "github:cachix/cachix?ref=master";
     complement = { url = "github:matrix-org/complement?ref=main"; flake = false; };
     crane = { url = "github:ipetkov/crane?ref=master"; inputs.nixpkgs.follows = "nixpkgs"; };
     fenix = { url = "github:nix-community/fenix?ref=main"; inputs.nixpkgs.follows = "nixpkgs"; };

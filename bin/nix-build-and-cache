@@ -52,7 +52,7 @@ just() {
         "${ATTIC_ENDPOINT:-https://attic.kennel.juneis.dog/conduwuit}" \
         "$ATTIC_TOKEN"
 
-    # Upload them to Attic (conduwuit store)
+    # Upload them to Attic (conduwuit store) and Cachix
     #
     # Use `xargs` and a here-string because something would probably explode if
     # several thousand arguments got passed to a command at once. Hopefully no
@@ -61,6 +61,12 @@ just() {
         IFS=$'\n'
         nix shell --inputs-from "$toplevel" attic -c xargs \
             attic push conduwuit <<< "${cache[*]}"
+
+        # push to cachix if available
+        if [ "$CACHIX_AUTH_TOKEN" ]; then
+            nix shell --inputs-from "$toplevel" cachix -c xargs \
+            cachix push conduwuit <<< "${cache[*]}"
+        fi
     )
 }
 
@@ -73,6 +79,7 @@ ci() {
         "$toplevel#devShells.x86_64-linux.default"
         "$toplevel#devShells.x86_64-linux.all-features"
         attic#default
+        cachix#default
         nixpkgs#direnv
         nixpkgs#jq
         nixpkgs#nix-direnv
