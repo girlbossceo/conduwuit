@@ -147,6 +147,7 @@ impl Service {
 	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {
 		#[cfg(feature = "console")]
 		if sig == "SIGINT" && services().server.running() {
+			self.console.interrupt();
 			self.console.start().await;
 		}
 	}
