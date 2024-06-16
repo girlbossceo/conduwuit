@@ -112,6 +112,13 @@ pub(crate) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 	Ok(RoomMessageEventContent::notice_plain("Reloading server..."))
 }
 
+#[cfg(unix)]
+pub(crate) async fn restart(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	services().server.restart()?;
+
+	Ok(RoomMessageEventContent::notice_plain("Restarting server..."))
+}
+
 pub(crate) async fn shutdown(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	warn!("shutdown command");
 	services().server.shutdown()?;

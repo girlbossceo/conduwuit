@@ -49,6 +49,10 @@ pub(crate) enum ServerCommand {
 	/// - Hot-reload the server
 	Reload,
 
+	#[cfg(unix)]
+	/// - Restart the server
+	Restart,
+
 	/// - Shutdown the server
 	Shutdown,
 }
@@ -72,6 +76,8 @@ pub(crate) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<R
 		} => admin_notice(body, message).await?,
 		#[cfg(conduit_mods)]
 		ServerCommand::Reload => reload(body).await?,
+		#[cfg(unix)]
+		ServerCommand::Restart => restart(body).await?,
 		ServerCommand::Shutdown => shutdown(body).await?,
 	})
 }

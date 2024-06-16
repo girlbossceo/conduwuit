@@ -1,11 +1,16 @@
 pub(crate) mod clap;
 mod mods;
+mod restart;
 mod server;
 mod signal;
 
 extern crate conduit_core as conduit;
 
-use std::{cmp, sync::Arc, time::Duration};
+use std::{
+	cmp,
+	sync::{atomic::Ordering, Arc},
+	time::Duration,
+};
 
 use conduit::{debug_info, error, utils::available_parallelism, Error, Result};
 use server::Server;
@@ -32,8 +37,13 @@ fn main() -> Result<(), Error> {
 
 	// explicit drop here to trace thread and tls dtors
 	drop(runtime);
-	debug_info!("Exit");
 
+	#[cfg(unix)]
+	if server.server.restarting.load(Ordering::Acquire) {
+		restart::restart();
+	}
+
+	debug_info!("Exit");
 	Ok(())
 }
 

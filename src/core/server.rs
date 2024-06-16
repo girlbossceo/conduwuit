@@ -23,6 +23,9 @@ pub struct Server {
 	/// is an observable used on shutdown and modifying is not recommended.
 	pub reloading: AtomicBool,
 
+	/// Restart desired; when true, restart it desired after shutdown.
+	pub restarting: AtomicBool,
+
 	/// Handle to the runtime
 	pub runtime: Option<runtime::Handle>,
 
@@ -48,6 +51,7 @@ impl Server {
 			started: SystemTime::now(),
 			stopping: AtomicBool::new(false),
 			reloading: AtomicBool::new(false),
+			restarting: AtomicBool::new(false),
 			runtime,
 			signal: broadcast::channel::<&'static str>(1).0,
 			log,
@@ -73,6 +77,14 @@ impl Server {
 		}
 
 		self.signal("SIGINT")
+	}
+
+	pub fn restart(&self) -> Result<()> {
+		if self.restarting.swap(true, Ordering::AcqRel) {
+			return Err(Error::Err("Restart already in progress".into()));
+		}
+
+		self.shutdown()
 	}
 
 	pub fn shutdown(&self) -> Result<()> {
