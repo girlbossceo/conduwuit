@@ -39,6 +39,7 @@ pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, boo
 			return Err(error);
 		}
 	}
+	server.server.stopping.store(false, Ordering::Release);
 	let run = main_mod.get::<RunFuncProto>("run")?;
 	if let Err(error) = run(&server.server).await {
 		error!("Running server: {error}");

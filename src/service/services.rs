@@ -1,6 +1,6 @@
 use std::{
 	collections::{BTreeMap, HashMap},
-	sync::{atomic, Arc, Mutex as StdMutex},
+	sync::{Arc, Mutex as StdMutex},
 };
 
 use conduit::{debug_info, Result, Server};
@@ -301,8 +301,6 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 
 	pub async fn interrupt(&self) {
 		trace!("Interrupting services...");
-		self.server.stopping.store(true, atomic::Ordering::Release);
-
 		self.sending.interrupt();
 		self.presence.interrupt();
 		self.admin.interrupt();
@@ -310,7 +308,6 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 		trace!("Services interrupt complete.");
 	}
 
-	#[tracing::instrument(skip_all)]
 	pub async fn stop(&self) {
 		info!("Shutting down services");
 		self.interrupt().await;

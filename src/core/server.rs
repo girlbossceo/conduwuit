@@ -5,7 +5,7 @@ use std::{
 
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config::Config, log};
+use crate::{config::Config, log, Error, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
@@ -57,6 +57,38 @@ impl Server {
 			requests_handle_finished: AtomicU32::new(0),
 			requests_panic: AtomicU32::new(0),
 		}
+	}
+
+	pub fn reload(&self) -> Result<()> {
+		if cfg!(not(conduit_mods)) {
+			return Err(Error::Err("Reloading not enabled".into()));
+		}
+
+		if self.reloading.swap(true, Ordering::AcqRel) {
+			return Err(Error::Err("Reloading already in progress".into()));
+		}
+
+		if self.stopping.swap(true, Ordering::AcqRel) {
+			return Err(Error::Err("Shutdown already in progress".into()));
+		}
+
+		self.signal("SIGINT")
+	}
+
+	pub fn shutdown(&self) -> Result<()> {
+		if self.stopping.swap(true, Ordering::AcqRel) {
+			return Err(Error::Err("Shutdown already in progress".into()));
+		}
+
+		self.signal("SIGTERM")
+	}
+
+	pub fn signal(&self, sig: &'static str) -> Result<()> {
+		if let Err(e) = self.signal.send(sig) {
+			return Err(Error::Err(format!("Failed to send signal: {e}")));
+		}
+
+		Ok(())
 	}
 
 	#[inline]

@@ -13,7 +13,7 @@ use tracing::{debug, error, trace};
 pub(crate) async fn spawn(
 	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
-	if server.stopping.load(Ordering::Relaxed) {
+	if !server.running() {
 		debug_warn!("unavailable pending shutdown");
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
@@ -35,7 +35,7 @@ pub(crate) async fn spawn(
 pub(crate) async fn handle(
 	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
-	if server.stopping.load(Ordering::Relaxed) {
+	if !server.running() {
 		debug_warn!(
 			method = %req.method(),
 			uri = %req.uri(),

@@ -25,7 +25,6 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	_ = services().admin.handle.lock().await.insert(admin::handle);
 
 	// Setup shutdown/signal handling
-	server.stopping.store(false, Ordering::Release);
 	let handle = ServerHandle::new();
 	let (tx, _) = broadcast::channel::<()>(1);
 	let sigs = server
