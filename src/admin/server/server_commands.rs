@@ -1,3 +1,4 @@
+use conduit::warn;
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{services, Result};
@@ -95,4 +96,18 @@ pub(crate) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageE
 
 	let result = services().globals.db.file_list()?;
 	Ok(RoomMessageEventContent::notice_html(String::new(), result))
+}
+
+#[cfg(conduit_mods)]
+pub(crate) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	services().server.reload()?;
+
+	Ok(RoomMessageEventContent::notice_plain(String::new()))
+}
+
+pub(crate) async fn shutdown(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	warn!("shutdown command");
+	services().server.shutdown()?;
+
+	Ok(RoomMessageEventContent::notice_plain(String::new()))
 }

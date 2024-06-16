@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 pub(crate) mod appservice;
 pub(crate) mod debug;
 pub(crate) mod federation;

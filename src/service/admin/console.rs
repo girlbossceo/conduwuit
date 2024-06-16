@@ -73,7 +73,7 @@ impl Console {
 
 	#[tracing::instrument(skip_all, name = "console")]
 	async fn worker(self: Arc<Self>) {
-		loop {
+		while services().server.running() {
 			let mut input = self.input.lock().await;
 
 			let suppression = log::Suppress::new(&services().server);

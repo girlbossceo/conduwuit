@@ -3,10 +3,7 @@ pub(crate) mod server_commands;
 use clap::Subcommand;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use self::server_commands::{
-	backup_database, clear_database_caches, clear_service_caches, list_backups, list_database_files, memory_usage,
-	show_config, uptime,
-};
+use self::server_commands::*;
 use crate::Result;
 
 #[cfg_attr(test, derive(Debug))]
@@ -42,6 +39,13 @@ pub(crate) enum ServerCommand {
 
 	/// - List database files
 	ListDatabaseFiles,
+
+	#[cfg(conduit_mods)]
+	/// - Hot-reload the server
+	Reload,
+
+	/// - Shutdown the server
+	Shutdown,
 }
 
 pub(crate) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -58,5 +62,8 @@ pub(crate) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<R
 		ServerCommand::ListBackups => list_backups(body).await?,
 		ServerCommand::BackupDatabase => backup_database(body).await?,
 		ServerCommand::ListDatabaseFiles => list_database_files(body).await?,
+		#[cfg(conduit_mods)]
+		ServerCommand::Reload => reload(body).await?,
+		ServerCommand::Shutdown => shutdown(body).await?,
 	})
 }
