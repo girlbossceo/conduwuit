@@ -7,10 +7,12 @@ pub mod je;
 pub use je::{memory_stats, memory_usage};
 
 // hardened_malloc
-#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
-pub mod hardened;
-#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os = "linux", not(feature = "jemalloc")))]
-pub use hardened::{memory_stats, memory_usage};
+//#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os =
+//#[cfg(all(not(target_env "linux", not(feature = "jemalloc")))]
+//pub mod hardened;
+//#[cfg(all(not(target_env = "msvc"), feature = "hardened_malloc", target_os =
+//#[cfg(all(not(target_env "linux", not(feature = "jemalloc")))]
+//pub use hardened::{memory_stats, memory_usage};
 
 // default, enabled when none or multiple of the above are enabled
 #[cfg(any(
