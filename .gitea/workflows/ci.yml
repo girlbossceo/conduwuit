@@ -1,0 +1,254 @@
+name: CI and Artifacts
+
+on:
+    pull_request:
+    push:
+        # documentation workflow deals with this or is not relevant for this workflow
+        paths-ignore:
+          - '*.md'
+          - 'conduwuit-example.toml'
+          - 'book.toml'
+          - '.gitlab-ci.yml'
+          - '.gitignore'
+          - 'renovate.json'
+          - 'docs/**'
+          - 'debian/**'
+          - 'docker/**'
+        branches:
+            - main
+        tags:
+          - '*'
+    # Allows you to run this workflow manually from the Actions tab
+    #workflow_dispatch:
+
+#concurrency:
+#    group: ${{ gitea.head_ref || gitea.ref_name }}
+#    cancel-in-progress: true
+
+env:
+    # Required to make some things output color
+    TERM: ansi
+    # Publishing to my nix binary cache
+    ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+    # conduwuit.cachix.org
+    CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+    # Just in case incremental is still being set to true, speeds up CI
+    CARGO_INCREMENTAL: 0
+    # Custom nix binary cache if fork is being used
+    ATTIC_ENDPOINT: ${{ vars.ATTIC_ENDPOINT }}
+    ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
+    # Get error output from nix that we can actually use
+    NIX_CONFIG: show-trace = true
+
+#permissions:
+#    packages: write
+#    contents: read
+
+jobs:
+    tests:
+        name: Test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Sync repository
+              uses: https://github.com/https://github.com/actions/checkout@v4
+
+            - name: Tag comparison check
+              if: startsWith(gitea.ref, 'refs/tags/v')
+              run: |
+                  # Tag mismatch with latest repo tag check to prevent potential downgrades
+                  LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+
+                  if [ $LATEST_TAG != ${{ gitea.ref_name }} ]; then
+                    echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.'
+                    echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.' >> $GITHUB_STEP_SUMMARY
+                    exit 1
+                  fi
+
+            - name: Install Nix
+              uses: https://github.com/DeterminateSystems/nix-installer-action@main
+              with:
+                diagnostic-endpoint: ""
+                extra-conf: "experimental-features = nix-command flakes"
+
+            - name: Enable Cachix binary cache
+              run: |
+                  nix profile install nixpkgs#cachix
+                  cachix use crane
+                  cachix use nix-community
+
+            - name: Configure Magic Nix Cache
+              uses: https://github.com/DeterminateSystems/magic-nix-cache-action@main
+              with:
+                diagnostic-endpoint: ""
+                upstream-cache: "https://attic.kennel.juneis.dog"
+
+            - name: Apply Nix binary cache configuration
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+                  EOF
+
+            - name: Use alternative Nix binary caches if specified
+              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = ${{ env.ATTIC_ENDPOINT }}
+                  extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+                  EOF
+
+            - name: Prepare build environment
+              run: |
+                  echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  direnv allow
+                  nix develop .#all-features --command true
+
+            - name: Cache CI dependencies
+              run: |
+                  bin/nix-build-and-cache ci
+
+            - name: Run CI tests
+              run: |
+                  direnv exec . engage > >(tee -a test_output.log)
+
+            - name: Sync Complement repository
+              uses: https://github.com/actions/checkout@v4
+              with:
+                repository: 'matrix-org/complement'
+                path: complement_src
+
+            - name: Run Complement tests
+              run: |
+                  direnv exec . bin/complement 'complement_src' 'complement_test_logs.jsonl' 'complement_test_results.jsonl'
+                  cp -v -f result complement_oci_image.tar.gz
+
+            - name: Upload Complement OCI image
+              uses: https://github.com/actions/upload-artifact@v4
+              with:
+                name: complement_oci_image.tar.gz
+                path: complement_oci_image.tar.gz
+                if-no-files-found: error
+
+            - name: Upload Complement logs
+              uses: https://github.com/actions/upload-artifact@v4
+              with:
+                name: complement_test_logs.jsonl
+                path: complement_test_logs.jsonl
+                if-no-files-found: error
+
+            - name: Upload Complement results
+              uses: https://github.com/actions/upload-artifact@v4
+              with:
+                name: complement_test_results.jsonl
+                path: complement_test_results.jsonl
+                if-no-files-found: error
+
+            - name: Diff Complement results with checked-in repo results
+              run: |
+                  diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_test_output.log)
+                  echo '# Complement diff results' >> $GITHUB_STEP_SUMMARY
+                  echo '```diff' >> $GITHUB_STEP_SUMMARY
+                  tail -n 100 complement_test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+
+            - name: Update Job Summary
+              if: success() || failure()
+              run: |
+                  if [ ${{ job.status }} == 'success' ]; then
+                      echo '# ✅ completed suwuccessfully' >> $GITHUB_STEP_SUMMARY
+                  else
+                      echo '```' >> $GITHUB_STEP_SUMMARY
+                      tail -n 40 test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
+                      echo '```' >> $GITHUB_STEP_SUMMARY
+                  fi
+
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        needs: tests
+        strategy:
+            matrix:
+                include:
+                    - target: aarch64-unknown-linux-musl
+                    - target: x86_64-unknown-linux-musl
+        steps:
+            - name: Sync repository
+              uses: https://github.com/actions/checkout@v4
+
+            - name: Install Nix
+              uses: https://github.com/DeterminateSystems/nix-installer-action@main
+
+            - name: Install and enable Cachix binary cache
+              run: |
+                  nix profile install nixpkgs#cachix
+                  cachix use crane
+                  cachix use nix-community
+
+            - name: Configure Magic Nix Cache
+              uses: https://github.com/DeterminateSystems/magic-nix-cache-action@main
+
+            - name: Apply Nix binary cache configuration
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems
+                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
+                  EOF
+
+            - name: Use alternative Nix binary caches if specified
+              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
+              run: |
+                  sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+                  extra-substituters = ${{ env.ATTIC_ENDPOINT }}
+                  extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+                  EOF
+
+            - name: Prepare build environment
+              run: |
+                  echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
+                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  direnv allow
+                  nix develop .#all-features --command true
+
+            - name: Build static ${{ matrix.target }}
+              run: |
+                  CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
+                  SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+
+                  bin/nix-build-and-cache just .#static-${{ matrix.target }}
+                  mkdir -v -p target/release/
+                  mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
+                  cp -v -f result/bin/conduit target/release/conduwuit
+                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
+                  # -p conduit is the main crate name
+                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}.deb
+                  mv -v target/release/conduwuit static-${{ matrix.target }}
+                  mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
+
+            - name: Upload static-${{ matrix.target }}
+              uses: https://github.com/actions/upload-artifact@v4
+              with:
+                  name: static-${{ matrix.target }}
+                  path: static-${{ matrix.target }}
+                  if-no-files-found: error
+
+            - name: Upload deb ${{ matrix.target }}
+              uses: https://github.com/actions/upload-artifact@v4
+              with:
+                  name: deb-${{ matrix.target }}
+                  path: ${{ matrix.target }}.deb
+                  if-no-files-found: error
+                  compression-level: 0
+
+            - name: Build OCI image ${{ matrix.target }}
+              run: |
+                  bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}
+                  cp -v -f result oci-image-${{ matrix.target }}.tar.gz
+
+            - name: Upload OCI image ${{ matrix.target }}
+              uses: https://github.com/actions/upload-artifact@v4
+              with:
+                  name: oci-image-${{ matrix.target }}
+                  path: oci-image-${{ matrix.target }}.tar.gz
+                  if-no-files-found: error
+                  compression-level: 0
