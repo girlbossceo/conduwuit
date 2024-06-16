@@ -111,15 +111,15 @@ async fn ban_room(
 				user.ok().filter(|local_user| {
 					user_is_local(local_user)
 								// additional wrapped check here is to avoid adding remote users
-								// who are in the admin room to the list of local users (would fail auth check)
+								// who are in the admin room to the list of local users (would
+								// fail auth check)
 								&& (user_is_local(local_user)
+									// since this is a force operation, assume user is an admin
+									// if somehow this fails
 									&& services()
 										.users
 										.is_admin(local_user)
-										.unwrap_or(true)) // since this is a force
-					 // operation, assume user
-					 // is an admin if somehow
-					 // this fails
+										.unwrap_or(true))
 				})
 			})
 			.collect::<Vec<OwnedUserId>>()
@@ -311,19 +311,17 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 				.filter_map(|user| {
 					user.ok().filter(|local_user| {
 						local_user.server_name() == services().globals.server_name()
-										// additional wrapped check here is to avoid adding remote users
-										// who are in the admin room to the list of local users (would fail auth check)
+										// additional wrapped check here is to avoid adding remote
+										// users who are in the admin room to the list of local
+										// users (would fail auth check)
 										&& (local_user.server_name()
 											== services().globals.server_name()
+											// since this is a force operation, assume user is an
+											// admin if somehow this fails
 											&& services()
 												.users
 												.is_admin(local_user)
-												.unwrap_or(true)) // since this is a
-						 // force operation,
-						 // assume user is
-						 // an admin if
-						 // somehow this
-						 // fails
+												.unwrap_or(true))
 					})
 				})
 				.collect::<Vec<OwnedUserId>>()
@@ -344,8 +342,9 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 				.filter_map(|user| {
 					user.ok().filter(|local_user| {
 						local_user.server_name() == services().globals.server_name()
-										// additional wrapped check here is to avoid adding remote users
-										// who are in the admin room to the list of local users (would fail auth check)
+										// additional wrapped check here is to avoid adding remote
+										// users who are in the admin room to the list of local
+										// users (would fail auth check)
 										&& (local_user.server_name()
 											== services().globals.server_name()
 											&& !services()
