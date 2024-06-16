@@ -7,7 +7,7 @@ use conduit::{Error, Server};
 use http::Uri;
 use ruma::api::client::error::ErrorKind;
 
-use crate::{client, ruma_wrapper::RouterExt, server};
+use crate::{client, router::RouterExt, server};
 
 pub fn build(router: Router, server: &Server) -> Router {
 	let config = &server.config;
