@@ -13,8 +13,7 @@ use crate::{services, Result, Ruma};
 /// Searches all known users for a match.
 ///
 /// - Hides any local users that aren't in any public rooms (i.e. those that
-///   have the join rule set to public)
-/// and don't share a room with the sender
+///   have the join rule set to public) and don't share a room with the sender
 pub(crate) async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result<search_users::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let limit = usize::try_from(body.limit).unwrap_or(10); // default limit is 10

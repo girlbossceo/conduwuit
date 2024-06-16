@@ -35,8 +35,8 @@ pub(crate) enum DebugCommand {
 	},
 
 	/// - Attempts to retrieve a PDU from a remote server. Inserts it into our
-	/// database/timeline if found and we do not have this PDU already
-	/// (following normal event auth rules, handles it as an incoming PDU).
+	///   database/timeline if found and we do not have this PDU already
+	///   (following normal event auth rules, handles it as an incoming PDU).
 	GetRemotePdu {
 		/// An event ID (a $ followed by the base64 reference hash)
 		event_id: Box<EventId>,
@@ -47,8 +47,7 @@ pub(crate) enum DebugCommand {
 	},
 
 	/// - Same as `get-remote-pdu` but accepts a codeblock newline delimited
-	///   list
-	/// of PDUs and a single server to fetch from
+	///   list of PDUs and a single server to fetch from
 	GetRemotePduList {
 		/// Argument for us to attempt to fetch all the events from the
 		/// specified remote server.

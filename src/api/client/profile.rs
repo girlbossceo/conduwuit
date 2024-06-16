@@ -50,8 +50,8 @@ pub(crate) async fn set_displayname_route(
 ///
 /// Returns the displayname of the user.
 ///
-/// - If user is on another server and we do not have a local copy already
-/// fetch displayname over federation
+/// - If user is on another server and we do not have a local copy already fetch
+///   displayname over federation
 pub(crate) async fn get_displayname_route(
 	body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
@@ -140,8 +140,8 @@ pub(crate) async fn set_avatar_url_route(
 ///
 /// Returns the `avatar_url` and `blurhash` of the user.
 ///
-/// - If user is on another server and we do not have a local copy already
-/// fetch `avatar_url` and blurhash over federation
+/// - If user is on another server and we do not have a local copy already fetch
+///   `avatar_url` and blurhash over federation
 pub(crate) async fn get_avatar_url_route(
 	body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
@@ -199,7 +199,7 @@ pub(crate) async fn get_avatar_url_route(
 /// Returns the displayname, avatar_url and blurhash of the user.
 ///
 /// - If user is on another server and we do not have a local copy already,
-/// fetch profile over federation.
+///   fetch profile over federation.
 pub(crate) async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> Result<get_profile::v3::Response> {
 	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
