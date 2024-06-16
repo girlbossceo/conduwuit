@@ -55,7 +55,9 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
         with:
           diagnostic-endpoint: ""
-          extra-conf: "experimental-features = nix-command flakes"
+          extra-conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
 
       - name: Enable Cachix binary cache
         run: |

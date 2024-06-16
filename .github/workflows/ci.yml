@@ -68,7 +68,9 @@ jobs:
               uses: DeterminateSystems/nix-installer-action@main
               with:
                 diagnostic-endpoint: ""
-                extra-conf: "experimental-features = nix-command flakes"
+                extra-conf: |
+                  experimental-features = nix-command flakes
+                  accept-flake-config = true
 
             - name: Enable Cachix binary cache
               run: |
@@ -178,6 +180,11 @@ jobs:
 
             - name: Install Nix
               uses: DeterminateSystems/nix-installer-action@main
+              with:
+                diagnostic-endpoint: ""
+                extra-conf: |
+                  experimental-features = nix-command flakes
+                  accept-flake-config = true
 
             - name: Install and enable Cachix binary cache
               run: |
@@ -187,12 +194,15 @@ jobs:
 
             - name: Configure Magic Nix Cache
               uses: DeterminateSystems/magic-nix-cache-action@main
+              with:
+                diagnostic-endpoint: ""
+                upstream-cache: "https://attic.kennel.juneis.dog"
 
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems
-                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=
+                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
                   EOF
 
             - name: Use alternative Nix binary caches if specified
