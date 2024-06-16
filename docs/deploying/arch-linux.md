@@ -6,3 +6,4 @@ The conduwuit AUR packages are community maintained and are not maintained by co
 
 - [conduwuit](https://aur.archlinux.org/packages/conduwuit) - latest tagged conduwuit
 - [conduwuit-git](https://aur.archlinux.org/packages/conduwuit-git) - latest git conduwuit from `main` branch
+- [conduwuit-bin](https://aur.archlinux.org/packages/conduwuit-bin) - latest tagged conduwuit static binary
