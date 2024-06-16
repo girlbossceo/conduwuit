@@ -92,7 +92,7 @@ impl Service {
 	}
 
 	pub async fn send_text(&self, body: &str) {
-		self.send_message(RoomMessageEventContent::text_plain(body))
+		self.send_message(RoomMessageEventContent::text_markdown(body))
 			.await;
 	}
 

@@ -40,6 +40,11 @@ pub(crate) enum ServerCommand {
 	/// - List database files
 	ListDatabaseFiles,
 
+	/// - Send a message to the admin room.
+	AdminNotice {
+		message: Vec<String>,
+	},
+
 	#[cfg(conduit_mods)]
 	/// - Hot-reload the server
 	Reload,
@@ -62,6 +67,9 @@ pub(crate) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<R
 		ServerCommand::ListBackups => list_backups(body).await?,
 		ServerCommand::BackupDatabase => backup_database(body).await?,
 		ServerCommand::ListDatabaseFiles => list_database_files(body).await?,
+		ServerCommand::AdminNotice {
+			message,
+		} => admin_notice(body, message).await?,
 		#[cfg(conduit_mods)]
 		ServerCommand::Reload => reload(body).await?,
 		ServerCommand::Shutdown => shutdown(body).await?,

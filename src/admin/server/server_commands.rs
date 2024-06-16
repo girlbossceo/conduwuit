@@ -98,6 +98,13 @@ pub(crate) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageE
 	Ok(RoomMessageEventContent::notice_html(String::new(), result))
 }
 
+pub(crate) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
+	let message = message.join(" ");
+	services().admin.send_text(&message).await;
+
+	Ok(RoomMessageEventContent::notice_plain("Notice was sent to #admins"))
+}
+
 #[cfg(conduit_mods)]
 pub(crate) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	services().server.reload()?;
