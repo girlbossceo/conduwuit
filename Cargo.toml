@@ -741,34 +741,27 @@ significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
 pedantic = "warn"
 
 ## some sadness
-cast_possible_truncation = "allow"
-cast_precision_loss = "allow"
-cast_sign_loss = "allow"
-doc_markdown = "allow"
-error_impl_error = "allow"
-expect_used = "allow"
-if_not_else = "allow"
-if_then_some_else_none = "allow"
-implicit_return = "allow"
-inline_always = "allow"
-map_err_ignore = "allow"
-missing_docs_in_private_items = "allow"
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-mod_module_files = "allow"
-module_name_repetitions = "allow"
-multiple_inherent_impl = "allow"
-no_effect_underscore_binding = "allow"
-ref_patterns = "allow"
-same_name_method = "allow"
+cast_possible_truncation = { level = "allow", priority = 1 }
+cast_precision_loss = { level = "allow", priority = 1 }
+cast_sign_loss = { level = "allow", priority = 1 }
+doc_markdown = { level = "allow", priority = 1 }
+error_impl_error = { level = "allow", priority = 1 }
+expect_used = { level = "allow", priority = 1 }
+if_not_else = { level = "allow", priority = 1 }
+if_then_some_else_none = { level = "allow", priority = 1 }
+implicit_return = { level = "allow", priority = 1 }
+inline_always = { level = "allow", priority = 1 }
+map_err_ignore = { level = "allow", priority = 1 }
+missing_docs_in_private_items = { level = "allow", priority = 1 }
+missing_errors_doc = { level = "allow", priority = 1 }
+missing_panics_doc = { level = "allow", priority = 1 }
+mod_module_files = { level = "allow", priority = 1 }
+module_name_repetitions = { level = "allow", priority = 1 }
+no_effect_underscore_binding = { level = "allow", priority = 1 }
 similar_names = { level = "allow", priority = 1 }
-single_call_fn = "allow"
-string_add = "allow"
-string_slice = "allow"
 struct_field_names = { level = "allow", priority = 1 }
 unnecessary_wraps = { level = "allow", priority = 1 }
 unused_async = { level = "allow", priority = 1 }
-unwrap_used = "allow"
 
 ###################
 perf = "warn"
@@ -822,10 +815,10 @@ style = "warn"
 
 ## some sadness
 # trivial assertions are quite alright
-assertions_on_constants = "allow"
+assertions_on_constants = { level = "allow", priority = 1 }
 
 ###################
 suspicious = "warn"
 
 ## some sadness
-let_underscore_future = "allow"
+let_underscore_future = { level = "allow", priority = 1 }
