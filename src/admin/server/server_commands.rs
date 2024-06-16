@@ -18,7 +18,7 @@ pub(crate) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 		seconds % 60,
 	);
 
-	Ok(RoomMessageEventContent::notice_html(String::new(), result))
+	Ok(RoomMessageEventContent::notice_plain(result))
 }
 
 pub(crate) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -109,12 +109,12 @@ pub(crate) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Resu
 pub(crate) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	services().server.reload()?;
 
-	Ok(RoomMessageEventContent::notice_plain(String::new()))
+	Ok(RoomMessageEventContent::notice_plain("Reloading server..."))
 }
 
 pub(crate) async fn shutdown(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	warn!("shutdown command");
 	services().server.shutdown()?;
 
-	Ok(RoomMessageEventContent::notice_plain(String::new()))
+	Ok(RoomMessageEventContent::notice_plain("Shutting down server..."))
 }
