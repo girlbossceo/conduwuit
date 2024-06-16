@@ -1,6 +1,6 @@
 #![allow(dead_code)] // this is a developer's toolbox
 
-use std::{panic, panic::PanicInfo};
+use std::panic;
 
 /// Export all of the ancillary tools from here as well.
 pub use crate::utils::debug::*;
@@ -59,7 +59,8 @@ pub fn set_panic_trap() {
 }
 
 #[inline(always)]
-fn panic_handler(info: &PanicInfo<'_>, next: &dyn Fn(&PanicInfo<'_>)) {
+#[allow(deprecated_in_future)]
+fn panic_handler(info: &panic::PanicInfo<'_>, next: &dyn Fn(&panic::PanicInfo<'_>)) {
 	trap();
 	next(info);
 }
