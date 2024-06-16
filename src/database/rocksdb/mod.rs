@@ -238,10 +238,12 @@ impl KeyValueDatabaseEngine for Arc<Engine> {
 			Err(e) => Ok(String::from(e)),
 			Ok(files) => {
 				let mut res = String::new();
+				writeln!(res, "| lev  | sst  | keys | dels | size | column |").expect("written to string buffer");
+				writeln!(res, "| ---: | :--- | ---: | ---: | ---: | :---   |").expect("written to string buffer");
 				for file in files {
 					writeln!(
 						res,
-						"<code>L{} {:<13} {:7}+ {:4}- {:9}</code> {}<br>",
+						"| {} | {:<13} | {:7}+ | {:4}- | {:9} | {} |",
 						file.level, file.name, file.num_entries, file.num_deletions, file.size, file.column_family_name,
 					)
 					.expect("should be able to writeln to string buffer");

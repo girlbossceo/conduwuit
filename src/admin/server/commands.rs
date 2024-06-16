@@ -95,7 +95,8 @@ pub(super) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageE
 	}
 
 	let result = services().globals.db.file_list()?;
-	Ok(RoomMessageEventContent::notice_html(String::new(), result))
+
+	Ok(RoomMessageEventContent::notice_markdown(result))
 }
 
 pub(super) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
