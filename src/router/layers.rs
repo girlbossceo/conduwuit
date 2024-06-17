@@ -182,7 +182,13 @@ fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
 	let path = request
 		.extensions()
 		.get::<MatchedPath>()
-		.map_or_else(|| request.uri().path(), |p| p.as_str());
+		.map_or_else(|| request.uri().path(), truncated_matched_path);
 
 	tracing::info_span!("router:", %path)
+}
+
+fn truncated_matched_path(path: &MatchedPath) -> &str {
+	path.as_str()
+		.rsplit_once(':')
+		.map_or(path.as_str(), |path| path.0.strip_suffix('/').unwrap_or(path.0))
 }
