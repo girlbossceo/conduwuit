@@ -1,5 +1,6 @@
 use std::{
 	collections::{BTreeMap, HashMap},
+	fmt::Write,
 	sync::{Arc, Mutex},
 	time::Instant,
 };
@@ -603,6 +604,50 @@ pub(super) async fn force_set_room_state_from_server(
 	Ok(RoomMessageEventContent::text_plain(
 		"Successfully forced the room state from the requested remote server.",
 	))
+}
+
+pub(super) async fn get_signing_keys(
+	_body: Vec<&str>, server_name: Option<Box<ServerName>>, _cached: bool,
+) -> Result<RoomMessageEventContent> {
+	let server_name = server_name.unwrap_or_else(|| services().server.config.server_name.clone().into());
+	let signing_keys = services().globals.signing_keys_for(&server_name)?;
+
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"```rs\n{signing_keys:#?}\n```"
+	)))
+}
+
+#[allow(dead_code)]
+pub(super) async fn get_verify_keys(
+	_body: Vec<&str>, server_name: Option<Box<ServerName>>, cached: bool,
+) -> Result<RoomMessageEventContent> {
+	let server_name = server_name.unwrap_or_else(|| services().server.config.server_name.clone().into());
+	let mut out = String::new();
+
+	if cached {
+		writeln!(out, "| Key ID | VerifyKey |")?;
+		writeln!(out, "| --- | --- |")?;
+		for (key_id, verify_key) in services().globals.verify_keys_for(&server_name)? {
+			writeln!(out, "| {key_id} | {verify_key:?} |")?;
+		}
+
+		return Ok(RoomMessageEventContent::notice_markdown(out));
+	}
+
+	let signature_ids: Vec<String> = Vec::new();
+	let keys = services()
+		.rooms
+		.event_handler
+		.fetch_signing_keys_for_server(&server_name, signature_ids)
+		.await?;
+
+	writeln!(out, "| Key ID | Public Key |")?;
+	writeln!(out, "| --- | --- |")?;
+	for (key_id, key) in keys {
+		writeln!(out, "| {key_id} | {key} |")?;
+	}
+
+	Ok(RoomMessageEventContent::notice_markdown(out))
 }
 
 pub(super) async fn resolve_true_destination(

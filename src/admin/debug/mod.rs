@@ -76,6 +76,14 @@ pub(super) enum DebugCommand {
 		room_id: OwnedRoomOrAliasId,
 	},
 
+	/// - Get and display signing keys from local cache or remote server.
+	GetSigningKeys {
+		server_name: Option<Box<ServerName>>,
+
+		#[arg(short, long)]
+		cached: bool,
+	},
+
 	/// - Sends a federation request to the remote server's
 	///   `/_matrix/federation/v1/version` endpoint and measures the latency it
 	///   took for the server to respond
@@ -177,6 +185,10 @@ pub(super) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 		DebugCommand::Echo {
 			message,
 		} => echo(body, message).await?,
+		DebugCommand::GetSigningKeys {
+			server_name,
+			cached,
+		} => get_signing_keys(body, server_name, cached).await?,
 		DebugCommand::GetAuthChain {
 			event_id,
 		} => get_auth_chain(body, event_id).await?,
