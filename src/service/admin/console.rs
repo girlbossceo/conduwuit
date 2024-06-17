@@ -167,10 +167,16 @@ impl Console {
 	}
 
 	fn set_history(&self, readline: &mut Readline) {
-		let history = self.history.lock().expect("locked");
-		for entry in history.iter().rev() {
-			readline.add_history_entry(entry.clone());
-		}
+		self.history
+			.lock()
+			.expect("locked")
+			.iter()
+			.rev()
+			.for_each(|entry| {
+				readline
+					.add_history_entry(entry.clone())
+					.expect("added history entry");
+			});
 	}
 
 	fn add_history(&self, line: String) {

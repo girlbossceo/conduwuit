@@ -84,28 +84,28 @@ fn compression_layer(server: &Server) -> tower_http::compression::CompressionLay
 
 	#[cfg(feature = "zstd_compression")]
 	{
-		if server.config.zstd_compression {
-			compression_layer = compression_layer.zstd(true);
+		compression_layer = if server.config.zstd_compression {
+			compression_layer.zstd(true)
 		} else {
-			compression_layer = compression_layer.no_zstd();
+			compression_layer.no_zstd()
 		};
 	};
 
 	#[cfg(feature = "gzip_compression")]
 	{
-		if server.config.gzip_compression {
-			compression_layer = compression_layer.gzip(true);
+		compression_layer = if server.config.gzip_compression {
+			compression_layer.gzip(true)
 		} else {
-			compression_layer = compression_layer.no_gzip();
+			compression_layer.no_gzip()
 		};
 	};
 
 	#[cfg(feature = "brotli_compression")]
 	{
-		if server.config.brotli_compression {
-			compression_layer = compression_layer.br(true);
+		compression_layer = if server.config.brotli_compression {
+			compression_layer.br(true)
 		} else {
-			compression_layer = compression_layer.no_br();
+			compression_layer.no_br()
 		};
 	};
 
@@ -179,11 +179,10 @@ fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_u
 }
 
 fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
-	let path = if let Some(path) = request.extensions().get::<MatchedPath>() {
-		path.as_str()
-	} else {
-		request.uri().path()
-	};
+	let path = request
+		.extensions()
+		.get::<MatchedPath>()
+		.map_or_else(|| request.uri().path(), |p| p.as_str());
 
 	tracing::info_span!("router:", %path)
 }
