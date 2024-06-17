@@ -13,10 +13,9 @@ pub(super) async fn presence(subcommand: Presence) -> Result<RoomMessageEventCon
 			let results = services().presence.db.get_presence(&user_id)?;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		Presence::PresenceSince {
 			since,
@@ -27,10 +26,9 @@ pub(super) async fn presence(subcommand: Presence) -> Result<RoomMessageEventCon
 
 			let presence_since: Vec<(_, _, _)> = results.collect();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{presence_since:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{presence_since:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{presence_since:#?}\n```"
+			)))
 		},
 	}
 }

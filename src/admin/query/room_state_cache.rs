@@ -16,10 +16,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.server_in_room(&server, &room_id);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{result:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{result:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{result:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomServers {
 			room_id,
@@ -32,10 +31,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::ServerRooms {
 			server,
@@ -44,10 +42,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 			let results: Result<Vec<_>> = services().rooms.state_cache.server_rooms(&server).collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomMembers {
 			room_id,
@@ -60,10 +57,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::LocalUsersInRoom {
 			room_id,
@@ -76,10 +72,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::ActiveLocalUsersInRoom {
 			room_id,
@@ -92,10 +87,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomJoinedCount {
 			room_id,
@@ -104,10 +98,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 			let results = services().rooms.state_cache.room_joined_count(&room_id);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomInvitedCount {
 			room_id,
@@ -116,10 +109,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 			let results = services().rooms.state_cache.room_invited_count(&room_id);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomUserOnceJoined {
 			room_id,
@@ -132,10 +124,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomMembersInvited {
 			room_id,
@@ -148,10 +139,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::GetInviteCount {
 			room_id,
@@ -164,10 +154,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.get_invite_count(&room_id, &user_id);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::GetLeftCount {
 			room_id,
@@ -180,10 +169,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.get_left_count(&room_id, &user_id);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomsJoined {
 			user_id,
@@ -196,10 +184,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomsInvited {
 			user_id,
@@ -212,10 +199,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::RoomsLeft {
 			user_id,
@@ -224,10 +210,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 			let results: Result<Vec<_>> = services().rooms.state_cache.rooms_left(&user_id).collect();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomStateCache::InviteState {
 			user_id,
@@ -240,10 +225,9 @@ pub(super) async fn room_state_cache(subcommand: RoomStateCache) -> Result<RoomM
 				.invite_state(&user_id, &room_id);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 	}
 }

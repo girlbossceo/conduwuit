@@ -11,40 +11,36 @@ pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let results = services().globals.db.database_version();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		Globals::CurrentCount => {
 			let timer = tokio::time::Instant::now();
 			let results = services().globals.db.current_count();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		Globals::LastCheckForUpdatesId => {
 			let timer = tokio::time::Instant::now();
 			let results = services().globals.db.last_check_for_updates_id();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		Globals::LoadKeypair => {
 			let timer = tokio::time::Instant::now();
 			let results = services().globals.db.load_keypair();
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		Globals::SigningKeysFor {
 			origin,
@@ -53,10 +49,9 @@ pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			let results = services().globals.db.signing_keys_for(&origin);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 	}
 }

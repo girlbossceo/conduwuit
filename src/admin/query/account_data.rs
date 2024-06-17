@@ -18,10 +18,9 @@ pub(super) async fn account_data(subcommand: AccountData) -> Result<RoomMessageE
 				.changes_since(room_id.as_deref(), &user_id, since)?;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		AccountData::Get {
 			user_id,
@@ -35,10 +34,9 @@ pub(super) async fn account_data(subcommand: AccountData) -> Result<RoomMessageE
 				.get(room_id.as_deref(), &user_id, kind)?;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 	}
 }

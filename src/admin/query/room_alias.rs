@@ -13,10 +13,9 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 			let results = services().rooms.alias.db.resolve_local_alias(&alias);
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{results:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{results:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+			)))
 		},
 		RoomAlias::LocalAliasesForRoom {
 			room_id,
@@ -27,10 +26,9 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 
 			let aliases: Vec<_> = results.collect();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{aliases:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{aliases:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```"
+			)))
 		},
 		RoomAlias::AllLocalAliases => {
 			let timer = tokio::time::Instant::now();
@@ -39,10 +37,9 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 
 			let aliases: Vec<_> = results.collect();
 
-			Ok(RoomMessageEventContent::text_html(
-				format!("Query completed in {query_time:?}:\n\n```\n{aliases:?}```"),
-				format!("<p>Query completed in {query_time:?}:</p>\n<pre><code>{aliases:?}\n</code></pre>"),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```"
+			)))
 		},
 	}
 }
