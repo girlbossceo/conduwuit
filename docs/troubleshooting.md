@@ -16,7 +16,9 @@ Some filesystems may not like RocksDB using [Direct IO](https://github.com/faceb
 
 #### Database corruption
 
-If your database is corrupted and is failing to start (e.g. checksum mismatch), it may be recoverable but careful steps must be taken, and there is no guarantee it may be recoverable.
+If your database is corrupted *and* is failing to start (e.g. checksum mismatch), it may be recoverable but careful steps must be taken, and there is no guarantee it may be recoverable.
+
+The first thing that can be done is launching conduwuit with the `rocksdb_repair` config option set to true. This will tell RocksDB to attempt to repair itself at launch. If this does not work, disable the option and continue reading.
 
 RocksDB has the following recovery modes:
 

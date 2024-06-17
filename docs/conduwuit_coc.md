@@ -1,6 +1,6 @@
-# Conduwuit Community Code of Conduct
+# conduwuit Community Code of Conduct
 
-Welcome to the conduwuit community! We’re excited to have you here. Conduwuit is a hard-fork of the Conduit homeserver,
+Welcome to the conduwuit community! We’re excited to have you here. conduwuit is a hard-fork of the Conduit homeserver,
 aimed at making Matrix more accessible and inclusive for everyone.
 
 This space is dedicated to fostering a positive, supportive, and inclusive environment for everyone. This Code of
@@ -39,7 +39,7 @@ additional guidelines specific to the conduwuit community.
 
 ## Matrix Community
 
-This Code of Conduct applies to the entire [Conduwuit Matrix Space](https://matrix.to/#/#conduwuit-space:puppygock.gay)
+This Code of Conduct applies to the entire [conduwuit Matrix Space](https://matrix.to/#/#conduwuit-space:puppygock.gay)
 and its rooms, including:
 
 ### [#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay)
@@ -74,4 +74,4 @@ a DM to one of the moderators directly.
 
 Together, let’s build a community where everyone feels valued and respected.
 
-- The Conduwuit Moderation Team
+- The conduwuit Moderation Team

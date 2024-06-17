@@ -1,4 +1,4 @@
-# Conduwuit
+# conduwuit
 
 {{#include ../README.md:catchphrase}}
 
@@ -12,7 +12,7 @@ See the [differences](differences.md) page
 
 - [Deployment options](deploying.md)
 
-If you want to connect an Appservice to Conduwuit, take a look at the [appservices documentation](appservices.md).
+If you want to connect an appservice to conduwuit, take a look at the [appservices documentation](appservices.md).
 
 #### How can I contribute?
 

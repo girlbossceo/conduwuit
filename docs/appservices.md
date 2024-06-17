@@ -18,7 +18,7 @@ First, go into the `#admins` room of your homeserver. The first person that
 registered on the homeserver automatically joins it. Then send a message into
 the room like this:
 
-    @conduit:your.server.name: register-appservice
+    !admin appservices register
     ```
     paste
     the
@@ -33,7 +33,7 @@ the room like this:
 You can confirm it worked by sending a message like this:
 `!admin appservices list`
 
-The `@conduit` bot should answer with `Appservices (1): your-bridge`
+The server bot should answer with `Appservices (1): your-bridge`
 
 Then you are done. conduwuit will send messages to the appservices and the
 appservice can send requests to the homeserver. You don't need to restart

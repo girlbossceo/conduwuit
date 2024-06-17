@@ -30,7 +30,7 @@ The `flake.nix` and `default.nix` do not (currently) provide a NixOS module, so
 (for now) [`services.matrix-conduit`][module] from Nixpkgs should be used to
 configure conduwuit.
 
-If you want to run the latest code, you should get Conduwuit from the `flake.nix`
+If you want to run the latest code, you should get conduwuit from the `flake.nix`
 or `default.nix` and set [`services.matrix-conduit.package`][package]
 appropriately.
 

@@ -18,6 +18,7 @@ stdenv.mkDerivation {
       "README.md"
       "debian/conduwuit.service"
       "debian/README.md"
+      "arch/conduwuit.service"
       "docs"
       "theme"
     ];

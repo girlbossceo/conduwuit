@@ -41,7 +41,7 @@ To restore a backup from an online RocksDB backup:
 - create a new directory for merging together the data
 - in the online backup created, copy all `.sst` files in `$DATABASE_BACKUP_PATH/shared_checksum` to your new directory
 - trim all the strings so instead of `######_sxxxxxxxxx.sst`, it reads `######.sst`. A way of doing this with sed and bash is `for file in *.sst; do mv "$file" "$(echo "$file" | sed 's/_s.*/.sst/')"; done`
-- copy all the files in `$DATABASE_BACKUP_PATH/1` to your new directory
+- copy all the files in `$DATABASE_BACKUP_PATH/1` (or the latest backup number if you have multiple) to your new directory
 - set your `database_path` config option to your new directory, or replace your old one with the new one you crafted
 - start up conduwuit again and it should open as normal
 
@@ -52,12 +52,12 @@ Backing up media is also just copying the `media/` directory from your database 
 ## Media
 
 Media still needs various work, however conduwuit implements media deletion via:
-- MXC URI
+- MXC URI or Event ID (unencrypted and attempts to find the MXC URI in the event)
 - Delete list of MXC URIs
-- Delete remote media in the past `N` seconds/minutes
+- Delete remote media in the past `N` seconds/minutes via filesystem metadata on the file created time (`btime`) or file modified time (`mtime`)
 
 See the `!admin media` command for further information. All media in conduwuit is stored at `$DATABASE_DIR/media`. This will be configurable soon.
 
 If you are finding yourself needing extensive granular control over media, we recommend looking into [Matrix Media Repo](https://github.com/t2bot/matrix-media-repo). conduwuit intends to implement various utilities for media, but MMR is dedicated to extensive media management.
 
-Built-in S3 support is also planned, but for now using a "S3 filesystem" on `media/` works. conduwuit also sends a `Cache-Control` header of 1 year and immutable for all media requests (download and thumbnail) to reduce unnecessary media requests from browsers.
+Built-in S3 support is also planned, but for now using a "S3 filesystem" on `media/` works. conduwuit also sends a `Cache-Control` header of 1 year and immutable for all media requests (download and thumbnail) to reduce unnecessary media requests from browsers, reduce bandwidth usage, and reduce load.

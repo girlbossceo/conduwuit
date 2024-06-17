@@ -114,7 +114,7 @@ $ sudo systemctl enable conduwuit
 
 You can open [a Matrix client](https://matrix.org/ecosystem/clients), enter your homeserver and try to register.
 
-You can also use these commands as a quick health check.
+You can also use these commands as a quick health check (replace `your.server.name`).
 
 ```bash
 $ curl https://your.server.name/_conduwuit/server_version

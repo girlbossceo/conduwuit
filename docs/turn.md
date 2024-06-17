@@ -13,21 +13,7 @@ realm=<your server domain>
 ```
 A common way to generate a suitable alphanumeric secret key is by using `pwgen -s 64 1`.
 
-These same values need to be set in conduwuit. You can either modify conduwuit.toml to include these lines:
-
-```
-turn_uris = ["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]
-turn_secret = "<secret key from coturn configuration>"
-```
-
-or append the following to the docker environment variables dependig on which configuration method you used earlier:
-
-```yml
-CONDUIT_TURN_URIS: '["turn:<your server domain>?transport=udp", "turn:<your server domain>?transport=tcp"]'
-CONDUIT_TURN_SECRET: "<secret key from coturn configuration>"
-```
-
-Restart conduwuit to apply these changes.
+These same values need to be set in conduwuit. See the [example config](configuration.md) in the TURN section for configuring these and restart conduwuit after.
 
 ### Run
 Run the [Coturn](https://hub.docker.com/r/coturn/coturn) image using

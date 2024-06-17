@@ -4,7 +4,6 @@
 
 To run conduwuit with Docker you can either build the image yourself or pull it from a registry.
 
-
 ### Use a registry
 
 OCI images for conduwuit are available in the registries listed below.
@@ -24,13 +23,11 @@ OCI images for conduwuit are available in the registries listed below.
 [shield-latest]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/latest
 [shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
 
-
 Use
 ```bash
 docker image pull <link>
 ```
 to pull it to your machine.
-
 
 ### Run
 
@@ -39,13 +36,9 @@ When you have the image you can simply run it with
 ```bash
 docker run -d -p 8448:6167 \
   -v db:/var/lib/conduwuit/ \
-  -e CONDUIT_SERVER_NAME="your.server.name" \
-  -e CONDUIT_DATABASE_BACKEND="rocksdb" \
-  -e CONDUIT_ALLOW_REGISTRATION=false \
-  -e CONDUIT_ALLOW_FEDERATION=true \
-  -e CONDUIT_MAX_REQUEST_SIZE="40000000" \
-  -e CONDUIT_TRUSTED_SERVERS="[\"matrix.org\"]" \
-  -e CONDUIT_LOG="warn,ruma_state_res=warn" \
+  -e CONDUWUIT_SERVER_NAME="your.server.name" \
+  -e CONDUWUIT_DATABASE_BACKEND="rocksdb" \
+  -e CONDUWUIT_ALLOW_REGISTRATION=false \
   --name conduit <link>
 ```
 

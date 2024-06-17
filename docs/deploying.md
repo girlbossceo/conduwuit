@@ -1,3 +1,3 @@
 # Deploying
 
-This chapter describes various ways to deploy Conduwuit.
+This chapter describes various ways to deploy conduwuit.
