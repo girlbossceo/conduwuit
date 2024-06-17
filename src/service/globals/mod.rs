@@ -13,7 +13,10 @@ use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
-	api::{client::discovery::discover_support::ContactRole, federation::discovery::VerifyKey},
+	api::{
+		client::discovery::discover_support::ContactRole,
+		federation::discovery::{ServerSigningKeys, VerifyKey},
+	},
 	serde::Base64,
 	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomAliasId,
 	RoomVersionId, ServerName, UserId,
@@ -286,6 +289,10 @@ impl Service {
 		}
 
 		Ok(keys)
+	}
+
+	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<Option<ServerSigningKeys>> {
+		self.db.signing_keys_for(origin)
 	}
 
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
