@@ -27,24 +27,12 @@ const HISTORY_LIMIT: usize = 48;
 impl Console {
 	#[must_use]
 	pub fn new() -> Arc<Self> {
-		use termimad::{crossterm::style::Color, Alignment, CompoundStyle, LineStyle};
-
-		let mut output = MadSkin::default_dark();
-		let code_style = CompoundStyle::with_fgbg(Color::AnsiValue(40), Color::AnsiValue(234));
-		output.inline_code = code_style.clone();
-		output.code_block = LineStyle {
-			left_margin: 0,
-			right_margin: 0,
-			align: Alignment::Left,
-			compound_style: code_style,
-		};
-
 		Arc::new(Self {
 			worker_join: None.into(),
 			input_abort: None.into(),
 			command_abort: None.into(),
 			history: VecDeque::with_capacity(HISTORY_LIMIT).into(),
-			output,
+			output: configure_output(MadSkin::default_dark()),
 		})
 	}
 
@@ -175,8 +163,7 @@ impl Console {
 	}
 
 	async fn output(self: Arc<Self>, output_content: RoomMessageEventContent) {
-		let output = self.output.term_text(output_content.body());
-		println!("{output}");
+		self.output.print_text(output_content.body());
 	}
 
 	fn set_history(&self, readline: &mut Readline) {
@@ -191,4 +178,27 @@ impl Console {
 		history.push_front(line);
 		history.truncate(HISTORY_LIMIT);
 	}
+}
+
+fn configure_output(mut output: MadSkin) -> MadSkin {
+	use termimad::{crossterm::style::Color, Alignment, CompoundStyle, LineStyle};
+
+	let code_style = CompoundStyle::with_fgbg(Color::AnsiValue(40), Color::AnsiValue(234));
+	output.inline_code = code_style.clone();
+	output.code_block = LineStyle {
+		left_margin: 0,
+		right_margin: 0,
+		align: Alignment::Left,
+		compound_style: code_style,
+	};
+
+	let table_style = CompoundStyle::default();
+	output.table = LineStyle {
+		left_margin: 1,
+		right_margin: 1,
+		align: Alignment::Left,
+		compound_style: table_style,
+	};
+
+	output
 }
