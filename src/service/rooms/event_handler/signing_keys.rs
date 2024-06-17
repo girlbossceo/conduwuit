@@ -148,7 +148,7 @@ impl super::Service {
 			let result: BTreeMap<_, _> = self
 				.services
 				.globals
-				.signing_keys_for(origin)?
+				.verify_keys_for(origin)?
 				.into_iter()
 				.map(|(k, v)| (k.to_string(), v.key))
 				.collect();
@@ -354,7 +354,7 @@ impl super::Service {
 		let mut result: BTreeMap<_, _> = self
 			.services
 			.globals
-			.signing_keys_for(origin)?
+			.verify_keys_for(origin)?
 			.into_iter()
 			.map(|(k, v)| (k.to_string(), v.key))
 			.collect();

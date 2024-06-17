@@ -289,7 +289,7 @@ impl Data {
 
 	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	/// for the server.
-	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
+	pub fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
 		let signingkeys = self
 			.server_signingkeys
 			.get(origin.as_bytes())?

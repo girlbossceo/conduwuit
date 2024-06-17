@@ -46,7 +46,7 @@ pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 			origin,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().globals.db.signing_keys_for(&origin);
+			let results = services().globals.db.verify_keys_for(&origin);
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
