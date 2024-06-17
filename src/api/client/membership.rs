@@ -165,7 +165,7 @@ async fn banned_room_check(
 ///   rules locally
 /// - If the server does not know about the room: asks other servers over
 ///   federation
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client_ip), name = "join")]
 pub(crate) async fn join_room_by_id_route(
 	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<join_room_by_id::v3::Request>,
 ) -> Result<join_room_by_id::v3::Response> {
@@ -218,16 +218,16 @@ pub(crate) async fn join_room_by_id_route(
 /// - If the server does not know about the room: use the server name query
 ///   param if specified. if not specified, asks other servers over federation
 ///   via room alias server name and room ID server name
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "join")]
 pub(crate) async fn join_room_by_id_or_alias_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<join_room_by_id_or_alias::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<join_room_by_id_or_alias::v3::Request>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
 	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
 	let body = body.body;
 
 	let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
 		Ok(room_id) => {
-			banned_room_check(sender_user, Some(&room_id), room_id.server_name(), client_ip).await?;
+			banned_room_check(sender_user, Some(&room_id), room_id.server_name(), client).await?;
 
 			let mut servers = body.server_name.clone();
 			servers.extend(
@@ -261,7 +261,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 		Err(room_alias) => {
 			let response = get_alias_helper(room_alias.clone(), Some(body.server_name.clone())).await?;
 
-			banned_room_check(sender_user, Some(&response.room_id), Some(room_alias.server_name()), client_ip).await?;
+			banned_room_check(sender_user, Some(&response.room_id), Some(room_alias.server_name()), client).await?;
 
 			let mut servers = body.server_name;
 			servers.extend(response.servers);
@@ -321,9 +321,9 @@ pub(crate) async fn leave_room_route(body: Ruma<leave_room::v3::Request>) -> Res
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
 ///
 /// Tries to send an invite event into the room.
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "invite")]
 pub(crate) async fn invite_user_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<invite_user::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<invite_user::v3::Request>,
 ) -> Result<invite_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -338,7 +338,7 @@ pub(crate) async fn invite_user_route(
 		));
 	}
 
-	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name(), client_ip).await?;
+	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name(), client).await?;
 
 	if let invite_user::v3::InvitationRecipient::UserId {
 		user_id,

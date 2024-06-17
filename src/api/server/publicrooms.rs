@@ -12,9 +12,9 @@ use crate::{services, Error, Result, Ruma};
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_filtered_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v1::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
 	if !services()
 		.globals
@@ -44,9 +44,9 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// # `GET /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), "publicrooms")]
 pub(crate) async fn get_public_rooms_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_public_rooms::v1::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
 	if !services()
 		.globals

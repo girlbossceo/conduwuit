@@ -40,9 +40,9 @@ const RANDOM_USER_ID_LENGTH: usize = 10;
 ///
 /// Note: This will not reserve the username, so the username might become
 /// invalid when trying to register
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "register_available")]
 pub(crate) async fn get_register_available_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_username_availability::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_username_availability::v3::Request>,
 ) -> Result<get_username_availability::v3::Response> {
 	// Validate user id
 	let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), services().globals.server_name())
@@ -89,9 +89,9 @@ pub(crate) async fn get_register_available_route(
 /// - If `inhibit_login` is false: Creates a device and returns device id and
 ///   access_token
 #[allow(clippy::doc_markdown)]
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "register")]
 pub(crate) async fn register_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<register::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<register::v3::Request>,
 ) -> Result<register::v3::Response> {
 	if !services().globals.allow_registration() && body.appservice_info.is_none() {
 		info!(
@@ -302,7 +302,7 @@ pub(crate) async fn register_route(
 		services()
 			.admin
 			.send_message(RoomMessageEventContent::notice_plain(format!(
-				"New user \"{user_id}\" registered on this server from IP {client_ip}."
+				"New user \"{user_id}\" registered on this server from IP {client}."
 			)))
 			.await;
 	}
@@ -321,7 +321,7 @@ pub(crate) async fn register_route(
 					.admin
 					.send_message(RoomMessageEventContent::notice_plain(format!(
 						"Guest user \"{user_id}\" with device display name `{device_display_name}` registered on this \
-						 server from IP {client_ip}."
+						 server from IP {client}."
 					)))
 					.await;
 			} else {
@@ -329,7 +329,7 @@ pub(crate) async fn register_route(
 					.admin
 					.send_message(RoomMessageEventContent::notice_plain(format!(
 						"Guest user \"{user_id}\" with no device display name registered on this server from IP \
-						 {client_ip}.",
+						 {client}.",
 					)))
 					.await;
 			}
@@ -337,8 +337,7 @@ pub(crate) async fn register_route(
 			services()
 				.admin
 				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"Guest user \"{user_id}\" with no device display name registered on this server from IP \
-					 {client_ip}.",
+					"Guest user \"{user_id}\" with no device display name registered on this server from IP {client}.",
 				)))
 				.await;
 		}
@@ -420,9 +419,9 @@ pub(crate) async fn register_route(
 ///   last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "change_password")]
 pub(crate) async fn change_password_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<change_password::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<change_password::v3::Request>,
 ) -> Result<change_password::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -509,9 +508,9 @@ pub(crate) async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoa
 /// - Forgets all to-device events
 /// - Triggers device list updates
 /// - Removes ability to log in again
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "deactivate")]
 pub(crate) async fn deactivate_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<deactivate::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<deactivate::v3::Request>,
 ) -> Result<deactivate::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");

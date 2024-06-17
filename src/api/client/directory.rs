@@ -28,9 +28,9 @@ use crate::{service::server_is_ours, services, Error, Result, Ruma};
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_filtered_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
 	if let Some(server) = &body.server {
 		if services()
@@ -66,9 +66,9 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 ///
 /// - Rooms are ordered by the number of joined members
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<get_public_rooms::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
 	if let Some(server) = &body.server {
 		if services()
@@ -109,9 +109,9 @@ pub(crate) async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 ///
 /// - TODO: Access control checks
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "room_directory")]
 pub(crate) async fn set_room_visibility_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<set_room_visibility::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

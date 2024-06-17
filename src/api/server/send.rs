@@ -26,9 +26,9 @@ use crate::{
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
-#[tracing::instrument(skip_all, fields(%client_ip))]
+#[tracing::instrument(skip_all, fields(%client), name = "send")]
 pub(crate) async fn send_transaction_message_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<send_transaction_message::v1::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 

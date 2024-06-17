@@ -312,7 +312,7 @@ pub(crate) async fn sync_events_route(
 	Ok(response)
 }
 
-#[tracing::instrument(skip_all, fields(user_id = %sender_user, room_id = %room_id))]
+#[tracing::instrument(skip_all, fields(user_id = %sender_user, room_id = %room_id), name = "left_room")]
 async fn handle_left_room(
 	since: u64, room_id: &RoomId, sender_user: &UserId, left_rooms: &mut BTreeMap<ruma::OwnedRoomId, LeftRoom>,
 	next_batch_string: &str, full_state: bool, lazy_load_enabled: bool,
