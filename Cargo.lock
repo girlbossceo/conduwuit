@@ -3975,9 +3975,9 @@ dependencies = [
 
 [[package]]
 name = "termimad"
-version = "0.29.3"
+version = "0.29.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30d4260ceb786f1d101630049b2a914479f3c049013f9323bd031dfed3ff70ff"
+checksum = "eff854b510d076163c3b8628ebfe6bfbe6f01c3254b8b8e77cac7ad2d8c72b06"
 dependencies = [
  "coolor",
  "crokey",
