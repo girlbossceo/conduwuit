@@ -8,7 +8,7 @@ use data::Data;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
 use tracing::{debug, error, trace, warn};
 
-use crate::{services, utils::debug_slice_truncated, Error, Result};
+use crate::{services, Error, Result};
 
 pub struct Service {
 	pub db: Arc<dyn Data>,
@@ -30,7 +30,7 @@ impl Service {
 			.filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
 	}
 
-	#[tracing::instrument(skip(self), fields(starting_events = debug_slice_truncated(starting_events, 5)))]
+	#[tracing::instrument(skip_all, name = "auth_chain")]
 	pub async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
 		const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();

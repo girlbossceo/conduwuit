@@ -541,7 +541,7 @@ async fn send_events_dest_push(
 
 #[tracing::instrument(skip(dest, events), name = "")]
 async fn send_events_dest_normal(
-	dest: &Destination, server_name: &OwnedServerName, events: Vec<SendingEvent>,
+	dest: &Destination, server: &OwnedServerName, events: Vec<SendingEvent>,
 ) -> SendingResult {
 	let mut edu_jsons = Vec::new();
 	let mut pdu_jsons = Vec::new();
@@ -557,12 +557,7 @@ async fn send_events_dest_normal(
 						.get_pdu_json_from_id(pdu_id)
 						.map_err(|e| (dest.clone(), e))?
 						.ok_or_else(|| {
-							error!(
-								dest = ?dest,
-								server_name = ?server_name,
-								pdu_id = ?pdu_id,
-								"event not found"
-							);
+							error!(?dest, ?server, ?pdu_id, "event not found");
 							(
 								dest.clone(),
 								Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
@@ -587,7 +582,7 @@ async fn send_events_dest_normal(
 	// transaction");
 	send::send(
 		client,
-		server_name,
+		server,
 		send_transaction_message::v1::Request {
 			origin: services().globals.server_name().to_owned(),
 			pdus: pdu_jsons,
