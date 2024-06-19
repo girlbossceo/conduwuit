@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
 
-use crate::{escape_html, get_room_info, services, utils::HtmlEscape, Result};
+use crate::{escape_html, get_room_info, services, Result};
 
 pub(super) async fn disable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	services().rooms.metadata.disable_room(&room_id, true)?;
@@ -63,13 +63,9 @@ pub(super) async fn fetch_support_well_known(
 		},
 	};
 
-	Ok(RoomMessageEventContent::text_html(
-		format!("Got JSON response:\n\n```json\n{pretty_json}\n```"),
-		format!(
-			"<p>Got JSON response:</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-			HtmlEscape(&pretty_json)
-		),
-	))
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"Got JSON response:\n\n```json\n{pretty_json}\n```"
+	)))
 }
 
 pub(super) async fn remote_user_in_rooms(_body: Vec<&str>, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {

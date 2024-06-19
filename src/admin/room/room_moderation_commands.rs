@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use api::client::{get_alias_helper, leave_room};
 use ruma::{
 	events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
@@ -7,7 +5,7 @@ use ruma::{
 use tracing::{debug, error, info, warn};
 
 use super::{super::Service, RoomModerationCommand};
-use crate::{escape_html, get_room_info, services, user_is_local, Result};
+use crate::{get_room_info, services, user_is_local, Result};
 
 pub(super) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
@@ -492,26 +490,7 @@ async fn list_banned_rooms(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 					.join("\n")
 			);
 
-			let output_html = format!(
-				"<table><caption>Rooms Banned ({}) \
-				 </caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-				rooms.len(),
-				rooms
-					.iter()
-					.fold(String::new(), |mut output, (id, members, name)| {
-						writeln!(
-							output,
-							"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-							id,
-							members,
-							escape_html(name.as_ref())
-						)
-						.expect("should be able to write to string buffer");
-						output
-					})
-			);
-
-			Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+			Ok(RoomMessageEventContent::notice_markdown(output_plain))
 		},
 		Err(e) => {
 			error!("Failed to list banned rooms: {}", e);

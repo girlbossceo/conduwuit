@@ -26,10 +26,7 @@ pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 			plain_msg += &users.join("\n");
 			plain_msg += "\n```";
 
-			let mut html_msg = format!("<p>Found {} local user account(s):</p><pre><code>", users.len());
-			html_msg += &users.join("\n");
-			html_msg += "\n</code></pre>";
-			Ok(RoomMessageEventContent::text_html(&plain_msg, &html_msg))
+			Ok(RoomMessageEventContent::notice_markdown(plain_msg))
 		},
 		Err(e) => Ok(RoomMessageEventContent::text_plain(e.to_string())),
 	}
@@ -419,8 +416,8 @@ pub(super) async fn get_room_tags(
 		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
 	);
 
-	Ok(RoomMessageEventContent::text_html(
-		format!("<pre><code>\n{:?}\n</code></pre>", tags_event.content.tags),
-		format!("```\n{:?}\n```", tags_event.content.tags),
-	))
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"```\n{:#?}\n```",
+		tags_event.content.tags
+	)))
 }

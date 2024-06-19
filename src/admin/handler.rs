@@ -103,9 +103,7 @@ async fn process_admin_message(msg: String) -> RoomMessageEventContent {
 		Ok(reply_message) => reply_message,
 		Err(error) => {
 			let markdown_message = format!("Encountered an error while handling the command:\n```\n{error}\n```",);
-			let html_message = format!("Encountered an error while handling the command:\n<pre>\n{error}\n</pre>",);
-
-			RoomMessageEventContent::text_html(markdown_message, html_message)
+			RoomMessageEventContent::notice_markdown(markdown_message)
 		},
 	}
 }

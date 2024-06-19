@@ -1,6 +1,6 @@
 use ruma::{api::appservice::Registration, events::room::message::RoomMessageEventContent};
 
-use crate::{escape_html, services, Result};
+use crate::{services, Result};
 
 pub(super) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
@@ -48,12 +48,7 @@ pub(super) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Res
 		Some(config) => {
 			let config_str = serde_yaml::to_string(&config).expect("config should've been validated on register");
 			let output = format!("Config for {appservice_identifier}:\n\n```yaml\n{config_str}\n```",);
-			let output_html = format!(
-				"Config for {}:\n\n<pre><code class=\"language-yaml\">{}</code></pre>",
-				escape_html(&appservice_identifier),
-				escape_html(&config_str),
-			);
-			Ok(RoomMessageEventContent::text_html(output, output_html))
+			Ok(RoomMessageEventContent::notice_markdown(output))
 		},
 		None => Ok(RoomMessageEventContent::text_plain("Appservice does not exist.")),
 	}

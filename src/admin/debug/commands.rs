@@ -8,7 +8,6 @@ use api::client::validate_and_add_event_id;
 use conduit::{
 	debug, info, log,
 	log::{capture, Capture},
-	utils::HtmlEscape,
 	warn, Error, Result,
 };
 use ruma::{
@@ -93,26 +92,15 @@ pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<
 	match pdu_json {
 		Some(json) => {
 			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
-			Ok(RoomMessageEventContent::text_html(
-				format!(
-					"{}\n```json\n{}\n```",
-					if outlier {
-						"Outlier PDU found in our database"
-					} else {
-						"PDU found in our database"
-					},
-					json_text
-				),
-				format!(
-					"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-					if outlier {
-						"Outlier PDU found in our database"
-					} else {
-						"PDU found in our database"
-					},
-					HtmlEscape(&json_text)
-				),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"{}\n```json\n{}\n```",
+				if outlier {
+					"Outlier PDU found in our database"
+				} else {
+					"PDU found in our database"
+				},
+				json_text
+			)))
 		},
 		None => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
 	}
@@ -237,17 +225,10 @@ pub(super) async fn get_remote_pdu(
 
 			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
 
-			Ok(RoomMessageEventContent::text_html(
-				format!(
-					"{}\n```json\n{}\n```",
-					"Got PDU from specified server and handled as backfilled PDU successfully. Event body:", json_text
-				),
-				format!(
-					"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-					"Got PDU from specified server and handled as backfilled PDU successfully. Event body:",
-					HtmlEscape(&json_text)
-				),
-			))
+			Ok(RoomMessageEventContent::notice_markdown(format!(
+				"{}\n```json\n{}\n```",
+				"Got PDU from specified server and handled as backfilled PDU successfully. Event body:", json_text
+			)))
 		},
 		Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 			"Remote server did not have PDU or failed sending request to remote server: {e}"
@@ -278,14 +259,10 @@ pub(super) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Re
 		)
 	})?;
 
-	Ok(RoomMessageEventContent::text_html(
-		format!("{}\n```json\n{}\n```", "Found full room state", json_text),
-		format!(
-			"<p>{}</p>\n<pre><code class=\"language-json\">{}\n</code></pre>\n",
-			"Found full room state",
-			HtmlEscape(&json_text)
-		),
-	))
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"{}\n```json\n{}\n```",
+		"Found full room state", json_text
+	)))
 }
 
 pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
@@ -308,14 +285,9 @@ pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<Ro
 			let json_text_res = serde_json::to_string_pretty(&response.server);
 
 			if let Ok(json) = json_text_res {
-				return Ok(RoomMessageEventContent::text_html(
-					format!("Got response which took {ping_time:?} time:\n```json\n{json}\n```"),
-					format!(
-						"<p>Got response which took {ping_time:?} time:</p>\n<pre><code \
-						 class=\"language-json\">{}\n</code></pre>\n",
-						HtmlEscape(&json)
-					),
-				));
+				return Ok(RoomMessageEventContent::notice_markdown(format!(
+					"Got response which took {ping_time:?} time:\n```json\n{json}\n```"
+				)));
 			}
 
 			Ok(RoomMessageEventContent::text_plain(format!(

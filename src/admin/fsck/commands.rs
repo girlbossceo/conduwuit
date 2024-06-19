@@ -22,5 +22,5 @@ pub(super) async fn check_all_users(_body: Vec<&str>) -> Result<RoomMessageEvent
 		 {err_count:?}\nSuccess/Valid user count: {ok_count:?}```"
 	);
 
-	Ok(RoomMessageEventContent::notice_html(message, String::new()))
+	Ok(RoomMessageEventContent::notice_markdown(message))
 }

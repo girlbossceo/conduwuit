@@ -1,4 +1,3 @@
-pub(crate) use conduit::utils::HtmlEscape;
 use conduit_core::Error;
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use service::user_is_local;

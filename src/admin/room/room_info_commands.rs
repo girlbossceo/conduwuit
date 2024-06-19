@@ -1,10 +1,8 @@
-use std::fmt::Write;
-
 use ruma::{events::room::message::RoomMessageEventContent, RoomId};
 use service::services;
 
 use super::RoomInfoCommand;
-use crate::{escape_html, Result};
+use crate::Result;
 
 pub(super) async fn process(command: RoomInfoCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
@@ -57,26 +55,7 @@ async fn list_joined_members(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<R
 			.join("\n")
 	);
 
-	let output_html = format!(
-		"<table><caption>{} Members in Room \"{}\" </caption>\n<tr><th>MXID</th>\t<th>Display \
-		 Name</th></tr>\n{}</table>",
-		member_info.len(),
-		room_name,
-		member_info
-			.iter()
-			.fold(String::new(), |mut output, (mxid, displayname)| {
-				writeln!(
-					output,
-					"<tr><td>{}</td>\t<td>{}</td></tr>",
-					mxid,
-					escape_html(displayname.as_ref())
-				)
-				.expect("should be able to write to string buffer");
-				output
-			})
-	);
-
-	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+	Ok(RoomMessageEventContent::notice_markdown(output_plain))
 }
 
 async fn view_room_topic(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
@@ -84,10 +63,7 @@ async fn view_room_topic(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomM
 		return Ok(RoomMessageEventContent::text_plain("Room does not have a room topic set."));
 	};
 
-	let output_html = format!("<p>Room topic:</p>\n<hr>\n{}<hr>", escape_html(&room_topic));
-
-	Ok(RoomMessageEventContent::text_html(
-		format!("Room topic:\n\n```{room_topic}\n```"),
-		output_html,
-	))
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"Room topic:\n\n```{room_topic}\n```"
+	)))
 }
