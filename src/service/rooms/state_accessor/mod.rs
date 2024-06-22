@@ -16,6 +16,7 @@ use ruma::{
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 			name::RoomNameEventContent,
+			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 			topic::RoomTopicEventContent,
 		},
 		StateEventType,
@@ -354,5 +355,50 @@ impl Service {
 						Error::bad_database("Invalid room topic event in database.")
 					})
 			})
+	}
+
+	/// Checks if a given user can redact a given event
+	///
+	/// If federation is true, it allows redaction events from any user of the
+	/// same server as the original event sender
+	pub fn user_can_redact(
+		&self, redacts: &EventId, sender: &UserId, room_id: &RoomId, federation: bool,
+	) -> Result<bool> {
+		self.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+			.map_or_else(
+				|| {
+					// Falling back on m.room.create to judge power level
+					if let Some(pdu) = self.room_state_get(room_id, &StateEventType::RoomCreate, "")? {
+						Ok(pdu.sender == sender
+							|| if let Ok(Some(pdu)) = services().rooms.timeline.get_pdu(redacts) {
+								pdu.sender == sender
+							} else {
+								false
+							})
+					} else {
+						Err(Error::bad_database(
+							"No m.room.power_levels or m.room.create events in database for room",
+						))
+					}
+				},
+				|event| {
+					serde_json::from_str(event.content.get())
+						.map(|content: RoomPowerLevelsEventContent| content.into())
+						.map(|event: RoomPowerLevels| {
+							event.user_can_redact_event_of_other(sender)
+								|| event.user_can_redact_own_event(sender)
+									&& if let Ok(Some(pdu)) = services().rooms.timeline.get_pdu(redacts) {
+										if federation {
+											pdu.sender.server_name() == sender.server_name()
+										} else {
+											pdu.sender == sender
+										}
+									} else {
+										false
+									}
+						})
+						.map_err(|_| Error::bad_database("Invalid m.room.power_levels event in database"))
+				},
+			)
 	}
 }

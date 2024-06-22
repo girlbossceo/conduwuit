@@ -397,21 +397,36 @@ impl Service {
 					| RoomVersionId::V9
 					| RoomVersionId::V10 => {
 						if let Some(redact_id) = &pdu.redacts {
-							self.redact_pdu(redact_id, pdu, shortroomid)?;
+							if services().rooms.state_accessor.user_can_redact(
+								redact_id,
+								&pdu.sender,
+								&pdu.room_id,
+								false,
+							)? {
+								self.redact_pdu(redact_id, pdu, shortroomid)?;
+							}
 						}
 					},
 					RoomVersionId::V11 => {
 						let content =
 							serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get()).map_err(|e| {
 								warn!("Invalid content in redaction pdu: {e}");
-								Error::bad_database("Invalid content in redaction pdu.")
+								Error::bad_database("Invalid content in redaction pdu")
 							})?;
+
 						if let Some(redact_id) = &content.redacts {
-							self.redact_pdu(redact_id, pdu, shortroomid)?;
+							if services().rooms.state_accessor.user_can_redact(
+								redact_id,
+								&pdu.sender,
+								&pdu.room_id,
+								false,
+							)? {
+								self.redact_pdu(redact_id, pdu, shortroomid)?;
+							}
 						}
 					},
 					_ => {
-						warn!("Unexpected or unsupported room version {}", room_version_id);
+						warn!("Unexpected or unsupported room version {room_version_id}");
 						return Err(Error::BadRequest(
 							ErrorKind::BadJson,
 							"Unexpected or unsupported room version found",
@@ -703,7 +718,7 @@ impl Service {
 
 		// Hash and sign
 		let mut pdu_json = utils::to_canonical_object(&pdu).map_err(|e| {
-			error!("Failed to convert PDU to canonical JSON: {}", e);
+			error!("Failed to convert PDU to canonical JSON: {e}");
 			Error::bad_database("Failed to convert PDU to canonical JSON.")
 		})?;
 
@@ -778,7 +793,7 @@ impl Service {
 						warn!("Encryption is not allowed in the admins room");
 						return Err(Error::BadRequest(
 							ErrorKind::forbidden(),
-							"Encryption is not allowed in the admins room.",
+							"Encryption is not allowed in the admins room",
 						));
 					},
 					TimelineEventType::RoomMember => {
@@ -789,14 +804,14 @@ impl Service {
 						let server_user = &services().globals.server_user.to_string();
 
 						let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
-							.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+							.map_err(|_| Error::bad_database("Invalid content in pdu"))?;
 
 						if content.membership == MembershipState::Leave {
 							if target == server_user {
-								warn!("Conduit user cannot leave from admins room");
+								warn!("Server user cannot leave from admins room");
 								return Err(Error::BadRequest(
 									ErrorKind::forbidden(),
-									"Conduit user cannot leave from admins room.",
+									"Server user cannot leave from admins room.",
 								));
 							}
 
@@ -818,10 +833,10 @@ impl Service {
 
 						if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
 							if target == server_user {
-								warn!("Conduit user cannot be banned in admins room");
+								warn!("Server user cannot be banned in admins room");
 								return Err(Error::BadRequest(
 									ErrorKind::forbidden(),
-									"Conduit user cannot be banned in admins room.",
+									"Server user cannot be banned in admins room.",
 								));
 							}
 
@@ -845,6 +860,18 @@ impl Service {
 				}
 			}
 		}
+
+		// If redaction event is not authorized, do not append it to the timeline
+		if let Some(redact_id) = &pdu.redacts {
+			if pdu.kind == TimelineEventType::RoomRedaction
+				&& !services()
+					.rooms
+					.state_accessor
+					.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)?
+			{
+				return Err(Error::BadRequest(ErrorKind::forbidden(), "User cannot redact this event"));
+			}
+		};
 
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't
