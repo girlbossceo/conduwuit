@@ -14,10 +14,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 	}
 
 	if cfg!(feature = "hardened_malloc") && cfg!(feature = "jemalloc") {
-		warn!(
-			"hardened_malloc and jemalloc were built together, this causes neither to be used. Conduwuit will still \
-			 function, but consider rebuilding and pick one as this is now no-op."
-		);
+		warn!("hardened_malloc and jemalloc are both enabled, this causes jemalloc to be used.");
 	}
 
 	if config.unix_socket_path.is_some() && !cfg!(unix) {

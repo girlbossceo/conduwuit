@@ -1,3 +1,5 @@
+//! jemalloc allocator
+
 use std::ffi::{c_char, c_void};
 
 use tikv_jemalloc_ctl as mallctl;
