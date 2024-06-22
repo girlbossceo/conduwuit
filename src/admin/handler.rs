@@ -1,12 +1,8 @@
 use clap::Parser;
 use conduit::trace;
-use regex::Regex;
-use ruma::{
-	events::{
-		relation::InReplyTo,
-		room::message::{Relation::Reply, RoomMessageEventContent},
-	},
-	ServerName,
+use ruma::events::{
+	relation::InReplyTo,
+	room::message::{Relation::Reply, RoomMessageEventContent},
 };
 
 extern crate conduit_service as service;
@@ -17,9 +13,9 @@ use service::admin::{CommandResult, HandlerResult};
 
 use self::{fsck::FsckCommand, tester::TesterCommands};
 use crate::{
-	appservice, appservice::AppserviceCommand, debug, debug::DebugCommand, escape_html, federation,
-	federation::FederationCommand, fsck, media, media::MediaCommand, query, query::QueryCommand, room,
-	room::RoomCommand, server, server::ServerCommand, services, tester, user, user::UserCommand,
+	appservice, appservice::AppserviceCommand, debug, debug::DebugCommand, federation, federation::FederationCommand,
+	fsck, media, media::MediaCommand, query, query::QueryCommand, room, room::RoomCommand, server,
+	server::ServerCommand, services, tester, user, user::UserCommand,
 };
 pub(crate) const PAGE_SIZE: usize = 100;
 
@@ -93,9 +89,7 @@ async fn process_admin_message(msg: String) -> RoomMessageEventContent {
 		Err(error) => {
 			let server_name = services().globals.server_name();
 			let message = error.replace("server.name", server_name.as_str());
-			let html_message = usage_to_html(&message, server_name);
-
-			return RoomMessageEventContent::text_html(message, html_message);
+			return RoomMessageEventContent::notice_markdown(message);
 		},
 	};
 
@@ -172,76 +166,4 @@ async fn process_admin_command(command: AdminCommand, body: Vec<&str>) -> Result
 	};
 
 	Ok(reply_message_content)
-}
-
-// Utility to turn clap's `--help` text to HTML.
-fn usage_to_html(text: &str, server_name: &ServerName) -> String {
-	// Replace `@conduit:servername:-subcmdname` with `@conduit:servername:
-	// subcmdname`
-	let text = text.replace(&format!("@conduit:{server_name}:-"), &format!("@conduit:{server_name}: "));
-
-	// For the conduit admin room, subcommands become main commands
-	let text = text.replace("SUBCOMMAND", "COMMAND");
-	let text = text.replace("subcommand", "command");
-
-	// Escape option names (e.g. `<element-id>`) since they look like HTML tags
-	let text = escape_html(&text);
-
-	// Italicize the first line (command name and version text)
-	let re = Regex::new("^(.*?)\n").expect("Regex compilation should not fail");
-	let text = re.replace_all(&text, "<em>$1</em>\n");
-
-	// Unmerge wrapped lines
-	let text = text.replace("\n            ", "  ");
-
-	// Wrap option names in backticks. The lines look like:
-	//     -V, --version  Prints version information
-	// And are converted to:
-	// <code>-V, --version</code>: Prints version information
-	// (?m) enables multi-line mode for ^ and $
-	let re = Regex::new("(?m)^ {4}(([a-zA-Z_&;-]+(, )?)+)  +(.*)$").expect("Regex compilation should not fail");
-	let text = re.replace_all(&text, "<code>$1</code>: $4");
-
-	// Look for a `[commandbody]` tag. If it exists, use all lines below it that
-	// start with a `#` in the USAGE section.
-	let mut text_lines = text.lines().collect::<Vec<&str>>();
-	let mut command_body = String::new();
-
-	if let Some(line_index) = text_lines.iter().position(|line| *line == "[commandbody]") {
-		text_lines.remove(line_index);
-
-		while text_lines
-			.get(line_index)
-			.is_some_and(|line| line.starts_with('#'))
-		{
-			command_body += if text_lines[line_index].starts_with("# ") {
-				&text_lines[line_index][2..]
-			} else {
-				&text_lines[line_index][1..]
-			};
-			command_body += "[nobr]\n";
-			text_lines.remove(line_index);
-		}
-	}
-
-	let text = text_lines.join("\n");
-
-	// Improve the usage section
-	let text = if command_body.is_empty() {
-		// Wrap the usage line in code tags
-		let re = Regex::new("(?m)^USAGE:\n {4}(@conduit:.*)$").expect("Regex compilation should not fail");
-		re.replace_all(&text, "USAGE:\n<code>$1</code>").to_string()
-	} else {
-		// Wrap the usage line in a code block, and add a yaml block example
-		// This makes the usage of e.g. `register-appservice` more accurate
-		let re = Regex::new("(?m)^USAGE:\n {4}(.*?)\n\n").expect("Regex compilation should not fail");
-		re.replace_all(&text, "USAGE:\n<pre>$1[nobr]\n[commandbodyblock]</pre>")
-			.replace("[commandbodyblock]", &command_body)
-	};
-
-	// Add HTML line-breaks
-
-	text.replace("\n\n\n", "\n\n")
-		.replace('\n', "<br>\n")
-		.replace("[nobr]<br>", "")
 }
