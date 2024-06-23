@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, EventId, RoomId, ServerName};
+use ruma::{events::room::message::RoomMessageEventContent, EventId, OwnedRoomOrAliasId, RoomId, ServerName};
 
 use self::commands::*;
 
@@ -71,7 +71,7 @@ pub(super) enum DebugCommand {
 	/// Of course the check is still done on the actual client API.
 	GetRoomState {
 		/// Room ID
-		room_id: Box<RoomId>,
+		room_id: OwnedRoomOrAliasId,
 	},
 
 	/// - Sends a federation request to the remote server's

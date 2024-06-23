@@ -13,7 +13,7 @@ use conduit::{
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
-	CanonicalJsonObject, EventId, RoomId, RoomVersionId, ServerName,
+	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
 use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve::resolve_actual_dest, services, PduEvent};
 use tokio::sync::RwLock;
@@ -236,7 +236,8 @@ pub(super) async fn get_remote_pdu(
 	}
 }
 
-pub(super) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_room_state(_body: Vec<&str>, room: OwnedRoomOrAliasId) -> Result<RoomMessageEventContent> {
+	let room_id = services().rooms.alias.resolve(&room).await?;
 	let room_state = services()
 		.rooms
 		.state_accessor
@@ -252,17 +253,14 @@ pub(super) async fn get_room_state(_body: Vec<&str>, room_id: Box<RoomId>) -> Re
 		));
 	}
 
-	let json_text = serde_json::to_string_pretty(&room_state).map_err(|e| {
+	let json = serde_json::to_string_pretty(&room_state).map_err(|e| {
 		warn!("Failed converting room state vector in our database to pretty JSON: {e}");
 		Error::bad_database(
 			"Failed to convert room state events to pretty JSON, possible invalid room state events in our database",
 		)
 	})?;
 
-	Ok(RoomMessageEventContent::notice_markdown(format!(
-		"{}\n```json\n{}\n```",
-		"Found full room state", json_text
-	)))
+	Ok(RoomMessageEventContent::notice_markdown(format!("```json\n{json}\n```")))
 }
 
 pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
