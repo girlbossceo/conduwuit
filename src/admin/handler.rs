@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use clap::Parser;
 use conduit::trace;
 use ruma::events::{
@@ -84,11 +86,10 @@ async fn handle_command(command: Command) -> CommandResult {
 // Parse and process a message from the admin room
 async fn process_admin_message(msg: String) -> CommandOutput {
 	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
-	let command_line = lines.next().expect("each string has at least one line");
+	let command = lines.next().expect("each string has at least one line");
 	let body = lines.collect::<Vec<_>>();
-
-	let admin_command = match parse_admin_command(command_line) {
-		Ok(command) => command,
+	let parsed = match parse_admin_command(command) {
+		Ok(parsed) => parsed,
 		Err(error) => {
 			let server_name = services().globals.server_name();
 			let message = error.replace("server.name", server_name.as_str());
@@ -96,12 +97,15 @@ async fn process_admin_message(msg: String) -> CommandOutput {
 		},
 	};
 
-	match process_admin_command(admin_command, body).await {
-		Ok(reply_message) => Some(reply_message),
-		Err(error) => {
-			let markdown_message = format!("Encountered an error while handling the command:\n```\n{error}\n```",);
-			Some(RoomMessageEventContent::notice_markdown(markdown_message))
-		},
+	let timer = Instant::now();
+	let result = process_admin_command(parsed, body).await;
+	let elapsed = timer.elapsed();
+	conduit::debug!(?command, ok = result.is_ok(), "command processed in {elapsed:?}");
+	match result {
+		Ok(reply) => Some(reply),
+		Err(error) => Some(RoomMessageEventContent::notice_markdown(format!(
+			"Encountered an error while handling the command:\n```\n{error}\n```"
+		))),
 	}
 }
 
