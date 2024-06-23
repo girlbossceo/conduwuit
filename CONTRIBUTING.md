@@ -1,6 +1,6 @@
 # Contributing guide
 
-This page is for about contributing to conduwuit. The [development](docs/development.md) page may be of interest for you as well.
+This page is for about contributing to conduwuit. The [development](development.md) page may be of interest for you as well.
 
 If you would like to work on an [issue][issues] that is not assigned, preferably ask in the Matrix room first at [#conduwuit:puppygock.gay][conduwuit-matrix], and comment on it.
 
