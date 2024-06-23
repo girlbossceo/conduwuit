@@ -8,12 +8,12 @@ use self::commands::*;
 
 #[cfg_attr(test, derive(Debug))]
 #[derive(Subcommand)]
-pub(super) enum FsckCommand {
-	CheckAllUsers,
+pub(super) enum CheckCommand {
+	AllUsers,
 }
 
-pub(super) async fn process(command: FsckCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: CheckCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
-		FsckCommand::CheckAllUsers => check_all_users(body).await?,
+		CheckCommand::AllUsers => check_all_users(body).await?,
 	})
 }

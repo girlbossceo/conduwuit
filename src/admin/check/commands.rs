@@ -19,7 +19,7 @@ pub(super) async fn check_all_users(_body: Vec<&str>) -> Result<RoomMessageEvent
 
 	let message = format!(
 		"Database query completed in {query_time:?}:\n\n```\nTotal entries: {total:?}\nFailure/Invalid user count: \
-		 {err_count:?}\nSuccess/Valid user count: {ok_count:?}```"
+		 {err_count:?}\nSuccess/Valid user count: {ok_count:?}\n```"
 	);
 
 	Ok(RoomMessageEventContent::notice_markdown(message))

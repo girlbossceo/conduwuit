@@ -1,9 +1,9 @@
 #![allow(clippy::wildcard_imports)]
 
 pub(crate) mod appservice;
+pub(crate) mod check;
 pub(crate) mod debug;
 pub(crate) mod federation;
-pub(crate) mod fsck;
 pub(crate) mod handler;
 pub(crate) mod media;
 pub(crate) mod query;
