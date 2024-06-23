@@ -7,13 +7,10 @@ pub(super) mod updates;
 
 use std::{
 	collections::{BTreeMap, HashMap},
-	fs,
-	path::PathBuf,
 	sync::Arc,
 	time::Instant,
 };
 
-use base64::{engine::general_purpose, Engine as _};
 use conduit::utils;
 use data::Data;
 use hickory_resolver::TokioAsyncResolver;
@@ -127,8 +124,6 @@ impl Service {
 			server_user: UserId::parse_with_server_name(String::from("conduit"), &config.server_name)
 				.expect("@conduit:server_name is valid"),
 		};
-
-		fs::create_dir_all(s.get_media_folder())?;
 
 		if !s
 			.supported_room_versions()
@@ -313,39 +308,6 @@ impl Service {
 	pub fn database_version(&self) -> Result<u64> { self.db.database_version() }
 
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> { self.db.bump_database_version(new_version) }
-
-	pub fn get_media_folder(&self) -> PathBuf {
-		let mut r = PathBuf::new();
-		r.push(self.config.database_path.clone());
-		r.push("media");
-		r
-	}
-
-	/// new SHA256 file name media function, requires "sha256_media" feature
-	/// flag enabled and database migrated uses SHA256 hash of the base64 key as
-	/// the file name
-	#[cfg(feature = "sha256_media")]
-	pub fn get_media_file_new(&self, key: &[u8]) -> PathBuf {
-		let mut r = PathBuf::new();
-		r.push(self.config.database_path.clone());
-		r.push("media");
-		// Using the hash of the base64 key as the filename
-		// This is to prevent the total length of the path from exceeding the maximum
-		// length in most filesystems
-		r.push(general_purpose::URL_SAFE_NO_PAD.encode(<sha2::Sha256 as sha2::Digest>::digest(key)));
-		r
-	}
-
-	/// old base64 file name media function
-	/// This is the old version of `get_media_file` that uses the full base64
-	/// key as the filename.
-	pub fn get_media_file(&self, key: &[u8]) -> PathBuf {
-		let mut r = PathBuf::new();
-		r.push(self.config.database_path.clone());
-		r.push("media");
-		r.push(general_purpose::URL_SAFE_NO_PAD.encode(key));
-		r
-	}
 
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
 

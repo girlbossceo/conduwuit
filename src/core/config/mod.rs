@@ -300,8 +300,13 @@ pub struct Config {
 	#[serde(default)]
 	pub allow_guests_auto_join_rooms: bool,
 
+	#[serde(default = "true_fn")]
+	pub media_startup_check: bool,
+	#[serde(default = "true_fn")]
+	pub media_compat_file_link: bool,
 	#[serde(default = "Vec::new")]
 	pub prevent_media_downloads_from: Vec<OwnedServerName>,
+
 	#[serde(default = "Vec::new")]
 	pub forbidden_remote_server_names: Vec<OwnedServerName>,
 	#[serde(default = "Vec::new")]
@@ -758,6 +763,8 @@ impl fmt::Display for Config {
 				"RocksDB Compaction Idle IOPriority",
 				&self.rocksdb_compaction_ioprio_idle.to_string(),
 			),
+			("Media integrity checks on startup", &self.media_startup_check.to_string()),
+			("Media compatibility filesystem links", &self.media_compat_file_link.to_string()),
 			("Prevent Media Downloads From", {
 				let mut lst = vec![];
 				for domain in &self.prevent_media_downloads_from {

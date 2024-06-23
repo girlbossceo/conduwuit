@@ -1,9 +1,12 @@
 use std::{
 	collections::{HashMap, HashSet},
+	ffi::{OsStr, OsString},
 	fs::{self},
 	io::Write,
 	mem::size_of,
+	path::PathBuf,
 	sync::Arc,
+	time::Instant,
 };
 
 use conduit::{debug, debug_info, debug_warn, error, info, utils, warn, Config, Error, Result};
@@ -18,10 +21,12 @@ use ruma::{
 use crate::services;
 
 /// The current schema version.
-/// * If the database is opened at lesser version we apply migrations up to this
-///   version.
-/// * If the database is opened at greater version we reject with error.
-const DATABASE_VERSION: u64 = 13 + cfg!(feature = "sha256_media") as u64;
+/// - If database is opened at greater version we reject with error. The
+///   software must be updated for backward-incompatible changes.
+/// - If database is opened at lesser version we apply migrations up to this.
+///   Note that named-feature migrations may also be performed when opening at
+///   equal or lesser version. These are expected to be backward-compatible.
+const DATABASE_VERSION: u64 = 13;
 
 pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
@@ -119,9 +124,10 @@ async fn migrate(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 		db_lt_13(db, config).await?;
 	}
 
-	#[cfg(feature = "sha256_media")]
-	if services().globals.database_version()? < 14 {
-		feat_sha256_media(db, config).await?;
+	if db.global.get(b"feat_sha256_media")?.is_none() {
+		migrate_sha256_media(db, config).await?;
+	} else if config.media_startup_check {
+		checkup_sha256_media(db, config).await?;
 	}
 
 	if db
@@ -250,7 +256,7 @@ async fn db_lt_3(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		}
 
 		#[allow(deprecated)]
-		let path = services().globals.get_media_file(&key);
+		let path = services().media.get_media_file(&key);
 		let mut file = fs::File::create(path)?;
 		file.write_all(&content)?;
 		db.mediaid_file.insert(&key, &[])?;
@@ -688,29 +694,110 @@ async fn db_lt_13(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	Ok(())
 }
 
-#[cfg(feature = "sha256_media")]
-async fn feat_sha256_media(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
-	use std::path::PathBuf;
-
-	warn!("Mgrating legacy base64 file names to sha256 file names");
+/// Migrates a media directory from legacy base64 file names to sha2 file names.
+/// All errors are fatal. Upon success the database is keyed to not perform this
+/// again.
+async fn migrate_sha256_media(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+	warn!("Migrating legacy base64 file names to sha256 file names");
 
 	// Move old media files to new names
 	let mut changes = Vec::<(PathBuf, PathBuf)>::new();
 	for (key, _) in db.mediaid_file.iter() {
-		let old = services().globals.get_media_file(&key);
-		let new = services().globals.get_media_file_new(&key);
+		let old = services().media.get_media_file_b64(&key);
+		let new = services().media.get_media_file_sha256(&key);
+		debug!(?key, ?old, ?new, num = changes.len(), "change");
 		changes.push((old, new));
-		debug!(?old, ?new, num = changes.len(), "change");
 	}
 	// move the file to the new location
 	for (old_path, path) in changes {
 		if old_path.exists() {
 			tokio::fs::rename(&old_path, &path).await?;
+			tokio::fs::symlink(&path, &old_path).await?;
 		}
 	}
 
-	services().globals.bump_database_version(14)?;
-	info!("Migration: 13 -> 14 finished");
+	// Apply fix from when sha256_media was backward-incompat and bumped the schema
+	// version from 13 to 14. For users satisfying these conditions we can go back.
+	if services().globals.database_version()? == 14 && DATABASE_VERSION == 13 {
+		services().globals.bump_database_version(13)?;
+	}
+
+	db.global.insert(b"feat_sha256_media", &[])?;
+	info!("Finished applying sha256_media");
+	Ok(())
+}
+
+/// Check is run on startup for prior-migrated media directories. This handles:
+/// - Going back and forth to non-sha256 legacy binaries (e.g. upstream).
+/// - Deletion of artifacts in the media directory which will then fall out of
+///   sync with the database.
+async fn checkup_sha256_media(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+	use crate::media::encode_key;
+
+	debug!("Checking integrity of media directory");
+	let media = &services().media;
+	let timer = Instant::now();
+
+	let dir = media.get_media_dir();
+	let files: HashSet<OsString> = fs::read_dir(dir)?
+		.filter_map(|ent| ent.map_or(None, |ent| Some(ent.path().into_os_string())))
+		.collect();
+
+	for key in media.db.get_all_media_keys() {
+		let new_path = media.get_media_file_sha256(&key).into_os_string();
+		let old_path = media.get_media_file_b64(&key).into_os_string();
+		if let Err(e) = handle_media_check(db, config, &files, &key, &new_path, &old_path).await {
+			error!(
+				media_id = ?encode_key(&key), ?new_path, ?old_path,
+				"Failed to resolve media check failure: {e}"
+			);
+		}
+	}
+
+	debug_info!(
+		elapsed = ?timer.elapsed(),
+		"Finished checking media directory"
+	);
+
+	Ok(())
+}
+
+async fn handle_media_check(
+	db: &KeyValueDatabase, config: &Config, files: &HashSet<OsString>, key: &[u8], new_path: &OsStr, old_path: &OsStr,
+) -> Result<()> {
+	use crate::media::encode_key;
+
+	let old_exists = files.contains(old_path);
+	let new_exists = files.contains(new_path);
+	if !old_exists && !new_exists {
+		error!(
+			media_id = ?encode_key(key), ?new_path, ?old_path,
+			"Media is missing at all paths. Removing from database..."
+		);
+
+		db.mediaid_file.remove(key)?;
+		db.mediaid_user.remove(key)?;
+	}
+
+	if config.media_compat_file_link && !old_exists && new_exists {
+		debug_warn!(
+			media_id = ?encode_key(key), ?new_path, ?old_path,
+			"Media found but missing legacy link. Fixing..."
+		);
+
+		tokio::fs::symlink(&new_path, &old_path).await?;
+	}
+
+	if config.media_compat_file_link && !new_exists && old_exists {
+		debug_warn!(
+			media_id = ?encode_key(key), ?new_path, ?old_path,
+			"Legacy media found without sha256 migration. Fixing..."
+		);
+
+		tokio::fs::rename(&old_path, &new_path).await?;
+		tokio::fs::symlink(&new_path, &old_path).await?;
+	}
+
 	Ok(())
 }
 

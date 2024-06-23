@@ -1,18 +1,22 @@
 mod data;
-use std::{collections::HashMap, io::Cursor, sync::Arc, time::SystemTime};
+mod tests;
 
+use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::SystemTime};
+
+use base64::{engine::general_purpose, Engine as _};
+use conduit::{debug, debug_error, error, utils, Error, Result, Server};
 use data::Data;
+use database::KeyValueDatabase;
 use image::imageops::FilterType;
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
 use tokio::{
-	fs::{self, File},
+	fs,
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
 	sync::{Mutex, RwLock},
 };
-use tracing::{debug, error};
 
-use crate::{services, utils, Error, Result};
+use crate::services;
 
 #[derive(Debug)]
 pub struct FileMeta {
@@ -39,11 +43,20 @@ pub struct UrlPreviewData {
 }
 
 pub struct Service {
+	server: Arc<Server>,
 	pub(super) db: Arc<dyn Data>,
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl Service {
+	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Self {
+		Self {
+			server: server.clone(),
+			db: db.clone(),
+			url_preview_mutex: RwLock::new(HashMap::new()),
+		}
+	}
+
 	/// Uploads a file.
 	pub async fn create(
 		&self, sender_user: Option<OwnedUserId>, mxc: String, content_disposition: Option<&str>,
@@ -58,21 +71,8 @@ impl Service {
 				.create_file_metadata(None, mxc, 0, 0, content_disposition, content_type)?
 		};
 
-		let path;
-
-		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-		#[cfg(feature = "sha256_media")]
-		{
-			path = services().globals.get_media_file_new(&key);
-		};
-
-		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-		#[cfg(not(feature = "sha256_media"))]
-		{
-			path = services().globals.get_media_file(&key);
-		};
-
-		let mut f = File::create(path).await?;
+		//TODO: Dangling metadata in database if creation fails
+		let mut f = self.create_media_file(&key).await?;
 		f.write_all(file).await?;
 
 		Ok(())
@@ -82,24 +82,7 @@ impl Service {
 	pub async fn delete(&self, mxc: String) -> Result<()> {
 		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc.clone()) {
 			for key in keys {
-				let file_path;
-
-				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-				#[cfg(feature = "sha256_media")]
-				{
-					file_path = services().globals.get_media_file_new(&key);
-				};
-
-				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-				#[cfg(not(feature = "sha256_media"))]
-				{
-					file_path = services().globals.get_media_file(&key);
-				};
-
-				debug!("Got local file path: {:?}", file_path);
-
-				debug!("Deleting local file {:?} from filesystem, original MXC: {}", file_path, mxc);
-				fs::remove_file(file_path).await?;
+				self.remove_media_file(&key).await?;
 
 				debug!("Deleting MXC {mxc} from database");
 				self.db.delete_file_mxc(mxc.clone())?;
@@ -128,21 +111,8 @@ impl Service {
 				.create_file_metadata(None, mxc, width, height, content_disposition, content_type)?
 		};
 
-		let path;
-
-		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-		#[cfg(feature = "sha256_media")]
-		{
-			path = services().globals.get_media_file_new(&key);
-		};
-
-		#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-		#[cfg(not(feature = "sha256_media"))]
-		{
-			path = services().globals.get_media_file(&key);
-		};
-
-		let mut f = File::create(path).await?;
+		//TODO: Dangling metadata in database if creation fails
+		let mut f = self.create_media_file(&key).await?;
 		f.write_all(file).await?;
 
 		Ok(())
@@ -151,22 +121,9 @@ impl Service {
 	/// Downloads a file.
 	pub async fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
-			let path;
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(feature = "sha256_media")]
-			{
-				path = services().globals.get_media_file_new(&key);
-			};
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(not(feature = "sha256_media"))]
-			{
-				path = services().globals.get_media_file(&key);
-			};
-
 			let mut file = Vec::new();
-			BufReader::new(File::open(path).await?)
+			let path = self.get_media_file(&key);
+			BufReader::new(fs::File::open(path).await?)
 				.read_to_end(&mut file)
 				.await?;
 
@@ -233,24 +190,11 @@ impl Service {
 				continue;
 			}
 
-			let path;
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(feature = "sha256_media")]
-			{
-				path = services().globals.get_media_file_new(&key);
-			};
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(not(feature = "sha256_media"))]
-			{
-				path = services().globals.get_media_file(&key);
-			};
-
-			debug!("MXC path: {:?}", path);
+			let path = self.get_media_file(&key);
+			debug!("MXC path: {path:?}");
 
 			let file_metadata = fs::metadata(path.clone()).await?;
-			debug!("File metadata: {:?}", file_metadata);
+			debug!("File metadata: {file_metadata:?}");
 
 			let file_created_at = match file_metadata.created() {
 				Ok(value) => value,
@@ -328,22 +272,9 @@ impl Service {
 
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), width, height) {
 			// Using saved thumbnail
-			let path;
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(feature = "sha256_media")]
-			{
-				path = services().globals.get_media_file_new(&key);
-			};
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(not(feature = "sha256_media"))]
-			{
-				path = services().globals.get_media_file(&key);
-			};
-
 			let mut file = Vec::new();
-			File::open(path).await?.read_to_end(&mut file).await?;
+			let path = self.get_media_file(&key);
+			fs::File::open(path).await?.read_to_end(&mut file).await?;
 
 			Ok(Some(FileMeta {
 				content_disposition,
@@ -352,22 +283,9 @@ impl Service {
 			}))
 		} else if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), 0, 0) {
 			// Generate a thumbnail
-			let path;
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(feature = "sha256_media")]
-			{
-				path = services().globals.get_media_file_new(&key);
-			};
-
-			#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-			#[cfg(not(feature = "sha256_media"))]
-			{
-				path = services().globals.get_media_file(&key);
-			};
-
 			let mut file = Vec::new();
-			File::open(path).await?.read_to_end(&mut file).await?;
+			let path = self.get_media_file(&key);
+			fs::File::open(path).await?.read_to_end(&mut file).await?;
 
 			if let Ok(image) = image::load_from_memory(&file) {
 				let original_width = image.width();
@@ -433,21 +351,7 @@ impl Service {
 					content_type.as_deref(),
 				)?;
 
-				let path;
-
-				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-				#[cfg(feature = "sha256_media")]
-				{
-					path = services().globals.get_media_file_new(&thumbnail_key);
-				};
-
-				#[allow(clippy::unnecessary_operation)] // error[E0658]: attributes on expressions are experimental
-				#[cfg(not(feature = "sha256_media"))]
-				{
-					path = services().globals.get_media_file(&thumbnail_key);
-				};
-
-				let mut f = File::create(path).await?;
+				let mut f = self.create_media_file(&thumbnail_key).await?;
 				f.write_all(&thumbnail_bytes).await?;
 
 				Ok(Some(FileMeta {
@@ -483,99 +387,81 @@ impl Service {
 			.expect("valid system time");
 		self.db.set_url_preview(url, data, now)
 	}
-}
 
-#[cfg(test)]
-mod tests {
-	#[cfg(feature = "sha256_media")]
-	#[tokio::test]
-	async fn long_file_names_works() {
-		use std::path::PathBuf;
+	pub async fn create_media_dir(&self) -> Result<()> {
+		let dir = self.get_media_dir();
+		Ok(fs::create_dir_all(dir).await?)
+	}
 
-		use base64::{engine::general_purpose, Engine as _};
+	async fn remove_media_file(&self, key: &[u8]) -> Result<()> {
+		let path = self.get_media_file(key);
+		let legacy = self.get_media_file_b64(key);
+		debug!(?key, ?path, ?legacy, "Removing media file");
 
-		use super::*;
-
-		struct MockedKVDatabase;
-
-		impl Data for MockedKVDatabase {
-			fn create_file_metadata(
-				&self, _sender_user: Option<&str>, mxc: String, width: u32, height: u32,
-				content_disposition: Option<&str>, content_type: Option<&str>,
-			) -> Result<Vec<u8>> {
-				// copied from src/database/key_value/media.rs
-				let mut key = mxc.as_bytes().to_vec();
-				key.push(0xFF);
-				key.extend_from_slice(&width.to_be_bytes());
-				key.extend_from_slice(&height.to_be_bytes());
-				key.push(0xFF);
-				key.extend_from_slice(
-					content_disposition
-						.as_ref()
-						.map(|f| f.as_bytes())
-						.unwrap_or_default(),
-				);
-				key.push(0xFF);
-				key.extend_from_slice(
-					content_type
-						.as_ref()
-						.map(|c| c.as_bytes())
-						.unwrap_or_default(),
-				);
-
-				Ok(key)
+		let file_rm = fs::remove_file(&path);
+		let legacy_rm = fs::remove_file(&legacy);
+		let (file_rm, legacy_rm) = tokio::join!(file_rm, legacy_rm);
+		if let Err(e) = legacy_rm {
+			if self.server.config.media_compat_file_link {
+				debug_error!(?key, ?legacy, "Failed to remove legacy media symlink: {e}");
 			}
-
-			fn delete_file_mxc(&self, _mxc: String) -> Result<()> { todo!() }
-
-			fn search_mxc_metadata_prefix(&self, _mxc: String) -> Result<Vec<Vec<u8>>> { todo!() }
-
-			fn get_all_media_keys(&self) -> Vec<Vec<u8>> { todo!() }
-
-			fn search_file_metadata(
-				&self, _mxc: String, _width: u32, _height: u32,
-			) -> Result<(Option<String>, Option<String>, Vec<u8>)> {
-				todo!()
-			}
-
-			fn remove_url_preview(&self, _url: &str) -> Result<()> { todo!() }
-
-			fn set_url_preview(
-				&self, _url: &str, _data: &UrlPreviewData, _timestamp: std::time::Duration,
-			) -> Result<()> {
-				todo!()
-			}
-
-			fn get_url_preview(&self, _url: &str) -> Option<UrlPreviewData> { todo!() }
 		}
 
-		let db: Arc<MockedKVDatabase> = Arc::new(MockedKVDatabase);
-		let media = Service {
-			db,
-			url_preview_mutex: RwLock::new(HashMap::new()),
-		};
+		Ok(file_rm?)
+	}
 
-		let mxc = "mxc://example.com/ascERGshawAWawugaAcauga".to_owned();
-		let width = 100;
-		let height = 100;
-		let content_disposition = "attachment; filename=\"this is a very long file name with spaces and special \
-		                           characters like äöüß and even emoji like 🦀.png\"";
-		let content_type = "image/png";
-		let key = media
-			.db
-			.create_file_metadata(None, mxc, width, height, Some(content_disposition), Some(content_type))
-			.unwrap();
-		let mut r = PathBuf::from("/tmp/media");
-		// r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));
-		// use the sha256 hash of the key as the file name instead of the key itself
-		// this is because the base64 encoded key can be longer than 255 characters.
-		r.push(general_purpose::URL_SAFE_NO_PAD.encode(<sha2::Sha256 as sha2::Digest>::digest(key)));
-		// Check that the file path is not longer than 255 characters
-		// (255 is the maximum length of a file path on most file systems)
-		assert!(
-			r.to_str().unwrap().len() <= 255,
-			"File path is too long: {}",
-			r.to_str().unwrap().len()
-		);
+	async fn create_media_file(&self, key: &[u8]) -> Result<fs::File> {
+		let path = self.get_media_file(key);
+		debug!(?key, ?path, "Creating media file");
+
+		let file = fs::File::create(&path).await?;
+		if self.server.config.media_compat_file_link {
+			let legacy = self.get_media_file_b64(key);
+			if let Err(e) = fs::symlink(&path, &legacy).await {
+				debug_error!(
+					key = ?encode_key(key), ?path, ?legacy,
+					"Failed to create legacy media symlink: {e}"
+				);
+			}
+		}
+
+		Ok(file)
+	}
+
+	#[inline]
+	pub fn get_media_file(&self, key: &[u8]) -> PathBuf { self.get_media_file_sha256(key) }
+
+	/// new SHA256 file name media function. requires database migrated. uses
+	/// SHA256 hash of the base64 key as the file name
+	pub fn get_media_file_sha256(&self, key: &[u8]) -> PathBuf {
+		let mut r = self.get_media_dir();
+		// Using the hash of the base64 key as the filename
+		// This is to prevent the total length of the path from exceeding the maximum
+		// length in most filesystems
+		let digest = <sha2::Sha256 as sha2::Digest>::digest(key);
+		let encoded = encode_key(&digest);
+		r.push(encoded);
+		r
+	}
+
+	/// old base64 file name media function
+	/// This is the old version of `get_media_file` that uses the full base64
+	/// key as the filename.
+	pub fn get_media_file_b64(&self, key: &[u8]) -> PathBuf {
+		let mut r = self.get_media_dir();
+		let encoded = encode_key(key);
+		r.push(encoded);
+		r
+	}
+
+	pub fn get_media_dir(&self) -> PathBuf {
+		let mut r = PathBuf::new();
+		r.push(self.server.config.database_path.clone());
+		r.push("media");
+		r
 	}
 }
+
+#[inline]
+#[must_use]
+pub fn encode_key(key: &[u8]) -> String { general_purpose::URL_SAFE_NO_PAD.encode(key) }

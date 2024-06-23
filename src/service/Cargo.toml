@@ -35,9 +35,6 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-sha256_media = [
-	"dep:sha2",
-]
 
 [dependencies]
 async-trait.workspace = true
@@ -66,7 +63,6 @@ rustyline-async.optional = true
 serde_json.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
-sha2.optional = true
 sha2.workspace = true
 termimad.workspace = true
 termimad.optional = true

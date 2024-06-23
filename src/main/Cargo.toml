@@ -129,9 +129,6 @@ sentry_telemetry = [
 	"conduit-core/sentry_telemetry",
 	"conduit-router/sentry_telemetry",
 ]
-sha256_media = [
-	"conduit-service/sha256_media",
-]
 systemd = [
 	"conduit-router/systemd",
 ]

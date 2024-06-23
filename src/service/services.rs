@@ -136,10 +136,7 @@ impl Services {
 			key_backups: key_backups::Service {
 				db: db.clone(),
 			},
-			media: media::Service {
-				db: db.clone(),
-				url_preview_mutex: RwLock::new(HashMap::new()),
-			},
+			media: media::Service::build(&server, &db),
 			sending: sending::Service::build(db.clone(), config),
 			globals: globals::Service::load(db.clone(), config)?,
 			server,
@@ -277,6 +274,7 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 	pub async fn start(&self) -> Result<()> {
 		debug_info!("Starting services");
 
+		self.media.create_media_dir().await?;
 		globals::migrations::migrations(&self.db, &self.globals.config).await?;
 		globals::emerg_access::init_emergency_access();
 
