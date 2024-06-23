@@ -35,7 +35,6 @@ pub(super) mod user_directory;
 pub(super) mod voip;
 
 pub(super) use account::*;
-pub use alias::get_alias_helper;
 pub(super) use alias::*;
 pub(super) use backup::*;
 pub(super) use capabilities::*;

@@ -36,7 +36,6 @@ use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 
-use super::get_alias_helper;
 use crate::{
 	client::{update_avatar_url, update_displayname},
 	service::{
@@ -259,17 +258,24 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 			(servers, room_id)
 		},
 		Err(room_alias) => {
-			let response = get_alias_helper(room_alias.clone(), Some(body.server_name.clone())).await?;
+			let response = services()
+				.rooms
+				.alias
+				.resolve_alias(&room_alias, Some(&body.server_name.clone()))
+				.await?;
+			let (room_id, mut pre_servers) = response;
 
-			banned_room_check(sender_user, Some(&response.room_id), Some(room_alias.server_name()), client).await?;
+			banned_room_check(sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
 
 			let mut servers = body.server_name;
-			servers.extend(response.servers);
+			if let Some(pre_servers) = &mut pre_servers {
+				servers.append(pre_servers);
+			}
 			servers.extend(
 				services()
 					.rooms
 					.state_cache
-					.servers_invite_via(&response.room_id)
+					.servers_invite_via(&room_id)
 					.filter_map(Result::ok),
 			);
 
@@ -277,7 +283,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 				services()
 					.rooms
 					.state_cache
-					.invite_state(sender_user, &response.room_id)?
+					.invite_state(sender_user, &room_id)?
 					.unwrap_or_default()
 					.iter()
 					.filter_map(|event| serde_json::from_str(event.json().get()).ok())
@@ -287,7 +293,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 					.map(|user| user.server_name().to_owned()),
 			);
 
-			(servers, response.room_id)
+			(servers, room_id)
 		},
 	};
 

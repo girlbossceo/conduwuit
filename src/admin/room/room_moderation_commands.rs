@@ -1,4 +1,4 @@
-use api::client::{get_alias_helper, leave_room};
+use api::client::leave_room;
 use ruma::{
 	events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
 };
@@ -76,13 +76,18 @@ async fn ban_room(
 		} else {
 			debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
 
-			match get_alias_helper(room_alias, None).await {
-				Ok(response) => {
-					debug!("Got federation response fetching room ID for room {room}: {:?}", response);
-					response.room_id
+			match services()
+				.rooms
+				.alias
+				.resolve_alias(&room_alias, None)
+				.await
+			{
+				Ok((room_id, servers)) => {
+					debug!(?room_id, ?servers, "Got federation response fetching room ID for {room}");
+					room_id
 				},
 				Err(e) => {
-					return Ok(RoomMessageEventContent::text_plain(format!(
+					return Ok(RoomMessageEventContent::notice_plain(format!(
 						"Failed to resolve room alias {room} to a room ID: {e}"
 					)));
 				},
@@ -237,13 +242,19 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 										 ID over federation"
 									);
 
-									match get_alias_helper(room_alias, None).await {
-										Ok(response) => {
+									match services()
+										.rooms
+										.alias
+										.resolve_alias(&room_alias, None)
+										.await
+									{
+										Ok((room_id, servers)) => {
 											debug!(
-												"Got federation response fetching room ID for room {room}: {:?}",
-												response
+												?room_id,
+												?servers,
+												"Got federation response fetching room ID for {room}",
 											);
-											response.room_id
+											room_id
 										},
 										Err(e) => {
 											// don't fail if force blocking
@@ -426,10 +437,15 @@ async fn unban_room(
 		} else {
 			debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
 
-			match get_alias_helper(room_alias, None).await {
-				Ok(response) => {
-					debug!("Got federation response fetching room ID for room {room}: {:?}", response);
-					response.room_id
+			match services()
+				.rooms
+				.alias
+				.resolve_alias(&room_alias, None)
+				.await
+			{
+				Ok((room_id, servers)) => {
+					debug!(?room_id, ?servers, "Got federation response fetching room ID for room {room}");
+					room_id
 				},
 				Err(e) => {
 					return Ok(RoomMessageEventContent::text_plain(format!(

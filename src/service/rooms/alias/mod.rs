@@ -1,4 +1,5 @@
 mod data;
+mod remote;
 
 use std::sync::Arc;
 
@@ -6,15 +7,15 @@ use conduit::{Error, Result, Server};
 use data::Data;
 use database::Database;
 use ruma::{
-	api::client::error::ErrorKind,
+	api::{appservice, client::error::ErrorKind},
 	events::{
 		room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		StateEventType,
 	},
-	OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, UserId,
+	OwnedRoomAliasId, OwnedRoomId, OwnedServerName, RoomAliasId, RoomId, UserId,
 };
 
-use crate::services;
+use crate::{appservice::RegistrationInfo, server_is_ours, services};
 
 pub struct Service {
 	db: Data,
@@ -49,6 +50,30 @@ impl Service {
 				"User is not permitted to remove this alias.",
 			))
 		}
+	}
+
+	#[tracing::instrument(skip(self), name = "resolve")]
+	pub async fn resolve_alias(
+		&self, room_alias: &RoomAliasId, servers: Option<&Vec<OwnedServerName>>,
+	) -> Result<(OwnedRoomId, Option<Vec<OwnedServerName>>)> {
+		if !server_is_ours(room_alias.server_name())
+			&& (!servers
+				.as_ref()
+				.is_some_and(|servers| servers.contains(&services().globals.server_name().to_owned()))
+				|| servers.as_ref().is_none())
+		{
+			return remote::resolve(room_alias, servers).await;
+		}
+
+		let room_id: Option<OwnedRoomId> = match self.resolve_local_alias(room_alias)? {
+			Some(r) => Some(r),
+			None => self.resolve_appservice_alias(room_alias).await?,
+		};
+
+		room_id.map_or_else(
+			|| Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found.")),
+			|room_id| Ok((room_id, None)),
+		)
 	}
 
 	#[tracing::instrument(skip(self))]
@@ -112,4 +137,48 @@ impl Service {
 			Err(Error::bad_database("Room has no m.room.create event"))
 		}
 	}
+
+	async fn resolve_appservice_alias(&self, room_alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
+		for appservice in services().appservice.read().await.values() {
+			if appservice.aliases.is_match(room_alias.as_str())
+				&& matches!(
+					services()
+						.sending
+						.send_appservice_request(
+							appservice.registration.clone(),
+							appservice::query::query_room_alias::v1::Request {
+								room_alias: room_alias.to_owned(),
+							},
+						)
+						.await,
+					Ok(Some(_opt_result))
+				) {
+				return Ok(Some(
+					services()
+						.rooms
+						.alias
+						.resolve_local_alias(room_alias)?
+						.ok_or_else(|| Error::bad_config("Room does not exist."))?,
+				));
+			}
+		}
+
+		Ok(None)
+	}
+}
+
+pub async fn appservice_checks(room_alias: &RoomAliasId, appservice_info: &Option<RegistrationInfo>) -> Result<()> {
+	if !server_is_ours(room_alias.server_name()) {
+		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
+	}
+
+	if let Some(ref info) = appservice_info {
+		if !info.aliases.is_match(room_alias.as_str()) {
+			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+		}
+	} else if services().appservice.is_exclusive_alias(room_alias).await {
+		return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
+	}
+
+	Ok(())
 }
