@@ -13,11 +13,10 @@ use conduit::Result;
 pub(crate) use service::admin::{Command, Service};
 use service::admin::{CommandOutput, CommandResult, HandlerResult};
 
-use self::{fsck::FsckCommand, tester::TesterCommands};
 use crate::{
 	appservice, appservice::AppserviceCommand, debug, debug::DebugCommand, federation, federation::FederationCommand,
-	fsck, media, media::MediaCommand, query, query::QueryCommand, room, room::RoomCommand, server,
-	server::ServerCommand, services, tester, user, user::UserCommand,
+	fsck, fsck::FsckCommand, media, media::MediaCommand, query, query::QueryCommand, room, room::RoomCommand, server,
+	server::ServerCommand, services, user, user::UserCommand,
 };
 pub(crate) const PAGE_SIZE: usize = 100;
 
@@ -60,9 +59,6 @@ pub(crate) enum AdminCommand {
 	#[command(subcommand)]
 	/// - Query all the database getters and iterators
 	Fsck(FsckCommand),
-
-	#[command(subcommand)]
-	Tester(TesterCommands),
 }
 
 #[must_use]
@@ -169,7 +165,6 @@ async fn process_admin_command(command: AdminCommand, body: Vec<&str>) -> Result
 		AdminCommand::Debug(command) => debug::process(command, body).await?,
 		AdminCommand::Query(command) => query::process(command, body).await?,
 		AdminCommand::Fsck(command) => fsck::process(command, body).await?,
-		AdminCommand::Tester(command) => tester::process(command, body).await?,
 	};
 
 	Ok(reply_message_content)

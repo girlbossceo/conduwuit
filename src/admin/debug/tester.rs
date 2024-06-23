@@ -4,15 +4,15 @@ use crate::Result;
 
 #[derive(clap::Subcommand)]
 #[cfg_attr(test, derive(Debug))]
-pub(super) enum TesterCommands {
+pub(crate) enum TesterCommand {
 	Tester,
 	Timer,
 }
 
-pub(super) async fn process(command: TesterCommands, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: TesterCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
-		TesterCommands::Tester => tester(body).await,
-		TesterCommands::Timer => timer(body).await,
+		TesterCommand::Tester => tester(body).await,
+		TesterCommand::Timer => timer(body).await,
 	}
 }
 

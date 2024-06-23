@@ -1,8 +1,10 @@
 mod commands;
+pub(crate) mod tester;
 
 use clap::Subcommand;
 use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, EventId, OwnedRoomOrAliasId, RoomId, ServerName};
+use tester::TesterCommand;
 
 use self::commands::*;
 
@@ -157,6 +159,10 @@ pub(super) enum DebugCommand {
 
 	/// - Print extended memory usage
 	MemoryStats,
+
+	/// - Developer test stubs
+	#[command(subcommand)]
+	Tester(TesterCommand),
 }
 
 pub(super) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -207,5 +213,6 @@ pub(super) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 			no_cache,
 		} => resolve_true_destination(body, server_name, no_cache).await?,
 		DebugCommand::MemoryStats => memory_stats(),
+		DebugCommand::Tester(command) => tester::process(command, body).await?,
 	})
 }

@@ -9,7 +9,6 @@ pub(crate) mod media;
 pub(crate) mod query;
 pub(crate) mod room;
 pub(crate) mod server;
-pub(crate) mod tester;
 pub(crate) mod user;
 pub(crate) mod utils;
 
