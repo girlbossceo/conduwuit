@@ -9,7 +9,7 @@ extern crate conduit_service as service;
 
 use conduit::Result;
 pub(crate) use service::admin::{Command, Service};
-use service::admin::{CommandResult, HandlerResult};
+use service::admin::{CommandOutput, CommandResult, HandlerResult};
 
 use self::{fsck::FsckCommand, tester::TesterCommands};
 use crate::{
@@ -68,7 +68,10 @@ pub fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(comma
 
 #[tracing::instrument(skip_all, name = "admin")]
 async fn handle_command(command: Command) -> CommandResult {
-	let mut content = process_admin_message(command.command).await;
+	let Some(mut content) = process_admin_message(command.command).await else {
+		return Ok(None);
+	};
+
 	content.relates_to = command.reply_id.map(|event_id| Reply {
 		in_reply_to: InReplyTo {
 			event_id,
@@ -79,7 +82,7 @@ async fn handle_command(command: Command) -> CommandResult {
 }
 
 // Parse and process a message from the admin room
-async fn process_admin_message(msg: String) -> RoomMessageEventContent {
+async fn process_admin_message(msg: String) -> CommandOutput {
 	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
 	let command_line = lines.next().expect("each string has at least one line");
 	let body = lines.collect::<Vec<_>>();
@@ -89,15 +92,15 @@ async fn process_admin_message(msg: String) -> RoomMessageEventContent {
 		Err(error) => {
 			let server_name = services().globals.server_name();
 			let message = error.replace("server.name", server_name.as_str());
-			return RoomMessageEventContent::notice_markdown(message);
+			return Some(RoomMessageEventContent::notice_markdown(message));
 		},
 	};
 
 	match process_admin_command(admin_command, body).await {
-		Ok(reply_message) => reply_message,
+		Ok(reply_message) => Some(reply_message),
 		Err(error) => {
 			let markdown_message = format!("Encountered an error while handling the command:\n```\n{error}\n```",);
-			RoomMessageEventContent::notice_markdown(markdown_message)
+			Some(RoomMessageEventContent::notice_markdown(markdown_message))
 		},
 	}
 }

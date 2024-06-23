@@ -138,7 +138,7 @@ impl Console {
 
 	#[allow(clippy::let_underscore_must_use)]
 	async fn handle(self: Arc<Self>, line: String) {
-		if line.is_empty() {
+		if line.trim().is_empty() {
 			return;
 		}
 
