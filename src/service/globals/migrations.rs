@@ -6,7 +6,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug_info, debug_warn};
+use conduit::{debug, debug_info, debug_warn, error, info, utils, warn, Config, Error, Result};
 use database::KeyValueDatabase;
 use itertools::Itertools;
 use ruma::{
@@ -14,9 +14,14 @@ use ruma::{
 	push::Ruleset,
 	EventId, OwnedRoomId, RoomId, UserId,
 };
-use tracing::{debug, error, info, warn};
 
-use crate::{services, utils, Config, Error, Result};
+use crate::services;
+
+/// The current schema version.
+/// * If the database is opened at lesser version we apply migrations up to this
+///   version.
+/// * If the database is opened at greater version we reject with error.
+const DATABASE_VERSION: u64 = 13 + cfg!(feature = "sha256_media") as u64;
 
 pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
@@ -32,114 +37,156 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 		}
 	}
 
-	// If the database has any data, perform data migrations before starting
-	// do not increment the db version if the user is not using sha256_media
-	let latest_database_version = if cfg!(feature = "sha256_media") {
-		14
-	} else {
-		13
-	};
-
 	if services().users.count()? > 0 {
-		// MIGRATIONS
-		if services().globals.database_version()? < 1 {
-			db_lt_1(db, config).await?;
+		migrate(db, config).await
+	} else {
+		fresh(db, config).await
+	}
+}
+
+async fn fresh(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+	services().globals.bump_database_version(DATABASE_VERSION)?;
+
+	db.global
+		.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
+	db.global
+		.insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
+
+	// Create the admin room and server user on first run
+	crate::admin::create_admin_room().await?;
+
+	warn!(
+		"Created new {} database with version {DATABASE_VERSION}",
+		config.database_backend,
+	);
+
+	Ok(())
+}
+
+/// Apply any migrations
+async fn migrate(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+	if services().globals.database_version()? < 1 {
+		db_lt_1(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 2 {
+		db_lt_2(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 3 {
+		db_lt_3(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 4 {
+		db_lt_4(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 5 {
+		db_lt_5(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 6 {
+		db_lt_6(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 7 {
+		db_lt_7(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 8 {
+		db_lt_8(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 9 {
+		db_lt_9(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 10 {
+		db_lt_10(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 11 {
+		db_lt_11(db, config).await?;
+	}
+
+	if services().globals.database_version()? < 12 {
+		db_lt_12(db, config).await?;
+	}
+
+	// This migration can be reused as-is anytime the server-default rules are
+	// updated.
+	if services().globals.database_version()? < 13 {
+		db_lt_13(db, config).await?;
+	}
+
+	#[cfg(feature = "sha256_media")]
+	if services().globals.database_version()? < 14 {
+		feat_sha256_media(db, config).await?;
+	}
+
+	if db
+		.global
+		.get(b"fix_bad_double_separator_in_state_cache")?
+		.is_none()
+	{
+		fix_bad_double_separator_in_state_cache(db, config).await?;
+	}
+
+	if db
+		.global
+		.get(b"retroactively_fix_bad_data_from_roomuserid_joined")?
+		.is_none()
+	{
+		retroactively_fix_bad_data_from_roomuserid_joined(db, config).await?;
+	}
+
+	assert_eq!(
+		services().globals.database_version().unwrap(),
+		DATABASE_VERSION,
+		"Failed asserting local database version {} is equal to known latest conduwuit database version {}",
+		services().globals.database_version().unwrap(),
+		DATABASE_VERSION,
+	);
+
+	{
+		let patterns = services().globals.forbidden_usernames();
+		if !patterns.is_empty() {
+			for user_id in services()
+				.users
+				.iter()
+				.filter_map(Result::ok)
+				.filter(|user| !services().users.is_deactivated(user).unwrap_or(true))
+				.filter(|user| user.server_name() == config.server_name)
+			{
+				let matches = patterns.matches(user_id.localpart());
+				if matches.matched_any() {
+					warn!(
+						"User {} matches the following forbidden username patterns: {}",
+						user_id.to_string(),
+						matches
+							.into_iter()
+							.map(|x| &patterns.patterns()[x])
+							.join(", ")
+					);
+				}
+			}
 		}
+	}
 
-		if services().globals.database_version()? < 2 {
-			db_lt_2(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 3 {
-			db_lt_3(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 4 {
-			db_lt_4(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 5 {
-			db_lt_5(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 6 {
-			db_lt_6(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 7 {
-			db_lt_7(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 8 {
-			db_lt_8(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 9 {
-			db_lt_9(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 10 {
-			db_lt_10(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 11 {
-			db_lt_11(db, config).await?;
-		}
-
-		if services().globals.database_version()? < 12 {
-			db_lt_12(db, config).await?;
-		}
-
-		// This migration can be reused as-is anytime the server-default rules are
-		// updated.
-		if services().globals.database_version()? < 13 {
-			db_lt_13(db, config).await?;
-		}
-
-		#[cfg(feature = "sha256_media")]
-		if services().globals.database_version()? < 14 && cfg!(feature = "sha256_media") {
-			feat_sha256_media(db, config).await?;
-		}
-
-		if db
-			.global
-			.get(b"fix_bad_double_separator_in_state_cache")?
-			.is_none()
-		{
-			fix_bad_double_separator_in_state_cache(db, config).await?;
-		}
-
-		if db
-			.global
-			.get(b"retroactively_fix_bad_data_from_roomuserid_joined")?
-			.is_none()
-		{
-			retroactively_fix_bad_data_from_roomuserid_joined(db, config).await?;
-		}
-
-		assert_eq!(
-			services().globals.database_version().unwrap(),
-			latest_database_version,
-			"Failed asserting local database version {} is equal to known latest conduwuit database version {}",
-			services().globals.database_version().unwrap(),
-			latest_database_version
-		);
-
-		{
-			let patterns = services().globals.forbidden_usernames();
-			if !patterns.is_empty() {
-				for user_id in services()
-					.users
-					.iter()
-					.filter_map(Result::ok)
-					.filter(|user| !services().users.is_deactivated(user).unwrap_or(true))
-					.filter(|user| user.server_name() == config.server_name)
-				{
-					let matches = patterns.matches(user_id.localpart());
+	{
+		let patterns = services().globals.forbidden_alias_names();
+		if !patterns.is_empty() {
+			for address in services().rooms.metadata.iter_ids() {
+				let room_id = address?;
+				let room_aliases = services().rooms.alias.local_aliases_for_room(&room_id);
+				for room_alias_result in room_aliases {
+					let room_alias = room_alias_result?;
+					let matches = patterns.matches(room_alias.alias());
 					if matches.matched_any() {
 						warn!(
-							"User {} matches the following forbidden username patterns: {}",
-							user_id.to_string(),
+							"Room with alias {} ({}) matches the following forbidden room name patterns: {}",
+							room_alias,
+							&room_id,
 							matches
 								.into_iter()
 								.map(|x| &patterns.patterns()[x])
@@ -149,54 +196,12 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 				}
 			}
 		}
-
-		{
-			let patterns = services().globals.forbidden_alias_names();
-			if !patterns.is_empty() {
-				for address in services().rooms.metadata.iter_ids() {
-					let room_id = address?;
-					let room_aliases = services().rooms.alias.local_aliases_for_room(&room_id);
-					for room_alias_result in room_aliases {
-						let room_alias = room_alias_result?;
-						let matches = patterns.matches(room_alias.alias());
-						if matches.matched_any() {
-							warn!(
-								"Room with alias {} ({}) matches the following forbidden room name patterns: {}",
-								room_alias,
-								&room_id,
-								matches
-									.into_iter()
-									.map(|x| &patterns.patterns()[x])
-									.join(", ")
-							);
-						}
-					}
-				}
-			}
-		}
-
-		info!(
-			"Loaded {} database with schema version {}",
-			config.database_backend, latest_database_version
-		);
-	} else {
-		services()
-			.globals
-			.bump_database_version(latest_database_version)?;
-
-		db.global
-			.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
-		db.global
-			.insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
-
-		// Create the admin room and server user on first run
-		crate::admin::create_admin_room().await?;
-
-		warn!(
-			"Created new {} database with version {}",
-			config.database_backend, latest_database_version
-		);
 	}
+
+	info!(
+		"Loaded {} database with schema version {DATABASE_VERSION}",
+		config.database_backend,
+	);
 
 	Ok(())
 }
@@ -686,15 +691,16 @@ async fn db_lt_13(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
 #[cfg(feature = "sha256_media")]
 async fn feat_sha256_media(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	use std::path::PathBuf;
-	warn!("sha256_media feature flag is enabled, migrating legacy base64 file names to sha256 file names");
+
+	warn!("Mgrating legacy base64 file names to sha256 file names");
+
 	// Move old media files to new names
 	let mut changes = Vec::<(PathBuf, PathBuf)>::new();
 	for (key, _) in db.mediaid_file.iter() {
-		let old_path = services().globals.get_media_file(&key);
-		debug!("Old file path: {old_path:?}");
-		let path = services().globals.get_media_file_new(&key);
-		debug!("New file path: {path:?}");
-		changes.push((old_path, path));
+		let old = services().globals.get_media_file(&key);
+		let new = services().globals.get_media_file_new(&key);
+		changes.push((old, new));
+		debug!(?old, ?new, num = changes.len(), "change");
 	}
 	// move the file to the new location
 	for (old_path, path) in changes {
