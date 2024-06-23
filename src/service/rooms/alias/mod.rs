@@ -12,7 +12,7 @@ use ruma::{
 		room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		StateEventType,
 	},
-	OwnedRoomAliasId, OwnedRoomId, OwnedServerName, RoomAliasId, RoomId, UserId,
+	OwnedRoomAliasId, OwnedRoomId, OwnedServerName, RoomAliasId, RoomId, RoomOrAliasId, UserId,
 };
 
 use crate::{appservice::RegistrationInfo, server_is_ours, services};
@@ -49,6 +49,16 @@ impl Service {
 				ErrorKind::forbidden(),
 				"User is not permitted to remove this alias.",
 			))
+		}
+	}
+
+	pub async fn resolve(&self, room: &RoomOrAliasId) -> Result<OwnedRoomId> {
+		if room.is_room_id() {
+			let room_id: &RoomId = &RoomId::parse(room).expect("valid RoomId");
+			Ok(room_id.to_owned())
+		} else {
+			let alias: &RoomAliasId = &RoomAliasId::parse(room).expect("valid RoomAliasId");
+			Ok(self.resolve_alias(alias, None).await?.0)
 		}
 	}
 
