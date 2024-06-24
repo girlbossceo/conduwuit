@@ -21,7 +21,7 @@ pub(crate) struct Server {
 	_tracing_flame_guard: TracingFlameGuard,
 
 	#[cfg(feature = "sentry_telemetry")]
-	_sentry_guard: Option<sentry::ClientInitGuard>,
+	_sentry_guard: Option<::sentry::ClientInitGuard>,
 
 	#[cfg(conduit_mods)]
 	// Module instances; TODO: move to mods::loaded mgmt vector
@@ -33,10 +33,12 @@ impl Server {
 		let config = Config::new(args.config)?;
 
 		#[cfg(feature = "sentry_telemetry")]
-		let sentry_guard = init_sentry(&config);
+		let sentry_guard = crate::sentry::init(&config);
+
 		let (tracing_reload_handle, tracing_flame_guard, capture) = init_tracing(&config);
 
 		config.check()?;
+
 		#[cfg(unix)]
 		sys::maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
 		hash::init();
@@ -68,35 +70,6 @@ impl Server {
 			mods: tokio::sync::RwLock::new(Vec::new()),
 		}))
 	}
-}
-
-#[cfg(feature = "sentry_telemetry")]
-fn init_sentry(config: &Config) -> Option<sentry::ClientInitGuard> {
-	if !config.sentry {
-		return None;
-	}
-
-	let sentry_endpoint = config
-		.sentry_endpoint
-		.as_ref()
-		.expect("init_sentry should only be called if sentry is enabled and this is not None")
-		.as_str();
-
-	let server_name = if config.sentry_send_server_name {
-		Some(config.server_name.to_string().into())
-	} else {
-		None
-	};
-
-	Some(sentry::init((
-		sentry_endpoint,
-		sentry::ClientOptions {
-			release: sentry::release_name!(),
-			traces_sample_rate: config.sentry_traces_sample_rate,
-			server_name,
-			..Default::default()
-		},
-	)))
 }
 
 #[cfg(feature = "perf_measurements")]

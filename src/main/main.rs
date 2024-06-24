@@ -1,6 +1,7 @@
 pub(crate) mod clap;
 mod mods;
 mod restart;
+mod sentry;
 mod server;
 mod signal;
 
