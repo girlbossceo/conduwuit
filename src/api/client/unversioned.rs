@@ -145,7 +145,7 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 
 	Ok(Json(serde_json::json!({
 		"server": server_url,
-		"version": conduit::version::conduwuit(),
+		"version": conduit::version(),
 	})))
 }
 
@@ -155,8 +155,8 @@ pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
 /// `/_matrix/federation/v1/version`
 pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
 	Ok(Json(serde_json::json!({
-		"name": "conduwuit",
-		"version": conduit::version::conduwuit(),
+		"name": conduit::version::name(),
+		"version": conduit::version::version(),
 	})))
 }
 

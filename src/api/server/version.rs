@@ -10,8 +10,8 @@ pub(crate) async fn get_server_version_route(
 ) -> Result<get_server_version::v1::Response> {
 	Ok(get_server_version::v1::Response {
 		server: Some(get_server_version::v1::Server {
-			name: Some("Conduwuit".to_owned()),
-			version: Some(conduit::version::conduwuit()),
+			name: Some(conduit::version::name().into()),
+			version: Some(conduit::version::version().into()),
 		}),
 	})
 }

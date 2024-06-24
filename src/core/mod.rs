@@ -13,6 +13,7 @@ pub use config::Config;
 pub use error::{Error, RumaResponse};
 pub use pducount::PduCount;
 pub use server::Server;
+pub use version::version;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

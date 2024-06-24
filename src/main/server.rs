@@ -46,7 +46,7 @@ impl Server {
 			database_path = ?config.database_path,
 			log_levels = %config.log,
 			"{}",
-			conduit::version::conduwuit(),
+			conduit::version(),
 		);
 
 		Ok(Arc::new(Self {
