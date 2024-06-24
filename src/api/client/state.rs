@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use conduit::{error, warn};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -16,7 +17,6 @@ use ruma::{
 	serde::Raw,
 	EventId, RoomId, UserId,
 };
-use tracing::{error, log::warn};
 
 use crate::{
 	service::{pdu::PduBuilder, server_is_ours},
