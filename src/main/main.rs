@@ -4,6 +4,7 @@ mod restart;
 mod sentry;
 mod server;
 mod signal;
+mod tracing;
 
 extern crate conduit_core as conduit;
 
@@ -53,7 +54,6 @@ fn main() -> Result<(), Error> {
 #[cfg(not(conduit_mods))]
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	extern crate conduit_router as router;
-	use tracing::error;
 
 	if let Err(error) = router::start(&server.server).await {
 		error!("Critical error starting server: {error}");
