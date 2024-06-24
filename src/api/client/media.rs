@@ -200,12 +200,13 @@ pub(crate) async fn get_content_route(
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
+		content,
 		content_type,
-		file,
 		content_disposition,
 	}) = services().media.get(&mxc).await?
 	{
 		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
+		let file = content.expect("content");
 
 		Ok(get_content::v3::Response {
 			file,
@@ -282,8 +283,8 @@ pub(crate) async fn get_content_as_filename_route(
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
+		content,
 		content_type,
-		file,
 		content_disposition,
 	}) = services().media.get(&mxc).await?
 	{
@@ -293,6 +294,7 @@ pub(crate) async fn get_content_as_filename_route(
 			Some(body.filename.clone()),
 		));
 
+		let file = content.expect("content");
 		Ok(get_content_as_filename::v3::Response {
 			file,
 			content_type,
@@ -371,8 +373,8 @@ pub(crate) async fn get_content_thumbnail_route(
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
+		content,
 		content_type,
-		file,
 		content_disposition,
 	}) = services()
 		.media
@@ -388,6 +390,7 @@ pub(crate) async fn get_content_thumbnail_route(
 		.await?
 	{
 		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
+		let file = content.expect("content");
 
 		Ok(get_content_thumbnail::v3::Response {
 			file,

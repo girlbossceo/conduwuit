@@ -20,10 +20,9 @@ use crate::services;
 
 #[derive(Debug)]
 pub struct FileMeta {
-	#[allow(dead_code)]
-	pub content_disposition: Option<String>,
+	pub content: Option<Vec<u8>>,
 	pub content_type: Option<String>,
-	pub file: Vec<u8>,
+	pub content_disposition: Option<String>,
 }
 
 #[derive(Serialize, Default)]
@@ -132,16 +131,16 @@ impl Service {
 	/// Downloads a file.
 	pub async fn get(&self, mxc: &str) -> Result<Option<FileMeta>> {
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
-			let mut file = Vec::new();
+			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
 			BufReader::new(fs::File::open(path).await?)
-				.read_to_end(&mut file)
+				.read_to_end(&mut content)
 				.await?;
 
 			Ok(Some(FileMeta {
-				content_disposition,
+				content: Some(content),
 				content_type,
-				file,
+				content_disposition,
 			}))
 		} else {
 			Ok(None)
@@ -283,29 +282,35 @@ impl Service {
 
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, width, height) {
 			// Using saved thumbnail
-			let mut file = Vec::new();
+			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
-			fs::File::open(path).await?.read_to_end(&mut file).await?;
+			fs::File::open(path)
+				.await?
+				.read_to_end(&mut content)
+				.await?;
 
 			Ok(Some(FileMeta {
-				content_disposition,
+				content: Some(content),
 				content_type,
-				file: file.clone(),
+				content_disposition,
 			}))
 		} else if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
 			// Generate a thumbnail
-			let mut file = Vec::new();
+			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
-			fs::File::open(path).await?.read_to_end(&mut file).await?;
+			fs::File::open(path)
+				.await?
+				.read_to_end(&mut content)
+				.await?;
 
-			if let Ok(image) = image::load_from_memory(&file) {
+			if let Ok(image) = image::load_from_memory(&content) {
 				let original_width = image.width();
 				let original_height = image.height();
 				if width > original_width || height > original_height {
 					return Ok(Some(FileMeta {
-						content_disposition,
+						content: Some(content),
 						content_type,
-						file: file.clone(),
+						content_disposition,
 					}));
 				}
 
@@ -350,16 +355,16 @@ impl Service {
 				f.write_all(&thumbnail_bytes).await?;
 
 				Ok(Some(FileMeta {
-					content_disposition,
+					content: Some(thumbnail_bytes),
 					content_type,
-					file: thumbnail_bytes.clone(),
+					content_disposition,
 				}))
 			} else {
 				// Couldn't parse file to generate thumbnail, send original
 				Ok(Some(FileMeta {
-					content_disposition,
+					content: Some(content),
 					content_type,
-					file: file.clone(),
+					content_disposition,
 				}))
 			}
 		} else {
