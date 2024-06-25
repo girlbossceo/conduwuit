@@ -6,6 +6,7 @@ pub mod html;
 pub mod json;
 pub mod mutex_map;
 pub mod sys;
+mod tests;
 
 use std::{
 	cmp::{self, Ordering},
@@ -34,16 +35,14 @@ pub fn millis_since_unix_epoch() -> u64 {
 		.as_millis() as u64
 }
 
-pub fn increment(old: Option<&[u8]>) -> Vec<u8> {
-	let number = match old.map(TryInto::try_into) {
-		Some(Ok(bytes)) => {
-			let number = u64::from_be_bytes(bytes);
-			number + 1
-		},
-		_ => 1, // Start at one. since 0 should return the first event in the db
-	};
-
-	number.to_be_bytes().to_vec()
+#[inline]
+#[must_use]
+pub fn increment(old: Option<&[u8]>) -> [u8; 8] {
+	const ZERO: u64 = 0;
+	old.map(TryInto::try_into)
+		.map_or(ZERO, |val| val.map_or(ZERO, u64::from_be_bytes))
+		.wrapping_add(1)
+		.to_be_bytes()
 }
 
 #[must_use]

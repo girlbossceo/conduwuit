@@ -155,13 +155,13 @@ impl KvTree for RocksDbEngineTree<'_> {
 		let new = utils::increment(old.as_deref());
 		self.db
 			.rocks
-			.put_cf_opt(&self.cf(), key, &new, &writeoptions)?;
+			.put_cf_opt(&self.cf(), key, new, &writeoptions)?;
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(new)
+		Ok(new.to_vec())
 	}
 
 	fn increment_batch(&self, iter: &mut dyn Iterator<Item = Vec<u8>>) -> Result<()> {
