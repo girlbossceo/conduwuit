@@ -694,6 +694,7 @@ dependencies = [
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
  "tokio",
+ "tokio-metrics",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -4058,6 +4059,7 @@ checksum = "eace09241d62c98b7eeb1107d4c5c64ca3bd7da92e8c218c153ab3a78f9be112"
 dependencies = [
  "futures-util",
  "pin-project-lite",
+ "tokio",
  "tokio-stream",
 ]
 

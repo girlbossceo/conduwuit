@@ -17,11 +17,14 @@ pub(crate) async fn spawn(
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
 
-	let active = server.requests_spawn_active.fetch_add(1, Ordering::Relaxed);
+	let active = server
+		.metrics
+		.requests_spawn_active
+		.fetch_add(1, Ordering::Relaxed);
 	trace!(active, "enter");
 	defer! {{
-		let active = server.requests_spawn_active.fetch_sub(1, Ordering::Relaxed);
-		let finished = server.requests_spawn_finished.fetch_add(1, Ordering::Relaxed);
+		let active = server.metrics.requests_spawn_active.fetch_sub(1, Ordering::Relaxed);
+		let finished = server.metrics.requests_spawn_finished.fetch_add(1, Ordering::Relaxed);
 		trace!(active, finished, "leave");
 	}};
 
@@ -45,12 +48,13 @@ pub(crate) async fn handle(
 	}
 
 	let active = server
+		.metrics
 		.requests_handle_active
 		.fetch_add(1, Ordering::Relaxed);
 	trace!(active, "enter");
 	defer! {{
-		let active = server.requests_handle_active.fetch_sub(1, Ordering::Relaxed);
-		let finished = server.requests_handle_finished.fetch_add(1, Ordering::Relaxed);
+		let active = server.metrics.requests_handle_active.fetch_sub(1, Ordering::Relaxed);
+		let finished = server.metrics.requests_handle_finished.fetch_add(1, Ordering::Relaxed);
 		trace!(active, finished, "leave");
 	}};
 

@@ -153,6 +153,7 @@ fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max
 fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
 	conduit_service::services()
 		.server
+		.metrics
 		.requests_panic
 		.fetch_add(1, std::sync::atomic::Ordering::Release);
 

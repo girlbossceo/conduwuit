@@ -653,3 +653,37 @@ pub(super) fn memory_stats() -> RoomMessageEventContent {
 		html_body.expect("string result"),
 	)
 }
+
+#[cfg(tokio_unstable)]
+pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let out = services().server.metrics.runtime_metrics().map_or_else(
+		|| "Runtime metrics are not available.".to_owned(),
+		|metrics| format!("```rs\n{metrics:#?}\n```"),
+	);
+
+	Ok(RoomMessageEventContent::text_markdown(out))
+}
+
+#[cfg(not(tokio_unstable))]
+pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	Ok(RoomMessageEventContent::text_markdown(
+		"Runtime metrics require building with `tokio_unstable`.",
+	))
+}
+
+#[cfg(tokio_unstable)]
+pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let out = services().server.metrics.runtime_interval().map_or_else(
+		|| "Runtime metrics are not available.".to_owned(),
+		|metrics| format!("```rs\n{metrics:#?}\n```"),
+	);
+
+	Ok(RoomMessageEventContent::text_markdown(out))
+}
+
+#[cfg(not(tokio_unstable))]
+pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	Ok(RoomMessageEventContent::text_markdown(
+		"Runtime metrics require building with `tokio_unstable`.",
+	))
+}

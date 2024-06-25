@@ -200,6 +200,9 @@ features = [
 	"io-util",
 ]
 
+[workspace.dependencies.tokio-metrics]
+version = "0.3.1"
+
 [workspace.dependencies.libloading]
 version = "0.8.3"
 
@@ -381,10 +384,6 @@ features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 version = "0.5.4"
 default-features = false
 features = ["use_std"]
-
-[workspace.dependencies.tokio-metrics]
-version = "0.3.1"
-default-features = false
 
 [workspace.dependencies.console-subscriber]
 version = "0.3"

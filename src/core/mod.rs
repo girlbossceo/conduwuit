@@ -3,6 +3,7 @@ pub mod config;
 pub mod debug;
 pub mod error;
 pub mod log;
+pub mod metrics;
 pub mod mods;
 pub mod pdu;
 pub mod server;

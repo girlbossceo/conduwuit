@@ -20,7 +20,7 @@ use tokio::runtime;
 
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
-const WORKER_KEEPALIVE_MS: u64 = 2500;
+const WORKER_KEEPALIVE: u64 = 36;
 
 fn main() -> Result<(), Error> {
 	let args = clap::parse();
@@ -29,7 +29,7 @@ fn main() -> Result<(), Error> {
 		.enable_time()
 		.thread_name(WORKER_NAME)
 		.worker_threads(cmp::max(WORKER_MIN, available_parallelism()))
-		.thread_keep_alive(Duration::from_millis(WORKER_KEEPALIVE_MS))
+		.thread_keep_alive(Duration::from_secs(WORKER_KEEPALIVE))
 		.build()
 		.expect("built runtime");
 

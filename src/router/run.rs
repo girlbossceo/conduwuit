@@ -108,7 +108,7 @@ async fn handle_shutdown(server: &Arc<Server>, tx: &Sender<()>, handle: &axum_se
 		error!("failed sending shutdown transaction to channel: {e}");
 	}
 
-	let pending = server.requests_spawn_active.load(Ordering::Relaxed);
+	let pending = server.metrics.requests_spawn_active.load(Ordering::Relaxed);
 	if pending > 0 {
 		let timeout = Duration::from_secs(36);
 		trace!(pending, ?timeout, "Notifying for graceful shutdown");
