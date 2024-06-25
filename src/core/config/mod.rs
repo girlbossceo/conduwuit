@@ -518,10 +518,9 @@ impl fmt::Display for Config {
 			("Database path", &self.database_path.to_string_lossy()),
 			(
 				"Database backup path",
-				match &self.database_backup_path {
-					Some(path) => path.to_str().unwrap(),
-					None => "",
-				},
+				self.database_backup_path
+					.as_ref()
+					.map_or("", |path| path.to_str().unwrap_or("")),
 			),
 			("Database backups to keep", &self.database_backups_to_keep.to_string()),
 			("Database cache capacity (MB)", &self.db_cache_capacity_mb.to_string()),
@@ -573,9 +572,10 @@ impl fmt::Display for Config {
 			("Allow registration", &self.allow_registration.to_string()),
 			(
 				"Registration token",
-				match self.registration_token {
-					Some(_) => "set",
-					None => "not set (open registration!)",
+				if self.registration_token.is_some() {
+					"set"
+				} else {
+					"not set (open registration!)"
 				},
 			),
 			(
@@ -656,13 +656,14 @@ impl fmt::Display for Config {
 					None => "not set",
 				},
 			),
-			("Trusted key servers", {
-				let mut lst = vec![];
-				for server in &self.trusted_servers {
-					lst.push(server.host());
-				}
-				&lst.join(", ")
-			}),
+			(
+				"Trusted key servers",
+				&self
+					.trusted_servers
+					.iter()
+					.map(|server| server.host())
+					.join(", "),
+			),
 			(
 				"Query Trusted Key Servers First",
 				&self.query_trusted_key_servers_first.to_string(),
@@ -814,51 +815,45 @@ impl fmt::Display for Config {
 			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
 			(
 				"Well-known server name",
-				&if let Some(server) = &self.well_known.server {
-					server.to_string()
-				} else {
-					String::new()
-				},
+				self.well_known
+					.server
+					.as_ref()
+					.map_or("", |server| server.as_str()),
 			),
 			(
 				"Well-known client URL",
-				&if let Some(server) = &self.well_known.client {
-					server.to_string()
-				} else {
-					String::new()
-				},
+				self.well_known
+					.client
+					.as_ref()
+					.map_or("", |url| url.as_str()),
 			),
 			(
 				"Well-known support email",
-				&if let Some(support_email) = &self.well_known.support_email {
-					support_email.to_string()
-				} else {
-					String::new()
-				},
+				self.well_known
+					.support_email
+					.as_ref()
+					.map_or("", |str| str.as_ref()),
 			),
 			(
 				"Well-known support Matrix ID",
-				&if let Some(support_mxid) = &self.well_known.support_mxid {
-					support_mxid.to_string()
-				} else {
-					String::new()
-				},
+				self.well_known
+					.support_mxid
+					.as_ref()
+					.map_or("", |mxid| mxid.as_str()),
 			),
 			(
 				"Well-known support role",
-				&if let Some(support_role) = &self.well_known.support_role {
-					support_role.to_string()
-				} else {
-					String::new()
-				},
+				self.well_known
+					.support_role
+					.as_ref()
+					.map_or("", |role| role.as_str()),
 			),
 			(
 				"Well-known support page/URL",
-				&if let Some(support_page) = &self.well_known.support_page {
-					support_page.to_string()
-				} else {
-					String::new()
-				},
+				self.well_known
+					.support_page
+					.as_ref()
+					.map_or("", |url| url.as_str()),
 			),
 		];
 
@@ -974,14 +969,13 @@ fn default_tracing_flame_output_path() -> String { "./tracing.folded".to_owned()
 
 fn default_trusted_servers() -> Vec<OwnedServerName> { vec![OwnedServerName::try_from("matrix.org").unwrap()] }
 
+/// do debug logging by default for debug builds
 #[must_use]
 pub fn default_log() -> String {
-	// do debug logging by default for debug builds
-	if cfg!(debug_assertions) {
-		"debug".to_owned()
-	} else {
-		"info".to_owned()
-	}
+	cfg!(debug_assertions)
+		.then_some("debug")
+		.unwrap_or("info")
+		.to_owned()
 }
 
 fn default_notification_push_path() -> String { "/_matrix/push/v1/notify".to_owned() }
@@ -1062,9 +1056,7 @@ fn default_url_preview_max_spider_size() -> usize {
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }
 
 fn default_sentry_endpoint() -> Option<Url> {
-	Url::parse("https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536")
-		.unwrap()
-		.into()
+	Url::parse("https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536").ok()
 }
 
 fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
