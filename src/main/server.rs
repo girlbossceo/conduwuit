@@ -4,7 +4,7 @@ use conduit::{
 	config::Config,
 	info,
 	log::{self},
-	utils::{hash, sys},
+	utils::sys,
 	Error, Result,
 };
 use tokio::runtime;
@@ -39,7 +39,6 @@ impl Server {
 
 		#[cfg(unix)]
 		sys::maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
-		hash::init();
 
 		info!(
 			server_name = %config.server_name,
