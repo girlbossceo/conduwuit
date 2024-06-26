@@ -25,12 +25,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Error)]
 pub enum Error {
-	#[cfg(feature = "sqlite")]
-	#[error("There was a problem with the connection to the sqlite database: {source}")]
-	Sqlite {
-		#[from]
-		source: rusqlite::Error,
-	},
 	#[cfg(feature = "rocksdb")]
 	#[error("There was a problem with the connection to the rocksdb database: {source}")]
 	RocksDb {
@@ -120,10 +114,6 @@ impl Error {
 		let db_error = String::from("Database or I/O error occurred.");
 
 		match self {
-			#[cfg(feature = "sqlite")]
-			Self::Sqlite {
-				..
-			} => db_error,
 			#[cfg(feature = "rocksdb")]
 			Self::RocksDb {
 				..

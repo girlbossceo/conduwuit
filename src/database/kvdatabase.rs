@@ -274,13 +274,6 @@ impl KeyValueDatabase {
 
 fn build(config: &Config) -> Result<Arc<dyn KeyValueDatabaseEngine>> {
 	match &*config.database_backend {
-		"sqlite" => {
-			debug!("Got sqlite database backend");
-			#[cfg(not(feature = "sqlite"))]
-			return Err(Error::bad_config("Database backend not found."));
-			#[cfg(feature = "sqlite")]
-			Ok(Arc::new(Arc::<crate::sqlite::Engine>::open(config)?))
-		},
 		"rocksdb" => {
 			debug!("Got rocksdb database backend");
 			#[cfg(not(feature = "rocksdb"))]
@@ -289,7 +282,7 @@ fn build(config: &Config) -> Result<Arc<dyn KeyValueDatabaseEngine>> {
 			Ok(Arc::new(Arc::<crate::rocksdb::Engine>::open(config)?))
 		},
 		_ => Err(Error::bad_config(
-			"Database backend not found. sqlite (not recommended) and rocksdb are the only supported backends.",
+			"Database backend not found. rocksdb is the only supported backend.",
 		)),
 	}
 }
@@ -297,18 +290,7 @@ fn build(config: &Config) -> Result<Arc<dyn KeyValueDatabaseEngine>> {
 fn check_db_setup(config: &Config) -> Result<()> {
 	let path = Path::new(&config.database_path);
 
-	let sqlite_exists = path.join("conduit.db").exists();
 	let rocksdb_exists = path.join("IDENTITY").exists();
-
-	if sqlite_exists && rocksdb_exists {
-		return Err(Error::bad_config("Multiple databases at database_path detected."));
-	}
-
-	if sqlite_exists && config.database_backend != "sqlite" {
-		return Err(Error::bad_config(
-			"Found sqlite at database_path, but is not specified in config.",
-		));
-	}
 
 	if rocksdb_exists && config.database_backend != "rocksdb" {
 		return Err(Error::bad_config(
