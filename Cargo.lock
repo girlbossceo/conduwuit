@@ -694,7 +694,6 @@ dependencies = [
  "serde_json",
  "serde_regex",
  "thiserror",
- "thread_local",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
@@ -716,7 +715,6 @@ dependencies = [
  "parking_lot",
  "ruma",
  "rust-rocksdb-uwu",
- "thread_local",
  "tokio",
  "tracing",
 ]

@@ -47,8 +47,6 @@ parking_lot.workspace = true
 ruma.workspace = true
 rust-rocksdb.optional = true
 rust-rocksdb.workspace = true
-thread_local.optional = true
-thread_local.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
