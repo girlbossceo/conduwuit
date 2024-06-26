@@ -64,9 +64,7 @@
 # Note: this was previously "/var/lib/matrix-conduit"
 database_path = "/var/lib/conduwuit"
 
-# Database backend: Only rocksdb and sqlite are supported. Please note that sqlite
-# will perform significantly worse than rocksdb as it is not intended to be used the
-# way it is by conduwuit. sqlite only exists for historical reasons.
+# Database backend: Only rocksdb is supported.
 database_backend = "rocksdb"
 
 

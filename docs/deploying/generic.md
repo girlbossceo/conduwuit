@@ -49,7 +49,7 @@ The systemd unit for conduwuit can be found [here](../configuration.md#example-s
 
 Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. The example config can be found at [conduwuit-example.toml](../configuration.md).**Please take a moment to read it. You need to change at least the server name.**
 
-RocksDB is the only supported database backend. SQLite only exists for historical reasons, is not recommended, and will be removed soon (likely in v0.5.0). Any performance issues, storage issues, database issues, etc will not be assisted if using SQLite and you will be asked to migrate to RocksDB first.
+RocksDB is the only supported database backend.
 
 ## Setting the correct file permissions
 
