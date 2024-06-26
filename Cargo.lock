@@ -716,7 +716,6 @@ dependencies = [
  "lru-cache",
  "parking_lot",
  "ruma",
- "rusqlite",
  "rust-rocksdb-uwu",
  "thread_local",
  "tokio",

@@ -24,11 +24,6 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-sqlite = [
-	"dep:rusqlite",
-	"dep:parking_lot",
-	"dep:thread_local",
-]
 rocksdb = [
 	"dep:rust-rocksdb",
 ]
@@ -50,8 +45,6 @@ lru-cache.workspace = true
 parking_lot.optional = true
 parking_lot.workspace = true
 ruma.workspace = true
-rusqlite.optional = true
-rusqlite.workspace = true
 rust-rocksdb.optional = true
 rust-rocksdb.workspace = true
 thread_local.optional = true
