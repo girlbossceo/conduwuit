@@ -688,7 +688,6 @@ dependencies = [
  "reqwest",
  "ring",
  "ruma",
- "rusqlite",
  "rust-rocksdb-uwu",
  "sanitize-filename",
  "serde",

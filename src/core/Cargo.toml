@@ -24,11 +24,6 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-sqlite = [
-	"dep:rusqlite",
-	"dep:parking_lot",
-	"dep:thread_local",
-]
 rocksdb = [
 	"dep:rust-rocksdb",
 ]
@@ -79,8 +74,6 @@ regex.workspace = true
 reqwest.workspace = true
 ring.workspace = true
 ruma.workspace = true
-rusqlite.optional = true
-rusqlite.workspace = true
 rust-rocksdb.optional = true
 rust-rocksdb.workspace = true
 sanitize-filename.workspace = true
