@@ -89,7 +89,7 @@ io_uring = [
 jemalloc = [
 	"conduit-admin/jemalloc",
 	"conduit-core/jemalloc",
-	"conduit-database/jemalloc",	
+	"conduit-database/jemalloc",
 ]
 jemalloc_prof = [
 	"conduit-core/jemalloc_prof",
@@ -131,10 +131,6 @@ sentry_telemetry = [
 ]
 sha256_media = [
 	"conduit-service/sha256_media",
-]
-sqlite = [
-	"conduit-core/sqlite",
-	"conduit-database/sqlite",
 ]
 systemd = [
 	"conduit-router/systemd",
