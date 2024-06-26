@@ -3,9 +3,10 @@ use std::sync::Arc;
 use conduit::{
 	config,
 	config::Config,
+	debug_warn,
 	log::{capture, LogLevelReloadHandles, ReloadHandle},
 };
-use tracing_subscriber::{prelude::*, reload, EnvFilter, Registry};
+use tracing_subscriber::{layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
 
 #[cfg(feature = "perf_measurements")]
 pub(crate) type TracingFlameGuard = Option<tracing_flame::FlushGuard<std::io::BufWriter<std::fs::File>>>;
@@ -14,7 +15,6 @@ pub(crate) type TracingFlameGuard = ();
 
 #[allow(clippy::redundant_clone)]
 pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>) {
-	let registry = Registry::default();
 	let fmt_layer = tracing_subscriber::fmt::Layer::new();
 	let filter_layer = match EnvFilter::try_new(&config.log) {
 		Ok(s) => s,
@@ -25,22 +25,14 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 	};
 
 	let mut reload_handles = Vec::<Box<dyn ReloadHandle<EnvFilter> + Send + Sync>>::new();
-	let subscriber = registry;
-
-	#[cfg(all(feature = "tokio_console", tokio_unstable))]
-	let subscriber = {
-		let console_layer = console_subscriber::spawn();
-		subscriber.with(console_layer)
-	};
-
 	let (fmt_reload_filter, fmt_reload_handle) = reload::Layer::new(filter_layer.clone());
 	reload_handles.push(Box::new(fmt_reload_handle));
 
+	let subscriber = Registry::default().with(fmt_layer.with_filter(fmt_reload_filter));
+
 	let cap_state = Arc::new(capture::State::new());
 	let cap_layer = capture::Layer::new(&cap_state);
-	let subscriber = subscriber
-		.with(fmt_layer.with_filter(fmt_reload_filter))
-		.with(cap_layer);
+	let subscriber = subscriber.with(cap_layer);
 
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
@@ -95,13 +87,53 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 	#[cfg_attr(not(feature = "perf_measurements"), allow(clippy::let_unit_value))]
 	let flame_guard = ();
 
-	tracing::subscriber::set_global_default(subscriber).expect("failed to set global tracing subscriber");
+	let ret = (LogLevelReloadHandles::new(reload_handles), flame_guard, cap_state);
 
-	#[cfg(all(feature = "tokio_console", feature = "release_max_log_level", tokio_unstable))]
-	tracing::error!(
-		"'tokio_console' feature and 'release_max_log_level' feature are incompatible, because console-subscriber \
-		 needs access to trace-level events. 'release_max_log_level' must be disabled to use tokio-console."
-	);
+	// Enable the tokio console. This is slightly kludgy because we're judggling
+	// compile-time and runtime conditions to elide it, each of those changing the
+	// subscriber's type.
+	let (console_enabled, console_disabled_reason) = tokio_console_enabled(config);
+	#[cfg(all(feature = "tokio_console", tokio_unstable))]
+	if console_enabled {
+		let console_layer = console_subscriber::ConsoleLayer::builder()
+			.with_default_env()
+			.spawn();
 
-	(LogLevelReloadHandles::new(reload_handles), flame_guard, cap_state)
+		set_global_default(subscriber.with(console_layer));
+		return ret;
+	}
+
+	set_global_default(subscriber);
+
+	// If there's a reason the tokio console was disabled when it might be desired
+	// we output that here after initializing logging
+	if !console_enabled && !console_disabled_reason.is_empty() {
+		debug_warn!("{console_disabled_reason}");
+	}
+
+	ret
+}
+
+fn tokio_console_enabled(config: &Config) -> (bool, &'static str) {
+	if !cfg!(all(feature = "tokio_console", tokio_unstable)) {
+		return (false, "");
+	}
+
+	if cfg!(feature = "release_max_log_level") && !cfg!(debug_assertions) {
+		return (
+			false,
+			"'tokio_console' feature and 'release_max_log_level' feature are incompatible.",
+		);
+	}
+
+	if !config.tokio_console {
+		return (false, "tokio console is available but disabled by the configuration.");
+	}
+
+	(true, "")
+}
+
+fn set_global_default<S: SubscriberExt + Send + Sync>(subscriber: S) {
+	tracing::subscriber::set_global_default(subscriber)
+		.expect("the global default tracing subscriber failed to be initialized");
 }

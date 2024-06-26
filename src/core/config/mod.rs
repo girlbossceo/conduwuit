@@ -355,6 +355,9 @@ pub struct Config {
 	#[serde(default = "default_sentry_traces_sample_rate")]
 	pub sentry_traces_sample_rate: f32,
 
+	#[serde(default)]
+	pub tokio_console: bool,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
 	catchall: BTreeMap<String, IgnoredAny>,
@@ -855,6 +858,7 @@ impl fmt::Display for Config {
 					.as_ref()
 					.map_or("", |url| url.as_str()),
 			),
+			("Enable the tokio-console", &self.tokio_console.to_string()),
 		];
 
 		let mut msg: String = "Active config values:\n\n".to_owned();

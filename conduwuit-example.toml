@@ -371,6 +371,11 @@ allow_profile_lookup_federation_requests = true
 # If 'tracing_flame' is enabled, set the path to write the generated profile.
 # tracing_flame_output_path = "./tracing.folded"
 
+# Enable the tokio-console. This option is only relevant to developers.
+# See: docs/development.md#debugging-with-tokio-console for more information.
+#tokio_console = false
+
+
 ### Generic database options
 
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
