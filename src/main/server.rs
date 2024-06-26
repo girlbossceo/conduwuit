@@ -1,12 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{
-	config::Config,
-	info,
-	log::{self},
-	utils::sys,
-	Error, Result,
-};
+use conduit::{config::Config, info, log::Log, utils::sys, Error, Result};
 use tokio::runtime;
 
 use crate::{clap::Args, tracing::TracingFlameGuard};
@@ -52,7 +46,7 @@ impl Server {
 			server: Arc::new(conduit::Server::new(
 				config,
 				runtime.cloned(),
-				log::Server {
+				Log {
 					reload: tracing_reload_handle,
 					capture,
 				},

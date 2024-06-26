@@ -33,7 +33,7 @@ pub struct Server {
 	pub signal: broadcast::Sender<&'static str>,
 
 	/// Logging subsystem state
-	pub log: log::Server,
+	pub log: log::Log,
 
 	/// TODO: move stats
 	pub requests_spawn_active: AtomicU32,
@@ -45,7 +45,7 @@ pub struct Server {
 
 impl Server {
 	#[must_use]
-	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: log::Server) -> Self {
+	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: log::Log) -> Self {
 		Self {
 			config,
 			started: SystemTime::now(),
