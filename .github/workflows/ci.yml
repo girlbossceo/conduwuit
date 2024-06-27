@@ -49,6 +49,8 @@ jobs:
         name: Test
         runs-on: ubuntu-latest
         steps:
+            - name: Free Disk Space (Ubuntu)
+              uses: jlumbroso/free-disk-space@main
             - name: Sync repository
               uses: actions/checkout@v4
 
