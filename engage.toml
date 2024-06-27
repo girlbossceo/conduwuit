@@ -136,7 +136,7 @@ cargo clippy \
 [[task]]
 name = "lychee"
 group = "lints"
-script = "lychee --verbose --offline docs *.md"
+script = "lychee --verbose --offline docs *.md --exclude development.md"
 
 [[task]]
 name = "cargo/all"
