@@ -60,14 +60,14 @@ brotli_compression = [
 console = [
 	"conduit-service/console",
 ]
-dev_release_log_level = [
-	"conduit-admin/dev_release_log_level",
-	"conduit-api/dev_release_log_level",
-	"conduit-core/dev_release_log_level",
-	"conduit-database/dev_release_log_level",
-	"conduit-router/dev_release_log_level",
-	"conduit-service/dev_release_log_level",
-]
+#dev_release_log_level = [
+#	"conduit-admin/dev_release_log_level",
+#	"conduit-api/dev_release_log_level",
+#	"conduit-core/dev_release_log_level",
+#	"conduit-database/dev_release_log_level",
+#	"conduit-router/dev_release_log_level",
+#	"conduit-service/dev_release_log_level",
+#]
 element_hacks = [
 	"conduit-api/element_hacks",
 	"conduit-service/element_hacks",
