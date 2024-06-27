@@ -4,7 +4,7 @@
 <summary>Example configuration</summary>
 
 ```toml
-{{#include ../conduwuit-example.toml}}
+{{#include ../../conduwuit-example.toml}}
 ```
 
 </details>
@@ -15,7 +15,7 @@
 <summary>Debian systemd unit file</summary>
 
 ```
-{{#include ../debian/conduwuit.service}}
+{{#include ../../debian/conduwuit.service}}
 ```
 
 </details>
@@ -26,7 +26,7 @@
 <summary>Arch Linux systemd unit file</summary>
 
 ```
-{{#include ../arch/conduwuit.service}}
+{{#include ../../arch/conduwuit.service}}
 ```
 
 </details>

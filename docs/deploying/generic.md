@@ -43,11 +43,11 @@ If conduwuit runs behind a router or in a container and has a different public I
 
 ## Setting up a systemd service
 
-The systemd unit for conduwuit can be found [here](../configuration.md#example-systemd-unit-file). You may need to change the `ExecStart=` path to where you placed the conduwuit binary.
+The systemd unit for conduwuit can be found [here](../configuration/examples.md#example-systemd-unit-file). You may need to change the `ExecStart=` path to where you placed the conduwuit binary.
 
 ## Creating the conduwuit configuration file
 
-Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. The example config can be found at [conduwuit-example.toml](../configuration.md).**Please take a moment to read it. You need to change at least the server name.**
+Now we need to create the conduwuit's config file in `/etc/conduwuit/conduwuit.toml`. The example config can be found at [conduwuit-example.toml](../configuration/examples.md).**Please take a moment to read it. You need to change at least the server name.**
 
 RocksDB is the only supported database backend.
 

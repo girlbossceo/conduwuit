@@ -12,7 +12,7 @@
 
 #### Direct IO
 
-Some filesystems may not like RocksDB using [Direct IO](https://github.com/facebook/rocksdb/wiki/Direct-IO). Direct IO is for non-buffered I/O which improves conduwuit performance, but at least FUSE is a filesystem potentially known to not like this. See the [example config](configuration.md) for disabling it if needed. Issues from Direct IO on unsupported filesystems are usually shown as startup errors.
+Some filesystems may not like RocksDB using [Direct IO](https://github.com/facebook/rocksdb/wiki/Direct-IO). Direct IO is for non-buffered I/O which improves conduwuit performance, but at least FUSE is a filesystem potentially known to not like this. See the [example config](configuration/examples.md) for disabling it if needed. Issues from Direct IO on unsupported filesystems are usually shown as startup errors.
 
 #### Database corruption
 
@@ -32,7 +32,8 @@ By default, conduwuit uses `TolerateCorruptedTailRecords` as generally these may
 `AbsoluteConsistency` will fail to start the database if any sign of corruption is detected. `SkipAnyCorruptedRecord` will skip all forms of corruption unless it forbids the database from opening (e.g. too severe). Usage of `SkipAnyCorruptedRecord` voids any support as this may cause more damage and/or leave your database in a permanently inconsistent state, but it may do something if `PointInTime` does not work as a last ditch effort.
 
 With this in mind:
-- First start conduwuit with the `PointInTime` recovery method. See the [example config](configuration.md) for how to do this using `rocksdb_recovery_mode`
+
+- First start conduwuit with the `PointInTime` recovery method. See the [example config](configuration/examples.md) for how to do this using `rocksdb_recovery_mode`
 - If your database successfully opens, clients are recommended to clear their client cache to account for the rollback
 - Leave your conduwuit running in `PointInTime` for at least 30-60 minutes so as much possible corruption is restored
 - If all goes will, you should be able to restore back to using `TolerateCorruptedTailRecords` and you have successfully recovered your database

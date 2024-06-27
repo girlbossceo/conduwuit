@@ -44,7 +44,7 @@ docker run -d -p 8448:6167 \
 
 or you can use [docker compose](#docker-compose).
 
-The `-d` flag lets the container run in detached mode. You may supply an optional `conduwuit.toml` config file, the example config can be found [here](../configuration.md).
+The `-d` flag lets the container run in detached mode. You may supply an optional `conduwuit.toml` config file, the example config can be found [here](../configuration/examples.md).
 You can pass in different env vars to change config values on the fly. You can even configure conduwuit completely by using env vars. For an overview of possible
 values, please take a look at the [`docker-compose.yml`](docker-compose.yml) file.
 

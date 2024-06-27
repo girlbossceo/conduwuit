@@ -28,7 +28,7 @@ Any commands with `-list` in them will require a codeblock in the message with e
 
 If using RocksDB, there's very little you need to do. Compaction is ran automatically based on various defined thresholds tuned for conduwuit to be high performance with the least I/O amplifcation or overhead. Manually running compaction is not recommended, or compaction via a timer. RocksDB is built with io_uring support via liburing for async read I/O.
 
-Some RocksDB settings can be adjusted such as the compression method chosen. See the RocksDB section in the [example config](configuration.md). btrfs users may benefit from disabling compression on RocksDB if CoW is in use.
+Some RocksDB settings can be adjusted such as the compression method chosen. See the RocksDB section in the [example config](configuration/examples.md). btrfs users may benefit from disabling compression on RocksDB if CoW is in use.
 
 RocksDB troubleshooting can be found [in the RocksDB section of troubleshooting](troubleshooting.md).
 
