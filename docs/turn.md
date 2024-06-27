@@ -13,7 +13,7 @@ realm=<your server domain>
 ```
 A common way to generate a suitable alphanumeric secret key is by using `pwgen -s 64 1`.
 
-These same values need to be set in conduwuit. See the [example config](configuration.md) in the TURN section for configuring these and restart conduwuit after.
+These same values need to be set in conduwuit. See the [example config](configuration/examples.md) in the TURN section for configuring these and restart conduwuit after.
 
 ### Run
 Run the [Coturn](https://hub.docker.com/r/coturn/coturn) image using
