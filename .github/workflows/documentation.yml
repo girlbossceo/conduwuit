@@ -69,7 +69,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@main
         with:
           diagnostic-endpoint: ""
-          upstream-cache: "https://attic.kennel.juneis.dog/conduwuit"
+          upstream-cache: "https://cache.nixos.org"
 
       - name: Apply Nix binary cache configuration
         run: |
