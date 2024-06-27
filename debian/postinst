@@ -6,7 +6,6 @@ set -e
 
 CONDUWUIT_DATABASE_PATH=/var/lib/conduwuit
 CONDUWUIT_CONFIG_PATH=/etc/conduwuit
-CONDUWUIT_CONFIG_FILE="${CONDUWUIT_CONFIG_PATH}/conduwuit.toml"
 
 case "$1" in
   configure)
