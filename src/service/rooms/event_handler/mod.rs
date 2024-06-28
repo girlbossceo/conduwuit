@@ -1,6 +1,3 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod parse_incoming_pdu;
 mod signing_keys;
 
@@ -12,6 +9,8 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use conduit::{debug_error, debug_info, Error, Result, Server};
+use database::Database;
 use futures_util::Future;
 pub use parse_incoming_pdu::parse_incoming_pdu;
 use ruma::{
@@ -32,7 +31,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{debug_error, debug_info, pdu, services, Error, PduEvent, Result};
+use crate::{pdu, services, PduEvent};
 
 pub struct Service;
 
@@ -45,7 +44,7 @@ type AsyncRecursiveCanonicalJsonResult<'a> =
 	AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<KeyValueDatabase>) -> Result<Self> { Ok(Self {}) }
+	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> { Ok(Self {}) }
 
 	/// When receiving an event one needs to:
 	/// 0. Check the server is in the room

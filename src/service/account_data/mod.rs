@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use conduit::{Result, Server};
 use data::Data;
-use database::KeyValueDatabase;
+use database::Database;
 use ruma::{
 	events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
 	serde::Raw,
@@ -16,7 +16,7 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

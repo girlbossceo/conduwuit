@@ -1,14 +1,16 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
+
 use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
 };
 
-use conduit::utils::mutex_map;
+use conduit::{
+	utils::{calculate_hash, mutex_map},
+	warn, Error, Result, Server,
+};
 use data::Data;
+use database::Database;
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{
@@ -19,17 +21,16 @@ use ruma::{
 	state_res::{self, StateMap},
 	EventId, OwnedEventId, RoomId, RoomVersionId, UserId,
 };
-use tracing::warn;
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{services, utils::calculate_hash, Error, PduEvent, Result};
+use crate::{services, PduEvent};
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

@@ -17,15 +17,17 @@ pub mod users;
 
 extern crate conduit_core as conduit;
 extern crate conduit_database as database;
+
 use std::sync::{Arc, RwLock};
 
 pub(crate) use conduit::{config, debug_error, debug_info, debug_warn, utils, Config, Error, PduCount, Result, Server};
-pub(crate) use database::{KeyValueDatabase, KvTree};
-pub use globals::{server_is_ours, user_is_local};
-pub use pdu::PduEvent;
-pub use services::Services;
+use database::Database;
 
-pub(crate) use crate as service;
+pub use crate::{
+	globals::{server_is_ours, user_is_local},
+	pdu::PduEvent,
+	services::Services,
+};
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}
@@ -34,7 +36,7 @@ static SERVICES: RwLock<Option<&Services>> = RwLock::new(None);
 
 #[allow(clippy::let_underscore_must_use)]
 pub async fn init(server: &Arc<Server>) -> Result<()> {
-	let d = Arc::new(KeyValueDatabase::load_or_create(server).await?);
+	let d = Arc::new(Database::open(server).await?);
 	let s = Box::new(Services::build(server.clone(), d.clone()).await?);
 	_ = SERVICES.write().expect("write locked").insert(Box::leak(s));
 

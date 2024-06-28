@@ -1,21 +1,20 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
 
 use std::sync::Arc;
 
+use conduit::{Result, Server};
 use data::Data;
+use database::Database;
 use ruma::{CanonicalJsonObject, EventId};
 
-use crate::{PduEvent, Result};
+use crate::PduEvent;
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

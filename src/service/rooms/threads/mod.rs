@@ -1,11 +1,10 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use conduit::{Error, Result, Server};
 use data::Data;
+use database::Database;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
 	events::relation::BundledThread,
@@ -13,14 +12,14 @@ use ruma::{
 };
 use serde_json::json;
 
-use crate::{services, Error, PduEvent, Result};
+use crate::{services, PduEvent};
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

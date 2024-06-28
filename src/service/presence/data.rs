@@ -1,26 +1,21 @@
 use std::sync::Arc;
 
-use conduit::debug_warn;
-use database::KvTree;
+use conduit::{debug_warn, utils, Error, Result};
+use database::{Database, Map};
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 
-use crate::{
-	presence::Presence,
-	services,
-	utils::{self, user_id_from_bytes},
-	Error, KeyValueDatabase, Result,
-};
+use crate::{presence::Presence, services};
 
 pub struct Data {
-	presenceid_presence: Arc<dyn KvTree>,
-	userid_presenceid: Arc<dyn KvTree>,
+	presenceid_presence: Arc<Map>,
+	userid_presenceid: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			presenceid_presence: db.presenceid_presence.clone(),
-			userid_presenceid: db.userid_presenceid.clone(),
+			presenceid_presence: db["presenceid_presence"].clone(),
+			userid_presenceid: db["userid_presenceid"].clone(),
 		}
 	}
 
@@ -135,7 +130,7 @@ fn presenceid_key(count: u64, user_id: &UserId) -> Vec<u8> {
 #[inline]
 fn presenceid_parse(key: &[u8]) -> Result<(u64, OwnedUserId)> {
 	let (count, user_id) = key.split_at(8);
-	let user_id = user_id_from_bytes(user_id)?;
+	let user_id = utils::user_id_from_bytes(user_id)?;
 	let count = utils::u64_from_bytes(count).unwrap();
 
 	Ok((count, user_id))

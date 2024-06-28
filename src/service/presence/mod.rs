@@ -1,10 +1,10 @@
-use conduit::Server;
-
 mod data;
 
 use std::{sync::Arc, time::Duration};
 
+use conduit::{debug, error, utils, Error, Result, Server};
 use data::Data;
+use database::Database;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
@@ -13,14 +13,8 @@ use ruma::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
-use tracing::{debug, error};
 
-use crate::{
-	database::KeyValueDatabase,
-	services, user_is_local,
-	utils::{self},
-	Error, Result,
-};
+use crate::{services, user_is_local};
 
 /// Represents data required to be kept in order to implement the presence
 /// specification.
@@ -88,7 +82,7 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Arc<Self>> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Arc<Self>> {
 		let config = &server.config;
 		let (timer_sender, timer_receiver) = loole::unbounded();
 		Ok(Arc::new(Self {

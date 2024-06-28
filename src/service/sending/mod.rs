@@ -1,5 +1,3 @@
-use conduit::Server;
-
 mod appservice;
 mod data;
 pub mod resolve;
@@ -8,7 +6,9 @@ mod sender;
 
 use std::{fmt::Debug, sync::Arc};
 
+use conduit::{Error, Result, Server};
 use data::Data;
+use database::Database;
 pub use resolve::FedDest;
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
@@ -17,7 +17,7 @@ use ruma::{
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{error, warn};
 
-use crate::{server_is_ours, services, Error, KeyValueDatabase, Result};
+use crate::{server_is_ours, services};
 
 pub struct Service {
 	pub db: Data,
@@ -53,7 +53,7 @@ pub enum SendingEvent {
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Arc<Self>> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Arc<Self>> {
 		let config = &server.config;
 		let (sender, receiver) = loole::unbounded();
 		Ok(Arc::new(Self {

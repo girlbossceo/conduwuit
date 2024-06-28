@@ -3,7 +3,8 @@ use std::{
 	sync::Arc,
 };
 
-use database::{Cork, KeyValueDatabase, KvTree};
+use conduit::{trace, utils, Error, Result};
+use database::{Cork, Database, Map};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use lru_cache::LruCache;
 use ruma::{
@@ -11,46 +12,45 @@ use ruma::{
 	signatures::Ed25519KeyPair,
 	DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, UserId,
 };
-use tracing::trace;
 
-use crate::{services, utils, Error, Result};
+use crate::services;
 
 const COUNTER: &[u8] = b"c";
 const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
 
 pub struct Data {
-	global: Arc<dyn KvTree>,
-	todeviceid_events: Arc<dyn KvTree>,
-	userroomid_joined: Arc<dyn KvTree>,
-	userroomid_invitestate: Arc<dyn KvTree>,
-	userroomid_leftstate: Arc<dyn KvTree>,
-	userroomid_notificationcount: Arc<dyn KvTree>,
-	userroomid_highlightcount: Arc<dyn KvTree>,
-	pduid_pdu: Arc<dyn KvTree>,
-	keychangeid_userid: Arc<dyn KvTree>,
-	roomusertype_roomuserdataid: Arc<dyn KvTree>,
-	server_signingkeys: Arc<dyn KvTree>,
-	readreceiptid_readreceipt: Arc<dyn KvTree>,
-	userid_lastonetimekeyupdate: Arc<dyn KvTree>,
-	pub(super) db: Arc<KeyValueDatabase>,
+	global: Arc<Map>,
+	todeviceid_events: Arc<Map>,
+	userroomid_joined: Arc<Map>,
+	userroomid_invitestate: Arc<Map>,
+	userroomid_leftstate: Arc<Map>,
+	userroomid_notificationcount: Arc<Map>,
+	userroomid_highlightcount: Arc<Map>,
+	pduid_pdu: Arc<Map>,
+	keychangeid_userid: Arc<Map>,
+	roomusertype_roomuserdataid: Arc<Map>,
+	server_signingkeys: Arc<Map>,
+	readreceiptid_readreceipt: Arc<Map>,
+	userid_lastonetimekeyupdate: Arc<Map>,
+	pub(super) db: Arc<Database>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			global: db.global.clone(),
-			todeviceid_events: db.todeviceid_events.clone(),
-			userroomid_joined: db.userroomid_joined.clone(),
-			userroomid_invitestate: db.userroomid_invitestate.clone(),
-			userroomid_leftstate: db.userroomid_leftstate.clone(),
-			userroomid_notificationcount: db.userroomid_notificationcount.clone(),
-			userroomid_highlightcount: db.userroomid_highlightcount.clone(),
-			pduid_pdu: db.pduid_pdu.clone(),
-			keychangeid_userid: db.keychangeid_userid.clone(),
-			roomusertype_roomuserdataid: db.roomusertype_roomuserdataid.clone(),
-			server_signingkeys: db.server_signingkeys.clone(),
-			readreceiptid_readreceipt: db.readreceiptid_readreceipt.clone(),
-			userid_lastonetimekeyupdate: db.userid_lastonetimekeyupdate.clone(),
+			global: db["global"].clone(),
+			todeviceid_events: db["todeviceid_events"].clone(),
+			userroomid_joined: db["userroomid_joined"].clone(),
+			userroomid_invitestate: db["userroomid_invitestate"].clone(),
+			userroomid_leftstate: db["userroomid_leftstate"].clone(),
+			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
+			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
+			pduid_pdu: db["pduid_pdu"].clone(),
+			keychangeid_userid: db["keychangeid_userid"].clone(),
+			roomusertype_roomuserdataid: db["roomusertype_roomuserdataid"].clone(),
+			server_signingkeys: db["server_signingkeys"].clone(),
+			readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
+			userid_lastonetimekeyupdate: db["userid_lastonetimekeyupdate"].clone(),
 			db: db.clone(),
 		}
 	}
@@ -298,7 +298,6 @@ lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cach
 	/// for the server.
 	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
 		let signingkeys = self
-			.db
 			.server_signingkeys
 			.get(origin.as_bytes())?
 			.and_then(|bytes| serde_json::from_slice(&bytes).ok())

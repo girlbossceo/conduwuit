@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use conduit::{debug_info, Result, Server};
-use database::KeyValueDatabase;
+use database::Database;
 use tracing::{debug, info, trace};
 
 use crate::{
@@ -24,11 +24,11 @@ pub struct Services {
 	pub media: media::Service,
 	pub sending: Arc<sending::Service>,
 	pub server: Arc<Server>,
-	pub db: Arc<KeyValueDatabase>,
+	pub db: Arc<Database>,
 }
 
 impl Services {
-	pub async fn build(server: Arc<Server>, db: Arc<KeyValueDatabase>) -> Result<Self> {
+	pub async fn build(server: Arc<Server>, db: Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			rooms: rooms::Service {
 				alias: rooms::alias::Service::build(&server, &db)?,

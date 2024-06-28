@@ -1,13 +1,14 @@
-use conduit::Server;
-
 mod data;
+
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	mem,
 	sync::{Arc, Mutex, Mutex as StdMutex},
 };
 
+use conduit::{Error, Result, Server};
 use data::Data;
+use database::Database;
 use ruma::{
 	api::client::{
 		device::Device,
@@ -24,7 +25,7 @@ use ruma::{
 	UInt, UserId,
 };
 
-use crate::{database::KeyValueDatabase, service, services, Error, Result};
+use crate::services;
 
 pub struct SlidingSyncCache {
 	lists: BTreeMap<String, SyncRequestList>,
@@ -41,7 +42,7 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db.clone()),
 			connections: StdMutex::new(BTreeMap::new()),
@@ -242,7 +243,7 @@ impl Service {
 
 	/// Check if a user is an admin
 	pub fn is_admin(&self, user_id: &UserId) -> Result<bool> {
-		if let Some(admin_room_id) = service::admin::Service::get_admin_room()? {
+		if let Some(admin_room_id) = crate::admin::Service::get_admin_room()? {
 			services()
 				.rooms
 				.state_cache

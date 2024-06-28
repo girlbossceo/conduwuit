@@ -1,20 +1,21 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{utils, Result};
+use database::{Database, Map};
 use ruma::RoomId;
 
-use crate::{services, utils, KeyValueDatabase, Result};
+use crate::services;
 
 type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>>;
 
-pub struct Data {
-	tokenids: Arc<dyn KvTree>,
+pub(super) struct Data {
+	tokenids: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			tokenids: db.tokenids.clone(),
+			tokenids: db["tokenids"].clone(),
 		}
 	}
 

@@ -1,11 +1,11 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
+
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
+use conduit::{debug_info, info, trace, warn, Error, Result, Server};
 use data::Data;
+use database::Database;
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -23,16 +23,15 @@ use ruma::{
 	serde::Raw,
 	uint, RoomId, UInt, UserId,
 };
-use tracing::{info, trace, warn};
 
-use crate::{debug_info, services, Error, PduEvent, Result};
+use crate::{services, PduEvent};
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

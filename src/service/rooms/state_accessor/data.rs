@@ -1,20 +1,21 @@
 use std::{collections::HashMap, sync::Arc};
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{events::StateEventType, EventId, RoomId};
 
-use crate::{services, utils, Error, KeyValueDatabase, PduEvent, Result};
+use crate::{services, PduEvent};
 
-pub struct Data {
-	eventid_shorteventid: Arc<dyn KvTree>,
-	shorteventid_shortstatehash: Arc<dyn KvTree>,
+pub(super) struct Data {
+	eventid_shorteventid: Arc<Map>,
+	shorteventid_shortstatehash: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			eventid_shorteventid: db.eventid_shorteventid.clone(),
-			shorteventid_shortstatehash: db.shorteventid_shortstatehash.clone(),
+			eventid_shorteventid: db["eventid_shorteventid"].clone(),
+			shorteventid_shortstatehash: db["shorteventid_shortstatehash"].clone(),
 		}
 	}
 

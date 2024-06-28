@@ -1,8 +1,10 @@
+mod data;
+
 use std::sync::Arc;
 
-use conduit::Server;
+use conduit::{error, warn, Error, Result, Server};
 use data::Data;
-use database::KeyValueDatabase;
+use database::Database;
 use itertools::Itertools;
 use ruma::{
 	events::{
@@ -19,18 +21,15 @@ use ruma::{
 	serde::Raw,
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
-use tracing::{error, warn};
 
-use crate::{service::appservice::RegistrationInfo, services, user_is_local, Error, Result};
-
-mod data;
+use crate::{appservice::RegistrationInfo, services, user_is_local};
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::Result;
+use database::{Database, Map};
 use ruma::{DeviceId, RoomId, UserId};
 
-use crate::{KeyValueDatabase, Result};
-
-pub struct Data {
-	lazyloadedids: Arc<dyn KvTree>,
+pub(super) struct Data {
+	lazyloadedids: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			lazyloadedids: db.lazyloadedids.clone(),
+			lazyloadedids: db["lazyloadedids"].clone(),
 		}
 	}
 

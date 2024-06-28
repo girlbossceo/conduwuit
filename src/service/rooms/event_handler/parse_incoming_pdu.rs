@@ -1,8 +1,9 @@
+use conduit::{Error, Result};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, OwnedEventId, OwnedRoomId, RoomId};
 use serde_json::value::RawValue as RawJsonValue;
 use tracing::warn;
 
-use crate::{service::pdu::gen_event_id_canonical_json, services, Error, Result};
+use crate::{pdu::gen_event_id_canonical_json, services};
 
 pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
 	let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {

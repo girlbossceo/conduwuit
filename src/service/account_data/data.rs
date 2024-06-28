@@ -1,25 +1,26 @@
 use std::{collections::HashMap, sync::Arc};
 
+use conduit::{utils, warn, Error, Result};
+use database::{Database, Map};
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
 	serde::Raw,
 	RoomId, UserId,
 };
-use tracing::warn;
 
-use crate::{services, utils, Error, KeyValueDatabase, KvTree, Result};
+use crate::services;
 
 pub(super) struct Data {
-	roomuserdataid_accountdata: Arc<dyn KvTree>,
-	roomusertype_roomuserdataid: Arc<dyn KvTree>,
+	roomuserdataid_accountdata: Arc<Map>,
+	roomusertype_roomuserdataid: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			roomuserdataid_accountdata: db.roomuserdataid_accountdata.clone(),
-			roomusertype_roomuserdataid: db.roomusertype_roomuserdataid.clone(),
+			roomuserdataid_accountdata: db["roomuserdataid_accountdata"].clone(),
+			roomusertype_roomuserdataid: db["roomusertype_roomuserdataid"].clone(),
 		}
 	}
 

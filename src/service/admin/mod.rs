@@ -1,14 +1,12 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 pub mod console;
 mod create;
 mod grant;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use conduit::{utils::mutex_map, Error, Result};
+use conduit::{error, utils::mutex_map, Error, Result, Server};
 pub use create::create_admin_room;
+use database::Database;
 pub use grant::make_user_admin;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -20,7 +18,6 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::error;
 
 use crate::{pdu::PduBuilder, services, user_is_local, PduEvent};
 
@@ -47,7 +44,7 @@ pub struct Command {
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<KeyValueDatabase>) -> Result<Arc<Self>> {
+	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Arc<Self>> {
 		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
 		Ok(Arc::new(Self {
 			sender,

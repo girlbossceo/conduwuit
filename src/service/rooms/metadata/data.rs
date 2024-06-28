@@ -1,25 +1,25 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{error, utils, Error, Result};
+use database::{Database, Map};
 use ruma::{OwnedRoomId, RoomId};
-use tracing::error;
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::services;
 
-pub struct Data {
-	disabledroomids: Arc<dyn KvTree>,
-	bannedroomids: Arc<dyn KvTree>,
-	roomid_shortroomid: Arc<dyn KvTree>,
-	pduid_pdu: Arc<dyn KvTree>,
+pub(super) struct Data {
+	disabledroomids: Arc<Map>,
+	bannedroomids: Arc<Map>,
+	roomid_shortroomid: Arc<Map>,
+	pduid_pdu: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			disabledroomids: db.disabledroomids.clone(),
-			bannedroomids: db.bannedroomids.clone(),
-			roomid_shortroomid: db.roomid_shortroomid.clone(),
-			pduid_pdu: db.pduid_pdu.clone(),
+			disabledroomids: db["disabledroomids"].clone(),
+			bannedroomids: db["bannedroomids"].clone(),
+			roomid_shortroomid: db["roomid_shortroomid"].clone(),
+			pduid_pdu: db["pduid_pdu"].clone(),
 		}
 	}
 

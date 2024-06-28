@@ -1,32 +1,31 @@
 use std::{collections::hash_map, mem::size_of, sync::Arc};
 
-use database::KvTree;
+use conduit::{error, utils, Error, Result};
+use database::{Database, Map};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
-use tracing::error;
 
-use super::PduCount;
-use crate::{services, utils, Error, KeyValueDatabase, PduEvent, Result};
+use crate::{services, PduCount, PduEvent};
 
-pub struct Data {
-	eventid_pduid: Arc<dyn KvTree>,
-	pduid_pdu: Arc<dyn KvTree>,
-	eventid_outlierpdu: Arc<dyn KvTree>,
-	userroomid_notificationcount: Arc<dyn KvTree>,
-	userroomid_highlightcount: Arc<dyn KvTree>,
-	db: Arc<KeyValueDatabase>,
+pub(super) struct Data {
+	eventid_pduid: Arc<Map>,
+	pduid_pdu: Arc<Map>,
+	eventid_outlierpdu: Arc<Map>,
+	userroomid_notificationcount: Arc<Map>,
+	userroomid_highlightcount: Arc<Map>,
+	db: Arc<Database>,
 }
 
 type PdusIterItem = Result<(PduCount, PduEvent)>;
 type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			eventid_pduid: db.eventid_pduid.clone(),
-			pduid_pdu: db.pduid_pdu.clone(),
-			eventid_outlierpdu: db.eventid_outlierpdu.clone(),
-			userroomid_notificationcount: db.userroomid_notificationcount.clone(),
-			userroomid_highlightcount: db.userroomid_highlightcount.clone(),
+			eventid_pduid: db["eventid_pduid"].clone(),
+			pduid_pdu: db["pduid_pdu"].clone(),
+			eventid_outlierpdu: db["eventid_outlierpdu"].clone(),
+			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
+			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
 			db: db.clone(),
 		}
 	}

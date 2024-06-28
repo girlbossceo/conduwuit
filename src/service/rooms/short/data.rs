@@ -1,29 +1,29 @@
 use std::sync::Arc;
 
-use conduit::warn;
-use database::{KeyValueDatabase, KvTree};
+use conduit::{utils, warn, Error, Result};
+use database::{Database, Map};
 use ruma::{events::StateEventType, EventId, RoomId};
 
-use crate::{services, utils, Error, Result};
+use crate::services;
 
 pub(super) struct Data {
-	eventid_shorteventid: Arc<dyn KvTree>,
-	shorteventid_eventid: Arc<dyn KvTree>,
-	statekey_shortstatekey: Arc<dyn KvTree>,
-	shortstatekey_statekey: Arc<dyn KvTree>,
-	roomid_shortroomid: Arc<dyn KvTree>,
-	statehash_shortstatehash: Arc<dyn KvTree>,
+	eventid_shorteventid: Arc<Map>,
+	shorteventid_eventid: Arc<Map>,
+	statekey_shortstatekey: Arc<Map>,
+	shortstatekey_statekey: Arc<Map>,
+	roomid_shortroomid: Arc<Map>,
+	statehash_shortstatehash: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			eventid_shorteventid: db.eventid_shorteventid.clone(),
-			shorteventid_eventid: db.shorteventid_eventid.clone(),
-			statekey_shortstatekey: db.statekey_shortstatekey.clone(),
-			shortstatekey_statekey: db.shortstatekey_statekey.clone(),
-			roomid_shortroomid: db.roomid_shortroomid.clone(),
-			statehash_shortstatehash: db.statehash_shortstatehash.clone(),
+			eventid_shorteventid: db["eventid_shorteventid"].clone(),
+			shorteventid_eventid: db["shorteventid_eventid"].clone(),
+			statekey_shortstatekey: db["statekey_shortstatekey"].clone(),
+			shortstatekey_statekey: db["shortstatekey_statekey"].clone(),
+			roomid_shortroomid: db["roomid_shortroomid"].clone(),
+			statehash_shortstatehash: db["statehash_shortstatehash"].clone(),
 		}
 	}
 

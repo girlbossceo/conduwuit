@@ -1,26 +1,28 @@
 use std::sync::Arc;
 
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{ServerName, UserId};
 
 use super::{Destination, SendingEvent};
-use crate::{services, utils, Error, KeyValueDatabase, KvTree, Result};
+use crate::services;
 
 type OutgoingSendingIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, Destination, SendingEvent)>> + 'a>;
 type SendingEventIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEvent)>> + 'a>;
 
 pub struct Data {
-	servercurrentevent_data: Arc<dyn KvTree>,
-	servernameevent_data: Arc<dyn KvTree>,
-	servername_educount: Arc<dyn KvTree>,
-	_db: Arc<KeyValueDatabase>,
+	servercurrentevent_data: Arc<Map>,
+	servernameevent_data: Arc<Map>,
+	servername_educount: Arc<Map>,
+	_db: Arc<Database>,
 }
 
 impl Data {
-	pub(super) fn new(db: Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: Arc<Database>) -> Self {
 		Self {
-			servercurrentevent_data: db.servercurrentevent_data.clone(),
-			servernameevent_data: db.servernameevent_data.clone(),
-			servername_educount: db.servername_educount.clone(),
+			servercurrentevent_data: db["servercurrentevent_data"].clone(),
+			servernameevent_data: db["servernameevent_data"].clone(),
+			servername_educount: db["servername_educount"].clone(),
 			_db: db,
 		}
 	}

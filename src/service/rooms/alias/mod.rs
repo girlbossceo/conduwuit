@@ -1,11 +1,10 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
 
 use std::sync::Arc;
 
+use conduit::{Error, Result, Server};
 use data::Data;
+use database::Database;
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{
@@ -15,14 +14,14 @@ use ruma::{
 	OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId, UserId,
 };
 
-use crate::{services, Error, Result};
+use crate::services;
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

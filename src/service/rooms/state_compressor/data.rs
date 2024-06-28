@@ -1,9 +1,9 @@
 use std::{collections::HashSet, mem::size_of, sync::Arc};
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 
 use super::CompressedStateEvent;
-use crate::{utils, Error, KeyValueDatabase, Result};
 
 pub(super) struct StateDiff {
 	pub(super) parent: Option<u64>,
@@ -11,14 +11,14 @@ pub(super) struct StateDiff {
 	pub(super) removed: Arc<HashSet<CompressedStateEvent>>,
 }
 
-pub struct Data {
-	shortstatehash_statediff: Arc<dyn KvTree>,
+pub(super) struct Data {
+	shortstatehash_statediff: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			shortstatehash_statediff: db.shortstatehash_statediff.clone(),
+			shortstatehash_statediff: db["shortstatehash_statediff"].clone(),
 		}
 	}
 

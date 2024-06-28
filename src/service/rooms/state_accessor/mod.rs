@@ -1,16 +1,13 @@
-use std::sync::Mutex as StdMutex;
-
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
+
 use std::{
 	collections::HashMap,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::utils::mutex_map;
+use conduit::{error, utils::mutex_map, warn, Error, Result, Server};
 use data::Data;
+use database::Database;
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -29,18 +26,17 @@ use ruma::{
 	EventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
-use tracing::{error, warn};
 
-use crate::{service::pdu::PduBuilder, services, Error, PduEvent, Result};
+use crate::{pdu::PduBuilder, services, PduEvent};
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
 	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		let config = &server.config;
 		Ok(Self {
 			db: Data::new(db),

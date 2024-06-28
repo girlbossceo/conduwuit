@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::api::appservice::Registration;
 
-use crate::{utils, Error, KeyValueDatabase, Result};
-
 pub struct Data {
-	id_appserviceregistrations: Arc<dyn KvTree>,
+	id_appserviceregistrations: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			id_appserviceregistrations: db.id_appserviceregistrations.clone(),
+			id_appserviceregistrations: db["id_appserviceregistrations"].clone(),
 		}
 	}
 

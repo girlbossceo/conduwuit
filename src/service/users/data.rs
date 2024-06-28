@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, mem::size_of, sync::Arc};
 
+use conduit::{utils, warn, Error, Result};
+use database::{Database, Map};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
@@ -8,51 +10,50 @@ use ruma::{
 	uint, DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedDeviceKeyId,
 	OwnedMxcUri, OwnedUserId, UInt, UserId,
 };
-use tracing::warn;
 
-use crate::{services, users::clean_signatures, utils, Error, KeyValueDatabase, KvTree, Result};
+use crate::{services, users::clean_signatures};
 
 pub struct Data {
-	userid_password: Arc<dyn KvTree>,
-	token_userdeviceid: Arc<dyn KvTree>,
-	userid_displayname: Arc<dyn KvTree>,
-	userid_avatarurl: Arc<dyn KvTree>,
-	userid_blurhash: Arc<dyn KvTree>,
-	userid_devicelistversion: Arc<dyn KvTree>,
-	userdeviceid_token: Arc<dyn KvTree>,
-	userdeviceid_metadata: Arc<dyn KvTree>,
-	onetimekeyid_onetimekeys: Arc<dyn KvTree>,
-	userid_lastonetimekeyupdate: Arc<dyn KvTree>,
-	keyid_key: Arc<dyn KvTree>,
-	userid_masterkeyid: Arc<dyn KvTree>,
-	userid_selfsigningkeyid: Arc<dyn KvTree>,
-	userid_usersigningkeyid: Arc<dyn KvTree>,
-	keychangeid_userid: Arc<dyn KvTree>,
-	todeviceid_events: Arc<dyn KvTree>,
-	userfilterid_filter: Arc<dyn KvTree>,
-	_db: Arc<KeyValueDatabase>,
+	userid_password: Arc<Map>,
+	token_userdeviceid: Arc<Map>,
+	userid_displayname: Arc<Map>,
+	userid_avatarurl: Arc<Map>,
+	userid_blurhash: Arc<Map>,
+	userid_devicelistversion: Arc<Map>,
+	userdeviceid_token: Arc<Map>,
+	userdeviceid_metadata: Arc<Map>,
+	onetimekeyid_onetimekeys: Arc<Map>,
+	userid_lastonetimekeyupdate: Arc<Map>,
+	keyid_key: Arc<Map>,
+	userid_masterkeyid: Arc<Map>,
+	userid_selfsigningkeyid: Arc<Map>,
+	userid_usersigningkeyid: Arc<Map>,
+	keychangeid_userid: Arc<Map>,
+	todeviceid_events: Arc<Map>,
+	userfilterid_filter: Arc<Map>,
+	_db: Arc<Database>,
 }
 
 impl Data {
-	pub(super) fn new(db: Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: Arc<Database>) -> Self {
 		Self {
-			userid_password: db.userid_password.clone(),
-			token_userdeviceid: db.token_userdeviceid.clone(),
-			userid_displayname: db.userid_displayname.clone(),
-			userid_avatarurl: db.userid_avatarurl.clone(),
-			userid_blurhash: db.userid_blurhash.clone(),
-			userid_devicelistversion: db.userid_devicelistversion.clone(),
-			userdeviceid_token: db.userdeviceid_token.clone(),
-			userdeviceid_metadata: db.userdeviceid_metadata.clone(),
-			onetimekeyid_onetimekeys: db.onetimekeyid_onetimekeys.clone(),
-			userid_lastonetimekeyupdate: db.userid_lastonetimekeyupdate.clone(),
-			keyid_key: db.keyid_key.clone(),
-			userid_masterkeyid: db.userid_masterkeyid.clone(),
-			userid_selfsigningkeyid: db.userid_selfsigningkeyid.clone(),
-			userid_usersigningkeyid: db.userid_usersigningkeyid.clone(),
-			keychangeid_userid: db.keychangeid_userid.clone(),
-			todeviceid_events: db.todeviceid_events.clone(),
-			userfilterid_filter: db.userfilterid_filter.clone(),
+			userid_password: db["userid_password"].clone(),
+			token_userdeviceid: db["token_userdeviceid"].clone(),
+			userid_displayname: db["userid_displayname"].clone(),
+			userid_avatarurl: db["userid_avatarurl"].clone(),
+			userid_blurhash: db["userid_blurhash"].clone(),
+			userid_devicelistversion: db["userid_devicelistversion"].clone(),
+			userdeviceid_token: db["userdeviceid_token"].clone(),
+			userdeviceid_metadata: db["userdeviceid_metadata"].clone(),
+			onetimekeyid_onetimekeys: db["onetimekeyid_onetimekeys"].clone(),
+			userid_lastonetimekeyupdate: db["userid_lastonetimekeyupdate"].clone(),
+			keyid_key: db["keyid_key"].clone(),
+			userid_masterkeyid: db["userid_masterkeyid"].clone(),
+			userid_selfsigningkeyid: db["userid_selfsigningkeyid"].clone(),
+			userid_usersigningkeyid: db["userid_usersigningkeyid"].clone(),
+			keychangeid_userid: db["keychangeid_userid"].clone(),
+			todeviceid_events: db["todeviceid_events"].clone(),
+			userfilterid_filter: db["userfilterid_filter"].clone(),
 			_db: db,
 		}
 	}

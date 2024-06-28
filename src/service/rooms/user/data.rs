@@ -1,26 +1,27 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::services;
 
-pub struct Data {
-	userroomid_notificationcount: Arc<dyn KvTree>,
-	userroomid_highlightcount: Arc<dyn KvTree>,
-	roomuserid_lastnotificationread: Arc<dyn KvTree>,
-	roomsynctoken_shortstatehash: Arc<dyn KvTree>,
-	userroomid_joined: Arc<dyn KvTree>,
+pub(super) struct Data {
+	userroomid_notificationcount: Arc<Map>,
+	userroomid_highlightcount: Arc<Map>,
+	roomuserid_lastnotificationread: Arc<Map>,
+	roomsynctoken_shortstatehash: Arc<Map>,
+	userroomid_joined: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			userroomid_notificationcount: db.userroomid_notificationcount.clone(),
-			userroomid_highlightcount: db.userroomid_highlightcount.clone(),
-			roomuserid_lastnotificationread: db.roomuserid_lastnotificationread.clone(),
-			roomsynctoken_shortstatehash: db.roomsynctoken_shortstatehash.clone(),
-			userroomid_joined: db.userroomid_joined.clone(),
+			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
+			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
+			roomuserid_lastnotificationread: db["userroomid_highlightcount"].clone(), //< NOTE: known bug from conduit
+			roomsynctoken_shortstatehash: db["roomsynctoken_shortstatehash"].clone(),
+			userroomid_joined: db["userroomid_joined"].clone(),
 		}
 	}
 

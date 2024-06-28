@@ -1,21 +1,21 @@
 use std::sync::Arc;
 
 use conduit::{Error, Result};
-use database::{KeyValueDatabase, KvTree};
+use database::{Database, Map};
 use ruma::{
 	api::client::{error::ErrorKind, uiaa::UiaaInfo},
 	CanonicalJsonValue, DeviceId, UserId,
 };
 
 pub struct Data {
-	userdevicesessionid_uiaainfo: Arc<dyn KvTree>,
-	db: Arc<KeyValueDatabase>,
+	userdevicesessionid_uiaainfo: Arc<Map>,
+	db: Arc<Database>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			userdevicesessionid_uiaainfo: db.userdevicesessionid_uiaainfo.clone(),
+			userdevicesessionid_uiaainfo: db["userdevicesessionid_uiaainfo"].clone(),
 			db: db.clone(),
 		}
 	}

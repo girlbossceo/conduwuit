@@ -1,18 +1,19 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{Error, Result};
+use database::{Database, Map};
 use ruma::{CanonicalJsonObject, EventId};
 
-use crate::{Error, KeyValueDatabase, PduEvent, Result};
+use crate::PduEvent;
 
-pub struct Data {
-	eventid_outlierpdu: Arc<dyn KvTree>,
+pub(super) struct Data {
+	eventid_outlierpdu: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			eventid_outlierpdu: db.eventid_outlierpdu.clone(),
+			eventid_outlierpdu: db["eventid_outlierpdu"].clone(),
 		}
 	}
 

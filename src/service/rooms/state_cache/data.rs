@@ -1,5 +1,7 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use itertools::Itertools;
 use ruma::{
 	events::{AnyStrippedStateEvent, AnySyncStateEvent},
@@ -7,51 +9,42 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
-use crate::{
-	appservice::RegistrationInfo,
-	services, user_is_local,
-	utils::{self},
-	Error, KeyValueDatabase, Result,
-};
+use crate::{appservice::RegistrationInfo, services, user_is_local};
 
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 type AnySyncStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
 
-use std::sync::Arc;
-
-use database::KvTree;
-
-pub struct Data {
-	userroomid_joined: Arc<dyn KvTree>,
-	roomuserid_joined: Arc<dyn KvTree>,
-	userroomid_invitestate: Arc<dyn KvTree>,
-	roomuserid_invitecount: Arc<dyn KvTree>,
-	userroomid_leftstate: Arc<dyn KvTree>,
-	roomuserid_leftcount: Arc<dyn KvTree>,
-	roomid_inviteviaservers: Arc<dyn KvTree>,
-	roomuseroncejoinedids: Arc<dyn KvTree>,
-	roomid_joinedcount: Arc<dyn KvTree>,
-	roomid_invitedcount: Arc<dyn KvTree>,
-	roomserverids: Arc<dyn KvTree>,
-	serverroomids: Arc<dyn KvTree>,
-	db: Arc<KeyValueDatabase>,
+pub(super) struct Data {
+	userroomid_joined: Arc<Map>,
+	roomuserid_joined: Arc<Map>,
+	userroomid_invitestate: Arc<Map>,
+	roomuserid_invitecount: Arc<Map>,
+	userroomid_leftstate: Arc<Map>,
+	roomuserid_leftcount: Arc<Map>,
+	roomid_inviteviaservers: Arc<Map>,
+	roomuseroncejoinedids: Arc<Map>,
+	roomid_joinedcount: Arc<Map>,
+	roomid_invitedcount: Arc<Map>,
+	roomserverids: Arc<Map>,
+	serverroomids: Arc<Map>,
+	db: Arc<Database>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			userroomid_joined: db.userroomid_joined.clone(),
-			roomuserid_joined: db.roomuserid_joined.clone(),
-			userroomid_invitestate: db.userroomid_invitestate.clone(),
-			roomuserid_invitecount: db.roomuserid_invitecount.clone(),
-			userroomid_leftstate: db.userroomid_leftstate.clone(),
-			roomuserid_leftcount: db.roomuserid_leftcount.clone(),
-			roomid_inviteviaservers: db.roomid_inviteviaservers.clone(),
-			roomuseroncejoinedids: db.roomuseroncejoinedids.clone(),
-			roomid_joinedcount: db.roomid_joinedcount.clone(),
-			roomid_invitedcount: db.roomid_invitedcount.clone(),
-			roomserverids: db.roomserverids.clone(),
-			serverroomids: db.serverroomids.clone(),
+			userroomid_joined: db["userroomid_joined"].clone(),
+			roomuserid_joined: db["roomuserid_joined"].clone(),
+			userroomid_invitestate: db["userroomid_invitestate"].clone(),
+			roomuserid_invitecount: db["roomuserid_invitecount"].clone(),
+			userroomid_leftstate: db["userroomid_leftstate"].clone(),
+			roomuserid_leftcount: db["roomuserid_leftcount"].clone(),
+			roomid_inviteviaservers: db["roomid_inviteviaservers"].clone(),
+			roomuseroncejoinedids: db["roomuseroncejoinedids"].clone(),
+			roomid_joinedcount: db["roomid_joinedcount"].clone(),
+			roomid_invitedcount: db["roomid_invitedcount"].clone(),
+			roomserverids: db["roomserverids"].clone(),
+			serverroomids: db["serverroomids"].clone(),
 			db: db.clone(),
 		}
 	}

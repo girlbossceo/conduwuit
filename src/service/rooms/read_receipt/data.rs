@@ -1,29 +1,30 @@
 use std::{mem::size_of, sync::Arc};
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{
 	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
 	serde::Raw,
 	CanonicalJsonObject, OwnedUserId, RoomId, UserId,
 };
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::services;
 
 type AnySyncEphemeralRoomEventIter<'a> =
 	Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
 
 pub(super) struct Data {
-	roomuserid_privateread: Arc<dyn KvTree>,
-	roomuserid_lastprivatereadupdate: Arc<dyn KvTree>,
-	readreceiptid_readreceipt: Arc<dyn KvTree>,
+	roomuserid_privateread: Arc<Map>,
+	roomuserid_lastprivatereadupdate: Arc<Map>,
+	readreceiptid_readreceipt: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			roomuserid_privateread: db.roomuserid_privateread.clone(),
-			roomuserid_lastprivatereadupdate: db.roomuserid_lastprivatereadupdate.clone(),
-			readreceiptid_readreceipt: db.readreceiptid_readreceipt.clone(),
+			roomuserid_privateread: db["roomuserid_privateread"].clone(),
+			roomuserid_lastprivatereadupdate: db["roomuserid_lastprivatereadupdate"].clone(),
+			readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
 		}
 	}
 

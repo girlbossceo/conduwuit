@@ -1,23 +1,22 @@
 use std::{collections::HashSet, sync::Arc};
 
-use conduit::utils::mutex_map;
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{EventId, OwnedEventId, RoomId};
+use utils::mutex_map;
 
-use crate::{utils, Error, KeyValueDatabase, Result};
-
-pub struct Data {
-	shorteventid_shortstatehash: Arc<dyn KvTree>,
-	roomid_pduleaves: Arc<dyn KvTree>,
-	roomid_shortstatehash: Arc<dyn KvTree>,
+pub(super) struct Data {
+	shorteventid_shortstatehash: Arc<Map>,
+	roomid_pduleaves: Arc<Map>,
+	roomid_shortstatehash: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			shorteventid_shortstatehash: db.shorteventid_shortstatehash.clone(),
-			roomid_pduleaves: db.roomid_pduleaves.clone(),
-			roomid_shortstatehash: db.roomid_shortstatehash.clone(),
+			shorteventid_shortstatehash: db["shorteventid_shortstatehash"].clone(),
+			roomid_pduleaves: db["roomid_pduleaves"].clone(),
+			roomid_shortstatehash: db["roomid_shortstatehash"].clone(),
 		}
 	}
 

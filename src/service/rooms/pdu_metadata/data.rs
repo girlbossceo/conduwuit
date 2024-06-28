@@ -1,25 +1,26 @@
 use std::{mem::size_of, sync::Arc};
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{EventId, RoomId, UserId};
 
-use crate::{services, utils, Error, KeyValueDatabase, PduCount, PduEvent, Result};
+use crate::{services, PduCount, PduEvent};
 
 pub(super) struct Data {
-	tofrom_relation: Arc<dyn KvTree>,
-	referencedevents: Arc<dyn KvTree>,
-	softfailedeventids: Arc<dyn KvTree>,
+	tofrom_relation: Arc<Map>,
+	referencedevents: Arc<Map>,
+	softfailedeventids: Arc<Map>,
 }
 
 type PdusIterItem = Result<(PduCount, PduEvent)>;
 type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			tofrom_relation: db.tofrom_relation.clone(),
-			referencedevents: db.referencedevents.clone(),
-			softfailedeventids: db.softfailedeventids.clone(),
+			tofrom_relation: db["tofrom_relation"].clone(),
+			referencedevents: db["referencedevents"].clone(),
+			softfailedeventids: db["softfailedeventids"].clone(),
 		}
 	}
 

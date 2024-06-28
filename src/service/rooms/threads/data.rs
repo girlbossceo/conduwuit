@@ -1,20 +1,21 @@
 use std::{mem::size_of, sync::Arc};
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, RoomId, UserId};
 
-use crate::{services, utils, Error, KeyValueDatabase, PduEvent, Result};
+use crate::{services, PduEvent};
 
 type PduEventIterResult<'a> = Result<Box<dyn Iterator<Item = Result<(u64, PduEvent)>> + 'a>>;
 
-pub struct Data {
-	threadid_userids: Arc<dyn KvTree>,
+pub(super) struct Data {
+	threadid_userids: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			threadid_userids: db.threadid_userids.clone(),
+			threadid_userids: db["threadid_userids"].clone(),
 		}
 	}
 

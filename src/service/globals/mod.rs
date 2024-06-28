@@ -1,5 +1,3 @@
-use conduit::Server;
-
 mod client;
 mod data;
 pub(super) mod emerg_access;
@@ -13,8 +11,9 @@ use std::{
 	time::Instant,
 };
 
-use conduit::utils;
+use conduit::{error, trace, utils::MutexMap, Config, Result, Server};
 use data::Data;
+use database::Database;
 use hickory_resolver::TokioAsyncResolver;
 use ipaddress::IPAddress;
 use regex::RegexSet;
@@ -31,11 +30,9 @@ use tokio::{
 	sync::{Mutex, RwLock},
 	task::JoinHandle,
 };
-use tracing::{error, trace};
 use url::Url;
-use utils::MutexMap;
 
-use crate::{services, Config, KeyValueDatabase, Result};
+use crate::services;
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
@@ -64,7 +61,7 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		let config = &server.config;
 		let db = Data::new(db);
 		let keypair = db.load_keypair();

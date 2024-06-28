@@ -1,5 +1,6 @@
 use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
+use conduit::{warn, Error};
 use ruma::{
 	canonical_json::redact_content_in_place,
 	events::{
@@ -17,9 +18,8 @@ use serde_json::{
 	json,
 	value::{to_raw_value, RawValue as RawJsonValue},
 };
-use tracing::warn;
 
-use crate::{services, Error};
+use crate::services;
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {

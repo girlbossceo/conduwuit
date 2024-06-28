@@ -6,7 +6,7 @@ use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::Syst
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, debug_error, error, utils, Error, Result, Server};
 use data::Data;
-use database::KeyValueDatabase;
+use database::Database;
 use image::imageops::FilterType;
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
@@ -44,12 +44,12 @@ pub struct UrlPreviewData {
 
 pub struct Service {
 	server: Arc<Server>,
-	pub db: Data,
+	pub(crate) db: Data,
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			server: server.clone(),
 			db: Data::new(db),

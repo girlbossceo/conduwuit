@@ -1,6 +1,3 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
 
 use std::{
@@ -8,7 +5,9 @@ use std::{
 	sync::Arc,
 };
 
+use conduit::{debug, error, info, utils, utils::mutex_map, warn, Error, Result, Server};
 use data::Data;
+use database::Database;
 use itertools::Itertools;
 use rand::prelude::SliceRandom;
 use ruma::{
@@ -34,24 +33,13 @@ use ruma::{
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, error, info, warn};
 
-use super::state_compressor::CompressedStateEvent;
 use crate::{
 	admin,
-	server_is_ours,
-	//api::server_server,
-	service::{
-		appservice::NamespaceRegex,
-		pdu::{EventHash, PduBuilder},
-		rooms::event_handler::parse_incoming_pdu,
-	},
-	services,
-	utils::{self, mutex_map},
-	Error,
-	PduCount,
-	PduEvent,
-	Result,
+	appservice::NamespaceRegex,
+	pdu::{EventHash, PduBuilder},
+	rooms::{event_handler::parse_incoming_pdu, state_compressor::CompressedStateEvent},
+	server_is_ours, services, PduCount, PduEvent,
 };
 
 // Update Relationships
@@ -77,13 +65,13 @@ struct ExtractBody {
 }
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 
 	pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 			lasttimelinecount_cache: Mutex::new(HashMap::new()),

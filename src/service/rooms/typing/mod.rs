@@ -1,20 +1,15 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::Server;
-use database::KeyValueDatabase;
+use conduit::{debug_info, trace, utils, Result, Server};
+use database::Database;
 use ruma::{
 	api::federation::transactions::edu::{Edu, TypingContent},
 	events::SyncEphemeralRoomEvent,
 	OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use tokio::sync::{broadcast, RwLock};
-use tracing::trace;
 
-use crate::{
-	debug_info, services, user_is_local,
-	utils::{self},
-	Result,
-};
+use crate::{services, user_is_local};
 
 pub struct Service {
 	pub typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>, // u64 is unix timestamp of timeout
@@ -25,7 +20,7 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			typing: RwLock::new(BTreeMap::new()),
 			last_typing_update: RwLock::new(BTreeMap::new()),

@@ -10,7 +10,7 @@ use std::{
 };
 
 use conduit::{debug, debug_info, debug_warn, error, info, utils, warn, Config, Error, Result};
-use database::KeyValueDatabase;
+use database::Database;
 use itertools::Itertools;
 use ruma::{
 	events::{push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType},
@@ -28,7 +28,7 @@ use crate::services;
 ///   equal or lesser version. These are expected to be backward-compatible.
 const DATABASE_VERSION: u64 = 13;
 
-pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+pub(crate) async fn migrations(db: &Arc<Database>, config: &Config) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
 	// requires recreating the database from scratch.
 	if services().users.count()? > 0 {
@@ -49,13 +49,11 @@ pub(crate) async fn migrations(db: &KeyValueDatabase, config: &Config) -> Result
 	}
 }
 
-async fn fresh(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+async fn fresh(db: &Arc<Database>, config: &Config) -> Result<()> {
 	services().globals.bump_database_version(DATABASE_VERSION)?;
 
-	db.global
-		.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
-	db.global
-		.insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
+	db["global"].insert(b"fix_bad_double_separator_in_state_cache", &[])?;
+	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
 
 	// Create the admin room and server user on first run
 	crate::admin::create_admin_room().await?;
@@ -69,7 +67,7 @@ async fn fresh(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 }
 
 /// Apply any migrations
-async fn migrate(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+async fn migrate(db: &Arc<Database>, config: &Config) -> Result<()> {
 	if services().globals.database_version()? < 1 {
 		db_lt_1(db, config).await?;
 	}
@@ -124,22 +122,20 @@ async fn migrate(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 		db_lt_13(db, config).await?;
 	}
 
-	if db.global.get(b"feat_sha256_media")?.is_none() {
+	if db["global"].get(b"feat_sha256_media")?.is_none() {
 		migrate_sha256_media(db, config).await?;
 	} else if config.media_startup_check {
 		checkup_sha256_media(db, config).await?;
 	}
 
-	if db
-		.global
+	if db["global"]
 		.get(b"fix_bad_double_separator_in_state_cache")?
 		.is_none()
 	{
 		fix_bad_double_separator_in_state_cache(db, config).await?;
 	}
 
-	if db
-		.global
+	if db["global"]
 		.get(b"retroactively_fix_bad_data_from_roomuserid_joined")?
 		.is_none()
 	{
@@ -212,8 +208,10 @@ async fn migrate(db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_1(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
-	for (roomserverid, _) in db.roomserverids.iter() {
+async fn db_lt_1(db: &Arc<Database>, _config: &Config) -> Result<()> {
+	let roomserverids = &db["roomserverids"];
+	let serverroomids = &db["serverroomids"];
+	for (roomserverid, _) in roomserverids.iter() {
 		let mut parts = roomserverid.split(|&b| b == 0xFF);
 		let room_id = parts.next().expect("split always returns one element");
 		let Some(servername) = parts.next() else {
@@ -224,7 +222,7 @@ async fn db_lt_1(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		serverroomid.push(0xFF);
 		serverroomid.extend_from_slice(room_id);
 
-		db.serverroomids.insert(&serverroomid, &[])?;
+		serverroomids.insert(&serverroomid, &[])?;
 	}
 
 	services().globals.bump_database_version(1)?;
@@ -232,14 +230,15 @@ async fn db_lt_1(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_2(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_2(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	// We accidentally inserted hashed versions of "" into the db instead of just ""
-	for (userid, password) in db.userid_password.iter() {
+	let userid_password = &db["roomserverids"];
+	for (userid, password) in userid_password.iter() {
 		let empty_pass = utils::hash::password("").expect("our own password to be properly hashed");
 		let password = std::str::from_utf8(&password).expect("password is valid utf-8");
 		let empty_hashed_password = utils::hash::verify_password(password, &empty_pass).is_ok();
 		if empty_hashed_password {
-			db.userid_password.insert(&userid, b"")?;
+			userid_password.insert(&userid, b"")?;
 		}
 	}
 
@@ -248,9 +247,10 @@ async fn db_lt_2(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_3(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_3(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	// Move media to filesystem
-	for (key, content) in db.mediaid_file.iter() {
+	let mediaid_file = &db["mediaid_file"];
+	for (key, content) in mediaid_file.iter() {
 		if content.is_empty() {
 			continue;
 		}
@@ -259,7 +259,7 @@ async fn db_lt_3(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		let path = services().media.get_media_file(&key);
 		let mut file = fs::File::create(path)?;
 		file.write_all(&content)?;
-		db.mediaid_file.insert(&key, &[])?;
+		mediaid_file.insert(&key, &[])?;
 	}
 
 	services().globals.bump_database_version(3)?;
@@ -267,7 +267,7 @@ async fn db_lt_3(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_4(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
+async fn db_lt_4(_db: &Arc<Database>, config: &Config) -> Result<()> {
 	// Add federated users to services() as deactivated
 	for our_user in services().users.iter() {
 		let our_user = our_user?;
@@ -290,9 +290,11 @@ async fn db_lt_4(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_5(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_5(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	// Upgrade user data store
-	for (roomuserdataid, _) in db.roomuserdataid_accountdata.iter() {
+	let roomuserdataid_accountdata = &db["roomuserdataid_accountdata"];
+	let roomusertype_roomuserdataid = &db["roomusertype_roomuserdataid"];
+	for (roomuserdataid, _) in roomuserdataid_accountdata.iter() {
 		let mut parts = roomuserdataid.split(|&b| b == 0xFF);
 		let room_id = parts.next().unwrap();
 		let user_id = parts.next().unwrap();
@@ -304,8 +306,7 @@ async fn db_lt_5(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		key.push(0xFF);
 		key.extend_from_slice(event_type);
 
-		db.roomusertype_roomuserdataid
-			.insert(&key, &roomuserdataid)?;
+		roomusertype_roomuserdataid.insert(&key, &roomuserdataid)?;
 	}
 
 	services().globals.bump_database_version(5)?;
@@ -313,9 +314,10 @@ async fn db_lt_5(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_6(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_6(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	// Set room member count
-	for (roomid, _) in db.roomid_shortstatehash.iter() {
+	let roomid_shortstatehash = &db["roomid_shortstatehash"];
+	for (roomid, _) in roomid_shortstatehash.iter() {
 		let string = utils::string_from_bytes(&roomid).unwrap();
 		let room_id = <&RoomId>::try_from(string.as_str()).unwrap();
 		services().rooms.state_cache.update_joined_count(room_id)?;
@@ -326,7 +328,7 @@ async fn db_lt_6(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_7(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	// Upgrade state store
 	let mut last_roomstates: HashMap<OwnedRoomId, u64> = HashMap::new();
 	let mut current_sstatehash: Option<u64> = None;
@@ -399,7 +401,9 @@ async fn db_lt_7(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		Ok::<_, Error>(())
 	};
 
-	for (k, seventid) in db.db.open_tree("stateid_shorteventid")?.iter() {
+	let stateid_shorteventid = &db["stateid_shorteventid"];
+	let shorteventid_eventid = &db["shorteventid_eventid"];
+	for (k, seventid) in stateid_shorteventid.iter() {
 		let sstatehash = utils::u64_from_bytes(&k[0..size_of::<u64>()]).expect("number of bytes is correct");
 		let sstatekey = k[size_of::<u64>()..].to_vec();
 		if Some(sstatehash) != current_sstatehash {
@@ -415,7 +419,7 @@ async fn db_lt_7(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 			current_state = HashSet::new();
 			current_sstatehash = Some(sstatehash);
 
-			let event_id = db.shorteventid_eventid.get(&seventid).unwrap().unwrap();
+			let event_id = shorteventid_eventid.get(&seventid).unwrap().unwrap();
 			let string = utils::string_from_bytes(&event_id).unwrap();
 			let event_id = <&EventId>::try_from(string.as_str()).unwrap();
 			let pdu = services()
@@ -449,15 +453,20 @@ async fn db_lt_7(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_8(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
+	let roomid_shortstatehash = &db["roomid_shortstatehash"];
+	let roomid_shortroomid = &db["roomid_shortroomid"];
+	let pduid_pdu = &db["pduid_pdu"];
+	let eventid_pduid = &db["eventid_pduid"];
+
 	// Generate short room ids for all rooms
-	for (room_id, _) in db.roomid_shortstatehash.iter() {
+	for (room_id, _) in roomid_shortstatehash.iter() {
 		let shortroomid = services().globals.next_count()?.to_be_bytes();
-		db.roomid_shortroomid.insert(&room_id, &shortroomid)?;
+		roomid_shortroomid.insert(&room_id, &shortroomid)?;
 		info!("Migration: 8");
 	}
 	// Update pduids db layout
-	let mut batch = db.pduid_pdu.iter().filter_map(|(key, v)| {
+	let mut batch = pduid_pdu.iter().filter_map(|(key, v)| {
 		if !key.starts_with(b"!") {
 			return None;
 		}
@@ -465,8 +474,7 @@ async fn db_lt_8(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		let room_id = parts.next().unwrap();
 		let count = parts.next().unwrap();
 
-		let short_room_id = db
-			.roomid_shortroomid
+		let short_room_id = roomid_shortroomid
 			.get(room_id)
 			.unwrap()
 			.expect("shortroomid should exist");
@@ -477,9 +485,9 @@ async fn db_lt_8(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		Some((new_key, v))
 	});
 
-	db.pduid_pdu.insert_batch(&mut batch)?;
+	pduid_pdu.insert_batch(&mut batch)?;
 
-	let mut batch2 = db.eventid_pduid.iter().filter_map(|(k, value)| {
+	let mut batch2 = eventid_pduid.iter().filter_map(|(k, value)| {
 		if !value.starts_with(b"!") {
 			return None;
 		}
@@ -487,8 +495,7 @@ async fn db_lt_8(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		let room_id = parts.next().unwrap();
 		let count = parts.next().unwrap();
 
-		let short_room_id = db
-			.roomid_shortroomid
+		let short_room_id = roomid_shortroomid
 			.get(room_id)
 			.unwrap()
 			.expect("shortroomid should exist");
@@ -499,17 +506,19 @@ async fn db_lt_8(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		Some((k, new_value))
 	});
 
-	db.eventid_pduid.insert_batch(&mut batch2)?;
+	eventid_pduid.insert_batch(&mut batch2)?;
 
 	services().globals.bump_database_version(8)?;
 	info!("Migration: 7 -> 8 finished");
 	Ok(())
 }
 
-async fn db_lt_9(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
+	let tokenids = &db["tokenids"];
+	let roomid_shortroomid = &db["roomid_shortroomid"];
+
 	// Update tokenids db layout
-	let mut iter = db
-		.tokenids
+	let mut iter = tokenids
 		.iter()
 		.filter_map(|(key, _)| {
 			if !key.starts_with(b"!") {
@@ -521,8 +530,7 @@ async fn db_lt_9(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 			let _pdu_id_room = parts.next().unwrap();
 			let pdu_id_count = parts.next().unwrap();
 
-			let short_room_id = db
-				.roomid_shortroomid
+			let short_room_id = roomid_shortroomid
 				.get(room_id)
 				.unwrap()
 				.expect("shortroomid should exist");
@@ -535,14 +543,13 @@ async fn db_lt_9(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		.peekable();
 
 	while iter.peek().is_some() {
-		db.tokenids.insert_batch(&mut iter.by_ref().take(1000))?;
+		tokenids.insert_batch(&mut iter.by_ref().take(1000))?;
 		debug!("Inserted smaller batch");
 	}
 
 	info!("Deleting starts");
 
-	let batch2: Vec<_> = db
-		.tokenids
+	let batch2: Vec<_> = tokenids
 		.iter()
 		.filter_map(|(key, _)| {
 			if key.starts_with(b"!") {
@@ -554,7 +561,7 @@ async fn db_lt_9(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 		.collect();
 
 	for key in batch2 {
-		db.tokenids.remove(&key)?;
+		tokenids.remove(&key)?;
 	}
 
 	services().globals.bump_database_version(9)?;
@@ -562,11 +569,13 @@ async fn db_lt_9(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_10(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn db_lt_10(db: &Arc<Database>, _config: &Config) -> Result<()> {
+	let statekey_shortstatekey = &db["statekey_shortstatekey"];
+	let shortstatekey_statekey = &db["shortstatekey_statekey"];
+
 	// Add other direction for shortstatekeys
-	for (statekey, shortstatekey) in db.statekey_shortstatekey.iter() {
-		db.shortstatekey_statekey
-			.insert(&shortstatekey, &statekey)?;
+	for (statekey, shortstatekey) in statekey_shortstatekey.iter() {
+		shortstatekey_statekey.insert(&shortstatekey, &statekey)?;
 	}
 
 	// Force E2EE device list updates so we can send them over federation
@@ -579,17 +588,16 @@ async fn db_lt_10(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_11(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
-	db.db
-		.open_tree("userdevicesessionid_uiaarequest")?
-		.clear()?;
+async fn db_lt_11(db: &Arc<Database>, _config: &Config) -> Result<()> {
+	let _userdevicesessionid_uiaarequest = &db["userdevicesessionid_uiaarequest"];
+	//userdevicesessionid_uiaarequest.clear()?;
 
 	services().globals.bump_database_version(11)?;
 	info!("Migration: 10 -> 11 finished");
 	Ok(())
 }
 
-async fn db_lt_12(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
+async fn db_lt_12(_db: &Arc<Database>, config: &Config) -> Result<()> {
 	for username in services().users.list_local_users()? {
 		let user = match UserId::parse_with_server_name(username.clone(), &config.server_name) {
 			Ok(u) => u,
@@ -657,7 +665,7 @@ async fn db_lt_12(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_13(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
+async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
 	for username in services().users.list_local_users()? {
 		let user = match UserId::parse_with_server_name(username.clone(), &config.server_name) {
 			Ok(u) => u,
@@ -697,12 +705,13 @@ async fn db_lt_13(_db: &KeyValueDatabase, config: &Config) -> Result<()> {
 /// Migrates a media directory from legacy base64 file names to sha2 file names.
 /// All errors are fatal. Upon success the database is keyed to not perform this
 /// again.
-async fn migrate_sha256_media(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn migrate_sha256_media(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Migrating legacy base64 file names to sha256 file names");
+	let mediaid_file = &db["mediaid_file"];
 
 	// Move old media files to new names
 	let mut changes = Vec::<(PathBuf, PathBuf)>::new();
-	for (key, _) in db.mediaid_file.iter() {
+	for (key, _) in mediaid_file.iter() {
 		let old = services().media.get_media_file_b64(&key);
 		let new = services().media.get_media_file_sha256(&key);
 		debug!(?key, ?old, ?new, num = changes.len(), "change");
@@ -722,7 +731,7 @@ async fn migrate_sha256_media(db: &KeyValueDatabase, _config: &Config) -> Result
 		services().globals.bump_database_version(13)?;
 	}
 
-	db.global.insert(b"feat_sha256_media", &[])?;
+	db["global"].insert(b"feat_sha256_media", &[])?;
 	info!("Finished applying sha256_media");
 	Ok(())
 }
@@ -731,10 +740,13 @@ async fn migrate_sha256_media(db: &KeyValueDatabase, _config: &Config) -> Result
 /// - Going back and forth to non-sha256 legacy binaries (e.g. upstream).
 /// - Deletion of artifacts in the media directory which will then fall out of
 ///   sync with the database.
-async fn checkup_sha256_media(db: &KeyValueDatabase, config: &Config) -> Result<()> {
+async fn checkup_sha256_media(db: &Arc<Database>, config: &Config) -> Result<()> {
 	use crate::media::encode_key;
 
 	debug!("Checking integrity of media directory");
+	let mediaid_file = &db["mediaid_file"];
+	let mediaid_user = &db["mediaid_user"];
+	let dbs = (mediaid_file, mediaid_user);
 	let media = &services().media;
 	let timer = Instant::now();
 
@@ -746,7 +758,7 @@ async fn checkup_sha256_media(db: &KeyValueDatabase, config: &Config) -> Result<
 	for key in media.db.get_all_media_keys() {
 		let new_path = media.get_media_file_sha256(&key).into_os_string();
 		let old_path = media.get_media_file_b64(&key).into_os_string();
-		if let Err(e) = handle_media_check(db, config, &files, &key, &new_path, &old_path).await {
+		if let Err(e) = handle_media_check(&dbs, config, &files, &key, &new_path, &old_path).await {
 			error!(
 				media_id = ?encode_key(&key), ?new_path, ?old_path,
 				"Failed to resolve media check failure: {e}"
@@ -763,9 +775,11 @@ async fn checkup_sha256_media(db: &KeyValueDatabase, config: &Config) -> Result<
 }
 
 async fn handle_media_check(
-	db: &KeyValueDatabase, config: &Config, files: &HashSet<OsString>, key: &[u8], new_path: &OsStr, old_path: &OsStr,
+	dbs: &(&Arc<database::Map>, &Arc<database::Map>), config: &Config, files: &HashSet<OsString>, key: &[u8],
+	new_path: &OsStr, old_path: &OsStr,
 ) -> Result<()> {
 	use crate::media::encode_key;
+	let (mediaid_file, mediaid_user) = dbs;
 
 	let old_exists = files.contains(old_path);
 	let new_exists = files.contains(new_path);
@@ -775,8 +789,8 @@ async fn handle_media_check(
 			"Media is missing at all paths. Removing from database..."
 		);
 
-		db.mediaid_file.remove(key)?;
-		db.mediaid_user.remove(key)?;
+		mediaid_file.remove(key)?;
+		mediaid_user.remove(key)?;
 	}
 
 	if config.media_compat_file_link && !old_exists && new_exists {
@@ -801,13 +815,13 @@ async fn handle_media_check(
 	Ok(())
 }
 
-async fn fix_bad_double_separator_in_state_cache(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Fixing bad double separator in state_cache roomuserid_joined");
+	let roomuserid_joined = &db["roomuserid_joined"];
+	let _cork = database::Cork::new(&db.db, true, true);
+
 	let mut iter_count: usize = 0;
-
-	let _cork = db.db.cork();
-
-	for (mut key, value) in db.roomuserid_joined.iter() {
+	for (mut key, value) in roomuserid_joined.iter() {
 		iter_count = iter_count.saturating_add(1);
 		debug_info!(%iter_count);
 		let first_sep_index = key.iter().position(|&i| i == 0xFF).unwrap();
@@ -820,24 +834,24 @@ async fn fix_bad_double_separator_in_state_cache(db: &KeyValueDatabase, _config:
 			== vec![0xFF, 0xFF]
 		{
 			debug_warn!("Found bad key: {key:?}");
-			db.roomuserid_joined.remove(&key)?;
+			roomuserid_joined.remove(&key)?;
 
 			key.remove(first_sep_index);
 			debug_warn!("Fixed key: {key:?}");
-			db.roomuserid_joined.insert(&key, &value)?;
+			roomuserid_joined.insert(&key, &value)?;
 		}
 	}
 
 	db.db.cleanup()?;
-	db.global
-		.insert(b"fix_bad_double_separator_in_state_cache", &[])?;
+	db["global"].insert(b"fix_bad_double_separator_in_state_cache", &[])?;
 
 	info!("Finished fixing");
 	Ok(())
 }
 
-async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &KeyValueDatabase, _config: &Config) -> Result<()> {
+async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Retroactively fixing bad data from broken roomuserid_joined");
+	let _cork = database::Cork::new(&db.db, true, true);
 
 	let room_ids = services()
 		.rooms
@@ -845,8 +859,6 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &KeyValueDatabase
 		.iter_ids()
 		.filter_map(Result::ok)
 		.collect_vec();
-
-	let _cork = db.db.cork();
 
 	for room_id in room_ids.clone() {
 		debug_info!("Fixing room {room_id}");
@@ -910,8 +922,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &KeyValueDatabase
 	}
 
 	db.db.cleanup()?;
-	db.global
-		.insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
+	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
 
 	info!("Finished fixing");
 	Ok(())

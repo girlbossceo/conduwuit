@@ -23,7 +23,7 @@ use ruma::{
 use tracing::{debug, error, warn};
 
 use super::{appservice, send, Destination, Msg, SendingEvent, Service};
-use crate::{service::presence::Presence, services, user_is_local, utils::calculate_hash, Error, PduEvent, Result};
+use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, PduEvent, Result};
 
 #[derive(Debug)]
 enum TransactionStatus {

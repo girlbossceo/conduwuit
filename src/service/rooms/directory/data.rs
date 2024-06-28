@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{OwnedRoomId, RoomId};
 
-use crate::{utils, Error, KeyValueDatabase, Result};
-
 pub(super) struct Data {
-	publicroomids: Arc<dyn KvTree>,
+	publicroomids: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			publicroomids: db.publicroomids.clone(),
+			publicroomids: db["publicroomids"].clone(),
 		}
 	}
 

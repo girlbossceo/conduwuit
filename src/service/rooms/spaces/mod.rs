@@ -4,8 +4,8 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::Server;
-use database::KeyValueDatabase;
+use conduit::{debug_info, Error, Result, Server};
+use database::Database;
 use lru_cache::LruCache;
 use ruma::{
 	api::{
@@ -31,7 +31,7 @@ use ruma::{
 use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
 
-use crate::{debug_info, server_is_ours, services, Error, Result};
+use crate::{server_is_ours, services};
 
 pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -333,7 +333,7 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, _db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> {
 		let config = &server.config;
 		Ok(Self {
 			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(

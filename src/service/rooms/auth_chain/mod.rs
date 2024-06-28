@@ -1,24 +1,23 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
+
 use std::{
 	collections::{BTreeSet, HashSet},
 	sync::Arc,
 };
 
+use conduit::{debug, error, trace, warn, Error, Result, Server};
 use data::Data;
+use database::Database;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
-use tracing::{debug, error, trace, warn};
 
-use crate::{services, Error, Result};
+use crate::services;
 
 pub struct Service {
 	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

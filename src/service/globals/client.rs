@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use reqwest::redirect;
 
-use crate::{service::globals::resolver, Config, Result};
+use crate::{globals::resolver, Config, Result};
 
 pub struct Client {
 	pub default: reqwest::Client,

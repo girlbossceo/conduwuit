@@ -6,13 +6,13 @@ use std::{
 	time::Duration,
 };
 
+use conduit::{error, Config, Error};
 use hickory_resolver::TokioAsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use ruma::OwnedServerName;
 use tokio::sync::RwLock;
-use tracing::error;
 
-use crate::{service::sending::FedDest, Config, Error};
+use crate::sending::FedDest;
 
 pub(crate) type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;

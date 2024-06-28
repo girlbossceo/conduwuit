@@ -1,27 +1,27 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
+
 use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
 };
 
+use conduit::Server;
 use data::Data;
+use database::Database;
 use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use tokio::sync::Mutex;
 
 use crate::{PduCount, Result};
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 
 	#[allow(clippy::type_complexity)]
 	pub lazy_load_waiting: Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 			lazy_load_waiting: Mutex::new(HashMap::new()),

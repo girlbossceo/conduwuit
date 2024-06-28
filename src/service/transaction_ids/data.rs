@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use conduit::Result;
-use database::{KeyValueDatabase, KvTree};
+use database::{Database, Map};
 use ruma::{DeviceId, TransactionId, UserId};
 
 pub struct Data {
-	userdevicetxnid_response: Arc<dyn KvTree>,
+	userdevicetxnid_response: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			userdevicetxnid_response: db.userdevicetxnid_response.clone(),
+			userdevicetxnid_response: db["userdevicetxnid_response"].clone(),
 		}
 	}
 

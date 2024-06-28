@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{
 	api::client::{
 		backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
@@ -9,20 +11,20 @@ use ruma::{
 	OwnedRoomId, RoomId, UserId,
 };
 
-use crate::{services, utils, Error, KeyValueDatabase, KvTree, Result};
+use crate::services;
 
-pub(crate) struct Data {
-	backupid_algorithm: Arc<dyn KvTree>,
-	backupid_etag: Arc<dyn KvTree>,
-	backupkeyid_backup: Arc<dyn KvTree>,
+pub(super) struct Data {
+	backupid_algorithm: Arc<Map>,
+	backupid_etag: Arc<Map>,
+	backupkeyid_backup: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			backupid_algorithm: db.backupid_algorithm.clone(),
-			backupid_etag: db.backupid_etag.clone(),
-			backupkeyid_backup: db.backupkeyid_backup.clone(),
+			backupid_algorithm: db["backupid_algorithm"].clone(),
+			backupid_etag: db["backupid_etag"].clone(),
+			backupkeyid_backup: db["backupkeyid_backup"].clone(),
 		}
 	}
 

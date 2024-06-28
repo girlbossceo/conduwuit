@@ -1,18 +1,17 @@
 use std::{mem::size_of, sync::Arc};
 
-use database::KvTree;
-
-use crate::{utils, KeyValueDatabase, Result};
+use conduit::{utils, Result};
+use database::{Database, Map};
 
 pub(super) struct Data {
-	shorteventid_authchain: Arc<dyn KvTree>,
-	db: Arc<KeyValueDatabase>,
+	shorteventid_authchain: Arc<Map>,
+	db: Arc<Database>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			shorteventid_authchain: db.shorteventid_authchain.clone(),
+			shorteventid_authchain: db["shorteventid_authchain"].clone(),
 			db: db.clone(),
 		}
 	}

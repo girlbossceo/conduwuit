@@ -1,12 +1,10 @@
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
 
 use std::sync::Arc;
 
-use conduit::{utils, utils::hash, Error, Result};
+use conduit::{utils, utils::hash, Error, Result, Server};
 use data::Data;
+use database::Database;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -25,7 +23,7 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

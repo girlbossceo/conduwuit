@@ -2,7 +2,9 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-pub use data::Data;
+use conduit::{Result, Server};
+use data::Data;
+use database::Database;
 use futures_util::Future;
 use regex::RegexSet;
 use ruma::{
@@ -11,7 +13,7 @@ use ruma::{
 };
 use tokio::sync::RwLock;
 
-use crate::{services, Result};
+use crate::services;
 
 /// Compiled regular expressions for a namespace
 #[derive(Clone, Debug)]
@@ -117,11 +119,8 @@ pub struct Service {
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
 }
 
-use conduit::Server;
-use database::KeyValueDatabase;
-
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		let mut registration_info = BTreeMap::new();
 		let db = Data::new(db);
 		// Inserting registrations into cache

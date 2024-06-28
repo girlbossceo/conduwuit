@@ -1,21 +1,19 @@
-use std::sync::Mutex as StdMutex;
-
-use conduit::Server;
-use database::KeyValueDatabase;
-
 mod data;
+
 use std::{
 	collections::HashSet,
 	mem::size_of,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
+use conduit::{utils, Result, Server};
 use data::Data;
+use database::Database;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
 use self::data::StateDiff;
-use crate::{services, utils, Result};
+use crate::services;
 
 type StateInfoLruCache = Mutex<
 	LruCache<
@@ -49,13 +47,13 @@ type HashSetCompressStateEvent = Result<(u64, Arc<HashSet<CompressedStateEvent>>
 pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 pub struct Service {
-	pub db: Data,
+	db: Data,
 
 	pub stateinfo_cache: StateInfoLruCache,
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		let config = &server.config;
 		Ok(Self {
 			db: Data::new(db),

@@ -1,21 +1,20 @@
 use std::sync::Arc;
 
-use database::{KeyValueDatabase, KvTree};
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{
 	api::client::push::{set_pusher, Pusher},
 	UserId,
 };
 
-use crate::{utils, Error, Result};
-
-pub struct Data {
-	senderkey_pusher: Arc<dyn KvTree>,
+pub(super) struct Data {
+	senderkey_pusher: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			senderkey_pusher: db.senderkey_pusher.clone(),
+			senderkey_pusher: db["senderkey_pusher"].clone(),
 		}
 	}
 

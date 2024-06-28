@@ -1,22 +1,23 @@
 use std::sync::Arc;
 
-use database::KvTree;
+use conduit::{utils, Error, Result};
+use database::{Database, Map};
 use ruma::{api::client::error::ErrorKind, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, UserId};
 
-use crate::{services, utils, Error, KeyValueDatabase, Result};
+use crate::services;
 
-pub struct Data {
-	alias_userid: Arc<dyn KvTree>,
-	alias_roomid: Arc<dyn KvTree>,
-	aliasid_alias: Arc<dyn KvTree>,
+pub(super) struct Data {
+	alias_userid: Arc<Map>,
+	alias_roomid: Arc<Map>,
+	aliasid_alias: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			alias_userid: db.alias_userid.clone(),
-			alias_roomid: db.alias_roomid.clone(),
-			aliasid_alias: db.aliasid_alias.clone(),
+			alias_userid: db["alias_userid"].clone(),
+			alias_roomid: db["alias_roomid"].clone(),
+			aliasid_alias: db["aliasid_alias"].clone(),
 		}
 	}
 
@@ -55,7 +56,7 @@ impl Data {
 		Ok(())
 	}
 
-	pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
+	pub(super) fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
 		self.alias_roomid
 			.get(alias.alias().as_bytes())?
 			.map(|bytes| {
@@ -81,7 +82,7 @@ impl Data {
 			.transpose()
 	}
 
-	pub fn local_aliases_for_room<'a>(
+	pub(super) fn local_aliases_for_room<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
@@ -95,7 +96,7 @@ impl Data {
 		}))
 	}
 
-	pub fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
+	pub(super) fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
 		Box::new(
 			self.alias_roomid
 				.iter()

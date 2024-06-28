@@ -1,11 +1,10 @@
-use conduit::Server;
-
 mod data;
+
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::Result;
+use conduit::{Result, Server};
 use data::Data;
-use database::KeyValueDatabase;
+use database::Database;
 use ruma::{
 	api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
 	serde::Raw,
@@ -13,11 +12,11 @@ use ruma::{
 };
 
 pub struct Service {
-	pub(super) db: Data,
+	db: Data,
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<KeyValueDatabase>) -> Result<Self> {
+	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
 		})

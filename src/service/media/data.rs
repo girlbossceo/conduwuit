@@ -1,24 +1,23 @@
 use std::sync::Arc;
 
-use conduit::debug_info;
-use database::{KeyValueDatabase, KvTree};
+use conduit::{debug, debug_info, Error, Result};
+use database::{Database, Map};
 use ruma::api::client::error::ErrorKind;
-use tracing::debug;
 
-use crate::{media::UrlPreviewData, utils::string_from_bytes, Error, Result};
+use crate::{media::UrlPreviewData, utils::string_from_bytes};
 
-pub struct Data {
-	mediaid_file: Arc<dyn KvTree>,
-	mediaid_user: Arc<dyn KvTree>,
-	url_previews: Arc<dyn KvTree>,
+pub(crate) struct Data {
+	mediaid_file: Arc<Map>,
+	mediaid_user: Arc<Map>,
+	url_previews: Arc<Map>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
+	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
-			mediaid_file: db.mediaid_file.clone(),
-			mediaid_user: db.mediaid_user.clone(),
-			url_previews: db.url_previews.clone(),
+			mediaid_file: db["mediaid_file"].clone(),
+			mediaid_user: db["mediaid_user"].clone(),
+			url_previews: db["url_previews"].clone(),
 		}
 	}
 
