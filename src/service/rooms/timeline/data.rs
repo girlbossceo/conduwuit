@@ -16,6 +16,9 @@ pub struct Data {
 	db: Arc<KeyValueDatabase>,
 }
 
+type PdusIterItem = Result<(PduCount, PduEvent)>;
+type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
+
 impl Data {
 	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
 		Self {
@@ -203,9 +206,7 @@ impl Data {
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
-	pub(super) fn pdus_until<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount,
-	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
+	pub(super) fn pdus_until(&self, user_id: &UserId, room_id: &RoomId, until: PduCount) -> Result<PdusIterator<'_>> {
 		let (prefix, current) = count_to_id(room_id, until, 1, true)?;
 
 		let user_id = user_id.to_owned();
@@ -227,9 +228,7 @@ impl Data {
 		))
 	}
 
-	pub(super) fn pdus_after<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount,
-	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
+	pub(super) fn pdus_after(&self, user_id: &UserId, room_id: &RoomId, from: PduCount) -> Result<PdusIterator<'_>> {
 		let (prefix, current) = count_to_id(room_id, from, 1, false)?;
 
 		let user_id = user_id.to_owned();

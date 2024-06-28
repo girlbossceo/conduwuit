@@ -11,6 +11,9 @@ pub(super) struct Data {
 	softfailedeventids: Arc<dyn KvTree>,
 }
 
+type PdusIterItem = Result<(PduCount, PduEvent)>;
+type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
+
 impl Data {
 	pub(super) fn new(db: &Arc<KeyValueDatabase>) -> Self {
 		Self {
@@ -29,7 +32,7 @@ impl Data {
 
 	pub(super) fn relations_until<'a>(
 		&'a self, user_id: &'a UserId, shortroomid: u64, target: u64, until: PduCount,
-	) -> Result<Box<dyn Iterator<Item = Result<(PduCount, PduEvent)>> + 'a>> {
+	) -> Result<PdusIterator<'a>> {
 		let prefix = target.to_be_bytes().to_vec();
 		let mut current = prefix.clone();
 
