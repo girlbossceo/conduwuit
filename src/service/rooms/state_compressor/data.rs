@@ -60,7 +60,7 @@ impl Data {
 		})
 	}
 
-	pub(super) fn save_statediff(&self, shortstatehash: u64, diff: StateDiff) -> Result<()> {
+	pub(super) fn save_statediff(&self, shortstatehash: u64, diff: &StateDiff) -> Result<()> {
 		let mut value = diff.parent.unwrap_or(0).to_be_bytes().to_vec();
 		for new in diff.added.iter() {
 			value.extend_from_slice(&new[..]);

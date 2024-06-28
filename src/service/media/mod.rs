@@ -59,7 +59,7 @@ impl Service {
 
 	/// Uploads a file.
 	pub async fn create(
-		&self, sender_user: Option<OwnedUserId>, mxc: String, content_disposition: Option<&str>,
+		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,
 		content_type: Option<&str>, file: &[u8],
 	) -> Result<()> {
 		// Width, Height = 0 if it's not a thumbnail
@@ -79,13 +79,13 @@ impl Service {
 	}
 
 	/// Deletes a file in the database and from the media directory via an MXC
-	pub async fn delete(&self, mxc: String) -> Result<()> {
-		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc.clone()) {
+	pub async fn delete(&self, mxc: &str) -> Result<()> {
+		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc) {
 			for key in keys {
 				self.remove_media_file(&key).await?;
 
 				debug!("Deleting MXC {mxc} from database");
-				self.db.delete_file_mxc(mxc.clone())?;
+				self.db.delete_file_mxc(mxc)?;
 			}
 
 			Ok(())
@@ -100,7 +100,7 @@ impl Service {
 	/// Uploads or replaces a file thumbnail.
 	#[allow(clippy::too_many_arguments)]
 	pub async fn upload_thumbnail(
-		&self, sender_user: Option<OwnedUserId>, mxc: String, content_disposition: Option<&str>,
+		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,
 		content_type: Option<&str>, width: u32, height: u32, file: &[u8],
 	) -> Result<()> {
 		let key = if let Some(user) = sender_user {
@@ -119,7 +119,7 @@ impl Service {
 	}
 
 	/// Downloads a file.
-	pub async fn get(&self, mxc: String) -> Result<Option<FileMeta>> {
+	pub async fn get(&self, mxc: &str) -> Result<Option<FileMeta>> {
 		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
 			let mut file = Vec::new();
 			let path = self.get_media_file(&key);
@@ -232,7 +232,7 @@ impl Service {
 
 		for mxc in remote_mxcs {
 			debug!("Deleting MXC {mxc} from database and filesystem");
-			self.delete(mxc).await?;
+			self.delete(&mxc).await?;
 			deletion_count = deletion_count.saturating_add(1);
 		}
 
@@ -265,12 +265,12 @@ impl Service {
 	///
 	/// For width,height <= 96 the server uses another thumbnailing algorithm
 	/// which crops the image afterwards.
-	pub async fn get_thumbnail(&self, mxc: String, width: u32, height: u32) -> Result<Option<FileMeta>> {
+	pub async fn get_thumbnail(&self, mxc: &str, width: u32, height: u32) -> Result<Option<FileMeta>> {
 		let (width, height, crop) = self
 			.thumbnail_properties(width, height)
 			.unwrap_or((0, 0, false)); // 0, 0 because that's the original file
 
-		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), width, height) {
+		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, width, height) {
 			// Using saved thumbnail
 			let mut file = Vec::new();
 			let path = self.get_media_file(&key);
@@ -281,7 +281,7 @@ impl Service {
 				content_type,
 				file: file.clone(),
 			}))
-		} else if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc.clone(), 0, 0) {
+		} else if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
 			// Generate a thumbnail
 			let mut file = Vec::new();
 			let path = self.get_media_file(&key);

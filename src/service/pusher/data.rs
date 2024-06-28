@@ -19,14 +19,14 @@ impl Data {
 		}
 	}
 
-	pub(super) fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
-		match &pusher {
+	pub(super) fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result<()> {
+		match pusher {
 			set_pusher::v3::PusherAction::Post(data) => {
 				let mut key = sender.as_bytes().to_vec();
 				key.push(0xFF);
 				key.extend_from_slice(data.pusher.ids.pushkey.as_bytes());
 				self.senderkey_pusher
-					.insert(&key, &serde_json::to_vec(&pusher).expect("Pusher is valid JSON value"))?;
+					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"))?;
 				Ok(())
 			},
 			set_pusher::v3::PusherAction::Delete(ids) => {

@@ -38,7 +38,7 @@ impl Service {
 		})
 	}
 
-	pub fn set_pusher(&self, sender: &UserId, pusher: set_pusher::v3::PusherAction) -> Result<()> {
+	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result<()> {
 		self.db.set_pusher(sender, pusher)
 	}
 

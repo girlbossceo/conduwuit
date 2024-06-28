@@ -200,7 +200,7 @@ impl Service {
 			// There is no parent layer, create a new state
 			self.db.save_statediff(
 				shortstatehash,
-				StateDiff {
+				&StateDiff {
 					parent: None,
 					added: statediffnew,
 					removed: statediffremoved,
@@ -251,7 +251,7 @@ impl Service {
 			// Diff small enough, we add diff as layer on top of parent
 			self.db.save_statediff(
 				shortstatehash,
-				StateDiff {
+				&StateDiff {
 					parent: Some(parent.0),
 					added: statediffnew,
 					removed: statediffremoved,

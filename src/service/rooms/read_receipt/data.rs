@@ -27,7 +27,7 @@ impl Data {
 		}
 	}
 
-	pub(super) fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()> {
+	pub(super) fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) -> Result<()> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -56,7 +56,7 @@ impl Data {
 
 		self.readreceiptid_readreceipt.insert(
 			&room_latest_id,
-			&serde_json::to_vec(&event).expect("EduEvent::to_string always works"),
+			&serde_json::to_vec(event).expect("EduEvent::to_string always works"),
 		)?;
 
 		Ok(())

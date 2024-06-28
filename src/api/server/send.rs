@@ -208,7 +208,7 @@ pub(crate) async fn send_transaction_message_route(
 								services()
 									.rooms
 									.read_receipt
-									.readreceipt_update(&user_id, &room_id, event)?;
+									.readreceipt_update(&user_id, &room_id, &event)?;
 							}
 						} else {
 							debug_warn!(%user_id, %room_id, %origin, "received read receipt EDU from server who does not have a single member from their server in the room");

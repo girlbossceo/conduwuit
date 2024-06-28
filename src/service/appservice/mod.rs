@@ -149,7 +149,7 @@ impl Service {
 			.await
 			.insert(yaml.id.clone(), yaml.clone().try_into()?);
 
-		self.db.register_appservice(yaml)
+		self.db.register_appservice(&yaml)
 	}
 
 	/// Remove an appservice registration

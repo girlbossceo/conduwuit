@@ -17,7 +17,7 @@ impl Data {
 	}
 
 	/// Registers an appservice and returns the ID to the caller
-	pub(super) fn register_appservice(&self, yaml: Registration) -> Result<String> {
+	pub(super) fn register_appservice(&self, yaml: &Registration) -> Result<String> {
 		let id = yaml.id.as_str();
 		self.id_appserviceregistrations
 			.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes())?;

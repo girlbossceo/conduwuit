@@ -133,7 +133,7 @@ pub(crate) async fn create_content_route(
 		.media
 		.create(
 			Some(sender_user.clone()),
-			mxc.clone(),
+			&mxc,
 			body.filename
 				.as_ref()
 				.map(|filename| {
@@ -186,7 +186,7 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 		content_type,
 		file,
 		content_disposition,
-	}) = services().media.get(mxc.clone()).await?
+	}) = services().media.get(&mxc).await?
 	{
 		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
 
@@ -264,7 +264,7 @@ pub(crate) async fn get_content_as_filename_route(
 		content_type,
 		file,
 		content_disposition,
-	}) = services().media.get(mxc.clone()).await?
+	}) = services().media.get(&mxc).await?
 	{
 		let content_disposition = Some(make_content_disposition(
 			&content_type,
@@ -352,7 +352,7 @@ pub(crate) async fn get_content_thumbnail_route(
 	}) = services()
 		.media
 		.get_thumbnail(
-			mxc.clone(),
+			&mxc,
 			body.width
 				.try_into()
 				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
@@ -405,7 +405,7 @@ pub(crate) async fn get_content_thumbnail_route(
 					.media
 					.upload_thumbnail(
 						None,
-						mxc,
+						&mxc,
 						None,
 						get_thumbnail_response.content_type.as_deref(),
 						body.width.try_into().expect("all UInts are valid u32s"),
@@ -494,7 +494,7 @@ async fn get_remote_content(
 		.media
 		.create(
 			None,
-			mxc.to_owned(),
+			mxc,
 			content_disposition.as_deref(),
 			content_response.content_type.as_deref(),
 			&content_response.file,
@@ -520,7 +520,7 @@ async fn download_image(client: &reqwest::Client, url: &str) -> Result<UrlPrevie
 
 	services()
 		.media
-		.create(None, mxc.clone(), None, None, &image)
+		.create(None, &mxc, None, None, &image)
 		.await?;
 
 	let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {

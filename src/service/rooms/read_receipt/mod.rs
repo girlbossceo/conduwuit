@@ -22,7 +22,7 @@ impl Service {
 	}
 
 	/// Replaces the previous read receipt.
-	pub fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: ReceiptEvent) -> Result<()> {
+	pub fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) -> Result<()> {
 		self.db.readreceipt_update(user_id, room_id, event)?;
 		services().sending.flush_room(room_id)?;
 

@@ -365,9 +365,7 @@ pub(crate) async fn get_pushers_route(body: Ruma<get_pushers::v3::Request>) -> R
 pub(crate) async fn set_pushers_route(body: Ruma<set_pusher::v3::Request>) -> Result<set_pusher::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	services()
-		.pusher
-		.set_pusher(sender_user, body.action.clone())?;
+	services().pusher.set_pusher(sender_user, &body.action)?;
 
 	Ok(set_pusher::v3::Response::default())
 }

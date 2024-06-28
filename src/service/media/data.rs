@@ -23,7 +23,7 @@ impl Data {
 	}
 
 	pub(super) fn create_file_metadata(
-		&self, sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
+		&self, sender_user: Option<&str>, mxc: &str, width: u32, height: u32, content_disposition: Option<&str>,
 		content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
 		let mut key = mxc.as_bytes().to_vec();
@@ -56,7 +56,7 @@ impl Data {
 		Ok(key)
 	}
 
-	pub(super) fn delete_file_mxc(&self, mxc: String) -> Result<()> {
+	pub(super) fn delete_file_mxc(&self, mxc: &str) -> Result<()> {
 		debug!("MXC URI: {:?}", mxc);
 
 		let mut prefix = mxc.as_bytes().to_vec();
@@ -82,7 +82,7 @@ impl Data {
 	}
 
 	/// Searches for all files with the given MXC
-	pub(super) fn search_mxc_metadata_prefix(&self, mxc: String) -> Result<Vec<Vec<u8>>> {
+	pub(super) fn search_mxc_metadata_prefix(&self, mxc: &str) -> Result<Vec<Vec<u8>>> {
 		debug!("MXC URI: {:?}", mxc);
 
 		let mut prefix = mxc.as_bytes().to_vec();
@@ -106,7 +106,7 @@ impl Data {
 	}
 
 	pub(super) fn search_file_metadata(
-		&self, mxc: String, width: u32, height: u32,
+		&self, mxc: &str, width: u32, height: u32,
 	) -> Result<(Option<String>, Option<String>, Vec<u8>)> {
 		let mut prefix = mxc.as_bytes().to_vec();
 		prefix.push(0xFF);
