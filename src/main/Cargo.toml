@@ -43,7 +43,6 @@ default = [
 	"io_uring",
 	"jemalloc",
 	"release_max_log_level",
-	"rocksdb",
 	"sentry_telemetry",
 	"systemd",
 	"zstd_compression",
@@ -113,9 +112,6 @@ release_max_log_level = [
 	"conduit-database/release_max_log_level",
 	"conduit-router/release_max_log_level",
 	"conduit-service/release_max_log_level",
-]
-rocksdb = [
-	"conduit-database/rocksdb",
 ]
 sentry_telemetry = [
 	"dep:sentry",

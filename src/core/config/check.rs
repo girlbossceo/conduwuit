@@ -66,7 +66,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 	});
 
 	// rocksdb does not allow max_log_files to be 0
-	if config.rocksdb_max_log_files == 0 && cfg!(feature = "rocksdb") {
+	if config.rocksdb_max_log_files == 0 {
 		return Err(Error::bad_config(
 			"When using RocksDB, rocksdb_max_log_files cannot be 0. Please set a value at least 1.",
 		));

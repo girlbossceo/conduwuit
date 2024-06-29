@@ -64,12 +64,6 @@ pub(super) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventCon
 }
 
 pub(super) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if !cfg!(feature = "rocksdb") {
-		return Ok(RoomMessageEventContent::text_plain(
-			"Only RocksDB supports online backups in conduwuit.",
-		));
-	}
-
 	let mut result = services()
 		.server
 		.runtime()
@@ -88,12 +82,6 @@ pub(super) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEvent
 }
 
 pub(super) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if !cfg!(feature = "rocksdb") {
-		return Ok(RoomMessageEventContent::text_plain(
-			"Only RocksDB supports listing files in conduwuit.",
-		));
-	}
-
 	let result = services().globals.db.file_list()?;
 
 	Ok(RoomMessageEventContent::notice_markdown(result))

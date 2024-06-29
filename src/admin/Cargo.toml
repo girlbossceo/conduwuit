@@ -24,7 +24,6 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-rocksdb = []
 
 [dependencies]
 clap.workspace = true

@@ -24,9 +24,6 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
-rocksdb = [
-	"dep:rust-rocksdb",
-]
 jemalloc = [
 	"rust-rocksdb/jemalloc",
 ]
@@ -43,7 +40,6 @@ conduit-core.workspace = true
 log.workspace = true
 lru-cache.workspace = true
 ruma.workspace = true
-rust-rocksdb.optional = true
 rust-rocksdb.workspace = true
 tokio.workspace = true
 tracing.workspace = true
