@@ -9,6 +9,8 @@ pub struct Map {
 	db: Arc<Engine>,
 	name: String,
 	watchers: Watchers,
+	write_options: WriteOptions,
+	read_options: ReadOptions,
 }
 
 type Key = Vec<u8>;
@@ -22,14 +24,16 @@ impl Map {
 			db: db.clone(),
 			name: name.to_owned(),
 			watchers: Watchers::default(),
+			write_options: write_options_default(),
+			read_options: read_options_default(),
 		}))
 	}
 
 	pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
+		let read_options = &self.read_options;
+		let res = self.db.db.get_cf_opt(&self.cf(), key, read_options);
 
-		result(self.db.db.get_cf_opt(&self.cf(), key, &readoptions))
+		result(res)
 	}
 
 	pub fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
@@ -37,14 +41,12 @@ impl Map {
 		// comparator**.
 		const SORTED: bool = false;
 
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-
 		let mut ret: Vec<Option<Vec<u8>>> = Vec::with_capacity(keys.len());
+		let read_options = &self.read_options;
 		for res in self
 			.db
 			.db
-			.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, &readoptions)
+			.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, read_options)
 		{
 			match res {
 				Ok(Some(res)) => ret.push(Some((*res).to_vec())),
@@ -57,11 +59,10 @@ impl Map {
 	}
 
 	pub fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
-		let writeoptions = WriteOptions::default();
-
+		let write_options = &self.write_options;
 		self.db
 			.db
-			.put_cf_opt(&self.cf(), key, value, &writeoptions)
+			.put_cf_opt(&self.cf(), key, value, write_options)
 			.or_else(or_else)?;
 
 		if !self.db.corked() {
@@ -74,15 +75,13 @@ impl Map {
 	}
 
 	pub fn insert_batch(&self, iter: &mut dyn Iterator<Item = KeyVal>) -> Result<()> {
-		let writeoptions = WriteOptions::default();
-
 		let mut batch = WriteBatchWithTransaction::<false>::default();
-
 		for (key, value) in iter {
 			batch.put_cf(&self.cf(), key, value);
 		}
 
-		let res = self.db.db.write_opt(batch, &writeoptions);
+		let write_options = &self.write_options;
+		let res = self.db.db.write_opt(batch, write_options);
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -92,9 +91,8 @@ impl Map {
 	}
 
 	pub fn remove(&self, key: &[u8]) -> Result<()> {
-		let writeoptions = WriteOptions::default();
-
-		let res = self.db.db.delete_cf_opt(&self.cf(), key, &writeoptions);
+		let write_options = &self.write_options;
+		let res = self.db.db.delete_cf_opt(&self.cf(), key, write_options);
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -104,15 +102,13 @@ impl Map {
 	}
 
 	pub fn remove_batch(&self, iter: &mut dyn Iterator<Item = Key>) -> Result<()> {
-		let writeoptions = WriteOptions::default();
-
 		let mut batch = WriteBatchWithTransaction::<false>::default();
-
 		for key in iter {
 			batch.delete_cf(&self.cf(), key);
 		}
 
-		let res = self.db.db.write_opt(batch, &writeoptions);
+		let write_options = &self.write_options;
+		let res = self.db.db.write_opt(batch, write_options);
 
 		if !self.db.corked() {
 			self.db.flush()?;
@@ -122,13 +118,11 @@ impl Map {
 	}
 
 	pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-
+		let read_options = read_options_default();
 		let it = self
 			.db
 			.db
-			.iterator_cf_opt(&self.cf(), readoptions, IteratorMode::Start)
+			.iterator_cf_opt(&self.cf(), read_options, IteratorMode::Start)
 			.map(Result::unwrap)
 			.map(|(k, v)| (Vec::from(k), Vec::from(v)));
 
@@ -136,15 +130,13 @@ impl Map {
 	}
 
 	pub fn iter_from<'a>(&'a self, from: &[u8], backwards: bool) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-
+		let read_options = read_options_default();
 		let it = self
 			.db
 			.db
 			.iterator_cf_opt(
 				&self.cf(),
-				readoptions,
+				read_options,
 				IteratorMode::From(
 					from,
 					if backwards {
@@ -161,19 +153,19 @@ impl Map {
 	}
 
 	pub fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-		let writeoptions = WriteOptions::default();
-
+		let read_options = &self.read_options;
 		let old = self
 			.db
 			.db
-			.get_cf_opt(&self.cf(), key, &readoptions)
+			.get_cf_opt(&self.cf(), key, read_options)
 			.or_else(or_else)?;
+
 		let new = utils::increment(old.as_deref());
+
+		let write_options = &self.write_options;
 		self.db
 			.db
-			.put_cf_opt(&self.cf(), key, new, &writeoptions)
+			.put_cf_opt(&self.cf(), key, new, write_options)
 			.or_else(or_else)?;
 
 		if !self.db.corked() {
@@ -184,25 +176,23 @@ impl Map {
 	}
 
 	pub fn increment_batch(&self, iter: &mut dyn Iterator<Item = Val>) -> Result<()> {
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-		let writeoptions = WriteOptions::default();
-
 		let mut batch = WriteBatchWithTransaction::<false>::default();
 
+		let read_options = &self.read_options;
 		for key in iter {
 			let old = self
 				.db
 				.db
-				.get_cf_opt(&self.cf(), &key, &readoptions)
+				.get_cf_opt(&self.cf(), &key, read_options)
 				.or_else(or_else)?;
 			let new = utils::increment(old.as_deref());
 			batch.put_cf(&self.cf(), key, new);
 		}
 
+		let write_options = &self.write_options;
 		self.db
 			.db
-			.write_opt(batch, &writeoptions)
+			.write_opt(batch, write_options)
 			.or_else(or_else)?;
 
 		if !self.db.corked() {
@@ -213,13 +203,11 @@ impl Map {
 	}
 
 	pub fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
-		let mut readoptions = ReadOptions::default();
-		readoptions.set_total_order_seek(true);
-
+		let read_options = read_options_default();
 		let it = self
 			.db
 			.db
-			.iterator_cf_opt(&self.cf(), readoptions, IteratorMode::From(&prefix, Direction::Forward))
+			.iterator_cf_opt(&self.cf(), read_options, IteratorMode::From(&prefix, Direction::Forward))
 			.map(Result::unwrap)
 			.map(|(k, v)| (Vec::from(k), Vec::from(v)))
 			.take_while(move |(k, _)| k.starts_with(&prefix));
@@ -240,3 +228,13 @@ impl<'a> IntoIterator for &'a Map {
 
 	fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
+
+#[inline]
+fn read_options_default() -> ReadOptions {
+	let mut read_options = ReadOptions::default();
+	read_options.set_total_order_seek(true);
+	read_options
+}
+
+#[inline]
+fn write_options_default() -> WriteOptions { WriteOptions::default() }
