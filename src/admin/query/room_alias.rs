@@ -10,7 +10,7 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 			alias,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().rooms.alias.db.resolve_local_alias(&alias);
+			let results = services().rooms.alias.resolve_local_alias(&alias);
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -21,7 +21,7 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().rooms.alias.db.local_aliases_for_room(&room_id);
+			let results = services().rooms.alias.local_aliases_for_room(&room_id);
 			let query_time = timer.elapsed();
 
 			let aliases: Vec<_> = results.collect();
@@ -32,7 +32,7 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 		},
 		RoomAlias::AllLocalAliases => {
 			let timer = tokio::time::Instant::now();
-			let results = services().rooms.alias.db.all_local_aliases();
+			let results = services().rooms.alias.all_local_aliases();
 			let query_time = timer.elapsed();
 
 			let aliases: Vec<_> = results.collect();

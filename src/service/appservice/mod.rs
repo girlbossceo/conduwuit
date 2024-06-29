@@ -124,7 +124,7 @@ impl Service {
 		let mut registration_info = BTreeMap::new();
 		let db = Data::new(db);
 		// Inserting registrations into cache
-		for appservice in db.all()? {
+		for appservice in iter_ids(&db)? {
 			registration_info.insert(
 				appservice.0,
 				appservice
@@ -139,6 +139,8 @@ impl Service {
 			registration_info: RwLock::new(registration_info),
 		})
 	}
+
+	pub fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db) }
 
 	/// Registers an appservice and returns the ID to the caller
 	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
@@ -230,4 +232,17 @@ impl Service {
 	pub fn read(&self) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>> {
 		self.registration_info.read()
 	}
+}
+
+fn iter_ids(db: &Data) -> Result<Vec<(String, Registration)>> {
+	db.iter_ids()?
+		.filter_map(Result::ok)
+		.map(move |id| {
+			Ok((
+				id.clone(),
+				db.get_registration(&id)?
+					.expect("iter_ids only returns appservices that exist"),
+			))
+		})
+		.collect()
 }

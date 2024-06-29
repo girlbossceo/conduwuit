@@ -51,17 +51,4 @@ impl Data {
 				.map_err(|_| Error::bad_database("Invalid id bytes in id_appserviceregistrations."))
 		})))
 	}
-
-	pub fn all(&self) -> Result<Vec<(String, Registration)>> {
-		self.iter_ids()?
-			.filter_map(Result::ok)
-			.map(move |id| {
-				Ok((
-					id.clone(),
-					self.get_registration(&id)?
-						.expect("iter_ids only returns appservices that exist"),
-				))
-			})
-			.collect()
-	}
 }

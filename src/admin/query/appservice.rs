@@ -22,7 +22,7 @@ pub(super) async fn appservice(subcommand: Appservice) -> Result<RoomMessageEven
 		},
 		Appservice::All => {
 			let timer = tokio::time::Instant::now();
-			let results = services().appservice.db.all();
+			let results = services().appservice.all();
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
