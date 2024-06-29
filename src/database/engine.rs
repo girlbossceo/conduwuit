@@ -1,5 +1,5 @@
 use std::{
-	collections::{HashMap, HashSet},
+	collections::{BTreeSet, HashMap},
 	fmt::Write,
 	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
 };
@@ -23,7 +23,7 @@ pub struct Engine {
 	col_cache: RwLock<HashMap<String, Cache>>,
 	opts: Options,
 	env: Env,
-	cfs: Mutex<HashSet<String>>,
+	cfs: Mutex<BTreeSet<String>>,
 	pub(crate) db: Db,
 	corks: AtomicU32,
 }
@@ -57,7 +57,10 @@ impl Engine {
 		}
 
 		debug!("Listing column families in database");
-		let cfs = Db::list_cf(&db_opts, &config.database_path).unwrap_or_default();
+		let cfs = Db::list_cf(&db_opts, &config.database_path)
+			.unwrap_or_default()
+			.into_iter()
+			.collect::<BTreeSet<_>>();
 
 		debug!("Opening {} column family descriptors in database", cfs.len());
 		let cfds = cfs
@@ -79,7 +82,6 @@ impl Engine {
 			load_time.elapsed()
 		);
 
-		let cfs = HashSet::<String>::from_iter(cfs);
 		Ok(Arc::new(Self {
 			server: server.clone(),
 			row_cache,
