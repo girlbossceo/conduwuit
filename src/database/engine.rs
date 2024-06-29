@@ -9,7 +9,7 @@ use conduit::{debug, error, info, warn, Result, Server};
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
-	BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode as Db, Env, MultiThreaded, Options,
+	BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env, MultiThreaded, Options,
 };
 
 use crate::{
@@ -24,9 +24,11 @@ pub struct Engine {
 	opts: Options,
 	env: Env,
 	cfs: Mutex<HashSet<String>>,
-	pub(crate) db: Db<MultiThreaded>,
+	pub(crate) db: Db,
 	corks: AtomicU32,
 }
+
+pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
 
 impl Engine {
 	pub(crate) fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
@@ -49,13 +51,13 @@ impl Engine {
 		let load_time = std::time::Instant::now();
 		if config.rocksdb_repair {
 			warn!("Starting database repair. This may take a long time...");
-			if let Err(e) = Db::<MultiThreaded>::repair(&db_opts, &config.database_path) {
+			if let Err(e) = Db::repair(&db_opts, &config.database_path) {
 				error!("Repair failed: {:?}", e);
 			}
 		}
 
 		debug!("Listing column families in database");
-		let cfs = Db::<MultiThreaded>::list_cf(&db_opts, &config.database_path).unwrap_or_default();
+		let cfs = Db::list_cf(&db_opts, &config.database_path).unwrap_or_default();
 
 		debug!("Opening {} column family descriptors in database", cfs.len());
 		let cfds = cfs
@@ -65,9 +67,9 @@ impl Engine {
 
 		debug!("Opening database...");
 		let res = if config.rocksdb_read_only {
-			Db::<MultiThreaded>::open_cf_for_read_only(&db_opts, &config.database_path, cfs.clone(), false)
+			Db::open_cf_for_read_only(&db_opts, &config.database_path, cfs.clone(), false)
 		} else {
-			Db::<MultiThreaded>::open_cf_descriptors(&db_opts, &config.database_path, cfds)
+			Db::open_cf_descriptors(&db_opts, &config.database_path, cfds)
 		};
 
 		let db = res.or_else(or_else)?;
