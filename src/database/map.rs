@@ -130,24 +130,33 @@ impl Map {
 	}
 
 	pub fn iter_from<'a>(&'a self, from: &[u8], backwards: bool) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
+		let direction = if backwards {
+			Direction::Reverse
+		} else {
+			Direction::Forward
+		};
+		let mode = IteratorMode::From(from, direction);
 		let read_options = read_options_default();
 		let it = self
 			.db
 			.db
-			.iterator_cf_opt(
-				&self.cf(),
-				read_options,
-				IteratorMode::From(
-					from,
-					if backwards {
-						Direction::Reverse
-					} else {
-						Direction::Forward
-					},
-				),
-			)
+			.iterator_cf_opt(&self.cf(), read_options, mode)
 			.map(Result::unwrap)
 			.map(|(k, v)| (Vec::from(k), Vec::from(v)));
+
+		Box::new(it)
+	}
+
+	pub fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
+		let mode = IteratorMode::From(&prefix, Direction::Forward);
+		let read_options = read_options_default();
+		let it = self
+			.db
+			.db
+			.iterator_cf_opt(&self.cf(), read_options, mode)
+			.map(Result::unwrap)
+			.map(|(k, v)| (Vec::from(k), Vec::from(v)))
+			.take_while(move |(k, _)| k.starts_with(&prefix));
 
 		Box::new(it)
 	}
@@ -200,19 +209,6 @@ impl Map {
 		}
 
 		Ok(())
-	}
-
-	pub fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
-		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, IteratorMode::From(&prefix, Direction::Forward))
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)))
-			.take_while(move |(k, _)| k.starts_with(&prefix));
-
-		Box::new(it)
 	}
 
 	pub fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
