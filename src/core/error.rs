@@ -28,6 +28,12 @@ pub enum Error {
 	Fmt(#[from] fmt::Error),
 	#[error("I/O error: {0}")]
 	Io(#[from] std::io::Error),
+	#[error("{0}")]
+	Utf8Error(#[from] std::str::Utf8Error),
+	#[error("{0}")]
+	FromUtf8Error(#[from] std::string::FromUtf8Error),
+	#[error("{0}")]
+	TryFromSliceError(#[from] std::array::TryFromSliceError),
 
 	// third-party
 	#[error("Regex error: {0}")]

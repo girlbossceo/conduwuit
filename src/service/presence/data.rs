@@ -115,7 +115,7 @@ impl Data {
 				.iter()
 				.flat_map(|(key, presence_bytes)| -> Result<(OwnedUserId, u64, Vec<u8>)> {
 					let (count, user_id) = presenceid_parse(&key)?;
-					Ok((user_id, count, presence_bytes))
+					Ok((user_id.to_owned(), count, presence_bytes))
 				})
 				.filter(move |(_, count, _)| *count > since),
 		)
@@ -128,7 +128,7 @@ fn presenceid_key(count: u64, user_id: &UserId) -> Vec<u8> {
 }
 
 #[inline]
-fn presenceid_parse(key: &[u8]) -> Result<(u64, OwnedUserId)> {
+fn presenceid_parse(key: &[u8]) -> Result<(u64, &UserId)> {
 	let (count, user_id) = key.split_at(8);
 	let user_id = utils::user_id_from_bytes(user_id)?;
 	let count = utils::u64_from_bytes(count).unwrap();

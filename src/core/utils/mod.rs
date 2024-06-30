@@ -19,10 +19,10 @@ pub use json::{deserialize_from_str, to_canonical_object};
 pub use mutex_map::MutexMap;
 use rand::prelude::*;
 use ring::digest;
-use ruma::OwnedUserId;
+use ruma::UserId;
 pub use sys::available_parallelism;
 
-use crate::{Error, Result};
+use crate::Result;
 
 pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
 
@@ -38,9 +38,8 @@ pub fn millis_since_unix_epoch() -> u64 {
 #[inline]
 #[must_use]
 pub fn increment(old: Option<&[u8]>) -> [u8; 8] {
-	const ZERO: u64 = 0;
 	old.map(TryInto::try_into)
-		.map_or(ZERO, |val| val.map_or(ZERO, u64::from_be_bytes))
+		.map_or(0_u64, |val| val.map_or(0_u64, u64::from_be_bytes))
 		.wrapping_add(1)
 		.to_be_bytes()
 }
@@ -55,23 +54,26 @@ pub fn generate_keypair() -> Vec<u8> {
 	value
 }
 
-/// Parses the bytes into an u64.
-pub fn u64_from_bytes(bytes: &[u8]) -> Result<u64, std::array::TryFromSliceError> {
-	let array: [u8; 8] = bytes.try_into()?;
-	Ok(u64::from_be_bytes(array))
+/// Parses a `UserId` from bytes.
+pub fn user_id_from_bytes(bytes: &[u8]) -> Result<&UserId> {
+	let str: &str = str_from_bytes(bytes)?;
+	let user_id: &UserId = str.try_into()?;
+	Ok(user_id)
 }
 
 /// Parses the bytes into a string.
-pub fn string_from_bytes(bytes: &[u8]) -> Result<String, std::string::FromUtf8Error> {
-	String::from_utf8(bytes.to_vec())
+pub fn string_from_bytes(bytes: &[u8]) -> Result<String> {
+	let str: &str = str_from_bytes(bytes)?;
+	Ok(str.to_owned())
 }
 
-/// Parses a `OwnedUserId` from bytes.
-pub fn user_id_from_bytes(bytes: &[u8]) -> Result<OwnedUserId> {
-	OwnedUserId::try_from(
-		string_from_bytes(bytes).map_err(|_| Error::bad_database("Failed to parse string from bytes"))?,
-	)
-	.map_err(|_| Error::bad_database("Failed to parse user id from bytes"))
+/// Parses the bytes into a string.
+pub fn str_from_bytes(bytes: &[u8]) -> Result<&str> { Ok(std::str::from_utf8(bytes)?) }
+
+/// Parses the bytes into an u64.
+pub fn u64_from_bytes(bytes: &[u8]) -> Result<u64> {
+	let array: [u8; 8] = bytes.try_into()?;
+	Ok(u64::from_be_bytes(array))
 }
 
 pub fn random_string(length: usize) -> String {
