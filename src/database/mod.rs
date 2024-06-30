@@ -6,7 +6,7 @@ mod kvtree;
 #[cfg(feature = "rocksdb")]
 pub(crate) mod rocksdb;
 
-#[cfg(any(feature = "rocksdb"))]
+#[cfg(feature = "rocksdb")]
 pub(crate) mod watchers;
 
 extern crate conduit_core as conduit;
