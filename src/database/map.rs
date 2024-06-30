@@ -1,13 +1,16 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use conduit::{utils, Result};
-use rocksdb::{BoundColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions};
+use rocksdb::{
+	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
+};
 
 use super::{or_else, result, watchers::Watchers, Engine};
 
 pub struct Map {
-	db: Arc<Engine>,
 	name: String,
+	db: Arc<Engine>,
+	cf: Arc<ColumnFamily>,
 	watchers: Watchers,
 	write_options: WriteOptions,
 	read_options: ReadOptions,
@@ -19,10 +22,10 @@ type KeyVal = (Key, Val);
 
 impl Map {
 	pub(crate) fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<Self>> {
-		db.open_cf(name)?;
 		Ok(Arc::new(Self {
-			db: db.clone(),
 			name: name.to_owned(),
+			db: db.clone(),
+			cf: open(db, name)?,
 			watchers: Watchers::default(),
 			write_options: write_options_default(),
 			read_options: read_options_default(),
@@ -215,7 +218,10 @@ impl Map {
 		self.watchers.watch(prefix)
 	}
 
-	fn cf(&self) -> Arc<BoundColumnFamily<'_>> { self.db.cf(&self.name) }
+	#[inline]
+	pub fn name(&self) -> &str { &self.name }
+
+	fn cf(&self) -> impl AsColumnFamilyRef + '_ { &*self.cf }
 }
 
 impl<'a> IntoIterator for &'a Map {
@@ -223,6 +229,41 @@ impl<'a> IntoIterator for &'a Map {
 	type Item = KeyVal;
 
 	fn into_iter(self) -> Self::IntoIter { self.iter() }
+}
+
+fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
+	let bounded_arc = db.open_cf(name)?;
+	let bounded_ptr = Arc::into_raw(bounded_arc);
+	let cf_ptr = bounded_ptr.cast::<ColumnFamily>();
+
+	// SAFETY: After thorough contemplation this appears to be the best solution,
+	// even by a significant margin.
+	//
+	// BACKGROUND: Column family handles out of RocksDB are basic pointers and can
+	// be invalidated: 1. when the database closes. 2. when the column is dropped or
+	// closed. rust_rocksdb wraps this for us by storing handles in their own
+	// `RwLock<BTreeMap>` map and returning an Arc<BoundColumnFamily<'_>>` to
+	// provide expected safety. Similarly in "single-threaded mode" we would
+	// receive `&'_ ColumnFamily`.
+	//
+	// PROBLEM: We need to hold these handles in a field, otherwise we have to take
+	// a lock and get them by name from this map for every query, which is what
+	// conduit was doing, but we're not going to make a query for every query so we
+	// need to be holding it right. The lifetime parameter on these references makes
+	// that complicated. If this can be done without polluting the userspace
+	// with lifetimes on every instance of `Map` then this `unsafe` might not be
+	// necessary.
+	//
+	// SOLUTION: After investigating the underlying types it appears valid to
+	// Arc-swap `BoundColumnFamily<'_>` for `ColumnFamily`. They have the
+	// same inner data, the same Drop behavior, Deref, etc. We're just losing the
+	// lifetime parameter. We should not hold this handle, even in its Arc, after
+	// closing the database (dropping `Engine`). Since `Arc<Engine>` is a sibling
+	// member along with this handle in `Map`, that is prevented.
+	Ok(unsafe {
+		Arc::decrement_strong_count(cf_ptr);
+		Arc::from_raw(cf_ptr)
+	})
 }
 
 #[inline]
