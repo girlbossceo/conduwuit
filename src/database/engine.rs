@@ -112,7 +112,7 @@ impl Engine {
 		Ok(self.cf(name))
 	}
 
-	pub(crate) fn cf<'db>(&'db self, name: &str) -> Arc<BoundColumnFamily<'db>> {
+	pub(crate) fn cf(&self, name: &str) -> Arc<BoundColumnFamily<'_>> {
 		self.db
 			.cf_handle(name)
 			.expect("column was created and exists")
