@@ -118,7 +118,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	};
 
 	let mut results = Vec::new();
-	let next_batch: usize = skip.saturating_add(limit);
+	let next_batch = skip.saturating_add(limit);
 
 	for _ in 0..next_batch {
 		if let Some(s) = searches
