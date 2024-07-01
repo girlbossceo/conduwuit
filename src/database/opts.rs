@@ -144,14 +144,9 @@ pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mu
 			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024),
 		),
 
-		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-		"eventid_outlierpdu" => set_table_with_new_cache(
-			&mut opts,
-			cfg,
-			cache,
-			name,
-			(cfg.pdu_cache_capacity as usize).saturating_mul(1536),
-		),
+		"eventid_outlierpdu" => {
+			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.pdu_cache_capacity, 1536));
+		},
 
 		"pduid_pdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "eventid_outlierpdu"),
 
