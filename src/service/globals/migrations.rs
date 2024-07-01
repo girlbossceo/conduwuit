@@ -818,7 +818,7 @@ async fn handle_media_check(
 async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Fixing bad double separator in state_cache roomuserid_joined");
 	let roomuserid_joined = &db["roomuserid_joined"];
-	let _cork = database::Cork::new(&db.db, true, true);
+	let _cork = db.cork_and_sync();
 
 	let mut iter_count: usize = 0;
 	for (mut key, value) in roomuserid_joined.iter() {
@@ -851,7 +851,7 @@ async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &C
 
 async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Retroactively fixing bad data from broken roomuserid_joined");
-	let _cork = database::Cork::new(&db.db, true, true);
+	let _cork = db.cork_and_sync();
 
 	let room_ids = services()
 		.rooms

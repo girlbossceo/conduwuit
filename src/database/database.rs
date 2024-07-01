@@ -8,7 +8,7 @@ use conduit::{PduCount, Result, Server};
 use lru_cache::LruCache;
 use ruma::{CanonicalJsonValue, OwnedDeviceId, OwnedRoomId, OwnedUserId};
 
-use crate::{maps, maps::Maps, Engine, Map};
+use crate::{cork::Cork, maps, maps::Maps, Engine, Map};
 
 pub struct Database {
 	pub db: Arc<Engine>,
@@ -38,6 +38,15 @@ impl Database {
 			)),
 		})
 	}
+
+	#[must_use]
+	pub fn cork(&self) -> Cork { Cork::new(&self.db, false, false) }
+
+	#[must_use]
+	pub fn cork_and_flush(&self) -> Cork { Cork::new(&self.db, true, false) }
+
+	#[must_use]
+	pub fn cork_and_sync(&self) -> Cork { Cork::new(&self.db, true, true) }
 }
 
 impl Index<&str> for Database {

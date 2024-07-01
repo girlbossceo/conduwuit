@@ -100,7 +100,7 @@ impl Service {
 	fn handle_response_ok(
 		&self, dest: &Destination, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {
-		let _cork = services().globals.db.cork();
+		let _cork = services().db.cork();
 		self.db
 			.delete_all_active_requests_for(dest)
 			.expect("all active requests deleted");
@@ -173,7 +173,7 @@ impl Service {
 			return Ok(None);
 		}
 
-		let _cork = services().globals.db.cork();
+		let _cork = services().db.cork();
 		let mut events = Vec::new();
 
 		// Must retry any previous transaction for this remote.
@@ -187,7 +187,7 @@ impl Service {
 		}
 
 		// Compose the next transaction
-		let _cork = services().globals.db.cork();
+		let _cork = services().db.cork();
 		if !new_events.is_empty() {
 			self.db.mark_as_active(&new_events)?;
 			for (e, _) in new_events {
