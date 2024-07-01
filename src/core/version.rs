@@ -27,5 +27,5 @@ fn init_user_agent() -> String { format!("{}/{}", name(), version()) }
 fn init_version() -> String {
 	option_env!("CONDUWUIT_VERSION_EXTRA")
 		.or(option_env!("CONDUIT_VERSION_EXTRA"))
-		.map_or(SEMANTIC.to_owned(), |extra| format!("{BRANDING} ({extra})"))
+		.map_or(SEMANTIC.to_owned(), |extra| format!("{SEMANTIC} ({extra})"))
 }
