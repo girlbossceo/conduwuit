@@ -9,9 +9,8 @@ pub(super) async fn users(subcommand: Users) -> Result<RoomMessageEventContent> 
 		Users::Iter => {
 			let timer = tokio::time::Instant::now();
 			let results = services().users.db.iter();
-			let query_time = timer.elapsed();
-
 			let users = results.collect::<Vec<_>>();
+			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{users:#?}\n```"
