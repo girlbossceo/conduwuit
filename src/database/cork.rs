@@ -9,7 +9,7 @@ pub struct Cork {
 }
 
 impl Cork {
-	pub fn new(db: &Arc<Engine>, flush: bool, sync: bool) -> Self {
+	pub(super) fn new(db: &Arc<Engine>, flush: bool, sync: bool) -> Self {
 		db.cork();
 		Self {
 			db: db.clone(),

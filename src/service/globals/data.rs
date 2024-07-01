@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduit::{trace, utils, Error, Result};
-use database::{Cork, Database, Map};
+use database::{Database, Map};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use lru_cache::LruCache;
 use ruma::{
@@ -184,10 +184,6 @@ impl Data {
 	}
 
 	pub fn cleanup(&self) -> Result<()> { self.db.db.cleanup() }
-
-	pub fn cork(&self) -> Cork { Cork::new(&self.db.db, false, false) }
-
-	pub fn cork_and_flush(&self) -> Cork { Cork::new(&self.db.db, true, false) }
 
 	pub fn memory_usage(&self) -> String {
 		let auth_chain_cache = self.db.auth_chain_cache.lock().unwrap().len();

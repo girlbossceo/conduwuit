@@ -207,7 +207,7 @@ impl Service {
 		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Vec<u8>> {
 		// Coalesce database writes for the remainder of this scope.
-		let _cork = services().globals.db.cork_and_flush();
+		let _cork = services().db.cork_and_flush();
 
 		let shortroomid = services()
 			.rooms
