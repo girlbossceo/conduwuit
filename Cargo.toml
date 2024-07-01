@@ -378,6 +378,20 @@ version = "0.5.4"
 default-features = false
 features = ["use_std"]
 
+[workspace.dependencies.rusqlite]
+git = "https://github.com/rusqlite/rusqlite"
+#branch = "master"
+rev = "e00b626e2b1c67347d789fb7f600281705c89381"
+features = ["bundled"]
+
+# used only by rusqlite
+[workspace.dependencies.parking_lot]
+version = "0.12.3"
+
+# used only by rusqlite
+[workspace.dependencies.thread_local]
+version = "1.1.8"
+
 [workspace.dependencies.tokio-metrics]
 version = "0.3.1"
 default-features = false
