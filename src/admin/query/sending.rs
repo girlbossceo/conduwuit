@@ -9,9 +9,8 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 		Sending::ActiveRequests => {
 			let timer = tokio::time::Instant::now();
 			let results = services().sending.db.active_requests();
-			let query_time = timer.elapsed();
-
 			let active_requests: Result<Vec<(_, _, _)>> = results.collect();
+			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{active_requests:#?}\n```"
@@ -29,8 +28,8 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 					 --help for more details.",
 				));
 			}
-
-			let (results, query_time) = match (appservice_id, server_name, user_id, push_key) {
+			let timer = tokio::time::Instant::now();
+			let results = match (appservice_id, server_name, user_id, push_key) {
 				(Some(appservice_id), None, None, None) => {
 					if appservice_id.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
@@ -39,25 +38,15 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					let timer = tokio::time::Instant::now();
-					let results = services()
+					services()
 						.sending
 						.db
-						.queued_requests(&Destination::Appservice(appservice_id));
-					let query_time = timer.elapsed();
-
-					(results, query_time)
+						.queued_requests(&Destination::Appservice(appservice_id))
 				},
-				(None, Some(server_name), None, None) => {
-					let timer = tokio::time::Instant::now();
-					let results = services()
-						.sending
-						.db
-						.queued_requests(&Destination::Normal(server_name.into()));
-					let query_time = timer.elapsed();
-
-					(results, query_time)
-				},
+				(None, Some(server_name), None, None) => services()
+					.sending
+					.db
+					.queued_requests(&Destination::Normal(server_name.into())),
 				(None, None, Some(user_id), Some(push_key)) => {
 					if push_key.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
@@ -66,14 +55,10 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					let timer = tokio::time::Instant::now();
-					let results = services()
+					services()
 						.sending
 						.db
-						.queued_requests(&Destination::Push(user_id.into(), push_key));
-					let query_time = timer.elapsed();
-
-					(results, query_time)
+						.queued_requests(&Destination::Push(user_id.into(), push_key))
 				},
 				(Some(_), Some(_), Some(_), Some(_)) => {
 					return Ok(RoomMessageEventContent::text_plain(
@@ -90,6 +75,7 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 			};
 
 			let queued_requests = results.collect::<Result<Vec<(_, _)>>>();
+			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{queued_requests:#?}\n```"
@@ -108,7 +94,8 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 				));
 			}
 
-			let (results, query_time) = match (appservice_id, server_name, user_id, push_key) {
+			let timer = tokio::time::Instant::now();
+			let results = match (appservice_id, server_name, user_id, push_key) {
 				(Some(appservice_id), None, None, None) => {
 					if appservice_id.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
@@ -117,25 +104,15 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					let timer = tokio::time::Instant::now();
-					let results = services()
+					services()
 						.sending
 						.db
-						.active_requests_for(&Destination::Appservice(appservice_id));
-					let query_time = timer.elapsed();
-
-					(results, query_time)
+						.active_requests_for(&Destination::Appservice(appservice_id))
 				},
-				(None, Some(server_name), None, None) => {
-					let timer = tokio::time::Instant::now();
-					let results = services()
-						.sending
-						.db
-						.active_requests_for(&Destination::Normal(server_name.into()));
-					let query_time = timer.elapsed();
-
-					(results, query_time)
-				},
+				(None, Some(server_name), None, None) => services()
+					.sending
+					.db
+					.active_requests_for(&Destination::Normal(server_name.into())),
 				(None, None, Some(user_id), Some(push_key)) => {
 					if push_key.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
@@ -144,14 +121,10 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					let timer = tokio::time::Instant::now();
-					let results = services()
+					services()
 						.sending
 						.db
-						.active_requests_for(&Destination::Push(user_id.into(), push_key));
-					let query_time = timer.elapsed();
-
-					(results, query_time)
+						.active_requests_for(&Destination::Push(user_id.into(), push_key))
 				},
 				(Some(_), Some(_), Some(_), Some(_)) => {
 					return Ok(RoomMessageEventContent::text_plain(
@@ -168,6 +141,7 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 			};
 
 			let active_requests = results.collect::<Result<Vec<(_, _)>>>();
+			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{active_requests:#?}\n```"
