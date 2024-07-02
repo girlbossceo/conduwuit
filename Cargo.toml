@@ -117,7 +117,7 @@ version = "1.0.203"
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
-version = "1.0.117"
+version = "1.0.120"
 features = ["raw_value"]
 
 # Used for appservice registration files
@@ -212,7 +212,7 @@ features = ["alloc"]
 default-features = false
 
 [workspace.dependencies.hyper]
-version = "1.3.1"
+version = "1.4.0"
 features = [
 	"server",
 	"http1",
@@ -220,7 +220,7 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-version = "0.1.5"
+version = "0.1.6"
 features = [
 	"client",
 	"server-auto",
