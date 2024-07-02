@@ -1055,7 +1055,7 @@ async fn join_room_by_id_helper_local(
 		.filter(|user| user_is_local(user))
 		.collect::<Vec<OwnedUserId>>();
 
-	let mut authorized_user: Option<OwnedUserId> = None;
+	let mut join_authorized_via_users_server: Option<OwnedUserId> = None;
 
 	if restriction_rooms.iter().any(|restriction_room_id| {
 		services()
@@ -1069,10 +1069,9 @@ async fn join_room_by_id_helper_local(
 				.rooms
 				.state_accessor
 				.user_can_invite(room_id, &user, sender_user, &state_lock)
-				.await
 				.unwrap_or(false)
 			{
-				authorized_user = Some(user);
+				join_authorized_via_users_server = Some(user);
 				break;
 			}
 		}
@@ -1086,7 +1085,7 @@ async fn join_room_by_id_helper_local(
 		third_party_invite: None,
 		blurhash: services().users.blurhash(sender_user)?,
 		reason: reason.clone(),
-		join_authorized_via_users_server: authorized_user,
+		join_authorized_via_users_server,
 	};
 
 	// Try normal join first

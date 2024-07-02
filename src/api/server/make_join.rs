@@ -7,15 +7,12 @@ use ruma::{
 		},
 		StateEventType, TimelineEventType,
 	},
-	RoomVersionId,
+	RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::to_raw_value;
 use tracing::warn;
 
-use crate::{
-	service::{pdu::PduBuilder, user_is_local},
-	services, Error, Result, Ruma,
-};
+use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
 
 /// # `GET /_matrix/federation/v1/make_join/{roomId}/{userId}`
 ///
@@ -72,95 +69,42 @@ pub(crate) async fn create_join_event_template_route(
 		}
 	}
 
+	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
+
 	let state_lock = services()
 		.globals
 		.roomid_mutex_state
 		.lock(&body.room_id)
 		.await;
-	let join_rules_event =
-		services()
+
+	let join_authorized_via_users_server = if (services()
+		.rooms
+		.state_cache
+		.is_left(&body.user_id, &body.room_id)
+		.unwrap_or(true))
+		&& user_can_perform_restricted_join(&body.user_id, &body.room_id, &room_version_id)?
+	{
+		let auth_user = services()
 			.rooms
-			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomJoinRules, "")?;
-
-	let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
-		.as_ref()
-		.map(|join_rules_event| {
-			serde_json::from_str(join_rules_event.content.get())
-				.map_err(|_| Error::bad_database("Invalid join rules event in db."))
-		})
-		.transpose()?;
-
-	let join_authorized_via_users_server = if let Some(join_rules_event_content) = join_rules_event_content {
-		if let JoinRule::Restricted(r) | JoinRule::KnockRestricted(r) = join_rules_event_content.join_rule {
-			if r.allow
-				.iter()
-				.filter_map(|rule| {
-					if let AllowRule::RoomMembership(membership) = rule {
-						Some(membership)
-					} else {
-						None
-					}
-				})
-				.any(|m| {
-					services()
-						.rooms
-						.state_cache
-						.is_joined(&body.user_id, &m.room_id)
-						.unwrap_or(false)
-				}) {
-				if services()
+			.state_cache
+			.room_members(&body.room_id)
+			.filter_map(Result::ok)
+			.filter(|user| user.server_name() == services().globals.server_name())
+			.find(|user| {
+				services()
 					.rooms
-					.state_cache
-					.is_left(&body.user_id, &body.room_id)
-					.unwrap_or(true)
-				{
-					let members: Vec<_> = services()
-						.rooms
-						.state_cache
-						.room_members(&body.room_id)
-						.filter_map(Result::ok)
-						.filter(|user| user_is_local(user))
-						.collect();
+					.state_accessor
+					.user_can_invite(&body.room_id, user, &body.user_id, &state_lock)
+					.unwrap_or(false)
+			});
 
-					let mut auth_user = None;
-
-					for user in members {
-						if services()
-							.rooms
-							.state_accessor
-							.user_can_invite(&body.room_id, &user, &body.user_id, &state_lock)
-							.await
-							.unwrap_or(false)
-						{
-							auth_user = Some(user);
-							break;
-						}
-					}
-					if auth_user.is_some() {
-						auth_user
-					} else {
-						return Err(Error::BadRequest(
-							ErrorKind::UnableToGrantJoin,
-							"No user on this server is able to assist in joining.",
-						));
-					}
-				} else {
-					// If the user has any state other than leave, either:
-					// - the auth_check will deny them (ban, knock - (until/unless MSC4123 is
-					//   merged))
-					// - they are able to join via other methods (invite)
-					// - they are already in the room (join)
-					None
-				}
-			} else {
-				return Err(Error::BadRequest(
-					ErrorKind::UnableToAuthorizeJoin,
-					"User is not known to be in any required room.",
-				));
-			}
+		if auth_user.is_some() {
+			auth_user
 		} else {
-			None
+			return Err(Error::BadRequest(
+				ErrorKind::UnableToGrantJoin,
+				"No user on this server is able to assist in joining.",
+			));
 		}
 	} else {
 		None
@@ -230,4 +174,72 @@ pub(crate) async fn create_join_event_template_route(
 		room_version: Some(room_version_id),
 		event: to_raw_value(&pdu_json).expect("CanonicalJson can be serialized to JSON"),
 	})
+}
+
+/// Checks whether the given user can join the given room via a restricted join.
+/// This doesn't check the current user's membership. This should be done
+/// externally, either by using the state cache or attempting to authorize the
+/// event.
+pub(crate) fn user_can_perform_restricted_join(
+	user_id: &UserId, room_id: &RoomId, room_version_id: &RoomVersionId,
+) -> Result<bool> {
+	let join_rules_event =
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+
+	let Some(join_rules_event_content) = join_rules_event
+		.as_ref()
+		.map(|join_rules_event| {
+			serde_json::from_str::<RoomJoinRulesEventContent>(join_rules_event.content.get()).map_err(|e| {
+				warn!("Invalid join rules event in database: {e}");
+				Error::bad_database("Invalid join rules event in database")
+			})
+		})
+		.transpose()?
+	else {
+		return Ok(false);
+	};
+
+	if matches!(
+		room_version_id,
+		RoomVersionId::V1
+			| RoomVersionId::V2
+			| RoomVersionId::V3
+			| RoomVersionId::V4
+			| RoomVersionId::V5
+			| RoomVersionId::V6
+			| RoomVersionId::V7
+	) {
+		return Ok(false);
+	}
+
+	let (JoinRule::Restricted(r) | JoinRule::KnockRestricted(r)) = join_rules_event_content.join_rule else {
+		return Ok(false);
+	};
+
+	if r.allow
+		.iter()
+		.filter_map(|rule| {
+			if let AllowRule::RoomMembership(membership) = rule {
+				Some(membership)
+			} else {
+				None
+			}
+		})
+		.any(|m| {
+			services()
+				.rooms
+				.state_cache
+				.is_joined(user_id, &m.room_id)
+				.unwrap_or(false)
+		}) {
+		Ok(true)
+	} else {
+		Err(Error::BadRequest(
+			ErrorKind::UnableToAuthorizeJoin,
+			"User is not known to be in any required room.",
+		))
+	}
 }

@@ -8,7 +8,7 @@ use ruma::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, RoomVersionId, ServerName,
+	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::user_is_local;
@@ -125,16 +125,8 @@ async fn create_join_event(
 	if content
 		.join_authorized_via_users_server
 		.is_some_and(|user| user_is_local(&user))
-		&& !matches!(
-			room_version_id,
-			RoomVersionId::V1
-				| RoomVersionId::V2
-				| RoomVersionId::V3
-				| RoomVersionId::V4
-				| RoomVersionId::V5
-				| RoomVersionId::V6
-				| RoomVersionId::V7
-		) {
+		&& super::user_can_perform_restricted_join(&sender, room_id, &room_version_id).unwrap_or_default()
+	{
 		ruma::signatures::hash_and_sign_event(
 			services().globals.server_name().as_str(),
 			services().globals.keypair(),

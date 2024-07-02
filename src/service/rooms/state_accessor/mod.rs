@@ -299,7 +299,7 @@ impl Service {
 			})
 	}
 
-	pub async fn user_can_invite(
+	pub fn user_can_invite(
 		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &mutex_map::Guard<()>,
 	) -> Result<bool> {
 		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
