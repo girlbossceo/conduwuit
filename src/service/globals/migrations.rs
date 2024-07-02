@@ -479,7 +479,7 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			.unwrap()
 			.expect("shortroomid should exist");
 
-		let mut new_key = short_room_id;
+		let mut new_key = short_room_id.to_vec();
 		new_key.extend_from_slice(count);
 
 		Some((new_key, v))
@@ -500,7 +500,7 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			.unwrap()
 			.expect("shortroomid should exist");
 
-		let mut new_value = short_room_id;
+		let mut new_value = short_room_id.to_vec();
 		new_value.extend_from_slice(count);
 
 		Some((k, new_value))
@@ -534,7 +534,7 @@ async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
 				.get(room_id)
 				.unwrap()
 				.expect("shortroomid should exist");
-			let mut new_key = short_room_id;
+			let mut new_key = short_room_id.to_vec();
 			new_key.extend_from_slice(word);
 			new_key.push(0xFF);
 			new_key.extend_from_slice(pdu_id_count);
