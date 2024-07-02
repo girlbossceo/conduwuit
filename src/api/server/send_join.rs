@@ -8,9 +8,10 @@ use ruma::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
+	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, RoomVersionId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use service::user_is_local;
 use tokio::sync::RwLock;
 use tracing::warn;
 
@@ -121,13 +122,33 @@ async fn create_join_event(
 		));
 	};
 
-	ruma::signatures::hash_and_sign_event(
-		services().globals.server_name().as_str(),
-		services().globals.keypair(),
-		&mut value,
-		&room_version_id,
-	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
+	if content
+		.join_authorized_via_users_server
+		.is_some_and(|user| user_is_local(&user))
+		&& !matches!(
+			room_version_id,
+			RoomVersionId::V1
+				| RoomVersionId::V2
+				| RoomVersionId::V3
+				| RoomVersionId::V4
+				| RoomVersionId::V5
+				| RoomVersionId::V6
+				| RoomVersionId::V7
+		) {
+		ruma::signatures::hash_and_sign_event(
+			services().globals.server_name().as_str(),
+			services().globals.keypair(),
+			&mut value,
+			&room_version_id,
+		)
+		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
+	}
+
+	services()
+		.rooms
+		.event_handler
+		.fetch_required_signing_keys([&value], &pub_key_map)
+		.await?;
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
@@ -138,12 +159,6 @@ async fn create_join_event(
 		.expect("CanonicalJson is valid json value"),
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
-
-	services()
-		.rooms
-		.event_handler
-		.fetch_required_signing_keys([&value], &pub_key_map)
-		.await?;
 
 	let mutex_lock = services()
 		.globals
@@ -183,7 +198,7 @@ async fn create_join_event(
 			.collect(),
 		// Event field is required if the room version supports restricted join rules.
 		event: Some(
-			to_raw_value(&CanonicalJsonValue::Object(value.clone()))
+			to_raw_value(&CanonicalJsonValue::Object(value))
 				.expect("To raw json should not fail since only change was adding signature"),
 		),
 	})
