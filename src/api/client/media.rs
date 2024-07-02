@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::{io::Cursor, sync::Arc, time::Duration};
 
 use image::io::Reader as ImgReader;
@@ -396,6 +398,7 @@ pub(crate) async fn get_content_thumbnail_route(
 					media_id: body.media_id.clone(),
 					timeout_ms: body.timeout_ms,
 					allow_redirect: body.allow_redirect,
+					animated: body.animated,
 				},
 			)
 			.await
