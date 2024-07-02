@@ -26,7 +26,7 @@ impl Service {
 
 	pub fn existing_txnid(
 		&self, user_id: &UserId, device_id: Option<&DeviceId>, txn_id: &TransactionId,
-	) -> Result<Option<Vec<u8>>> {
+	) -> Result<Option<database::Handle<'_>>> {
 		self.db.existing_txnid(user_id, device_id, txn_id)
 	}
 }

@@ -31,7 +31,7 @@ impl Data {
 
 	pub(super) fn existing_txnid(
 		&self, user_id: &UserId, device_id: Option<&DeviceId>, txn_id: &TransactionId,
-	) -> Result<Option<Vec<u8>>> {
+	) -> Result<Option<database::Handle<'_>>> {
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(device_id.map(DeviceId::as_bytes).unwrap_or_default());

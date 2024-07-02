@@ -1,39 +1,42 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use conduit::{utils, Result};
-use rocksdb::{BoundColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions};
+use rocksdb::{
+	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
+};
 
-use super::{or_else, result, watchers::Watchers, Engine};
+use crate::{or_else, result, watchers::Watchers, Engine, Handle, Iter};
 
 pub struct Map {
-	db: Arc<Engine>,
 	name: String,
+	db: Arc<Engine>,
+	cf: Arc<ColumnFamily>,
 	watchers: Watchers,
 	write_options: WriteOptions,
 	read_options: ReadOptions,
 }
 
-type Key = Vec<u8>;
-type Val = Vec<u8>;
-type KeyVal = (Key, Val);
+pub(crate) type KeyVal = (Key, Val);
+pub(crate) type Val = Vec<u8>;
+pub(crate) type Key = Vec<u8>;
 
 impl Map {
 	pub(crate) fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<Self>> {
-		db.open_cf(name)?;
 		Ok(Arc::new(Self {
-			db: db.clone(),
 			name: name.to_owned(),
+			db: db.clone(),
+			cf: open(db, name)?,
 			watchers: Watchers::default(),
 			write_options: write_options_default(),
 			read_options: read_options_default(),
 		}))
 	}
 
-	pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+	pub fn get(&self, key: &[u8]) -> Result<Option<Handle<'_>>> {
 		let read_options = &self.read_options;
-		let res = self.db.db.get_cf_opt(&self.cf(), key, read_options);
+		let res = self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options);
 
-		result(res)
+		Ok(result(res)?.map(Handle::from))
 	}
 
 	pub fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {
@@ -118,15 +121,9 @@ impl Map {
 	}
 
 	pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
+		let mode = IteratorMode::Start;
 		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, IteratorMode::Start)
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)));
-
-		Box::new(it)
+		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
 	pub fn iter_from<'a>(&'a self, from: &[u8], backwards: bool) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
@@ -137,85 +134,53 @@ impl Map {
 		};
 		let mode = IteratorMode::From(from, direction);
 		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, mode)
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)));
-
-		Box::new(it)
+		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
 	pub fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
 		let mode = IteratorMode::From(&prefix, Direction::Forward);
 		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, mode)
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)))
-			.take_while(move |(k, _)| k.starts_with(&prefix));
-
-		Box::new(it)
+		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
 	}
 
-	pub fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
-		let read_options = &self.read_options;
-		let old = self
-			.db
-			.db
-			.get_cf_opt(&self.cf(), key, read_options)
-			.or_else(or_else)?;
-
+	pub fn increment(&self, key: &[u8]) -> Result<[u8; 8]> {
+		let old = self.get(key)?;
 		let new = utils::increment(old.as_deref());
-
-		let write_options = &self.write_options;
-		self.db
-			.db
-			.put_cf_opt(&self.cf(), key, new, write_options)
-			.or_else(or_else)?;
+		self.insert(key, &new)?;
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(new.to_vec())
+		Ok(new)
 	}
 
 	pub fn increment_batch(&self, iter: &mut dyn Iterator<Item = Val>) -> Result<()> {
 		let mut batch = WriteBatchWithTransaction::<false>::default();
-
-		let read_options = &self.read_options;
 		for key in iter {
-			let old = self
-				.db
-				.db
-				.get_cf_opt(&self.cf(), &key, read_options)
-				.or_else(or_else)?;
+			let old = self.get(&key)?;
 			let new = utils::increment(old.as_deref());
 			batch.put_cf(&self.cf(), key, new);
 		}
 
 		let write_options = &self.write_options;
-		self.db
-			.db
-			.write_opt(batch, write_options)
-			.or_else(or_else)?;
+		let res = self.db.db.write_opt(batch, write_options);
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(())
+		result(res)
 	}
 
 	pub fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
 		self.watchers.watch(prefix)
 	}
 
-	fn cf(&self) -> Arc<BoundColumnFamily<'_>> { self.db.cf(&self.name) }
+	#[inline]
+	pub fn name(&self) -> &str { &self.name }
+
+	fn cf(&self) -> impl AsColumnFamilyRef + '_ { &*self.cf }
 }
 
 impl<'a> IntoIterator for &'a Map {
@@ -223,6 +188,41 @@ impl<'a> IntoIterator for &'a Map {
 	type Item = KeyVal;
 
 	fn into_iter(self) -> Self::IntoIter { self.iter() }
+}
+
+fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
+	let bounded_arc = db.open_cf(name)?;
+	let bounded_ptr = Arc::into_raw(bounded_arc);
+	let cf_ptr = bounded_ptr.cast::<ColumnFamily>();
+
+	// SAFETY: After thorough contemplation this appears to be the best solution,
+	// even by a significant margin.
+	//
+	// BACKGROUND: Column family handles out of RocksDB are basic pointers and can
+	// be invalidated: 1. when the database closes. 2. when the column is dropped or
+	// closed. rust_rocksdb wraps this for us by storing handles in their own
+	// `RwLock<BTreeMap>` map and returning an Arc<BoundColumnFamily<'_>>` to
+	// provide expected safety. Similarly in "single-threaded mode" we would
+	// receive `&'_ ColumnFamily`.
+	//
+	// PROBLEM: We need to hold these handles in a field, otherwise we have to take
+	// a lock and get them by name from this map for every query, which is what
+	// conduit was doing, but we're not going to make a query for every query so we
+	// need to be holding it right. The lifetime parameter on these references makes
+	// that complicated. If this can be done without polluting the userspace
+	// with lifetimes on every instance of `Map` then this `unsafe` might not be
+	// necessary.
+	//
+	// SOLUTION: After investigating the underlying types it appears valid to
+	// Arc-swap `BoundColumnFamily<'_>` for `ColumnFamily`. They have the
+	// same inner data, the same Drop behavior, Deref, etc. We're just losing the
+	// lifetime parameter. We should not hold this handle, even in its Arc, after
+	// closing the database (dropping `Engine`). Since `Arc<Engine>` is a sibling
+	// member along with this handle in `Map`, that is prevented.
+	Ok(unsafe {
+		Arc::decrement_strong_count(cf_ptr);
+		Arc::from_raw(cf_ptr)
+	})
 }
 
 #[inline]

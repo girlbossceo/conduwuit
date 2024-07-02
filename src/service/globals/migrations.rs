@@ -479,7 +479,7 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			.unwrap()
 			.expect("shortroomid should exist");
 
-		let mut new_key = short_room_id;
+		let mut new_key = short_room_id.to_vec();
 		new_key.extend_from_slice(count);
 
 		Some((new_key, v))
@@ -500,7 +500,7 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			.unwrap()
 			.expect("shortroomid should exist");
 
-		let mut new_value = short_room_id;
+		let mut new_value = short_room_id.to_vec();
 		new_value.extend_from_slice(count);
 
 		Some((k, new_value))
@@ -534,7 +534,7 @@ async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
 				.get(room_id)
 				.unwrap()
 				.expect("shortroomid should exist");
-			let mut new_key = short_room_id;
+			let mut new_key = short_room_id.to_vec();
 			new_key.extend_from_slice(word);
 			new_key.push(0xFF);
 			new_key.extend_from_slice(pdu_id_count);
@@ -818,7 +818,7 @@ async fn handle_media_check(
 async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Fixing bad double separator in state_cache roomuserid_joined");
 	let roomuserid_joined = &db["roomuserid_joined"];
-	let _cork = database::Cork::new(&db.db, true, true);
+	let _cork = db.cork_and_sync();
 
 	let mut iter_count: usize = 0;
 	for (mut key, value) in roomuserid_joined.iter() {
@@ -851,7 +851,7 @@ async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &C
 
 async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	warn!("Retroactively fixing bad data from broken roomuserid_joined");
-	let _cork = database::Cork::new(&db.db, true, true);
+	let _cork = db.cork_and_sync();
 
 	let room_ids = services()
 		.rooms

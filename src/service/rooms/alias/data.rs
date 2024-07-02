@@ -39,7 +39,7 @@ impl Data {
 
 	pub(super) fn remove_alias(&self, alias: &RoomAliasId) -> Result<()> {
 		if let Some(room_id) = self.alias_roomid.get(alias.alias().as_bytes())? {
-			let mut prefix = room_id;
+			let mut prefix = room_id.to_vec();
 			prefix.push(0xFF);
 
 			for (key, _) in self.aliasid_alias.scan_prefix(prefix) {

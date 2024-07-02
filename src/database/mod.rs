@@ -1,6 +1,8 @@
-pub mod cork;
+mod cork;
 mod database;
 mod engine;
+mod handle;
+mod iter;
 mod map;
 pub mod maps;
 mod opts;
@@ -10,9 +12,10 @@ mod watchers;
 extern crate conduit_core as conduit;
 extern crate rust_rocksdb as rocksdb;
 
-pub use cork::Cork;
 pub use database::Database;
 pub(crate) use engine::Engine;
+pub use handle::Handle;
+pub use iter::Iter;
 pub use map::Map;
 pub(crate) use util::{or_else, result};
 

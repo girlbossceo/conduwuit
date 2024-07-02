@@ -112,7 +112,7 @@ impl Engine {
 		Ok(self.cf(name))
 	}
 
-	pub(crate) fn cf<'db>(&'db self, name: &str) -> Arc<BoundColumnFamily<'db>> {
+	pub(crate) fn cf(&self, name: &str) -> Arc<BoundColumnFamily<'_>> {
 		self.db
 			.cf_handle(name)
 			.expect("column was created and exists")
@@ -122,7 +122,7 @@ impl Engine {
 
 	pub fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, true)) }
 
-	pub(crate) fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
+	pub fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
 
 	pub(crate) fn cork(&self) {
 		self.corks

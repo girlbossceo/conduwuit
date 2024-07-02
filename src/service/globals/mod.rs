@@ -140,11 +140,11 @@ impl Service {
 	/// Returns this server's keypair.
 	pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair { &self.keypair }
 
-	#[tracing::instrument(skip(self))]
+	#[inline]
 	pub fn next_count(&self) -> Result<u64> { self.db.next_count() }
 
-	#[tracing::instrument(skip(self))]
-	pub fn current_count(&self) -> Result<u64> { self.db.current_count() }
+	#[inline]
+	pub fn current_count(&self) -> Result<u64> { Ok(self.db.current_count()) }
 
 	#[tracing::instrument(skip(self))]
 	pub fn last_check_for_updates_id(&self) -> Result<u64> { self.db.last_check_for_updates_id() }
