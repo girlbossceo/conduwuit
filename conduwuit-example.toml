@@ -375,6 +375,20 @@ allow_profile_lookup_federation_requests = true
 # See: docs/development.md#debugging-with-tokio-console for more information.
 #tokio_console = false
 
+# Enable backward-compatibility with Conduit's media directory by creating symlinks of media. This
+# option is only necessary if you plan on using Conduit again. Otherwise setting this to false
+# reduces filesystem clutter and overhead for managing these symlinks in the directory.
+#media_compat_file_link = true
+
+# Checks consistency of the media directory at startup:
+# 1. When `media_compat_file_link` is enbled, this check will upgrade media when switching back
+#    and forth between Conduit and Conduwuit. Both options must be enabled to handle this.
+# 2. When media is deleted from the directory, this check will also delete its database entry.
+#
+# If none of these checks apply to your use cases, and your media directory is significantly large
+# setting this to false may reduce startup time.
+#media_statup_check = true
+
 
 ### Generic database options
 
