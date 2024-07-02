@@ -210,7 +210,7 @@ impl Service {
 					}
 				}
 
-				pdus.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("u64s can always be compared"));
+				pdus.sort_by(|a, b| a.0.cmp(&b.0));
 				pdus
 			})
 	}
