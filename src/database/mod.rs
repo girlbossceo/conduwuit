@@ -1,6 +1,7 @@
 mod cork;
 mod database;
 mod engine;
+mod iter;
 mod map;
 pub mod maps;
 mod opts;
@@ -12,6 +13,7 @@ extern crate rust_rocksdb as rocksdb;
 
 pub use database::Database;
 pub(crate) use engine::Engine;
+pub use iter::Iter;
 pub use map::Map;
 pub(crate) use util::{or_else, result};
 

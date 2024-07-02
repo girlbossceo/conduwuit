@@ -5,7 +5,7 @@ use rocksdb::{
 	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
 };
 
-use super::{or_else, result, watchers::Watchers, Engine};
+use crate::{or_else, result, watchers::Watchers, Engine, Iter};
 
 pub struct Map {
 	name: String,
@@ -16,9 +16,9 @@ pub struct Map {
 	read_options: ReadOptions,
 }
 
-type Key = Vec<u8>;
-type Val = Vec<u8>;
-type KeyVal = (Key, Val);
+pub(crate) type KeyVal = (Key, Val);
+pub(crate) type Val = Vec<u8>;
+pub(crate) type Key = Vec<u8>;
 
 impl Map {
 	pub(crate) fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<Self>> {
@@ -121,15 +121,9 @@ impl Map {
 	}
 
 	pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
+		let mode = IteratorMode::Start;
 		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, IteratorMode::Start)
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)));
-
-		Box::new(it)
+		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
 	pub fn iter_from<'a>(&'a self, from: &[u8], backwards: bool) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
@@ -140,28 +134,13 @@ impl Map {
 		};
 		let mode = IteratorMode::From(from, direction);
 		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, mode)
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)));
-
-		Box::new(it)
+		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
 	pub fn scan_prefix<'a>(&'a self, prefix: Vec<u8>) -> Box<dyn Iterator<Item = KeyVal> + 'a> {
 		let mode = IteratorMode::From(&prefix, Direction::Forward);
 		let read_options = read_options_default();
-		let it = self
-			.db
-			.db
-			.iterator_cf_opt(&self.cf(), read_options, mode)
-			.map(Result::unwrap)
-			.map(|(k, v)| (Vec::from(k), Vec::from(v)))
-			.take_while(move |(k, _)| k.starts_with(&prefix));
-
-		Box::new(it)
+		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
 	}
 
 	pub fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
