@@ -87,7 +87,7 @@ impl Data {
 			keys.push(key);
 		}
 		self.servernameevent_data
-			.insert_batch(&mut batch.into_iter())?;
+			.insert_batch(batch.iter().map(database::KeyVal::from))?;
 		Ok(keys)
 	}
 

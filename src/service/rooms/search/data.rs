@@ -20,15 +20,18 @@ impl Data {
 	}
 
 	pub(super) fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
-		let mut batch = tokenize(message_body).map(|word| {
-			let mut key = shortroomid.to_be_bytes().to_vec();
-			key.extend_from_slice(word.as_bytes());
-			key.push(0xFF);
-			key.extend_from_slice(pdu_id); // TODO: currently we save the room id a second time here
-			(key, Vec::new())
-		});
+		let batch = tokenize(message_body)
+			.map(|word| {
+				let mut key = shortroomid.to_be_bytes().to_vec();
+				key.extend_from_slice(word.as_bytes());
+				key.push(0xFF);
+				key.extend_from_slice(pdu_id); // TODO: currently we save the room id a second time here
+				(key, Vec::<u8>::new())
+			})
+			.collect::<Vec<_>>();
 
-		self.tokenids.insert_batch(&mut batch)
+		self.tokenids
+			.insert_batch(batch.iter().map(database::KeyVal::from))
 	}
 
 	pub(super) fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {

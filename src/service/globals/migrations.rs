@@ -466,47 +466,53 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		info!("Migration: 8");
 	}
 	// Update pduids db layout
-	let mut batch = pduid_pdu.iter().filter_map(|(key, v)| {
-		if !key.starts_with(b"!") {
-			return None;
-		}
-		let mut parts = key.splitn(2, |&b| b == 0xFF);
-		let room_id = parts.next().unwrap();
-		let count = parts.next().unwrap();
+	let batch = pduid_pdu
+		.iter()
+		.filter_map(|(key, v)| {
+			if !key.starts_with(b"!") {
+				return None;
+			}
+			let mut parts = key.splitn(2, |&b| b == 0xFF);
+			let room_id = parts.next().unwrap();
+			let count = parts.next().unwrap();
 
-		let short_room_id = roomid_shortroomid
-			.get(room_id)
-			.unwrap()
-			.expect("shortroomid should exist");
+			let short_room_id = roomid_shortroomid
+				.get(room_id)
+				.unwrap()
+				.expect("shortroomid should exist");
 
-		let mut new_key = short_room_id.to_vec();
-		new_key.extend_from_slice(count);
+			let mut new_key = short_room_id.to_vec();
+			new_key.extend_from_slice(count);
 
-		Some((new_key, v))
-	});
+			Some(database::OwnedKeyVal(new_key, v))
+		})
+		.collect::<Vec<_>>();
 
-	pduid_pdu.insert_batch(&mut batch)?;
+	pduid_pdu.insert_batch(batch.iter().map(database::KeyVal::from))?;
 
-	let mut batch2 = eventid_pduid.iter().filter_map(|(k, value)| {
-		if !value.starts_with(b"!") {
-			return None;
-		}
-		let mut parts = value.splitn(2, |&b| b == 0xFF);
-		let room_id = parts.next().unwrap();
-		let count = parts.next().unwrap();
+	let batch2 = eventid_pduid
+		.iter()
+		.filter_map(|(k, value)| {
+			if !value.starts_with(b"!") {
+				return None;
+			}
+			let mut parts = value.splitn(2, |&b| b == 0xFF);
+			let room_id = parts.next().unwrap();
+			let count = parts.next().unwrap();
 
-		let short_room_id = roomid_shortroomid
-			.get(room_id)
-			.unwrap()
-			.expect("shortroomid should exist");
+			let short_room_id = roomid_shortroomid
+				.get(room_id)
+				.unwrap()
+				.expect("shortroomid should exist");
 
-		let mut new_value = short_room_id.to_vec();
-		new_value.extend_from_slice(count);
+			let mut new_value = short_room_id.to_vec();
+			new_value.extend_from_slice(count);
 
-		Some((k, new_value))
-	});
+			Some(database::OwnedKeyVal(k, new_value))
+		})
+		.collect::<Vec<_>>();
 
-	eventid_pduid.insert_batch(&mut batch2)?;
+	eventid_pduid.insert_batch(batch2.iter().map(database::KeyVal::from))?;
 
 	services().globals.bump_database_version(8)?;
 	info!("Migration: 7 -> 8 finished");
@@ -538,12 +544,13 @@ async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			new_key.extend_from_slice(word);
 			new_key.push(0xFF);
 			new_key.extend_from_slice(pdu_id_count);
-			Some((new_key, Vec::new()))
+			Some(database::OwnedKeyVal(new_key, Vec::<u8>::new()))
 		})
 		.peekable();
 
 	while iter.peek().is_some() {
-		tokenids.insert_batch(&mut iter.by_ref().take(1000))?;
+		let batch = iter.by_ref().take(1000).collect::<Vec<_>>();
+		tokenids.insert_batch(batch.iter().map(database::KeyVal::from))?;
 		debug!("Inserted smaller batch");
 	}
 

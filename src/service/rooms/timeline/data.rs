@@ -268,9 +268,9 @@ impl Data {
 		}
 
 		self.userroomid_notificationcount
-			.increment_batch(&mut notifies_batch.into_iter())?;
+			.increment_batch(notifies_batch.iter().map(Vec::as_slice))?;
 		self.userroomid_highlightcount
-			.increment_batch(&mut highlights_batch.into_iter())?;
+			.increment_batch(highlights_batch.iter().map(Vec::as_slice))?;
 		Ok(())
 	}
 }

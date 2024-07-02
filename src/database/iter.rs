@@ -3,12 +3,14 @@ use std::{iter::FusedIterator, sync::Arc};
 use conduit::Result;
 use rocksdb::{ColumnFamily, DBRawIteratorWithThreadMode, Direction, IteratorMode, ReadOptions};
 
-use crate::{engine::Db, map::KeyVal, result, Engine};
+use crate::{
+	engine::Db,
+	result,
+	slice::{OwnedKeyVal, OwnedKeyValPair},
+	Engine,
+};
 
 type Cursor<'cursor> = DBRawIteratorWithThreadMode<'cursor, Db>;
-type Key<'item> = &'item [u8];
-type Val<'item> = &'item [u8];
-type Item<'item> = (Key<'item>, Val<'item>);
 
 struct State<'cursor> {
 	cursor: Cursor<'cursor>,
@@ -48,7 +50,7 @@ impl<'cursor> Iter<'cursor> {
 }
 
 impl Iterator for Iter<'_> {
-	type Item = KeyVal;
+	type Item = OwnedKeyValPair;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if !self.state.init && self.state.valid {
@@ -57,10 +59,15 @@ impl Iterator for Iter<'_> {
 			self.state.init = false;
 		}
 
-		self.state.cursor.item().map(into_keyval).or_else(|| {
-			when_invalid(&mut self.state).expect("iterator invalidated due to error");
-			None
-		})
+		self.state
+			.cursor
+			.item()
+			.map(OwnedKeyVal::from)
+			.map(OwnedKeyVal::to_tuple)
+			.or_else(|| {
+				when_invalid(&mut self.state).expect("iterator invalidated due to error");
+				None
+			})
 	}
 }
 
@@ -101,5 +108,3 @@ fn into_direction(mode: &IteratorMode<'_>) -> Direction {
 		End | From(_, Reverse) => Reverse,
 	}
 }
-
-fn into_keyval((key, val): Item<'_>) -> KeyVal { (Vec::from(key), Vec::from(val)) }
