@@ -696,7 +696,6 @@ dependencies = [
  "chrono",
  "conduit_core",
  "log",
- "lru-cache",
  "ruma",
  "rust-rocksdb-uwu",
  "tokio",

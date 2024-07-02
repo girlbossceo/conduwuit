@@ -595,8 +595,10 @@ async fn db_lt_10(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_11(db: &Arc<Database>, _config: &Config) -> Result<()> {
-	let _userdevicesessionid_uiaarequest = &db["userdevicesessionid_uiaarequest"];
+#[allow(unreachable_code)]
+async fn db_lt_11(_db: &Arc<Database>, _config: &Config) -> Result<()> {
+	todo!("Dropping a column to clear data is not implemented yet.");
+	//let userdevicesessionid_uiaarequest = &db["userdevicesessionid_uiaarequest"];
 	//userdevicesessionid_uiaarequest.clear()?;
 
 	services().globals.bump_database_version(11)?;

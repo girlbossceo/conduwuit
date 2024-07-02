@@ -1241,6 +1241,19 @@ impl Service {
 		debug!("Prepended backfill pdu");
 		Ok(())
 	}
+
+	pub fn get_lasttimelinecount_cache_usage(&self) -> (usize, usize) {
+		let cache = self.db.lasttimelinecount_cache.lock().expect("locked");
+		(cache.len(), cache.capacity())
+	}
+
+	pub fn clear_lasttimelinecount_cache(&self) {
+		self.db
+			.lasttimelinecount_cache
+			.lock()
+			.expect("locked")
+			.clear();
+	}
 }
 
 #[cfg(test)]

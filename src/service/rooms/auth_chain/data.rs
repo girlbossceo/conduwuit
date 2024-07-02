@@ -1,24 +1,31 @@
-use std::{mem::size_of, sync::Arc};
+use std::{
+	mem::size_of,
+	sync::{Arc, Mutex},
+};
 
-use conduit::{utils, Result};
+use conduit::{utils, Result, Server};
 use database::{Database, Map};
+use lru_cache::LruCache;
 
 pub(super) struct Data {
 	shorteventid_authchain: Arc<Map>,
-	db: Arc<Database>,
+	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[u64]>>>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(server: &Arc<Server>, db: &Arc<Database>) -> Self {
+		let config = &server.config;
+		let cache_size = f64::from(config.auth_chain_cache_capacity);
+		let cache_size = (cache_size * config.conduit_cache_capacity_modifier) as usize;
 		Self {
 			shorteventid_authchain: db["shorteventid_authchain"].clone(),
-			db: db.clone(),
+			auth_chain_cache: Mutex::new(LruCache::new(cache_size)),
 		}
 	}
 
 	pub(super) fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
 		// Check RAM cache
-		if let Some(result) = self.db.auth_chain_cache.lock().unwrap().get_mut(key) {
+		if let Some(result) = self.auth_chain_cache.lock().unwrap().get_mut(key) {
 			return Ok(Some(Arc::clone(result)));
 		}
 
@@ -37,10 +44,9 @@ impl Data {
 
 			if let Some(chain) = chain {
 				// Cache in RAM
-				self.db
-					.auth_chain_cache
+				self.auth_chain_cache
 					.lock()
-					.unwrap()
+					.expect("locked")
 					.insert(vec![key[0]], Arc::clone(&chain));
 
 				return Ok(Some(chain));
@@ -63,10 +69,9 @@ impl Data {
 		}
 
 		// Cache in RAM
-		self.db
-			.auth_chain_cache
+		self.auth_chain_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.insert(key, auth_chain);
 
 		Ok(())

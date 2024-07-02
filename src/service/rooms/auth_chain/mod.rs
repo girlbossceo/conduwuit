@@ -17,9 +17,9 @@ pub struct Service {
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
+	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
-			db: Data::new(db),
+			db: Data::new(server, db),
 		})
 	}
 
@@ -181,4 +181,11 @@ impl Service {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
 	}
+
+	pub fn get_cache_usage(&self) -> (usize, usize) {
+		let cache = self.db.auth_chain_cache.lock().expect("locked");
+		(cache.len(), cache.capacity())
+	}
+
+	pub fn clear_cache(&self) { self.db.auth_chain_cache.lock().expect("locked").clear(); }
 }

@@ -1,30 +1,32 @@
-use std::sync::Arc;
+use std::{
+	collections::BTreeMap,
+	sync::{Arc, RwLock},
+};
 
 use conduit::{Error, Result};
 use database::{Database, Map};
 use ruma::{
 	api::client::{error::ErrorKind, uiaa::UiaaInfo},
-	CanonicalJsonValue, DeviceId, UserId,
+	CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedUserId, UserId,
 };
 
 pub struct Data {
+	userdevicesessionid_uiaarequest: RwLock<BTreeMap<(OwnedUserId, OwnedDeviceId, String), CanonicalJsonValue>>,
 	userdevicesessionid_uiaainfo: Arc<Map>,
-	db: Arc<Database>,
 }
 
 impl Data {
 	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
+			userdevicesessionid_uiaarequest: RwLock::new(BTreeMap::new()),
 			userdevicesessionid_uiaainfo: db["userdevicesessionid_uiaainfo"].clone(),
-			db: db.clone(),
 		}
 	}
 
 	pub(super) fn set_uiaa_request(
 		&self, user_id: &UserId, device_id: &DeviceId, session: &str, request: &CanonicalJsonValue,
 	) -> Result<()> {
-		self.db
-			.userdevicesessionid_uiaarequest
+		self.userdevicesessionid_uiaarequest
 			.write()
 			.unwrap()
 			.insert(
@@ -38,8 +40,7 @@ impl Data {
 	pub(super) fn get_uiaa_request(
 		&self, user_id: &UserId, device_id: &DeviceId, session: &str,
 	) -> Option<CanonicalJsonValue> {
-		self.db
-			.userdevicesessionid_uiaarequest
+		self.userdevicesessionid_uiaarequest
 			.read()
 			.unwrap()
 			.get(&(user_id.to_owned(), device_id.to_owned(), session.to_owned()))

@@ -441,4 +441,17 @@ impl Service {
 
 		Ok(servers)
 	}
+
+	pub fn get_appservice_in_room_cache_usage(&self) -> (usize, usize) {
+		let cache = self.db.appservice_in_room_cache.read().expect("locked");
+		(cache.len(), cache.capacity())
+	}
+
+	pub fn clear_appservice_in_room_cache(&self) {
+		self.db
+			.appservice_in_room_cache
+			.write()
+			.expect("locked")
+			.clear();
+	}
 }

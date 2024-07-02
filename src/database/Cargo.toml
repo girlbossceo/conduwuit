@@ -38,7 +38,6 @@ zstd_compression = [
 chrono.workspace = true
 conduit-core.workspace = true
 log.workspace = true
-lru-cache.workspace = true
 ruma.workspace = true
 rust-rocksdb.workspace = true
 tokio.workspace = true

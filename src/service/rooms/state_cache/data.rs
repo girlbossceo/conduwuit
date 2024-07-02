@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::{Arc, RwLock},
+};
 
 use conduit::{utils, Error, Result};
 use database::{Database, Map};
@@ -13,6 +16,7 @@ use crate::{appservice::RegistrationInfo, services, user_is_local};
 
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 type AnySyncStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
+type AppServiceInRoomCache = RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>;
 
 pub(super) struct Data {
 	userroomid_joined: Arc<Map>,
@@ -27,7 +31,7 @@ pub(super) struct Data {
 	roomid_invitedcount: Arc<Map>,
 	roomserverids: Arc<Map>,
 	serverroomids: Arc<Map>,
-	db: Arc<Database>,
+	pub(super) appservice_in_room_cache: AppServiceInRoomCache,
 }
 
 impl Data {
@@ -45,7 +49,7 @@ impl Data {
 			roomid_invitedcount: db["roomid_invitedcount"].clone(),
 			roomserverids: db["roomserverids"].clone(),
 			serverroomids: db["serverroomids"].clone(),
-			db: db.clone(),
+			appservice_in_room_cache: RwLock::new(HashMap::new()),
 		}
 	}
 
@@ -201,8 +205,7 @@ impl Data {
 			self.serverroomids.insert(&serverroom_id, &[])?;
 		}
 
-		self.db
-			.appservice_in_room_cache
+		self.appservice_in_room_cache
 			.write()
 			.unwrap()
 			.remove(room_id);
@@ -213,7 +216,6 @@ impl Data {
 	#[tracing::instrument(skip(self, room_id, appservice))]
 	pub(super) fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
 		let maybe = self
-			.db
 			.appservice_in_room_cache
 			.read()
 			.unwrap()
@@ -235,8 +237,7 @@ impl Data {
 					.room_members(room_id)
 					.any(|userid| userid.map_or(false, |userid| appservice.users.is_match(userid.as_str())));
 
-			self.db
-				.appservice_in_room_cache
+			self.appservice_in_room_cache
 				.write()
 				.unwrap()
 				.entry(room_id.to_owned())

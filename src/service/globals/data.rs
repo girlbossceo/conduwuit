@@ -1,12 +1,11 @@
 use std::{
-	collections::{BTreeMap, HashMap},
+	collections::BTreeMap,
 	sync::{Arc, RwLock},
 };
 
 use conduit::{trace, utils, Error, Result};
 use database::{Database, Map};
 use futures_util::{stream::FuturesUnordered, StreamExt};
-use lru_cache::LruCache;
 use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
 	signatures::Ed25519KeyPair,
@@ -210,36 +209,37 @@ impl Data {
 	pub fn cleanup(&self) -> Result<()> { self.db.db.cleanup() }
 
 	pub fn memory_usage(&self) -> String {
-		let auth_chain_cache = self.db.auth_chain_cache.lock().unwrap().len();
-		let appservice_in_room_cache = self.db.appservice_in_room_cache.read().unwrap().len();
-		let lasttimelinecount_cache = self.db.lasttimelinecount_cache.lock().unwrap().len();
-
-		let max_auth_chain_cache = self.db.auth_chain_cache.lock().unwrap().capacity();
-		let max_appservice_in_room_cache = self.db.appservice_in_room_cache.read().unwrap().capacity();
-		let max_lasttimelinecount_cache = self.db.lasttimelinecount_cache.lock().unwrap().capacity();
+		let (auth_chain_cache, max_auth_chain_cache) = services().rooms.auth_chain.get_cache_usage();
+		let (appservice_in_room_cache, max_appservice_in_room_cache) = services()
+			.rooms
+			.state_cache
+			.get_appservice_in_room_cache_usage();
+		let (lasttimelinecount_cache, max_lasttimelinecount_cache) = services()
+			.rooms
+			.timeline
+			.get_lasttimelinecount_cache_usage();
 
 		format!(
-			"\
-auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}
-appservice_in_room_cache: {appservice_in_room_cache} / {max_appservice_in_room_cache}
-lasttimelinecount_cache: {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n
-{}",
+			"auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}\nappservice_in_room_cache: \
+			 {appservice_in_room_cache} / {max_appservice_in_room_cache}\nlasttimelinecount_cache: \
+			 {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n{}",
 			self.db.db.memory_usage().unwrap_or_default()
 		)
 	}
 
+	#[allow(clippy::unused_self)]
 	pub fn clear_caches(&self, amount: u32) {
 		if amount > 1 {
-			let c = &mut *self.db.auth_chain_cache.lock().unwrap();
-			*c = LruCache::new(c.capacity());
+			services().rooms.auth_chain.clear_cache();
 		}
 		if amount > 2 {
-			let c = &mut *self.db.appservice_in_room_cache.write().unwrap();
-			*c = HashMap::new();
+			services()
+				.rooms
+				.state_cache
+				.clear_appservice_in_room_cache();
 		}
 		if amount > 3 {
-			let c = &mut *self.db.lasttimelinecount_cache.lock().unwrap();
-			*c = HashMap::new();
+			services().rooms.timeline.clear_lasttimelinecount_cache();
 		}
 	}
 

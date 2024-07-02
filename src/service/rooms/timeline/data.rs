@@ -1,8 +1,12 @@
-use std::{collections::hash_map, mem::size_of, sync::Arc};
+use std::{
+	collections::{hash_map, HashMap},
+	mem::size_of,
+	sync::{Arc, Mutex},
+};
 
 use conduit::{error, utils, Error, Result};
 use database::{Database, Map};
-use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
+use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
 use crate::{services, PduCount, PduEvent};
 
@@ -12,11 +16,12 @@ pub(super) struct Data {
 	eventid_outlierpdu: Arc<Map>,
 	userroomid_notificationcount: Arc<Map>,
 	userroomid_highlightcount: Arc<Map>,
-	db: Arc<Database>,
+	pub(super) lasttimelinecount_cache: LastTimelineCountCache,
 }
 
 type PdusIterItem = Result<(PduCount, PduEvent)>;
 type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
+type LastTimelineCountCache = Mutex<HashMap<OwnedRoomId, PduCount>>;
 
 impl Data {
 	pub(super) fn new(db: &Arc<Database>) -> Self {
@@ -26,16 +31,15 @@ impl Data {
 			eventid_outlierpdu: db["eventid_outlierpdu"].clone(),
 			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
 			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
-			db: db.clone(),
+			lasttimelinecount_cache: Mutex::new(HashMap::new()),
 		}
 	}
 
 	pub(super) fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
 		match self
-			.db
 			.lasttimelinecount_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.entry(room_id.to_owned())
 		{
 			hash_map::Entry::Vacant(v) => {
@@ -162,10 +166,9 @@ impl Data {
 			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
 		)?;
 
-		self.db
-			.lasttimelinecount_cache
+		self.lasttimelinecount_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.insert(pdu.room_id.clone(), PduCount::Normal(count));
 
 		self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id)?;
