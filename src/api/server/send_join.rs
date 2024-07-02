@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
-	events::{room::member::MembershipState, StateEventType},
+	events::{
+		room::member::{MembershipState, RoomMemberEventContent},
+		StateEventType,
+	},
 	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
@@ -63,22 +66,16 @@ async fn create_join_event(
 		));
 	}
 
-	let content = value
-		.get("content")
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property."))?
-		.as_object()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event content is empty or invalid."))?;
-
-	let membership: MembershipState = serde_json::from_value(
-		content
-			.get("membership")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event content missing membership property."))?
+	let content: RoomMemberEventContent = serde_json::from_value(
+		value
+			.get("content")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property"))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Event has an invalid membership state."))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event content is empty or invalid"))?;
 
-	if membership != MembershipState::Join {
+	if content.membership != MembershipState::Join {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Not allowed to send a non-join membership event to join endpoint.",
@@ -122,7 +119,7 @@ async fn create_join_event(
 			ErrorKind::InvalidParam,
 			"State key does not match sender user",
 		));
-	}
+	};
 
 	ruma::signatures::hash_and_sign_event(
 		services().globals.server_name().as_str(),

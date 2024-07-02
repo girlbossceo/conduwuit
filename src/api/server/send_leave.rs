@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_leave_event},
-	events::{room::member::MembershipState, StateEventType},
+	events::{
+		room::member::{MembershipState, RoomMemberEventContent},
+		StateEventType,
+	},
 	OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
@@ -62,22 +65,16 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		));
 	};
 
-	let content = value
-		.get("content")
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property."))?
-		.as_object()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event content not an object."))?;
-
-	let membership: MembershipState = serde_json::from_value(
-		content
-			.get("membership")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event membership is missing."))?
+	let content: RoomMemberEventContent = serde_json::from_value(
+		value
+			.get("content")
+			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property"))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Event membership state is not valid."))?;
+	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event content is empty or invalid"))?;
 
-	if membership != MembershipState::Leave {
+	if content.membership != MembershipState::Leave {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Not allowed to send a non-leave membership event to leave endpoint.",
