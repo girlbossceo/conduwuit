@@ -16,6 +16,7 @@ use ruma::{
 			canonical_alias::RoomCanonicalAliasEventContent,
 			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent, RoomMembership},
 			member::{MembershipState, RoomMemberEventContent},
 			name::RoomNameEventContent,
 			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
@@ -23,7 +24,8 @@ use ruma::{
 		},
 		StateEventType,
 	},
-	EventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
+	space::SpaceRoomJoinRule,
+	EventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 use serde_json::value::to_raw_value;
 
@@ -414,5 +416,39 @@ impl Service {
 						.map_err(|_| Error::bad_database("Invalid m.room.power_levels event in database"))
 				},
 			)
+	}
+
+	/// Returns the join rule for a given room
+	pub fn get_join_rule(&self, current_room: &RoomId) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>), Error> {
+		Ok(self
+			.room_state_get(current_room, &StateEventType::RoomJoinRules, "")?
+			.map(|s| {
+				serde_json::from_str(s.content.get())
+					.map(|c: RoomJoinRulesEventContent| {
+						(c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule))
+					})
+					.map_err(|e| {
+						error!("Invalid room join rule event in database: {e}");
+						Error::BadDatabase("Invalid room join rule event in database.")
+					})
+			})
+			.transpose()?
+			.unwrap_or((SpaceRoomJoinRule::Invite, vec![])))
+	}
+
+	/// Returns an empty vec if not a restricted room
+	pub fn allowed_room_ids(&self, join_rule: JoinRule) -> Vec<OwnedRoomId> {
+		let mut room_ids = vec![];
+		if let JoinRule::Restricted(r) | JoinRule::KnockRestricted(r) = join_rule {
+			for rule in r.allow {
+				if let AllowRule::RoomMembership(RoomMembership {
+					room_id: membership,
+				}) = rule
+				{
+					room_ids.push(membership.clone());
+				}
+			}
+		}
+		room_ids
 	}
 }
