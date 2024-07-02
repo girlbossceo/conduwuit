@@ -83,7 +83,7 @@ impl Service {
 	) -> Result<Option<Vec<u8>>> {
 		// 1. Skip the PDU if we already have it as a timeline event
 		if let Some(pdu_id) = services().rooms.timeline.get_pdu_id(event_id)? {
-			return Ok(Some(pdu_id));
+			return Ok(Some(pdu_id.to_vec()));
 		}
 
 		// 1.1 Check the server is in the room
@@ -449,7 +449,7 @@ impl Service {
 	) -> Result<Option<Vec<u8>>> {
 		// Skip the PDU if we already have it as a timeline event
 		if let Ok(Some(pduid)) = services().rooms.timeline.get_pdu_id(&incoming_pdu.event_id) {
-			return Ok(Some(pduid));
+			return Ok(Some(pduid.to_vec()));
 		}
 
 		if services()

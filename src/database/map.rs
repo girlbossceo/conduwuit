@@ -5,7 +5,7 @@ use rocksdb::{
 	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
 };
 
-use crate::{or_else, result, watchers::Watchers, Engine, Iter};
+use crate::{or_else, result, watchers::Watchers, Engine, Handle, Iter};
 
 pub struct Map {
 	name: String,
@@ -32,11 +32,11 @@ impl Map {
 		}))
 	}
 
-	pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+	pub fn get(&self, key: &[u8]) -> Result<Option<Handle<'_>>> {
 		let read_options = &self.read_options;
-		let res = self.db.db.get_cf_opt(&self.cf(), key, read_options);
+		let res = self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options);
 
-		result(res)
+		Ok(result(res)?.map(Handle::from))
 	}
 
 	pub fn multi_get(&self, keys: &[&[u8]]) -> Result<Vec<Option<Vec<u8>>>> {

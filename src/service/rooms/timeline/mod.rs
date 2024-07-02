@@ -159,7 +159,9 @@ impl Service {
 	}
 
 	/// Returns the pdu's id.
-	pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<Vec<u8>>> { self.db.get_pdu_id(event_id) }
+	pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<database::Handle<'_>>> {
+		self.db.get_pdu_id(event_id)
+	}
 
 	/// Returns the pdu.
 	///
@@ -1185,7 +1187,8 @@ impl Service {
 
 		// Skip the PDU if we already have it as a timeline event
 		if let Some(pdu_id) = self.get_pdu_id(&event_id)? {
-			info!("We already know {event_id} at {pdu_id:?}");
+			let pdu_id = pdu_id.to_vec();
+			debug!("We already know {event_id} at {pdu_id:?}");
 			return Ok(());
 		}
 
