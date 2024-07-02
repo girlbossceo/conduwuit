@@ -143,54 +143,34 @@ impl Map {
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
 	}
 
-	pub fn increment(&self, key: &[u8]) -> Result<Vec<u8>> {
-		let read_options = &self.read_options;
-		let old = self
-			.db
-			.db
-			.get_cf_opt(&self.cf(), key, read_options)
-			.or_else(or_else)?;
-
+	pub fn increment(&self, key: &[u8]) -> Result<[u8; 8]> {
+		let old = self.get(key)?;
 		let new = utils::increment(old.as_deref());
-
-		let write_options = &self.write_options;
-		self.db
-			.db
-			.put_cf_opt(&self.cf(), key, new, write_options)
-			.or_else(or_else)?;
+		self.insert(key, &new)?;
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(new.to_vec())
+		Ok(new)
 	}
 
 	pub fn increment_batch(&self, iter: &mut dyn Iterator<Item = Val>) -> Result<()> {
 		let mut batch = WriteBatchWithTransaction::<false>::default();
-
-		let read_options = &self.read_options;
 		for key in iter {
-			let old = self
-				.db
-				.db
-				.get_cf_opt(&self.cf(), &key, read_options)
-				.or_else(or_else)?;
+			let old = self.get(&key)?;
 			let new = utils::increment(old.as_deref());
 			batch.put_cf(&self.cf(), key, new);
 		}
 
 		let write_options = &self.write_options;
-		self.db
-			.db
-			.write_opt(batch, write_options)
-			.or_else(or_else)?;
+		let res = self.db.db.write_opt(batch, write_options);
 
 		if !self.db.corked() {
 			self.db.flush()?;
 		}
 
-		Ok(())
+		result(res)
 	}
 
 	pub fn watch_prefix<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
