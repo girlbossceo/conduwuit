@@ -49,8 +49,6 @@ jobs:
         name: Test
         runs-on: ubuntu-latest
         steps:
-            - name: Free Disk Space (Ubuntu)
-              uses: jlumbroso/free-disk-space@main
             - name: Sync repository
               uses: actions/checkout@v4
 
@@ -66,13 +64,7 @@ jobs:
                     exit 1
                   fi
 
-            - name: Install Nix
-              uses: DeterminateSystems/nix-installer-action@main
-              with:
-                diagnostic-endpoint: ""
-                extra-conf: |
-                  experimental-features = nix-command flakes
-                  accept-flake-config = true
+            - uses: nixbuild/nix-quick-install-action@v27
 
             - name: Enable Cachix binary cache
               run: |
@@ -80,18 +72,36 @@ jobs:
                   cachix use crane
                   cachix use nix-community
 
-            - name: Configure Magic Nix Cache
-              uses: DeterminateSystems/magic-nix-cache-action@main
+            - name: Restore and cache Nix store
+              uses: nix-community/cache-nix-action@v5
               with:
-                diagnostic-endpoint: ""
-                upstream-cache: "https://cache.nixos.org"
+                # restore and save a cache using this key
+                primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix') }}
+                # if there's no cache hit, restore a cache by this prefix
+                restore-prefixes-first-match: nix-${{ runner.os }}-
+                # collect garbage until Nix store size (in bytes) is at most this number
+                # before trying to save a new cache
+                gc-max-store-size-linux: 1073741824
+                # do purge caches
+                purge: true
+                # purge all versions of the cache
+                purge-prefixes: cache-${{ runner.os }}-
+                # created more than this number of seconds ago relative to the start of the `Post Restore` phase
+                purge-created: 0
+                # except the version with the `primary-key`, if it exists
+                purge-primary-key: never
 
             - name: Apply Nix binary cache configuration
               run: |
+                  echo "before: " && cat /etc/nix/nix.conf
+                  cat /etc/nix/nix.conf
                   sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
                   extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
                   extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
                   EOF
+                  echo "after: " && cat /etc/nix/nix.conf
+                  echo "local: " && cat $HOME/.config/nix/nix.conf
+                  echo "local2: " && cat ~/.config/nix/nix.conf
 
             - name: Use alternative Nix binary caches if specified
               if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
