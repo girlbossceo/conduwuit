@@ -6,6 +6,7 @@ pub mod hash;
 pub mod html;
 pub mod json;
 pub mod mutex_map;
+pub mod rand;
 pub mod string;
 pub mod sys;
 mod tests;
@@ -19,7 +20,8 @@ pub use hash::calculate_hash;
 pub use html::Escape as HtmlEscape;
 pub use json::{deserialize_from_str, to_canonical_object};
 pub use mutex_map::MutexMap;
-pub use string::{random_string, str_from_bytes, string_from_bytes};
+pub use rand::string as random_string;
+pub use string::{str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
 pub use time::millis_since_unix_epoch;
 
@@ -41,7 +43,7 @@ pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
 
 #[must_use]
 pub fn generate_keypair() -> Vec<u8> {
-	let mut value = random_string(8).as_bytes().to_vec();
+	let mut value = rand::string(8).as_bytes().to_vec();
 	value.push(0xFF);
 	value.extend_from_slice(
 		&ruma::signatures::Ed25519KeyPair::generate().expect("Ed25519KeyPair generation always works (?)"),

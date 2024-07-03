@@ -1,14 +1,4 @@
-use rand::prelude::*;
-
 use crate::Result;
-
-pub fn random_string(length: usize) -> String {
-	thread_rng()
-		.sample_iter(&rand::distributions::Alphanumeric)
-		.take(length)
-		.map(char::from)
-		.collect()
-}
 
 /// Parses the bytes into a string.
 #[inline]
