@@ -1,6 +1,10 @@
+mod builder;
+mod count;
+
 use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
-use conduit::{warn, Error};
+pub use builder::PduBuilder;
+pub use count::PduCount;
 use ruma::{
 	canonical_json::redact_content_in_place,
 	events::{
@@ -19,7 +23,7 @@ use serde_json::{
 	value::{to_raw_value, RawValue as RawJsonValue},
 };
 
-use crate::services;
+use crate::{warn, Error};
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {
@@ -336,42 +340,6 @@ impl PduEvent {
 		serde_json::from_value(json).expect("Raw::from_value always works")
 	}
 
-	/// This does not return a full `Pdu` it is only to satisfy ruma's types.
-	#[tracing::instrument]
-	pub fn convert_to_outgoing_federation_event(mut pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {
-		if let Some(unsigned) = pdu_json
-			.get_mut("unsigned")
-			.and_then(|val| val.as_object_mut())
-		{
-			unsigned.remove("transaction_id");
-		}
-
-		// room v3 and above removed the "event_id" field from remote PDU format
-		if let Some(room_id) = pdu_json
-			.get("room_id")
-			.and_then(|val| RoomId::parse(val.as_str()?).ok())
-		{
-			match services().rooms.state.get_room_version(&room_id) {
-				Ok(room_version_id) => match room_version_id {
-					RoomVersionId::V1 | RoomVersionId::V2 => {},
-					_ => _ = pdu_json.remove("event_id"),
-				},
-				Err(_) => _ = pdu_json.remove("event_id"),
-			}
-		} else {
-			pdu_json.remove("event_id");
-		}
-
-		// TODO: another option would be to convert it to a canonical string to validate
-		// size and return a Result<Raw<...>>
-		// serde_json::from_str::<Raw<_>>(
-		//     ruma::serde::to_canonical_json_string(pdu_json).expect("CanonicalJson is
-		// valid serde_json::Value"), )
-		// .expect("Raw::from_value always works")
-
-		to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
-	}
-
 	pub fn from_id_val(event_id: &EventId, mut json: CanonicalJsonObject) -> Result<Self, serde_json::Error> {
 		json.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
 
@@ -437,15 +405,4 @@ pub fn gen_event_id_canonical_json(
 	.expect("ruma's reference hashes are valid event ids");
 
 	Ok((event_id, value))
-}
-
-/// Build the start of a PDU in order to add it to the Database.
-#[derive(Debug, Deserialize)]
-pub struct PduBuilder {
-	#[serde(rename = "type")]
-	pub event_type: TimelineEventType,
-	pub content: Box<RawJsonValue>,
-	pub unsigned: Option<BTreeMap<String, serde_json::Value>>,
-	pub state_key: Option<String>,
-	pub redacts: Option<Arc<EventId>>,
 }

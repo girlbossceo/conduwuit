@@ -1,18 +1,14 @@
 use axum_client_ip::InsecureClientIp;
+use conduit::{utils, warn, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	serde::JsonObject,
 	CanonicalJsonValue, EventId, OwnedUserId,
 };
-use tracing::warn;
+use service::{sending::convert_to_outgoing_federation_event, server_is_ours, services};
 
-use crate::{
-	service::server_is_ours,
-	services,
-	utils::{self},
-	Error, PduEvent, Result, Ruma,
-};
+use crate::Ruma;
 
 /// # `PUT /_matrix/federation/v2/invite/{roomId}/{eventId}`
 ///
@@ -176,6 +172,6 @@ pub(crate) async fn create_invite_route(
 	}
 
 	Ok(create_invite::v2::Response {
-		event: PduEvent::convert_to_outgoing_federation_event(signed_event),
+		event: convert_to_outgoing_federation_event(signed_event),
 	})
 }

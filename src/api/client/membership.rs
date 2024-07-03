@@ -33,6 +33,7 @@ use ruma::{
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use service::sending::convert_to_outgoing_federation_event;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 
@@ -779,7 +780,7 @@ async fn join_room_by_id_helper_remote(
 			federation::membership::create_join_event::v2::Request {
 				room_id: room_id.to_owned(),
 				event_id: event_id.to_owned(),
-				pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+				pdu: convert_to_outgoing_federation_event(join_event.clone()),
 				omit_members: false,
 			},
 		)
@@ -1207,7 +1208,7 @@ async fn join_room_by_id_helper_local(
 				federation::membership::create_join_event::v2::Request {
 					room_id: room_id.to_owned(),
 					event_id: event_id.to_owned(),
-					pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+					pdu: convert_to_outgoing_federation_event(join_event.clone()),
 					omit_members: false,
 				},
 			)
@@ -1438,7 +1439,7 @@ pub(crate) async fn invite_helper(
 					room_id: room_id.to_owned(),
 					event_id: (*pdu.event_id).to_owned(),
 					room_version: room_version_id.clone(),
-					event: PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
+					event: convert_to_outgoing_federation_event(pdu_json.clone()),
 					invite_room_state,
 					via: services().rooms.state_cache.servers_route_via(room_id).ok(),
 				},
@@ -1775,7 +1776,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 			federation::membership::create_leave_event::v2::Request {
 				room_id: room_id.to_owned(),
 				event_id,
-				pdu: PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
+				pdu: convert_to_outgoing_federation_event(leave_event.clone()),
 			},
 		)
 		.await?;

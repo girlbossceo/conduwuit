@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
+use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::authorization::get_event_authorization},
 	RoomId,
 };
+use service::{sending::convert_to_outgoing_federation_event, services};
 
-use crate::{services, Error, PduEvent, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/event_auth/{roomId}/{eventId}`
 ///
@@ -57,7 +59,7 @@ pub(crate) async fn get_event_authorization_route(
 	Ok(get_event_authorization::v1::Response {
 		auth_chain: auth_chain_ids
 			.filter_map(|id| services().rooms.timeline.get_pdu_json(&id).ok()?)
-			.map(PduEvent::convert_to_outgoing_federation_event)
+			.map(convert_to_outgoing_federation_event)
 			.collect(),
 	})
 }

@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
 	events::{
@@ -11,11 +12,13 @@ use ruma::{
 	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use service::user_is_local;
+use service::{
+	pdu::gen_event_id_canonical_json, sending::convert_to_outgoing_federation_event, services, user_is_local,
+};
 use tokio::sync::RwLock;
 use tracing::warn;
 
-use crate::{service::pdu::gen_event_id_canonical_json, services, Error, PduEvent, Result, Ruma};
+use crate::Ruma;
 
 /// helper method for /send_join v1 and v2
 async fn create_join_event(
@@ -181,12 +184,12 @@ async fn create_join_event(
 	Ok(create_join_event::v1::RoomState {
 		auth_chain: auth_chain_ids
 			.filter_map(|id| services().rooms.timeline.get_pdu_json(&id).ok().flatten())
-			.map(PduEvent::convert_to_outgoing_federation_event)
+			.map(convert_to_outgoing_federation_event)
 			.collect(),
 		state: state_ids
 			.iter()
 			.filter_map(|(_, id)| services().rooms.timeline.get_pdu_json(id).ok().flatten())
-			.map(PduEvent::convert_to_outgoing_federation_event)
+			.map(convert_to_outgoing_federation_event)
 			.collect(),
 		// Event field is required if the room version supports restricted join rules.
 		event: Some(

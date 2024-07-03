@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use conduit::{Error, Result};
 use ruma::api::{client::error::ErrorKind, federation::event::get_room_state};
+use service::{sending::convert_to_outgoing_federation_event, services};
 
-use crate::{services, Error, PduEvent, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/state/{roomId}`
 ///
@@ -42,7 +44,7 @@ pub(crate) async fn get_room_state_route(
 		.await?
 		.into_values()
 		.map(|id| {
-			PduEvent::convert_to_outgoing_federation_event(
+			convert_to_outgoing_federation_event(
 				services()
 					.rooms
 					.timeline
@@ -67,7 +69,7 @@ pub(crate) async fn get_room_state_route(
 					.timeline
 					.get_pdu_json(&id)
 					.ok()?
-					.map(PduEvent::convert_to_outgoing_federation_event)
+					.map(convert_to_outgoing_federation_event)
 			})
 			.collect(),
 		pdus,

@@ -1,9 +1,11 @@
+use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_missing_events},
 	OwnedEventId, RoomId,
 };
+use service::{sending::convert_to_outgoing_federation_event, services};
 
-use crate::{services, Error, PduEvent, Result, Ruma};
+use crate::Ruma;
 
 /// # `POST /_matrix/federation/v1/get_missing_events/{roomId}`
 ///
@@ -79,7 +81,7 @@ pub(crate) async fn get_missing_events_route(
 				)
 				.map_err(|_| Error::bad_database("Invalid prev_events in event in database."))?,
 			);
-			events.push(PduEvent::convert_to_outgoing_federation_event(pdu));
+			events.push(convert_to_outgoing_federation_event(pdu));
 		}
 		i = i.saturating_add(1);
 	}

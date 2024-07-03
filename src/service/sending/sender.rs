@@ -18,12 +18,14 @@ use ruma::{
 	},
 	device_id,
 	events::{push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
-	push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, ServerName, UInt,
+	push, uint, CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, RoomVersionId,
+	ServerName, UInt,
 };
+use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tracing::{debug, error, warn};
 
 use super::{appservice, send, Destination, Msg, SendingEvent, Service};
-use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, PduEvent, Result};
+use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, Result};
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -548,24 +550,21 @@ async fn send_events_dest_normal(
 
 	for event in &events {
 		match event {
-			SendingEvent::Pdu(pdu_id) => {
+			SendingEvent::Pdu(pdu_id) => pdu_jsons.push(convert_to_outgoing_federation_event(
 				// TODO: check room version and remove event_id if needed
-				let raw = PduEvent::convert_to_outgoing_federation_event(
-					services()
-						.rooms
-						.timeline
-						.get_pdu_json_from_id(pdu_id)
-						.map_err(|e| (dest.clone(), e))?
-						.ok_or_else(|| {
-							error!(?dest, ?server, ?pdu_id, "event not found");
-							(
-								dest.clone(),
-								Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
-							)
-						})?,
-				);
-				pdu_jsons.push(raw);
-			},
+				services()
+					.rooms
+					.timeline
+					.get_pdu_json_from_id(pdu_id)
+					.map_err(|e| (dest.clone(), e))?
+					.ok_or_else(|| {
+						error!(?dest, ?server, ?pdu_id, "event not found");
+						(
+							dest.clone(),
+							Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
+						)
+					})?,
+			)),
 			SendingEvent::Edu(edu) => {
 				if let Ok(raw) = serde_json::from_slice(edu) {
 					edu_jsons.push(raw);
@@ -610,4 +609,40 @@ async fn send_events_dest_normal(
 		dest.clone()
 	})
 	.map_err(|e| (dest.clone(), e))
+}
+
+/// This does not return a full `Pdu` it is only to satisfy ruma's types.
+#[tracing::instrument]
+pub fn convert_to_outgoing_federation_event(mut pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {
+	if let Some(unsigned) = pdu_json
+		.get_mut("unsigned")
+		.and_then(|val| val.as_object_mut())
+	{
+		unsigned.remove("transaction_id");
+	}
+
+	// room v3 and above removed the "event_id" field from remote PDU format
+	if let Some(room_id) = pdu_json
+		.get("room_id")
+		.and_then(|val| RoomId::parse(val.as_str()?).ok())
+	{
+		match services().rooms.state.get_room_version(&room_id) {
+			Ok(room_version_id) => match room_version_id {
+				RoomVersionId::V1 | RoomVersionId::V2 => {},
+				_ => _ = pdu_json.remove("event_id"),
+			},
+			Err(_) => _ = pdu_json.remove("event_id"),
+		}
+	} else {
+		pdu_json.remove("event_id");
+	}
+
+	// TODO: another option would be to convert it to a canonical string to validate
+	// size and return a Result<Raw<...>>
+	// serde_json::from_str::<Raw<_>>(
+	//     ruma::serde::to_canonical_json_string(pdu_json).expect("CanonicalJson is
+	// valid serde_json::Value"), )
+	// .expect("Raw::from_value always works")
+
+	to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
 }

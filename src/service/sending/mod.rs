@@ -14,6 +14,7 @@ use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
+pub use sender::convert_to_outgoing_federation_event;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{error, warn};
 
