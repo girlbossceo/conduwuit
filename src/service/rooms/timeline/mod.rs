@@ -1,7 +1,7 @@
 mod data;
 
 use std::{
-	collections::{BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashSet},
 	sync::Arc,
 };
 
@@ -27,12 +27,12 @@ use ruma::{
 	push::{Action, Ruleset, Tweak},
 	serde::Base64,
 	state_res::{self, Event, RoomVersion},
-	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
-	RoomId, RoomVersionId, ServerName, UserId,
+	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedServerName, RoomId,
+	RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use crate::{
 	admin,
@@ -66,15 +66,12 @@ struct ExtractBody {
 
 pub struct Service {
 	db: Data,
-
-	pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
 }
 
 impl Service {
 	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
 		Ok(Self {
 			db: Data::new(db),
-			lasttimelinecount_cache: Mutex::new(HashMap::new()),
 		})
 	}
 

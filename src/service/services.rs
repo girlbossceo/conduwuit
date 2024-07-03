@@ -95,10 +95,7 @@ impl Services {
 		let lasttimelinecount_cache = self
 			.rooms
 			.timeline
-			.lasttimelinecount_cache
-			.lock()
-			.await
-			.len();
+			.get_lasttimelinecount_cache_usage().0;
 		let roomid_spacehierarchy_cache = self
 			.rooms
 			.spaces
@@ -177,10 +174,7 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 		if amount > 4 {
 			self.rooms
 				.timeline
-				.lasttimelinecount_cache
-				.lock()
-				.await
-				.clear();
+				.clear_lasttimelinecount_cache();
 		}
 		if amount > 5 {
 			self.rooms
