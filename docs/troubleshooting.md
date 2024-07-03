@@ -40,10 +40,6 @@ With this in mind:
 
 ## Media
 
-#### "File name too long"
-
-If you are running into the "file name is too long" OS error for media requests, your filesystem cannot handle file name lengths >=255 characters. This is unfortuntely due to Conduit (upstream) using base64 for file name keys which is very problematic for some filesystems as the base64 input is untrusted and long file names or specific inputs can cause this. If you would like to avoid this, you may build conduwuit yourself with the `sha256_media` feature. **This will lose database compatibility with upstream**.
-
 ## Debugging
 
 Note that users should not really be debugging things. If you find yourself debugging and find the issue, please let us know and/or how we can fix it. Various debug commands can be found in `!admin debug`.

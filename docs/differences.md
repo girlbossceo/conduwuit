@@ -26,6 +26,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Use `tracing`/`log`'s `release_max_level_info` feature to improve performance, build speeds, binary size, and CPU usage in release builds by avoid compiling debug/trace log level macros that users will generally never use (can be disabled with a build-time feature flag)
 - Remove some unnecessary checks on EDU handling for incoming transactions, effectively speeding them up
 - Simplify, dedupe, etc huge chunks of the codebase, including some that were unnecessary overhead, binary bloats, or preventing compiler/linker optimisations
+- Implement zero-copy RocksDB database accessors, substantially improving performance caused by unnecessary memory allocations
 
 ## General Fixes/Features
 
@@ -61,7 +62,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 
 - (Also see [Admin Room](#admin-room) for all the admin commands pertaining to moderation, there's a lot!)
 - Add support for room banning/blocking by ID using admin command
-- Add support for serving `support` well-known from `[well_known.support]` (MSC1929)
+- Add support for serving `support` well-known from `[global.well_known]` (MSC1929) (`/.well-known/matrix/support`)
 - Config option to forbid publishing rooms to the room directory (`lockdown_public_room_directory`) except for admins
 - Admin commands to delete room aliases and unpublish rooms from our room directory
 - For all [`/report`](https://spec.matrix.org/latest/client-server-api/#post_matrixclientv3roomsroomidreporteventid) requests: check if the reported event ID belongs to the reported room ID, raise report reasoning character limit to 750, fix broken formatting, make a small delayed random response per spec suggestion on privacy, and check if the sender user is in the reported room.
@@ -120,16 +121,18 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Fixed every single clippy (default lints) and rustc warnings, including some that were performance related or potential safety issues / unsoundness
 - Add a **lot** of other clippy and rustc lints and a rustfmt.toml file
 - Repo uses [Renovate](https://docs.renovatebot.com/), [Trivy](https://github.com/aquasecurity/trivy-action), and keeps ALL dependencies as up to date as possible
-- Attempts and interest in removing extreme and unnecessary panics/unwraps/expects that can lead to denial of service or such (upstream and upstream contributors want this unusual behaviour for some reason)
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy) and other unnecessary code or overhead
 - webp support for images
 - Add cargo audit support to CI
+- Add documentation lints via lychee and markdownlint-cli to CI
 - CI tests for all sorts of feature matrixes (jemalloc, non-defaullt, all features, etc)
 - Add static and dynamic linking smoke tests in CI to prevent any potential linking regressions for Complement, static binaries, Nix devshells, etc
 - Add timestamp by commit date when building OCI images for keeping image build reproducibility and still have a meaningful "last modified date" for OCI image
 - Add timestamp by commit date via `SOURCE_DATE_EPOCH` for Debian packages
 - Startup check if conduwuit running in a container and is listening on 127.0.0.1 (generally containers are using NAT networking and 0.0.0.0 is the intended listening address)
 - Add a panic catcher layer to return panic messages in HTTP responses if a panic occurs
+- Add full compatibility support for SHA256 media file names instead of base64 file names to overcome filesystem file name length limitations (OS error file name too long) while still retaining upstream database compatibility
+- Remove SQLite support due to being very poor performance, difficult to maintain against RocksDB, and is a blocker to significantly improved database code
 
 ## Admin Room
 
@@ -171,7 +174,6 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Add guest support for accessing TURN servers via `turn_allow_guests` like Synapse
 - Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
 - Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on `/_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see <https://github.com/matrix-org/matrix-spec/issues/1047>)
-- Add **optional** feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long)
 - Send a User-Agent on all of our requests
 - Send `avatar_url` on invite room membership events/changes
 - Support sending [`well_known` response to client login responses](https://spec.matrix.org/v1.10/client-server-api/#post_matrixclientv3login) if using config option `[well_known.client]`
@@ -180,6 +182,7 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Implement legacy Matrix `/v1/` media endpoints that some clients and servers may still call
 - Config option to change Conduit's behaviour of homeserver key fetching (`query_trusted_key_servers_first`). This option sets whether conduwuit will query trusted notary key servers first before the individual homeserver(s), or vice versa which may help in joining certain rooms.
 - Implement unstable MSC2666 support for querying mutual rooms with a user
+- Implement unstable MSC3266 room summary API support
 - Implement unstable MSC4125 support for specifying servers to join via on federated invites
 - Make conduwuit build and be functional under Nix + macOS
 - Log out all sessions after unsetting the emergency password
