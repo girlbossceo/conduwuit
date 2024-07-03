@@ -130,8 +130,16 @@ fn presenceid_key(count: u64, user_id: &UserId) -> Vec<u8> {
 #[inline]
 fn presenceid_parse(key: &[u8]) -> Result<(u64, &UserId)> {
 	let (count, user_id) = key.split_at(8);
-	let user_id = utils::user_id_from_bytes(user_id)?;
+	let user_id = user_id_from_bytes(user_id)?;
 	let count = utils::u64_from_bytes(count).unwrap();
 
 	Ok((count, user_id))
+}
+
+/// Parses a `UserId` from bytes.
+fn user_id_from_bytes(bytes: &[u8]) -> Result<&UserId> {
+	let str: &str = utils::str_from_bytes(bytes)?;
+	let user_id: &UserId = str.try_into()?;
+
+	Ok(user_id)
 }

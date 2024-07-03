@@ -5,6 +5,7 @@ pub mod hash;
 pub mod html;
 pub mod json;
 pub mod mutex_map;
+pub mod string;
 pub mod sys;
 mod tests;
 
@@ -18,8 +19,7 @@ pub use hash::calculate_hash;
 pub use html::Escape as HtmlEscape;
 pub use json::{deserialize_from_str, to_canonical_object};
 pub use mutex_map::MutexMap;
-use rand::prelude::*;
-use ruma::UserId;
+pub use string::{random_string, str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
 
 use crate::Result;
@@ -54,34 +54,12 @@ pub fn generate_keypair() -> Vec<u8> {
 	value
 }
 
-/// Parses a `UserId` from bytes.
-pub fn user_id_from_bytes(bytes: &[u8]) -> Result<&UserId> {
-	let str: &str = str_from_bytes(bytes)?;
-	let user_id: &UserId = str.try_into()?;
-	Ok(user_id)
-}
-
-/// Parses the bytes into a string.
-pub fn string_from_bytes(bytes: &[u8]) -> Result<String> {
-	let str: &str = str_from_bytes(bytes)?;
-	Ok(str.to_owned())
-}
-
-/// Parses the bytes into a string.
-pub fn str_from_bytes(bytes: &[u8]) -> Result<&str> { Ok(std::str::from_utf8(bytes)?) }
-
 /// Parses the bytes into an u64.
 pub fn u64_from_bytes(bytes: &[u8]) -> Result<u64> {
 	let array: [u8; 8] = bytes.try_into()?;
 	Ok(u64::from_be_bytes(array))
 }
 
-pub fn random_string(length: usize) -> String {
-	thread_rng()
-		.sample_iter(&rand::distributions::Alphanumeric)
-		.take(length)
-		.map(char::from)
-		.collect()
 }
 
 
