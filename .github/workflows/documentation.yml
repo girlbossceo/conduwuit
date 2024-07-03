@@ -106,6 +106,11 @@ jobs:
         run: |
             bin/nix-build-and-cache ci
 
+      - name: Run lychee and markdownlint
+        run: |
+            direnv exec . engage just lints lychee
+            direnv exec . engage just lints markdownlint
+
       - name: Build documentation (book)
         run: |
           ./bin/nix-build-and-cache just .#book

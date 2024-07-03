@@ -108,6 +108,9 @@
           # Needed for finding broken markdown links
           lychee
 
+          # Needed for linting markdown files
+          markdownlint-cli
+
           # Useful for editing the book locally
           mdbook
         ])

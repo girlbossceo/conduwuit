@@ -37,6 +37,7 @@ The following binaries are used in [`engage.toml`][engage.toml]:
 - [`cargo-audit`][cargo-audit]
 - [`cargo-deb`][cargo-deb]
 - [`lychee`][lychee]
+- [`markdownlint-cli`][markdownlint-cli]
 
 ### Matrix tests
 
@@ -86,6 +87,7 @@ By sending a pull request or patch, you are agreeing that your changes are allow
 [sytest]: https://github.com/matrix-org/sytest/
 [cargo-deb]: https://github.com/kornelski/cargo-deb
 [lychee]: https://github.com/lycheeverse/lychee
+[markdownlint-cli]: https://github.com/igorshubovych/markdownlint-cli
 [cargo-audit]: https://github.com/RustSec/rustsec/tree/main/cargo-audit
 [direnv]: https://direnv.net/
 [mdbook]: https://rust-lang.github.io/mdBook/
