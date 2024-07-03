@@ -51,7 +51,10 @@ pub(super) enum ServerCommand {
 
 	#[cfg(unix)]
 	/// - Restart the server
-	Restart,
+	Restart {
+		#[arg(short, long)]
+		force: bool,
+	},
 
 	/// - Shutdown the server
 	Shutdown,
@@ -77,7 +80,9 @@ pub(super) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<R
 		#[cfg(conduit_mods)]
 		ServerCommand::Reload => reload(body).await?,
 		#[cfg(unix)]
-		ServerCommand::Restart => restart(body).await?,
+		ServerCommand::Restart {
+			force,
+		} => restart(body, force).await?,
 		ServerCommand::Shutdown => shutdown(body).await?,
 	})
 }
