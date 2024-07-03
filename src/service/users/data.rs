@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, mem::size_of, sync::Arc};
 
-use conduit::{utils, warn, Error, Result};
+use conduit::{debug_info, utils, warn, Error, Result};
 use database::{Database, Map};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
@@ -28,6 +28,7 @@ pub struct Data {
 	userid_masterkeyid: Arc<Map>,
 	userid_selfsigningkeyid: Arc<Map>,
 	userid_usersigningkeyid: Arc<Map>,
+	openidtoken_expiresatuserid: Arc<Map>,
 	keychangeid_userid: Arc<Map>,
 	todeviceid_events: Arc<Map>,
 	userfilterid_filter: Arc<Map>,
@@ -51,6 +52,7 @@ impl Data {
 			userid_masterkeyid: db["userid_masterkeyid"].clone(),
 			userid_selfsigningkeyid: db["userid_selfsigningkeyid"].clone(),
 			userid_usersigningkeyid: db["userid_usersigningkeyid"].clone(),
+			openidtoken_expiresatuserid: db["openidtoken_expiresatuserid"].clone(),
 			keychangeid_userid: db["keychangeid_userid"].clone(),
 			todeviceid_events: db["todeviceid_events"].clone(),
 			userfilterid_filter: db["userfilterid_filter"].clone(),
@@ -919,6 +921,49 @@ impl Data {
 		} else {
 			Ok(None)
 		}
+	}
+
+	/// Creates an OpenID token, which can be used to prove that a user has
+	/// access to an account (primarily for integrations)
+	pub(super) fn create_openid_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
+		let expires_in = services().globals.config.openid_token_ttl;
+		let expires_at = utils::millis_since_unix_epoch().saturating_add(expires_in * 1000);
+
+		let mut value = expires_at.to_be_bytes().to_vec();
+		value.extend_from_slice(user_id.as_bytes());
+
+		self.openidtoken_expiresatuserid
+			.insert(token.as_bytes(), value.as_slice())?;
+
+		Ok(expires_in)
+	}
+
+	/// Find out which user an OpenID access token belongs to.
+	pub(super) fn find_from_openid_token(&self, token: &str) -> Result<OwnedUserId> {
+		let Some(value) = self.openidtoken_expiresatuserid.get(token.as_bytes())? else {
+			return Err(Error::BadRequest(ErrorKind::Unauthorized, "OpenID token is unrecognised"));
+		};
+
+		let (expires_at_bytes, user_bytes) = value.split_at(0_u64.to_be_bytes().len());
+
+		let expires_at = u64::from_be_bytes(
+			expires_at_bytes
+				.try_into()
+				.map_err(|_| Error::bad_database("expires_at in openid_userid is invalid u64."))?,
+		);
+
+		if expires_at < utils::millis_since_unix_epoch() {
+			debug_info!("OpenID token is expired, removing");
+			self.openidtoken_expiresatuserid.remove(token.as_bytes())?;
+
+			return Err(Error::BadRequest(ErrorKind::Unauthorized, "OpenID token is expired"));
+		}
+
+		UserId::parse(
+			utils::string_from_bytes(user_bytes)
+				.map_err(|_| Error::bad_database("User ID in openid_userid is invalid unicode."))?,
+		)
+		.map_err(|_| Error::bad_database("User ID in openid_userid is invalid."))
 	}
 }
 

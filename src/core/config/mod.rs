@@ -201,6 +201,8 @@ pub struct Config {
 	pub query_trusted_key_servers_first: bool,
 	#[serde(default = "default_log")]
 	pub log: String,
+	#[serde(default = "default_openid_token_ttl")]
+	pub openid_token_ttl: u64,
 	#[serde(default)]
 	pub turn_username: String,
 	#[serde(default)]
@@ -671,6 +673,7 @@ impl fmt::Display for Config {
 				"Query Trusted Key Servers First",
 				&self.query_trusted_key_servers_first.to_string(),
 			),
+			("OpenID Token TTL", &self.openid_token_ttl.to_string()),
 			(
 				"TURN username",
 				if self.turn_username.is_empty() {
@@ -983,6 +986,8 @@ pub fn default_log() -> String {
 }
 
 fn default_notification_push_path() -> String { "/_matrix/push/v1/notify".to_owned() }
+
+fn default_openid_token_ttl() -> u64 { 60 * 60 }
 
 fn default_turn_ttl() -> u64 { 60 * 60 * 24 }
 

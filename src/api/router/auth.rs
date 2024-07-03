@@ -76,12 +76,26 @@ pub(super) async fn auth(
 	}
 
 	match (metadata.authentication, token) {
-		(_, Token::Invalid) => Err(Error::BadRequest(
-			ErrorKind::UnknownToken {
-				soft_logout: false,
-			},
-			"Unknown access token.",
-		)),
+		(_, Token::Invalid) => {
+			// OpenID endpoint uses a query param with the same name, drop this once query
+			// params for user auth are removed from the spec. This is required to make
+			// integration manager work.
+			if request.query.access_token.is_some() && request.parts.uri.path().contains("/openid/") {
+				Ok(Auth {
+					origin: None,
+					sender_user: None,
+					sender_device: None,
+					appservice_info: None,
+				})
+			} else {
+				Err(Error::BadRequest(
+					ErrorKind::UnknownToken {
+						soft_logout: false,
+					},
+					"Unknown access token.",
+				))
+			}
+		},
 		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(request, info)?),
 		(AuthScheme::None | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken, Token::Appservice(info)) => {
 			Ok(Auth {
