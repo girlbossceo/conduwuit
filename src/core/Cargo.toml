@@ -49,6 +49,7 @@ sentry_telemetry = []
 argon2.workspace = true
 axum.workspace = true
 bytes.workspace = true
+chrono.workspace = true
 either.workspace = true
 figment.workspace = true
 http-body-util.workspace = true

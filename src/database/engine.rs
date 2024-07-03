@@ -4,8 +4,7 @@ use std::{
 	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
 };
 
-use chrono::{DateTime, Utc};
-use conduit::{debug, error, info, warn, Result, Server};
+use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Result, Server};
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
@@ -211,9 +210,7 @@ impl Engine {
 				res,
 				"#{} {}: {} bytes, {} files",
 				info.backup_id,
-				DateTime::<Utc>::from_timestamp(info.timestamp, 0)
-					.unwrap_or_default()
-					.to_rfc2822(),
+				rfc2822_from_seconds(info.timestamp),
 				info.size,
 				info.num_files,
 			)

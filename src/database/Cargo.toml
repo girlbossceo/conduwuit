@@ -35,7 +35,6 @@ zstd_compression = [
 ]
 
 [dependencies]
-chrono.workspace = true
 conduit-core.workspace = true
 log.workspace = true
 ruma.workspace = true

@@ -658,6 +658,7 @@ dependencies = [
  "argon2",
  "axum 0.7.5",
  "bytes",
+ "chrono",
  "either",
  "figment",
  "hardened_malloc-rs",
@@ -693,7 +694,6 @@ dependencies = [
 name = "conduit_database"
 version = "0.4.3"
 dependencies = [
- "chrono",
  "conduit_core",
  "log",
  "ruma",
