@@ -378,6 +378,8 @@ allow_profile_lookup_federation_requests = true
 # Enable backward-compatibility with Conduit's media directory by creating symlinks of media. This
 # option is only necessary if you plan on using Conduit again. Otherwise setting this to false
 # reduces filesystem clutter and overhead for managing these symlinks in the directory.
+#
+# Enabled by default.
 #media_compat_file_link = true
 
 # Checks consistency of the media directory at startup:
@@ -387,6 +389,8 @@ allow_profile_lookup_federation_requests = true
 #
 # If none of these checks apply to your use cases, and your media directory is significantly large
 # setting this to false may reduce startup time.
+#
+# Enabled by default.
 #media_statup_check = true
 
 # OpenID token expiration/TTL in seconds
@@ -395,6 +399,12 @@ allow_profile_lookup_federation_requests = true
 #
 # Defaults to 3600 (1 hour)
 #openid_token_ttl = 3600
+
+# Emergency password feature. This password set here will let you login to the server service account (e.g. `@conduit`)
+# and let you run admin commands, invite yourself to the admin room, etc.
+#
+# no default.
+#emergency_password = ""
 
 
 ### Generic database options
