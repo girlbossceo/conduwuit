@@ -19,13 +19,7 @@ use ruma::{
 		},
 	},
 	events::{
-		room::{
-			avatar::RoomAvatarEventContent,
-			canonical_alias::RoomCanonicalAliasEventContent,
-			create::RoomCreateEventContent,
-			join_rules::{JoinRule, RoomJoinRulesEventContent},
-			topic::RoomTopicEventContent,
-		},
+		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 		space::child::{HierarchySpaceChildEvent, SpaceChildEventContent},
 		StateEventType,
 	},
@@ -409,19 +403,20 @@ impl Service {
 			canonical_alias: services()
 				.rooms
 				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomCanonicalAlias, "")?
-				.map_or(Ok(None), |s| {
-					serde_json::from_str(s.content.get())
-						.map(|c: RoomCanonicalAliasEventContent| c.alias)
-						.map_err(|_| Error::bad_database("Invalid canonical alias event in database."))
-				})?,
-			name: services().rooms.state_accessor.get_name(room_id)?,
+				.get_canonical_alias(room_id)
+				.unwrap_or(None),
+			name: services()
+				.rooms
+				.state_accessor
+				.get_name(room_id)
+				.unwrap_or(None),
 			num_joined_members: services()
 				.rooms
 				.state_cache
-				.room_joined_count(room_id)?
+				.room_joined_count(room_id)
+				.unwrap_or_default()
 				.unwrap_or_else(|| {
-					warn!("Room {} has no member count", room_id);
+					warn!("Room {room_id} has no member count");
 					0
 				})
 				.try_into()
@@ -430,42 +425,19 @@ impl Service {
 			topic: services()
 				.rooms
 				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomTopic, "")?
-				.map_or(Ok(None), |s| {
-					serde_json::from_str(s.content.get())
-						.map(|c: RoomTopicEventContent| Some(c.topic))
-						.map_err(|_| {
-							error!("Invalid room topic event in database for room {}", room_id);
-							Error::bad_database("Invalid room topic event in database.")
-						})
-				})?,
+				.get_room_topic(room_id)
+				.unwrap_or(None),
 			world_readable: services().rooms.state_accessor.is_world_readable(room_id)?,
 			guest_can_join: services().rooms.state_accessor.guest_can_join(room_id)?,
 			avatar_url: services()
-                .rooms
-                .state_accessor
-                .room_state_get(room_id, &StateEventType::RoomAvatar, "")?
-                .map(|s| {
-                    serde_json::from_str(s.content.get())
-                        .map(|c: RoomAvatarEventContent| c.url)
-                        .map_err(|_| Error::bad_database("Invalid room avatar event in database."))
-                })
-                .transpose()?
-                // url is now an Option<String> so we must flatten
-                .flatten(),
-			join_rule,
-			room_type: services()
 				.rooms
 				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomCreate, "")?
-				.map(|s| {
-					serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(|e| {
-						error!("Invalid room create event in database: {}", e);
-						Error::BadDatabase("Invalid room create event in database.")
-					})
-				})
-				.transpose()?
-				.and_then(|e| e.room_type),
+				.get_avatar(room_id)?
+				.into_option()
+				.unwrap_or_default()
+				.url,
+			join_rule,
+			room_type: services().rooms.state_accessor.get_room_type(room_id)?,
 			children_state,
 			allowed_room_ids,
 		})

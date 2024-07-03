@@ -10,11 +10,7 @@ use ruma::{
 	},
 	directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork},
 	events::{
-		room::{
-			avatar::RoomAvatarEventContent,
-			create::RoomCreateEventContent,
-			join_rules::{JoinRule, RoomJoinRulesEventContent},
-		},
+		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 		StateEventType,
 	},
 	uint, ServerName, UInt,
@@ -256,15 +252,10 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 				avatar_url: services()
 					.rooms
 					.state_accessor
-					.room_state_get(&room_id, &StateEventType::RoomAvatar, "")?
-					.map(|s| {
-						serde_json::from_str(s.content.get())
-							.map(|c: RoomAvatarEventContent| c.url)
-							.map_err(|_| Error::bad_database("Invalid room avatar event in database."))
-					})
-					.transpose()?
-					// url is now an Option<String> so we must flatten
-					.flatten(),
+					.get_avatar(&room_id)?
+					.into_option()
+					.unwrap_or_default()
+					.url,
 				join_rule: services()
 					.rooms
 					.state_accessor
@@ -287,15 +278,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 				room_type: services()
 					.rooms
 					.state_accessor
-					.room_state_get(&room_id, &StateEventType::RoomCreate, "")?
-					.map(|s| {
-						serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(|e| {
-							error!("Invalid room create event in database: {}", e);
-							Error::BadDatabase("Invalid room create event in database.")
-						})
-					})
-					.transpose()?
-					.and_then(|e| e.room_type),
+					.get_room_type(&room_id)?,
 				room_id,
 			};
 			Ok(chunk)

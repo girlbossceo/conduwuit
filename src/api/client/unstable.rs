@@ -106,7 +106,8 @@ pub(crate) async fn get_room_summary(
 		canonical_alias: services()
 			.rooms
 			.state_accessor
-			.get_canonical_alias(&room_id)?,
+			.get_canonical_alias(&room_id)
+			.unwrap_or(None),
 		avatar_url: services()
 			.rooms
 			.state_accessor

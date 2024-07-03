@@ -422,10 +422,10 @@ impl Service {
 			)
 	}
 
-	/// Returns the join rule for a given room
-	pub fn get_join_rule(&self, current_room: &RoomId) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>), Error> {
+	/// Returns the join rule (`SpaceRoomJoinRule`) for a given room
+	pub fn get_join_rule(&self, room_id: &RoomId) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>), Error> {
 		Ok(self
-			.room_state_get(current_room, &StateEventType::RoomJoinRules, "")?
+			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?
 			.map(|s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomJoinRulesEventContent| {
