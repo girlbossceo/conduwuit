@@ -200,6 +200,7 @@ impl Service {
 		if let Some(state_key) = &new_pdu.state_key {
 			let states_parents = previous_shortstatehash.map_or_else(
 				|| Ok(Vec::new()),
+				#[inline]
 				|p| {
 					services()
 						.rooms
@@ -344,6 +345,7 @@ impl Service {
 		Ok(create_event_content.room_version)
 	}
 
+	#[inline]
 	pub fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.db.get_room_shortstatehash(room_id)
 	}

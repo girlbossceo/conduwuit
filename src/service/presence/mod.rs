@@ -131,6 +131,7 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Returns the latest presence event for the given user.
+	#[inline]
 	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
 		if let Some((_, presence)) = self.db.get_presence(user_id)? {
 			Ok(Some(presence))
@@ -207,6 +208,7 @@ impl Service {
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
+	#[inline]
 	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + '_> {
 		self.db.presence_since(since)
 	}

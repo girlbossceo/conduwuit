@@ -33,7 +33,6 @@ pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min),
 ///
 /// * <https://doc.rust-lang.org/std/convert/enum.Infallible.html>
 #[must_use]
-#[inline(always)]
 pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
 	match result {
 		Ok(val) => val,

@@ -27,6 +27,7 @@ impl Data {
 		}
 	}
 
+	#[inline]
 	pub fn active_requests(&self) -> OutgoingSendingIter<'_> {
 		Box::new(
 			self.servercurrentevent_data
@@ -35,6 +36,7 @@ impl Data {
 		)
 	}
 
+	#[inline]
 	pub fn active_requests_for<'a>(&'a self, destination: &Destination) -> SendingEventIter<'a> {
 		let prefix = destination.get_prefix();
 		Box::new(

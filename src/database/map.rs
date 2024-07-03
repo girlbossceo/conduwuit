@@ -199,6 +199,7 @@ impl<'a> IntoIterator for &'a Map {
 	type IntoIter = Box<dyn Iterator<Item = Self::Item> + Send + 'a>;
 	type Item = OwnedKeyValPair;
 
+	#[inline]
 	fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 

@@ -92,6 +92,7 @@ impl Error {
 	}
 
 	/// Returns the Matrix error code / error kind
+	#[inline]
 	pub fn error_code(&self) -> ruma::api::client::error::ErrorKind {
 		if let Self::Federation(_, error) = self {
 			return error.error_kind().unwrap_or_else(|| &Unknown).clone();

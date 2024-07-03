@@ -135,6 +135,7 @@ impl Service {
 	}
 
 	/// Returns shortstatekey, event id
+	#[inline]
 	pub fn parse_compressed_state_event(&self, compressed_event: &CompressedStateEvent) -> Result<(u64, Arc<EventId>)> {
 		Ok((
 			utils::u64_from_bytes(&compressed_event[0..size_of::<u64>()]).expect("bytes have right length"),

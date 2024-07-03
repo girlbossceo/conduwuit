@@ -30,6 +30,7 @@ impl Data {
 			})
 	}
 
+	#[inline]
 	pub(super) fn set_room_state(
 		&self,
 		room_id: &RoomId,

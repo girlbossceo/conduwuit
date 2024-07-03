@@ -414,6 +414,7 @@ impl FedDest {
 		}
 	}
 
+	#[inline]
 	fn port(&self) -> Option<u16> {
 		match &self {
 			Self::Literal(addr) => Some(addr.port()),

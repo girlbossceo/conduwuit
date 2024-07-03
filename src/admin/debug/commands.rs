@@ -15,7 +15,7 @@ use ruma::{
 	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
-use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve::resolve_actual_dest, services, PduEvent};
+use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve_actual_dest, services, PduEvent};
 use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 

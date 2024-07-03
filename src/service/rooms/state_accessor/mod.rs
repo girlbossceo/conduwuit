@@ -96,6 +96,7 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
+	#[inline]
 	pub fn state_get(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
@@ -113,6 +114,7 @@ impl Service {
 	}
 
 	/// The user was a joined member at this state (potentially in the past)
+	#[inline]
 	fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
 		self.user_membership(shortstatehash, user_id)
 			.is_ok_and(|s| s == MembershipState::Join)
@@ -122,6 +124,7 @@ impl Service {
 
 	/// The user was an invited or joined room member at this state (potentially
 	/// in the past)
+	#[inline]
 	fn user_was_invited(&self, shortstatehash: u64, user_id: &UserId) -> bool {
 		self.user_membership(shortstatehash, user_id)
 			.is_ok_and(|s| s == MembershipState::Join || s == MembershipState::Invite)

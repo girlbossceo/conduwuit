@@ -61,6 +61,7 @@ impl Data {
 	}
 
 	/// Check if a user has an account on this homeserver.
+	#[inline]
 	pub(super) fn exists(&self, user_id: &UserId) -> Result<bool> {
 		Ok(self.userid_password.get(user_id.as_bytes())?.is_some())
 	}
@@ -75,6 +76,7 @@ impl Data {
 	}
 
 	/// Returns the number of users registered on this server.
+	#[inline]
 	pub(super) fn count(&self) -> Result<usize> { Ok(self.userid_password.iter().count()) }
 
 	/// Find out which user an access token belongs to.

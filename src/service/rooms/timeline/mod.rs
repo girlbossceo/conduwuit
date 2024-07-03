@@ -175,11 +175,13 @@ impl Service {
 	}
 
 	/// Returns the json of a pdu.
+	#[inline]
 	pub fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.db.get_non_outlier_pdu_json(event_id)
 	}
 
 	/// Returns the pdu's id.
+	#[inline]
 	pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<database::Handle<'_>>> {
 		self.db.get_pdu_id(event_id)
 	}
@@ -190,6 +192,7 @@ impl Service {
 	///
 	/// TODO: use this?
 	#[allow(dead_code)]
+	#[inline]
 	pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.db.get_non_outlier_pdu(event_id)
 	}
@@ -1017,6 +1020,7 @@ impl Service {
 	}
 
 	/// Returns an iterator over all PDUs in a room.
+	#[inline]
 	pub fn all_pdus<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {

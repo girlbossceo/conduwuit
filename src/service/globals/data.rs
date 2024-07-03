@@ -99,6 +99,7 @@ impl Data {
 			})
 	}
 
+	#[inline]
 	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
 		self.global
 			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
@@ -207,8 +208,6 @@ impl Data {
 		Ok(())
 	}
 
-	pub fn cleanup(&self) -> Result<()> { self.db.db.cleanup() }
-
 	pub fn load_keypair(&self) -> Result<Ed25519KeyPair> {
 		let keypair_bytes = self.global.get(b"keypair")?.map_or_else(
 			|| {
@@ -241,8 +240,16 @@ impl Data {
 		})
 	}
 
+	#[inline]
 	pub fn remove_keypair(&self) -> Result<()> { self.global.remove(b"keypair") }
 
+	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
+	/// in room version > 4
+	///
+	/// Remove the outdated keys and insert the new ones.
+	///
+	/// This doesn't actually check that the keys provided are newer than the
+	/// old set.
 	pub fn add_signing_key(
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
 	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
@@ -306,14 +313,18 @@ impl Data {
 		})
 	}
 
+	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
 		self.global.insert(b"version", &new_version.to_be_bytes())?;
 		Ok(())
 	}
 
+	#[inline]
 	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> { self.db.db.backup() }
 
+	#[inline]
 	pub fn backup_list(&self) -> Result<String> { self.db.db.backup_list() }
 
+	#[inline]
 	pub fn file_list(&self) -> Result<String> { self.db.db.file_list() }
 }

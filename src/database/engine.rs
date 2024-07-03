@@ -121,6 +121,7 @@ impl Engine {
 
 	pub fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, true)) }
 
+	#[inline]
 	pub fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
 
 	pub(crate) fn cork(&self) {
@@ -242,6 +243,7 @@ impl Engine {
 }
 
 impl Drop for Engine {
+	#[cold]
 	fn drop(&mut self) {
 		const BLOCKING: bool = true;
 

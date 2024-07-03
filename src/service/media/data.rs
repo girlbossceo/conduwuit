@@ -148,6 +148,7 @@ impl Data {
 	/// associated with it such as width, height, content-type, etc)
 	pub(crate) fn get_all_media_keys(&self) -> Vec<Vec<u8>> { self.mediaid_file.iter().map(|(key, _)| key).collect() }
 
+	#[inline]
 	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> { self.url_previews.remove(url.as_bytes()) }
 
 	pub(super) fn set_url_preview(

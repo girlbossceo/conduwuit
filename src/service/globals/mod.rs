@@ -17,10 +17,7 @@ use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
-	api::{
-		client::discovery::discover_support::ContactRole,
-		federation::discovery::{ServerSigningKeys, VerifyKey},
-	},
+	api::{client::discovery::discover_support::ContactRole, federation::discovery::VerifyKey},
 	serde::Base64,
 	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
 	RoomAliasId, RoomVersionId, ServerName, UserId,
@@ -230,6 +227,7 @@ impl Service {
 
 	pub fn allow_unstable_room_versions(&self) -> bool { self.config.allow_unstable_room_versions }
 
+	#[inline]
 	pub fn default_room_version(&self) -> RoomVersionId { self.config.default_room_version.clone() }
 
 	pub fn new_user_displayname_suffix(&self) -> &String { &self.config.new_user_displayname_suffix }
@@ -317,19 +315,6 @@ impl Service {
 		room_versions
 	}
 
-	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
-	/// in room version > 4
-	///
-	/// Remove the outdated keys and insert the new ones.
-	///
-	/// This doesn't actually check that the keys provided are newer than the
-	/// old set.
-	pub fn add_signing_key(
-		&self, origin: &ServerName, new_keys: ServerSigningKeys,
-	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-		self.db.add_signing_key(origin, new_keys)
-	}
-
 	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	/// for the server.
 	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
@@ -348,14 +333,11 @@ impl Service {
 		Ok(keys)
 	}
 
-	pub fn database_version(&self) -> Result<u64> { self.db.database_version() }
-
-	pub fn bump_database_version(&self, new_version: u64) -> Result<()> { self.db.bump_database_version(new_version) }
-
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
 
 	pub fn well_known_server(&self) -> &Option<OwnedServerName> { &self.config.well_known.server }
 
+	#[inline]
 	pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
 		for cidr in &self.cidr_range_denylist {
 			if cidr.includes(ip) {

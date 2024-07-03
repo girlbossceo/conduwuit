@@ -1381,6 +1381,7 @@ impl Service {
 		Ok(create_event_content.room_version)
 	}
 
+	#[inline]
 	fn to_room_version(room_version_id: &RoomVersionId) -> RoomVersion {
 		RoomVersion::new(room_version_id).expect("room version is supported")
 	}

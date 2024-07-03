@@ -23,6 +23,7 @@ pub struct NamespaceRegex {
 
 impl NamespaceRegex {
 	/// Checks if this namespace has rights to a namespace
+	#[inline]
 	#[must_use]
 	pub fn is_match(&self, heystack: &str) -> bool {
 		if self.is_exclusive_match(heystack) {
@@ -38,6 +39,7 @@ impl NamespaceRegex {
 	}
 
 	/// Checks if this namespace has exlusive rights to a namespace
+	#[inline]
 	#[must_use]
 	pub fn is_exclusive_match(&self, heystack: &str) -> bool {
 		if let Some(exclusive) = &self.exclusive {
@@ -55,6 +57,7 @@ impl RegistrationInfo {
 		self.users.is_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
 	}
 
+	#[inline]
 	#[must_use]
 	pub fn is_exclusive_user_match(&self, user_id: &UserId) -> bool {
 		self.users.is_exclusive_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
@@ -143,6 +146,7 @@ impl crate::Service for Service {
 }
 
 impl Service {
+	#[inline]
 	pub fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db) }
 
 	/// Registers an appservice and returns the ID to the caller

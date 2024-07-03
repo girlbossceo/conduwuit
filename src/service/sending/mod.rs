@@ -1,6 +1,6 @@
 mod appservice;
 mod data;
-pub mod resolve;
+mod resolve;
 mod send;
 mod sender;
 
@@ -9,7 +9,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use conduit::{Error, Result};
 use data::Data;
-pub use resolve::FedDest;
+pub use resolve::{resolve_actual_dest, FedDest};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,

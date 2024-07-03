@@ -53,6 +53,7 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Check if a user has an account on this homeserver.
+	#[inline]
 	pub fn exists(&self, user_id: &UserId) -> Result<bool> { self.db.exists(user_id) }
 
 	pub fn forget_sync_request_connection(&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String) {
@@ -257,12 +258,14 @@ impl Service {
 	}
 
 	/// Create a new user account on this homeserver.
+	#[inline]
 	pub fn create(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
 		self.db.set_password(user_id, password)?;
 		Ok(())
 	}
 
 	/// Returns the number of users registered on this server.
+	#[inline]
 	pub fn count(&self) -> Result<usize> { self.db.count() }
 
 	/// Find out which user an access token belongs to.
@@ -283,6 +286,7 @@ impl Service {
 	pub fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> { self.db.password_hash(user_id) }
 
 	/// Hash and set the user's password to the Argon2 hash
+	#[inline]
 	pub fn set_password(&self, user_id: &UserId, password: Option<&str>) -> Result<()> {
 		self.db.set_password(user_id, password)
 	}
@@ -331,6 +335,7 @@ impl Service {
 	}
 
 	/// Replaces the access token of one device.
+	#[inline]
 	pub fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
 		self.db.set_token(user_id, device_id, token)
 	}
@@ -385,18 +390,21 @@ impl Service {
 		self.db.keys_changed(user_or_room_id, from, to)
 	}
 
+	#[inline]
 	pub fn mark_device_key_update(&self, user_id: &UserId) -> Result<()> { self.db.mark_device_key_update(user_id) }
 
 	pub fn get_device_keys(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Option<Raw<DeviceKeys>>> {
 		self.db.get_device_keys(user_id, device_id)
 	}
 
+	#[inline]
 	pub fn parse_master_key(
 		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>,
 	) -> Result<(Vec<u8>, CrossSigningKey)> {
 		Data::parse_master_key(user_id, master_key)
 	}
 
+	#[inline]
 	pub fn get_key(
 		&self, key: &[u8], sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {

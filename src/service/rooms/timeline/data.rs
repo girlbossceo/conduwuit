@@ -97,6 +97,7 @@ impl Data {
 	}
 
 	/// Returns the pdu's id.
+	#[inline]
 	pub(super) fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<database::Handle<'_>>> {
 		self.eventid_pduid.get(event_id.as_bytes())
 	}
