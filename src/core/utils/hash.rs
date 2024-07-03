@@ -1,62 +1,15 @@
-use std::sync::OnceLock;
+mod argon;
+mod sha256;
 
-use argon2::{
-	password_hash, password_hash::SaltString, Algorithm, Argon2, Params, PasswordHash, PasswordHasher,
-	PasswordVerifier, Version,
-};
+use crate::Result;
 
-const M_COST: u32 = Params::DEFAULT_M_COST; // memory size in 1 KiB blocks
-const T_COST: u32 = Params::DEFAULT_T_COST; // nr of iterations
-const P_COST: u32 = Params::DEFAULT_P_COST; // parallelism
+#[inline]
+pub fn password(password: &str) -> Result<String> { argon::password(password) }
 
-static ARGON: OnceLock<Argon2<'static>> = OnceLock::new();
-
-pub fn password(password: &str) -> Result<String, password_hash::Error> {
-	let salt = SaltString::generate(rand::thread_rng());
-	ARGON
-		.get_or_init(init_argon)
-		.hash_password(password.as_bytes(), &salt)
-		.map(|it| it.to_string())
+#[inline]
+pub fn verify_password(password: &str, password_hash: &str) -> Result<()> {
+	argon::verify_password(password, password_hash)
 }
 
-pub fn verify_password(password: &str, password_hash: &str) -> Result<(), password_hash::Error> {
-	let password_hash = PasswordHash::new(password_hash)?;
-	ARGON
-		.get_or_init(init_argon)
-		.verify_password(password.as_bytes(), &password_hash)
-}
-
-fn init_argon() -> Argon2<'static> {
-	// 19456 Kib blocks, iterations = 2, parallelism = 1
-	// * <https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id>
-	debug_assert!(M_COST == 19_456, "M_COST default changed");
-	debug_assert!(T_COST == 2, "T_COST default changed");
-	debug_assert!(P_COST == 1, "P_COST default changed");
-
-	let algorithm = Algorithm::Argon2id;
-	let version = Version::default();
-	let out_len: Option<usize> = None;
-	let params = Params::new(M_COST, T_COST, P_COST, out_len).expect("valid parameters");
-	Argon2::new(algorithm, version, params)
-}
-
-#[cfg(test)]
-mod tests {
-	#[test]
-	fn password_hash_and_verify() {
-		use crate::utils::hash;
-		let preimage = "temp123";
-		let digest = hash::password(preimage).expect("digest");
-		hash::verify_password(preimage, &digest).expect("verified");
-	}
-
-	#[test]
-	#[should_panic(expected = "unverified")]
-	fn password_hash_and_verify_fail() {
-		use crate::utils::hash;
-		let preimage = "temp123";
-		let fakeimage = "temp321";
-		let digest = hash::password(preimage).expect("digest");
-		hash::verify_password(fakeimage, &digest).expect("unverified");
-	}
-}
+#[inline]
+pub fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> { sha256::hash(keys) }

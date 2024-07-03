@@ -14,11 +14,11 @@ use std::{
 };
 
 pub use debug::slice_truncated as debug_slice_truncated;
+pub use hash::calculate_hash;
 pub use html::Escape as HtmlEscape;
 pub use json::{deserialize_from_str, to_canonical_object};
 pub use mutex_map::MutexMap;
 use rand::prelude::*;
-use ring::digest;
 use ruma::UserId;
 pub use sys::available_parallelism;
 
@@ -84,13 +84,6 @@ pub fn random_string(length: usize) -> String {
 		.collect()
 }
 
-#[tracing::instrument(skip(keys))]
-pub fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> {
-	// We only hash the pdu's event ids, not the whole pdu
-	let bytes = keys.join(&0xFF);
-	let hash = digest::digest(&digest::SHA256, &bytes);
-	hash.as_ref().to_owned()
-}
 
 #[allow(clippy::impl_trait_in_params)]
 pub fn common_elements(
