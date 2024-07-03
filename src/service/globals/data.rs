@@ -57,6 +57,7 @@ impl Data {
 	}
 
 	pub fn next_count(&self) -> Result<u64> {
+		let _cork = self.db.cork();
 		let mut lock = self.counter.write().expect("locked");
 		let counter: &mut u64 = &mut lock;
 		debug_assert!(
