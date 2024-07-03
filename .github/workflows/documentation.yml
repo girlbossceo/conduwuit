@@ -51,13 +51,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-        with:
-          diagnostic-endpoint: ""
-          extra-conf: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
+      - uses: nixbuild/nix-quick-install-action@v28
 
       - name: Enable Cachix binary cache
         run: |
@@ -65,23 +59,38 @@ jobs:
             cachix use crane
             cachix use nix-community
 
-      - name: Configure Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Restore and cache Nix store
+        uses: nix-community/cache-nix-action@v5
         with:
-          diagnostic-endpoint: ""
-          upstream-cache: "https://cache.nixos.org"
+          # restore and save a cache using this key
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/.lock') }}
+          # if there's no cache hit, restore a cache by this prefix
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # collect garbage until Nix store size (in bytes) is at most this number
+          # before trying to save a new cache
+          gc-max-store-size-linux: 2073741824
+          # do purge caches
+          purge: true
+          # purge all versions of the cache
+          purge-prefixes: nix-${{ runner.os }}-
+          # created more than this number of seconds ago relative to the start of the `Post Restore` phase
+          purge-last-accessed: 86400
+          # except the version with the `primary-key`, if it exists
+          purge-primary-key: never
+          # always save the cache
+          save-always: true
 
       - name: Apply Nix binary cache configuration
         run: |
-            sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+            sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
             extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
-            extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wkconduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTEcache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+            extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
             EOF
 
       - name: Use alternative Nix binary caches if specified
         if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
         run: |
-            sudo tee -a /etc/nix/nix.conf > /dev/null <<EOF
+            sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
             extra-substituters = ${{ env.ATTIC_ENDPOINT }}
             extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
             EOF
