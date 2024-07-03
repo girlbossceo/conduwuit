@@ -14,7 +14,6 @@ use std::{
 use conduit::{error, trace, utils::MutexMap, Config, Result, Server};
 use data::Data;
 use database::Database;
-use hickory_resolver::TokioAsyncResolver;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
@@ -193,8 +192,6 @@ impl Service {
 	pub fn trusted_servers(&self) -> &[OwnedServerName] { &self.config.trusted_servers }
 
 	pub fn query_trusted_key_servers_first(&self) -> bool { self.config.query_trusted_key_servers_first }
-
-	pub fn dns_resolver(&self) -> &TokioAsyncResolver { &self.resolver.resolver }
 
 	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
 

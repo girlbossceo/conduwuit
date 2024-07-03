@@ -261,7 +261,8 @@ async fn conditional_query_and_cache_override(overname: &str, hostname: &str, po
 async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
 	match services()
 		.globals
-		.dns_resolver()
+		.resolver
+		.resolver
 		.lookup_ip(hostname.to_owned())
 		.await
 	{
@@ -299,7 +300,8 @@ async fn query_srv_record(hostname: &'_ str) -> Result<Option<FedDest>> {
 		let hostname = hostname.trim_end_matches('.');
 		services()
 			.globals
-			.dns_resolver()
+			.resolver
+			.resolver
 			.srv_lookup(hostname.to_owned())
 			.await
 	}
