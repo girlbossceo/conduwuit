@@ -9,11 +9,9 @@ pub mod mutex_map;
 pub mod string;
 pub mod sys;
 mod tests;
+pub mod time;
 
-use std::{
-	cmp::{self, Ordering},
-	time::{SystemTime, UNIX_EPOCH},
-};
+use std::cmp::{self, Ordering};
 
 pub use bytes::{increment, u64_from_bytes, u64_from_u8, u64_from_u8x8};
 pub use debug::slice_truncated as debug_slice_truncated;
@@ -23,6 +21,7 @@ pub use json::{deserialize_from_str, to_canonical_object};
 pub use mutex_map::MutexMap;
 pub use string::{random_string, str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
+pub use time::millis_since_unix_epoch;
 
 use crate::Result;
 
@@ -38,15 +37,6 @@ pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
 		Ok(val) => val,
 		Err(err) => match err {},
 	}
-}
-
-#[must_use]
-#[allow(clippy::as_conversions)]
-pub fn millis_since_unix_epoch() -> u64 {
-	SystemTime::now()
-		.duration_since(UNIX_EPOCH)
-		.expect("time is valid")
-		.as_millis() as u64
 }
 
 #[must_use]
