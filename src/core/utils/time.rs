@@ -1,12 +1,12 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 #[inline]
 #[must_use]
 #[allow(clippy::as_conversions)]
-pub fn millis_since_unix_epoch() -> u64 {
-	SystemTime::now()
-		.duration_since(UNIX_EPOCH)
-		.expect("time is valid")
+pub fn now_millis() -> u64 {
+	use std::time::UNIX_EPOCH;
+
+	UNIX_EPOCH
+		.elapsed()
+		.expect("positive duration after epoch")
 		.as_millis() as u64
 }
 

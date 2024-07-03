@@ -23,7 +23,7 @@ pub use mutex_map::MutexMap;
 pub use rand::string as random_string;
 pub use string::{str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
-pub use time::millis_since_unix_epoch;
+pub use time::now_millis as millis_since_unix_epoch;
 
 use crate::Result;
 
