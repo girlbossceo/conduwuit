@@ -105,9 +105,10 @@ where
 	if response.is_ok() && !actual.cached {
 		services()
 			.globals
-			.actual_destinations()
+			.resolver
+			.destinations
 			.write()
-			.await
+			.expect("locked for writing")
 			.insert(OwnedServerName::from(dest), (actual.dest.clone(), actual.host.clone()));
 	}
 

@@ -47,9 +47,10 @@ pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDe
 	let cached;
 	let cached_result = services()
 		.globals
-		.actual_destinations()
+		.resolver
+		.destinations
 		.read()
-		.await
+		.expect("locked for reading")
 		.get(server_name)
 		.cloned();
 

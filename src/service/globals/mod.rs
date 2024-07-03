@@ -196,8 +196,6 @@ impl Service {
 
 	pub fn dns_resolver(&self) -> &TokioAsyncResolver { &self.resolver.resolver }
 
-	pub fn actual_destinations(&self) -> &Arc<RwLock<resolver::WellKnownMap>> { &self.resolver.destinations }
-
 	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
 
 	pub fn turn_password(&self) -> &String { &self.config.turn_password }

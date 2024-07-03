@@ -106,8 +106,20 @@ impl Services {
 			.lock()
 			.await
 			.len();
-		let resolver_overrides_cache = self.globals.resolver.overrides.read().unwrap().len();
-		let resolver_destinations_cache = self.globals.resolver.destinations.read().await.len();
+		let resolver_overrides_cache = self
+			.globals
+			.resolver
+			.overrides
+			.read()
+			.expect("locked for reading")
+			.len();
+		let resolver_destinations_cache = self
+			.globals
+			.resolver
+			.destinations
+			.read()
+			.expect("locked for reading")
+			.len();
 		let bad_event_ratelimiter = self.globals.bad_event_ratelimiter.read().await.len();
 		let bad_query_ratelimiter = self.globals.bad_query_ratelimiter.read().await.len();
 		let bad_signature_ratelimiter = self.globals.bad_signature_ratelimiter.read().await.len();
@@ -179,8 +191,18 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 				.clear();
 		}
 		if amount > 6 {
-			self.globals.resolver.overrides.write().unwrap().clear();
-			self.globals.resolver.destinations.write().await.clear();
+			self.globals
+				.resolver
+				.overrides
+				.write()
+				.expect("locked for writing")
+				.clear();
+			self.globals
+				.resolver
+				.destinations
+				.write()
+				.expect("locked for writing")
+				.clear();
 		}
 		if amount > 7 {
 			self.globals.resolver.resolver.clear_cache();

@@ -2,7 +2,7 @@ use std::{
 	collections::HashMap,
 	future, iter,
 	net::{IpAddr, SocketAddr},
-	sync::{Arc, RwLock as StdRwLock},
+	sync::{Arc, RwLock},
 	time::Duration,
 };
 
@@ -10,22 +10,21 @@ use conduit::{error, Config, Error};
 use hickory_resolver::TokioAsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use ruma::OwnedServerName;
-use tokio::sync::RwLock;
 
 use crate::sending::FedDest;
 
-pub(crate) type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
+type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
 type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
 
 pub struct Resolver {
 	pub destinations: Arc<RwLock<WellKnownMap>>, // actual_destination, host
-	pub overrides: Arc<StdRwLock<TlsNameMap>>,
+	pub overrides: Arc<RwLock<TlsNameMap>>,
 	pub resolver: Arc<TokioAsyncResolver>,
 	pub hooked: Arc<Hooked>,
 }
 
 pub struct Hooked {
-	pub overrides: Arc<StdRwLock<TlsNameMap>>,
+	pub overrides: Arc<RwLock<TlsNameMap>>,
 	pub resolver: Arc<TokioAsyncResolver>,
 }
 
@@ -34,10 +33,10 @@ impl Resolver {
 	pub fn new(config: &Config) -> Self {
 		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
 			.map_err(|e| {
-				error!("Failed to set up hickory dns resolver with system config: {}", e);
+				error!("Failed to set up hickory dns resolver with system config: {e}");
 				Error::bad_config("Failed to set up hickory dns resolver with system config.")
 			})
-			.unwrap();
+			.expect("DNS system config must be valid");
 
 		let mut conf = hickory_resolver::config::ResolverConfig::new();
 
@@ -82,7 +81,7 @@ impl Resolver {
 		opts.authentic_data = false;
 
 		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
-		let overrides = Arc::new(StdRwLock::new(TlsNameMap::new()));
+		let overrides = Arc::new(RwLock::new(TlsNameMap::new()));
 		Self {
 			destinations: Arc::new(RwLock::new(WellKnownMap::new())),
 			overrides: overrides.clone(),
@@ -101,7 +100,13 @@ impl Resolve for Resolver {
 
 impl Resolve for Hooked {
 	fn resolve(&self, name: Name) -> Resolving {
-		let addr_port = self.overrides.read().unwrap().get(name.as_str()).cloned();
+		let addr_port = self
+			.overrides
+			.read()
+			.expect("locked for reading")
+			.get(name.as_str())
+			.cloned();
+
 		if let Some((addr, port)) = addr_port {
 			cached_to_reqwest(&addr, port)
 		} else {
@@ -118,7 +123,7 @@ fn cached_to_reqwest(override_name: &[IpAddr], port: u16) -> Resolving {
 			let result: Box<dyn Iterator<Item = SocketAddr> + Send> = Box::new(iter::once(saddr));
 			Box::pin(future::ready(Ok(result)))
 		})
-		.unwrap()
+		.expect("must provide at least one override name")
 }
 
 fn resolve_to_reqwest(resolver: Arc<TokioAsyncResolver>, name: Name) -> Resolving {
