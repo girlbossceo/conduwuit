@@ -14,6 +14,8 @@ use ruma::{
 		room::{
 			avatar::RoomAvatarEventContent,
 			canonical_alias::RoomCanonicalAliasEventContent,
+			create::RoomCreateEventContent,
+			encryption::RoomEncryptionEventContent,
 			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent, RoomMembership},
@@ -24,8 +26,10 @@ use ruma::{
 		},
 		StateEventType,
 	},
+	room::RoomType,
 	space::SpaceRoomJoinRule,
-	EventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
+	EventEncryptionAlgorithm, EventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName,
+	UserId,
 };
 use serde_json::value::to_raw_value;
 
@@ -450,5 +454,32 @@ impl Service {
 			}
 		}
 		room_ids
+	}
+
+	pub fn get_room_type(&self, room_id: &RoomId) -> Result<Option<RoomType>> {
+		Ok(self
+			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
+			.map(|s| {
+				serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(|e| {
+					error!("Invalid room create event in database: {e}");
+					Error::BadDatabase("Invalid room create event in database.")
+				})
+			})
+			.transpose()?
+			.and_then(|e| e.room_type))
+	}
+
+	/// Gets the room's encryption algorithm if `m.room.encryption` state event
+	/// is found
+	pub fn get_room_encryption(&self, room_id: &RoomId) -> Result<Option<EventEncryptionAlgorithm>> {
+		self.room_state_get(room_id, &StateEventType::RoomEncryption, "")?
+			.map_or(Ok(None), |s| {
+				serde_json::from_str::<RoomEncryptionEventContent>(s.content.get())
+					.map(|content| Some(content.algorithm))
+					.map_err(|e| {
+						error!("Invalid room encryption event in database: {e}");
+						Error::BadDatabase("Invalid room encryption event in database.")
+					})
+			})
 	}
 }

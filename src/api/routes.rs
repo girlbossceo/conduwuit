@@ -172,7 +172,6 @@ pub fn build(router: Router, server: &Server) -> Router {
 		.ruma_route(client::get_key_changes_route)
 		.ruma_route(client::get_pushers_route)
 		.ruma_route(client::set_pushers_route)
-		// .ruma_route(client::third_party_route)
 		.ruma_route(client::upgrade_room_route)
 		.ruma_route(client::get_threads_route)
 		.ruma_route(client::get_relating_events_with_rel_type_and_event_type_route)
@@ -180,6 +179,11 @@ pub fn build(router: Router, server: &Server) -> Router {
 		.ruma_route(client::get_relating_events_route)
 		.ruma_route(client::get_hierarchy_route)
         .ruma_route(client::get_mutual_rooms_route)
+        .ruma_route(client::get_room_summary)
+        .route(
+            "/_matrix/client/unstable/im.nheko.summary/rooms/:room_id_or_alias/summary",
+            get(client::get_room_summary_legacy)
+        )
         .ruma_route(client::well_known_support)
         .ruma_route(client::well_known_client)
         .route("/_conduwuit/server_version", get(client::conduwuit_server_version))

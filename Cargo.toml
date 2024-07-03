@@ -274,7 +274,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "9a5bfad8494b7a4e6c40421c3d0675db4b434ec0"
+rev = "c51ccb2c68d2e3557eb12b1a49036531711ec0e5"
 features = [
     "compat",
     "rand",
@@ -294,6 +294,7 @@ features = [
     "unstable-msc2870",
     "unstable-msc3026",
     "unstable-msc3061",
+    "unstable-msc3266",
     "unstable-msc3575",
     "unstable-msc4121",
     "unstable-msc4125",
