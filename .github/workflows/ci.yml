@@ -119,6 +119,8 @@ jobs:
             - name: Cache CI dependencies
               run: |
                   bin/nix-build-and-cache ci
+                
+            - uses: Swatinem/rust-cache@v2
 
             - name: Run CI tests
               run: |
