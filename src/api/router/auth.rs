@@ -9,11 +9,12 @@ use axum_extra::{
 use http::uri::PathAndQuery;
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, Metadata},
+	server_util::authorization::XMatrix,
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
 use tracing::warn;
 
-use super::{request::Request, xmatrix::XMatrix};
+use super::request::Request;
 use crate::{service::appservice::RegistrationInfo, services, Error, Result};
 
 enum Token {
@@ -202,8 +203,17 @@ async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValu
 		})?;
 
 	let origin = &x_matrix.origin;
-	let signatures = BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig))]);
-	let signatures = BTreeMap::from_iter([(origin.as_str().to_owned(), CanonicalJsonValue::Object(signatures))]);
+	let signatures =
+		BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig.to_string()))]);
+	let signatures = BTreeMap::from_iter([(
+		origin.as_str().to_owned(),
+		CanonicalJsonValue::Object(
+			signatures
+				.into_iter()
+				.map(|(k, v)| (k.to_string(), v))
+				.collect(),
+		),
+	)]);
 
 	let server_destination = services().globals.server_name().as_str().to_owned();
 	if let Some(destination) = x_matrix.destination.as_ref() {
@@ -239,7 +249,7 @@ async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValu
 	let keys_result = services()
 		.rooms
 		.event_handler
-		.fetch_signing_keys_for_server(origin, vec![x_matrix.key.clone()])
+		.fetch_signing_keys_for_server(origin, vec![x_matrix.key.to_string()])
 		.await;
 
 	let keys = keys_result.map_err(|e| {

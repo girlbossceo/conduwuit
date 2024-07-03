@@ -284,6 +284,7 @@ features = [
     "markdown",
     "push-gateway-api-c",
     "state-res",
+    "server-util",
     "unstable-exhaustive-types",
     "ring-compat",
     "unstable-unspecified",

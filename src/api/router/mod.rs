@@ -1,7 +1,6 @@
 mod auth;
 mod handler;
 mod request;
-mod xmatrix;
 
 use std::{mem, ops::Deref};
 
