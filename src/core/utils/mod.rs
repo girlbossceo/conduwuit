@@ -1,3 +1,4 @@
+pub mod bytes;
 pub mod content_disposition;
 pub mod debug;
 pub mod defer;
@@ -14,6 +15,7 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
+pub use bytes::{increment, u64_from_bytes, u64_from_u8, u64_from_u8x8};
 pub use debug::slice_truncated as debug_slice_truncated;
 pub use hash::calculate_hash;
 pub use html::Escape as HtmlEscape;
@@ -26,6 +28,18 @@ use crate::Result;
 
 pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
 
+/// Boilerplate for wraps which are typed to never error.
+///
+/// * <https://doc.rust-lang.org/std/convert/enum.Infallible.html>
+#[must_use]
+#[inline(always)]
+pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
+	match result {
+		Ok(val) => val,
+		Err(err) => match err {},
+	}
+}
+
 #[must_use]
 #[allow(clippy::as_conversions)]
 pub fn millis_since_unix_epoch() -> u64 {
@@ -33,15 +47,6 @@ pub fn millis_since_unix_epoch() -> u64 {
 		.duration_since(UNIX_EPOCH)
 		.expect("time is valid")
 		.as_millis() as u64
-}
-
-#[inline]
-#[must_use]
-pub fn increment(old: Option<&[u8]>) -> [u8; 8] {
-	old.map(TryInto::try_into)
-		.map_or(0_u64, |val| val.map_or(0_u64, u64::from_be_bytes))
-		.wrapping_add(1)
-		.to_be_bytes()
 }
 
 #[must_use]
@@ -53,15 +58,6 @@ pub fn generate_keypair() -> Vec<u8> {
 	);
 	value
 }
-
-/// Parses the bytes into an u64.
-pub fn u64_from_bytes(bytes: &[u8]) -> Result<u64> {
-	let array: [u8; 8] = bytes.try_into()?;
-	Ok(u64::from_be_bytes(array))
-}
-
-}
-
 
 #[allow(clippy::impl_trait_in_params)]
 pub fn common_elements(
@@ -85,16 +81,4 @@ pub fn common_elements(
 			false
 		})
 	}))
-}
-
-/// Boilerplate for wraps which are typed to never error.
-///
-/// * <https://doc.rust-lang.org/std/convert/enum.Infallible.html>
-#[must_use]
-#[inline(always)]
-pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
-	match result {
-		Ok(val) => val,
-		Err(err) => match err {},
-	}
 }

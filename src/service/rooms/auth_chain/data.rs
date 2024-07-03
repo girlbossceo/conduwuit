@@ -38,7 +38,7 @@ impl Data {
 				.map(|chain| {
 					chain
 						.chunks_exact(size_of::<u64>())
-						.map(|chunk| utils::u64_from_bytes(chunk).expect("byte length is correct"))
+						.map(utils::u64_from_u8)
 						.collect::<Arc<[u64]>>()
 				});
 

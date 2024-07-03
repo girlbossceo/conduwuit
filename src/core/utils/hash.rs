@@ -12,4 +12,5 @@ pub fn verify_password(password: &str, password_hash: &str) -> Result<()> {
 }
 
 #[inline]
+#[must_use]
 pub fn calculate_hash(keys: &[&[u8]]) -> Vec<u8> { sha256::hash(keys) }
