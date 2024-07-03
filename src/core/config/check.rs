@@ -6,6 +6,17 @@ use tracing::{debug, error, info, warn};
 use crate::{error::Error, Config};
 
 pub fn check(config: &Config) -> Result<(), Error> {
+	#[cfg(feature = "rocksdb")]
+	warn!(
+		"Note the rocksdb feature was deleted from conduwuit, sqlite was deleted and RocksDB is the only supported \
+		 backend now. Please update your build script to remove this feature."
+	);
+	#[cfg(feature = "sha256_media")]
+	warn!(
+		"Note the sha256_media feature was deleted from conduwuit, it is now fully integrated in a \
+		 forwards-compatible way. Please update your build script to remove this feature."
+	);
+
 	config.warn_deprecated();
 	config.warn_unknown_key();
 
