@@ -19,6 +19,7 @@ To test, format, lint, etc that CI would do, install engage, allow the `.envrc` 
 All of the tasks are defined at the [engage.toml][engage.toml] file. You can view all of them neatly by running `engage list`
 
 If you would like to run only a specific engage task group, use `just`:
+
 - `engage just <group>`
 - Example: `engage just lints`
 

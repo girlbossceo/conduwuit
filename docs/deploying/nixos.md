@@ -8,6 +8,7 @@ conduwuit can be acquired by [Lix][lix] from various places:
 
 A binary cache for conduwuit that the CI/CD publishes to is available at the
 following places (both are the same just different names):
+
 ```
 https://attic.kennel.juneis.dog/conduit
 conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk=

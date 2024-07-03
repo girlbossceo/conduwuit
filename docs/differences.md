@@ -1,10 +1,11 @@
 #### **Note: This list may not up to date. There are rapidly more and more improvements, fixes, changes, etc being made that it is becoming more difficult to maintain this list. I recommend that you give conduwuit a try and see the differences for yourself. If you have any concerns, feel free to join the conduwuit Matrix room and ask any pre-usage questions.**
 
-### list of features, bug fixes, etc that conduwuit does that Conduit does not:
+### list of features, bug fixes, etc that conduwuit does that Conduit does not
 
 Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 
-## Performance:
+## Performance
+
 - Concurrency support for individual homeserver key fetching for faster remote room joins and room joins that will error less frequently
 - Send `Cache-Control` response header with `immutable` and 1 year cache length for all media requests (download and thumbnail) to instruct clients to cache media, and reduce server load from media requests that could be otherwise cached
 - Add feature flags and config options to enable/build with zstd, brotli, and/or gzip HTTP body compression (response and request)
@@ -26,8 +27,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Remove some unnecessary checks on EDU handling for incoming transactions, effectively speeding them up
 - Simplify, dedupe, etc huge chunks of the codebase, including some that were unnecessary overhead, binary bloats, or preventing compiler/linker optimisations
 
+## General Fixes/Features
 
-## General Fixes/Features:
 - Add legacy Element client hack fixing password changes and deactivations on legacy Element Android/iOS due to usage of an unspecced `user` field for UIAA
 - Raise and improve all the various request timeouts making some things like room joins and client bugs error less or none at all than they should, and make them all user configurable
 - Add missing `reason` field to user ban events (`/ban`)
@@ -56,8 +57,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Explicitly define support for sliding sync at `/_matrix/client/versions` (`org.matrix.msc3575`)
 - Fix seeing empty status messages on user presences
 
+## Moderation
 
-## Moderation:
 - (Also see [Admin Room](#admin-room) for all the admin commands pertaining to moderation, there's a lot!)
 - Add support for room banning/blocking by ID using admin command
 - Add support for serving `support` well-known from `[well_known.support]` (MSC1929)
@@ -73,8 +74,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Deactivating users will remove their profile picture, blurhash, display name, and leave all rooms by default just like Synapse and for additional privacy
 - Reject some EDUs from ACL'd users such as read receipts and typing indicators
 
+## Privacy/Security
 
-## Privacy/Security:
 - Add config option for device name federation with a privacy-friendly default (disabled)
 - Add config option for requiring authentication to the `/publicRooms` endpoint (room directory) with a default enabled for privacy
 - Add config option for federating `/publicRooms` endpoint (room directory) to other servers with a default disabled for privacy
@@ -89,8 +90,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Media repository on handling `Content-Disposition` and `Content-Type` is fully spec compliant and secured
 - Send secure default HTTP headers such as a strong restrictive CSP (see MSC4149), deny iframes, disable `X-XSS-Protection`, disable interest cohort in `Permission-Policy`, etc to mitigate any potential attack surface such as from untrusted media
 
+## Administration/Logging
 
-## Administration/Logging:
 - Commandline argument to specify the path to a config file instead of relying on `CONDUIT_CONFIG`
 - Revamped admin room infrastructure and commands
 - Substantially clean up, improve, and fix logging (less noisy dead server logging, registration attempts, more useful troubleshooting logging, proper error propagation, etc)
@@ -108,8 +109,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Log the client IP on various requests such as registrations, banned room join attempts, logins, deactivations, federation transactions, etc
 - Fix Conduit dropping some remote server federation response errors
 
+## Maintenance/Stability
 
-## Maintenance/Stability:
 - GitLab CI ported to GitHub Actions
 - Add support for the Matrix spec compliance test suite [Complement](https://github.com/matrix-org/complement/) via the Nix flake and various other fixes for it
 - Implement running and diff'ing Complement results in CI and error if any mismatch occurs to prevent large cases of conduwuit regressions
@@ -130,8 +131,8 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Startup check if conduwuit running in a container and is listening on 127.0.0.1 (generally containers are using NAT networking and 0.0.0.0 is the intended listening address)
 - Add a panic catcher layer to return panic messages in HTTP responses if a panic occurs
 
+## Admin Room
 
-## Admin Room:
 - Add support for a console CLI interface that can issue admin commands and output them in your terminal
 - Add support for an admin-user-only commandline admin room interface that can be issued in any room with the `\\!admin` or `\!admin` prefix and returns the response as yourself in the same room
 - Add admin commands for uptime, server startup, server shutdown, and server restart
@@ -165,11 +166,11 @@ Outgoing typing indicators, outgoing read receipts, **and** outgoing presence!
 - Extend memory usage admin server command to support showing memory allocator stats such as jemalloc's
 - Add admin debug command to see memory allocator's full extended debug statistics such as jemalloc's
 
+## Misc
 
-## Misc:
 - Add guest support for accessing TURN servers via `turn_allow_guests` like Synapse
 - Support for creating rooms with custom room IDs like Maunium Synapse (`room_id` request body field to `/createRoom`)
-- Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on ` /_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see https://github.com/matrix-org/matrix-spec/issues/1047)
+- Query parameter `?format=event|content` for returning either the room state event's content (default) for the full room state event on `/_matrix/client/v3/rooms/{roomId}/state/{eventType}[/{stateKey}]` requests (see <https://github.com/matrix-org/matrix-spec/issues/1047>)
 - Add **optional** feature flag to use SHA256 key names for media instead of base64 to overcome filesystem file name length limitations (OS error file name too long)
 - Send a User-Agent on all of our requests
 - Send `avatar_url` on invite room membership events/changes

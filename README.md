@@ -43,6 +43,7 @@ from time to time.
 #### Contact
 
 If you run into any question, feel free to
+
 - Ask us in `#conduwuit:puppygock.gay` on Matrix
 - [Open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new)
 

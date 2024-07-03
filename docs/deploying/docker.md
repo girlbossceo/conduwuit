@@ -24,9 +24,11 @@ OCI images for conduwuit are available in the registries listed below.
 [shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
 
 Use
+
 ```bash
 docker image pull <link>
 ```
+
 to pull it to your machine.
 
 ### Run
@@ -55,6 +57,7 @@ If you just want to test conduwuit for a short time, you can use the `--rm` flag
 If the `docker run` command is not for you or your setup, you can also use one of the provided `docker-compose` files.
 
 Depending on your proxy setup, you can use one of the following files;
+
 - If you already have a `traefik` instance set up, use [`docker-compose.for-traefik.yml`](docker-compose.for-traefik.yml)
 - If you don't have a `traefik` instance set up (or any other reverse proxy), use [`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)
 - For any other reverse proxy, use [`docker-compose.yml`](docker-compose.yml)
@@ -99,7 +102,6 @@ either expose ports `443` and `8448` or serve two endpoints `.well-known/matrix/
 `.well-known/matrix/server`.
 
 With the service `well-known` we use a single `nginx` container that will serve those two files.
-
 
 ## Voice communication
 

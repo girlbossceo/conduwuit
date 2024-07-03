@@ -65,14 +65,17 @@ When a symbol is referenced between crates they become bound: **crates cannot be
 Proper resource management is essential for reliable reloading to occur. This is a very basic ask in RAII-idiomatic Rust and the exposure to reloading hazards is remarkably low, generally stemming from poor patterns and practices. Unfortunately static analysis doesn't enforce reload-safety programmatically (though it could one day), for now hazards can be avoided by knowing a few basic do's and dont's:
 
 1. Understand that code is memory. Just like one is forbidden from referencing free'd memory, one must not transfer control to free'd code. Exposure to this is primarily from two things:
+
 - Callbacks, which this project makes very little use of.
 - Async tasks, which are addressed below.
 
 2. Tie all resources to a scope or object lifetime with greatest possible symmetry (locality). For our purposes this applies to code resources, which means async blocks and tokio tasks.
+
 - **Never spawn a task without receiving and storing its JoinHandle**.
 - **Always wait on join handles** before leaving a scope or in another cleanup function called by an owning scope.
 
 3. Know any minor specific quirks documented in code or here:
+
 - Don't use `tokio::spawn`, instead use our `Handle` in `core/server.rs`, which is reachable in most of the codebase via `services()` or other state. This is due to some bugs or assumptions made in tokio, as it happens in `unsafe {}` blocks, which are mitigated by circumventing some thread-local variables. Using runtime handles is good practice in any case.
 
 The initial implementation PR is available [here][1].

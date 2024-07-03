@@ -93,21 +93,21 @@ your.server.name, your.server.name:8448 {
 That's it! Just start and enable the service and you're set.
 
 ```bash
-$ sudo systemctl enable --now caddy
+sudo systemctl enable --now caddy
 ```
 
-## You're done!
+## You're done
 
 Now you can start conduwuit with:
 
 ```bash
-$ sudo systemctl start conduwuit
+sudo systemctl start conduwuit
 ```
 
 Set it to start automatically when your system boots with:
 
 ```bash
-$ sudo systemctl enable conduwuit
+sudo systemctl enable conduwuit
 ```
 
 ## How do I know it works?

@@ -5,6 +5,7 @@
 conduwuit has moderation through admin room commands. "binary commands" (medium priority) and an admin API (low priority) is planned. Some moderation-related config options are available in the example config such as "global ACLs" and blocking media requests to certain servers. See the example config for the moderation config options under the "Moderation / Privacy / Security" section.
 
 conduwuit has moderation admin commands for:
+
 - managing room aliases (`!admin rooms alias`)
 - managing room directory (`!admin rooms directory`)
 - managing room banning/blocking and user removal (`!admin rooms moderation`)
@@ -37,6 +38,7 @@ RocksDB troubleshooting can be found [in the RocksDB section of troubleshooting]
 Currently only RocksDB supports online backups. If you'd like to backup your database online without any downtime, see the `!admin server` command for the backup commands and the `database_backup_path` config options in the example config. Please note that the format of the database backup is not the exact same. This is unfortunately a bad design choice by Facebook as we are using the database backup engine API from RocksDB, however the data is still there and can still be joined together.
 
 To restore a backup from an online RocksDB backup:
+
 - shutdown conduwuit
 - create a new directory for merging together the data
 - in the online backup created, copy all `.sst` files in `$DATABASE_BACKUP_PATH/shared_checksum` to your new directory
@@ -52,6 +54,7 @@ Backing up media is also just copying the `media/` directory from your database 
 ## Media
 
 Media still needs various work, however conduwuit implements media deletion via:
+
 - MXC URI or Event ID (unencrypted and attempts to find the MXC URI in the event)
 - Delete list of MXC URIs
 - Delete remote media in the past `N` seconds/minutes via filesystem metadata on the file created time (`btime`) or file modified time (`mtime`)
