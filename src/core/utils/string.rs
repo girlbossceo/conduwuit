@@ -1,5 +1,13 @@
 use crate::Result;
 
+pub const EMPTY: &str = "";
+
+#[inline]
+#[must_use]
+pub fn split_once_infallible<'a>(input: &'a str, delim: &'_ str) -> (&'a str, &'a str) {
+	input.split_once(delim).unwrap_or((input, EMPTY))
+}
+
 /// Parses the bytes into a string.
 #[inline]
 pub fn string_from_bytes(bytes: &[u8]) -> Result<String> {
