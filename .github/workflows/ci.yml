@@ -74,7 +74,7 @@ jobs:
                   cachix use nix-community
 
             - name: Restore and cache Nix store
-              uses: nix-community/cache-nix-action@v5.1.0
+              uses: nix-community/cache-nix-action@v5.2.1
               with:
                 # restore and save a cache using this key
                 primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/.lock') }}
@@ -199,7 +199,7 @@ jobs:
                   cachix use nix-community
 
             - name: Restore and cache Nix store
-              uses: nix-community/cache-nix-action@v5.1.0
+              uses: nix-community/cache-nix-action@v5.2.1
               with:
                 # restore and save a cache using this key
                 primary-key: nix-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/*.nix', '**/.lock') }}
