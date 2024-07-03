@@ -50,6 +50,9 @@ jobs:
         name: Test
         runs-on: ubuntu-latest
         steps:
+            - name: Free Disk Space (Ubuntu)
+              uses: jlumbroso/free-disk-space@main
+
             - name: Sync repository
               uses: actions/checkout@v4
 
@@ -119,7 +122,7 @@ jobs:
             - name: Cache CI dependencies
               run: |
                   bin/nix-build-and-cache ci
-                
+
             - uses: Swatinem/rust-cache@v2
 
             - name: Run CI tests
