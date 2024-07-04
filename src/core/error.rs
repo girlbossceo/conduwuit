@@ -19,7 +19,8 @@ use ruma::{
 	OwnedServerName,
 };
 use thiserror::Error;
-use tracing::error;
+
+use crate::{debug_error, error};
 
 #[derive(Error)]
 pub enum Error {
@@ -124,6 +125,18 @@ impl From<Infallible> for Error {
 
 impl fmt::Debug for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self}") }
+}
+
+#[inline]
+pub fn log(e: Error) {
+	error!("{e}");
+	drop(e);
+}
+
+#[inline]
+pub fn debug_log(e: Error) {
+	debug_error!("{e}");
+	drop(e);
 }
 
 #[derive(Clone)]
