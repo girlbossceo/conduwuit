@@ -9,7 +9,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use conduit::{Error, Result};
 use data::Data;
-pub use resolve::{resolve_actual_dest, FedDest};
+pub use resolve::{resolve_actual_dest, CachedDest, CachedOverride, FedDest};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,

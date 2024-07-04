@@ -2,7 +2,7 @@ mod client;
 mod data;
 pub(super) mod emerg_access;
 pub(super) mod migrations;
-mod resolver;
+pub(crate) mod resolver;
 pub(super) mod updates;
 
 use std::{

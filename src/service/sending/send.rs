@@ -8,11 +8,14 @@ use ruma::{
 		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest,
 		SendAccessToken,
 	},
-	OwnedServerName, ServerName,
+	ServerName,
 };
 use tracing::{debug, trace};
 
-use super::{resolve, resolve::ActualDest};
+use super::{
+	resolve,
+	resolve::{ActualDest, CachedDest},
+};
 use crate::{debug_error, debug_warn, services, Error, Result};
 
 #[tracing::instrument(skip_all, name = "send")]
@@ -103,13 +106,13 @@ where
 
 	let response = T::IncomingResponse::try_from_http_response(http_response);
 	if response.is_ok() && !actual.cached {
-		services()
-			.globals
-			.resolver
-			.destinations
-			.write()
-			.expect("locked for writing")
-			.insert(OwnedServerName::from(dest), (actual.dest.clone(), actual.host.clone()));
+		services().globals.resolver.set_cached_destination(
+			dest.to_owned(),
+			CachedDest {
+				dest: actual.dest.clone(),
+				host: actual.host.clone(),
+			},
+		);
 	}
 
 	match response {
