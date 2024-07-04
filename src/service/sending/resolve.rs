@@ -2,6 +2,7 @@ use std::{
 	fmt,
 	fmt::Debug,
 	net::{IpAddr, SocketAddr},
+	time::SystemTime,
 };
 
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
@@ -9,7 +10,7 @@ use ipaddress::IPAddress;
 use ruma::{OwnedServerName, ServerName};
 use tracing::{debug, error, trace};
 
-use crate::{debug_error, debug_info, debug_warn, services, Error, Result};
+use crate::{debug_error, debug_info, debug_warn, services, utils::rand, Error, Result};
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -47,12 +48,14 @@ pub(crate) struct ActualDest {
 pub struct CachedDest {
 	pub dest: FedDest,
 	pub host: String,
+	pub expire: SystemTime,
 }
 
 #[derive(Clone, Debug)]
 pub struct CachedOverride {
 	pub ips: Vec<IpAddr>,
 	pub port: u16,
+	pub expire: SystemTime,
 }
 
 #[tracing::instrument(skip_all, name = "resolve")]
@@ -125,6 +128,7 @@ pub async fn resolve_actual_dest(dest: &ServerName, cache: bool) -> Result<Cache
 	Ok(CachedDest {
 		dest: actual_dest,
 		host: host.into_uri_string(),
+		expire: CachedDest::default_expire(),
 	})
 }
 
@@ -286,6 +290,7 @@ async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u1
 				CachedOverride {
 					ips: override_ip.iter().collect(),
 					port,
+					expire: CachedOverride::default_expire(),
 				},
 			);
 
@@ -416,6 +421,7 @@ impl crate::globals::resolver::Resolver {
 			.read()
 			.expect("locked for reading")
 			.get(name)
+			.filter(|cached| cached.valid())
 			.cloned()
 	}
 
@@ -431,8 +437,28 @@ impl crate::globals::resolver::Resolver {
 		self.overrides
 			.read()
 			.expect("locked for reading")
-			.contains_key(name)
+			.get(name)
+			.filter(|cached| cached.valid())
+			.is_some()
 	}
+}
+
+impl CachedDest {
+	#[inline]
+	#[must_use]
+	pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+
+	#[must_use]
+	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36) }
+}
+
+impl CachedOverride {
+	#[inline]
+	#[must_use]
+	pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+
+	#[must_use]
+	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12) }
 }
 
 impl FedDest {

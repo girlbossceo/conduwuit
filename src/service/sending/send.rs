@@ -111,6 +111,7 @@ where
 			CachedDest {
 				dest: actual.dest.clone(),
 				host: actual.host.clone(),
+				expire: CachedDest::default_expire(),
 			},
 		);
 	}

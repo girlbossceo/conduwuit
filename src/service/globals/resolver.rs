@@ -122,6 +122,7 @@ impl Resolve for Hooked {
 			.read()
 			.expect("locked for reading")
 			.get(name.as_str())
+			.filter(|cached| cached.valid())
 			.cloned();
 
 		if let Some(cached) = cached {
