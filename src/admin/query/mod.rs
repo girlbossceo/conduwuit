@@ -2,6 +2,7 @@ mod account_data;
 mod appservice;
 mod globals;
 mod presence;
+mod resolver;
 mod room_alias;
 mod room_state_cache;
 mod sending;
@@ -12,12 +13,12 @@ use conduit::Result;
 use room_state_cache::room_state_cache;
 use ruma::{
 	events::{room::message::RoomMessageEventContent, RoomAccountDataEventType},
-	RoomAliasId, RoomId, ServerName, UserId,
+	OwnedServerName, RoomAliasId, RoomId, ServerName, UserId,
 };
 
 use self::{
-	account_data::account_data, appservice::appservice, globals::globals, presence::presence, room_alias::room_alias,
-	sending::sending, users::users,
+	account_data::account_data, appservice::appservice, globals::globals, presence::presence, resolver::resolver,
+	room_alias::room_alias, sending::sending, users::users,
 };
 
 #[cfg_attr(test, derive(Debug))]
@@ -55,6 +56,10 @@ pub(super) enum QueryCommand {
 	/// - users.rs iterators and getters
 	#[command(subcommand)]
 	Users(Users),
+
+	/// - resolver service
+	#[command(subcommand)]
+	Resolver(Resolver),
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -287,6 +292,21 @@ pub(super) enum Users {
 	Iter,
 }
 
+#[cfg_attr(test, derive(Debug))]
+#[derive(Subcommand)]
+/// Resolver service and caches
+pub(super) enum Resolver {
+	/// Query the destinations cache
+	DestinationsCache {
+		server_name: Option<OwnedServerName>,
+	},
+
+	/// Query the overrides cache
+	OverridesCache {
+		name: Option<String>,
+	},
+}
+
 /// Processes admin query commands
 pub(super) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
@@ -298,5 +318,6 @@ pub(super) async fn process(command: QueryCommand, _body: Vec<&str>) -> Result<R
 		QueryCommand::Globals(command) => globals(command).await?,
 		QueryCommand::Sending(command) => sending(command).await?,
 		QueryCommand::Users(command) => users(command).await?,
+		QueryCommand::Resolver(command) => resolver(command).await?,
 	})
 }
