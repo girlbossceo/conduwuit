@@ -42,13 +42,6 @@
 {"Action":"pass","Test":"TestCannotSendNonLeaveViaSendLeaveV2/knock_event"}
 {"Action":"pass","Test":"TestCannotSendNonLeaveViaSendLeaveV2/non-state_membership_event"}
 {"Action":"pass","Test":"TestCannotSendNonLeaveViaSendLeaveV2/regular_event"}
-{"Action":"fail","Test":"TestClientSpacesSummary"}
-{"Action":"fail","Test":"TestClientSpacesSummary/max_depth"}
-{"Action":"fail","Test":"TestClientSpacesSummary/pagination"}
-{"Action":"fail","Test":"TestClientSpacesSummary/query_whole_graph"}
-{"Action":"fail","Test":"TestClientSpacesSummary/redact_link"}
-{"Action":"fail","Test":"TestClientSpacesSummary/suggested_only"}
-{"Action":"fail","Test":"TestClientSpacesSummaryJoinRules"}
 {"Action":"fail","Test":"TestContentMediaV1"}
 {"Action":"fail","Test":"TestDeviceListsUpdateOverFederation"}
 {"Action":"fail","Test":"TestDeviceListsUpdateOverFederation/good_connectivity"}
