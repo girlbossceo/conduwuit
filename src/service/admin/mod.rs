@@ -4,9 +4,9 @@ mod grant;
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use conduit::{error, utils::mutex_map, Error, Result, Server};
+use async_trait::async_trait;
+use conduit::{error, utils::mutex_map, Error, Result};
 pub use create::create_admin_room;
-use database::Database;
 pub use grant::make_user_admin;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -43,8 +43,9 @@ pub struct Command {
 	pub reply_id: Option<OwnedEventId>,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Arc<Self>> {
+#[async_trait]
+impl crate::Service for Service {
+	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
 		Ok(Arc::new(Self {
 			sender,
@@ -56,8 +57,8 @@ impl Service {
 		}))
 	}
 
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
+	async fn start(self: Arc<Self>) -> Result<()> {
+		let self_ = Arc::clone(&self);
 		let handle = services().server.runtime().spawn(async move {
 			self_
 				.handler()
@@ -66,9 +67,11 @@ impl Service {
 		});
 
 		_ = self.handler_join.lock().await.insert(handle);
+
+		Ok(())
 	}
 
-	pub fn interrupt(&self) {
+	fn interrupt(&self) {
 		#[cfg(feature = "console")]
 		self.console.interrupt();
 
@@ -77,7 +80,7 @@ impl Service {
 		}
 	}
 
-	pub async fn close(&self) {
+	async fn stop(&self) {
 		self.interrupt();
 
 		#[cfg(feature = "console")]
@@ -90,6 +93,10 @@ impl Service {
 		}
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub async fn send_text(&self, body: &str) {
 		self.send_message(RoomMessageEventContent::text_markdown(body))
 			.await;

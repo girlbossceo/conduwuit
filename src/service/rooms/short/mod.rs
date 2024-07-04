@@ -2,22 +2,25 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{Result, Server};
+use conduit::Result;
 use data::Data;
-use database::Database;
 use ruma::{events::StateEventType, EventId, RoomId};
 
 pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
 		self.db.get_or_create_shorteventid(event_id)
 	}

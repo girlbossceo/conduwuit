@@ -1,12 +1,13 @@
 use std::{
 	collections::HashMap,
+	fmt::Write,
 	future, iter,
 	net::{IpAddr, SocketAddr},
 	sync::{Arc, RwLock},
 	time::Duration,
 };
 
-use conduit::{error, Config, Error};
+use conduit::{error, Config, Error, Result};
 use hickory_resolver::TokioAsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use ruma::OwnedServerName;
@@ -30,7 +31,7 @@ pub struct Hooked {
 
 impl Resolver {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-	pub fn new(config: &Config) -> Self {
+	pub(super) fn new(config: &Config) -> Self {
 		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
 			.map_err(|e| {
 				error!("Failed to set up hickory dns resolver with system config: {e}");
@@ -91,6 +92,22 @@ impl Resolver {
 				resolver,
 			}),
 		}
+	}
+
+	pub(super) fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let resolver_overrides_cache = self.overrides.read().expect("locked for reading").len();
+		writeln!(out, "resolver_overrides_cache: {resolver_overrides_cache}")?;
+
+		let resolver_destinations_cache = self.destinations.read().expect("locked for reading").len();
+		writeln!(out, "resolver_destinations_cache: {resolver_destinations_cache}")?;
+
+		Ok(())
+	}
+
+	pub(super) fn clear_cache(&self) {
+		self.overrides.write().expect("write locked").clear();
+		self.destinations.write().expect("write locked").clear();
+		self.resolver.clear_cache();
 	}
 }
 

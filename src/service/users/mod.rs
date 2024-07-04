@@ -6,9 +6,8 @@ use std::{
 	sync::{Arc, Mutex, Mutex as StdMutex},
 };
 
-use conduit::{Error, Result, Server};
+use conduit::{Error, Result};
 use data::Data;
-use database::Database;
 use ruma::{
 	api::client::{
 		device::Device,
@@ -41,14 +40,18 @@ pub struct Service {
 	pub connections: DbConnections,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db.clone()),
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db.clone()),
 			connections: StdMutex::new(BTreeMap::new()),
-		})
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Check if a user has an account on this homeserver.
 	pub fn exists(&self, user_id: &UserId) -> Result<bool> { self.db.exists(user_id) }
 

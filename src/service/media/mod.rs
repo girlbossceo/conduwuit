@@ -6,7 +6,6 @@ use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::Syst
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, debug_error, error, utils, Error, Result, Server};
 use data::Data;
-use database::Database;
 use image::imageops::FilterType;
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
@@ -48,15 +47,19 @@ pub struct Service {
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			server: server.clone(),
-			db: Data::new(db),
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			server: args.server.clone(),
+			db: Data::new(args.db),
 			url_preview_mutex: RwLock::new(HashMap::new()),
-		})
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Uploads a file.
 	pub async fn create(
 		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,

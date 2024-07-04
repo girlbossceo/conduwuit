@@ -7,13 +7,13 @@ pub(super) mod updates;
 
 use std::{
 	collections::{BTreeMap, HashMap},
-	sync::Arc,
+	fmt::Write,
+	sync::{Arc, RwLock},
 	time::Instant,
 };
 
-use conduit::{error, trace, utils::MutexMap, Config, Result, Server};
+use conduit::{error, trace, utils::MutexMap, Config, Result};
 use data::Data;
-use database::Database;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
@@ -25,10 +25,7 @@ use ruma::{
 	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
 	RoomAliasId, RoomVersionId, ServerName, UserId,
 };
-use tokio::{
-	sync::{Mutex, RwLock},
-	task::JoinHandle,
-};
+use tokio::{sync::Mutex, task::JoinHandle};
 use url::Url;
 
 use crate::services;
@@ -59,10 +56,10 @@ pub struct Service {
 	pub admin_alias: OwnedRoomAliasId,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		let db = Data::new(db);
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let db = Data::new(args.db);
 		let keypair = db.load_keypair();
 
 		let keypair = match keypair {
@@ -133,9 +130,59 @@ impl Service {
 			s.config.default_room_version = crate::config::default_default_room_version();
 		};
 
-		Ok(s)
+		Ok(Arc::new(s))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		self.resolver.memory_usage(out)?;
+
+		let bad_event_ratelimiter = self
+			.bad_event_ratelimiter
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "bad_event_ratelimiter: {bad_event_ratelimiter}")?;
+
+		let bad_query_ratelimiter = self
+			.bad_query_ratelimiter
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "bad_query_ratelimiter: {bad_query_ratelimiter}")?;
+
+		let bad_signature_ratelimiter = self
+			.bad_signature_ratelimiter
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "bad_signature_ratelimiter: {bad_signature_ratelimiter}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) {
+		self.resolver.clear_cache();
+
+		self.bad_event_ratelimiter
+			.write()
+			.expect("locked for writing")
+			.clear();
+
+		self.bad_query_ratelimiter
+			.write()
+			.expect("locked for writing")
+			.clear();
+
+		self.bad_signature_ratelimiter
+			.write()
+			.expect("locked for writing")
+			.clear();
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Returns this server's keypair.
 	pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair { &self.keypair }
 

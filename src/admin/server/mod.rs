@@ -18,17 +18,8 @@ pub(super) enum ServerCommand {
 	/// - Print database memory usage statistics
 	MemoryUsage,
 
-	/// - Clears all of Conduit's database caches with index smaller than the
-	///   amount
-	ClearDatabaseCaches {
-		amount: u32,
-	},
-
-	/// - Clears all of Conduit's service caches with index smaller than the
-	///   amount
-	ClearServiceCaches {
-		amount: u32,
-	},
+	/// - Clears all of Conduwuit's caches
+	ClearCaches,
 
 	/// - Performs an online backup of the database (only available for RocksDB
 	///   at the moment)
@@ -65,12 +56,7 @@ pub(super) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<R
 		ServerCommand::Uptime => uptime(body).await?,
 		ServerCommand::ShowConfig => show_config(body).await?,
 		ServerCommand::MemoryUsage => memory_usage(body).await?,
-		ServerCommand::ClearDatabaseCaches {
-			amount,
-		} => clear_database_caches(body, amount).await?,
-		ServerCommand::ClearServiceCaches {
-			amount,
-		} => clear_service_caches(body, amount).await?,
+		ServerCommand::ClearCaches => clear_caches(body).await?,
 		ServerCommand::ListBackups => list_backups(body).await?,
 		ServerCommand::BackupDatabase => backup_database(body).await?,
 		ServerCommand::ListDatabaseFiles => list_database_files(body).await?,

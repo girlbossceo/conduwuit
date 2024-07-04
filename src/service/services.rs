@@ -1,101 +1,97 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, fmt::Write, sync::Arc};
 
-use conduit::{debug_info, Result, Server};
+use conduit::{debug, debug_info, info, trace, Result, Server};
 use database::Database;
-use tracing::{debug, info, trace};
 
 use crate::{
-	account_data, admin, appservice, globals, key_backups, media, presence, pusher, rooms, sending, transaction_ids,
-	uiaa, users,
+	account_data, admin, appservice, globals, key_backups, media, presence, pusher, rooms, sending,
+	service::{Args, Map, Service},
+	transaction_ids, uiaa, users,
 };
 
 pub struct Services {
 	pub rooms: rooms::Service,
-	pub appservice: appservice::Service,
-	pub pusher: pusher::Service,
-	pub transaction_ids: transaction_ids::Service,
-	pub uiaa: uiaa::Service,
-	pub users: users::Service,
-	pub account_data: account_data::Service,
+	pub appservice: Arc<appservice::Service>,
+	pub pusher: Arc<pusher::Service>,
+	pub transaction_ids: Arc<transaction_ids::Service>,
+	pub uiaa: Arc<uiaa::Service>,
+	pub users: Arc<users::Service>,
+	pub account_data: Arc<account_data::Service>,
 	pub presence: Arc<presence::Service>,
 	pub admin: Arc<admin::Service>,
-	pub globals: globals::Service,
-	pub key_backups: key_backups::Service,
-	pub media: media::Service,
+	pub globals: Arc<globals::Service>,
+	pub key_backups: Arc<key_backups::Service>,
+	pub media: Arc<media::Service>,
 	pub sending: Arc<sending::Service>,
+
+	pub(crate) service: Map,
 	pub server: Arc<Server>,
 	pub db: Arc<Database>,
 }
 
 impl Services {
-	pub async fn build(server: Arc<Server>, db: Arc<Database>) -> Result<Self> {
+	pub fn build(server: Arc<Server>, db: Arc<Database>) -> Result<Self> {
+		let mut service: Map = BTreeMap::new();
+		macro_rules! build {
+			($tyname:ty) => {{
+				let built = <$tyname>::build(Args {
+					server: &server,
+					db: &db,
+					_service: &service,
+				})?;
+				service.insert(built.name().to_owned(), built.clone());
+				built
+			}};
+		}
+
 		Ok(Self {
 			rooms: rooms::Service {
-				alias: rooms::alias::Service::build(&server, &db)?,
-				auth_chain: rooms::auth_chain::Service::build(&server, &db)?,
-				directory: rooms::directory::Service::build(&server, &db)?,
-				event_handler: rooms::event_handler::Service::build(&server, &db)?,
-				lazy_loading: rooms::lazy_loading::Service::build(&server, &db)?,
-				metadata: rooms::metadata::Service::build(&server, &db)?,
-				outlier: rooms::outlier::Service::build(&server, &db)?,
-				pdu_metadata: rooms::pdu_metadata::Service::build(&server, &db)?,
-				read_receipt: rooms::read_receipt::Service::build(&server, &db)?,
-				search: rooms::search::Service::build(&server, &db)?,
-				short: rooms::short::Service::build(&server, &db)?,
-				state: rooms::state::Service::build(&server, &db)?,
-				state_accessor: rooms::state_accessor::Service::build(&server, &db)?,
-				state_cache: rooms::state_cache::Service::build(&server, &db)?,
-				state_compressor: rooms::state_compressor::Service::build(&server, &db)?,
-				timeline: rooms::timeline::Service::build(&server, &db)?,
-				threads: rooms::threads::Service::build(&server, &db)?,
-				typing: rooms::typing::Service::build(&server, &db)?,
-				spaces: rooms::spaces::Service::build(&server, &db)?,
-				user: rooms::user::Service::build(&server, &db)?,
+				alias: build!(rooms::alias::Service),
+				auth_chain: build!(rooms::auth_chain::Service),
+				directory: build!(rooms::directory::Service),
+				event_handler: build!(rooms::event_handler::Service),
+				lazy_loading: build!(rooms::lazy_loading::Service),
+				metadata: build!(rooms::metadata::Service),
+				outlier: build!(rooms::outlier::Service),
+				pdu_metadata: build!(rooms::pdu_metadata::Service),
+				read_receipt: build!(rooms::read_receipt::Service),
+				search: build!(rooms::search::Service),
+				short: build!(rooms::short::Service),
+				state: build!(rooms::state::Service),
+				state_accessor: build!(rooms::state_accessor::Service),
+				state_cache: build!(rooms::state_cache::Service),
+				state_compressor: build!(rooms::state_compressor::Service),
+				timeline: build!(rooms::timeline::Service),
+				threads: build!(rooms::threads::Service),
+				typing: build!(rooms::typing::Service),
+				spaces: build!(rooms::spaces::Service),
+				user: build!(rooms::user::Service),
 			},
-			appservice: appservice::Service::build(&server, &db)?,
-			pusher: pusher::Service::build(&server, &db)?,
-			transaction_ids: transaction_ids::Service::build(&server, &db)?,
-			uiaa: uiaa::Service::build(&server, &db)?,
-			users: users::Service::build(&server, &db)?,
-			account_data: account_data::Service::build(&server, &db)?,
-			presence: presence::Service::build(&server, &db)?,
-			admin: admin::Service::build(&server, &db)?,
-			key_backups: key_backups::Service::build(&server, &db)?,
-			media: media::Service::build(&server, &db)?,
-			sending: sending::Service::build(&server, &db)?,
-			globals: globals::Service::build(&server, &db)?,
+			appservice: build!(appservice::Service),
+			pusher: build!(pusher::Service),
+			transaction_ids: build!(transaction_ids::Service),
+			uiaa: build!(uiaa::Service),
+			users: build!(users::Service),
+			account_data: build!(account_data::Service),
+			presence: build!(presence::Service),
+			admin: build!(admin::Service),
+			key_backups: build!(key_backups::Service),
+			media: build!(media::Service),
+			sending: build!(sending::Service),
+			globals: build!(globals::Service),
+			service,
 			server,
 			db,
 		})
 	}
 
-	pub async fn memory_usage(&self) -> String {
-		let lazy_load_waiting = self.rooms.lazy_loading.lazy_load_waiting.lock().await.len();
-		let server_visibility_cache = self
-			.rooms
-			.state_accessor
-			.server_visibility_cache
-			.lock()
-			.unwrap()
-			.len();
-		let user_visibility_cache = self
-			.rooms
-			.state_accessor
-			.user_visibility_cache
-			.lock()
-			.unwrap()
-			.len();
-		let stateinfo_cache = self
-			.rooms
-			.state_compressor
-			.stateinfo_cache
-			.lock()
-			.unwrap()
-			.len();
-		let lasttimelinecount_cache = self
-			.rooms
-			.timeline
-			.get_lasttimelinecount_cache_usage().0;
+	pub async fn memory_usage(&self) -> Result<String> {
+		let mut out = String::new();
+		for service in self.service.values() {
+			service.memory_usage(&mut out)?;
+		}
+
+		//TODO
 		let roomid_spacehierarchy_cache = self
 			.rooms
 			.spaces
@@ -103,113 +99,23 @@ impl Services {
 			.lock()
 			.await
 			.len();
-		let resolver_overrides_cache = self
-			.globals
-			.resolver
-			.overrides
-			.read()
-			.expect("locked for reading")
-			.len();
-		let resolver_destinations_cache = self
-			.globals
-			.resolver
-			.destinations
-			.read()
-			.expect("locked for reading")
-			.len();
-		let bad_event_ratelimiter = self.globals.bad_event_ratelimiter.read().await.len();
-		let bad_query_ratelimiter = self.globals.bad_query_ratelimiter.read().await.len();
-		let bad_signature_ratelimiter = self.globals.bad_signature_ratelimiter.read().await.len();
+		writeln!(out, "roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}")?;
 
-		format!(
-			"\
-lazy_load_waiting: {lazy_load_waiting}
-server_visibility_cache: {server_visibility_cache}
-user_visibility_cache: {user_visibility_cache}
-stateinfo_cache: {stateinfo_cache}
-lasttimelinecount_cache: {lasttimelinecount_cache}
-roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}
-resolver_overrides_cache: {resolver_overrides_cache}
-resolver_destinations_cache: {resolver_destinations_cache}
-bad_event_ratelimiter: {bad_event_ratelimiter}
-bad_query_ratelimiter: {bad_query_ratelimiter}
-bad_signature_ratelimiter: {bad_signature_ratelimiter}
-"
-		)
+		Ok(out)
 	}
 
-	pub async fn clear_caches(&self, amount: u32) {
-		if amount > 0 {
-			self.rooms
-				.lazy_loading
-				.lazy_load_waiting
-				.lock()
-				.await
-				.clear();
+	pub async fn clear_cache(&self) {
+		for service in self.service.values() {
+			service.clear_cache();
 		}
-		if amount > 1 {
-			self.rooms
-				.state_accessor
-				.server_visibility_cache
-				.lock()
-				.unwrap()
-				.clear();
-		}
-		if amount > 2 {
-			self.rooms
-				.state_accessor
-				.user_visibility_cache
-				.lock()
-				.unwrap()
-				.clear();
-		}
-		if amount > 3 {
-			self.rooms
-				.state_compressor
-				.stateinfo_cache
-				.lock()
-				.unwrap()
-				.clear();
-		}
-		if amount > 4 {
-			self.rooms
-				.timeline
-				.clear_lasttimelinecount_cache();
-		}
-		if amount > 5 {
-			self.rooms
-				.spaces
-				.roomid_spacehierarchy_cache
-				.lock()
-				.await
-				.clear();
-		}
-		if amount > 6 {
-			self.globals
-				.resolver
-				.overrides
-				.write()
-				.expect("locked for writing")
-				.clear();
-			self.globals
-				.resolver
-				.destinations
-				.write()
-				.expect("locked for writing")
-				.clear();
-		}
-		if amount > 7 {
-			self.globals.resolver.resolver.clear_cache();
-		}
-		if amount > 8 {
-			self.globals.bad_event_ratelimiter.write().await.clear();
-		}
-		if amount > 9 {
-			self.globals.bad_query_ratelimiter.write().await.clear();
-		}
-		if amount > 10 {
-			self.globals.bad_signature_ratelimiter.write().await.clear();
-		}
+
+		//TODO
+		self.rooms
+			.spaces
+			.roomid_spacehierarchy_cache
+			.lock()
+			.await
+			.clear();
 	}
 
 	pub async fn start(&self) -> Result<()> {
@@ -219,10 +125,9 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 		globals::migrations::migrations(&self.db, &self.globals.config).await?;
 		globals::emerg_access::init_emergency_access();
 
-		self.admin.start_handler().await;
-		self.sending.start_handler().await;
-		if self.globals.config.allow_local_presence {
-			self.presence.start_handler().await;
+		for (name, service) in &self.service {
+			debug!("Starting {name}");
+			service.clone().start().await?;
 		}
 
 		if self.globals.allow_check_for_updates() {
@@ -238,18 +143,18 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 		Ok(())
 	}
 
-	pub async fn interrupt(&self) {
-		trace!("Interrupting services...");
-		self.sending.interrupt();
-		self.presence.interrupt();
-		self.admin.interrupt();
+	pub fn interrupt(&self) {
+		debug!("Interrupting services...");
 
-		trace!("Services interrupt complete.");
+		for (name, service) in &self.service {
+			trace!("Interrupting {name}");
+			service.interrupt();
+		}
 	}
 
 	pub async fn stop(&self) {
 		info!("Shutting down services");
-		self.interrupt().await;
+		self.interrupt();
 
 		debug!("Waiting for update worker...");
 		if let Some(updates_handle) = self.globals.updates_handle.lock().await.take() {
@@ -261,14 +166,10 @@ bad_signature_ratelimiter: {bad_signature_ratelimiter}
 			}
 		}
 
-		debug!("Waiting for admin worker...");
-		self.admin.close().await;
-
-		debug!("Waiting for presence worker...");
-		self.presence.close().await;
-
-		debug!("Waiting for sender...");
-		self.sending.close().await;
+		for (name, service) in &self.service {
+			debug!("Waiting for {name} ...");
+			service.stop().await;
+		}
 
 		debug_info!("Services shutdown complete.");
 	}

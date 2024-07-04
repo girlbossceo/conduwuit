@@ -6,9 +6,9 @@ mod sender;
 
 use std::{fmt::Debug, sync::Arc};
 
-use conduit::{Error, Result, Server};
+use async_trait::async_trait;
+use conduit::{Error, Result};
 use data::Data;
-use database::Database;
 pub use resolve::FedDest;
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
@@ -53,12 +53,13 @@ pub enum SendingEvent {
 	Flush,        // none
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Arc<Self>> {
-		let config = &server.config;
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
 		let (sender, receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
-			db: Data::new(db.clone()),
+			db: Data::new(args.db.clone()),
 			sender,
 			receiver: Mutex::new(receiver),
 			handler_join: Mutex::new(None),
@@ -67,7 +68,13 @@ impl Service {
 		}))
 	}
 
-	pub async fn close(&self) {
+	async fn start(self: Arc<Self>) -> Result<()> {
+		self.start_handler().await;
+
+		Ok(())
+	}
+
+	async fn stop(&self) {
 		self.interrupt();
 		if let Some(handler_join) = self.handler_join.lock().await.take() {
 			if let Err(e) = handler_join.await {
@@ -76,12 +83,16 @@ impl Service {
 		}
 	}
 
-	pub fn interrupt(&self) {
+	fn interrupt(&self) {
 		if !self.sender.is_closed() {
 			self.sender.close();
 		}
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
 	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let dest = Destination::Push(user.to_owned(), pushkey);

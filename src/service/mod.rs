@@ -1,3 +1,6 @@
+#![allow(refining_impl_trait)]
+
+mod service;
 pub mod services;
 
 pub mod account_data;
@@ -22,6 +25,7 @@ use std::sync::{Arc, RwLock};
 pub(crate) use conduit::{config, debug_error, debug_info, debug_warn, utils, Config, Error, Result, Server};
 pub use conduit::{pdu, PduBuilder, PduCount, PduEvent};
 use database::Database;
+pub(crate) use service::{Args, Service};
 
 pub use crate::{
 	globals::{server_is_ours, user_is_local},
@@ -36,7 +40,7 @@ static SERVICES: RwLock<Option<&Services>> = RwLock::new(None);
 #[allow(clippy::let_underscore_must_use)]
 pub async fn init(server: &Arc<Server>) -> Result<()> {
 	let d = Arc::new(Database::open(server).await?);
-	let s = Box::new(Services::build(server.clone(), d.clone()).await?);
+	let s = Box::new(Services::build(server.clone(), d)?);
 	_ = SERVICES.write().expect("write locked").insert(Box::leak(s));
 
 	Ok(())

@@ -2,13 +2,13 @@ mod data;
 
 use std::{
 	collections::HashSet,
+	fmt::Write,
 	mem::size_of,
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{utils, Result, Server};
+use conduit::{utils, Result};
 use data::Data;
-use database::Database;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
@@ -52,17 +52,30 @@ pub struct Service {
 	pub stateinfo_cache: StateInfoLruCache,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		Ok(Self {
-			db: Data::new(db),
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
 			stateinfo_cache: StdMutex::new(LruCache::new(
 				(f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
-		})
+		}))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let stateinfo_cache = self.stateinfo_cache.lock().expect("locked").len();
+		writeln!(out, "stateinfo_cache: {stateinfo_cache}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) { self.stateinfo_cache.lock().expect("locked").clear(); }
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
 	#[tracing::instrument(skip(self))]

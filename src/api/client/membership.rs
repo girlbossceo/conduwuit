@@ -1343,7 +1343,7 @@ pub async fn validate_and_add_event_id(
 			.globals
 			.bad_event_ratelimiter
 			.write()
-			.await
+			.expect("locked")
 			.entry(id)
 		{
 			Entry::Vacant(e) => {
@@ -1359,7 +1359,7 @@ pub async fn validate_and_add_event_id(
 		.globals
 		.bad_event_ratelimiter
 		.read()
-		.await
+		.expect("locked")
 		.get(&event_id)
 	{
 		// Exponential backoff

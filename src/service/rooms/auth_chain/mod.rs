@@ -5,9 +5,8 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, trace, warn, Error, Result, Server};
+use conduit::{debug, error, trace, warn, Error, Result};
 use data::Data;
-use database::Database;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
 
 use crate::services;
@@ -16,13 +15,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(server, db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.server, args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub async fn event_ids_iter<'a>(
 		&self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {

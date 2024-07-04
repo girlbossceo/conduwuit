@@ -2,9 +2,9 @@ mod data;
 
 use std::{sync::Arc, time::Duration};
 
-use conduit::{debug, error, utils, Error, Result, Server};
+use async_trait::async_trait;
+use conduit::{debug, error, utils, Error, Result};
 use data::Data;
-use database::Database;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
@@ -81,12 +81,13 @@ pub struct Service {
 	timeout_remote_users: bool,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Arc<Self>> {
-		let config = &server.config;
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
 		let (timer_sender, timer_receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
-			db: Data::new(db),
+			db: Data::new(args.db),
 			timer_sender,
 			timer_receiver: Mutex::new(timer_receiver),
 			handler_join: Mutex::new(None),
@@ -94,8 +95,10 @@ impl Service {
 		}))
 	}
 
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
+	async fn start(self: Arc<Self>) -> Result<()> {
+		//TODO: if self.globals.config.allow_local_presence { return; }
+
+		let self_ = Arc::clone(&self);
 		let handle = services().server.runtime().spawn(async move {
 			self_
 				.handler()
@@ -104,9 +107,11 @@ impl Service {
 		});
 
 		_ = self.handler_join.lock().await.insert(handle);
+
+		Ok(())
 	}
 
-	pub async fn close(&self) {
+	async fn stop(&self) {
 		self.interrupt();
 		if let Some(handler_join) = self.handler_join.lock().await.take() {
 			if let Err(e) = handler_join.await {
@@ -115,12 +120,16 @@ impl Service {
 		}
 	}
 
-	pub fn interrupt(&self) {
+	fn interrupt(&self) {
 		if !self.timer_sender.is_closed() {
 			self.timer_sender.close();
 		}
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Returns the latest presence event for the given user.
 	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
 		if let Some((_, presence)) = self.db.get_presence(user_id)? {

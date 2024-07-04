@@ -7,8 +7,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug_info, Server};
-use database::Database;
+use conduit::debug_info;
 use lru_cache::LruCache;
 use ruma::{
 	api::{
@@ -159,17 +158,21 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 	}
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		Ok(Self {
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		Ok(Arc::new(Self {
 			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
 				(f64::from(config.roomid_spacehierarchy_cache_capacity) * config.conduit_cache_capacity_modifier)
 					as usize,
 			)),
-		})
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Gets the response for the space hierarchy over federation request
 	///
 	/// Errors if the room does not exist, so a check if the room exists should

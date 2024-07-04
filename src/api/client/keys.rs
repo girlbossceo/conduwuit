@@ -334,7 +334,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 			.globals
 			.bad_query_ratelimiter
 			.write()
-			.await
+			.expect("locked")
 			.entry(id)
 		{
 			hash_map::Entry::Vacant(e) => {
@@ -353,7 +353,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 				.globals
 				.bad_query_ratelimiter
 				.read()
-				.await
+				.expect("locked")
 				.get(server)
 			{
 				// Exponential backoff

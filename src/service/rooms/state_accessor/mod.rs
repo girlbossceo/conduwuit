@@ -2,12 +2,12 @@ mod data;
 
 use std::{
 	collections::HashMap,
+	fmt::Write,
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{error, utils::mutex_map, warn, Error, Result, Server};
+use conduit::{error, utils::mutex_map, warn, Error, Result};
 use data::Data;
-use database::Database;
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -41,20 +41,39 @@ pub struct Service {
 	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		Ok(Self {
-			db: Data::new(db),
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
 			server_visibility_cache: StdMutex::new(LruCache::new(
 				(f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
 			user_visibility_cache: StdMutex::new(LruCache::new(
 				(f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
 			)),
-		})
+		}))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let server_visibility_cache = self.server_visibility_cache.lock().expect("locked").len();
+		writeln!(out, "server_visibility_cache: {server_visibility_cache}")?;
+
+		let user_visibility_cache = self.user_visibility_cache.lock().expect("locked").len();
+		writeln!(out, "user_visibility_cache: {user_visibility_cache}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) {
+		self.server_visibility_cache.lock().expect("locked").clear();
+		self.user_visibility_cache.lock().expect("locked").clear();
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self))]

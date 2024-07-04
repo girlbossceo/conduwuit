@@ -19,7 +19,7 @@ pub fn memory_usage() -> String {
 	let resident = stats::resident::read().unwrap_or_default() as f64 / 1024.0 / 1024.0;
 	let retained = stats::retained::read().unwrap_or_default() as f64 / 1024.0 / 1024.0;
 	format!(
-		" allocated: {allocated:.2} MiB\n active: {active:.2} MiB\n mapped: {mapped:.2} MiB\n metadata: {metadata:.2} \
+		"allocated: {allocated:.2} MiB\n active: {active:.2} MiB\n mapped: {mapped:.2} MiB\n metadata: {metadata:.2} \
 		 MiB\n resident: {resident:.2} MiB\n retained: {retained:.2} MiB\n "
 	)
 }

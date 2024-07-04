@@ -9,8 +9,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use conduit::{debug_error, debug_info, Error, Result, Server};
-use database::Database;
+use conduit::{debug_error, debug_info, Error, Result};
 use futures_util::Future;
 pub use parse_incoming_pdu::parse_incoming_pdu;
 use ruma::{
@@ -45,9 +44,13 @@ type AsyncRecursiveCanonicalJsonVec<'a> =
 type AsyncRecursiveCanonicalJsonResult<'a> =
 	AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> { Ok(Self {}) }
+impl crate::Service for Service {
+	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> { Ok(Arc::new(Self {})) }
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// When receiving an event one needs to:
 	/// 0. Check the server is in the room
 	/// 1. Skip the PDU if we already know about it
@@ -180,7 +183,7 @@ impl Service {
 						.globals
 						.bad_event_ratelimiter
 						.write()
-						.await
+						.expect("locked")
 						.entry((*prev_id).to_owned())
 					{
 						hash_map::Entry::Vacant(e) => {
@@ -200,7 +203,7 @@ impl Service {
 			.globals
 			.roomid_federationhandletime
 			.write()
-			.await
+			.expect("locked")
 			.insert(room_id.to_owned(), (event_id.to_owned(), start_time));
 
 		let r = self
@@ -211,7 +214,7 @@ impl Service {
 			.globals
 			.roomid_federationhandletime
 			.write()
-			.await
+			.expect("locked")
 			.remove(&room_id.to_owned());
 
 		r
@@ -245,7 +248,7 @@ impl Service {
 			.globals
 			.bad_event_ratelimiter
 			.read()
-			.await
+			.expect("locked")
 			.get(prev_id)
 		{
 			// Exponential backoff
@@ -274,7 +277,7 @@ impl Service {
 				.globals
 				.roomid_federationhandletime
 				.write()
-				.await
+				.expect("locked")
 				.insert(room_id.to_owned(), ((*prev_id).to_owned(), start_time));
 
 			self.upgrade_outlier_to_timeline_pdu(pdu, json, create_event, origin, room_id, pub_key_map)
@@ -284,7 +287,7 @@ impl Service {
 				.globals
 				.roomid_federationhandletime
 				.write()
-				.await
+				.expect("locked")
 				.remove(&room_id.to_owned());
 
 			debug!(
@@ -1043,7 +1046,7 @@ impl Service {
 					.globals
 					.bad_event_ratelimiter
 					.write()
-					.await
+					.expect("locked")
 					.entry(id)
 				{
 					hash_map::Entry::Vacant(e) => {
@@ -1076,7 +1079,7 @@ impl Service {
 						.globals
 						.bad_event_ratelimiter
 						.read()
-						.await
+						.expect("locked")
 						.get(&*next_id)
 					{
 						// Exponential backoff
@@ -1184,7 +1187,7 @@ impl Service {
 						.globals
 						.bad_event_ratelimiter
 						.read()
-						.await
+						.expect("locked")
 						.get(&**next_id)
 					{
 						// Exponential backoff

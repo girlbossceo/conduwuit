@@ -2,9 +2,8 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{Result, Server};
+use conduit::Result;
 use data::Data;
-use database::Database;
 use ruma::{events::receipt::ReceiptEvent, serde::Raw, OwnedUserId, RoomId, UserId};
 
 use crate::services;
@@ -13,13 +12,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Replaces the previous read receipt.
 	pub fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) -> Result<()> {
 		self.db.readreceipt_update(user_id, room_id, event)?;

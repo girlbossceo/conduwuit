@@ -2,12 +2,12 @@ mod data;
 
 use std::{
 	collections::{BTreeMap, HashSet},
+	fmt::Write,
 	sync::Arc,
 };
 
-use conduit::{debug, error, info, utils, utils::mutex_map, warn, Error, Result, Server};
+use conduit::{debug, error, info, utils, utils::mutex_map, warn, Error, Result};
 use data::Data;
-use database::Database;
 use itertools::Itertools;
 use rand::prelude::SliceRandom;
 use ruma::{
@@ -68,13 +68,37 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let lasttimelinecount_cache = self
+			.db
+			.lasttimelinecount_cache
+			.lock()
+			.expect("locked")
+			.len();
+		writeln!(out, "lasttimelinecount_cache: {lasttimelinecount_cache}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) {
+		self.db
+			.lasttimelinecount_cache
+			.lock()
+			.expect("locked")
+			.clear();
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	#[tracing::instrument(skip(self))]
 	pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
 		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
@@ -1237,19 +1261,6 @@ impl Service {
 
 		debug!("Prepended backfill pdu");
 		Ok(())
-	}
-
-	pub fn get_lasttimelinecount_cache_usage(&self) -> (usize, usize) {
-		let cache = self.db.lasttimelinecount_cache.lock().expect("locked");
-		(cache.len(), cache.capacity())
-	}
-
-	pub fn clear_lasttimelinecount_cache(&self) {
-		self.db
-			.lasttimelinecount_cache
-			.lock()
-			.expect("locked")
-			.clear();
 	}
 }
 

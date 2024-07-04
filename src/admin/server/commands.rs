@@ -27,12 +27,12 @@ pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventCont
 }
 
 pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let response0 = services().memory_usage().await;
-	let response1 = services().globals.db.memory_usage();
+	let response0 = services().memory_usage().await?;
+	let response1 = services().db.db.memory_usage()?;
 	let response2 = conduit::alloc::memory_usage();
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Services:\n{response0}\n\nDatabase:\n{response1}\n{}",
+		"Services:\n{response0}\nDatabase:\n{response1}\n{}",
 		if !response2.is_empty() {
 			format!("Allocator:\n {response2}")
 		} else {
@@ -41,14 +41,8 @@ pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	)))
 }
 
-pub(super) async fn clear_database_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
-	services().globals.db.clear_caches(amount);
-
-	Ok(RoomMessageEventContent::text_plain("Done."))
-}
-
-pub(super) async fn clear_service_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
-	services().clear_caches(amount).await;
+pub(super) async fn clear_caches(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	services().clear_cache().await;
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }

@@ -2,9 +2,8 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{Result, Server};
+use conduit::Result;
 use data::Data;
-use database::Database;
 use futures_util::Future;
 use regex::RegexSet;
 use ruma::{
@@ -119,10 +118,10 @@ pub struct Service {
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let mut registration_info = BTreeMap::new();
-		let db = Data::new(db);
+		let db = Data::new(args.db);
 		// Inserting registrations into cache
 		for appservice in iter_ids(&db)? {
 			registration_info.insert(
@@ -134,12 +133,16 @@ impl Service {
 			);
 		}
 
-		Ok(Self {
+		Ok(Arc::new(Self {
 			db,
 			registration_info: RwLock::new(registration_info),
-		})
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db) }
 
 	/// Registers an appservice and returns the ID to the caller

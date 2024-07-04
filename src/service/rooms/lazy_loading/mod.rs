@@ -2,14 +2,12 @@ mod data;
 
 use std::{
 	collections::{HashMap, HashSet},
-	sync::Arc,
+	fmt::Write,
+	sync::{Arc, Mutex},
 };
 
-use conduit::Server;
 use data::Data;
-use database::Database;
 use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
-use tokio::sync::Mutex;
 
 use crate::{PduCount, Result};
 
@@ -20,14 +18,27 @@ pub struct Service {
 	pub lazy_load_waiting: Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
 			lazy_load_waiting: Mutex::new(HashMap::new()),
-		})
+		}))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let lazy_load_waiting = self.lazy_load_waiting.lock().expect("locked").len();
+		writeln!(out, "lazy_load_waiting: {lazy_load_waiting}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) { self.lazy_load_waiting.lock().expect("locked").clear(); }
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	#[tracing::instrument(skip(self))]
 	pub fn lazy_load_was_sent_before(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
@@ -43,7 +54,7 @@ impl Service {
 	) {
 		self.lazy_load_waiting
 			.lock()
-			.await
+			.expect("locked")
 			.insert((user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), count), lazy_load);
 	}
 
@@ -51,7 +62,7 @@ impl Service {
 	pub async fn lazy_load_confirm_delivery(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, since: PduCount,
 	) -> Result<()> {
-		if let Some(user_ids) = self.lazy_load_waiting.lock().await.remove(&(
+		if let Some(user_ids) = self.lazy_load_waiting.lock().expect("locked").remove(&(
 			user_id.to_owned(),
 			device_id.to_owned(),
 			room_id.to_owned(),
