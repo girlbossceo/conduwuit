@@ -1,17 +1,11 @@
 #[macro_export]
 macro_rules! defer {
 	($body:block) => {
-		struct _Defer_<F>
-		where
-			F: FnMut(),
-		{
+		struct _Defer_<F: FnMut()> {
 			closure: F,
 		}
 
-		impl<F> Drop for _Defer_<F>
-		where
-			F: FnMut(),
-		{
+		impl<F: FnMut()> Drop for _Defer_<F> {
 			fn drop(&mut self) { (self.closure)(); }
 		}
 
