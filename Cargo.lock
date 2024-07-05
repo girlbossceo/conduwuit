@@ -711,7 +711,6 @@ dependencies = [
  "axum-server",
  "axum-server-dual-protocol",
  "bytes",
- "clap",
  "conduit_admin",
  "conduit_api",
  "conduit_core",
