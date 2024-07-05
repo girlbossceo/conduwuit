@@ -49,7 +49,7 @@ pub(super) enum UserCommand {
 	/// Markdown code block below the command.
 	DeactivateAll {
 		#[arg(short, long)]
-		/// Remove users from their joined rooms
+		/// Does not leave any rooms the user is in on deactivation
 		no_leave_rooms: bool,
 		#[arg(short, long)]
 		/// Also deactivate admin accounts and will assume leave all rooms too
