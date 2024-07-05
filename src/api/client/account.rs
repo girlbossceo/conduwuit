@@ -423,7 +423,12 @@ pub(crate) async fn register_route(
 pub(crate) async fn change_password_route(
 	InsecureClientIp(client): InsecureClientIp, body: Ruma<change_password::v3::Request>,
 ) -> Result<change_password::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	// Authentication for this endpoint was made optional, but we need
+	// authentication currently
+	let sender_user = body
+		.sender_user
+		.as_ref()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	let mut uiaainfo = UiaaInfo {
@@ -512,7 +517,12 @@ pub(crate) async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoa
 pub(crate) async fn deactivate_route(
 	InsecureClientIp(client): InsecureClientIp, body: Ruma<deactivate::v3::Request>,
 ) -> Result<deactivate::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	// Authentication for this endpoint was made optional, but we need
+	// authentication currently
+	let sender_user = body
+		.sender_user
+		.as_ref()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	let mut uiaainfo = UiaaInfo {
