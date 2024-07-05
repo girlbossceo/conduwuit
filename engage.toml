@@ -184,5 +184,6 @@ cargo test \
 name = "nix-default"
 group = "tests"
 script = """
-nix run .#default -- --help
+bin/nix-build-and-cache just .#default
+nix run -L .#default -- --help
 """
