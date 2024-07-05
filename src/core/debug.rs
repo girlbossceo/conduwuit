@@ -80,3 +80,8 @@ pub fn trap() {
 
 #[must_use]
 pub fn panic_str(p: &Box<dyn Any + Send>) -> &'static str { p.downcast_ref::<&str>().copied().unwrap_or_default() }
+
+#[cfg(debug_assertions)]
+#[inline(always)]
+#[must_use]
+pub fn type_name<T>(_: &T) -> &'static str { std::any::type_name::<T>() }
