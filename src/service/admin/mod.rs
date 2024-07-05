@@ -21,7 +21,10 @@ use ruma::{
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::{
+	sync::{Mutex, RwLock},
+	task::JoinHandle,
+};
 
 use crate::{pdu::PduBuilder, services, user_is_local, PduEvent};
 
@@ -37,7 +40,7 @@ pub struct Service {
 	sender: Sender<Command>,
 	receiver: Mutex<Receiver<Command>>,
 	handler_join: Mutex<Option<JoinHandle<()>>>,
-	pub handle: Mutex<Option<Handler>>,
+	pub handle: RwLock<Option<Handler>>,
 	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
 	pub console: Arc<console::Console>,
@@ -57,7 +60,7 @@ impl crate::Service for Service {
 			sender,
 			receiver: Mutex::new(receiver),
 			handler_join: Mutex::new(None),
-			handle: Mutex::new(None),
+			handle: RwLock::new(None),
 			complete: StdRwLock::new(None),
 			#[cfg(feature = "console")]
 			console: console::Console::new(),
@@ -175,7 +178,7 @@ impl Service {
 	}
 
 	async fn process_command(&self, command: Command) -> CommandResult {
-		if let Some(handle) = self.handle.lock().await.as_ref() {
+		if let Some(handle) = self.handle.read().await.as_ref() {
 			handle(command).await
 		} else {
 			Err(Error::Err("Admin module is not loaded.".into()))

@@ -36,13 +36,18 @@ pub async fn init() {
 		.write()
 		.expect("locked for writing")
 		.insert(handler::complete);
-	_ = services().admin.handle.lock().await.insert(handler::handle);
+	_ = services()
+		.admin
+		.handle
+		.write()
+		.await
+		.insert(handler::handle);
 }
 
 /// Uninstall the admin command handler
 #[allow(clippy::let_underscore_must_use)]
 pub async fn fini() {
-	_ = services().admin.handle.lock().await.take();
+	_ = services().admin.handle.write().await.take();
 	_ = services()
 		.admin
 		.complete
