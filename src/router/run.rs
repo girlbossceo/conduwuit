@@ -22,7 +22,7 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	let app = layers::build(&server)?;
 
 	// Install the admin room callback here for now
-	_ = services().admin.handle.lock().await.insert(admin::handle);
+	admin::init().await;
 
 	// Setup shutdown/signal handling
 	let handle = ServerHandle::new();
@@ -39,7 +39,7 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	_ = sigs.await;
 
 	// Remove the admin room callback
-	_ = services().admin.handle.lock().await.take();
+	admin::fini().await;
 
 	debug_info!("Finished");
 	res

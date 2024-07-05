@@ -17,7 +17,6 @@ extern crate conduit_core as conduit;
 extern crate conduit_service as service;
 
 pub(crate) use conduit::{mod_ctor, mod_dtor, Result};
-pub use handler::handle;
 pub(crate) use service::{services, user_is_local};
 
 pub(crate) use crate::{
@@ -27,6 +26,18 @@ pub(crate) use crate::{
 
 mod_ctor! {}
 mod_dtor! {}
+
+/// Install the admin command handler
+#[allow(clippy::let_underscore_must_use)]
+pub async fn init() {
+	_ = services().admin.handle.lock().await.insert(handler::handle);
+}
+
+/// Uninstall the admin command handler
+#[allow(clippy::let_underscore_must_use)]
+pub async fn fini() {
+	_ = services().admin.handle.lock().await.take();
+}
 
 #[cfg(test)]
 mod test {
