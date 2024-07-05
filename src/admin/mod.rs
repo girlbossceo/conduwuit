@@ -30,6 +30,12 @@ mod_dtor! {}
 /// Install the admin command handler
 #[allow(clippy::let_underscore_must_use)]
 pub async fn init() {
+	_ = services()
+		.admin
+		.complete
+		.write()
+		.expect("locked for writing")
+		.insert(handler::complete);
 	_ = services().admin.handle.lock().await.insert(handler::handle);
 }
 
@@ -37,6 +43,12 @@ pub async fn init() {
 #[allow(clippy::let_underscore_must_use)]
 pub async fn fini() {
 	_ = services().admin.handle.lock().await.take();
+	_ = services()
+		.admin
+		.complete
+		.write()
+		.expect("locked for writing")
+		.take();
 }
 
 #[cfg(test)]

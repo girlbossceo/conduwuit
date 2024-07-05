@@ -2,7 +2,11 @@ pub mod console;
 mod create;
 mod grant;
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{
+	future::Future,
+	pin::Pin,
+	sync::{Arc, RwLock as StdRwLock},
+};
 
 use async_trait::async_trait;
 use conduit::{error, utils::mutex_map, Error, Result};
@@ -27,12 +31,14 @@ pub type CommandOutput = Option<RoomMessageEventContent>;
 pub type CommandResult = Result<CommandOutput, Error>;
 pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
 pub type Handler = fn(Command) -> HandlerResult;
+pub type Completer = fn(&str) -> String;
 
 pub struct Service {
 	sender: Sender<Command>,
 	receiver: Mutex<Receiver<Command>>,
 	handler_join: Mutex<Option<JoinHandle<()>>>,
 	pub handle: Mutex<Option<Handler>>,
+	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
 	pub console: Arc<console::Console>,
 }
@@ -52,6 +58,7 @@ impl crate::Service for Service {
 			receiver: Mutex::new(receiver),
 			handler_join: Mutex::new(None),
 			handle: Mutex::new(None),
+			complete: StdRwLock::new(None),
 			#[cfg(feature = "console")]
 			console: console::Console::new(),
 		}))
@@ -125,6 +132,13 @@ impl Service {
 			reply_id,
 		})
 		.await
+	}
+
+	pub fn complete_command(&self, command: &str) -> Option<String> {
+		self.complete
+			.read()
+			.expect("locked for reading")
+			.map(|complete| complete(command))
 	}
 
 	async fn send(&self, message: Command) {

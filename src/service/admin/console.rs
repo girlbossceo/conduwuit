@@ -118,6 +118,7 @@ impl Console {
 		let _suppression = log::Suppress::new(&services().server);
 
 		let (mut readline, _writer) = Readline::new(PROMPT.to_owned())?;
+		readline.set_tab_completer(Self::tab_complete);
 		self.set_history(&mut readline);
 
 		let future = readline.readline();
@@ -184,6 +185,13 @@ impl Console {
 		let mut history = self.history.lock().expect("locked");
 		history.push_front(line);
 		history.truncate(HISTORY_LIMIT);
+	}
+
+	fn tab_complete(line: &str) -> String {
+		services()
+			.admin
+			.complete_command(line)
+			.unwrap_or_else(|| line.to_owned())
 	}
 }
 
