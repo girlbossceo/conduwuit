@@ -8,6 +8,8 @@ use ruma::{
 		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest,
 		SendAccessToken,
 	},
+	serde::Base64,
+	server_util::authorization::XMatrix,
 	ServerName,
 };
 use tracing::{debug, trace};
@@ -196,16 +198,20 @@ where
 
 	for signature_server in signatures {
 		for s in signature_server {
+			let key =
+				s.0.as_str()
+					.try_into()
+					.expect("valid homeserver signing key ID");
+			let sig = Base64::parse(s.1).expect("valid base64");
+
 			http_request.headers_mut().insert(
 				AUTHORIZATION,
-				HeaderValue::from_str(&format!(
-					"X-Matrix origin=\"{}\",destination=\"{}\",key=\"{}\",sig=\"{}\"",
-					services().globals.config.server_name,
-					dest,
-					s.0,
-					s.1
-				))
-				.expect("formatted X-Matrix header"),
+				HeaderValue::from(&XMatrix::new(
+					services().globals.config.server_name.clone(),
+					dest.to_owned(),
+					key,
+					sig,
+				)),
 			);
 		}
 	}
