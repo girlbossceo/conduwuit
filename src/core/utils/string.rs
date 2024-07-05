@@ -2,6 +2,25 @@ use crate::Result;
 
 pub const EMPTY: &str = "";
 
+/// Find the common prefix from a collection of strings and return a slice
+/// ```
+/// use conduit_core::utils::string::common_prefix;
+/// let input = ["conduwuit", "conduit", "construct"];
+/// common_prefix(&input) == "con";
+/// ```
+#[must_use]
+pub fn common_prefix<'a>(choice: &'a [&str]) -> &'a str {
+	choice.first().map_or(EMPTY, move |best| {
+		choice.iter().skip(1).fold(*best, |best, choice| {
+			&best[0..choice
+				.chars()
+				.zip(best.chars())
+				.take_while(|&(a, b)| a == b)
+				.count()]
+		})
+	})
+}
+
 #[inline]
 #[must_use]
 pub fn split_once_infallible<'a>(input: &'a str, delim: &'_ str) -> (&'a str, &'a str) {

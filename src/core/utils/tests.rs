@@ -35,3 +35,30 @@ fn increment_wrap() {
 	let res = u64::from_be_bytes(bytes);
 	assert_eq!(res, 0);
 }
+
+#[test]
+fn common_prefix() {
+	use utils::string;
+
+	let input = ["conduwuit", "conduit", "construct"];
+	let output = string::common_prefix(&input);
+	assert_eq!(output, "con");
+}
+
+#[test]
+fn common_prefix_empty() {
+	use utils::string;
+
+	let input = ["abcdefg", "hijklmn", "opqrstu"];
+	let output = string::common_prefix(&input);
+	assert_eq!(output, "");
+}
+
+#[test]
+fn common_prefix_none() {
+	use utils::string;
+
+	let input = [];
+	let output = string::common_prefix(&input);
+	assert_eq!(output, "");
+}
