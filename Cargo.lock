@@ -3274,8 +3274,7 @@ checksum = "955d28af4278de8121b7ebeb796b6a45735dc01436d898801014aced2773a3d6"
 [[package]]
 name = "rustyline-async"
 version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b6eb06391513b2184f0a5405c11a4a0a5302e8be442f4c5c35267187c2b37d5"
+source = "git+https://github.com/girlbossceo/rustyline-async?rev=de26100b0db03e419a3d8e1dd26895d170d1fe50#de26100b0db03e419a3d8e1dd26895d170d1fe50"
 dependencies = [
  "crossterm",
  "futures-channel",

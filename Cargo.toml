@@ -404,7 +404,8 @@ features = [
 ]
 
 [workspace.dependencies.rustyline-async]
-version = "0.4.2"
+git = "https://github.com/girlbossceo/rustyline-async"
+rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
 
 [workspace.dependencies.termimad]
 version = "0.29.4"
