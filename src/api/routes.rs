@@ -94,6 +94,8 @@ pub fn build(router: Router, server: &Server) -> Router {
 		.ruma_route(client::search_users_route)
 		.ruma_route(client::get_member_events_route)
 		.ruma_route(client::get_protocols_route)
+		.route("/_matrix/client/unstable/thirdparty/protocols",
+		    get(client::get_protocols_route_unstable))
 		.ruma_route(client::send_message_event_route)
 		.ruma_route(client::send_state_event_for_key_route)
 		.ruma_route(client::get_state_events_route)
