@@ -1,17 +1,12 @@
-#[cfg(unix)]
-use std::path::Path; // not unix specific, just only for UNIX sockets stuff and *nix container checks
-
-use tracing::{debug, error, info, warn};
-
-use crate::{error::Error, Config};
+use crate::{error::Error, warn, Config};
 
 pub fn check(config: &Config) -> Result<(), Error> {
-	#[cfg(feature = "rocksdb")]
+	#[cfg(all(feature = "rocksdb", not(feature = "sha256_media")))] // prevents catching this in `--all-features`
 	warn!(
-		"Note the rocksdb feature was deleted from conduwuit, sqlite was deleted and RocksDB is the only supported \
-		 backend now. Please update your build script to remove this feature."
+		"Note the rocksdb feature was deleted from conduwuit. SQLite support was removed and RocksDB is the only \
+		 supported backend now. Please update your build script to remove this feature."
 	);
-	#[cfg(feature = "sha256_media")]
+	#[cfg(all(feature = "sha256_media", not(feature = "rocksdb")))] // prevents catching this in `--all-features`
 	warn!(
 		"Note the sha256_media feature was deleted from conduwuit, it is now fully integrated in a \
 		 forwards-compatible way. Please update your build script to remove this feature."
@@ -24,72 +19,77 @@ pub fn check(config: &Config) -> Result<(), Error> {
 		return Err(Error::bad_config("Sentry cannot be enabled without an endpoint set"));
 	}
 
-	if cfg!(feature = "hardened_malloc") && cfg!(feature = "jemalloc") {
-		warn!("hardened_malloc and jemalloc are both enabled, this causes jemalloc to be used.");
-	}
+	#[cfg(all(feature = "hardened_malloc", feature = "jemalloc"))]
+	warn!(
+		"hardened_malloc and jemalloc are both enabled, this causes jemalloc to be used. If using --all-features, \
+		 this is harmless."
+	);
 
-	if config.unix_socket_path.is_some() && !cfg!(unix) {
+	#[cfg(not(unix))]
+	if config.unix_socket_path.is_some() {
 		return Err(Error::bad_config(
 			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
 			 config.",
 		));
 	}
 
-	config.get_bind_addrs().iter().for_each(|addr| {
-		if addr.ip().is_loopback() && cfg!(unix) {
-			debug!("Found loopback listening address {addr}, running checks if we're in a container.",);
+	#[cfg(unix)]
+	if config.unix_socket_path.is_none() {
+		config.get_bind_addrs().iter().for_each(|addr| {
+			use std::path::Path;
 
-			#[cfg(unix)]
-			if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
-			/* Host */
-			{
-				error!(
-					"You are detected using OpenVZ with a loopback/localhost listening address of {addr}. If you are \
-					 using OpenVZ for containers and you use NAT-based networking to communicate with the host and \
-					 guest, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, you can \
-					 ignore.",
-				);
-			}
+			if addr.ip().is_loopback() {
+				crate::debug_info!("Found loopback listening address {addr}, running checks if we're in a container.",);
 
-			#[cfg(unix)]
-			if Path::new("/.dockerenv").exists() {
-				error!(
-					"You are detected using Docker with a loopback/localhost listening address of {addr}. If you are \
-					 using a reverse proxy on the host and require communication to conduwuit in the Docker container \
-					 via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is \
-					 expected, you can ignore.",
-				);
-			}
+				if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
+				/* Host */
+				{
+					crate::error!(
+						"You are detected using OpenVZ with a loopback/localhost listening address of {addr}. If you \
+						 are using OpenVZ for containers and you use NAT-based networking to communicate with the \
+						 host and guest, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
+						 you can ignore.",
+					);
+				}
 
-			#[cfg(unix)]
-			if Path::new("/run/.containerenv").exists() {
-				error!(
-					"You are detected using Podman with a loopback/localhost listening address of {addr}. If you are \
-					 using a reverse proxy on the host and require communication to conduwuit in the Podman container \
-					 via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". If this is \
-					 expected, you can ignore.",
-				);
+				if Path::new("/.dockerenv").exists() {
+					crate::error!(
+						"You are detected using Docker with a loopback/localhost listening address of {addr}. If you \
+						 are using a reverse proxy on the host and require communication to conduwuit in the Docker \
+						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
+						 If this is expected, you can ignore.",
+					);
+				}
+
+				if Path::new("/run/.containerenv").exists() {
+					crate::error!(
+						"You are detected using Podman with a loopback/localhost listening address of {addr}. If you \
+						 are using a reverse proxy on the host and require communication to conduwuit in the Podman \
+						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
+						 If this is expected, you can ignore.",
+					);
+				}
 			}
-		}
-	});
+		});
+	}
 
 	// rocksdb does not allow max_log_files to be 0
 	if config.rocksdb_max_log_files == 0 {
 		return Err(Error::bad_config(
-			"When using RocksDB, rocksdb_max_log_files cannot be 0. Please set a value at least 1.",
+			"rocksdb_max_log_files cannot be 0. Please set a value at least 1.",
 		));
 	}
 
 	// yeah, unless the user built a debug build hopefully for local testing only
-	if config.server_name == "your.server.name" && !cfg!(debug_assertions) {
+	#[cfg(not(debug_assertions))]
+	if config.server_name == "your.server.name" {
 		return Err(Error::bad_config(
 			"You must specify a valid server name for production usage of conduwuit.",
 		));
 	}
 
-	if cfg!(debug_assertions) {
-		info!("Note: conduwuit was built without optimisations (i.e. debug build)");
-	}
+	#[cfg(debug_assertions)]
+	crate::info!("Note: conduwuit was built without optimisations (i.e. debug build)");
 
 	// check if the user specified a registration token as `""`
 	if config.registration_token == Some(String::new()) {
@@ -103,7 +103,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 	// check if user specified valid IP CIDR ranges on startup
 	for cidr in &config.ip_range_denylist {
 		if let Err(e) = ipaddress::IPAddress::parse(cidr) {
-			error!("Error parsing specified IP CIDR range from string: {e}");
+			crate::error!("Error parsing specified IP CIDR range from string: {e}");
 			return Err(Error::bad_config("Error parsing specified IP CIDR ranges from strings"));
 		}
 	}
