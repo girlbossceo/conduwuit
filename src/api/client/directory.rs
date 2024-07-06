@@ -10,10 +10,13 @@ use ruma::{
 	},
 	directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork},
 	events::{
-		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
+		room::{
+			join_rules::{JoinRule, RoomJoinRulesEventContent},
+			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
+		},
 		StateEventType,
 	},
-	uint, ServerName, UInt,
+	uint, RoomId, ServerName, UInt, UserId,
 };
 use tracing::{error, info, warn};
 
@@ -103,8 +106,6 @@ pub(crate) async fn get_public_rooms_route(
 /// # `PUT /_matrix/client/r0/directory/list/room/{roomId}`
 ///
 /// Sets the visibility of a given room in the room directory.
-///
-/// - TODO: Access control checks
 #[tracing::instrument(skip_all, fields(%client), name = "room_directory")]
 pub(crate) async fn set_room_visibility_route(
 	InsecureClientIp(client): InsecureClientIp, body: Ruma<set_room_visibility::v3::Request>,
@@ -115,6 +116,8 @@ pub(crate) async fn set_room_visibility_route(
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
+
+	user_can_publish_room(sender_user, &body.room_id)?;
 
 	match &body.visibility {
 		room::Visibility::Public => {
@@ -350,4 +353,33 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		next_batch,
 		total_room_count_estimate: Some(total_room_count_estimate),
 	})
+}
+
+/// Check whether the user can publish to the room directory via power levels of
+/// room history visibility event or room creator
+fn user_can_publish_room(user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	if let Some(event) =
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+	{
+		serde_json::from_str(event.content.get())
+			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
+			.map(|content: RoomPowerLevelsEventContent| {
+				RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
+			})
+	} else if let Some(event) =
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
+	{
+		Ok(event.sender == user_id)
+	} else {
+		return Err(Error::BadRequest(
+			ErrorKind::Unauthorized,
+			"You are not allowed to publish this room to the room directory",
+		));
+	}
 }
