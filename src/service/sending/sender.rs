@@ -324,8 +324,10 @@ fn select_edus_presence(
 		}
 	}
 
-	let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
-	events.push(serde_json::to_vec(&presence_content).expect("PresenceEvent can be serialized"));
+	if !presence_updates.is_empty() {
+		let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
+		events.push(serde_json::to_vec(&presence_content).expect("PresenceEvent can be serialized"));
+	}
 
 	Ok(true)
 }
