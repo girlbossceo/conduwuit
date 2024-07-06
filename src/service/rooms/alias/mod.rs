@@ -97,7 +97,7 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn local_aliases_for_room<'a>(
 		&'a self, room_id: &RoomId,
-	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
+	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a + Send> {
 		self.db.local_aliases_for_room(room_id)
 	}
 
