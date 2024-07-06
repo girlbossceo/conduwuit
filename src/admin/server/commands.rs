@@ -1,24 +1,17 @@
-use conduit::{warn, Error, Result};
+use conduit::{utils::time, warn, Error, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::services;
 
 pub(super) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let seconds = services()
+	let elapsed = services()
 		.server
 		.started
 		.elapsed()
-		.expect("standard duration")
-		.as_secs();
-	let result = format!(
-		"up {} days, {} hours, {} minutes, {} seconds.",
-		seconds / 86400,
-		(seconds % 86400) / 60 / 60,
-		(seconds % 3600) / 60,
-		seconds % 60,
-	);
+		.expect("standard duration");
 
-	Ok(RoomMessageEventContent::notice_plain(result))
+	let result = time::pretty(elapsed);
+	Ok(RoomMessageEventContent::notice_plain(format!("{result}.")))
 }
 
 pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
