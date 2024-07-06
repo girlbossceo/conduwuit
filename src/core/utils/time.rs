@@ -1,5 +1,3 @@
-#![allow(clippy::enum_glob_use)]
-
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[inline]
