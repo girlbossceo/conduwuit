@@ -9,7 +9,6 @@ use std::{
 use conduit::{debug, error, info, utils, utils::mutex_map, validated, warn, Error, Result};
 use data::Data;
 use itertools::Itertools;
-use rand::prelude::SliceRandom;
 use ruma::{
 	api::{client::error::ErrorKind, federation},
 	canonical_json::to_canonical_value,
@@ -1081,7 +1080,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(skip(self))]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
 		let first_pdu = self
 			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
@@ -1091,41 +1090,6 @@ impl Service {
 		if first_pdu.0 < from {
 			// No backfill required, there are still events between them
 			return Ok(());
-		}
-
-		let mut servers: Vec<OwnedServerName> = vec![];
-
-		// add server names of any trusted key servers if they're in the room
-		servers.extend(
-			services()
-				.rooms
-				.state_cache
-				.room_servers(room_id)
-				.filter_map(Result::ok)
-				.filter(|server_name| {
-					services().globals.trusted_servers().contains(server_name) && !server_is_ours(server_name)
-				}),
-		);
-
-		// add server names from room aliases on the room ID
-		let room_aliases = services()
-			.rooms
-			.alias
-			.local_aliases_for_room(room_id)
-			.collect::<Result<Vec<_>, _>>();
-		if let Ok(aliases) = &room_aliases {
-			for alias in aliases {
-				if !server_is_ours(alias.server_name()) {
-					servers.push(alias.server_name().to_owned());
-				}
-			}
-		}
-
-		// add room ID server name for backfill server
-		if let Some(server_name) = room_id.server_name() {
-			if !server_is_ours(server_name) {
-				servers.push(server_name.to_owned());
-			}
 		}
 
 		let power_levels: RoomPowerLevelsEventContent = services()
@@ -1139,29 +1103,39 @@ impl Service {
 			.transpose()?
 			.unwrap_or_default();
 
-		// add server names of the list of admins in the room for backfill server
-		servers.extend(
-			power_levels
-				.users
-				.iter()
-				.filter(|(_, level)| **level > power_levels.users_default)
-				.map(|(user_id, _)| user_id.server_name())
-				.filter(|server_name| !server_is_ours(server_name))
-				.map(ToOwned::to_owned),
-		);
+		let room_mods = power_levels.users.iter().filter_map(|(user_id, level)| {
+			if level > &power_levels.users_default && !server_is_ours(user_id.server_name()) {
+				Some(user_id.server_name().to_owned())
+			} else {
+				None
+			}
+		});
 
-		// don't backfill from ourselves (might be noop if we checked it above already)
-		if let Some(server_index) = servers
-			.clone()
-			.into_iter()
-			.position(|server_name| server_is_ours(&server_name))
-		{
-			servers.swap_remove(server_index);
-		}
+		let room_alias_servers = services()
+			.rooms
+			.alias
+			.local_aliases_for_room(room_id)
+			.filter_map(|alias| {
+				alias
+					.ok()
+					.filter(|alias| !server_is_ours(alias.server_name()))
+					.map(|alias| alias.server_name().to_owned())
+			});
 
-		servers.sort_unstable();
-		servers.dedup();
-		servers.shuffle(&mut rand::thread_rng());
+		let servers = room_mods
+			.chain(room_alias_servers)
+			.chain(services().globals.config.trusted_servers.clone())
+			.filter(|server_name| {
+				if server_is_ours(server_name) {
+					return false;
+				}
+
+				services()
+					.rooms
+					.state_cache
+					.server_in_room(server_name, room_id)
+					.unwrap_or(false)
+			});
 
 		for backfill_server in servers {
 			info!("Asking {backfill_server} for backfill");
