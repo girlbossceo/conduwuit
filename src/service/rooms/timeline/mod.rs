@@ -145,29 +145,6 @@ impl Service {
 	}
 	*/
 
-	/// Returns the version of a room, if known
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
-	pub fn get_room_version(&self, room_id: &RoomId) -> Result<Option<RoomVersionId>> {
-		let create_event = services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
-
-		let create_event_content: Option<RoomCreateEventContent> = create_event
-			.as_ref()
-			.map(|create_event| {
-				serde_json::from_str(create_event.content.get()).map_err(|e| {
-					warn!("Invalid create event: {}", e);
-					Error::bad_database("Invalid create event in db.")
-				})
-			})
-			.transpose()?;
-
-		Ok(create_event_content.map(|content| content.room_version))
-	}
-
 	/// Returns the json of a pdu.
 	pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.db.get_pdu_json(event_id)
@@ -188,9 +165,6 @@ impl Service {
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
 	#[inline]
 	pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.db.get_non_outlier_pdu(event_id)
