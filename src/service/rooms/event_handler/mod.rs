@@ -953,7 +953,7 @@ impl Service {
 	/// Call /state_ids to find out what the state at this pdu is. We trust the
 	/// server's response to some extend (sic), but we still do a lot of checks
 	/// on the events
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(skip(self, pub_key_map, create_event, room_version_id))]
 	async fn fetch_state(
 		&self, origin: &ServerName, create_event: &PduEvent, room_id: &RoomId, room_version_id: &RoomVersionId,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>, event_id: &EventId,
