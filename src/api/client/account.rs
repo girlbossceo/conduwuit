@@ -309,7 +309,7 @@ pub(crate) async fn register_route(
 
 	// log in conduit admin channel if a guest registered
 	if body.appservice_info.is_none() && is_guest && services().globals.log_guest_registrations() {
-		info!("New guest user \"{user_id}\" registered on this server from IP.");
+		info!("New guest user \"{user_id}\" registered on this server.");
 
 		if let Some(device_display_name) = &body.initial_device_display_name {
 			if body
