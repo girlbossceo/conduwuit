@@ -50,16 +50,6 @@
           configureFlags = pkgs.lib.subtractLists
             [ "--enable-static" "--disable-shared" ]
             old.configureFlags;
-
-          postInstall = old.postInstall + ''
-            # we remove the extra outputs
-            #
-            # we need to do this to prevent rocksdb from trying to link the
-            # static library in a dynamic stdenv
-            rm $out/lib/liburing*${
-              if pkgs.stdenv.hostPlatform.isStatic then ".so*" else ".a"
-            }
-          '';
         });
       });
 

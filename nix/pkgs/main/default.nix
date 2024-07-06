@@ -43,7 +43,7 @@ features'' = lib.subtractLists disable_features' features';
 
 featureEnabled = feature : builtins.elem feature features'';
 
-enableLiburing = featureEnabled "io_uring" && stdenv.isLinux;
+enableLiburing = featureEnabled "io_uring" && !stdenv.isDarwin;
 
 # This derivation will set the JEMALLOC_OVERRIDE variable, causing the
 # tikv-jemalloc-sys crate to use the nixpkgs jemalloc instead of building it's
@@ -74,8 +74,7 @@ buildDepsOnlyEnv =
       # TODO: static rocksdb fails to build on darwin
       # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
       meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
-      # TODO: switch to enableUring option once https://github.com/NixOS/nixpkgs/pull/314945 is available
-      buildInputs = old.buildInputs ++ lib.optional enableLiburing liburing;
+      enableLiburing = enableLiburing;
     });
   in
   {
