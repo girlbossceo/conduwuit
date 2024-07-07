@@ -129,15 +129,10 @@ jobs:
               run: |
                   direnv exec . engage > >(tee -a test_output.log)
 
-            - name: Sync Complement repository
-              uses: actions/checkout@v4
-              with:
-                repository: 'matrix-org/complement'
-                path: complement_src
-
             - name: Run Complement tests
               run: |
-                  direnv exec . bin/complement 'complement_src' 'complement_test_logs.jsonl' 'complement_test_results.jsonl'
+                  # the nix devshell sets $COMPLEMENT_SRC, so "/dev/null" is no-op
+                  direnv exec . bin/complement "/dev/null" complement_test_logs.jsonl complement_test_results.jsonl > >(tee -a test_output.log)
                   cp -v -f result complement_oci_image.tar.gz
 
             - name: Upload Complement OCI image
@@ -163,7 +158,7 @@ jobs:
 
             - name: Diff Complement results with checked-in repo results
               run: |
-                  diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_test_output.log)
+                  diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_diff_output.log)
 
             - name: Update Job Summary
               if: success() || failure()
@@ -178,7 +173,7 @@ jobs:
 
                       echo '# Complement diff results' >> $GITHUB_STEP_SUMMARY
                       echo '```diff' >> $GITHUB_STEP_SUMMARY
-                      tail -n 100 complement_test_output.log | sed 's/\x1b\[[0-9;]*m//g' >>     $GITHUB_STEP_SUMMARY
+                      tail -n 100 complement_diff_output.log | sed 's/\x1b\[[0-9;]*m//g' >>     $GITHUB_STEP_SUMMARY
                       echo '```' >> $GITHUB_STEP_SUMMARY
                   fi
 

@@ -7,7 +7,7 @@ set -euo pipefail
 # The `COMPLEMENT_SRC` environment variable is set in the Nix dev shell, which
 # points to a store path containing the Complement source code. It's likely you
 # want to just pass that as the first argument to use it here.
-COMPLEMENT_SRC="$1"
+COMPLEMENT_SRC="${COMPLEMENT_SRC:-$1}"
 
 # A `.jsonl` file to write test logs to
 LOG_FILE="$2"
@@ -17,11 +17,18 @@ RESULTS_FILE="$3"
 
 OCI_IMAGE="complement-conduit:main"
 
-# Complement tests that are skipped due to flakiness/reliability issues (likely
-# Complement itself induced based on various open issues)
-#
-# According to Go docs, these are separated by forward slashes and not pipes (why)
+# Complement tests that are skipped due to flakiness/reliability issues
 SKIPPED_COMPLEMENT_TESTS='-skip=TestClientSpacesSummary.*|TestJoinFederatedRoomFromApplicationServiceBridgeUser.*|TestJumpToDateEndpoint.*'
+
+# $COMPLEMENT_SRC needs to be a directory to Complement source code
+if [ -f "$COMPLEMENT_SRC" ]; then
+    echo "\$COMPLEMENT_SRC must be a directory/path to Complement source code"
+    exit 1
+fi
+
+# quick test to make sure we can actually write to $LOG_FILE and $RESULTS_FILE
+touch $LOG_FILE && rm -v $LOG_FILE
+touch $RESULTS_FILE && rm -v $RESULTS_FILE
 
 toplevel="$(git rev-parse --show-toplevel)"
 
