@@ -246,7 +246,7 @@ jobs:
                   CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
-                  bin/nix-build-and-cache just .#static-${{ matrix.target }}
+                  bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features
                   mkdir -v -p target/release/
                   mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
                   cp -v -f result/bin/conduit target/release/conduwuit
@@ -273,7 +273,7 @@ jobs:
 
             - name: Build OCI image ${{ matrix.target }}
               run: |
-                  bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}
+                  bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features
                   cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
             - name: Upload OCI image ${{ matrix.target }}
