@@ -376,7 +376,7 @@ pub(crate) async fn register_route(
 
 			if let Some(room_id_server_name) = room.server_name() {
 				if let Err(e) = join_room_by_id_helper(
-					Some(&user_id),
+					&user_id,
 					room,
 					Some("Automatically joining this room upon registration".to_owned()),
 					&[room_id_server_name.to_owned(), services().globals.server_name().to_owned()],

@@ -202,7 +202,7 @@ pub(crate) async fn join_room_by_id_route(
 	}
 
 	join_room_by_id_helper(
-		body.sender_user.as_deref(),
+		sender_user,
 		&body.room_id,
 		body.reason.clone(),
 		&servers,
@@ -301,7 +301,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 	};
 
 	let join_room_response = join_room_by_id_helper(
-		Some(sender_user),
+		sender_user,
 		&room_id,
 		body.reason.clone(),
 		&servers,
@@ -653,11 +653,9 @@ pub(crate) async fn joined_members_route(
 }
 
 pub async fn join_room_by_id_helper(
-	sender_user: Option<&UserId>, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
-	let sender_user = sender_user.expect("user is authenticated");
-
 	if matches!(services().rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
 		info!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
@@ -679,6 +677,7 @@ pub async fn join_room_by_id_helper(
 	}
 }
 
+#[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_remote")]
 async fn join_room_by_id_helper_remote(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
@@ -1014,6 +1013,7 @@ async fn join_room_by_id_helper_remote(
 	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
 }
 
+#[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_local")]
 async fn join_room_by_id_helper_local(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
