@@ -134,23 +134,21 @@ impl Engine {
 			.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 	}
 
-	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	pub fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
 		let stats = get_memory_usage_stats(Some(&[&self.db]), Some(&[&self.row_cache])).or_else(or_else)?;
+		let mibs = |input| f64::from(u32::try_from(input / 1024).unwrap_or(0)) / 1024.0;
 		writeln!(
 			res,
 			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB",
-			stats.mem_table_total as f64 / 1024.0 / 1024.0,
-			stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
-			stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
-			self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
-		)
-		.expect("should be able to write to string buffer");
+			mibs(stats.mem_table_total),
+			mibs(stats.mem_table_unflushed),
+			mibs(stats.mem_table_readers_total),
+			mibs(u64::try_from(self.row_cache.get_usage())?),
+		)?;
 
 		for (name, cache) in &*self.col_cache.read().expect("locked") {
-			writeln!(res, "{} cache: {:.2} MiB", name, cache.get_usage() as f64 / 1024.0 / 1024.0,)
-				.expect("should be able to write to string buffer");
+			writeln!(res, "{} cache: {:.2} MiB", name, mibs(u64::try_from(cache.get_usage())?))?;
 		}
 
 		Ok(res)
@@ -214,8 +212,7 @@ impl Engine {
 				rfc2822_from_seconds(info.timestamp),
 				info.size,
 				info.num_files,
-			)
-			.expect("should be able to write to string buffer");
+			)?;
 		}
 
 		Ok(res)
@@ -226,16 +223,16 @@ impl Engine {
 			Err(e) => Ok(String::from(e)),
 			Ok(files) => {
 				let mut res = String::new();
-				writeln!(res, "| lev  | sst  | keys | dels | size | column |").expect("written to string buffer");
-				writeln!(res, "| ---: | :--- | ---: | ---: | ---: | :---   |").expect("written to string buffer");
+				writeln!(res, "| lev  | sst  | keys | dels | size | column |")?;
+				writeln!(res, "| ---: | :--- | ---: | ---: | ---: | :---   |")?;
 				for file in files {
 					writeln!(
 						res,
 						"| {} | {:<13} | {:7}+ | {:4}- | {:9} | {} |",
 						file.level, file.name, file.num_entries, file.num_deletions, file.size, file.column_family_name,
-					)
-					.expect("should be able to writeln to string buffer");
+					)?;
 				}
+
 				Ok(res)
 			},
 		}

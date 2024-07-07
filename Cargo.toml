@@ -740,9 +740,6 @@ significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
 pedantic = "warn"
 
 ## some sadness
-cast_possible_truncation = { level = "allow", priority = 1 }
-cast_precision_loss = { level = "allow", priority = 1 }
-cast_sign_loss = { level = "allow", priority = 1 }
 doc_markdown = { level = "allow", priority = 1 }
 enum_glob_use = { level = "allow", priority = 1 }
 error_impl_error = { level = "allow", priority = 1 }

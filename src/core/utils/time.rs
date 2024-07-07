@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[inline]
 #[must_use]
-#[allow(clippy::as_conversions)]
+#[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
 pub fn now_millis() -> u64 {
 	UNIX_EPOCH
 		.elapsed()
@@ -28,7 +28,7 @@ pub fn format(ts: SystemTime, str: &str) -> String {
 }
 
 #[must_use]
-#[allow(clippy::as_conversions)]
+#[allow(clippy::as_conversions, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn pretty(d: Duration) -> String {
 	use Unit::*;
 
@@ -50,7 +50,7 @@ pub fn pretty(d: Duration) -> String {
 /// part is the largest Unit containing a non-zero value, the frac part is a
 /// rational remainder left over.
 #[must_use]
-#[allow(clippy::as_conversions)]
+#[allow(clippy::as_conversions, clippy::cast_precision_loss)]
 pub fn whole_and_frac(d: Duration) -> (Unit, f64) {
 	use Unit::*;
 

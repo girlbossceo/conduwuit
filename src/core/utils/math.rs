@@ -60,7 +60,8 @@ pub fn usize_from_f64(val: f64) -> Result<usize, Error> {
 		return Err(Error::Arithmetic("Converting negative float to unsigned integer"));
 	}
 
-	Ok(val as usize)
+	//SAFETY: <https://doc.rust-lang.org/std/primitive.f64.html#method.to_int_unchecked>
+	Ok(unsafe { val.to_int_unchecked::<usize>() })
 }
 
 #[inline]
@@ -83,5 +84,5 @@ pub fn ruma_from_usize(val: usize) -> ruma::UInt {
 
 #[inline]
 #[must_use]
-#[allow(clippy::as_conversions)]
+#[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
 pub fn usize_from_u64_truncated(val: u64) -> usize { val as usize }
