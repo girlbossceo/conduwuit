@@ -6,7 +6,7 @@ use crate::{cork::Cork, maps, maps::Maps, Engine, Map};
 
 pub struct Database {
 	pub db: Arc<Engine>,
-	pub map: Maps,
+	map: Maps,
 }
 
 impl Database {
