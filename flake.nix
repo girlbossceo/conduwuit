@@ -114,9 +114,15 @@
     {
       packages = {
         default = scopeHost.main;
+        all-features = scopeHost.main.override { all_features = true; };
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
         oci-image = scopeHost.oci-image;
+        oci-image-all-features = scopeHost.oci-image.override {
+          main = scopeHost.main.override {
+            all_features = true;
+          };
+        };
         oci-image-hmalloc = scopeHost.oci-image.override {
           main = scopeHost.main.override {
             features = ["hardened_malloc"];
@@ -151,6 +157,14 @@
                   value = scopeCrossStatic.main;
                 }
 
+                # An output for a statically-linked binary with `--all-features`
+                {
+                  name = "${binaryName}-all-features";
+                  value = scopeCrossStatic.main.override {
+                    all_features = true;
+                  };
+                }
+
                 # An output for a statically-linked binary with hardened_malloc
                 {
                   name = "${binaryName}-hmalloc";
@@ -163,6 +177,16 @@
                 {
                   name = "oci-image-${crossSystem}";
                   value = scopeCrossStatic.oci-image;
+                }
+
+                # An output for an OCI image based on that binary with `--all-features`
+                {
+                  name = "oci-image-${crossSystem}-all-features";
+                  value = scopeCrossStatic.oci-image.override {
+                    main = scopeCrossStatic.main.override {
+                      all_features = true;
+                    };
+                  };
                 }
 
                 # An output for an OCI image based on that binary with hardened_malloc
