@@ -114,13 +114,19 @@
     {
       packages = {
         default = scopeHost.main;
-        all-features = scopeHost.main.override { all_features = true; };
+        all-features = scopeHost.main.override {
+            all_features = true;
+            # this is non-functional on nix for some reason
+            disable_features = ["hardened_malloc"];
+        };
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
         oci-image = scopeHost.oci-image;
         oci-image-all-features = scopeHost.oci-image.override {
           main = scopeHost.main.override {
             all_features = true;
+            # this is non-functional on nix for some reason
+            disable_features = ["hardened_malloc"];
           };
         };
         oci-image-hmalloc = scopeHost.oci-image.override {
@@ -162,6 +168,8 @@
                   name = "${binaryName}-all-features";
                   value = scopeCrossStatic.main.override {
                     all_features = true;
+                    # this is non-functional on nix for some reason
+                    disable_features = ["hardened_malloc"];
                   };
                 }
 
@@ -185,6 +193,8 @@
                   value = scopeCrossStatic.oci-image.override {
                     main = scopeCrossStatic.main.override {
                       all_features = true;
+                      # this is non-functional on nix for some reason
+                      disable_features = ["hardened_malloc"];
                     };
                   };
                 }
@@ -210,7 +220,11 @@
       devShells.default = mkDevShell scopeHostStatic;
       devShells.all-features = mkDevShell
         (scopeHostStatic.overrideScope (final: prev: {
-          main = prev.main.override { all_features = true; };
+          main = prev.main.override {
+            all_features = true;
+            # this is non-functional on nix for some reason
+            disable_features = ["hardened_malloc"];
+        };
         }));
       devShells.no-features = mkDevShell
         (scopeHostStatic.overrideScope (final: prev: {
