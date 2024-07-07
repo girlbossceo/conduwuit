@@ -26,7 +26,7 @@ impl fmt::Display for Escape<'_> {
 			fmt.write_str(s)?;
 			// NOTE: we only expect single byte characters here - which is fine as long as
 			// we only match single byte characters
-			last = i + 1;
+			last = i.saturating_add(1);
 		}
 
 		if last < s.len() {

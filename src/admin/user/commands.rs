@@ -23,7 +23,7 @@ pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match services().users.list_local_users() {
 		Ok(users) => {
 			let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
-			plain_msg += &users.join("\n");
+			plain_msg += users.join("\n").as_str();
 			plain_msg += "\n```";
 
 			Ok(RoomMessageEventContent::notice_markdown(plain_msg))
@@ -195,7 +195,10 @@ pub(super) async fn deactivate_all(
 		));
 	}
 
-	let usernames = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+	let usernames = body
+		.clone()
+		.drain(1..body.len().saturating_sub(1))
+		.collect::<Vec<_>>();
 
 	let mut user_ids: Vec<OwnedUserId> = Vec::with_capacity(usernames.len());
 	let mut admins = Vec::new();

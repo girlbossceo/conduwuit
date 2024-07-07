@@ -836,11 +836,14 @@ async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &C
 	for (mut key, value) in roomuserid_joined.iter() {
 		iter_count = iter_count.saturating_add(1);
 		debug_info!(%iter_count);
-		let first_sep_index = key.iter().position(|&i| i == 0xFF).unwrap();
+		let first_sep_index = key
+			.iter()
+			.position(|&i| i == 0xFF)
+			.expect("found 0xFF delim");
 
 		if key
 			.iter()
-			.get(first_sep_index..=first_sep_index + 1)
+			.get(first_sep_index..=first_sep_index.saturating_add(1))
 			.copied()
 			.collect_vec()
 			== vec![0xFF, 0xFF]

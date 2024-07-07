@@ -1,6 +1,6 @@
 use std::{mem::size_of, sync::Arc};
 
-use conduit::{utils, Error, Result};
+use conduit::{checked, utils, Error, Result};
 use database::{Database, Map};
 use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, RoomId, UserId};
 
@@ -31,7 +31,7 @@ impl Data {
 			.to_vec();
 
 		let mut current = prefix.clone();
-		current.extend_from_slice(&(until - 1).to_be_bytes());
+		current.extend_from_slice(&(checked!(until - 1)?).to_be_bytes());
 
 		Ok(Box::new(
 			self.threadid_userids

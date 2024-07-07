@@ -16,7 +16,15 @@ macro_rules! checked {
 #[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! validated {
-	($($input:tt)*) => { Ok($($input)*) }
+	($($input:tt)*) => {
+		//#[allow(clippy::arithmetic_side_effects)] {
+		//Some($($input)*)
+		//	.ok_or_else(|| $crate::Error::Arithmetic("this error should never been seen"))
+		//}
+
+		//NOTE: remove me when stmt_expr_attributes is stable
+		$crate::checked!($($input)*)
+	}
 }
 
 #[cfg(debug_assertions)]

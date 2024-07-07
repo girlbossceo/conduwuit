@@ -65,7 +65,10 @@ impl Data {
 			"counter mismatch"
 		);
 
-		*counter = counter.wrapping_add(1);
+		*counter = counter
+			.checked_add(1)
+			.expect("counter must not overflow u64");
+
 		self.global.insert(COUNTER, &counter.to_be_bytes())?;
 
 		Ok(*counter)

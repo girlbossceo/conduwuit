@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{error, utils, Error, Result};
+use conduit::{checked, error, utils, Error, Result};
 use database::{Database, Map};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
@@ -281,10 +281,12 @@ impl Data {
 
 /// Returns the `count` of this pdu's id.
 pub(super) fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
-	let last_u64 = utils::u64_from_bytes(&pdu_id[pdu_id.len() - size_of::<u64>()..])
+	let stride = size_of::<u64>();
+	let pdu_id_len = pdu_id.len();
+	let last_u64 = utils::u64_from_bytes(&pdu_id[checked!(pdu_id_len - stride)?..])
 		.map_err(|_| Error::bad_database("PDU has invalid count bytes."))?;
 	let second_last_u64 =
-		utils::u64_from_bytes(&pdu_id[pdu_id.len() - 2 * size_of::<u64>()..pdu_id.len() - size_of::<u64>()]);
+		utils::u64_from_bytes(&pdu_id[checked!(pdu_id_len - 2 * stride)?..checked!(pdu_id_len - stride)?]);
 
 	if matches!(second_last_u64, Ok(0)) {
 		Ok(PduCount::Backfilled(u64::MAX.saturating_sub(last_u64)))

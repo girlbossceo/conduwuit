@@ -65,7 +65,7 @@ fn common_prefix_none() {
 
 #[test]
 fn checked_add() {
-	use utils::math::checked;
+	use crate::checked;
 
 	let a = 1234;
 	let res = checked!(a + 1).unwrap();
@@ -75,9 +75,9 @@ fn checked_add() {
 #[test]
 #[should_panic(expected = "overflow")]
 fn checked_add_overflow() {
-	use utils::math::checked;
+	use crate::checked;
 
-	let a: u64 = u64::MAX;
+	let a = u64::MAX;
 	let res = checked!(a + 1).expect("overflow");
 	assert_eq!(res, 0);
 }

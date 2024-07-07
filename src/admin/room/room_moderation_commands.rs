@@ -191,7 +191,10 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 		));
 	}
 
-	let rooms_s = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+	let rooms_s = body
+		.clone()
+		.drain(1..body.len().saturating_sub(1))
+		.collect::<Vec<_>>();
 
 	let admin_room_alias = &services().globals.admin_alias;
 

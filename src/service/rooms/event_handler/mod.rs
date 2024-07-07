@@ -191,7 +191,7 @@ impl Service {
 							e.insert((Instant::now(), 1));
 						},
 						hash_map::Entry::Occupied(mut e) => {
-							*e.get_mut() = (Instant::now(), e.get().1 + 1);
+							*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
 						},
 					};
 				},
@@ -1072,7 +1072,7 @@ impl Service {
 				let mut todo_auth_events = vec![Arc::clone(id)];
 				let mut events_in_reverse_order = Vec::with_capacity(todo_auth_events.len());
 				let mut events_all = HashSet::with_capacity(todo_auth_events.len());
-				let mut i = 0;
+				let mut i: u64 = 0;
 				while let Some(next_id) = todo_auth_events.pop() {
 					if let Some((time, tries)) = services()
 						.globals
@@ -1094,7 +1094,7 @@ impl Service {
 						continue;
 					}
 
-					i += 1;
+					i = i.saturating_add(1);
 					if i % 100 == 0 {
 						tokio::task::yield_now().await;
 					}

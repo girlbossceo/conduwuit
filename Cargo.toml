@@ -769,7 +769,7 @@ perf = "warn"
 ###################
 #restriction = "warn"
 
-#arithmetic_side_effects = "warn"                                    # TODO
+arithmetic_side_effects = "warn"
 #as_conversions = "warn"                                             # TODO
 assertions_on_result_states = "warn"
 dbg_macro = "warn"

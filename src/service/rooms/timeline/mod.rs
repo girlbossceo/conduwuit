@@ -6,7 +6,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, info, utils, utils::mutex_map, warn, Error, Result};
+use conduit::{debug, error, info, utils, utils::mutex_map, validated, warn, Error, Result};
 use data::Data;
 use itertools::Itertools;
 use rand::prelude::SliceRandom;
@@ -670,7 +670,7 @@ impl Service {
 			.filter_map(|event_id| Some(self.get_pdu(event_id).ok()??.depth))
 			.max()
 			.unwrap_or_else(|| uint!(0))
-			+ uint!(1);
+			.saturating_add(uint!(1));
 
 		let mut unsigned = unsigned.unwrap_or_default();
 
@@ -1240,10 +1240,11 @@ impl Service {
 
 		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
 
+		let max = u64::MAX;
 		let count = services().globals.next_count()?;
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
 		pdu_id.extend_from_slice(&0_u64.to_be_bytes());
-		pdu_id.extend_from_slice(&(u64::MAX - count).to_be_bytes());
+		pdu_id.extend_from_slice(&(validated!(max - count)?).to_be_bytes());
 
 		// Insert pdu
 		self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value)?;

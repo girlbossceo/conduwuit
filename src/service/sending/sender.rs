@@ -93,7 +93,7 @@ impl Service {
 		statuses.entry(dest).and_modify(|e| {
 			*e = match e {
 				TransactionStatus::Running => TransactionStatus::Failed(1, Instant::now()),
-				TransactionStatus::Retrying(n) => TransactionStatus::Failed(*n + 1, Instant::now()),
+				TransactionStatus::Retrying(ref n) => TransactionStatus::Failed(n.saturating_add(1), Instant::now()),
 				TransactionStatus::Failed(..) => panic!("Request that was not even running failed?!"),
 			}
 		});

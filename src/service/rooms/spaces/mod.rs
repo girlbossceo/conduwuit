@@ -7,7 +7,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::debug_info;
+use conduit::{checked, debug_info};
 use lru_cache::LruCache;
 use ruma::{
 	api::{
@@ -508,7 +508,8 @@ impl Service {
 							}
 
 							// We have reached the room after where we last left off
-							if parents.len() + 1 == short_room_ids.len() {
+							let parents_len = parents.len();
+							if checked!(parents_len + 1)? == short_room_ids.len() {
 								populate_results = true;
 							}
 						}

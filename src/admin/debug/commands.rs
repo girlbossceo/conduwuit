@@ -58,7 +58,7 @@ pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent
 		));
 	}
 
-	let string = body[1..body.len() - 1].join("\n");
+	let string = body[1..body.len().saturating_sub(1)].join("\n");
 	match serde_json::from_str(&string) {
 		Ok(value) => match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
 			Ok(hash) => {

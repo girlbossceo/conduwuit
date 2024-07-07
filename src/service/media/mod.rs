@@ -1,10 +1,10 @@
 mod data;
 mod tests;
 
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, io::Cursor, num::Saturating as Sat, path::PathBuf, sync::Arc, time::SystemTime};
 
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{debug, debug_error, error, utils, Error, Result, Server};
+use conduit::{checked, debug, debug_error, error, utils, Error, Result, Server};
 use data::Data;
 use image::imageops::FilterType;
 use ruma::{OwnedMxcUri, OwnedUserId};
@@ -305,36 +305,20 @@ impl Service {
 					image.resize_to_fill(width, height, FilterType::CatmullRom)
 				} else {
 					let (exact_width, exact_height) = {
-						// Copied from image::dynimage::resize_dimensions
-						//
-						// https://github.com/image-rs/image/blob/6edf8ae492c4bb1dacb41da88681ea74dab1bab3/src/math/utils.rs#L5-L11
-						// Calculates the width and height an image should be
-						// resized to. This preserves aspect ratio, and based
-						// on the `fill` parameter will either fill the
-						// dimensions to fit inside the smaller constraint
-						// (will overflow the specified bounds on one axis to
-						// preserve aspect ratio), or will shrink so that both
-						// dimensions are completely contained within the given
-						// `width` and `height`, with empty space on one axis.
-						let ratio = u64::from(original_width) * u64::from(height);
-						let nratio = u64::from(width) * u64::from(original_height);
+						let ratio = Sat(original_width) * Sat(height);
+						let nratio = Sat(width) * Sat(original_height);
 
 						let use_width = nratio <= ratio;
 						let intermediate = if use_width {
-							u64::from(original_height) * u64::from(width) / u64::from(original_width)
+							Sat(original_height) * Sat(checked!(width / original_width)?)
 						} else {
-							u64::from(original_width) * u64::from(height) / u64::from(original_height)
+							Sat(original_width) * Sat(checked!(height / original_height)?)
 						};
+
 						if use_width {
-							if u32::try_from(intermediate).is_ok() {
-								(width, intermediate as u32)
-							} else {
-								((u64::from(width) * u64::from(u32::MAX) / intermediate) as u32, u32::MAX)
-							}
-						} else if u32::try_from(intermediate).is_ok() {
-							(intermediate as u32, height)
+							(width, intermediate.0)
 						} else {
-							(u32::MAX, (u64::from(height) * u64::from(u32::MAX) / intermediate) as u32)
+							(intermediate.0, height)
 						}
 					};
 

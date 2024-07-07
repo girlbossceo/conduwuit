@@ -463,7 +463,8 @@ impl Data {
 					.algorithm(),
 				)
 			}) {
-			*counts.entry(algorithm?).or_default() += uint!(1);
+			let count: &mut UInt = counts.entry(algorithm?).or_default();
+			*count = count.saturating_add(uint!(1));
 		}
 
 		Ok(counts)
@@ -814,7 +815,7 @@ impl Data {
 			.map(|(key, _)| {
 				Ok::<_, Error>((
 					key.clone(),
-					utils::u64_from_bytes(&key[key.len() - size_of::<u64>()..key.len()])
+					utils::u64_from_bytes(&key[key.len().saturating_sub(size_of::<u64>())..key.len()])
 						.map_err(|_| Error::bad_database("ToDeviceId has invalid count bytes."))?,
 				))
 			})
@@ -928,10 +929,12 @@ impl Data {
 	/// Creates an OpenID token, which can be used to prove that a user has
 	/// access to an account (primarily for integrations)
 	pub(super) fn create_openid_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
-		let expires_in = services().globals.config.openid_token_ttl;
-		let expires_at = utils::millis_since_unix_epoch().saturating_add(expires_in * 1000);
+		use std::num::Saturating as Sat;
 
-		let mut value = expires_at.to_be_bytes().to_vec();
+		let expires_in = services().globals.config.openid_token_ttl;
+		let expires_at = Sat(utils::millis_since_unix_epoch()) + Sat(expires_in) * Sat(1000);
+
+		let mut value = expires_at.0.to_be_bytes().to_vec();
 		value.extend_from_slice(user_id.as_bytes());
 
 		self.openidtoken_expiresatuserid

@@ -64,7 +64,7 @@ impl Service {
 				.and_then(|relations| serde_json::from_value::<BundledThread>(relations.clone().into()).ok())
 			{
 				// Thread already existed
-				relations.count += uint!(1);
+				relations.count = relations.count.saturating_add(uint!(1));
 				relations.latest_event = pdu.to_message_like_event();
 
 				let content = serde_json::to_value(relations).expect("to_value always works");

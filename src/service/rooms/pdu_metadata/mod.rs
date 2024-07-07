@@ -205,7 +205,7 @@ impl Service {
 					if let Ok(relations) = self.db.relations_until(user_id, room_id, target, until) {
 						for relation in relations.flatten() {
 							if stack_pdu.1 < max_depth {
-								stack.push((relation.clone(), stack_pdu.1 + 1));
+								stack.push((relation.clone(), stack_pdu.1.saturating_add(1)));
 							}
 
 							pdus.push(relation);

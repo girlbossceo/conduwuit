@@ -7,7 +7,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{utils, Result};
+use conduit::{checked, utils, Result};
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
@@ -169,12 +169,14 @@ impl Service {
 		statediffremoved: Arc<HashSet<CompressedStateEvent>>, diff_to_sibling: usize,
 		mut parent_states: ParentStatesVec,
 	) -> Result<()> {
-		let diffsum = statediffnew.len() + statediffremoved.len();
+		let statediffnew_len = statediffnew.len();
+		let statediffremoved_len = statediffremoved.len();
+		let diffsum = checked!(statediffnew_len + statediffremoved_len)?;
 
 		if parent_states.len() > 3 {
 			// Number of layers
 			// To many layers, we have to go deeper
-			let parent = parent_states.pop().unwrap();
+			let parent = parent_states.pop().expect("parent must have a state");
 
 			let mut parent_new = (*parent.2).clone();
 			let mut parent_removed = (*parent.3).clone();
@@ -226,10 +228,12 @@ impl Service {
 		// 1. We add the current diff on top of the parent layer.
 		// 2. We replace a layer above
 
-		let parent = parent_states.pop().unwrap();
-		let parent_diff = parent.2.len() + parent.3.len();
+		let parent = parent_states.pop().expect("parent must have a state");
+		let parent_2_len = parent.2.len();
+		let parent_3_len = parent.3.len();
+		let parent_diff = checked!(parent_2_len + parent_3_len)?;
 
-		if diffsum * diffsum >= 2 * diff_to_sibling * parent_diff {
+		if checked!(diffsum * diffsum)? >= checked!(2 * diff_to_sibling * parent_diff)? {
 			// Diff too big, we replace above layer(s)
 			let mut parent_new = (*parent.2).clone();
 			let mut parent_removed = (*parent.3).clone();

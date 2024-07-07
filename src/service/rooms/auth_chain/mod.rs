@@ -5,7 +5,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, trace, warn, Error, Result};
+use conduit::{debug, error, trace, validated, warn, Error, Result};
 use data::Data;
 use ruma::{api::client::error::ErrorKind, EventId, RoomId};
 
@@ -43,20 +43,20 @@ impl Service {
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
 	pub async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
-		const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
+		const NUM_BUCKETS: u64 = 50; //TODO: change possible w/o disrupting db?
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
 
 		let started = std::time::Instant::now();
-		let mut buckets = [BUCKET; NUM_BUCKETS];
-		for (i, short) in services()
+		let mut buckets = [BUCKET; NUM_BUCKETS as usize];
+		for (i, &short) in services()
 			.rooms
 			.short
 			.multi_get_or_create_shorteventid(starting_events)?
 			.iter()
 			.enumerate()
 		{
-			let bucket = short % NUM_BUCKETS as u64;
-			buckets[bucket as usize].insert((*short, starting_events[i]));
+			let bucket = validated!(short % NUM_BUCKETS)?;
+			buckets[bucket as usize].insert((short, starting_events[i]));
 		}
 
 		debug!(

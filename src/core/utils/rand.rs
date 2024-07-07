@@ -15,7 +15,11 @@ pub fn string(length: usize) -> String {
 
 #[inline]
 #[must_use]
-pub fn timepoint_secs(range: Range<u64>) -> SystemTime { SystemTime::now() + secs(range) }
+pub fn timepoint_secs(range: Range<u64>) -> SystemTime {
+	SystemTime::now()
+		.checked_add(secs(range))
+		.expect("range does not overflow SystemTime")
+}
 
 #[must_use]
 pub fn secs(range: Range<u64>) -> Duration {
