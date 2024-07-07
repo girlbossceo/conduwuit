@@ -273,27 +273,45 @@ impl Service {
 impl Destination {
 	#[must_use]
 	pub fn get_prefix(&self) -> Vec<u8> {
-		let mut prefix = match self {
-			Self::Appservice(server) => {
-				let mut p = b"+".to_vec();
+		match self {
+			Self::Normal(server) => {
+				let len = server.as_bytes().len().saturating_add(1);
+
+				let mut p = Vec::with_capacity(len);
 				p.extend_from_slice(server.as_bytes());
+				p.push(0xFF);
+				p
+			},
+			Self::Appservice(server) => {
+				let sigil = b"+";
+				let len = sigil
+					.len()
+					.saturating_add(server.as_bytes().len())
+					.saturating_add(1);
+
+				let mut p = Vec::with_capacity(len);
+				p.extend_from_slice(sigil);
+				p.extend_from_slice(server.as_bytes());
+				p.push(0xFF);
 				p
 			},
 			Self::Push(user, pushkey) => {
-				let mut p = b"$".to_vec();
+				let sigil = b"$";
+				let len = sigil
+					.len()
+					.saturating_add(user.as_bytes().len())
+					.saturating_add(1)
+					.saturating_add(pushkey.as_bytes().len())
+					.saturating_add(1);
+
+				let mut p = Vec::with_capacity(len);
+				p.extend_from_slice(sigil);
 				p.extend_from_slice(user.as_bytes());
 				p.push(0xFF);
 				p.extend_from_slice(pushkey.as_bytes());
+				p.push(0xFF);
 				p
 			},
-			Self::Normal(server) => {
-				let mut p = Vec::new();
-				p.extend_from_slice(server.as_bytes());
-				p
-			},
-		};
-		prefix.push(0xFF);
-
-		prefix
+		}
 	}
 }
