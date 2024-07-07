@@ -319,7 +319,9 @@ impl Data {
 
 	/// Returns an iterator of all joined members of a room.
 	#[tracing::instrument(skip(self))]
-	pub(super) fn room_members<'a>(&'a self, room_id: &RoomId) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
+	pub(super) fn room_members<'a>(
+		&'a self, room_id: &RoomId,
+	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + Send + 'a> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 

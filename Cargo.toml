@@ -730,7 +730,6 @@ nursery = "warn"
 
 ## some sadness
 missing_const_for_fn = { level = "allow", priority = 1 }             # TODO
-needless_collect = { level = "allow", priority = 1 }                 # TODO
 option_if_let_else = { level = "allow", priority = 1 }               # TODO
 redundant_pub_crate = { level = "allow", priority = 1 }              # TODO
 significant_drop_in_scrutinee = { level = "allow", priority = 1 }    # TODO

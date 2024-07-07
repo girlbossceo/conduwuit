@@ -292,7 +292,7 @@ impl Service {
 
 	/// Returns an iterator over all joined members of a room.
 	#[tracing::instrument(skip(self))]
-	pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
+	pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + Send + '_ {
 		self.db.room_members(room_id)
 	}
 

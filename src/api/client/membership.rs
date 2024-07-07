@@ -1682,8 +1682,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 			.filter_map(|event: serde_json::Value| event.get("sender").cloned())
 			.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
 			.filter_map(|sender| UserId::parse(sender).ok())
-			.map(|user| user.server_name().to_owned())
-			.collect::<HashSet<OwnedServerName>>(),
+			.map(|user| user.server_name().to_owned()),
 	);
 
 	debug!("servers in remote_leave_room: {servers:?}");
