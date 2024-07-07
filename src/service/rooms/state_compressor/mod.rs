@@ -7,7 +7,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{checked, utils, Result};
+use conduit::{checked, utils, utils::math::usize_from_f64, Result};
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
@@ -55,11 +55,10 @@ pub struct Service {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
+		let cache_capacity = f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier;
 		Ok(Arc::new(Self {
 			db: Data::new(args.db),
-			stateinfo_cache: StdMutex::new(LruCache::new(
-				(f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
+			stateinfo_cache: StdMutex::new(LruCache::new(usize_from_f64(cache_capacity)?)),
 		}))
 	}
 

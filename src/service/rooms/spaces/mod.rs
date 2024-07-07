@@ -7,7 +7,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{checked, debug_info};
+use conduit::{checked, debug_info, utils::math::usize_from_f64};
 use lru_cache::LruCache;
 use ruma::{
 	api::{
@@ -161,11 +161,10 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
+		let cache_size = f64::from(config.roomid_spacehierarchy_cache_capacity);
+		let cache_size = cache_size * config.conduit_cache_capacity_modifier;
 		Ok(Arc::new(Self {
-			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
-				(f64::from(config.roomid_spacehierarchy_cache_capacity) * config.conduit_cache_capacity_modifier)
-					as usize,
-			)),
+			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(usize_from_f64(cache_size)?)),
 		}))
 	}
 
@@ -447,7 +446,7 @@ impl Service {
 	}
 
 	pub async fn get_client_hierarchy(
-		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, short_room_ids: Vec<u64>, max_depth: usize,
+		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, short_room_ids: Vec<u64>, max_depth: u64,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {
 		let mut parents = VecDeque::new();
@@ -514,7 +513,8 @@ impl Service {
 							}
 						}
 
-						if !children.is_empty() && parents.len() < max_depth {
+						let parents_len: u64 = parents.len().try_into()?;
+						if !children.is_empty() && parents_len < max_depth {
 							parents.push_back(current_room.clone());
 							stack.push(children);
 						}
@@ -549,9 +549,8 @@ impl Service {
 				Some(
 					PaginationToken {
 						short_room_ids,
-						limit: UInt::new(max_depth as u64).expect("When sent in request it must have been valid UInt"),
-						max_depth: UInt::new(max_depth as u64)
-							.expect("When sent in request it must have been valid UInt"),
+						limit: UInt::new(max_depth).expect("When sent in request it must have been valid UInt"),
+						max_depth: UInt::new(max_depth).expect("When sent in request it must have been valid UInt"),
 						suggested_only,
 					}
 					.to_string(),

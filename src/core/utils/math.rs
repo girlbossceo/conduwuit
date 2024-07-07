@@ -2,6 +2,8 @@ use std::{cmp, time::Duration};
 
 pub use checked_ops::checked_ops;
 
+use crate::{Error, Result};
+
 /// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
 #[macro_export]
 macro_rules! checked {
@@ -50,3 +52,36 @@ pub fn continue_exponential_backoff(min: Duration, max: Duration, elapsed: Durat
 	let min = cmp::min(min, max);
 	elapsed < min
 }
+
+#[inline]
+#[allow(clippy::as_conversions)]
+pub fn usize_from_f64(val: f64) -> Result<usize, Error> {
+	if val < 0.0 {
+		return Err(Error::Arithmetic("Converting negative float to unsigned integer"));
+	}
+
+	Ok(val as usize)
+}
+
+#[inline]
+#[must_use]
+pub fn usize_from_ruma(val: ruma::UInt) -> usize {
+	usize::try_from(val).expect("failed conversion from ruma::UInt to usize")
+}
+
+#[inline]
+#[must_use]
+pub fn ruma_from_u64(val: u64) -> ruma::UInt {
+	ruma::UInt::try_from(val).expect("failed conversion from u64 to ruma::UInt")
+}
+
+#[inline]
+#[must_use]
+pub fn ruma_from_usize(val: usize) -> ruma::UInt {
+	ruma::UInt::try_from(val).expect("failed conversion from usize to ruma::UInt")
+}
+
+#[inline]
+#[must_use]
+#[allow(clippy::as_conversions)]
+pub fn usize_from_u64_truncated(val: u64) -> usize { val as usize }

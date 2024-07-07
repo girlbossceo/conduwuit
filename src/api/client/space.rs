@@ -47,7 +47,7 @@ pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) 
 			&body.room_id,
 			limit.try_into().unwrap_or(10),
 			key.map_or(vec![], |token| token.short_room_ids),
-			max_depth.try_into().unwrap_or(3),
+			max_depth.into(),
 			body.suggested_only,
 		)
 		.await

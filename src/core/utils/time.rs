@@ -28,11 +28,12 @@ pub fn format(ts: SystemTime, str: &str) -> String {
 }
 
 #[must_use]
+#[allow(clippy::as_conversions)]
 pub fn pretty(d: Duration) -> String {
 	use Unit::*;
 
 	let fmt = |w, f, u| format!("{w}.{f} {u}");
-	let gen64 = |w, f, u| fmt(w, (f * 100.0) as u64, u);
+	let gen64 = |w, f, u| fmt(w, (f * 100.0) as u32, u);
 	let gen128 = |w, f, u| gen64(u64::try_from(w).expect("u128 to u64"), f, u);
 	match whole_and_frac(d) {
 		(Days(whole), frac) => gen64(whole, frac, "days"),
@@ -49,6 +50,7 @@ pub fn pretty(d: Duration) -> String {
 /// part is the largest Unit containing a non-zero value, the frac part is a
 /// rational remainder left over.
 #[must_use]
+#[allow(clippy::as_conversions)]
 pub fn whole_and_frac(d: Duration) -> (Unit, f64) {
 	use Unit::*;
 

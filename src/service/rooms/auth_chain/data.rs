@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{utils, Result, Server};
+use conduit::{utils, utils::math::usize_from_f64, Result, Server};
 use database::{Database, Map};
 use lru_cache::LruCache;
 
@@ -16,7 +16,7 @@ impl Data {
 	pub(super) fn new(server: &Arc<Server>, db: &Arc<Database>) -> Self {
 		let config = &server.config;
 		let cache_size = f64::from(config.auth_chain_cache_capacity);
-		let cache_size = (cache_size * config.conduit_cache_capacity_modifier) as usize;
+		let cache_size = usize_from_f64(cache_size * config.conduit_cache_capacity_modifier).expect("valid cache size");
 		Self {
 			shorteventid_authchain: db["shorteventid_authchain"].clone(),
 			auth_chain_cache: Mutex::new(LruCache::new(cache_size)),

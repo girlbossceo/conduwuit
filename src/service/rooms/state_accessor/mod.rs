@@ -6,7 +6,11 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{error, utils::mutex_map, warn, Error, Result};
+use conduit::{
+	error,
+	utils::{math::usize_from_f64, mutex_map},
+	warn, Error, Result,
+};
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{
@@ -44,14 +48,15 @@ pub struct Service {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
+		let server_visibility_cache_capacity =
+			f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier;
+		let user_visibility_cache_capacity =
+			f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier;
+
 		Ok(Arc::new(Self {
 			db: Data::new(args.db),
-			server_visibility_cache: StdMutex::new(LruCache::new(
-				(f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-			user_visibility_cache: StdMutex::new(LruCache::new(
-				(f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
+			server_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(server_visibility_cache_capacity)?)),
+			user_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(user_visibility_cache_capacity)?)),
 		}))
 	}
 
