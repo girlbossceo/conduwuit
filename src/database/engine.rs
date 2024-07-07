@@ -30,6 +30,7 @@ pub struct Engine {
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
 
 impl Engine {
+	#[tracing::instrument(skip_all)]
 	pub(crate) fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
 		let config = &server.config;
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
@@ -51,7 +52,7 @@ impl Engine {
 		if config.rocksdb_repair {
 			warn!("Starting database repair. This may take a long time...");
 			if let Err(e) = Db::repair(&db_opts, &config.database_path) {
-				error!("Repair failed: {:?}", e);
+				error!("Repair failed: {e:?}");
 			}
 		}
 
@@ -76,9 +77,9 @@ impl Engine {
 
 		let db = res.or_else(or_else)?;
 		info!(
-			"Opened database at sequence number {} in {:?}",
-			db.latest_sequence_number(),
-			load_time.elapsed()
+			sequence = %db.latest_sequence_number(),
+			time = ?load_time.elapsed(),
+			"Opened database."
 		);
 
 		Ok(Arc::new(Self {
@@ -93,15 +94,16 @@ impl Engine {
 		}))
 	}
 
+	#[tracing::instrument(skip(self))]
 	pub(crate) fn open_cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
 		let mut cfs = self.cfs.lock().expect("locked");
 		if !cfs.contains(name) {
-			debug!("Creating new column family in database: {}", name);
+			debug!("Creating new column family in database: {name}");
 
 			let mut col_cache = self.col_cache.write().expect("locked");
 			let opts = cf_options(&self.server.config, name, self.opts.clone(), &mut col_cache);
 			if let Err(e) = self.db.create_cf(name, &opts) {
-				error!("Failed to create new column family: {e}");
+				error!(?name, "Failed to create new column family: {e}");
 				return or_else(e);
 			}
 
@@ -148,18 +150,20 @@ impl Engine {
 		)?;
 
 		for (name, cache) in &*self.col_cache.read().expect("locked") {
-			writeln!(res, "{} cache: {:.2} MiB", name, mibs(u64::try_from(cache.get_usage())?))?;
+			writeln!(res, "{name} cache: {:.2} MiB", mibs(u64::try_from(cache.get_usage())?))?;
 		}
 
 		Ok(res)
 	}
 
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cleanup(&self) -> Result<()> {
 		debug!("Running flush_opt");
 		let flushoptions = rocksdb::FlushOptions::default();
 		result(DBCommon::flush_opt(&self.db, &flushoptions))
 	}
 
+	#[tracing::instrument(skip(self))]
 	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
 		let config = &self.server.config;
 		let path = config.database_backup_path.as_ref();
