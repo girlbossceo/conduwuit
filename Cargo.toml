@@ -113,7 +113,7 @@ features = [
 ]
 
 [workspace.dependencies.serde]
-version = "1.0.203"
+version = "1.0.204"
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
@@ -169,7 +169,7 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.4"
+version = "4.5.9"
 default-features = false
 features = [
 	"std",
@@ -265,7 +265,7 @@ version = "2.1.1"
 version = "0.3.1"
 
 [workspace.dependencies.async-trait]
-version = "0.1.80"
+version = "0.1.81"
 
 [workspace.dependencies.lru-cache]
 version = "0.1.2"
