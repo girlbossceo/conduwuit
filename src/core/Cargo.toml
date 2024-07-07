@@ -53,6 +53,7 @@ sha256_media = []
 argon2.workspace = true
 axum.workspace = true
 bytes.workspace = true
+checked_ops.workspace = true
 chrono.workspace = true
 either.workspace = true
 figment.workspace = true

@@ -5,6 +5,7 @@ pub mod defer;
 pub mod hash;
 pub mod html;
 pub mod json;
+pub mod math;
 pub mod mutex_map;
 pub mod rand;
 pub mod string;

@@ -35,6 +35,12 @@ pub enum Error {
 	FromUtf8Error(#[from] std::string::FromUtf8Error),
 	#[error("{0}")]
 	TryFromSliceError(#[from] std::array::TryFromSliceError),
+	#[error("{0}")]
+	TryFromIntError(#[from] std::num::TryFromIntError),
+	#[error("{0}")]
+	ParseIntError(#[from] std::num::ParseIntError),
+	#[error("{0}")]
+	ParseFloatError(#[from] std::num::ParseFloatError),
 
 	// third-party
 	#[error("Regex error: {0}")]
@@ -63,6 +69,8 @@ pub enum Error {
 	InconsistentRoomState(&'static str, ruma::OwnedRoomId),
 
 	// conduwuit
+	#[error("Arithmetic operation failed: {0}")]
+	Arithmetic(&'static str),
 	#[error("There was a problem with your configuration: {0}")]
 	BadConfig(String),
 	#[error("{0}")]

@@ -505,6 +505,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "checked_ops"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b491d76efc1d99d74de3c8529bee64c62312c275c7eb124f9185291de45801d5"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -658,6 +667,7 @@ dependencies = [
  "argon2",
  "axum 0.7.5",
  "bytes",
+ "checked_ops",
  "chrono",
  "either",
  "figment",

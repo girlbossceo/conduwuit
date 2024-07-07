@@ -411,6 +411,9 @@ rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
 version = "0.29.4"
 default-features = false
 
+[workspace.dependencies.checked_ops]
+version = "0.1"
+
 
 #
 # Patches

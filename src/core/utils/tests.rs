@@ -62,3 +62,22 @@ fn common_prefix_none() {
 	let output = string::common_prefix(&input);
 	assert_eq!(output, "");
 }
+
+#[test]
+fn checked_add() {
+	use utils::math::checked;
+
+	let a = 1234;
+	let res = checked!(a + 1).unwrap();
+	assert_eq!(res, 1235);
+}
+
+#[test]
+#[should_panic(expected = "overflow")]
+fn checked_add_overflow() {
+	use utils::math::checked;
+
+	let a: u64 = u64::MAX;
+	let res = checked!(a + 1).expect("overflow");
+	assert_eq!(res, 0);
+}
