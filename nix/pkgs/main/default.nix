@@ -25,11 +25,7 @@ let
 # on the nix side depend on feature values.
 crateFeatures = path:
   let manifest = lib.importTOML "${path}/Cargo.toml"; in
-  lib.remove "default" (lib.attrNames manifest.features) ++
-  lib.attrNames
-    (lib.filterAttrs
-      (_: dependency: dependency.optional or false)
-      manifest.dependencies);
+  lib.remove "default" (lib.attrNames manifest.features);
 crateDefaultFeatures = path:
   (lib.importTOML "${path}/Cargo.toml").features.default;
 allDefaultFeatures = crateDefaultFeatures "${inputs.self}/src/main";
