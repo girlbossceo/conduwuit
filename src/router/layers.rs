@@ -138,15 +138,7 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 		.max_age(Duration::from_secs(86400))
 }
 
-fn body_limit_layer(server: &Server) -> DefaultBodyLimit {
-	DefaultBodyLimit::max(
-		server
-			.config
-			.max_request_size
-			.try_into()
-			.expect("failed to convert max request size"),
-	)
-}
+fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max(server.config.max_request_size) }
 
 #[allow(clippy::needless_pass_by_value)]
 #[tracing::instrument(skip_all)]

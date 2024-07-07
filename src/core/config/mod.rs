@@ -114,7 +114,7 @@ pub struct Config {
 	pub ip_lookup_strategy: u8,
 
 	#[serde(default = "default_max_request_size")]
-	pub max_request_size: u32,
+	pub max_request_size: usize,
 	#[serde(default = "default_max_fetch_prev_events")]
 	pub max_fetch_prev_events: u16,
 
@@ -930,7 +930,7 @@ fn default_dns_timeout() -> u64 { 10 }
 
 fn default_ip_lookup_strategy() -> u8 { 5 }
 
-fn default_max_request_size() -> u32 {
+fn default_max_request_size() -> usize {
 	20 * 1024 * 1024 // Default to 20 MB
 }
 

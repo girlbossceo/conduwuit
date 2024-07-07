@@ -29,12 +29,7 @@ pub(super) async fn from(request: hyper::Request<axum::body::Body>) -> Result<Re
 	let query = serde_html_form::from_str(parts.uri.query().unwrap_or_default())
 		.map_err(|_| Error::BadRequest(ErrorKind::Unknown, "Failed to read query parameters"))?;
 
-	let max_body_size = services()
-		.globals
-		.config
-		.max_request_size
-		.try_into()
-		.expect("failed to convert max request size");
+	let max_body_size = services().globals.config.max_request_size;
 
 	let body = axum::body::to_bytes(body, max_body_size)
 		.await

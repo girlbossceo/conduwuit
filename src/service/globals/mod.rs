@@ -201,8 +201,6 @@ impl Service {
 
 	pub fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }
 
-	pub fn max_request_size(&self) -> u32 { self.config.max_request_size }
-
 	pub fn max_fetch_prev_events(&self) -> u16 { self.config.max_fetch_prev_events }
 
 	pub fn allow_registration(&self) -> bool { self.config.allow_registration }

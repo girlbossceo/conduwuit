@@ -2,6 +2,7 @@
 
 use std::{io::Cursor, sync::Arc, time::Duration};
 
+use conduit::{debug, error, utils::math::ruma_from_usize, warn};
 use image::io::Reader as ImgReader;
 use ipaddress::IPAddress;
 use reqwest::Url;
@@ -12,7 +13,6 @@ use ruma::api::client::{
 		get_media_preview,
 	},
 };
-use tracing::{debug, error, warn};
 use webpage::HTML;
 
 use crate::{
@@ -44,7 +44,7 @@ pub(crate) async fn get_media_config_route(
 	_body: Ruma<get_media_config::v3::Request>,
 ) -> Result<get_media_config::v3::Response> {
 	Ok(get_media_config::v3::Response {
-		upload_size: services().globals.max_request_size().into(),
+		upload_size: ruma_from_usize(services().globals.config.max_request_size),
 	})
 }
 
