@@ -741,17 +741,12 @@ pedantic = "warn"
 ## some sadness
 doc_markdown = { level = "allow", priority = 1 }
 enum_glob_use = { level = "allow", priority = 1 }
-error_impl_error = { level = "allow", priority = 1 }
-expect_used = { level = "allow", priority = 1 }
 if_not_else = { level = "allow", priority = 1 }
 if_then_some_else_none = { level = "allow", priority = 1 }
-implicit_return = { level = "allow", priority = 1 }
 inline_always = { level = "allow", priority = 1 }
-map_err_ignore = { level = "allow", priority = 1 }
 missing_docs_in_private_items = { level = "allow", priority = 1 }
 missing_errors_doc = { level = "allow", priority = 1 }
 missing_panics_doc = { level = "allow", priority = 1 }
-mod_module_files = { level = "allow", priority = 1 }
 module_name_repetitions = { level = "allow", priority = 1 }
 no_effect_underscore_binding = { level = "allow", priority = 1 }
 similar_names = { level = "allow", priority = 1 }
@@ -765,8 +760,10 @@ perf = "warn"
 ###################
 #restriction = "warn"
 
+allow_attributes = "warn"
 arithmetic_side_effects = "warn"
 as_conversions = "warn"
+as_underscore = "warn"
 assertions_on_result_states = "warn"
 dbg_macro = "warn"
 default_union_representation = "warn"
@@ -804,6 +801,7 @@ unnecessary_safety_doc = "warn"
 unnecessary_self_imports = "warn"
 unneeded_field_pattern = "warn"
 unseparated_literal_suffix = "warn"
+#unwrap_used = "warn"                                                # TODO
 verbose_file_reads = "warn"
 
 ###################
