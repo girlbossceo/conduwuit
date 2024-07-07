@@ -570,7 +570,7 @@ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
 name = "conduit"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "clap",
  "conduit_admin",
@@ -598,7 +598,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_admin"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "clap",
  "conduit_api",
@@ -620,7 +620,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_api"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "axum 0.7.5",
  "axum-client-ip",
@@ -653,7 +653,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_core"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "argon2",
  "axum 0.7.5",
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_database"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "conduit_core",
  "log",
@@ -704,7 +704,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_router"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "axum 0.7.5",
  "axum-client-ip",
@@ -736,7 +736,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_service"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
