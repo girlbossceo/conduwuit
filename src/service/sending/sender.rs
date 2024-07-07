@@ -3,10 +3,11 @@ use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	fmt::Debug,
 	sync::Arc,
-	time::{Duration, Instant},
+	time::Instant,
 };
 
 use base64::{engine::general_purpose, Engine as _};
+use conduit::{debug, error, utils::math::continue_exponential_backoff_secs, warn};
 use federation::transactions::send_transaction_message;
 use futures_util::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use ruma::{
@@ -22,7 +23,6 @@ use ruma::{
 	ServerName, UInt,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tracing::{debug, error, warn};
 
 use super::{appservice, send, Destination, Msg, SendingEvent, Service};
 use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, Result};
@@ -216,11 +216,9 @@ impl Service {
 			.and_modify(|e| match e {
 				TransactionStatus::Failed(tries, time) => {
 					// Fail if a request has failed recently (exponential backoff)
-					let max_duration = Duration::from_secs(services().globals.config.sender_retry_backoff_limit);
-					let min_duration = Duration::from_secs(services().globals.config.sender_timeout);
-					let min_elapsed_duration = min_duration * (*tries) * (*tries);
-					let min_elapsed_duration = cmp::min(min_elapsed_duration, max_duration);
-					if time.elapsed() < min_elapsed_duration {
+					let min = services().globals.config.sender_timeout;
+					let max = services().globals.config.sender_retry_backoff_limit;
+					if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries) {
 						allow = false;
 					} else {
 						retry = true;

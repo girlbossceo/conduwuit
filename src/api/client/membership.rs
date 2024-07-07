@@ -1,13 +1,16 @@
 use std::{
-	cmp,
 	collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
 	net::IpAddr,
 	sync::Arc,
-	time::{Duration, Instant},
+	time::Instant,
 };
 
 use axum_client_ip::InsecureClientIp;
-use conduit::utils::mutex_map;
+use conduit::{
+	debug, error, info, trace, utils,
+	utils::{math::continue_exponential_backoff_secs, mutex_map},
+	warn, Error, PduEvent, Result,
+};
 use ruma::{
 	api::{
 		client::{
@@ -35,7 +38,6 @@ use ruma::{
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::sending::convert_to_outgoing_federation_event;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
 
 use crate::{
 	client::{update_avatar_url, update_displayname},
@@ -43,7 +45,7 @@ use crate::{
 		pdu::{gen_event_id_canonical_json, PduBuilder},
 		server_is_ours, user_is_local,
 	},
-	services, utils, Error, PduEvent, Result, Ruma,
+	services, Ruma,
 };
 
 /// Checks if the room is banned in any way possible and the sender user is not
@@ -1363,11 +1365,10 @@ pub async fn validate_and_add_event_id(
 		.get(&event_id)
 	{
 		// Exponential backoff
-		const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-		let min_elapsed_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-		if time.elapsed() < min_elapsed_duration {
-			debug!("Backing off from {}", event_id);
+		const MIN: u64 = 60 * 5;
+		const MAX: u64 = 60 * 60 * 24;
+		if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
+			debug!("Backing off from {event_id}");
 			return Err(Error::BadServerResponse("bad event, still backing off"));
 		}
 	}

@@ -2,14 +2,16 @@ mod parse_incoming_pdu;
 mod signing_keys;
 
 use std::{
-	cmp,
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
 	pin::Pin,
 	sync::Arc,
-	time::{Duration, Instant},
+	time::Instant,
 };
 
-use conduit::{debug_error, debug_info, Error, Result};
+use conduit::{
+	debug, debug_error, debug_info, error, info, trace, utils::math::continue_exponential_backoff_secs, warn, Error,
+	Result,
+};
 use futures_util::Future;
 pub use parse_incoming_pdu::parse_incoming_pdu;
 use ruma::{
@@ -29,7 +31,6 @@ use ruma::{
 	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedUserId, RoomId, RoomVersionId, ServerName,
 };
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{pdu, services, PduEvent};
@@ -252,14 +253,12 @@ impl Service {
 			.get(prev_id)
 		{
 			// Exponential backoff
-			const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-			let min_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-			let duration = time.elapsed();
-
-			if duration < min_duration {
+			const MIN_DURATION: u64 = 5 * 60;
+			const MAX_DURATION: u64 = 60 * 60 * 24;
+			if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
 				debug!(
-					duration = ?duration,
-					min_duration = ?min_duration,
+					?tries,
+					duration = ?time.elapsed(),
 					"Backing off from prev_event"
 				);
 				return Ok(());
@@ -1083,12 +1082,10 @@ impl Service {
 						.get(&*next_id)
 					{
 						// Exponential backoff
-						const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-						let min_elapsed_duration =
-							cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-						if time.elapsed() < min_elapsed_duration {
-							info!("Backing off from {}", next_id);
+						const MIN_DURATION: u64 = 5 * 60;
+						const MAX_DURATION: u64 = 60 * 60 * 24;
+						if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
+							info!("Backing off from {next_id}");
 							continue;
 						}
 					}
@@ -1191,12 +1188,10 @@ impl Service {
 						.get(&**next_id)
 					{
 						// Exponential backoff
-						const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-						let min_elapsed_duration =
-							cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-						if time.elapsed() < min_elapsed_duration {
-							debug!("Backing off from {}", next_id);
+						const MIN_DURATION: u64 = 5 * 60;
+						const MAX_DURATION: u64 = 60 * 60 * 24;
+						if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
+							debug!("Backing off from {next_id}");
 							continue;
 						}
 					}
