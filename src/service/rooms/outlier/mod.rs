@@ -35,7 +35,7 @@ impl Service {
 	pub fn get_pdu_outlier(&self, event_id: &EventId) -> Result<Option<PduEvent>> { self.db.get_outlier_pdu(event_id) }
 
 	/// Append the PDU as an outlier.
-	#[tracing::instrument(skip(self, pdu))]
+	#[tracing::instrument(skip(self, pdu), level = "debug")]
 	pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) -> Result<()> {
 		self.db.add_pdu_outlier(event_id, pdu)
 	}

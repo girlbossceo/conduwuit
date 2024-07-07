@@ -189,10 +189,10 @@ impl Service {
 	#[inline]
 	pub fn current_count(&self) -> Result<u64> { Ok(self.db.current_count()) }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn last_check_for_updates_id(&self) -> Result<u64> { self.db.last_check_for_updates_id() }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> { self.db.update_check_for_updates_id(id) }
 
 	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {

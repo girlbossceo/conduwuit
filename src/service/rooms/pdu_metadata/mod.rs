@@ -38,7 +38,7 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	#[tracing::instrument(skip(self, from, to))]
+	#[tracing::instrument(skip(self, from, to), level = "debug")]
 	pub fn add_relation(&self, from: PduCount, to: PduCount) -> Result<()> {
 		match (from, to) {
 			(PduCount::Normal(f), PduCount::Normal(t)) => self.db.add_relation(f, t),
@@ -218,19 +218,19 @@ impl Service {
 			})
 	}
 
-	#[tracing::instrument(skip(self, room_id, event_ids))]
+	#[tracing::instrument(skip_all, level = "debug")]
 	pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
 		self.db.mark_as_referenced(room_id, event_ids)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		self.db.is_event_referenced(room_id, event_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> { self.db.mark_event_soft_failed(event_id) }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> { self.db.is_event_soft_failed(event_id) }
 }

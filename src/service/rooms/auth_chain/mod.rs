@@ -174,13 +174,13 @@ impl Service {
 		self.db.get_cached_eventid_authchain(key)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) -> Result<()> {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) -> Result<()> {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())

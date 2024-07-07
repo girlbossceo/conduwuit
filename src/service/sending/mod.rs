@@ -93,7 +93,7 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
+	#[tracing::instrument(skip(self, pdu_id, user, pushkey), level = "debug")]
 	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(pdu_id.to_owned());
@@ -106,7 +106,7 @@ impl Service {
 		})
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
@@ -119,7 +119,7 @@ impl Service {
 		})
 	}
 
-	#[tracing::instrument(skip(self, room_id, pdu_id))]
+	#[tracing::instrument(skip(self, room_id, pdu_id), level = "debug")]
 	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -131,7 +131,7 @@ impl Service {
 		self.send_pdu_servers(servers, pdu_id)
 	}
 
-	#[tracing::instrument(skip(self, servers, pdu_id))]
+	#[tracing::instrument(skip(self, servers, pdu_id), level = "debug")]
 	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
 		let requests = servers
 			.into_iter()
@@ -155,7 +155,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, server, serialized))]
+	#[tracing::instrument(skip(self, server, serialized), level = "debug")]
 	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
@@ -168,7 +168,7 @@ impl Service {
 		})
 	}
 
-	#[tracing::instrument(skip(self, room_id, serialized))]
+	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
 	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -180,7 +180,7 @@ impl Service {
 		self.send_edu_servers(servers, serialized)
 	}
 
-	#[tracing::instrument(skip(self, servers, serialized))]
+	#[tracing::instrument(skip(self, servers, serialized), level = "debug")]
 	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
 		let requests = servers
 			.into_iter()
@@ -205,7 +205,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(skip(self, room_id), level = "debug")]
 	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -217,7 +217,7 @@ impl Service {
 		self.flush_servers(servers)
 	}
 
-	#[tracing::instrument(skip(self, servers))]
+	#[tracing::instrument(skip(self, servers), level = "debug")]
 	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
 		let requests = servers.into_iter().map(Destination::Normal);
 		for dest in requests {
@@ -255,7 +255,7 @@ impl Service {
 
 	/// Cleanup event data
 	/// Used for instance after we remove an appservice registration
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
 		self.db
 			.delete_all_requests_for(&Destination::Appservice(appservice_id))?;
@@ -271,7 +271,7 @@ impl Service {
 }
 
 impl Destination {
-	#[tracing::instrument(skip(self))]
+	#[must_use]
 	pub fn get_prefix(&self) -> Vec<u8> {
 		let mut prefix = match self {
 			Self::Appservice(server) => {

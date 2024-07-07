@@ -39,7 +39,7 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn lazy_load_was_sent_before(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
 	) -> Result<bool> {
@@ -47,7 +47,7 @@ impl Service {
 			.lazy_load_was_sent_before(user_id, device_id, room_id, ll_user)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn lazy_load_mark_sent(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, lazy_load: HashSet<OwnedUserId>,
 		count: PduCount,
@@ -58,7 +58,7 @@ impl Service {
 			.insert((user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), count), lazy_load);
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn lazy_load_confirm_delivery(
 		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, since: PduCount,
 	) -> Result<()> {
@@ -77,7 +77,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) -> Result<()> {
 		self.db.lazy_load_reset(user_id, device_id, room_id)
 	}

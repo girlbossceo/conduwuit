@@ -44,7 +44,7 @@ impl Service {
 	}
 
 	/// Returns all changes to the account data that happened after `since`.
-	#[tracing::instrument(skip_all, name = "since")]
+	#[tracing::instrument(skip_all, name = "since", level = "debug")]
 	pub fn changes_since(
 		&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
 	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {

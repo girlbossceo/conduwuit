@@ -66,7 +66,7 @@ pub fn content_disposition_type(content_type: &Option<String>) -> &'static str {
 
 /// sanitises the file name for the Content-Disposition using
 /// `sanitize_filename` crate
-#[tracing::instrument]
+#[tracing::instrument(level = "debug")]
 pub fn sanitise_filename(filename: String) -> String {
 	let options = sanitize_filename::Options {
 		truncate: false,

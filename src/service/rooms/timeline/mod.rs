@@ -99,7 +99,7 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
 		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
 			.next()
@@ -107,7 +107,7 @@ impl Service {
 			.transpose()
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
 		self.all_pdus(user_id!("@placeholder:conduwuit.placeholder"), room_id)?
 			.last()
@@ -115,7 +115,7 @@ impl Service {
 			.transpose()
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
 		self.db.last_timeline_count(sender_user, room_id)
 	}
@@ -213,7 +213,7 @@ impl Service {
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
 		self.db.replace_pdu(pdu_id, pdu_json, pdu)
 	}
@@ -1030,7 +1030,7 @@ impl Service {
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn pdus_until<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
@@ -1039,7 +1039,7 @@ impl Service {
 
 	/// Returns an iterator over all events and their token in a room that
 	/// happened after the event with id `from` in chronological order.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn pdus_after<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {

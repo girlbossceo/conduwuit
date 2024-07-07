@@ -89,19 +89,19 @@ impl Service {
 		)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
 		self.db.resolve_local_alias(alias)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn local_aliases_for_room<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
 		self.db.local_aliases_for_room(room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
 		self.db.all_local_aliases()
 	}

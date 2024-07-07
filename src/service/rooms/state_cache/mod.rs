@@ -219,10 +219,10 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(skip(self, room_id), level = "debug")]
 	pub fn update_joined_count(&self, room_id: &RoomId) -> Result<()> { self.db.update_joined_count(room_id) }
 
-	#[tracing::instrument(skip(self, room_id, appservice))]
+	#[tracing::instrument(skip(self, room_id, appservice), level = "debug")]
 	pub fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
 		self.db.appservice_in_room(room_id, appservice)
 	}
@@ -230,7 +230,7 @@ impl Service {
 	/// Direct DB function to directly mark a user as left. It is not
 	/// recommended to use this directly. You most likely should use
 	/// `update_membership` instead
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		self.db.mark_as_left(user_id, room_id)
 	}
@@ -238,35 +238,35 @@ impl Service {
 	/// Direct DB function to directly mark a user as joined. It is not
 	/// recommended to use this directly. You most likely should use
 	/// `update_membership` instead
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 		self.db.mark_as_joined(user_id, room_id)
 	}
 
 	/// Makes a user forget a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> { self.db.forget(room_id, user_id) }
 
 	/// Returns an iterator of all servers participating in this room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_servers(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + '_ {
 		self.db.room_servers(room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
 		self.db.server_in_room(server, room_id)
 	}
 
 	/// Returns an iterator of all rooms a server participates in (as far as we
 	/// know).
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn server_rooms(&self, server: &ServerName) -> impl Iterator<Item = Result<OwnedRoomId>> + '_ {
 		self.db.server_rooms(server)
 	}
 
 	/// Returns true if server can see user by sharing at least one room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> Result<bool> {
 		Ok(self
 			.server_rooms(server)
@@ -275,7 +275,7 @@ impl Service {
 	}
 
 	/// Returns true if user_a and user_b share at least one room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> Result<bool> {
 		// Minimize number of point-queries by iterating user with least nr rooms
 		let (a, b) = if self.rooms_joined(user_a).count() < self.rooms_joined(user_b).count() {
@@ -291,23 +291,23 @@ impl Service {
 	}
 
 	/// Returns an iterator over all joined members of a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_members(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + Send + '_ {
 		self.db.room_members(room_id)
 	}
 
 	/// Returns the number of users which are currently in a room
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> { self.db.room_joined_count(room_id) }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	/// Returns an iterator of all our local users in the room, even if they're
 	/// deactivated/guests
 	pub fn local_users_in_room<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = OwnedUserId> + 'a {
 		self.db.local_users_in_room(room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	/// Returns an iterator of all our local joined users in a room who are
 	/// active (not deactivated, not guest)
 	pub fn active_local_users_in_room<'a>(&'a self, room_id: &RoomId) -> impl Iterator<Item = OwnedUserId> + 'a {
@@ -315,80 +315,80 @@ impl Service {
 	}
 
 	/// Returns the number of users which are currently invited to a room
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> { self.db.room_invited_count(room_id) }
 
 	/// Returns an iterator over all User IDs who ever joined a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_useroncejoined(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
 		self.db.room_useroncejoined(room_id)
 	}
 
 	/// Returns an iterator over all invited members of a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_members_invited(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedUserId>> + '_ {
 		self.db.room_members_invited(room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		self.db.get_invite_count(room_id, user_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		self.db.get_left_count(room_id, user_id)
 	}
 
 	/// Returns an iterator over all rooms this user joined.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn rooms_joined(&self, user_id: &UserId) -> impl Iterator<Item = Result<OwnedRoomId>> + '_ {
 		self.db.rooms_joined(user_id)
 	}
 
 	/// Returns an iterator over all rooms a user was invited to.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn rooms_invited(
 		&self, user_id: &UserId,
 	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + '_ {
 		self.db.rooms_invited(user_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn invite_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
 		self.db.invite_state(user_id, room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn left_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
 		self.db.left_state(user_id, room_id)
 	}
 
 	/// Returns an iterator over all rooms a user left.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn rooms_left(
 		&self, user_id: &UserId,
 	) -> impl Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + '_ {
 		self.db.rooms_left(user_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		self.db.once_joined(user_id, room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> { self.db.is_joined(user_id, room_id) }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		self.db.is_invited(user_id, room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> { self.db.is_left(user_id, room_id) }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn servers_invite_via(&self, room_id: &RoomId) -> impl Iterator<Item = Result<OwnedServerName>> + '_ {
 		self.db.servers_invite_via(room_id)
 	}

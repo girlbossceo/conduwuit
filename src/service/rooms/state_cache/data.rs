@@ -213,7 +213,7 @@ impl Data {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id, appservice))]
+	#[tracing::instrument(skip(self, room_id, appservice), level = "debug")]
 	pub(super) fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> Result<bool> {
 		let maybe = self
 			.appservice_in_room_cache
@@ -249,7 +249,7 @@ impl Data {
 	}
 
 	/// Makes a user forget a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn forget(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
@@ -266,7 +266,7 @@ impl Data {
 	}
 
 	/// Returns an iterator of all servers participating in this room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_servers<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
@@ -286,7 +286,7 @@ impl Data {
 		}))
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn server_in_room(&self, server: &ServerName, room_id: &RoomId) -> Result<bool> {
 		let mut key = server.as_bytes().to_vec();
 		key.push(0xFF);
@@ -297,7 +297,7 @@ impl Data {
 
 	/// Returns an iterator of all rooms a server participates in (as far as we
 	/// know).
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn server_rooms<'a>(
 		&'a self, server: &ServerName,
 	) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {
@@ -318,7 +318,7 @@ impl Data {
 	}
 
 	/// Returns an iterator of all joined members of a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_members<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + Send + 'a> {
@@ -350,7 +350,7 @@ impl Data {
 
 	/// Returns an iterator of all our local joined users in a room who are
 	/// active (not deactivated, not guest)
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn active_local_users_in_room<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
@@ -361,7 +361,7 @@ impl Data {
 	}
 
 	/// Returns the number of users which are currently in a room
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_joinedcount
 			.get(room_id.as_bytes())?
@@ -370,7 +370,7 @@ impl Data {
 	}
 
 	/// Returns the number of users which are currently invited to a room
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_invitedcount
 			.get(room_id.as_bytes())?
@@ -379,7 +379,7 @@ impl Data {
 	}
 
 	/// Returns an iterator over all User IDs who ever joined a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_useroncejoined<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
@@ -404,7 +404,7 @@ impl Data {
 	}
 
 	/// Returns an iterator over all invited members of a room.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_members_invited<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedUserId>> + 'a> {
@@ -428,7 +428,7 @@ impl Data {
 		)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
@@ -443,7 +443,7 @@ impl Data {
 			})
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
@@ -456,7 +456,7 @@ impl Data {
 	}
 
 	/// Returns an iterator over all rooms this user joined.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn rooms_joined(&self, user_id: &UserId) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + '_> {
 		Box::new(
 			self.userroomid_joined
@@ -476,7 +476,7 @@ impl Data {
 	}
 
 	/// Returns an iterator over all rooms a user was invited to.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn rooms_invited<'a>(&'a self, user_id: &UserId) -> StrippedStateEventIter<'a> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
@@ -503,7 +503,7 @@ impl Data {
 		)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn invite_state(
 		&self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
@@ -522,7 +522,7 @@ impl Data {
 			.transpose()
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn left_state(
 		&self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<Option<Vec<Raw<AnyStrippedStateEvent>>>> {
@@ -542,7 +542,7 @@ impl Data {
 	}
 
 	/// Returns an iterator over all rooms a user left.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn rooms_left<'a>(&'a self, user_id: &UserId) -> AnySyncStateEventIter<'a> {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
@@ -569,7 +569,7 @@ impl Data {
 		)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn once_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
@@ -578,7 +578,7 @@ impl Data {
 		Ok(self.roomuseroncejoinedids.get(&userroom_id)?.is_some())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn is_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
@@ -587,7 +587,7 @@ impl Data {
 		Ok(self.userroomid_joined.get(&userroom_id)?.is_some())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
@@ -596,7 +596,7 @@ impl Data {
 		Ok(self.userroomid_invitestate.get(&userroom_id)?.is_some())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
@@ -605,7 +605,7 @@ impl Data {
 		Ok(self.userroomid_leftstate.get(&userroom_id)?.is_some())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn servers_invite_via<'a>(
 		&'a self, room_id: &RoomId,
 	) -> Box<dyn Iterator<Item = Result<OwnedServerName>> + 'a> {
@@ -631,7 +631,7 @@ impl Data {
 		)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) -> Result<()> {
 		let mut prev_servers = self
 			.servers_invite_via(room_id)

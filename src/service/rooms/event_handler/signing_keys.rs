@@ -3,6 +3,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+use conduit::{debug, error, info, trace, warn};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::{
@@ -19,7 +20,6 @@ use ruma::{
 };
 use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::{RwLock, RwLockWriteGuard};
-use tracing::{debug, error, info, trace, warn};
 
 use crate::{services, Error, Result};
 

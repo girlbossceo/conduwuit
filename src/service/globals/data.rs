@@ -110,7 +110,7 @@ impl Data {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
 		let userid_bytes = user_id.as_bytes().to_vec();
 		let mut userid_prefix = userid_bytes.clone();

@@ -186,7 +186,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, user, ruleset, pdu))]
+	#[tracing::instrument(skip(self, user, ruleset, pdu), level = "debug")]
 	pub fn get_actions<'a>(
 		&self, user: &UserId, ruleset: &'a Ruleset, power_levels: &RoomPowerLevelsEventContent,
 		pdu: &Raw<AnySyncTimelineEvent>, room_id: &RoomId,

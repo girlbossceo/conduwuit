@@ -116,7 +116,7 @@ impl Service {
 	///
 	/// This adds all current state events (not including the incoming event)
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
-	#[tracing::instrument(skip(self, state_ids_compressed))]
+	#[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
 	pub fn set_event_state(
 		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<u64> {
@@ -184,7 +184,7 @@ impl Service {
 	///
 	/// This adds all current state events (not including the incoming event)
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
-	#[tracing::instrument(skip(self, new_pdu))]
+	#[tracing::instrument(skip(self, new_pdu), level = "debug")]
 	pub fn append_to_state(&self, new_pdu: &PduEvent) -> Result<u64> {
 		let shorteventid = services()
 			.rooms
@@ -257,7 +257,7 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, invite_event))]
+	#[tracing::instrument(skip(self, invite_event), level = "debug")]
 	pub fn calculate_invite_state(&self, invite_event: &PduEvent) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let mut state = Vec::new();
 		// Add recommended events
@@ -313,7 +313,7 @@ impl Service {
 	}
 
 	/// Set the state hash to a new version, but does not update state_cache.
-	#[tracing::instrument(skip(self, mutex_lock))]
+	#[tracing::instrument(skip(self, mutex_lock), level = "debug")]
 	pub fn set_room_state(
 		&self,
 		room_id: &RoomId,
@@ -324,7 +324,7 @@ impl Service {
 	}
 
 	/// Returns the room's version.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
 		let create_event = services()
 			.rooms
@@ -365,7 +365,7 @@ impl Service {
 	}
 
 	/// This fetches auth events from the current state.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_auth_events(
 		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
 		content: &serde_json::value::RawValue,

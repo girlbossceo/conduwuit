@@ -33,7 +33,7 @@ impl Service {
 
 	/// Returns an iterator over the most recent read_receipts in a room that
 	/// happened after the event with id `since`.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn readreceipts_since<'a>(
 		&'a self, room_id: &RoomId, since: u64,
 	) -> impl Iterator<Item = Result<(OwnedUserId, u64, Raw<ruma::events::AnySyncEphemeralRoomEvent>)>> + 'a {
@@ -41,13 +41,13 @@ impl Service {
 	}
 
 	/// Sets a private read marker at `count`.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()> {
 		self.db.private_read_set(room_id, user_id, count)
 	}
 
 	/// Returns the private read marker.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
 		self.db.private_read_get(room_id, user_id)
 	}

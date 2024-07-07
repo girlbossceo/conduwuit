@@ -9,7 +9,7 @@ use ruma::api::client::{
 };
 use tracing::{debug, error, trace};
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, level = "debug")]
 pub(crate) async fn spawn(
 	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<axum::response::Response, StatusCode> {
