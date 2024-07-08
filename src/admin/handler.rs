@@ -132,11 +132,13 @@ fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
 }
 
 fn complete_admin_command(mut cmd: clap::Command, line: &str) -> String {
-	let mut ret = Vec::<String>::new();
 	let argv = parse_command_line(line);
+	let mut ret = Vec::<String>::with_capacity(argv.len().saturating_add(1));
+
 	'token: for token in argv.into_iter().skip(1) {
-		let mut choice = Vec::new();
 		let cmd_ = cmd.clone();
+		let mut choice = Vec::new();
+
 		for sub in cmd_.get_subcommands() {
 			let name = sub.get_name();
 			if *name == token {
@@ -144,20 +146,20 @@ fn complete_admin_command(mut cmd: clap::Command, line: &str) -> String {
 				ret.push(token);
 				cmd.clone_from(sub);
 				continue 'token;
-			}
-			if name.starts_with(&token) {
+			} else if name.starts_with(&token) {
 				// partial match; add to choices
 				choice.push(name);
 			}
 		}
 
-		if choice.is_empty() {
+		if choice.len() == 1 {
+			// One choice. Add extra space because it's complete
+			let choice = *choice.first().expect("only choice");
+			ret.push(choice.to_owned());
+			ret.push(String::new());
+		} else if choice.is_empty() {
 			// Nothing found, return original string
 			ret.push(token);
-		} else if choice.len() == 1 {
-			// One choice. Add extra space because it's complete
-			ret.push((*choice.first().expect("only choice")).to_owned());
-			ret.push(String::new());
 		} else {
 			// Find the common prefix
 			ret.push(common_prefix(&choice).into());
@@ -168,9 +170,8 @@ fn complete_admin_command(mut cmd: clap::Command, line: &str) -> String {
 	}
 
 	// Return from no completion. Needs a space though.
-	let mut ret = ret.join(" ");
-	ret.push(' ');
-	ret
+	ret.push(String::new());
+	ret.join(" ")
 }
 
 // Parse chat messages from the admin room into an AdminCommand object
