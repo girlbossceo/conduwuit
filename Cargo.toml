@@ -311,7 +311,6 @@ package = "rust-rocksdb-uwu"
 features = [
 	"multi-threaded-cf",
 	"mt_static",
-	"snappy",
 	"lz4",
 	"zstd",
 	"zlib",
