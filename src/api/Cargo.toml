@@ -56,7 +56,6 @@ serde_html_form.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 sha-1.workspace = true
-thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 webpage.workspace = true
