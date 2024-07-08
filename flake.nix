@@ -42,6 +42,9 @@
             "v"
             (builtins.fromJSON (builtins.readFile ./flake.lock))
               .nodes.rocksdb.original.ref;
+          # we have this already at https://github.com/girlbossceo/rocksdb/commit/a935c0273e1ba44eacf88ce3685a9b9831486155
+          # unsetting this so i don't have to revert it and make this nix exclusive
+          patches = [];
         });
         # TODO: remove once https://github.com/NixOS/nixpkgs/pull/314945 is available
         liburing = pkgs.liburing.overrideAttrs (old: {
