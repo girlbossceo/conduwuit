@@ -1,4 +1,5 @@
 use std::{
+	cmp,
 	cmp::Ordering,
 	collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
 	time::Duration,
@@ -302,11 +303,8 @@ pub(crate) async fn sync_events_route(
 	{
 		// Hang a few seconds so requests are not spammed
 		// Stop hanging if new info arrives
-		let mut duration = body.timeout.unwrap_or_default();
-		if duration.as_secs() > 30 {
-			duration = Duration::from_secs(30);
-		}
-
+		let default = Duration::from_secs(30);
+		let duration = cmp::min(body.timeout.unwrap_or(default), default);
 		_ = tokio::time::timeout(duration, watcher).await;
 	}
 
@@ -1560,11 +1558,8 @@ pub(crate) async fn sync_events_v4_route(
 	{
 		// Hang a few seconds so requests are not spammed
 		// Stop hanging if new info arrives
-		let mut duration = body.timeout.unwrap_or(Duration::from_secs(30));
-		if duration.as_secs() > 30 {
-			duration = Duration::from_secs(30);
-		}
-
+		let default = Duration::from_secs(30);
+		let duration = cmp::min(body.timeout.unwrap_or(default), default);
 		_ = tokio::time::timeout(duration, watcher).await;
 	}
 
