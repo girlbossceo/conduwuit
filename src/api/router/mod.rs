@@ -1,12 +1,12 @@
 mod auth;
 mod handler;
 mod request;
+mod response;
 
 use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, BytesMut};
-pub(super) use conduit::error::RumaResponse;
 use conduit::{debug, debug_warn, trace, warn};
 use ruma::{
 	api::{client::error::ErrorKind, IncomingRequest},
@@ -14,6 +14,7 @@ use ruma::{
 };
 
 pub(super) use self::handler::RouterExt;
+pub use self::response::RumaResponse;
 use self::{auth::Auth, request::Request};
 use crate::{service::appservice::RegistrationInfo, services, Error, Result};
 

@@ -1,13 +1,13 @@
 use std::sync::{atomic::Ordering, Arc};
 
 use axum::{extract::State, response::IntoResponse};
-use conduit::{debug_error, debug_warn, defer, Result, RumaResponse, Server};
+use conduit::{debug, debug_error, debug_warn, defer, error, trace, Result, Server};
+use conduit_api::RumaResponse;
 use http::{Method, StatusCode, Uri};
 use ruma::api::client::{
 	error::{Error as RumaError, ErrorBody, ErrorKind},
 	uiaa::UiaaResponse,
 };
-use tracing::{debug, error, trace};
 
 #[tracing::instrument(skip_all, level = "debug")]
 pub(crate) async fn spawn(

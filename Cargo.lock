@@ -637,6 +637,7 @@ dependencies = [
  "futures-util",
  "hmac",
  "http 1.1.0",
+ "http-body-util",
  "hyper 1.4.0",
  "image",
  "ipaddress",

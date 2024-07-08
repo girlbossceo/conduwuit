@@ -44,6 +44,7 @@ conduit-service.workspace = true
 futures-util.workspace = true
 hmac.workspace = true
 http.workspace = true
+http-body-util.workspace = true
 hyper.workspace = true
 image.workspace = true
 ipaddress.workspace = true

@@ -1,19 +1,11 @@
 use std::{convert::Infallible, fmt};
 
-use axum::response::{IntoResponse, Response};
 use bytes::BytesMut;
 use http::StatusCode;
 use http_body_util::Full;
 use ruma::{
 	api::{
-		client::{
-			error::ErrorKind::{
-				Forbidden, GuestAccessForbidden, LimitExceeded, MissingToken, NotFound, ThreepidAuthFailed,
-				ThreepidDenied, TooLarge, Unauthorized, Unknown, UnknownToken, Unrecognized, UserDeactivated,
-				WrongRoomKeysVersion,
-			},
-			uiaa::{UiaaInfo, UiaaResponse},
-		},
+		client::uiaa::{UiaaInfo, UiaaResponse},
 		OutgoingResponse,
 	},
 	OwnedServerName,
@@ -57,6 +49,8 @@ pub enum Error {
 	Path(#[from] axum::extract::rejection::PathRejection),
 
 	// ruma
+	#[error("uiaa")]
+	Uiaa(UiaaInfo),
 	#[error("{0}")]
 	Mxid(#[from] ruma::IdParseError),
 	#[error("{0}: {1}")]
@@ -81,8 +75,6 @@ pub enum Error {
 	BadServerResponse(&'static str),
 	#[error("{0}")]
 	Conflict(&'static str), // This is only needed for when a room alias already exists
-	#[error("uiaa")]
-	Uiaa(UiaaInfo),
 
 	// unique / untyped
 	#[error("{0}")]
@@ -103,11 +95,10 @@ impl Error {
 	/// Returns the Matrix error code / error kind
 	#[inline]
 	pub fn error_code(&self) -> ruma::api::client::error::ErrorKind {
-		if let Self::Federation(_, error) = self {
-			return error.error_kind().unwrap_or_else(|| &Unknown).clone();
-		}
+		use ruma::api::client::error::ErrorKind::Unknown;
 
 		match self {
+			Self::Federation(_, err) => err.error_kind().unwrap_or(&Unknown).clone(),
 			Self::BadRequest(kind, _) => kind.clone(),
 			_ => Unknown,
 		}
@@ -116,12 +107,8 @@ impl Error {
 	/// Sanitizes public-facing errors that can leak sensitive information.
 	pub fn sanitized_error(&self) -> String {
 		match self {
-			Self::Database {
-				..
-			} => String::from("Database error occurred."),
-			Self::Io {
-				..
-			} => String::from("I/O error occurred."),
+			Self::Database(..) => String::from("Database error occurred."),
+			Self::Io(..) => String::from("I/O error occurred."),
 			_ => self.to_string(),
 		}
 	}
@@ -135,6 +122,88 @@ impl fmt::Debug for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self}") }
 }
 
+impl axum::response::IntoResponse for Error {
+	fn into_response(self) -> axum::response::Response {
+		let response: UiaaResponse = self.into();
+		response.try_into_http_response::<BytesMut>().map_or_else(
+			|_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+			|r| r.map(BytesMut::freeze).map(Full::new).into_response(),
+		)
+	}
+}
+
+impl From<Error> for UiaaResponse {
+	fn from(error: Error) -> Self {
+		use ruma::api::client::error::{Error as RumaError, ErrorBody, ErrorKind::Unknown};
+
+		if let Error::Uiaa(uiaainfo) = error {
+			return Self::AuthResponse(uiaainfo);
+		}
+
+		let kind = match &error {
+			Error::Federation(_, ref error) => error.error_kind().unwrap_or(&Unknown),
+			Error::BadRequest(kind, _) => kind,
+			_ => &Unknown,
+		};
+
+		let status_code = match &error {
+			Error::Federation(_, ref error) => error.status_code,
+			Error::BadRequest(ref kind, _) => bad_request_code(kind),
+			Error::Conflict(_) => StatusCode::CONFLICT,
+			_ => StatusCode::INTERNAL_SERVER_ERROR,
+		};
+
+		let message = if let Error::Federation(ref origin, ref error) = &error {
+			format!("Answer from {origin}: {error}")
+		} else {
+			format!("{error}")
+		};
+
+		let body = ErrorBody::Standard {
+			kind: kind.clone(),
+			message,
+		};
+
+		Self::MatrixError(RumaError {
+			status_code,
+			body,
+		})
+	}
+}
+
+fn bad_request_code(kind: &ruma::api::client::error::ErrorKind) -> StatusCode {
+	use ruma::api::client::error::ErrorKind::*;
+
+	match kind {
+		GuestAccessForbidden
+		| ThreepidAuthFailed
+		| UserDeactivated
+		| ThreepidDenied
+		| WrongRoomKeysVersion {
+			..
+		}
+		| Forbidden {
+			..
+		} => StatusCode::FORBIDDEN,
+
+		UnknownToken {
+			..
+		}
+		| MissingToken
+		| Unauthorized => StatusCode::UNAUTHORIZED,
+
+		LimitExceeded {
+			..
+		} => StatusCode::TOO_MANY_REQUESTS,
+
+		TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+
+		NotFound | Unrecognized => StatusCode::NOT_FOUND,
+
+		_ => StatusCode::BAD_REQUEST,
+	}
+}
+
 #[inline]
 pub fn log(e: Error) {
 	error!("{e}");
@@ -145,87 +214,4 @@ pub fn log(e: Error) {
 pub fn debug_log(e: Error) {
 	debug_error!("{e}");
 	drop(e);
-}
-
-#[derive(Clone)]
-pub struct RumaResponse<T>(pub T);
-
-impl<T> From<T> for RumaResponse<T> {
-	fn from(t: T) -> Self { Self(t) }
-}
-
-impl From<Error> for RumaResponse<UiaaResponse> {
-	fn from(t: Error) -> Self { t.to_response() }
-}
-
-impl Error {
-	pub fn to_response(&self) -> RumaResponse<UiaaResponse> {
-		use ruma::api::client::error::{Error as RumaError, ErrorBody};
-
-		if let Self::Uiaa(uiaainfo) = self {
-			return RumaResponse(UiaaResponse::AuthResponse(uiaainfo.clone()));
-		}
-
-		if let Self::Federation(origin, error) = self {
-			let mut error = error.clone();
-			error.body = ErrorBody::Standard {
-				kind: error.error_kind().unwrap_or_else(|| &Unknown).clone(),
-				message: format!("Answer from {origin}: {error}"),
-			};
-			return RumaResponse(UiaaResponse::MatrixError(error));
-		}
-
-		let message = format!("{self}");
-		let (kind, status_code) = match self {
-			Self::BadRequest(kind, _) => (
-				kind.clone(),
-				match kind {
-					WrongRoomKeysVersion {
-						..
-					}
-					| Forbidden {
-						..
-					}
-					| GuestAccessForbidden
-					| ThreepidAuthFailed
-					| UserDeactivated
-					| ThreepidDenied => StatusCode::FORBIDDEN,
-					Unauthorized
-					| UnknownToken {
-						..
-					}
-					| MissingToken => StatusCode::UNAUTHORIZED,
-					NotFound | Unrecognized => StatusCode::NOT_FOUND,
-					LimitExceeded {
-						..
-					} => StatusCode::TOO_MANY_REQUESTS,
-					TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
-					_ => StatusCode::BAD_REQUEST,
-				},
-			),
-			Self::Conflict(_) => (Unknown, StatusCode::CONFLICT),
-			_ => (Unknown, StatusCode::INTERNAL_SERVER_ERROR),
-		};
-
-		RumaResponse(UiaaResponse::MatrixError(RumaError {
-			body: ErrorBody::Standard {
-				kind,
-				message,
-			},
-			status_code,
-		}))
-	}
-}
-
-impl ::axum::response::IntoResponse for Error {
-	fn into_response(self) -> ::axum::response::Response { self.to_response().into_response() }
-}
-
-impl<T: OutgoingResponse> IntoResponse for RumaResponse<T> {
-	fn into_response(self) -> Response {
-		match self.0.try_into_http_response::<BytesMut>() {
-			Ok(res) => res.map(BytesMut::freeze).map(Full::new).into_response(),
-			Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-		}
-	}
 }
