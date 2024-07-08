@@ -10,7 +10,7 @@ repository.workspace = true
 version = "0.0.1"
 
 [features]
-default = ["snappy", "lz4", "zstd", "zlib", "bzip2"]
+default = ["lz4", "zstd", "zlib", "bzip2"]
 jemalloc = ["rust-rocksdb/jemalloc"]
 io-uring = ["rust-rocksdb/io-uring"]
 valgrind = ["rust-rocksdb/valgrind"]
