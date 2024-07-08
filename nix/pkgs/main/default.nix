@@ -66,6 +66,10 @@ buildDepsOnlyEnv =
       #
       # [1]: https://github.com/tikv/jemallocator/blob/ab0676d77e81268cd09b059260c75b38dbef2d51/jemalloc-sys/src/env.rs#L17
       enableJemalloc = featureEnabled "jemalloc" && !stdenv.isDarwin;
+
+      # for some reason enableLiburing in nixpkgs rocksdb is default true
+      # which breaks Darwin entirely
+      enableLiburing = enableLiburing;
     }).overrideAttrs (old: {
       # TODO: static rocksdb fails to build on darwin
       # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
