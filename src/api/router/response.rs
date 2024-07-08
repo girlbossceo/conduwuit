@@ -5,8 +5,7 @@ use http::StatusCode;
 use http_body_util::Full;
 use ruma::api::{client::uiaa::UiaaResponse, OutgoingResponse};
 
-#[derive(Clone)]
-pub struct RumaResponse<T>(pub T);
+pub(crate) struct RumaResponse<T>(pub(crate) T);
 
 impl From<Error> for RumaResponse<UiaaResponse> {
 	fn from(t: Error) -> Self { Self(t.into()) }

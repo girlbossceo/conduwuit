@@ -4,17 +4,13 @@ use bytes::BytesMut;
 use http::StatusCode;
 use http_body_util::Full;
 use ruma::{
-	api::{
-		client::uiaa::{UiaaInfo, UiaaResponse},
-		OutgoingResponse,
-	},
+	api::{client::uiaa::UiaaResponse, OutgoingResponse},
 	OwnedServerName,
 };
-use thiserror::Error;
 
 use crate::{debug_error, error};
 
-#[derive(Error)]
+#[derive(thiserror::Error)]
 pub enum Error {
 	// std
 	#[error("{0}")]
@@ -47,10 +43,16 @@ pub enum Error {
 	Extension(#[from] axum::extract::rejection::ExtensionRejection),
 	#[error("{0}")]
 	Path(#[from] axum::extract::rejection::PathRejection),
+	#[error("{0}")]
+	Http(#[from] http::Error),
 
 	// ruma
+	#[error("{0}")]
+	IntoHttpError(#[from] ruma::api::error::IntoHttpError),
+	#[error("{0}")]
+	RumaError(#[from] ruma::api::client::error::Error),
 	#[error("uiaa")]
-	Uiaa(UiaaInfo),
+	Uiaa(ruma::api::client::uiaa::UiaaInfo),
 	#[error("{0}")]
 	Mxid(#[from] ruma::IdParseError),
 	#[error("{0}: {1}")]
@@ -98,7 +100,7 @@ impl Error {
 		use ruma::api::client::error::ErrorKind::Unknown;
 
 		match self {
-			Self::Federation(_, err) => err.error_kind().unwrap_or(&Unknown).clone(),
+			Self::Federation(_, error) => ruma_error_kind(error).clone(),
 			Self::BadRequest(kind, _) => kind.clone(),
 			_ => Unknown,
 		}
@@ -134,37 +136,35 @@ impl axum::response::IntoResponse for Error {
 
 impl From<Error> for UiaaResponse {
 	fn from(error: Error) -> Self {
-		use ruma::api::client::error::{Error as RumaError, ErrorBody, ErrorKind::Unknown};
-
 		if let Error::Uiaa(uiaainfo) = error {
 			return Self::AuthResponse(uiaainfo);
 		}
 
 		let kind = match &error {
-			Error::Federation(_, ref error) => error.error_kind().unwrap_or(&Unknown),
+			Error::Federation(_, ref error) | Error::RumaError(ref error) => ruma_error_kind(error),
 			Error::BadRequest(kind, _) => kind,
-			_ => &Unknown,
+			_ => &ruma::api::client::error::ErrorKind::Unknown,
 		};
 
 		let status_code = match &error {
-			Error::Federation(_, ref error) => error.status_code,
+			Error::Federation(_, ref error) | Error::RumaError(ref error) => error.status_code,
 			Error::BadRequest(ref kind, _) => bad_request_code(kind),
 			Error::Conflict(_) => StatusCode::CONFLICT,
 			_ => StatusCode::INTERNAL_SERVER_ERROR,
 		};
 
-		let message = if let Error::Federation(ref origin, ref error) = &error {
-			format!("Answer from {origin}: {error}")
-		} else {
-			format!("{error}")
+		let message = match &error {
+			Error::Federation(ref origin, ref error) => format!("Answer from {origin}: {error}"),
+			Error::RumaError(ref error) => ruma_error_message(error),
+			_ => format!("{error}"),
 		};
 
-		let body = ErrorBody::Standard {
+		let body = ruma::api::client::error::ErrorBody::Standard {
 			kind: kind.clone(),
 			message,
 		};
 
-		Self::MatrixError(RumaError {
+		Self::MatrixError(ruma::api::client::error::Error {
 			status_code,
 			body,
 		})
@@ -202,6 +202,23 @@ fn bad_request_code(kind: &ruma::api::client::error::ErrorKind) -> StatusCode {
 
 		_ => StatusCode::BAD_REQUEST,
 	}
+}
+
+fn ruma_error_message(error: &ruma::api::client::error::Error) -> String {
+	if let ruma::api::client::error::ErrorBody::Standard {
+		message,
+		..
+	} = &error.body
+	{
+		return message.to_string();
+	}
+
+	format!("{error}")
+}
+
+fn ruma_error_kind(e: &ruma::api::client::error::Error) -> &ruma::api::client::error::ErrorKind {
+	e.error_kind()
+		.unwrap_or(&ruma::api::client::error::ErrorKind::Unknown)
 }
 
 #[inline]

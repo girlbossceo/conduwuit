@@ -13,9 +13,8 @@ use ruma::{
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
 
-pub(super) use self::handler::RouterExt;
-pub use self::response::RumaResponse;
 use self::{auth::Auth, request::Request};
+pub(super) use self::{handler::RouterExt, response::RumaResponse};
 use crate::{service::appservice::RegistrationInfo, services, Error, Result};
 
 /// Extractor for Ruma request structs

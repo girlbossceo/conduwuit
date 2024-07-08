@@ -1,13 +1,9 @@
 use std::sync::{atomic::Ordering, Arc};
 
 use axum::{extract::State, response::IntoResponse};
-use conduit::{debug, debug_error, debug_warn, defer, error, trace, Result, Server};
-use conduit_api::RumaResponse;
+use conduit::{debug, debug_error, debug_warn, defer, error, trace, Error, Result, Server};
 use http::{Method, StatusCode, Uri};
-use ruma::api::client::{
-	error::{Error as RumaError, ErrorBody, ErrorKind},
-	uiaa::UiaaResponse,
-};
+use ruma::api::client::error::{Error as RumaError, ErrorBody, ErrorKind};
 
 #[tracing::instrument(skip_all, level = "debug")]
 pub(crate) async fn spawn(
@@ -66,15 +62,15 @@ fn handle_result(
 ) -> Result<axum::response::Response, StatusCode> {
 	handle_result_log(method, uri, &result);
 	match result.status() {
-		StatusCode::METHOD_NOT_ALLOWED => handle_result_403(method, uri, &result),
+		StatusCode::METHOD_NOT_ALLOWED => handle_result_405(method, uri, &result),
 		_ => Ok(result),
 	}
 }
 
-fn handle_result_403(
+fn handle_result_405(
 	_method: &Method, _uri: &Uri, result: &axum::response::Response,
 ) -> Result<axum::response::Response, StatusCode> {
-	let error = UiaaResponse::MatrixError(RumaError {
+	let error = Error::RumaError(RumaError {
 		status_code: result.status(),
 		body: ErrorBody::Standard {
 			kind: ErrorKind::Unrecognized,
@@ -82,7 +78,7 @@ fn handle_result_403(
 		},
 	});
 
-	Ok(RumaResponse(error).into_response())
+	Ok(error.into_response())
 }
 
 fn handle_result_log(method: &Method, uri: &Uri, result: &axum::response::Response) {
