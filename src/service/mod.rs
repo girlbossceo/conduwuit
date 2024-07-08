@@ -37,7 +37,6 @@ conduit::mod_dtor! {}
 
 static SERVICES: RwLock<Option<&Services>> = RwLock::new(None);
 
-#[allow(clippy::let_underscore_must_use)]
 pub async fn init(server: &Arc<Server>) -> Result<()> {
 	let d = Arc::new(Database::open(server).await?);
 	let s = Box::new(Services::build(server.clone(), d)?);

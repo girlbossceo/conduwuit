@@ -132,11 +132,7 @@ impl Services {
 
 		if self.globals.allow_check_for_updates() {
 			let handle = globals::updates::start_check_for_updates_task();
-
-			#[allow(clippy::let_underscore_must_use)] // needed for shutdown
-			{
-				_ = self.globals.updates_handle.lock().await.insert(handle);
-			}
+			_ = self.globals.updates_handle.lock().await.insert(handle);
 		}
 
 		debug_info!("Services startup complete.");
@@ -159,11 +155,7 @@ impl Services {
 		debug!("Waiting for update worker...");
 		if let Some(updates_handle) = self.globals.updates_handle.lock().await.take() {
 			updates_handle.abort();
-
-			#[allow(clippy::let_underscore_must_use)]
-			{
-				_ = updates_handle.await;
-			}
+			_ = updates_handle.await;
 		}
 
 		for (name, service) in &self.service {

@@ -28,7 +28,6 @@ mod_ctor! {}
 mod_dtor! {}
 
 /// Install the admin command handler
-#[allow(clippy::let_underscore_must_use)]
 pub async fn init() {
 	_ = services()
 		.admin
@@ -45,7 +44,6 @@ pub async fn init() {
 }
 
 /// Uninstall the admin command handler
-#[allow(clippy::let_underscore_must_use)]
 pub async fn fini() {
 	_ = services().admin.handle.write().await.take();
 	_ = services()

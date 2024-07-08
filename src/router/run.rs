@@ -17,7 +17,6 @@ use crate::{layers, serve};
 
 /// Main loop base
 #[tracing::instrument(skip_all)]
-#[allow(clippy::let_underscore_must_use)] // various of these are intended
 pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	let app = layers::build(&server)?;
 

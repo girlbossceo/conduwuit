@@ -71,7 +71,6 @@ fn handle_result(
 	}
 }
 
-#[allow(clippy::unnecessary_wraps)]
 fn handle_result_403(
 	_method: &Method, _uri: &Uri, result: &axum::response::Response,
 ) -> Result<axum::response::Response, StatusCode> {

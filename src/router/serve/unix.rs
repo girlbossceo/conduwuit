@@ -54,7 +54,6 @@ pub(super) async fn serve(server: &Arc<Server>, app: Router, mut shutdown: broad
 	Ok(())
 }
 
-#[allow(clippy::let_underscore_must_use)]
 async fn accept(
 	server: &Arc<Server>, listener: &UnixListener, tasks: &mut JoinSet<()>, mut app: MakeService,
 	builder: server::conn::auto::Builder<TokioExecutor>, conn: (UnixStream, SocketAddr),
