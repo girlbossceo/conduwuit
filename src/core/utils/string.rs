@@ -9,12 +9,13 @@ pub const EMPTY: &str = "";
 /// common_prefix(&input) == "con";
 /// ```
 #[must_use]
+#[allow(clippy::string_slice)]
 pub fn common_prefix<'a>(choice: &'a [&str]) -> &'a str {
 	choice.first().map_or(EMPTY, move |best| {
 		choice.iter().skip(1).fold(*best, |best, choice| {
 			&best[0..choice
-				.chars()
-				.zip(best.chars())
+				.char_indices()
+				.zip(best.char_indices())
 				.take_while(|&(a, b)| a == b)
 				.count()]
 		})

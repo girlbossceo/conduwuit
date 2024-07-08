@@ -6,6 +6,7 @@ pub struct Escape<'a>(pub &'a str);
 
 /// Copied from librustdoc:
 /// * <https://github.com/rust-lang/rust/blob/cbaeec14f90b59a91a6b0f17fc046c66fa811892/src/librustdoc/html/escape.rs>
+#[allow(clippy::string_slice)]
 impl fmt::Display for Escape<'_> {
 	fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
 		// Because the internet is always right, turns out there's not that many
