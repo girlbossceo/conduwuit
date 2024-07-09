@@ -665,15 +665,17 @@ pub async fn join_room_by_id_helper(
 		});
 	}
 
-	// Ask a remote server if we are not participating in this room
-	if !services()
+	if services()
 		.rooms
 		.state_cache
 		.server_in_room(services().globals.server_name(), room_id)?
+		|| servers.is_empty()
+		|| (servers.len() == 1 && server_is_ours(&servers[0]))
 	{
-		join_room_by_id_helper_remote(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
-	} else {
 		join_room_by_id_helper_local(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
+	} else {
+		// Ask a remote server if we are not participating in this room
+		join_room_by_id_helper_remote(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
 	}
 }
 
