@@ -659,7 +659,7 @@ pub async fn join_room_by_id_helper(
 	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 	if matches!(services().rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
-		info!("{sender_user} is already joined in {room_id}");
+		debug_warn!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
 			room_id: room_id.into(),
 		});
@@ -1018,7 +1018,7 @@ async fn join_room_by_id_helper_local(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
 ) -> Result<join_room_by_id::v3::Response> {
-	info!("We can join locally");
+	debug!("We can join locally");
 
 	let join_rules_event =
 		services()
@@ -1118,7 +1118,7 @@ async fn join_room_by_id_helper_local(
 			.iter()
 			.any(|server_name| !server_is_ours(server_name))
 	{
-		info!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
+		warn!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
 		let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
 
 		let room_version_id = match make_join_response.room_version {
