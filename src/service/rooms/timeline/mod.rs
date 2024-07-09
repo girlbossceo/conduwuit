@@ -92,6 +92,9 @@ impl crate::Service for Service {
 			.len();
 		writeln!(out, "lasttimelinecount_cache: {lasttimelinecount_cache}")?;
 
+		let mutex_insert = self.mutex_insert.len();
+		writeln!(out, "insert_mutex: {mutex_insert}")?;
+
 		Ok(())
 	}
 

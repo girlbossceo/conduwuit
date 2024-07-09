@@ -2,6 +2,7 @@ mod data;
 
 use std::{
 	collections::{HashMap, HashSet},
+	fmt::Write,
 	sync::Arc,
 };
 
@@ -38,6 +39,13 @@ impl crate::Service for Service {
 			db: Data::new(args.db),
 			mutex: RoomMutexMap::new(),
 		}))
+	}
+
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let mutex = self.mutex.len();
+		writeln!(out, "state_mutex: {mutex}")?;
+
+		Ok(())
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }

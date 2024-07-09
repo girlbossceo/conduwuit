@@ -3,6 +3,7 @@ mod signing_keys;
 
 use std::{
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
+	fmt::Write,
 	pin::Pin,
 	sync::{Arc, RwLock as StdRwLock},
 	time::Instant,
@@ -59,6 +60,20 @@ impl crate::Service for Service {
 			federation_handletime: HandleTimeMap::new().into(),
 			mutex_federation: RoomMutexMap::new(),
 		}))
+	}
+
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let mutex_federation = self.mutex_federation.len();
+		writeln!(out, "federation_mutex: {mutex_federation}")?;
+
+		let federation_handletime = self
+			.federation_handletime
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "federation_handletime: {federation_handletime}")?;
+
+		Ok(())
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
