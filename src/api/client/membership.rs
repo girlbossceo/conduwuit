@@ -7,7 +7,7 @@ use std::{
 
 use axum_client_ip::InsecureClientIp;
 use conduit::{
-	debug, error, info, trace, utils,
+	debug, debug_warn, error, info, trace, utils,
 	utils::{math::continue_exponential_backoff_secs, mutex_map},
 	warn, Error, PduEvent, Result,
 };
@@ -366,6 +366,12 @@ pub(crate) async fn invite_user_route(
 pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
+
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
 			.rooms
@@ -382,12 +388,6 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
-
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
 
 	services()
 		.rooms
@@ -416,6 +416,12 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 /// Tries to send a ban event into the room.
 pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
 
 	let event = services()
 		.rooms
@@ -447,12 +453,6 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 			},
 		)?;
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
-
 	services()
 		.rooms
 		.timeline
@@ -481,6 +481,12 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+	let state_lock = services()
+		.globals
+		.roomid_mutex_state
+		.lock(&body.room_id)
+		.await;
+
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
 			.rooms
@@ -495,12 +501,6 @@ pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Res
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
 	event.join_authorized_via_users_server = None;
-
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
 
 	services()
 		.rooms
@@ -656,14 +656,14 @@ pub async fn join_room_by_id_helper(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
+
 	if matches!(services().rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
 		info!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
 			room_id: room_id.into(),
 		});
 	}
-
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
 
 	// Ask a remote server if we are not participating in this room
 	if !services()
