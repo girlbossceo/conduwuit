@@ -95,7 +95,7 @@ impl Console {
 					ReadlineEvent::Line(string) => self.clone().handle(string).await,
 					ReadlineEvent::Interrupted => continue,
 					ReadlineEvent::Eof => break,
-					ReadlineEvent::Quit => services().server.shutdown().unwrap_or_else(error::log),
+					ReadlineEvent::Quit => services().server.shutdown().unwrap_or_else(error::into_log),
 				},
 				Err(error) => match error {
 					ReadlineError::Closed => break,

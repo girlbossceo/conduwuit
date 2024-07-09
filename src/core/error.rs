@@ -116,21 +116,46 @@ impl Error {
 	}
 }
 
-impl From<Infallible> for Error {
-	fn from(i: Infallible) -> Self { match i {} }
+#[inline]
+pub fn log(e: &Error) {
+	error!(?e);
+}
+
+#[inline]
+pub fn debug_log(e: &Error) {
+	debug_error!(?e);
+}
+
+#[inline]
+pub fn into_log(e: Error) {
+	error!(?e);
+	drop(e);
+}
+
+#[inline]
+pub fn into_debug_log(e: Error) {
+	debug_error!(?e);
+	drop(e);
 }
 
 impl fmt::Debug for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self}") }
 }
 
+impl From<Infallible> for Error {
+	fn from(i: Infallible) -> Self { match i {} }
+}
+
 impl axum::response::IntoResponse for Error {
 	fn into_response(self) -> axum::response::Response {
 		let response: UiaaResponse = self.into();
-		response.try_into_http_response::<BytesMut>().map_or_else(
-			|_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-			|r| r.map(BytesMut::freeze).map(Full::new).into_response(),
-		)
+		response
+			.try_into_http_response::<BytesMut>()
+			.inspect_err(|e| error!(?e))
+			.map_or_else(
+				|_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+				|r| r.map(BytesMut::freeze).map(Full::new).into_response(),
+			)
 	}
 }
 
@@ -219,16 +244,4 @@ fn ruma_error_message(error: &ruma::api::client::error::Error) -> String {
 fn ruma_error_kind(e: &ruma::api::client::error::Error) -> &ruma::api::client::error::ErrorKind {
 	e.error_kind()
 		.unwrap_or(&ruma::api::client::error::ErrorKind::Unknown)
-}
-
-#[inline]
-pub fn log(e: Error) {
-	error!("{e}");
-	drop(e);
-}
-
-#[inline]
-pub fn debug_log(e: Error) {
-	debug_error!("{e}");
-	drop(e);
 }
