@@ -14,9 +14,9 @@ pub use crate::utils::debug::*;
 macro_rules! debug_event {
 	( $level:expr, $($x:tt)+ ) => {
 		if cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level")) {
-			::tracing::event!( $level, $($x)+ );
+			::tracing::event!( $level, $($x)+ )
 		} else {
-			::tracing::debug!( $($x)+ );
+			::tracing::debug!( $($x)+ )
 		}
 	}
 }
@@ -27,7 +27,7 @@ macro_rules! debug_event {
 #[macro_export]
 macro_rules! debug_error {
 	( $($x:tt)+ ) => {
-		$crate::debug_event!(::tracing::Level::ERROR, $($x)+ );
+		$crate::debug_event!(::tracing::Level::ERROR, $($x)+ )
 	}
 }
 
@@ -37,7 +37,7 @@ macro_rules! debug_error {
 #[macro_export]
 macro_rules! debug_warn {
 	( $($x:tt)+ ) => {
-		$crate::debug_event!(::tracing::Level::WARN, $($x)+ );
+		$crate::debug_event!(::tracing::Level::WARN, $($x)+ )
 	}
 }
 
@@ -47,7 +47,7 @@ macro_rules! debug_warn {
 #[macro_export]
 macro_rules! debug_info {
 	( $($x:tt)+ ) => {
-		$crate::debug_event!(::tracing::Level::INFO, $($x)+ );
+		$crate::debug_event!(::tracing::Level::INFO, $($x)+ )
 	}
 }
 
