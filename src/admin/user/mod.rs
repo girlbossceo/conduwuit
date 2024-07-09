@@ -71,6 +71,11 @@ pub(super) enum UserCommand {
 		room_id: OwnedRoomOrAliasId,
 	},
 
+	/// - Grant server-admin privileges to a user.
+	MakeUserAdmin {
+		user_id: String,
+	},
+
 	/// - Puts a room tag for the specified user and room ID.
 	///
 	/// This is primarily useful if you'd like to set your admin room
@@ -123,6 +128,9 @@ pub(super) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 			user_id,
 			room_id,
 		} => force_join_room(body, user_id, room_id).await?,
+		UserCommand::MakeUserAdmin {
+			user_id,
+		} => make_user_admin(body, user_id).await?,
 		UserCommand::PutRoomTag {
 			user_id,
 			room_id,
