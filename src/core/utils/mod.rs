@@ -20,7 +20,7 @@ pub use debug::slice_truncated as debug_slice_truncated;
 pub use hash::calculate_hash;
 pub use html::Escape as HtmlEscape;
 pub use json::{deserialize_from_str, to_canonical_object};
-pub use mutex_map::MutexMap;
+pub use mutex_map::{Guard as MutexMapGuard, MutexMap};
 pub use rand::string as random_string;
 pub use string::{str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;

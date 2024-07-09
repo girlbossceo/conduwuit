@@ -6,11 +6,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{
-	error,
-	utils::{math::usize_from_f64, mutex_map},
-	warn, Error, Result,
-};
+use conduit::{error, utils::math::usize_from_f64, warn, Error, Result};
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{
@@ -37,7 +33,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 
-use crate::{pdu::PduBuilder, services, PduEvent};
+use crate::{globals::RoomMutexGuard, pdu::PduBuilder, services, PduEvent};
 
 pub struct Service {
 	db: Data,
@@ -333,7 +329,7 @@ impl Service {
 	}
 
 	pub fn user_can_invite(
-		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &mutex_map::Guard<()>,
+		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &RoomMutexGuard,
 	) -> Result<bool> {
 		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
 			.expect("Event content always serializes");

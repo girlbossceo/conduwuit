@@ -5,10 +5,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
-	utils::{calculate_hash, mutex_map},
-	warn, Error, Result,
-};
+use conduit::{utils::calculate_hash, warn, Error, Result};
 use data::Data;
 use ruma::{
 	api::client::error::ErrorKind,
@@ -22,7 +19,7 @@ use ruma::{
 };
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{services, PduEvent};
+use crate::{globals::RoomMutexGuard, services, PduEvent};
 
 pub struct Service {
 	db: Data,
@@ -46,7 +43,7 @@ impl Service {
 		shortstatehash: u64,
 		statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		for event_id in statediffnew.iter().filter_map(|new| {
 			services()
@@ -318,7 +315,7 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		shortstatehash: u64,
-		mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.db.set_room_state(room_id, shortstatehash, mutex_lock)
 	}
@@ -358,7 +355,7 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.db
 			.set_forward_extremities(room_id, event_ids, state_lock)

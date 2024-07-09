@@ -12,7 +12,11 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{error, trace, utils::MutexMap, Config, Result};
+use conduit::{
+	error, trace,
+	utils::{MutexMap, MutexMapGuard},
+	Config, Result,
+};
 use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
@@ -26,8 +30,6 @@ use tokio::{sync::Mutex, task::JoinHandle};
 use url::Url;
 
 use crate::services;
-
-type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
 pub struct Service {
 	pub db: Data,
@@ -43,15 +45,19 @@ pub struct Service {
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
-	pub roomid_mutex_insert: MutexMap<OwnedRoomId, ()>,
-	pub roomid_mutex_state: MutexMap<OwnedRoomId, ()>,
-	pub roomid_mutex_federation: MutexMap<OwnedRoomId, ()>,
+	pub roomid_mutex_insert: RoomMutexMap,
+	pub roomid_mutex_state: RoomMutexMap,
+	pub roomid_mutex_federation: RoomMutexMap,
 	pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
 	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
 }
+
+pub type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
+type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {

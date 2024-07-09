@@ -3,7 +3,8 @@ use std::{collections::HashSet, sync::Arc};
 use conduit::{utils, Error, Result};
 use database::{Database, Map};
 use ruma::{EventId, OwnedEventId, RoomId};
-use utils::mutex_map;
+
+use crate::globals::RoomMutexGuard;
 
 pub(super) struct Data {
 	shorteventid_shortstatehash: Arc<Map>,
@@ -35,7 +36,7 @@ impl Data {
 		&self,
 		room_id: &RoomId,
 		new_shortstatehash: u64,
-		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.roomid_shortstatehash
 			.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
@@ -68,7 +69,7 @@ impl Data {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);

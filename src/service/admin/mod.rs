@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{error, utils::mutex_map, Error, Result};
+use conduit::{error, Error, Result};
 pub use create::create_admin_room;
 pub use grant::make_user_admin;
 use loole::{Receiver, Sender};
@@ -26,7 +26,7 @@ use tokio::{
 	task::JoinHandle,
 };
 
-use crate::{pdu::PduBuilder, services, user_is_local, PduEvent};
+use crate::{globals::RoomMutexGuard, pdu::PduBuilder, services, user_is_local, PduEvent};
 
 const COMMAND_QUEUE_LIMIT: usize = 512;
 
@@ -270,7 +270,7 @@ async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, use
 }
 
 async fn handle_response_error(
-	e: &Error, room_id: &RoomId, user_id: &UserId, state_lock: &mutex_map::Guard<()>,
+	e: &Error, room_id: &RoomId, user_id: &UserId, state_lock: &RoomMutexGuard,
 ) -> Result<()> {
 	error!("Failed to build and append admin room response PDU: \"{e}\"");
 	let error_room_message = RoomMessageEventContent::text_plain(format!(

@@ -7,9 +7,8 @@ use std::{
 
 use axum_client_ip::InsecureClientIp;
 use conduit::{
-	debug, debug_warn, error, info, trace, utils,
-	utils::{math::continue_exponential_backoff_secs, mutex_map},
-	warn, Error, PduEvent, Result,
+	debug, debug_warn, error, info, trace, utils, utils::math::continue_exponential_backoff_secs, warn, Error,
+	PduEvent, Result,
 };
 use ruma::{
 	api::{
@@ -36,13 +35,14 @@ use ruma::{
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use service::sending::convert_to_outgoing_federation_event;
 use tokio::sync::RwLock;
 
 use crate::{
 	client::{update_avatar_url, update_displayname},
 	service::{
+		globals::RoomMutexGuard,
 		pdu::{gen_event_id_canonical_json, PduBuilder},
+		sending::convert_to_outgoing_federation_event,
 		server_is_ours, user_is_local,
 	},
 	services, Ruma,
@@ -682,7 +682,7 @@ pub async fn join_room_by_id_helper(
 #[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_remote")]
 async fn join_room_by_id_helper_remote(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
 ) -> Result<join_room_by_id::v3::Response> {
 	info!("Joining {room_id} over federation.");
 
@@ -1018,7 +1018,7 @@ async fn join_room_by_id_helper_remote(
 #[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_local")]
 async fn join_room_by_id_helper_local(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
 ) -> Result<join_room_by_id::v3::Response> {
 	debug!("We can join locally");
 
