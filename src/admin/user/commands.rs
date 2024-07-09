@@ -8,7 +8,7 @@ use ruma::{
 		tag::{TagEvent, TagEventContent, TagInfo},
 		RoomAccountDataEventType,
 	},
-	OwnedRoomId, OwnedUserId, RoomId,
+	OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
 };
 use tracing::{error, info, warn};
 
@@ -332,6 +332,20 @@ pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 	);
 
 	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+}
+
+pub(super) async fn force_join_room(
+	_body: Vec<&str>, user_id: String, room_id: OwnedRoomOrAliasId,
+) -> Result<RoomMessageEventContent> {
+	let user_id = parse_local_user_id(&user_id)?;
+	let room_id = services().rooms.alias.resolve(&room_id).await?;
+
+	assert!(service::user_is_local(&user_id), "Parsed user_id must be a local user");
+	join_room_by_id_helper(&user_id, &room_id, None, &[], None).await?;
+
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"{user_id} has been joined to {room_id}.",
+	)))
 }
 
 pub(super) async fn put_room_tag(

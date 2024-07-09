@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, RoomId};
+use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomOrAliasId, RoomId};
 
 use self::commands::*;
 
@@ -65,6 +65,12 @@ pub(super) enum UserCommand {
 		user_id: String,
 	},
 
+	/// - Manually join a local user to a room.
+	ForceJoinRoom {
+		user_id: String,
+		room_id: OwnedRoomOrAliasId,
+	},
+
 	/// - Puts a room tag for the specified user and room ID.
 	///
 	/// This is primarily useful if you'd like to set your admin room
@@ -113,6 +119,10 @@ pub(super) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 		UserCommand::ListJoinedRooms {
 			user_id,
 		} => list_joined_rooms(body, user_id).await?,
+		UserCommand::ForceJoinRoom {
+			user_id,
+			room_id,
+		} => force_join_room(body, user_id, room_id).await?,
 		UserCommand::PutRoomTag {
 			user_id,
 			room_id,
