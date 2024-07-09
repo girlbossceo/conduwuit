@@ -33,7 +33,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 
-use crate::{globals::RoomMutexGuard, pdu::PduBuilder, services, PduEvent};
+use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, PduEvent};
 
 pub struct Service {
 	db: Data,

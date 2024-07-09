@@ -570,7 +570,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.state_compressor
 		.save_state(room_id.clone().as_ref(), new_room_state)?;
 
-	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 	services()
 		.rooms
 		.state

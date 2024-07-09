@@ -4,13 +4,14 @@ mod signing_keys;
 use std::{
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
 	pin::Pin,
-	sync::Arc,
+	sync::{Arc, RwLock as StdRwLock},
 	time::Instant,
 };
 
 use conduit::{
-	debug, debug_error, debug_info, error, info, trace, utils::math::continue_exponential_backoff_secs, warn, Error,
-	Result,
+	debug, debug_error, debug_info, error, info, trace,
+	utils::{math::continue_exponential_backoff_secs, MutexMap},
+	warn, Error, Result,
 };
 use futures_util::Future;
 pub use parse_incoming_pdu::parse_incoming_pdu;
@@ -28,14 +29,21 @@ use ruma::{
 	int,
 	serde::Base64,
 	state_res::{self, RoomVersion, StateMap},
-	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedUserId, RoomId, RoomVersionId, ServerName,
+	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId,
+	RoomVersionId, ServerName,
 };
 use tokio::sync::RwLock;
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{pdu, services, PduEvent};
 
-pub struct Service;
+pub struct Service {
+	pub federation_handletime: StdRwLock<HandleTimeMap>,
+	pub mutex_federation: RoomMutexMap,
+}
+
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+type HandleTimeMap = HashMap<OwnedRoomId, (OwnedEventId, Instant)>;
 
 // We use some AsyncRecursiveType hacks here so we can call async funtion
 // recursively.
@@ -46,7 +54,12 @@ type AsyncRecursiveCanonicalJsonResult<'a> =
 	AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
 
 impl crate::Service for Service {
-	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> { Ok(Arc::new(Self {})) }
+	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			federation_handletime: HandleTimeMap::new().into(),
+			mutex_federation: RoomMutexMap::new(),
+		}))
+	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
@@ -200,9 +213,7 @@ impl Service {
 
 		// Done with prev events, now handling the incoming event
 		let start_time = Instant::now();
-		services()
-			.globals
-			.roomid_federationhandletime
+		self.federation_handletime
 			.write()
 			.expect("locked")
 			.insert(room_id.to_owned(), (event_id.to_owned(), start_time));
@@ -211,9 +222,7 @@ impl Service {
 			.upgrade_outlier_to_timeline_pdu(incoming_pdu, val, &create_event, origin, room_id, pub_key_map)
 			.await;
 
-		services()
-			.globals
-			.roomid_federationhandletime
+		self.federation_handletime
 			.write()
 			.expect("locked")
 			.remove(&room_id.to_owned());
@@ -272,9 +281,7 @@ impl Service {
 			}
 
 			let start_time = Instant::now();
-			services()
-				.globals
-				.roomid_federationhandletime
+			self.federation_handletime
 				.write()
 				.expect("locked")
 				.insert(room_id.to_owned(), ((*prev_id).to_owned(), start_time));
@@ -282,9 +289,7 @@ impl Service {
 			self.upgrade_outlier_to_timeline_pdu(pdu, json, create_event, origin, room_id, pub_key_map)
 				.await?;
 
-			services()
-				.globals
-				.roomid_federationhandletime
+			self.federation_handletime
 				.write()
 				.expect("locked")
 				.remove(&room_id.to_owned());
@@ -579,7 +584,7 @@ impl Service {
 
 		// We start looking at current room state now, so lets lock the room
 		trace!("Locking the room");
-		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+		let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 		// Now we calculate the set of extremities this room has after the incoming
 		// event has been applied. We start with the previous extremities (aka leaves)

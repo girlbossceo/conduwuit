@@ -71,11 +71,7 @@ pub(crate) async fn create_join_event_template_route(
 
 	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	let join_authorized_via_users_server = if (services()
 		.rooms

@@ -22,7 +22,7 @@ use crate::{pdu::PduBuilder, services};
 /// In conduit, this is equivalent to granting admin privileges.
 pub async fn make_user_admin(user_id: &UserId, displayname: String) -> Result<()> {
 	if let Some(room_id) = Service::get_admin_room()? {
-		let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+		let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 
 		// Use the server user to grant the new admin's power level
 		let server_user = &services().globals.server_user;

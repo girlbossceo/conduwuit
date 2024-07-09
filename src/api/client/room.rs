@@ -90,7 +90,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 	}
 
 	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
-	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 
 	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
 		Some(room_alias_check(alias, &body.appservice_info).await?)
@@ -573,11 +573,7 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 		.short
 		.get_or_create_shortroomid(&replacement_room)?;
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	// Send a m.room.tombstone event to the old room to indicate that it is not
 	// intended to be used any further Fail if the sender does not have the required
@@ -605,11 +601,7 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 
 	// Change lock to replacement room
 	drop(state_lock);
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&replacement_room)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&replacement_room).await;
 
 	// Get the old room creation event
 	let mut create_event_content = serde_json::from_str::<CanonicalJsonObject>(

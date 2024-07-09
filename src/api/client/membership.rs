@@ -40,8 +40,8 @@ use tokio::sync::RwLock;
 use crate::{
 	client::{update_avatar_url, update_displayname},
 	service::{
-		globals::RoomMutexGuard,
 		pdu::{gen_event_id_canonical_json, PduBuilder},
+		rooms::state::RoomMutexGuard,
 		sending::convert_to_outgoing_federation_event,
 		server_is_ours, user_is_local,
 	},
@@ -366,11 +366,7 @@ pub(crate) async fn invite_user_route(
 pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
@@ -417,11 +413,7 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	let event = services()
 		.rooms
@@ -481,11 +473,7 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
@@ -1399,7 +1387,7 @@ pub(crate) async fn invite_helper(
 
 	if !user_is_local(user_id) {
 		let (pdu, pdu_json, invite_room_state) = {
-			let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+			let state_lock = services().rooms.state.mutex.lock(room_id).await;
 			let content = to_raw_value(&RoomMemberEventContent {
 				avatar_url: services().users.avatar_url(user_id)?,
 				displayname: None,
@@ -1511,7 +1499,7 @@ pub(crate) async fn invite_helper(
 		));
 	}
 
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 	services()
 		.rooms
@@ -1605,7 +1593,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			true,
 		)?;
 	} else {
-		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+		let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 		let member_event =
 			services()

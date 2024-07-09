@@ -6,7 +6,11 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, info, utils, validated, warn, Error, Result};
+use conduit::{
+	debug, error, info, utils,
+	utils::{MutexMap, MutexMapGuard},
+	validated, warn, Error, Result,
+};
 use data::Data;
 use itertools::Itertools;
 use ruma::{
@@ -26,8 +30,8 @@ use ruma::{
 	push::{Action, Ruleset, Tweak},
 	serde::Base64,
 	state_res::{self, Event, RoomVersion},
-	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedServerName, RoomId,
-	RoomVersionId, ServerName, UserId,
+	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
+	RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
@@ -36,7 +40,6 @@ use tokio::sync::RwLock;
 use crate::{
 	admin,
 	appservice::NamespaceRegex,
-	globals::RoomMutexGuard,
 	pdu::{EventHash, PduBuilder},
 	rooms::{event_handler::parse_incoming_pdu, state_compressor::CompressedStateEvent},
 	server_is_ours, services, PduCount, PduEvent,
@@ -66,12 +69,17 @@ struct ExtractBody {
 
 pub struct Service {
 	db: Data,
+	pub mutex_insert: RoomMutexMap,
 }
+
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
 			db: Data::new(args.db),
+			mutex_insert: RoomMutexMap::new(),
 		}))
 	}
 
@@ -269,11 +277,7 @@ impl Service {
 			.state
 			.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
 
-		let insert_lock = services()
-			.globals
-			.roomid_mutex_insert
-			.lock(&pdu.room_id)
-			.await;
+		let insert_lock = self.mutex_insert.lock(&pdu.room_id).await;
 
 		let count1 = services().globals.next_count()?;
 		// Mark as read first so the sending client doesn't get a notification even if
@@ -1154,8 +1158,9 @@ impl Service {
 
 		// Lock so we cannot backfill the same pdu twice at the same time
 		let mutex_lock = services()
-			.globals
-			.roomid_mutex_federation
+			.rooms
+			.event_handler
+			.mutex_federation
 			.lock(&room_id)
 			.await;
 
@@ -1187,7 +1192,7 @@ impl Service {
 			.get_shortroomid(&room_id)?
 			.expect("room exists");
 
-		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
+		let insert_lock = self.mutex_insert.lock(&room_id).await;
 
 		let max = u64::MAX;
 		let count = services().globals.next_count()?;

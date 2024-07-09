@@ -5,7 +5,10 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{utils::calculate_hash, warn, Error, Result};
+use conduit::{
+	utils::{calculate_hash, MutexMap, MutexMapGuard},
+	warn, Error, Result,
+};
 use data::Data;
 use ruma::{
 	api::client::error::ErrorKind,
@@ -15,20 +18,25 @@ use ruma::{
 	},
 	serde::Raw,
 	state_res::{self, StateMap},
-	EventId, OwnedEventId, RoomId, RoomVersionId, UserId,
+	EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
 };
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{globals::RoomMutexGuard, services, PduEvent};
+use crate::{services, PduEvent};
 
 pub struct Service {
 	db: Data,
+	pub mutex: RoomMutexMap,
 }
+
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
 			db: Data::new(args.db),
+			mutex: RoomMutexMap::new(),
 		}))
 	}
 

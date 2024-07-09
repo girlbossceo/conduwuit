@@ -26,7 +26,7 @@ use tokio::{
 	task::JoinHandle,
 };
 
-use crate::{globals::RoomMutexGuard, pdu::PduBuilder, services, user_is_local, PduEvent};
+use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, user_is_local, PduEvent};
 
 const COMMAND_QUEUE_LIMIT: usize = 512;
 
@@ -248,7 +248,7 @@ async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, use
 		"sender is not admin"
 	);
 
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 	let response_pdu = PduBuilder {
 		event_type: TimelineEventType::RoomMessage,
 		content: to_raw_value(&content).expect("event is valid, we just created it"),

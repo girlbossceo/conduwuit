@@ -4,7 +4,7 @@ use conduit::{utils, Error, Result};
 use database::{Database, Map};
 use ruma::{EventId, OwnedEventId, RoomId};
 
-use crate::globals::RoomMutexGuard;
+use super::RoomMutexGuard;
 
 pub(super) struct Data {
 	shorteventid_shortstatehash: Arc<Map>,

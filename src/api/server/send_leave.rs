@@ -152,8 +152,9 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 		.await?;
 
 	let mutex_lock = services()
-		.globals
-		.roomid_mutex_federation
+		.rooms
+		.event_handler
+		.mutex_federation
 		.lock(room_id)
 		.await;
 	let pdu_id: Vec<u8> = services()

@@ -16,8 +16,9 @@ pub(super) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Resul
 
 pub(super) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let map = services()
-		.globals
-		.roomid_federationhandletime
+		.rooms
+		.event_handler
+		.federation_handletime
 		.read()
 		.expect("locked");
 	let mut msg = format!("Handling {} incoming pdus:\n", map.len());

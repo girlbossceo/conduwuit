@@ -156,8 +156,9 @@ async fn create_join_event(
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
 	let mutex_lock = services()
-		.globals
-		.roomid_mutex_federation
+		.rooms
+		.event_handler
+		.mutex_federation
 		.lock(room_id)
 		.await;
 	let pdu_id: Vec<u8> = services()

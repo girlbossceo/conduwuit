@@ -127,8 +127,9 @@ async fn handle_pdus(
 	for (event_id, value, room_id) in parsed_pdus {
 		let pdu_start_time = Instant::now();
 		let mutex_lock = services()
-			.globals
-			.roomid_mutex_federation
+			.rooms
+			.event_handler
+			.mutex_federation
 			.lock(&room_id)
 			.await;
 		resolved_map.insert(

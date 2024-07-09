@@ -12,19 +12,15 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{
-	error, trace,
-	utils::{MutexMap, MutexMapGuard},
-	Config, Result,
-};
+use conduit::{error, trace, Config, Result};
 use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
 	api::{client::discovery::discover_support::ContactRole, federation::discovery::VerifyKey},
 	serde::Base64,
-	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
-	RoomAliasId, RoomVersionId, ServerName, UserId,
+	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomAliasId,
+	RoomVersionId, ServerName, UserId,
 };
 use tokio::{sync::Mutex, task::JoinHandle};
 use url::Url;
@@ -45,18 +41,12 @@ pub struct Service {
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
-	pub roomid_mutex_insert: RoomMutexMap,
-	pub roomid_mutex_state: RoomMutexMap,
-	pub roomid_mutex_federation: RoomMutexMap,
-	pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
 	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
 }
 
-pub type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
-pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
 impl crate::Service for Service {
@@ -113,10 +103,6 @@ impl crate::Service for Service {
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			roomid_mutex_state: MutexMap::<OwnedRoomId, ()>::new(),
-			roomid_mutex_insert: MutexMap::<OwnedRoomId, ()>::new(),
-			roomid_mutex_federation: MutexMap::<OwnedRoomId, ()>::new(),
-			roomid_federationhandletime: RwLock::new(HashMap::new()),
 			updates_handle: Mutex::new(None),
 			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))

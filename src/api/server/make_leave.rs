@@ -35,11 +35,7 @@ pub(crate) async fn create_leave_event_template_route(
 		.acl_check(origin, &body.room_id)?;
 
 	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 	let content = to_raw_value(&RoomMemberEventContent {
 		avatar_url: None,
 		blurhash: None,

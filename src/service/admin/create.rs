@@ -34,7 +34,7 @@ pub async fn create_admin_room() -> Result<()> {
 
 	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
-	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 
 	// Create a user for the server
 	let server_user = &services().globals.server_user;

@@ -199,7 +199,7 @@ pub(crate) async fn sync_events_route(
 		let (room_id, invite_state_events) = result?;
 
 		// Get and drop the lock to wait for remaining operations to finish
-		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
+		let insert_lock = services().rooms.timeline.mutex_insert.lock(&room_id).await;
 		drop(insert_lock);
 
 		let invite_count = services()
@@ -317,7 +317,7 @@ async fn handle_left_room(
 	next_batch_string: &str, full_state: bool, lazy_load_enabled: bool,
 ) -> Result<()> {
 	// Get and drop the lock to wait for remaining operations to finish
-	let insert_lock = services().globals.roomid_mutex_insert.lock(room_id).await;
+	let insert_lock = services().rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
 	let left_count = services()
@@ -519,7 +519,7 @@ async fn load_joined_room(
 ) -> Result<JoinedRoom> {
 	// Get and drop the lock to wait for remaining operations to finish
 	// This will make sure the we have all events until next_batch
-	let insert_lock = services().globals.roomid_mutex_insert.lock(room_id).await;
+	let insert_lock = services().rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
 	let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10)?;
