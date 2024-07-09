@@ -632,12 +632,12 @@ pub(super) async fn resolve_true_destination(
 pub(super) fn memory_stats() -> RoomMessageEventContent {
 	let html_body = conduit::alloc::memory_stats();
 
-	if html_body.is_empty() {
+	if html_body.is_none() {
 		return RoomMessageEventContent::text_plain("malloc stats are not supported on your compiled malloc.");
 	}
 
 	RoomMessageEventContent::text_html(
 		"This command's output can only be viewed by clients that render HTML.".to_owned(),
-		html_body,
+		html_body.expect("string result"),
 	)
 }

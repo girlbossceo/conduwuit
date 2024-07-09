@@ -20,17 +20,12 @@ pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventCont
 }
 
 pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let response0 = services().memory_usage().await?;
-	let response1 = services().db.db.memory_usage()?;
-	let response2 = conduit::alloc::memory_usage();
+	let services_usage = services().memory_usage().await?;
+	let database_usage = services().db.db.memory_usage()?;
+	let allocator_usage = conduit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Services:\n{response0}\nDatabase:\n{response1}\n{}",
-		if !response2.is_empty() {
-			format!("Allocator:\n {response2}")
-		} else {
-			String::new()
-		}
+		"Services:\n{services_usage}\nDatabase:\n{database_usage}{allocator_usage}",
 	)))
 }
 
