@@ -47,6 +47,8 @@ pub enum Error {
 	Regex(#[from] regex::Error),
 	#[error("Tracing filter error: {0}")]
 	TracingFilter(#[from] tracing_subscriber::filter::ParseError),
+	#[error("Tracing reload error: {0}")]
+	TracingReload(#[from] tracing_subscriber::reload::Error),
 	#[error("Image error: {0}")]
 	Image(#[from] image::error::ImageError),
 	#[error("Request error: {0}")]
