@@ -1,10 +1,14 @@
-use std::time::Instant;
+use std::{panic::AssertUnwindSafe, time::Instant};
 
 use clap::{CommandFactory, Parser};
-use conduit::trace;
-use ruma::events::{
-	relation::InReplyTo,
-	room::message::{Relation::Reply, RoomMessageEventContent},
+use conduit::{error, trace, Error};
+use futures_util::future::FutureExt;
+use ruma::{
+	events::{
+		relation::InReplyTo,
+		room::message::{Relation::Reply, RoomMessageEventContent},
+	},
+	OwnedEventId,
 };
 
 extern crate conduit_service as service;
@@ -69,21 +73,39 @@ pub(crate) fn complete(line: &str) -> String { complete_admin_command(AdminComma
 
 #[tracing::instrument(skip_all, name = "admin")]
 async fn handle_command(command: Command) -> CommandResult {
-	let Some(mut content) = process_admin_message(command.command).await else {
-		return Ok(None);
-	};
+	AssertUnwindSafe(process_command(&command))
+		.catch_unwind()
+		.await
+		.map_err(Error::from_panic)
+		.or_else(|error| handle_panic(&error, command))
+}
 
-	content.relates_to = command.reply_id.map(|event_id| Reply {
+async fn process_command(command: &Command) -> CommandOutput {
+	process_admin_message(&command.command)
+		.await
+		.and_then(|content| reply(content, command.reply_id.clone()))
+}
+
+fn handle_panic(error: &Error, command: Command) -> CommandResult {
+	let link = "Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
+	let msg = format!("Panic occurred while processing command:\n```\n{error:#?}\n```\n{link}");
+	let content = RoomMessageEventContent::notice_markdown(msg);
+	error!("Panic while processing command: {error:?}");
+	Ok(reply(content, command.reply_id))
+}
+
+fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -> Option<RoomMessageEventContent> {
+	content.relates_to = reply_id.map(|event_id| Reply {
 		in_reply_to: InReplyTo {
 			event_id,
 		},
 	});
 
-	Ok(Some(content))
+	Some(content)
 }
 
 // Parse and process a message from the admin room
-async fn process_admin_message(msg: String) -> CommandOutput {
+async fn process_admin_message(msg: &str) -> CommandOutput {
 	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
 	let command = lines.next().expect("each string has at least one line");
 	let body = lines.collect::<Vec<_>>();
@@ -103,7 +125,7 @@ async fn process_admin_message(msg: String) -> CommandOutput {
 	match result {
 		Ok(reply) => Some(reply),
 		Err(error) => Some(RoomMessageEventContent::notice_markdown(format!(
-			"Encountered an error while handling the command:\n```\n{error}\n```"
+			"Encountered an error while handling the command:\n```\n{error:#?}\n```"
 		))),
 	}
 }

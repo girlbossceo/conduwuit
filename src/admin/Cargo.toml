@@ -30,6 +30,7 @@ clap.workspace = true
 conduit-api.workspace = true
 conduit-core.workspace = true
 conduit-service.workspace = true
+futures-util.workspace = true
 log.workspace = true
 ruma.workspace = true
 serde_json.workspace = true

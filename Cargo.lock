@@ -613,6 +613,7 @@ dependencies = [
  "conduit_api",
  "conduit_core",
  "conduit_service",
+ "futures-util",
  "log",
  "ruma",
  "serde_json",
