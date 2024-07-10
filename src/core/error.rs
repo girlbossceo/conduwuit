@@ -1,4 +1,9 @@
-use std::{convert::Infallible, fmt};
+use std::{
+	any::Any,
+	convert::Infallible,
+	fmt,
+	panic::{RefUnwindSafe, UnwindSafe},
+};
 
 use bytes::BytesMut;
 use http::StatusCode;
@@ -8,10 +13,15 @@ use ruma::{
 	OwnedServerName,
 };
 
-use crate::{debug_error, error};
+use crate::{debug::panic_str, debug_error, error};
 
 #[derive(thiserror::Error)]
 pub enum Error {
+	#[error("PANIC!")]
+	PanicAny(Box<dyn Any + Send>),
+	#[error("PANIC! {0}")]
+	Panic(&'static str, Box<dyn Any + Send + 'static>),
+
 	// std
 	#[error("{0}")]
 	Fmt(#[from] fmt::Error),
@@ -31,6 +41,8 @@ pub enum Error {
 	ParseFloatError(#[from] std::num::ParseFloatError),
 
 	// third-party
+	#[error("Join error: {0}")]
+	JoinError(#[from] tokio::task::JoinError),
 	#[error("Regex error: {0}")]
 	Regex(#[from] regex::Error),
 	#[error("Tracing filter error: {0}")]
@@ -94,6 +106,29 @@ impl Error {
 		Self::BadConfig(message.to_owned())
 	}
 
+	#[must_use]
+	pub fn from_panic(e: Box<dyn Any + Send>) -> Self { Self::Panic(panic_str(&e), e) }
+
+	pub fn into_panic(self) -> Box<dyn Any + Send + 'static> {
+		match self {
+			Self::Panic(_, e) | Self::PanicAny(e) => e,
+			Self::JoinError(e) => e.into_panic(),
+			_ => std::panic::panic_any(self),
+		}
+	}
+
+	/// Sanitizes public-facing errors that can leak sensitive information.
+	pub fn sanitized_string(&self) -> String {
+		match self {
+			Self::Database(..) => String::from("Database error occurred."),
+			Self::Io(..) => String::from("I/O error occurred."),
+			_ => self.to_string(),
+		}
+	}
+
+	/// Get the panic message string.
+	pub fn panic_str(self) -> Option<&'static str> { self.is_panic().then_some(panic_str(&self.into_panic())) }
+
 	/// Returns the Matrix error code / error kind
 	#[inline]
 	pub fn error_code(&self) -> ruma::api::client::error::ErrorKind {
@@ -106,14 +141,26 @@ impl Error {
 		}
 	}
 
-	/// Sanitizes public-facing errors that can leak sensitive information.
-	pub fn sanitized_error(&self) -> String {
-		match self {
-			Self::Database(..) => String::from("Database error occurred."),
-			Self::Io(..) => String::from("I/O error occurred."),
-			_ => self.to_string(),
+	/// Check if the Error is trafficking a panic object.
+	#[inline]
+	pub fn is_panic(&self) -> bool {
+		match &self {
+			Self::Panic(..) | Self::PanicAny(..) => true,
+			Self::JoinError(e) => e.is_panic(),
+			_ => false,
 		}
 	}
+}
+
+impl UnwindSafe for Error {}
+impl RefUnwindSafe for Error {}
+
+impl From<Infallible> for Error {
+	fn from(i: Infallible) -> Self { match i {} }
+}
+
+impl fmt::Debug for Error {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self}") }
 }
 
 #[inline]
@@ -184,14 +231,6 @@ pub fn inspect_log<E: fmt::Display>(error: &E) {
 #[inline]
 pub fn inspect_debug_log<E: fmt::Debug>(error: &E) {
 	debug_error!("{error:?}");
-}
-
-impl fmt::Debug for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self}") }
-}
-
-impl From<Infallible> for Error {
-	fn from(i: Infallible) -> Self { match i {} }
 }
 
 impl axum::response::IntoResponse for Error {

@@ -1,6 +1,4 @@
-#![allow(dead_code)] // this is a developer's toolbox
-
-use std::panic;
+use std::{any::Any, panic};
 
 /// Export all of the ancillary tools from here as well.
 pub use crate::utils::debug::*;
@@ -79,3 +77,6 @@ pub fn trap() {
 		std::arch::asm!("int3");
 	}
 }
+
+#[must_use]
+pub fn panic_str(p: &Box<dyn Any + Send>) -> &'static str { p.downcast_ref::<&str>().copied().unwrap_or_default() }

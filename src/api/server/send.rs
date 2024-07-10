@@ -84,7 +84,7 @@ pub(crate) async fn send_transaction_message_route(
 	Ok(send_transaction_message::v1::Response {
 		pdus: resolved_map
 			.into_iter()
-			.map(|(e, r)| (e, r.map_err(|e| e.sanitized_error())))
+			.map(|(e, r)| (e, r.map_err(|e| e.sanitized_string())))
 			.collect(),
 	})
 }
