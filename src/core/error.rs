@@ -117,25 +117,73 @@ impl Error {
 }
 
 #[inline]
-pub fn log(e: &Error) {
-	error!(?e);
+pub fn else_log<T, E>(error: E) -> Result<T, Infallible>
+where
+	T: Default,
+	Error: From<E>,
+{
+	Ok(default_log(error))
 }
 
 #[inline]
-pub fn debug_log(e: &Error) {
-	debug_error!(?e);
+pub fn else_debug_log<T, E>(error: E) -> Result<T, Infallible>
+where
+	T: Default,
+	Error: From<E>,
+{
+	Ok(default_debug_log(error))
 }
 
 #[inline]
-pub fn into_log(e: Error) {
-	error!(?e);
-	drop(e);
+pub fn default_log<T, E>(error: E) -> T
+where
+	T: Default,
+	Error: From<E>,
+{
+	let error = Error::from(error);
+	inspect_log(&error);
+	T::default()
 }
 
 #[inline]
-pub fn into_debug_log(e: Error) {
-	debug_error!(?e);
-	drop(e);
+pub fn default_debug_log<T, E>(error: E) -> T
+where
+	T: Default,
+	Error: From<E>,
+{
+	let error = Error::from(error);
+	inspect_debug_log(&error);
+	T::default()
+}
+
+#[inline]
+pub fn map_log<E>(error: E) -> Error
+where
+	Error: From<E>,
+{
+	let error = Error::from(error);
+	inspect_log(&error);
+	error
+}
+
+#[inline]
+pub fn map_debug_log<E>(error: E) -> Error
+where
+	Error: From<E>,
+{
+	let error = Error::from(error);
+	inspect_debug_log(&error);
+	error
+}
+
+#[inline]
+pub fn inspect_log<E: fmt::Display>(error: &E) {
+	error!("{error}");
+}
+
+#[inline]
+pub fn inspect_debug_log<E: fmt::Debug>(error: &E) {
+	debug_error!("{error:?}");
 }
 
 impl fmt::Debug for Error {
@@ -151,7 +199,7 @@ impl axum::response::IntoResponse for Error {
 		let response: UiaaResponse = self.into();
 		response
 			.try_into_http_response::<BytesMut>()
-			.inspect_err(|e| error!(?e))
+			.inspect_err(|e| error!("error response error: {e}"))
 			.map_or_else(
 				|_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
 				|r| r.map(BytesMut::freeze).map(Full::new).into_response(),
