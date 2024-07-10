@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{error, warn};
+use conduit::{debug_info, error};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -126,7 +126,7 @@ pub(crate) async fn get_state_events_for_key_route(
 		.state_accessor
 		.room_state_get(&body.room_id, &body.event_type, &body.state_key)?
 		.ok_or_else(|| {
-			warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
+			debug_info!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
 			Error::BadRequest(ErrorKind::NotFound, "State event not found.")
 		})?;
 	if body
