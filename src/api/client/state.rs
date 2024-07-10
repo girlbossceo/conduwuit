@@ -36,18 +36,16 @@ pub(crate) async fn send_state_event_for_key_route(
 ) -> Result<send_state_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event_id = send_state_event_for_key_helper(
-		sender_user,
-		&body.room_id,
-		&body.event_type,
-		&body.body.body,
-		body.state_key.clone(),
-	)
-	.await?;
-
-	let event_id = (*event_id).to_owned();
 	Ok(send_state_event::v3::Response {
-		event_id,
+		event_id: send_state_event_for_key_helper(
+			sender_user,
+			&body.room_id,
+			&body.event_type,
+			&body.body.body,
+			body.state_key.clone(),
+		)
+		.await?
+		.into(),
 	})
 }
 
