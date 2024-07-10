@@ -28,6 +28,7 @@ fn options(config: &Config) -> ClientOptions {
 		debug: cfg!(debug_assertions),
 		release: sentry::release_name!(),
 		user_agent: conduit::version::user_agent().into(),
+		attach_stacktrace: config.sentry_attach_stacktrace,
 		before_send: Some(Arc::new(before_send)),
 		before_breadcrumb: Some(Arc::new(before_breadcrumb)),
 		..Default::default()

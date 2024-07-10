@@ -356,6 +356,8 @@ pub struct Config {
 	pub sentry_send_server_name: bool,
 	#[serde(default = "default_sentry_traces_sample_rate")]
 	pub sentry_traces_sample_rate: f32,
+	#[serde(default)]
+	pub sentry_attach_stacktrace: bool,
 
 	#[serde(default)]
 	pub tokio_console: bool,
@@ -819,6 +821,7 @@ impl fmt::Display for Config {
 			("Sentry.io send server_name in logs", &self.sentry_send_server_name.to_string()),
 			#[cfg(feature = "sentry_telemetry")]
 			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
+			("Sentry.io attach stacktrace", &self.sentry_attach_stacktrace.to_string()),
 			(
 				"Well-known server name",
 				self.well_known

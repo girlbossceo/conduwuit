@@ -57,6 +57,9 @@
 # Defaults to 0.15
 #sentry_traces_sample_rate = 0.15
 
+# Whether to attach a stacktrace to Sentry reports.
+#sentry_attach_stacktrace = false
+
 
 ### Database configuration
 
