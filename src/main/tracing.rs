@@ -32,8 +32,10 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
+		let sentry_filter = EnvFilter::try_new(&config.sentry_filter)
+			.map_err(|e| Error::BadConfig(format!("in the 'sentry_filter' setting: {e}.")))?;
 		let sentry_layer = sentry_tracing::layer();
-		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(filter_layer.clone());
+		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(sentry_filter);
 		reload_handles.add("sentry", Box::new(sentry_reload_handle));
 		subscriber.with(sentry_layer.with_filter(sentry_reload_filter))
 	};

@@ -362,6 +362,8 @@ pub struct Config {
 	pub sentry_send_panic: bool,
 	#[serde(default = "true_fn")]
 	pub sentry_send_error: bool,
+	#[serde(default = "default_sentry_filter")]
+	pub sentry_filter: String,
 
 	#[serde(default)]
 	pub tokio_console: bool,
@@ -831,6 +833,7 @@ impl fmt::Display for Config {
 		line("Sentry.io attach stacktrace", &self.sentry_attach_stacktrace.to_string());
 		line("Sentry.io send panics", &self.sentry_send_panic.to_string());
 		line("Sentry.io send errors", &self.sentry_send_error.to_string());
+		line("Sentry.io tracing filter", &self.sentry_filter);
 		line(
 			"Well-known server name",
 			self.well_known
@@ -1074,5 +1077,7 @@ fn default_sentry_endpoint() -> Option<Url> {
 }
 
 fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
+
+fn default_sentry_filter() -> String { "info".to_owned() }
 
 fn default_startup_netburst_keep() -> i64 { 50 }
