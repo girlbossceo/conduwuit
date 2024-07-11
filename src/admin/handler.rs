@@ -24,7 +24,6 @@ use crate::{
 };
 pub(crate) const PAGE_SIZE: usize = 100;
 
-#[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
 #[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
 pub(crate) enum AdminCommand {
