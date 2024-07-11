@@ -60,6 +60,13 @@
 # Whether to attach a stacktrace to Sentry reports.
 #sentry_attach_stacktrace = false
 
+# Send panics to sentry. This is true by default, but sentry has to be enabled.
+#sentry_send_panic = true
+
+# Send errors to sentry. This is true by default, but sentry has to be enabled. This option is
+# only effective in release-mode; forced to false in debug-mode.
+#sentry_send_error = true
+
 
 ### Database configuration
 

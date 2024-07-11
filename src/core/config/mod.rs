@@ -358,6 +358,10 @@ pub struct Config {
 	pub sentry_traces_sample_rate: f32,
 	#[serde(default)]
 	pub sentry_attach_stacktrace: bool,
+	#[serde(default = "true_fn")]
+	pub sentry_send_panic: bool,
+	#[serde(default = "true_fn")]
+	pub sentry_send_error: bool,
 
 	#[serde(default)]
 	pub tokio_console: bool,
@@ -822,6 +826,8 @@ impl fmt::Display for Config {
 			#[cfg(feature = "sentry_telemetry")]
 			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
 			("Sentry.io attach stacktrace", &self.sentry_attach_stacktrace.to_string()),
+			("Sentry.io send panics", &self.sentry_send_panic.to_string()),
+			("Sentry.io send errors", &self.sentry_send_error.to_string()),
 			(
 				"Well-known server name",
 				self.well_known
