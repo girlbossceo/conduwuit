@@ -22,10 +22,14 @@ use crate::{error, Result};
 ///
 /// [1]: <https://github.com/tokio-rs/tracing/pull/1035/commits/8a87ea52425098d3ef8f56d92358c2f6c144a28f>
 pub trait ReloadHandle<L> {
+	fn current(&self) -> Option<L>;
+
 	fn reload(&self, new_value: L) -> Result<(), reload::Error>;
 }
 
-impl<L, S> ReloadHandle<L> for reload::Handle<L, S> {
+impl<L: Clone, S> ReloadHandle<L> for reload::Handle<L, S> {
+	fn current(&self) -> Option<L> { Self::clone_current(self) }
+
 	fn reload(&self, new_value: L) -> Result<(), reload::Error> { Self::reload(self, new_value) }
 }
 
@@ -56,6 +60,15 @@ impl LogLevelReloadHandles {
 			});
 
 		Ok(())
+	}
+
+	#[must_use]
+	pub fn current(&self, name: &str) -> Option<EnvFilter> {
+		self.handles
+			.lock()
+			.expect("locked")
+			.get(name)
+			.map(|handle| handle.current())?
 	}
 }
 

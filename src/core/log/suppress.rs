@@ -10,16 +10,21 @@ pub struct Suppress {
 
 impl Suppress {
 	pub fn new(server: &Arc<Server>) -> Self {
+		let handle = "console";
 		let config = &server.config.log;
-		Self::from_filters(server, EnvFilter::try_new(config).unwrap_or_default(), &EnvFilter::default())
-	}
+		let suppress = EnvFilter::default();
+		let restore = server
+			.log
+			.reload
+			.current(handle)
+			.unwrap_or_else(|| EnvFilter::try_new(config).unwrap_or_default());
 
-	fn from_filters(server: &Arc<Server>, restore: EnvFilter, suppress: &EnvFilter) -> Self {
 		server
 			.log
 			.reload
-			.reload(suppress, Some(&["console"]))
+			.reload(&suppress, Some(&[handle]))
 			.expect("log filter reloaded");
+
 		Self {
 			server: server.clone(),
 			restore,
