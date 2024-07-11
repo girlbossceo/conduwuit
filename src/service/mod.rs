@@ -42,10 +42,12 @@ pub async fn init(server: &Arc<Server>) -> Result<()> {
 	let s = Box::new(Services::build(server.clone(), d)?);
 	_ = SERVICES.write().expect("write locked").insert(Box::leak(s));
 
-	Ok(())
+	services().start().await
 }
 
-pub fn fini() {
+pub async fn fini() {
+	services().stop().await;
+
 	// Deactivate services(). Any further use will panic the caller.
 	let s = SERVICES
 		.write()

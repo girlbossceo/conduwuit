@@ -15,19 +15,12 @@ pub(crate) trait Service: Send + Sync {
 	where
 		Self: Sized;
 
-	/// Start the service. Implement the spawning of any service workers. This
-	/// is called after all other services have been constructed. Failure will
-	/// shutdown the server with an error.
-	async fn start(self: Arc<Self>) -> Result<()> { Ok(()) }
+	/// Implement the service's worker loop. The service manager spawns a
+	/// task and calls this function after all services have been built.
+	async fn worker(self: Arc<Self>) -> Result<()> { Ok(()) }
 
-	/// Stop the service. Implement the joining of any service workers and
-	/// cleanup of any other state. This function is asynchronous to allow that
-	/// gracefully, but errors cannot propagate.
-	async fn stop(&self) {}
-
-	/// Interrupt the service. This may be sent prior to `stop()` as a
-	/// notification to improve the shutdown sequence. Implementations must be
-	/// robust to this being called multiple times.
+	/// Interrupt the service. This is sent to initiate a graceful shutdown.
+	/// The service worker should return from its work loop.
 	fn interrupt(&self) {}
 
 	/// Clear any caches or similar runtime state.

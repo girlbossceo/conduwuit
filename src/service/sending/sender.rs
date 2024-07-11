@@ -6,6 +6,7 @@ use std::{
 	time::Instant,
 };
 
+use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, error, utils::math::continue_exponential_backoff_secs, warn};
 use federation::transactions::send_transaction_message;
@@ -23,8 +24,9 @@ use ruma::{
 	ServerName, UInt,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use tokio::sync::Mutex;
 
-use super::{appservice, send, Destination, Msg, SendingEvent, Service};
+use super::{appservice, data::Data, send, Destination, Msg, SendingEvent, Service};
 use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, Result};
 
 #[derive(Debug)]
@@ -43,21 +45,22 @@ type CurTransactionStatus = HashMap<Destination, TransactionStatus>;
 const DEQUEUE_LIMIT: usize = 48;
 const SELECT_EDU_LIMIT: usize = 16;
 
-impl Service {
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to start sending handler");
-		});
-
-		_ = self.handler_join.lock().await.insert(handle);
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let (sender, receiver) = loole::unbounded();
+		Ok(Arc::new(Self {
+			db: Data::new(args.db.clone()),
+			sender,
+			receiver: Mutex::new(receiver),
+			startup_netburst: config.startup_netburst,
+			startup_netburst_keep: config.startup_netburst_keep,
+		}))
 	}
 
 	#[tracing::instrument(skip_all, name = "sender")]
-	async fn handler(&self) -> Result<()> {
+	async fn worker(self: Arc<Self>) -> Result<()> {
 		let receiver = self.receiver.lock().await;
 		let mut futures: SendingFutures<'_> = FuturesUnordered::new();
 		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
@@ -77,6 +80,16 @@ impl Service {
 		}
 	}
 
+	fn interrupt(&self) {
+		if !self.sender.is_closed() {
+			self.sender.close();
+		}
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	fn handle_response(
 		&self, response: SendingResult, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {

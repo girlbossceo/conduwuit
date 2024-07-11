@@ -4,29 +4,26 @@ mod resolve;
 mod send;
 mod sender;
 
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
-use async_trait::async_trait;
 use conduit::{Error, Result};
-use data::Data;
 pub use resolve::{resolve_actual_dest, CachedDest, CachedOverride, FedDest};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 pub use sender::convert_to_outgoing_federation_event;
-use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{error, warn};
+use tokio::sync::Mutex;
+use tracing::warn;
 
 use crate::{server_is_ours, services};
 
 pub struct Service {
-	pub db: Data,
+	pub db: data::Data,
 
 	/// The state for a given state hash.
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
-	handler_join: Mutex<Option<JoinHandle<()>>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
 }
@@ -51,45 +48,6 @@ pub enum SendingEvent {
 	Pdu(Vec<u8>), // pduid
 	Edu(Vec<u8>), // pdu json
 	Flush,        // none
-}
-
-#[async_trait]
-impl crate::Service for Service {
-	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let config = &args.server.config;
-		let (sender, receiver) = loole::unbounded();
-		Ok(Arc::new(Self {
-			db: Data::new(args.db.clone()),
-			sender,
-			receiver: Mutex::new(receiver),
-			handler_join: Mutex::new(None),
-			startup_netburst: config.startup_netburst,
-			startup_netburst_keep: config.startup_netburst_keep,
-		}))
-	}
-
-	async fn start(self: Arc<Self>) -> Result<()> {
-		self.start_handler().await;
-
-		Ok(())
-	}
-
-	async fn stop(&self) {
-		self.interrupt();
-		if let Some(handler_join) = self.handler_join.lock().await.take() {
-			if let Err(e) = handler_join.await {
-				error!("Failed to shutdown: {e:?}");
-			}
-		}
-	}
-
-	fn interrupt(&self) {
-		if !self.sender.is_closed() {
-			self.sender.close();
-		}
-	}
-
-	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
 impl Service {

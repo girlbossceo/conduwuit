@@ -11,7 +11,6 @@ extern crate conduit_service as service;
 use std::sync::atomic::Ordering;
 
 use conduit::{debug_info, trace, Error, Result, Server};
-use service::services;
 
 use crate::{layers, serve};
 
@@ -50,7 +49,6 @@ pub(crate) async fn start(server: Arc<Server>) -> Result<(), Error> {
 	debug!("Starting...");
 
 	service::init(&server).await?;
-	services().start().await?;
 
 	#[cfg(feature = "systemd")]
 	sd_notify::notify(true, &[sd_notify::NotifyState::Ready]).expect("failed to notify systemd of ready state");
@@ -66,9 +64,7 @@ pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
 
 	// Wait for all completions before dropping or we'll lose them to the module
 	// unload and explode.
-	services().stop().await;
-	// Deactivate services(). Any further use will panic the caller.
-	service::fini();
+	service::fini().await;
 
 	debug!("Cleaning up...");
 

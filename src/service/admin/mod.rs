@@ -21,17 +21,13 @@ use ruma::{
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::{
-	sync::{Mutex, RwLock},
-	task::JoinHandle,
-};
+use tokio::sync::{Mutex, RwLock};
 
 use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, user_is_local, PduEvent};
 
 pub struct Service {
 	sender: Sender<Command>,
 	receiver: Mutex<Receiver<Command>>,
-	handler_join: Mutex<Option<JoinHandle<()>>>,
 	pub handle: RwLock<Option<Handler>>,
 	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
@@ -59,7 +55,6 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			sender,
 			receiver: Mutex::new(receiver),
-			handler_join: Mutex::new(None),
 			handle: RwLock::new(None),
 			complete: StdRwLock::new(None),
 			#[cfg(feature = "console")]
@@ -67,16 +62,25 @@ impl crate::Service for Service {
 		}))
 	}
 
-	async fn start(self: Arc<Self>) -> Result<()> {
-		let self_ = Arc::clone(&self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to initialize admin room handler");
-		});
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		let receiver = self.receiver.lock().await;
+		let mut signals = services().server.signal.subscribe();
+		loop {
+			tokio::select! {
+				command = receiver.recv_async() => match command {
+					Ok(command) => self.handle_command(command).await,
+					Err(_) => break,
+				},
+				sig = signals.recv() => match sig {
+					Ok(sig) => self.handle_signal(sig).await,
+					Err(_) => continue,
+				},
+			}
+		}
 
-		_ = self.handler_join.lock().await.insert(handle);
+		//TODO: not unwind safe
+		#[cfg(feature = "console")]
+		self.console.close().await;
 
 		Ok(())
 	}
@@ -87,19 +91,6 @@ impl crate::Service for Service {
 
 		if !self.sender.is_closed() {
 			self.sender.close();
-		}
-	}
-
-	async fn stop(&self) {
-		self.interrupt();
-
-		#[cfg(feature = "console")]
-		self.console.close().await;
-
-		if let Some(handler_join) = self.handler_join.lock().await.take() {
-			if let Err(e) = handler_join.await {
-				error!("Failed to shutdown: {e:?}");
-			}
 		}
 	}
 
@@ -147,23 +138,6 @@ impl Service {
 	async fn send(&self, message: Command) {
 		debug_assert!(!self.sender.is_closed(), "channel closed");
 		self.sender.send_async(message).await.expect("message sent");
-	}
-
-	async fn handler(self: &Arc<Self>) -> Result<()> {
-		let receiver = self.receiver.lock().await;
-		let mut signals = services().server.signal.subscribe();
-		loop {
-			tokio::select! {
-				command = receiver.recv_async() => match command {
-					Ok(command) => self.handle_command(command).await,
-					Err(_) => return Ok(()),
-				},
-				sig = signals.recv() => match sig {
-					Ok(sig) => self.handle_signal(sig).await,
-					Err(_) => continue,
-				},
-			}
-		}
 	}
 
 	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {

@@ -12,7 +12,7 @@ use ruma::{
 	OwnedUserId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
-use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
+use tokio::{sync::Mutex, time::sleep};
 
 use crate::{services, user_is_local};
 
@@ -77,7 +77,6 @@ pub struct Service {
 	pub db: Data,
 	pub timer_sender: loole::Sender<(OwnedUserId, Duration)>,
 	timer_receiver: Mutex<loole::Receiver<(OwnedUserId, Duration)>>,
-	handler_join: Mutex<Option<JoinHandle<()>>>,
 	timeout_remote_users: bool,
 	idle_timeout: u64,
 	offline_timeout: u64,
@@ -94,34 +93,26 @@ impl crate::Service for Service {
 			db: Data::new(args.db),
 			timer_sender,
 			timer_receiver: Mutex::new(timer_receiver),
-			handler_join: Mutex::new(None),
 			timeout_remote_users: config.presence_timeout_remote_users,
 			idle_timeout: checked!(idle_timeout_s * 1_000)?,
 			offline_timeout: checked!(offline_timeout_s * 1_000)?,
 		}))
 	}
 
-	async fn start(self: Arc<Self>) -> Result<()> {
-		//TODO: if self.globals.config.allow_local_presence { return; }
-
-		let self_ = Arc::clone(&self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to start presence handler");
-		});
-
-		_ = self.handler_join.lock().await.insert(handle);
-
-		Ok(())
-	}
-
-	async fn stop(&self) {
-		self.interrupt();
-		if let Some(handler_join) = self.handler_join.lock().await.take() {
-			if let Err(e) = handler_join.await {
-				error!("Failed to shutdown: {e:?}");
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		let mut presence_timers = FuturesUnordered::new();
+		let receiver = self.timer_receiver.lock().await;
+		loop {
+			debug_assert!(!receiver.is_closed(), "channel error");
+			tokio::select! {
+				Some(user_id) = presence_timers.next() => self.process_presence_timer(&user_id)?,
+				event = receiver.recv_async() => match event {
+					Err(_e) => return Ok(()),
+					Ok((user_id, timeout)) => {
+						debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
+						presence_timers.push(presence_timer(user_id, timeout));
+					},
+				},
 			}
 		}
 	}
@@ -217,24 +208,6 @@ impl Service {
 	#[inline]
 	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + '_> {
 		self.db.presence_since(since)
-	}
-
-	async fn handler(&self) -> Result<()> {
-		let mut presence_timers = FuturesUnordered::new();
-		let receiver = self.timer_receiver.lock().await;
-		loop {
-			debug_assert!(!receiver.is_closed(), "channel error");
-			tokio::select! {
-				Some(user_id) = presence_timers.next() => self.process_presence_timer(&user_id)?,
-				event = receiver.recv_async() => match event {
-					Err(_e) => return Ok(()),
-					Ok((user_id, timeout)) => {
-						debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
-						presence_timers.push(presence_timer(user_id, timeout));
-					},
-				},
-			}
-		}
 	}
 
 	fn process_presence_timer(&self, user_id: &OwnedUserId) -> Result<()> {
