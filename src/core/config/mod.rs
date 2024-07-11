@@ -183,6 +183,9 @@ pub struct Config {
 	#[serde(default)]
 	#[cfg(feature = "perf_measurements")]
 	pub allow_jaeger: bool,
+	#[serde(default = "default_jaeger_filter")]
+	#[cfg(feature = "perf_measurements")]
+	pub jaeger_filter: String,
 	#[serde(default)]
 	#[cfg(feature = "perf_measurements")]
 	pub tracing_flame: bool,
@@ -978,6 +981,14 @@ fn default_max_fetch_prev_events() -> u16 { 100_u16 }
 
 #[cfg(feature = "perf_measurements")]
 fn default_tracing_flame_filter() -> String { "trace,h2=off".to_owned() }
+
+#[cfg(feature = "perf_measurements")]
+fn default_jaeger_filter() -> String {
+	cfg!(debug_assertions)
+		.then_some("trace,h2=off")
+		.unwrap_or("info")
+		.to_owned()
+}
 
 #[cfg(feature = "perf_measurements")]
 fn default_tracing_flame_output_path() -> String { "./tracing.folded".to_owned() }

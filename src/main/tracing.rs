@@ -55,6 +55,8 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 			(None, None)
 		};
 
+		let jaeger_filter = EnvFilter::try_new(&config.jaeger_filter)
+			.map_err(|e| Error::BadConfig(format!("in the 'jaeger_filter' setting: {e}.")))?;
 		let jaeger_layer = config.allow_jaeger.then(|| {
 			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
 			let tracer = opentelemetry_jaeger::new_agent_pipeline()
@@ -63,10 +65,11 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 				.install_batch(opentelemetry_sdk::runtime::Tokio)
 				.expect("jaeger agent pipeline");
 			let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-			let (jaeger_reload_filter, jaeger_reload_handle) = reload::Layer::new(console_filter.clone());
+			let (jaeger_reload_filter, jaeger_reload_handle) = reload::Layer::new(jaeger_filter.clone());
 			reload_handles.add("jaeger", Box::new(jaeger_reload_handle));
 			Some(telemetry.with_filter(jaeger_reload_filter))
 		});
+
 		let subscriber = subscriber.with(flame_layer).with(jaeger_layer);
 		(subscriber, flame_guard)
 	};
