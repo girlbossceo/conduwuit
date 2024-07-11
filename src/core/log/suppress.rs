@@ -18,7 +18,7 @@ impl Suppress {
 		server
 			.log
 			.reload
-			.reload(suppress)
+			.reload(suppress, Some(&["console"]))
 			.expect("log filter reloaded");
 		Self {
 			server: server.clone(),
@@ -32,7 +32,7 @@ impl Drop for Suppress {
 		self.server
 			.log
 			.reload
-			.reload(&self.restore)
+			.reload(&self.restore, Some(&["console"]))
 			.expect("log filter reloaded");
 	}
 }

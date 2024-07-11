@@ -27,7 +27,7 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 	};
 
 	let (fmt_reload_filter, fmt_reload_handle) = reload::Layer::new(filter_layer.clone());
-	reload_handles.add("format", Box::new(fmt_reload_handle));
+	reload_handles.add("console", Box::new(fmt_reload_handle));
 
 	let subscriber = Registry::default().with(fmt_layer.with_filter(fmt_reload_filter));
 

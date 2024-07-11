@@ -314,6 +314,8 @@ pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMe
 pub(super) async fn change_log_level(
 	_body: Vec<&str>, filter: Option<String>, reset: bool,
 ) -> Result<RoomMessageEventContent> {
+	let handles = &["console"];
+
 	if reset {
 		let old_filter_layer = match EnvFilter::try_new(&services().globals.config.log) {
 			Ok(s) => s,
@@ -324,7 +326,12 @@ pub(super) async fn change_log_level(
 			},
 		};
 
-		match services().server.log.reload.reload(&old_filter_layer) {
+		match services()
+			.server
+			.log
+			.reload
+			.reload(&old_filter_layer, Some(handles))
+		{
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Successfully changed log level back to config value {}",
@@ -349,7 +356,12 @@ pub(super) async fn change_log_level(
 			},
 		};
 
-		match services().server.log.reload.reload(&new_filter_layer) {
+		match services()
+			.server
+			.log
+			.reload
+			.reload(&new_filter_layer, Some(handles))
+		{
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain("Successfully changed log level"));
 			},
