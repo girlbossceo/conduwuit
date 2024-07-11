@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{error, Error, Result};
+use conduit::{debug, error, Error, Result};
 pub use create::create_admin_room;
 pub use grant::make_user_admin;
 use loole::{Receiver, Sender};
@@ -28,14 +28,6 @@ use tokio::{
 
 use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, user_is_local, PduEvent};
 
-const COMMAND_QUEUE_LIMIT: usize = 512;
-
-pub type CommandOutput = Option<RoomMessageEventContent>;
-pub type CommandResult = Result<CommandOutput, Error>;
-pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
-pub type Handler = fn(Command) -> HandlerResult;
-pub type Completer = fn(&str) -> String;
-
 pub struct Service {
 	sender: Sender<Command>,
 	receiver: Mutex<Receiver<Command>>,
@@ -51,6 +43,14 @@ pub struct Command {
 	pub command: String,
 	pub reply_id: Option<OwnedEventId>,
 }
+
+pub type Completer = fn(&str) -> String;
+pub type Handler = fn(Command) -> HandlerResult;
+pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
+pub type CommandResult = Result<CommandOutput, Error>;
+pub type CommandOutput = Option<RoomMessageEventContent>;
+
+const COMMAND_QUEUE_LIMIT: usize = 512;
 
 #[async_trait]
 impl crate::Service for Service {
@@ -172,8 +172,10 @@ impl Service {
 	}
 
 	async fn handle_command(&self, command: Command) {
-		if let Ok(Some(output)) = self.process_command(command).await {
-			handle_response(output).await;
+		match self.process_command(command).await {
+			Ok(Some(output)) => handle_response(output).await,
+			Ok(None) => debug!("Command successful with no response"),
+			Err(e) => error!("Command processing error: {e}"),
 		}
 	}
 
@@ -263,14 +265,14 @@ async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, use
 		.build_and_append_pdu(response_pdu, user_id, room_id, &state_lock)
 		.await
 	{
-		if let Err(e) = handle_response_error(&e, room_id, user_id, &state_lock).await {
+		if let Err(e) = handle_response_error(e, room_id, user_id, &state_lock).await {
 			error!("{e}");
 		}
 	}
 }
 
 async fn handle_response_error(
-	e: &Error, room_id: &RoomId, user_id: &UserId, state_lock: &RoomMutexGuard,
+	e: Error, room_id: &RoomId, user_id: &UserId, state_lock: &RoomMutexGuard,
 ) -> Result<()> {
 	error!("Failed to build and append admin room response PDU: \"{e}\"");
 	let error_room_message = RoomMessageEventContent::text_plain(format!(
