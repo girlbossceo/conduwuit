@@ -196,7 +196,11 @@ impl UnwindSafe for Error {}
 impl RefUnwindSafe for Error {}
 
 impl From<Infallible> for Error {
-	fn from(i: Infallible) -> Self { match i {} }
+	#[cold]
+	#[inline(never)]
+	fn from(_i: Infallible) -> Self {
+		panic!("infallible error should never exist");
+	}
 }
 
 impl fmt::Debug for Error {
@@ -271,6 +275,12 @@ pub fn inspect_log<E: fmt::Display>(error: &E) {
 #[inline]
 pub fn inspect_debug_log<E: fmt::Debug>(error: &E) {
 	debug_error!("{error:?}");
+}
+
+#[cold]
+#[inline(never)]
+pub fn infallible(_e: &Infallible) {
+	panic!("infallible error should never exist");
 }
 
 impl axum::response::IntoResponse for Error {

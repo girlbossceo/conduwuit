@@ -10,7 +10,7 @@ use axum::{
 	extract::{connect_info::IntoMakeServiceWithConnectInfo, Request},
 	Router,
 };
-use conduit::{debug_error, trace, utils, Error, Result, Server};
+use conduit::{debug_error, error::infallible, trace, Error, Result, Server};
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
 	rt::{TokioExecutor, TokioIo},
@@ -24,7 +24,6 @@ use tokio::{
 };
 use tower::{Service, ServiceExt};
 use tracing::{debug, info, warn};
-use utils::unwrap_infallible;
 
 type MakeService = IntoMakeServiceWithConnectInfo<Router, net::SocketAddr>;
 
@@ -62,9 +61,14 @@ async fn accept(
 	let socket = TokioIo::new(socket);
 	trace!(?listener, ?socket, ?remote, "accepted");
 
-	let called = unwrap_infallible(app.call(NULL_ADDR).await);
-	let handler = service_fn(move |req: Request<Incoming>| called.clone().oneshot(req));
+	let called = app
+		.call(NULL_ADDR)
+		.await
+		.inspect_err(infallible)
+		.expect("infallible");
 
+	let service = move |req: Request<Incoming>| called.clone().oneshot(req);
+	let handler = service_fn(service);
 	let task = async move {
 		// bug on darwin causes all results to be errors. do not unwrap this
 		_ = builder.serve_connection(socket, handler).await;

@@ -26,20 +26,7 @@ pub use string::{str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
 pub use time::now_millis as millis_since_unix_epoch;
 
-use crate::Result;
-
 pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
-
-/// Boilerplate for wraps which are typed to never error.
-///
-/// * <https://doc.rust-lang.org/std/convert/enum.Infallible.html>
-#[must_use]
-pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
-	match result {
-		Ok(val) => val,
-		Err(err) => match err {},
-	}
-}
 
 #[must_use]
 pub fn generate_keypair() -> Vec<u8> {
