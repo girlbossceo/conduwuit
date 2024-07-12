@@ -389,18 +389,11 @@ impl Service {
 
 		match pdu.kind {
 			TimelineEventType::RoomRedaction => {
+				use RoomVersionId::*;
+
 				let room_version_id = services().rooms.state.get_room_version(&pdu.room_id)?;
 				match room_version_id {
-					RoomVersionId::V1
-					| RoomVersionId::V2
-					| RoomVersionId::V3
-					| RoomVersionId::V4
-					| RoomVersionId::V5
-					| RoomVersionId::V6
-					| RoomVersionId::V7
-					| RoomVersionId::V8
-					| RoomVersionId::V9
-					| RoomVersionId::V10 => {
+					V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 						if let Some(redact_id) = &pdu.redacts {
 							if services().rooms.state_accessor.user_can_redact(
 								redact_id,
@@ -412,7 +405,7 @@ impl Service {
 							}
 						}
 					},
-					RoomVersionId::V11 => {
+					V11 => {
 						let content =
 							serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get()).map_err(|e| {
 								warn!("Invalid content in redaction pdu: {e}");
@@ -868,17 +861,9 @@ impl Service {
 
 		// If redaction event is not authorized, do not append it to the timeline
 		if pdu.kind == TimelineEventType::RoomRedaction {
+			use RoomVersionId::*;
 			match services().rooms.state.get_room_version(&pdu.room_id)? {
-				RoomVersionId::V1
-				| RoomVersionId::V2
-				| RoomVersionId::V3
-				| RoomVersionId::V4
-				| RoomVersionId::V5
-				| RoomVersionId::V6
-				| RoomVersionId::V7
-				| RoomVersionId::V8
-				| RoomVersionId::V9
-				| RoomVersionId::V10 => {
+				V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 					if let Some(redact_id) = &pdu.redacts {
 						if !services().rooms.state_accessor.user_can_redact(
 							redact_id,

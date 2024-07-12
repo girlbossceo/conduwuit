@@ -780,14 +780,9 @@ async fn join_room_by_id_helper_remote(
 	info!("send_join finished");
 
 	if join_authorized_via_users_server.is_some() {
+		use RoomVersionId::*;
 		match &room_version_id {
-			RoomVersionId::V1
-			| RoomVersionId::V2
-			| RoomVersionId::V3
-			| RoomVersionId::V4
-			| RoomVersionId::V5
-			| RoomVersionId::V6
-			| RoomVersionId::V7 => {
+			V1 | V2 | V3 | V4 | V5 | V6 | V7 => {
 				warn!(
 					"Found `join_authorised_via_users_server` but room {} is version {}. Ignoring.",
 					room_id, &room_version_id
@@ -795,7 +790,7 @@ async fn join_room_by_id_helper_remote(
 			},
 			// only room versions 8 and above using `join_authorized_via_users_server` (restricted joins) need to
 			// validate and send signatures
-			RoomVersionId::V8 | RoomVersionId::V9 | RoomVersionId::V10 | RoomVersionId::V11 => {
+			V8 | V9 | V10 | V11 => {
 				if let Some(signed_raw) = &send_join_response.room_state.event {
 					info!(
 						"There is a signed event. This room is probably using restricted joins. Adding signature to \

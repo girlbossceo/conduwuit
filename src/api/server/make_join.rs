@@ -7,7 +7,7 @@ use ruma::{
 		},
 		StateEventType, TimelineEventType,
 	},
-	RoomId, RoomVersionId, UserId,
+	CanonicalJsonObject, RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::to_raw_value;
 use tracing::warn;
@@ -144,27 +144,7 @@ pub(crate) async fn create_join_event_template_route(
 	drop(state_lock);
 
 	// room v3 and above removed the "event_id" field from remote PDU format
-	match room_version_id {
-		RoomVersionId::V1 | RoomVersionId::V2 => {},
-		RoomVersionId::V3
-		| RoomVersionId::V4
-		| RoomVersionId::V5
-		| RoomVersionId::V6
-		| RoomVersionId::V7
-		| RoomVersionId::V8
-		| RoomVersionId::V9
-		| RoomVersionId::V10
-		| RoomVersionId::V11 => {
-			pdu_json.remove("event_id");
-		},
-		_ => {
-			warn!("Unexpected or unsupported room version {room_version_id}");
-			return Err(Error::BadRequest(
-				ErrorKind::BadJson,
-				"Unexpected or unsupported room version found",
-			));
-		},
-	};
+	maybe_strip_event_id(&mut pdu_json, &room_version_id)?;
 
 	Ok(prepare_join_event::v1::Response {
 		room_version: Some(room_version_id),
@@ -179,6 +159,8 @@ pub(crate) async fn create_join_event_template_route(
 pub(crate) fn user_can_perform_restricted_join(
 	user_id: &UserId, room_id: &RoomId, room_version_id: &RoomVersionId,
 ) -> Result<bool> {
+	use RoomVersionId::*;
+
 	let join_rules_event =
 		services()
 			.rooms
@@ -198,16 +180,7 @@ pub(crate) fn user_can_perform_restricted_join(
 		return Ok(false);
 	};
 
-	if matches!(
-		room_version_id,
-		RoomVersionId::V1
-			| RoomVersionId::V2
-			| RoomVersionId::V3
-			| RoomVersionId::V4
-			| RoomVersionId::V5
-			| RoomVersionId::V6
-			| RoomVersionId::V7
-	) {
+	if matches!(room_version_id, V1 | V2 | V3 | V4 | V5 | V6 | V7) {
 		return Ok(false);
 	}
 
@@ -238,4 +211,24 @@ pub(crate) fn user_can_perform_restricted_join(
 			"User is not known to be in any required room.",
 		))
 	}
+}
+
+pub(crate) fn maybe_strip_event_id(pdu_json: &mut CanonicalJsonObject, room_version_id: &RoomVersionId) -> Result<()> {
+	use RoomVersionId::*;
+
+	match room_version_id {
+		V1 | V2 => {},
+		V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 => {
+			pdu_json.remove("event_id");
+		},
+		_ => {
+			warn!("Unexpected or unsupported room version {room_version_id}");
+			return Err(Error::BadRequest(
+				ErrorKind::BadJson,
+				"Unexpected or unsupported room version found",
+			));
+		},
+	};
+
+	Ok(())
 }

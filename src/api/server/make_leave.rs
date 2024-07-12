@@ -1,14 +1,15 @@
+use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_leave_event},
 	events::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		TimelineEventType,
 	},
-	RoomVersionId,
 };
 use serde_json::value::to_raw_value;
 
-use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
+use super::make_join::maybe_strip_event_id;
+use crate::{service::pdu::PduBuilder, services, Ruma};
 
 /// # `PUT /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
 ///
@@ -64,26 +65,7 @@ pub(crate) async fn create_leave_event_template_route(
 	drop(state_lock);
 
 	// room v3 and above removed the "event_id" field from remote PDU format
-	match room_version_id {
-		RoomVersionId::V1 | RoomVersionId::V2 => {},
-		RoomVersionId::V3
-		| RoomVersionId::V4
-		| RoomVersionId::V5
-		| RoomVersionId::V6
-		| RoomVersionId::V7
-		| RoomVersionId::V8
-		| RoomVersionId::V9
-		| RoomVersionId::V10
-		| RoomVersionId::V11 => {
-			pdu_json.remove("event_id");
-		},
-		_ => {
-			return Err(Error::BadRequest(
-				ErrorKind::BadJson,
-				"Unexpected or unsupported room version found",
-			));
-		},
-	};
+	maybe_strip_event_id(&mut pdu_json, &room_version_id)?;
 
 	Ok(prepare_leave_event::v1::Response {
 		room_version: Some(room_version_id),
