@@ -15,6 +15,48 @@ use ruma::{
 
 use crate::{debug::panic_str, debug_error, error};
 
+#[macro_export]
+macro_rules! err {
+	(error!($($args:tt),+)) => {{
+		error!($($args),+);
+		$crate::error::Error::Err(format!($($args),+))
+	}};
+
+	(debug_error!($($args:tt),+)) => {{
+		debug_error!($($args),+);
+		$crate::error::Error::Err(format!($($args),+))
+	}};
+
+	($variant:ident(error!($($args:tt),+))) => {{
+		error!($($args),+);
+		$crate::error::Error::$variant(format!($($args),+))
+	}};
+
+	($variant:ident(debug_error!($($args:tt),+))) => {{
+		debug_error!($($args),+);
+		$crate::error::Error::$variant(format!($($args),+))
+	}};
+
+	($variant:ident(format!($($args:tt),+))) => {
+		$crate::error::Error::$variant(format!($($args),+))
+	};
+
+	($variant:ident($($args:tt),+)) => {
+		$crate::error::Error::$variant(format!($($args),+))
+	};
+
+	($string:literal$(,)? $($args:tt),*) => {
+		$crate::error::Error::Err(format!($string, $($args),*))
+	};
+}
+
+#[macro_export]
+macro_rules! Err {
+	($($args:tt)*) => {
+		Err($crate::err!($($args)*))
+	};
+}
+
 #[derive(thiserror::Error)]
 pub enum Error {
 	#[error("PANIC!")]
