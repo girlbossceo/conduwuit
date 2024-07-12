@@ -7,7 +7,7 @@ use std::{
 	time::Duration,
 };
 
-use conduit::{error, Config, Error, Result};
+use conduit::{error, Config, Result};
 use hickory_resolver::TokioAsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use ruma::OwnedServerName;
@@ -33,10 +33,7 @@ impl Resolver {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	pub(super) fn new(config: &Config) -> Self {
 		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
-			.map_err(|e| {
-				error!("Failed to set up hickory dns resolver with system config: {e}");
-				Error::bad_config("Failed to set up hickory dns resolver with system config.")
-			})
+			.inspect_err(|e| error!("Failed to set up hickory dns resolver with system config: {e}"))
 			.expect("DNS system config must be valid");
 
 		let mut conf = hickory_resolver::config::ResolverConfig::new();

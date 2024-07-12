@@ -3,7 +3,7 @@ use axum::{
 	routing::{any, get, post},
 	Router,
 };
-use conduit::{Error, Server};
+use conduit::{err, Error, Server};
 use http::Uri;
 use ruma::api::client::error::ErrorKind;
 
@@ -236,4 +236,4 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 	Error::BadRequest(ErrorKind::GuestAccessForbidden, "Guest access not implemented")
 }
 
-async fn federation_disabled() -> impl IntoResponse { Error::bad_config("Federation is disabled.") }
+async fn federation_disabled() -> impl IntoResponse { err!(Config("allow_federation", "Federation is disabled.")) }

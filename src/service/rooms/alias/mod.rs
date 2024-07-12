@@ -3,7 +3,7 @@ mod remote;
 
 use std::sync::Arc;
 
-use conduit::{Error, Result};
+use conduit::{err, Error, Result};
 use data::Data;
 use ruma::{
 	api::{appservice, client::error::ErrorKind},
@@ -171,7 +171,7 @@ impl Service {
 						.rooms
 						.alias
 						.resolve_local_alias(room_alias)?
-						.ok_or_else(|| Error::bad_config("Room does not exist."))?,
+						.ok_or_else(|| err!(BadConfig("Room does not exist.")))?,
 				));
 			}
 		}

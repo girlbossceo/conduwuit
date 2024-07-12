@@ -5,6 +5,7 @@ use std::{
 	time::SystemTime,
 };
 
+use conduit::Err;
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
 use ruma::{OwnedServerName, ServerName};
@@ -354,7 +355,7 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 
 fn validate_dest(dest: &ServerName) -> Result<()> {
 	if dest == services().globals.server_name() {
-		return Err(Error::bad_config("Won't send federation request to ourselves"));
+		return Err!("Won't send federation request to ourselves");
 	}
 
 	if dest.is_ip_literal() || IPAddress::is_valid(dest.host()) {

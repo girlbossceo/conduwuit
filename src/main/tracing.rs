@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use conduit::{
 	config::Config,
-	debug_warn,
+	debug_warn, err,
 	log::{capture, LogLevelReloadHandles},
-	Error, Result,
+	Result,
 };
 use tracing_subscriber::{layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
 
@@ -17,8 +17,7 @@ pub(crate) type TracingFlameGuard = ();
 pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>)> {
 	let reload_handles = LogLevelReloadHandles::default();
 
-	let console_filter =
-		EnvFilter::try_new(&config.log).map_err(|e| Error::BadConfig(format!("in the 'log' setting: {e}.")))?;
+	let console_filter = EnvFilter::try_new(&config.log).map_err(|e| err!(Config("log", "{e}.")))?;
 	let console_layer = tracing_subscriber::fmt::Layer::new();
 	let (console_reload_filter, console_reload_handle) = reload::Layer::new(console_filter.clone());
 	reload_handles.add("console", Box::new(console_reload_handle));
@@ -32,8 +31,8 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
-		let sentry_filter = EnvFilter::try_new(&config.sentry_filter)
-			.map_err(|e| Error::BadConfig(format!("in the 'sentry_filter' setting: {e}.")))?;
+		let sentry_filter =
+			EnvFilter::try_new(&config.sentry_filter).map_err(|e| err!(Config("sentry_filter", "{e}.")))?;
 		let sentry_layer = sentry_tracing::layer();
 		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(sentry_filter);
 		reload_handles.add("sentry", Box::new(sentry_reload_handle));
@@ -44,9 +43,9 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 	let (subscriber, flame_guard) = {
 		let (flame_layer, flame_guard) = if config.tracing_flame {
 			let flame_filter = EnvFilter::try_new(&config.tracing_flame_filter)
-				.map_err(|e| Error::BadConfig(format!("in the 'tracing_flame_filter' setting: {e}.")))?;
+				.map_err(|e| err!(Config("tracing_flame_filter", "{e}.")))?;
 			let (flame_layer, flame_guard) = tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path)
-				.map_err(|e| Error::BadConfig(format!("in the 'tracing_flame_output_path' setting: {e}.")))?;
+				.map_err(|e| err!(Config("tracing_flame_output_path", "{e}.")))?;
 			let flame_layer = flame_layer
 				.with_empty_samples(false)
 				.with_filter(flame_filter);
@@ -55,8 +54,8 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 			(None, None)
 		};
 
-		let jaeger_filter = EnvFilter::try_new(&config.jaeger_filter)
-			.map_err(|e| Error::BadConfig(format!("in the 'jaeger_filter' setting: {e}.")))?;
+		let jaeger_filter =
+			EnvFilter::try_new(&config.jaeger_filter).map_err(|e| err!(Config("jaeger_filter", "{e}.")))?;
 		let jaeger_layer = config.allow_jaeger.then(|| {
 			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
 			let tracer = opentelemetry_jaeger::new_agent_pipeline()

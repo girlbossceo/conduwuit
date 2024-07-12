@@ -18,35 +18,36 @@ use crate::{debug::panic_str, debug_error, error};
 #[macro_export]
 macro_rules! err {
 	(error!($($args:tt),+)) => {{
-		error!($($args),+);
-		$crate::error::Error::Err(format!($($args),+))
+		$crate::error!($($args),+);
+		$crate::error::Error::Err(std::format!($($args),+))
 	}};
 
 	(debug_error!($($args:tt),+)) => {{
-		debug_error!($($args),+);
-		$crate::error::Error::Err(format!($($args),+))
+		$crate::debug_error!($($args),+);
+		$crate::error::Error::Err(std::format!($($args),+))
 	}};
 
 	($variant:ident(error!($($args:tt),+))) => {{
-		error!($($args),+);
-		$crate::error::Error::$variant(format!($($args),+))
+		$crate::error!($($args),+);
+		$crate::error::Error::$variant(std::format!($($args),+))
 	}};
 
 	($variant:ident(debug_error!($($args:tt),+))) => {{
-		debug_error!($($args),+);
-		$crate::error::Error::$variant(format!($($args),+))
+		$crate::debug_error!($($args),+);
+		$crate::error::Error::$variant(std::format!($($args),+))
 	}};
 
-	($variant:ident(format!($($args:tt),+))) => {
-		$crate::error::Error::$variant(format!($($args),+))
-	};
+	(Config($item:literal, $($args:tt),+)) => {{
+		$crate::error!(config = %$item, $($args),+);
+		$crate::error::Error::Config($item, std::format!($($args),+))
+	}};
 
 	($variant:ident($($args:tt),+)) => {
-		$crate::error::Error::$variant(format!($($args),+))
+		$crate::error::Error::$variant(std::format!($($args),+))
 	};
 
 	($string:literal$(,)? $($args:tt),*) => {
-		$crate::error::Error::Err(format!($string, $($args),*))
+		$crate::error::Error::Err(std::format!($string, $($args),*))
 	};
 }
 
@@ -123,8 +124,8 @@ pub enum Error {
 	// conduwuit
 	#[error("Arithmetic operation failed: {0}")]
 	Arithmetic(&'static str),
-	#[error("There was a problem with your configuration: {0}")]
-	BadConfig(String),
+	#[error("There was a problem with the '{0}' directive in your configuration: {1}")]
+	Config(&'static str, String),
 	#[error("{0}")]
 	BadDatabase(&'static str),
 	#[error("{0}")]
@@ -143,11 +144,6 @@ impl Error {
 	pub fn bad_database(message: &'static str) -> Self {
 		error!("BadDatabase: {}", message);
 		Self::BadDatabase(message)
-	}
-
-	pub fn bad_config(message: &str) -> Self {
-		error!("BadConfig: {}", message);
-		Self::BadConfig(message.to_owned())
 	}
 
 	#[must_use]

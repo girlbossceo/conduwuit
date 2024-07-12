@@ -24,7 +24,7 @@ use url::Url;
 
 pub use self::check::check;
 use self::proxy::ProxyConfig;
-use crate::error::Error;
+use crate::{error::Error, Err};
 
 pub mod check;
 pub mod proxy;
@@ -433,13 +433,13 @@ impl Config {
 		};
 
 		let config = match raw_config.extract::<Self>() {
-			Err(e) => return Err(Error::BadConfig(format!("{e}"))),
+			Err(e) => return Err!("There was a problem with your configuration file: {e}"),
 			Ok(config) => config,
 		};
 
 		// don't start if we're listening on both UNIX sockets and TCP at same time
 		if Self::is_dual_listening(&raw_config) {
-			return Err(Error::bad_config("dual listening on UNIX and TCP sockets not allowed."));
+			return Err!(Config("address", "dual listening on UNIX and TCP sockets not allowed."));
 		};
 
 		Ok(config)

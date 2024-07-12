@@ -1,5 +1,6 @@
 use std::{fmt::Debug, mem};
 
+use conduit::Err;
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
 use reqwest::{Client, Method, Request, Response, Url};
@@ -26,7 +27,7 @@ where
 	T: OutgoingRequest + Debug + Send,
 {
 	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
+		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
 	let actual = resolve::get_actual_dest(dest).await?;

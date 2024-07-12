@@ -1,6 +1,9 @@
-use crate::{error::Error, warn, Config};
+use crate::{error, error::Error, info, warn, Config, Err};
 
 pub fn check(config: &Config) -> Result<(), Error> {
+	#[cfg(debug_assertions)]
+	info!("Note: conduwuit was built without optimisations (i.e. debug build)");
+
 	#[cfg(all(feature = "rocksdb", not(feature = "sha256_media")))] // prevents catching this in `--all-features`
 	warn!(
 		"Note the rocksdb feature was deleted from conduwuit. SQLite support was removed and RocksDB is the only \
@@ -16,7 +19,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 	config.warn_unknown_key();
 
 	if config.sentry && config.sentry_endpoint.is_none() {
-		return Err(Error::bad_config("Sentry cannot be enabled without an endpoint set"));
+		return Err!(Config("sentry_endpoint", "Sentry cannot be enabled without an endpoint set"));
 	}
 
 	#[cfg(all(feature = "hardened_malloc", feature = "jemalloc"))]
@@ -27,7 +30,8 @@ pub fn check(config: &Config) -> Result<(), Error> {
 
 	#[cfg(not(unix))]
 	if config.unix_socket_path.is_some() {
-		return Err(Error::bad_config(
+		return Err!(Config(
+			"unix_socket_path",
 			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
 			 config.",
 		));
@@ -44,7 +48,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 				if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
 				/* Host */
 				{
-					crate::error!(
+					error!(
 						"You are detected using OpenVZ with a loopback/localhost listening address of {addr}. If you \
 						 are using OpenVZ for containers and you use NAT-based networking to communicate with the \
 						 host and guest, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
@@ -53,7 +57,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 				}
 
 				if Path::new("/.dockerenv").exists() {
-					crate::error!(
+					error!(
 						"You are detected using Docker with a loopback/localhost listening address of {addr}. If you \
 						 are using a reverse proxy on the host and require communication to conduwuit in the Docker \
 						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
@@ -62,7 +66,7 @@ pub fn check(config: &Config) -> Result<(), Error> {
 				}
 
 				if Path::new("/run/.containerenv").exists() {
-					crate::error!(
+					error!(
 						"You are detected using Podman with a loopback/localhost listening address of {addr}. If you \
 						 are using a reverse proxy on the host and require communication to conduwuit in the Podman \
 						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
@@ -75,36 +79,40 @@ pub fn check(config: &Config) -> Result<(), Error> {
 
 	// rocksdb does not allow max_log_files to be 0
 	if config.rocksdb_max_log_files == 0 {
-		return Err(Error::bad_config(
-			"rocksdb_max_log_files cannot be 0. Please set a value at least 1.",
+		return Err!(Config(
+			"max_log_files",
+			"rocksdb_max_log_files cannot be 0. Please set a value at least 1."
 		));
 	}
 
 	// yeah, unless the user built a debug build hopefully for local testing only
 	#[cfg(not(debug_assertions))]
 	if config.server_name == "your.server.name" {
-		return Err(Error::bad_config(
-			"You must specify a valid server name for production usage of conduwuit.",
+		return Err!(Config(
+			"server_name",
+			"You must specify a valid server name for production usage of conduwuit."
 		));
 	}
 
-	#[cfg(debug_assertions)]
-	crate::info!("Note: conduwuit was built without optimisations (i.e. debug build)");
-
 	// check if the user specified a registration token as `""`
 	if config.registration_token == Some(String::new()) {
-		return Err(Error::bad_config("Registration token was specified but is empty (\"\")"));
+		return Err!(Config(
+			"registration_token",
+			"Registration token was specified but is empty (\"\")"
+		));
 	}
 
 	if config.max_request_size < 5_120_000 {
-		return Err(Error::bad_config("Max request size is less than 5MB. Please increase it."));
+		return Err!(Config(
+			"max_request_size",
+			"Max request size is less than 5MB. Please increase it."
+		));
 	}
 
 	// check if user specified valid IP CIDR ranges on startup
 	for cidr in &config.ip_range_denylist {
 		if let Err(e) = ipaddress::IPAddress::parse(cidr) {
-			crate::error!("Error parsing specified IP CIDR range from string: {e}");
-			return Err(Error::bad_config("Error parsing specified IP CIDR ranges from strings"));
+			return Err!(Config("ip_range_denylist", "Parsing specified IP CIDR range from string: {e}."));
 		}
 	}
 
@@ -112,13 +120,14 @@ pub fn check(config: &Config) -> Result<(), Error> {
 		&& !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
 		&& config.registration_token.is_none()
 	{
-		return Err(Error::bad_config(
+		return Err!(Config(
+			"registration_token",
 			"!! You have `allow_registration` enabled without a token configured in your config which means you are \
 			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
 If this is not the intended behaviour, please set a registration token with the `registration_token` config option.\n
 For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour you \
 			 want, please set the following config option to true:
-`yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`",
+`yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`"
 		));
 	}
 
@@ -135,8 +144,9 @@ For security and safety reasons, conduwuit will shut down. If you are extra sure
 	}
 
 	if config.allow_outgoing_presence && !config.allow_local_presence {
-		return Err(Error::bad_config(
-			"Outgoing presence requires allowing local presence. Please enable \"allow_local_presence\".",
+		return Err!(Config(
+			"allow_local_presence",
+			"Outgoing presence requires allowing local presence. Please enable 'allow_local_presence'."
 		));
 	}
 
