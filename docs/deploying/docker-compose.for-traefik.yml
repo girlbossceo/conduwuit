@@ -1,5 +1,4 @@
 # conduwuit - Behind Traefik Reverse Proxy
-version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
@@ -24,7 +23,7 @@ services:
             CONDUWUIT_TRUSTED_SERVERS: '["matrix.org"]'
             #CONDUWUIT_LOG: warn,state_res=warn
             CONDUWUIT_ADDRESS: 0.0.0.0
-            #CONDUWUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
+            #CONDUWUIT_CONFIG: '/etc/conduwuit.toml' # Uncomment if you mapped config toml above
         #cpuset: "0-4" # Uncomment to limit to specific CPU cores
 
     # We need some way to server the client and server .well-known json. The simplest way is to use a nginx container

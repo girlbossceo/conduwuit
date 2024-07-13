@@ -1,5 +1,4 @@
 # conduwuit
-version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:
@@ -24,8 +23,7 @@ services:
             CONDUWUIT_TRUSTED_SERVERS: '["matrix.org"]'
             #CONDUWUIT_LOG: warn,state_res=warn
             CONDUWUIT_ADDRESS: 0.0.0.0
-            #CONDUWUIT_CONFIG: './conduwuit.toml' # Uncomment if you mapped config toml above
-        #cpuset: "0-4" # Uncomment to limit to specific CPU cores
+            #CONDUWUIT_CONFIG: '/etc/conduwuit.toml' # Uncomment if you mapped config toml above
     #
     ### Uncomment if you want to use your own Element-Web App.
     ### Note: You need to provide a config.json for Element and you also need a second
