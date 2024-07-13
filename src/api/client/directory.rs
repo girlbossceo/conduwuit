@@ -117,7 +117,12 @@ pub(crate) async fn set_room_visibility_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
 
-	user_can_publish_room(sender_user, &body.room_id)?;
+	if !user_can_publish_room(sender_user, &body.room_id)? {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"User is not allowed to publish this room",
+		));
+	}
 
 	match &body.visibility {
 		room::Visibility::Public => {
@@ -377,8 +382,8 @@ fn user_can_publish_room(user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 		Ok(event.sender == user_id)
 	} else {
 		return Err(Error::BadRequest(
-			ErrorKind::Unauthorized,
-			"You are not allowed to publish this room to the room directory",
+			ErrorKind::forbidden(),
+			"User is not allowed to publish this room",
 		));
 	}
 }
