@@ -1,6 +1,6 @@
-use std::{collections::BTreeMap, fmt::Write, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, fmt::Write, ops::DerefMut, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
-use conduit::{debug, debug_info, error, info, trace, utils::time, warn, Error, Result, Server};
+use conduit::{debug, debug_info, debug_warn, error, info, trace, utils::time, warn, Error, Result, Server};
 use database::Database;
 use futures_util::FutureExt;
 use tokio::{
@@ -30,8 +30,8 @@ pub struct Services {
 	pub media: Arc<media::Service>,
 	pub sending: Arc<sending::Service>,
 
-	workers: Mutex<Workers>,
 	manager: Mutex<Option<JoinHandle<Result<()>>>>,
+	workers: Mutex<Workers>,
 	pub(crate) service: Map,
 	pub server: Arc<Server>,
 	pub db: Arc<Database>,
@@ -93,15 +93,15 @@ impl Services {
 			media: build!(media::Service),
 			sending: build!(sending::Service),
 			globals: build!(globals::Service),
-			workers: Mutex::new(JoinSet::new()),
 			manager: Mutex::new(None),
+			workers: Mutex::new(JoinSet::new()),
 			service,
 			server,
 			db,
 		})
 	}
 
-	pub async fn start(&self) -> Result<()> {
+	pub(super) async fn start(&self) -> Result<()> {
 		debug_info!("Starting services...");
 
 		self.media.create_media_dir().await?;
@@ -114,9 +114,7 @@ impl Services {
 		}
 
 		debug!("Starting service manager...");
-		let manager = async move { crate::services().manager().await };
-		let manager = self.server.runtime().spawn(manager);
-		_ = self.manager.lock().await.insert(manager);
+		self.manager_start().await?;
 
 		if self.globals.allow_check_for_updates() {
 			let handle = globals::updates::start_check_for_updates_task();
@@ -127,7 +125,7 @@ impl Services {
 		Ok(())
 	}
 
-	pub async fn stop(&self) {
+	pub(super) async fn stop(&self) {
 		info!("Shutting down services...");
 		self.interrupt();
 
@@ -138,13 +136,18 @@ impl Services {
 		}
 
 		debug!("Stopping service manager...");
-		if let Some(manager) = self.manager.lock().await.take() {
-			if let Err(e) = manager.await {
-				error!("Manager shutdown error: {e:?}");
-			}
-		}
+		self.manager_stop().await;
 
 		debug_info!("Services shutdown complete.");
+	}
+
+	pub async fn poll(&self) -> Result<()> {
+		if let Some(manager) = self.manager.lock().await.deref_mut() {
+			trace!("Polling service manager...");
+			return manager.await?;
+		}
+
+		Ok(())
 	}
 
 	pub async fn clear_cache(&self) {
@@ -188,6 +191,26 @@ impl Services {
 		}
 	}
 
+	async fn manager_start(&self) -> Result<()> {
+		debug!("Starting service manager...");
+		self.manager.lock().await.get_or_insert_with(|| {
+			self.server
+				.runtime()
+				.spawn(async move { crate::services().manager().await })
+		});
+
+		Ok(())
+	}
+
+	async fn manager_stop(&self) {
+		if let Some(manager) = self.manager.lock().await.take() {
+			debug!("Waiting for service manager...");
+			if let Err(e) = manager.await {
+				error!("Manager shutdown error: {e:?}");
+			}
+		}
+	}
+
 	async fn manager(&self) -> Result<()> {
 		loop {
 			let mut workers = self.workers.lock().await;
@@ -226,14 +249,15 @@ impl Services {
 		&self, workers: &mut WorkersLocked<'_>, service: &Arc<dyn Service>, error: Error,
 	) -> Result<()> {
 		let name = service.name();
-		error!("service {name:?} worker error: {error}");
+		error!("service {name:?} aborted: {error}");
 
-		if !error.is_panic() {
+		if !self.server.running() {
+			debug_warn!("service {name:?} error ignored on shutdown.");
 			return Ok(());
 		}
 
-		if !self.server.running() {
-			return Ok(());
+		if !error.is_panic() {
+			return Err(error);
 		}
 
 		let delay = Duration::from_millis(RESTART_DELAY_MS);

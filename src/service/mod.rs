@@ -37,7 +37,7 @@ conduit::mod_dtor! {}
 
 static SERVICES: RwLock<Option<&Services>> = RwLock::new(None);
 
-pub async fn init(server: &Arc<Server>) -> Result<()> {
+pub async fn start(server: &Arc<Server>) -> Result<()> {
 	let d = Arc::new(Database::open(server).await?);
 	let s = Box::new(Services::build(server.clone(), d)?);
 	_ = SERVICES.write().expect("write locked").insert(Box::leak(s));
@@ -45,7 +45,7 @@ pub async fn init(server: &Arc<Server>) -> Result<()> {
 	services().start().await
 }
 
-pub async fn fini() {
+pub async fn stop() {
 	services().stop().await;
 
 	// Deactivate services(). Any further use will panic the caller.

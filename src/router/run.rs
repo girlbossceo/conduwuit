@@ -1,8 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
 use axum_server::Handle as ServerHandle;
-use tokio::sync::broadcast::{self, Sender};
-use tracing::{debug, error, info};
+use tokio::{
+	sync::broadcast::{self, Sender},
+	task::JoinHandle,
+};
 
 extern crate conduit_admin as admin;
 extern crate conduit_core as conduit;
@@ -10,14 +12,14 @@ extern crate conduit_service as service;
 
 use std::sync::atomic::Ordering;
 
-use conduit::{debug_info, trace, Error, Result, Server};
+use conduit::{debug, debug_info, error, info, trace, Error, Result, Server};
 
-use crate::{layers, serve};
+use crate::serve;
 
 /// Main loop base
 #[tracing::instrument(skip_all)]
-pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
-	let app = layers::build(&server)?;
+pub(crate) async fn run(server: Arc<Server>) -> Result<()> {
+	debug!("Start");
 
 	// Install the admin room callback here for now
 	admin::init().await;
@@ -29,8 +31,16 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 		.runtime()
 		.spawn(signal(server.clone(), tx.clone(), handle.clone()));
 
-	// Serve clients
-	let res = serve::serve(&server, app, handle, tx.subscribe()).await;
+	let mut listener = server
+		.runtime()
+		.spawn(serve::serve(server.clone(), handle.clone(), tx.subscribe()));
+
+	// Focal point
+	debug!("Running");
+	let res = tokio::select! {
+		res = &mut listener => res.map_err(Error::from).unwrap_or_else(Err),
+		res = service::services().poll() => handle_services_poll(&server, res, listener).await,
+	};
 
 	// Join the signal handler before we leave.
 	sigs.abort();
@@ -39,16 +49,16 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<(), Error> {
 	// Remove the admin room callback
 	admin::fini().await;
 
-	debug_info!("Finished");
+	debug_info!("Finish");
 	res
 }
 
 /// Async initializations
 #[tracing::instrument(skip_all)]
-pub(crate) async fn start(server: Arc<Server>) -> Result<(), Error> {
+pub(crate) async fn start(server: Arc<Server>) -> Result<()> {
 	debug!("Starting...");
 
-	service::init(&server).await?;
+	service::start(&server).await?;
 
 	#[cfg(feature = "systemd")]
 	sd_notify::notify(true, &[sd_notify::NotifyState::Ready]).expect("failed to notify systemd of ready state");
@@ -59,12 +69,12 @@ pub(crate) async fn start(server: Arc<Server>) -> Result<(), Error> {
 
 /// Async destructions
 #[tracing::instrument(skip_all)]
-pub(crate) async fn stop(_server: Arc<Server>) -> Result<(), Error> {
+pub(crate) async fn stop(_server: Arc<Server>) -> Result<()> {
 	debug!("Shutting down...");
 
 	// Wait for all completions before dropping or we'll lose them to the module
 	// unload and explode.
-	service::fini().await;
+	service::stop().await;
 
 	debug!("Cleaning up...");
 
@@ -107,4 +117,22 @@ async fn handle_shutdown(server: &Arc<Server>, tx: &Sender<()>, handle: &axum_se
 		debug!(pending, "Notifying for immediate shutdown");
 		handle.shutdown();
 	}
+}
+
+async fn handle_services_poll(
+	server: &Arc<Server>, result: Result<()>, listener: JoinHandle<Result<()>>,
+) -> Result<()> {
+	debug!("Service manager finished: {result:?}");
+
+	if server.running() {
+		if let Err(e) = server.shutdown() {
+			error!("Failed to send shutdown signal: {e}");
+		}
+	}
+
+	if let Err(e) = listener.await {
+		error!("Client listener task finished with error: {e}");
+	}
+
+	result
 }
