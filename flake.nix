@@ -122,8 +122,12 @@
         default = scopeHost.main;
         all-features = scopeHost.main.override {
             all_features = true;
-            # this is non-functional on nix for some reason
-            disable_features = ["hardened_malloc"];
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
         };
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
@@ -131,8 +135,12 @@
         oci-image-all-features = scopeHost.oci-image.override {
           main = scopeHost.main.override {
             all_features = true;
-            # this is non-functional on nix for some reason
-            disable_features = ["hardened_malloc"];
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
           };
         };
         oci-image-hmalloc = scopeHost.oci-image.override {
@@ -174,8 +182,12 @@
                   name = "${binaryName}-all-features";
                   value = scopeCrossStatic.main.override {
                     all_features = true;
-                    # this is non-functional on nix for some reason
-                    disable_features = ["hardened_malloc"];
+                    disable_features = [
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # dont include experimental features
+                        "experimental"
+                    ];
                   };
                 }
 
@@ -199,8 +211,12 @@
                   value = scopeCrossStatic.oci-image.override {
                     main = scopeCrossStatic.main.override {
                       all_features = true;
-                      # this is non-functional on nix for some reason
-                      disable_features = ["hardened_malloc"];
+                      disable_features = [
+                          # this is non-functional on nix for some reason
+                          "hardened_malloc"
+                          # dont include experimental features
+                          "experimental"
+                      ];
                     };
                   };
                 }
@@ -228,8 +244,12 @@
         (scopeHostStatic.overrideScope (final: prev: {
           main = prev.main.override {
             all_features = true;
-            # this is non-functional on nix for some reason
-            disable_features = ["hardened_malloc"];
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
         };
         }));
       devShells.no-features = mkDevShell
