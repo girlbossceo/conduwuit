@@ -45,9 +45,9 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
 		let server_visibility_cache_capacity =
-			f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier;
+			f64::from(config.server_visibility_cache_capacity) * config.cache_capacity_modifier;
 		let user_visibility_cache_capacity =
-			f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier;
+			f64::from(config.user_visibility_cache_capacity) * config.cache_capacity_modifier;
 
 		Ok(Arc::new(Self {
 			db: Data::new(args.db),

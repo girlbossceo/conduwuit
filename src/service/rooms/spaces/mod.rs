@@ -161,7 +161,7 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
 		let cache_size = f64::from(config.roomid_spacehierarchy_cache_capacity);
-		let cache_size = cache_size * config.conduit_cache_capacity_modifier;
+		let cache_size = cache_size * config.cache_capacity_modifier;
 		Ok(Arc::new(Self {
 			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(usize_from_f64(cache_size)?)),
 		}))

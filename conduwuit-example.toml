@@ -421,8 +421,11 @@ allow_profile_lookup_federation_requests = true
 
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
 # May be useful if you have significant memory to spare to increase performance.
+#
+# This was previously called `conduit_cache_capacity_modifier`
+#
 # Defaults to 1.0.
-#conduit_cache_capacity_modifier = 1.0
+#cache_capacity_modifier = 1.0
 
 # Set this to any float value in megabytes for conduwuit to tell the database engine that this much memory is available for database-related caches.
 # May be useful if you have significant memory to spare to increase performance.

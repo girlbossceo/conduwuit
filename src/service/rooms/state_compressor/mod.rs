@@ -55,7 +55,7 @@ pub struct Service {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
-		let cache_capacity = f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier;
+		let cache_capacity = f64::from(config.stateinfo_cache_capacity) * config.cache_capacity_modifier;
 		Ok(Arc::new(Self {
 			db: Data::new(args.db),
 			stateinfo_cache: StdMutex::new(LruCache::new(usize_from_f64(cache_capacity)?)),

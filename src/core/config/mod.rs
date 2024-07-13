@@ -58,8 +58,8 @@ pub struct Config {
 
 	#[serde(default = "default_pdu_cache_capacity")]
 	pub pdu_cache_capacity: u32,
-	#[serde(default = "default_conduit_cache_capacity_modifier")]
-	pub conduit_cache_capacity_modifier: f64,
+	#[serde(default = "default_cache_capacity_modifier", alias = "conduit_cache_capacity_modifier")]
+	pub cache_capacity_modifier: f64,
 	#[serde(default = "default_auth_chain_cache_capacity")]
 	pub auth_chain_cache_capacity: u32,
 	#[serde(default = "default_shorteventid_cache_capacity")]
@@ -391,8 +391,9 @@ struct ListeningAddr {
 	addrs: Either<IpAddr, Vec<IpAddr>>,
 }
 
-const DEPRECATED_KEYS: &[&str] = &[
+const DEPRECATED_KEYS: &[&str; 9] = &[
 	"cache_capacity",
+	"conduit_cache_capacity_modifier",
 	"max_concurrent_requests",
 	"well_known_client",
 	"well_known_server",
@@ -484,7 +485,7 @@ impl fmt::Display for Config {
 		);
 		line("Database backups to keep", &self.database_backups_to_keep.to_string());
 		line("Database cache capacity (MB)", &self.db_cache_capacity_mb.to_string());
-		line("Cache capacity modifier", &self.conduit_cache_capacity_modifier.to_string());
+		line("Cache capacity modifier", &self.cache_capacity_modifier.to_string());
 		line("PDU cache capacity", &self.pdu_cache_capacity.to_string());
 		line("Auth chain cache capacity", &self.auth_chain_cache_capacity.to_string());
 		line("Short eventid cache capacity", &self.shorteventid_cache_capacity.to_string());
@@ -847,7 +848,7 @@ fn default_db_cache_capacity_mb() -> f64 { 256.0 }
 
 fn default_pdu_cache_capacity() -> u32 { 150_000 }
 
-fn default_conduit_cache_capacity_modifier() -> f64 { 1.0 }
+fn default_cache_capacity_modifier() -> f64 { 1.0 }
 
 fn default_auth_chain_cache_capacity() -> u32 { 100_000 }
 
