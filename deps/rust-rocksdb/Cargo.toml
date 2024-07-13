@@ -27,7 +27,7 @@ malloc-usable-size = ["rust-rocksdb/malloc-usable-size"]
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
-rev = "db1ba33c2b78ad228e2525e8902d059c24fc81a1"
+rev = "4056a3b0f823013fec49f6d0b3e5698856e6476a"
 #branch = "master"
 default-features = false
 
