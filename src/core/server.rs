@@ -5,7 +5,7 @@ use std::{
 
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config::Config, log, Error, Result};
+use crate::{config::Config, log, Err, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
@@ -65,15 +65,15 @@ impl Server {
 
 	pub fn reload(&self) -> Result<()> {
 		if cfg!(not(conduit_mods)) {
-			return Err(Error::Err("Reloading not enabled".into()));
+			return Err!("Reloading not enabled");
 		}
 
 		if self.reloading.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Reloading already in progress".into()));
+			return Err!("Reloading already in progress");
 		}
 
 		if self.stopping.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Shutdown already in progress".into()));
+			return Err!("Shutdown already in progress");
 		}
 
 		self.signal("SIGINT").inspect_err(|_| {
@@ -84,7 +84,7 @@ impl Server {
 
 	pub fn restart(&self) -> Result<()> {
 		if self.restarting.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Restart already in progress".into()));
+			return Err!("Restart already in progress");
 		}
 
 		self.shutdown()
@@ -93,7 +93,7 @@ impl Server {
 
 	pub fn shutdown(&self) -> Result<()> {
 		if self.stopping.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Shutdown already in progress".into()));
+			return Err!("Shutdown already in progress");
 		}
 
 		self.signal("SIGTERM")
@@ -102,7 +102,7 @@ impl Server {
 
 	pub fn signal(&self, sig: &'static str) -> Result<()> {
 		if let Err(e) = self.signal.send(sig) {
-			return Err(Error::Err(format!("Failed to send signal: {e}")));
+			return Err!("Failed to send signal: {e}");
 		}
 
 		Ok(())

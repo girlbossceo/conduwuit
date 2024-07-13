@@ -2,7 +2,7 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::Result;
+use conduit::{err, Result};
 use data::Data;
 use futures_util::Future;
 use regex::RegexSet;
@@ -171,7 +171,7 @@ impl Service {
 			.write()
 			.await
 			.remove(service_name)
-			.ok_or_else(|| crate::Error::Err("Appservice not found".to_owned()))?;
+			.ok_or(err!("Appservice not found"))?;
 
 		// remove the appservice from the database
 		self.db.unregister_appservice(service_name)?;

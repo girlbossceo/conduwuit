@@ -5,9 +5,9 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, trace, validated, warn, Error, Result};
+use conduit::{debug, error, trace, validated, warn, Err, Result};
 use data::Data;
-use ruma::{api::client::error::ErrorKind, EventId, RoomId};
+use ruma::{EventId, RoomId};
 
 use crate::services;
 
@@ -143,8 +143,11 @@ impl Service {
 			match services().rooms.timeline.get_pdu(&event_id) {
 				Ok(Some(pdu)) => {
 					if pdu.room_id != room_id {
-						error!(?event_id, ?pdu, "auth event for incorrect room_id");
-						return Err(Error::BadRequest(ErrorKind::forbidden(), "Evil event in db"));
+						return Err!(Request(Forbidden(
+							"auth event {event_id:?} for incorrect room {} which is not {}",
+							pdu.room_id,
+							room_id
+						)));
 					}
 					for auth_event in &pdu.auth_events {
 						let sauthevent = services()

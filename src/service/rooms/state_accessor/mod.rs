@@ -6,7 +6,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{error, utils::math::usize_from_f64, warn, Error, Result};
+use conduit::{err, error, utils::math::usize_from_f64, warn, Error, Result};
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{
@@ -454,10 +454,7 @@ impl Service {
 					.map(|c: RoomJoinRulesEventContent| {
 						(c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule))
 					})
-					.map_err(|e| {
-						error!("Invalid room join rule event in database: {e}");
-						Error::BadDatabase("Invalid room join rule event in database.")
-					})
+					.map_err(|e| err!(Database(error!("Invalid room join rule event in database: {e}"))))
 			})
 			.transpose()?
 			.unwrap_or((SpaceRoomJoinRule::Invite, vec![])))
@@ -483,10 +480,8 @@ impl Service {
 		Ok(self
 			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
 			.map(|s| {
-				serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(|e| {
-					error!("Invalid room create event in database: {e}");
-					Error::BadDatabase("Invalid room create event in database.")
-				})
+				serde_json::from_str::<RoomCreateEventContent>(s.content.get())
+					.map_err(|e| err!(Database(error!("Invalid room create event in database: {e}"))))
 			})
 			.transpose()?
 			.and_then(|e| e.room_type))
@@ -499,10 +494,7 @@ impl Service {
 			.map_or(Ok(None), |s| {
 				serde_json::from_str::<RoomEncryptionEventContent>(s.content.get())
 					.map(|content| Some(content.algorithm))
-					.map_err(|e| {
-						error!("Invalid room encryption event in database: {e}");
-						Error::BadDatabase("Invalid room encryption event in database.")
-					})
+					.map_err(|e| err!(Database(error!("Invalid room encryption event in database: {e}"))))
 			})
 	}
 }

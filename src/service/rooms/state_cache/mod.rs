@@ -2,7 +2,7 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{error, warn, Error, Result};
+use conduit::{err, error, warn, Error, Result};
 use data::Data;
 use itertools::Itertools;
 use ruma::{
@@ -128,10 +128,8 @@ impl Service {
 							.account_data
 							.get(Some(&predecessor.room_id), user_id, RoomAccountDataEventType::Tag)?
 							.map(|event| {
-								serde_json::from_str(event.get()).map_err(|e| {
-									warn!("Invalid account data event in db: {e:?}");
-									Error::BadDatabase("Invalid account data event in db.")
-								})
+								serde_json::from_str(event.get())
+									.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
 							}) {
 							services()
 								.account_data
@@ -144,10 +142,8 @@ impl Service {
 							.account_data
 							.get(None, user_id, GlobalAccountDataEventType::Direct.to_string().into())?
 							.map(|event| {
-								serde_json::from_str::<DirectEvent>(event.get()).map_err(|e| {
-									warn!("Invalid account data event in db: {e:?}");
-									Error::BadDatabase("Invalid account data event in db.")
-								})
+								serde_json::from_str::<DirectEvent>(event.get())
+									.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
 							}) {
 							let mut direct_event = direct_event?;
 							let mut room_ids_updated = false;
@@ -185,10 +181,8 @@ impl Service {
 							.into(),
 					)?
 					.map(|event| {
-						serde_json::from_str::<IgnoredUserListEvent>(event.get()).map_err(|e| {
-							warn!("Invalid account data event in db: {e:?}");
-							Error::BadDatabase("Invalid account data event in db.")
-						})
+						serde_json::from_str::<IgnoredUserListEvent>(event.get())
+							.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
 					})
 					.transpose()?
 					.map_or(false, |ignored| {

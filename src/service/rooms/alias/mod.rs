@@ -171,7 +171,7 @@ impl Service {
 						.rooms
 						.alias
 						.resolve_local_alias(room_alias)?
-						.ok_or_else(|| err!(BadConfig("Room does not exist.")))?,
+						.ok_or_else(|| err!(Request(NotFound("Room does not exist."))))?,
 				));
 			}
 		}

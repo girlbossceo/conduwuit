@@ -72,7 +72,7 @@ impl Service {
 			.await?;
 
 		let response = serde_json::from_str::<CheckForUpdatesResponse>(&response.text().await?)
-			.map_err(|e| Error::Err(format!("Bad check for updates response: {e}")))?;
+			.map_err(|e| err!("Bad check for updates response: {e}"))?;
 
 		let mut last_update_id = self.last_check_for_updates_id()?;
 		for update in response.updates {

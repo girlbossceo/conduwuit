@@ -1,4 +1,5 @@
 use axum_client_ip::InsecureClientIp;
+use conduit::{err, info, warn, Error, Result};
 use ruma::{
 	api::{
 		client::{
@@ -18,9 +19,8 @@ use ruma::{
 	},
 	uint, RoomId, ServerName, UInt, UserId,
 };
-use tracing::{error, info, warn};
 
-use crate::{service::server_is_ours, services, Error, Result, Ruma};
+use crate::{service::server_is_ours, services, Ruma};
 
 /// # `POST /_matrix/client/v3/publicRooms`
 ///
@@ -271,8 +271,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 								_ => None,
 							})
 							.map_err(|e| {
-								error!("Invalid room join rule event in database: {}", e);
-								Error::BadDatabase("Invalid room join rule event in database.")
+								err!(Database(error!("Invalid room join rule event in database: {e}")))
 							})
 					})
 					.transpose()?

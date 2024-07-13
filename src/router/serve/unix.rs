@@ -10,7 +10,7 @@ use axum::{
 	extract::{connect_info::IntoMakeServiceWithConnectInfo, Request},
 	Router,
 };
-use conduit::{debug_error, error::infallible, trace, Error, Result, Server};
+use conduit::{debug, debug_error, error::infallible, info, trace, warn, Err, Result, Server};
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
 	rt::{TokioExecutor, TokioIo},
@@ -23,7 +23,6 @@ use tokio::{
 	task::JoinSet,
 };
 use tower::{Service, ServiceExt};
-use tracing::{debug, info, warn};
 
 type MakeService = IntoMakeServiceWithConnectInfo<Router, net::SocketAddr>;
 
@@ -97,19 +96,19 @@ async fn init(server: &Arc<Server>) -> Result<UnixListener> {
 
 	let dir = path.parent().unwrap_or_else(|| Path::new("/"));
 	if let Err(e) = fs::create_dir_all(dir).await {
-		return Err(Error::Err(format!("Failed to create {dir:?} for socket {path:?}: {e}")));
+		return Err!("Failed to create {dir:?} for socket {path:?}: {e}");
 	}
 
 	let listener = UnixListener::bind(path);
 	if let Err(e) = listener {
-		return Err(Error::Err(format!("Failed to bind listener {path:?}: {e}")));
+		return Err!("Failed to bind listener {path:?}: {e}");
 	}
 
 	let socket_perms = config.unix_socket_perms.to_string();
 	let octal_perms = u32::from_str_radix(&socket_perms, 8).expect("failed to convert octal permissions");
 	let perms = std::fs::Permissions::from_mode(octal_perms);
 	if let Err(e) = fs::set_permissions(&path, perms).await {
-		return Err(Error::Err(format!("Failed to set socket {path:?} permissions: {e}")));
+		return Err!("Failed to set socket {path:?} permissions: {e}");
 	}
 
 	info!("Listening at {:?}", path);

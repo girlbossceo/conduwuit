@@ -1,4 +1,4 @@
-use conduit::{Error, Result};
+use conduit::{Err, Error, Result};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, OwnedEventId, OwnedRoomId, RoomId};
 use serde_json::value::RawValue as RawJsonValue;
 use tracing::warn;
@@ -17,15 +17,12 @@ pub fn parse_incoming_pdu(pdu: &RawJsonValue) -> Result<(OwnedEventId, Canonical
 		.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid room id in pdu"))?;
 
 	let Ok(room_version_id) = services().rooms.state.get_room_version(&room_id) else {
-		return Err(Error::Err(format!("Server is not in room {room_id}")));
+		return Err!("Server is not in room {room_id}");
 	};
 
 	let Ok((event_id, value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Could not convert event to canonical json.",
-		));
+		return Err!(Request(InvalidParam("Could not convert event to canonical json.")));
 	};
 
 	Ok((event_id, value, room_id))

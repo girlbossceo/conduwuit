@@ -10,7 +10,7 @@ use std::{
 };
 
 use conduit::{
-	debug, debug_error, debug_info, error, info, trace,
+	debug, debug_error, debug_info, err, error, info, trace,
 	utils::{math::continue_exponential_backoff_secs, MutexMap},
 	warn, Error, Result,
 };
@@ -1382,11 +1382,8 @@ impl Service {
 	}
 
 	fn get_room_version_id(create_event: &PduEvent) -> Result<RoomVersionId> {
-		let create_event_content: RoomCreateEventContent =
-			serde_json::from_str(create_event.content.get()).map_err(|e| {
-				error!("Invalid create event: {}", e);
-				Error::BadDatabase("Invalid create event in db")
-			})?;
+		let create_event_content: RoomCreateEventContent = serde_json::from_str(create_event.content.get())
+			.map_err(|e| err!(Database("Invalid create event: {e}")))?;
 
 		Ok(create_event_content.room_version)
 	}

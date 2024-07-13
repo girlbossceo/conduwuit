@@ -8,7 +8,7 @@ use std::{
 use conduit::{
 	error,
 	utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
-	PduCount,
+	Err, PduCount,
 };
 use ruma::{
 	api::client::{
@@ -545,8 +545,7 @@ async fn load_joined_room(
 	// Database queries:
 
 	let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? else {
-		error!("Room {} has no state", room_id);
-		return Err(Error::BadDatabase("Room has no state"));
+		return Err!(Database(error!("Room {room_id} has no state")));
 	};
 
 	let since_shortstatehash = services()

@@ -7,7 +7,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{checked, debug_info, utils::math::usize_from_f64};
+use conduit::{checked, debug, debug_info, err, utils::math::usize_from_f64, warn, Error, Result};
 use lru_cache::LruCache;
 use ruma::{
 	api::{
@@ -27,9 +27,8 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, RoomId, ServerName, UInt, UserId,
 };
 use tokio::sync::Mutex;
-use tracing::{debug, error, warn};
 
-use crate::{services, Error, Result};
+use crate::services;
 
 pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -380,10 +379,7 @@ impl Service {
 			.map(|s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomJoinRulesEventContent| c.join_rule)
-					.map_err(|e| {
-						error!("Invalid room join rule event in database: {}", e);
-						Error::BadDatabase("Invalid room join rule event in database.")
-					})
+					.map_err(|e| err!(Database(error!("Invalid room join rule event in database: {e}"))))
 			})
 			.transpose()?
 			.unwrap_or(JoinRule::Invite);

@@ -6,7 +6,7 @@ mod sender;
 
 use std::fmt::Debug;
 
-use conduit::{Error, Result};
+use conduit::{err, Result};
 pub use resolve::{resolve_actual_dest, CachedDest, CachedOverride, FedDest};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
@@ -224,7 +224,7 @@ impl Service {
 	fn dispatch(&self, msg: Msg) -> Result<()> {
 		debug_assert!(!self.sender.is_full(), "channel full");
 		debug_assert!(!self.sender.is_closed(), "channel closed");
-		self.sender.send(msg).map_err(|e| Error::Err(e.to_string()))
+		self.sender.send(msg).map_err(|e| err!("{e}"))
 	}
 }
 

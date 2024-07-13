@@ -5,7 +5,7 @@ use argon2::{
 	PasswordVerifier, Version,
 };
 
-use crate::{Error, Result};
+use crate::{err, Error, Result};
 
 const M_COST: u32 = Params::DEFAULT_M_COST; // memory size in 1 KiB blocks
 const T_COST: u32 = Params::DEFAULT_T_COST; // nr of iterations
@@ -44,7 +44,7 @@ pub(super) fn verify_password(password: &str, password_hash: &str) -> Result<()>
 		.map_err(map_err)
 }
 
-fn map_err(e: password_hash::Error) -> Error { Error::Err(e.to_string()) }
+fn map_err(e: password_hash::Error) -> Error { err!("{e}") }
 
 #[cfg(test)]
 mod tests {

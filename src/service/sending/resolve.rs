@@ -5,13 +5,12 @@ use std::{
 	time::SystemTime,
 };
 
-use conduit::Err;
+use conduit::{debug, debug_error, debug_info, debug_warn, trace, utils::rand, Err, Error, Result};
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
 use ruma::{OwnedServerName, ServerName};
-use tracing::{debug, error, trace};
 
-use crate::{debug_error, debug_info, debug_warn, services, utils::rand, Error, Result};
+use crate::services;
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -346,10 +345,7 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 			debug!("{e}");
 			Ok(())
 		},
-		_ => {
-			error!("DNS {e}");
-			Err(Error::Err(e.to_string()))
-		},
+		_ => Err!(error!("DNS {e}")),
 	}
 }
 

@@ -1,4 +1,4 @@
-use conduit::{utils::time, warn, Error, Result};
+use conduit::{utils::time, warn, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::services;
@@ -88,11 +88,10 @@ pub(super) async fn restart(_body: Vec<&str>, force: bool) -> Result<RoomMessage
 	use conduit::utils::sys::current_exe_deleted;
 
 	if !force && current_exe_deleted() {
-		return Err(Error::Err(
-			"The server cannot be restarted because the executable was tampered with. If this is expected use --force \
-			 to override."
-				.to_owned(),
-		));
+		return Err!(
+			"The server cannot be restarted because the executable changed. If this is expected use --force to \
+			 override."
+		);
 	}
 
 	services().server.restart()?;

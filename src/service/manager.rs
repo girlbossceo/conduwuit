@@ -1,6 +1,6 @@
 use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
-use conduit::{debug, debug_warn, error, trace, utils::time, warn, Error, Result, Server};
+use conduit::{debug, debug_warn, error, trace, utils::time, warn, Err, Error, Result, Server};
 use futures_util::FutureExt;
 use tokio::{
 	sync::{Mutex, MutexGuard},
@@ -129,10 +129,7 @@ impl Manager {
 	/// Start the worker in a task for the service.
 	async fn start_worker(&self, workers: &mut WorkersLocked<'_>, service: &Arc<dyn Service>) -> Result<()> {
 		if !self.server.running() {
-			return Err(Error::Err(format!(
-				"Service {:?} worker not starting during server shutdown.",
-				service.name()
-			)));
+			return Err!("Service {:?} worker not starting during server shutdown.", service.name());
 		}
 
 		debug!("Service {:?} worker starting...", service.name());
