@@ -1,5 +1,6 @@
 #![allow(refining_impl_trait)]
 
+mod manager;
 mod service;
 pub mod services;
 
