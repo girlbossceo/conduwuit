@@ -42,6 +42,7 @@ base64.workspace = true
 bytes.workspace = true
 conduit-core.workspace = true
 conduit-database.workspace = true
+const-str.workspace = true
 cyborgtime.workspace = true
 futures-util.workspace = true
 hickory-resolver.workspace = true

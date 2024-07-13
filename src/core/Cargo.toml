@@ -55,6 +55,7 @@ axum.workspace = true
 bytes.workspace = true
 checked_ops.workspace = true
 chrono.workspace = true
+const-str.workspace = true
 either.workspace = true
 figment.workspace = true
 http-body-util.workspace = true

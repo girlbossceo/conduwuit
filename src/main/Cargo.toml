@@ -147,6 +147,7 @@ log.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 clap.workspace = true
+const-str.workspace = true
 
 opentelemetry.workspace = true
 opentelemetry.optional = true

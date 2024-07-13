@@ -2,6 +2,30 @@ use crate::Result;
 
 pub const EMPTY: &str = "";
 
+/// Constant expression to bypass format! if the argument is a string literal
+/// but not a format string. If the literal is a format string then String is
+/// returned otherwise the input (i.e. &'static str) is returned. If multiple
+/// arguments are provided the first is assumed to be a format string.
+#[macro_export]
+macro_rules! format_maybe {
+	($s:literal) => {
+		if $crate::is_format!($s) { std::format!($s).into() } else { $s.into() }
+	};
+
+	($($args:expr),*) => {
+		std::format!($($args),*).into()
+	};
+}
+
+/// Constant expression to decide if a literal is a format string. Note: could
+/// use some improvement.
+#[macro_export]
+macro_rules! is_format {
+	($s:literal) => {
+		::const_str::contains!($s, "{") && ::const_str::contains!($s, "}")
+	};
+}
+
 /// Find the common prefix from a collection of strings and return a slice
 /// ```
 /// use conduit_core::utils::string::common_prefix;

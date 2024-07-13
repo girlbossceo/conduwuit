@@ -41,6 +41,7 @@ bytes.workspace = true
 conduit-core.workspace = true
 conduit-database.workspace = true
 conduit-service.workspace = true
+const-str.workspace = true
 futures-util.workspace = true
 hmac.workspace = true
 http.workspace = true

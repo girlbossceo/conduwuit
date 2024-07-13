@@ -589,6 +589,7 @@ dependencies = [
  "conduit_router",
  "conduit_service",
  "console-subscriber",
+ "const-str",
  "hardened_malloc-rs",
  "log",
  "opentelemetry",
@@ -613,6 +614,7 @@ dependencies = [
  "conduit_api",
  "conduit_core",
  "conduit_service",
+ "const-str",
  "futures-util",
  "log",
  "ruma",
@@ -635,6 +637,7 @@ dependencies = [
  "conduit_core",
  "conduit_database",
  "conduit_service",
+ "const-str",
  "futures-util",
  "hmac",
  "http 1.1.0",
@@ -665,6 +668,7 @@ dependencies = [
  "bytes",
  "checked_ops",
  "chrono",
+ "const-str",
  "either",
  "figment",
  "hardened_malloc-rs",
@@ -701,6 +705,7 @@ name = "conduit_database"
 version = "0.4.5"
 dependencies = [
  "conduit_core",
+ "const-str",
  "log",
  "rust-rocksdb-uwu",
  "tokio",
@@ -720,6 +725,7 @@ dependencies = [
  "conduit_api",
  "conduit_core",
  "conduit_service",
+ "const-str",
  "http 1.1.0",
  "http-body-util",
  "hyper 1.4.1",
@@ -746,6 +752,7 @@ dependencies = [
  "bytes",
  "conduit_core",
  "conduit_database",
+ "const-str",
  "cyborgtime",
  "futures-util",
  "hickory-resolver",
@@ -816,6 +823,12 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "const-str"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3618cccc083bb987a415d85c02ca6c9994ea5b44731ec28b9ecf09658655fba9"
 
 [[package]]
 name = "const_panic"
