@@ -53,7 +53,7 @@ version = "0.8.5"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 [workspace.dependencies.bytes]
-version = "1.6.0"
+version = "1.6.1"
 
 [workspace.dependencies.http-body-util]
 version = "0.1.1"
@@ -251,7 +251,7 @@ default-features = false
 
 # Used for conduit::Error type
 [workspace.dependencies.thiserror]
-version = "1.0.61"
+version = "1.0.62"
 
 # Used when hashing the state
 [workspace.dependencies.ring]
