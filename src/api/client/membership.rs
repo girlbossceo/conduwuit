@@ -1273,16 +1273,12 @@ async fn make_join_request(
 		make_join_counter = make_join_counter.saturating_add(1);
 
 		if let Err(ref e) = make_join_response {
-			trace!("make_join ErrorKind string: {:?}", e.error_code().to_string());
+			trace!("make_join ErrorKind string: {:?}", e.kind().to_string());
 
 			// converting to a string is necessary (i think) because ruma is forcing us to
 			// fill in the struct for M_INCOMPATIBLE_ROOM_VERSION
-			if e.error_code()
-				.to_string()
-				.contains("M_INCOMPATIBLE_ROOM_VERSION")
-				|| e.error_code()
-					.to_string()
-					.contains("M_UNSUPPORTED_ROOM_VERSION")
+			if e.kind().to_string().contains("M_INCOMPATIBLE_ROOM_VERSION")
+				|| e.kind().to_string().contains("M_UNSUPPORTED_ROOM_VERSION")
 			{
 				incompatible_room_version_count = incompatible_room_version_count.saturating_add(1);
 			}
