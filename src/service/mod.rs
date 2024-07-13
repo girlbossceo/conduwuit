@@ -16,6 +16,7 @@ pub mod rooms;
 pub mod sending;
 pub mod transaction_ids;
 pub mod uiaa;
+pub mod updates;
 pub mod users;
 
 extern crate conduit_core as conduit;

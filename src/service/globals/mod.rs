@@ -1,9 +1,8 @@
 mod client;
 mod data;
-pub(super) mod emerg_access;
+mod emerg_access;
 pub(super) mod migrations;
 pub(crate) mod resolver;
-pub(super) mod updates;
 
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -12,6 +11,7 @@ use std::{
 	time::Instant,
 };
 
+use async_trait::async_trait;
 use conduit::{error, trace, Config, Result};
 use data::Data;
 use ipaddress::IPAddress;
@@ -22,7 +22,7 @@ use ruma::{
 	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomAliasId,
 	RoomVersionId, ServerName, UserId,
 };
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::sync::Mutex;
 use url::Url;
 
 use crate::services;
@@ -41,7 +41,6 @@ pub struct Service {
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
-	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
@@ -49,6 +48,7 @@ pub struct Service {
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
@@ -103,7 +103,6 @@ impl crate::Service for Service {
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			updates_handle: Mutex::new(None),
 			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
@@ -120,6 +119,12 @@ impl crate::Service for Service {
 		};
 
 		Ok(Arc::new(s))
+	}
+
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		emerg_access::init_emergency_access();
+
+		Ok(())
 	}
 
 	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
@@ -180,12 +185,6 @@ impl Service {
 
 	#[inline]
 	pub fn current_count(&self) -> Result<u64> { Ok(self.db.current_count()) }
-
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn last_check_for_updates_id(&self) -> Result<u64> { self.db.last_check_for_updates_id() }
-
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> { self.db.update_check_for_updates_id(id) }
 
 	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
 		self.db.watch(user_id, device_id).await

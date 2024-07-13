@@ -9,7 +9,7 @@ use crate::{
 	manager::Manager,
 	media, presence, pusher, rooms, sending,
 	service::{Args, Map, Service},
-	transaction_ids, uiaa, users,
+	transaction_ids, uiaa, updates, users,
 };
 
 pub struct Services {
@@ -22,10 +22,11 @@ pub struct Services {
 	pub account_data: Arc<account_data::Service>,
 	pub presence: Arc<presence::Service>,
 	pub admin: Arc<admin::Service>,
-	pub globals: Arc<globals::Service>,
 	pub key_backups: Arc<key_backups::Service>,
 	pub media: Arc<media::Service>,
 	pub sending: Arc<sending::Service>,
+	pub updates: Arc<updates::Service>,
+	pub globals: Arc<globals::Service>,
 
 	manager: Mutex<Option<Arc<Manager>>>,
 	pub(crate) service: Map,
@@ -82,6 +83,7 @@ impl Services {
 			key_backups: build!(key_backups::Service),
 			media: build!(media::Service),
 			sending: build!(sending::Service),
+			updates: build!(updates::Service),
 			globals: build!(globals::Service),
 			manager: Mutex::new(None),
 			service,
@@ -93,9 +95,7 @@ impl Services {
 	pub(super) async fn start(&self) -> Result<()> {
 		debug_info!("Starting services...");
 
-		globals::migrations::migrations(&self.db, &self.globals.config).await?;
-		globals::emerg_access::init_emergency_access();
-
+		globals::migrations::migrations(&self.db, &self.server.config).await?;
 		self.manager
 			.lock()
 			.await
@@ -104,25 +104,14 @@ impl Services {
 			.start()
 			.await?;
 
-		if self.globals.allow_check_for_updates() {
-			let handle = globals::updates::start_check_for_updates_task();
-			_ = self.globals.updates_handle.lock().await.insert(handle);
-		}
-
 		debug_info!("Services startup complete.");
 		Ok(())
 	}
 
 	pub(super) async fn stop(&self) {
 		info!("Shutting down services...");
+
 		self.interrupt();
-
-		debug!("Waiting for update worker...");
-		if let Some(updates_handle) = self.globals.updates_handle.lock().await.take() {
-			updates_handle.abort();
-			_ = updates_handle.await;
-		}
-
 		if let Some(manager) = self.manager.lock().await.as_ref() {
 			manager.stop().await;
 		}
@@ -173,6 +162,7 @@ impl Services {
 
 	fn interrupt(&self) {
 		debug!("Interrupting services...");
+
 		for (name, service) in &self.service {
 			trace!("Interrupting {name}");
 			service.interrupt();

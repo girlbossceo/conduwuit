@@ -26,7 +26,7 @@ pub(super) async fn globals(subcommand: Globals) -> Result<RoomMessageEventConte
 		},
 		Globals::LastCheckForUpdatesId => {
 			let timer = tokio::time::Instant::now();
-			let results = services().globals.db.last_check_for_updates_id();
+			let results = services().updates.last_check_for_updates_id();
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

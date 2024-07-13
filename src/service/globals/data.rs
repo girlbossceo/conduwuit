@@ -14,9 +14,6 @@ use ruma::{
 
 use crate::services;
 
-const COUNTER: &[u8] = b"c";
-const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
-
 pub struct Data {
 	global: Arc<Map>,
 	todeviceid_events: Arc<Map>,
@@ -34,6 +31,8 @@ pub struct Data {
 	pub(super) db: Arc<Database>,
 	counter: RwLock<u64>,
 }
+
+const COUNTER: &[u8] = b"c";
 
 impl Data {
 	pub(super) fn new(db: &Arc<Database>) -> Self {
@@ -91,23 +90,6 @@ impl Data {
 			.get(COUNTER)?
 			.as_deref()
 			.map_or(Ok(0_u64), utils::u64_from_bytes)
-	}
-
-	pub fn last_check_for_updates_id(&self) -> Result<u64> {
-		self.global
-			.get(LAST_CHECK_FOR_UPDATES_COUNT)?
-			.map_or(Ok(0_u64), |bytes| {
-				utils::u64_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("last check for updates count has invalid bytes."))
-			})
-	}
-
-	#[inline]
-	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
-		self.global
-			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
-
-		Ok(())
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
