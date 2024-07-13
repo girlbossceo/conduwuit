@@ -19,29 +19,14 @@ use ruma::{
 	api::client::discovery::discover_support::ContactRole, OwnedRoomId, OwnedServerName, OwnedUserId, RoomVersionId,
 };
 use serde::{de::IgnoredAny, Deserialize};
-use tracing::{debug, error, warn};
 use url::Url;
 
 pub use self::check::check;
 use self::proxy::ProxyConfig;
-use crate::{error::Error, Err};
+use crate::{error::Error, Err, Result};
 
 pub mod check;
 pub mod proxy;
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(transparent)]
-struct ListeningPort {
-	#[serde(with = "either::serde_untagged")]
-	ports: Either<u16, Vec<u16>>,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(transparent)]
-struct ListeningAddr {
-	#[serde(with = "either::serde_untagged")]
-	addrs: Either<IpAddr, Vec<IpAddr>>,
-}
 
 /// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
@@ -397,6 +382,20 @@ pub struct WellKnownConfig {
 	pub support_mxid: Option<OwnedUserId>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(transparent)]
+struct ListeningPort {
+	#[serde(with = "either::serde_untagged")]
+	ports: Either<u16, Vec<u16>>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(transparent)]
+struct ListeningAddr {
+	#[serde(with = "either::serde_untagged")]
+	addrs: Either<IpAddr, Vec<IpAddr>>,
+}
+
 const DEPRECATED_KEYS: &[&str] = &[
 	"cache_capacity",
 	"max_concurrent_requests",
@@ -410,7 +409,7 @@ const DEPRECATED_KEYS: &[&str] = &[
 
 impl Config {
 	/// Initialize config
-	pub fn new(path: Option<PathBuf>) -> Result<Self, Error> {
+	pub fn new(path: Option<PathBuf>) -> Result<Self> {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())
@@ -438,62 +437,9 @@ impl Config {
 		};
 
 		// don't start if we're listening on both UNIX sockets and TCP at same time
-		if Self::is_dual_listening(&raw_config) {
-			return Err!(Config("address", "dual listening on UNIX and TCP sockets not allowed."));
-		};
+		check::is_dual_listening(&raw_config)?;
 
 		Ok(config)
-	}
-
-	/// Iterates over all the keys in the config file and warns if there is a
-	/// deprecated key specified
-	pub(crate) fn warn_deprecated(&self) {
-		debug!("Checking for deprecated config keys");
-		let mut was_deprecated = false;
-		for key in self
-			.catchall
-			.keys()
-			.filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key))
-		{
-			warn!("Config parameter \"{}\" is deprecated, ignoring.", key);
-			was_deprecated = true;
-		}
-
-		if was_deprecated {
-			warn!(
-				"Read conduwuit config documentation at https://conduwuit.puppyirl.gay/configuration.html and check \
-				 your configuration if any new configuration parameters should be adjusted"
-			);
-		}
-	}
-
-	/// iterates over all the catchall keys (unknown config options) and warns
-	/// if there are any.
-	pub(crate) fn warn_unknown_key(&self) {
-		debug!("Checking for unknown config keys");
-		for key in self
-			.catchall
-			.keys()
-			.filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
-		{
-			warn!("Config parameter \"{}\" is unknown to conduwuit, ignoring.", key);
-		}
-	}
-
-	/// Checks the presence of the `address` and `unix_socket_path` keys in the
-	/// raw_config, exiting the process if both keys were detected.
-	fn is_dual_listening(raw_config: &Figment) -> bool {
-		let check_address = raw_config.find_value("address");
-		let check_unix_socket = raw_config.find_value("unix_socket_path");
-
-		// are the check_address and check_unix_socket keys both Ok (specified) at the
-		// same time?
-		if check_address.is_ok() && check_unix_socket.is_ok() {
-			error!("TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify only one option.");
-			return true;
-		}
-
-		false
 	}
 
 	#[must_use]

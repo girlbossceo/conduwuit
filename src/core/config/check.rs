@@ -1,6 +1,10 @@
-use crate::{error, error::Error, info, warn, Config, Err};
+use figment::Figment;
 
-pub fn check(config: &Config) -> Result<(), Error> {
+use super::DEPRECATED_KEYS;
+use crate::{debug, error, info, warn, Config, Err, Result};
+
+#[allow(clippy::cognitive_complexity)]
+pub fn check(config: &Config) -> Result<()> {
 	#[cfg(debug_assertions)]
 	info!("Note: conduwuit was built without optimisations (i.e. debug build)");
 
@@ -15,8 +19,8 @@ pub fn check(config: &Config) -> Result<(), Error> {
 		 forwards-compatible way. Please update your build script to remove this feature."
 	);
 
-	config.warn_deprecated();
-	config.warn_unknown_key();
+	warn_deprecated(config);
+	warn_unknown_key(config);
 
 	if config.sentry && config.sentry_endpoint.is_none() {
 		return Err!(Config("sentry_endpoint", "Sentry cannot be enabled without an endpoint set"));
@@ -178,6 +182,55 @@ For security and safety reasons, conduwuit will shut down. If you are extra sure
 			"All URLs are allowed for URL previews via setting \"url_preview_url_contains_allowlist\" to \"*\". This \
 			 opens up significant attack surface to your server. You are expected to be aware of the risks by doing \
 			 this."
+		);
+	}
+
+	Ok(())
+}
+
+/// Iterates over all the keys in the config file and warns if there is a
+/// deprecated key specified
+fn warn_deprecated(config: &Config) {
+	debug!("Checking for deprecated config keys");
+	let mut was_deprecated = false;
+	for key in config
+		.catchall
+		.keys()
+		.filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key))
+	{
+		warn!("Config parameter \"{}\" is deprecated, ignoring.", key);
+		was_deprecated = true;
+	}
+
+	if was_deprecated {
+		warn!(
+			"Read conduwuit config documentation at https://conduwuit.puppyirl.gay/configuration.html and check your \
+			 configuration if any new configuration parameters should be adjusted"
+		);
+	}
+}
+
+/// iterates over all the catchall keys (unknown config options) and warns
+/// if there are any.
+fn warn_unknown_key(config: &Config) {
+	debug!("Checking for unknown config keys");
+	for key in config
+		.catchall
+		.keys()
+		.filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
+	{
+		warn!("Config parameter \"{}\" is unknown to conduwuit, ignoring.", key);
+	}
+}
+
+/// Checks the presence of the `address` and `unix_socket_path` keys in the
+/// raw_config, exiting the process if both keys were detected.
+pub(super) fn is_dual_listening(raw_config: &Figment) -> Result<()> {
+	let contains_address = raw_config.contains("address");
+	let contains_unix_socket = raw_config.contains("unix_socket_path");
+	if contains_address && contains_unix_socket {
+		return Err!(
+			"TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify only one option."
 		);
 	}
 
