@@ -3,6 +3,7 @@ mod tests;
 
 use std::{collections::HashMap, io::Cursor, num::Saturating as Sat, path::PathBuf, sync::Arc, time::SystemTime};
 
+use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{checked, debug, debug_error, error, utils, Error, Result, Server};
 use data::Data;
@@ -47,6 +48,7 @@ pub struct Service {
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
@@ -54,6 +56,12 @@ impl crate::Service for Service {
 			db: Data::new(args.db),
 			url_preview_mutex: RwLock::new(HashMap::new()),
 		}))
+	}
+
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		self.create_media_dir().await?;
+
+		Ok(())
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }

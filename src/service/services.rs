@@ -93,7 +93,6 @@ impl Services {
 	pub(super) async fn start(&self) -> Result<()> {
 		debug_info!("Starting services...");
 
-		self.media.create_media_dir().await?;
 		globals::migrations::migrations(&self.db, &self.globals.config).await?;
 		globals::emerg_access::init_emergency_access();
 
