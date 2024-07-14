@@ -71,10 +71,23 @@ buildDepsOnlyEnv =
       # which breaks Darwin entirely
       enableLiburing = enableLiburing;
     }).overrideAttrs (old: {
-      # TODO: static rocksdb fails to build on darwin
+      # TODO: static rocksdb fails to build on darwin, also see <https://github.com/NixOS/nixpkgs/issues/320448>
       # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
       meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
+
       enableLiburing = enableLiburing;
+
+      sse42Support = stdenv.targetPlatform.isx86_64;
+
+      cmakeFlags = if stdenv.targetPlatform.isx86_64
+        then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
+        ++ lib.optionals stdenv.targetPlatform.isx86_64 [
+          "-DPORTABLE=x86-64-v2"
+          "-DUSE_SSE=1"
+          "-DHAVE_SSE=1"
+          "-DHAVE_SSE42=1"
+        ]
+        else old.cmakeFlags;
     });
   in
   {
@@ -101,7 +114,9 @@ buildPackageEnv = {
   # Only needed in static stdenv because these are transitive dependencies of rocksdb
   CARGO_BUILD_RUSTFLAGS = buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
     + lib.optionalString (enableLiburing && stdenv.hostPlatform.isStatic)
-      " -L${lib.getLib liburing}/lib -luring";
+      " -L${lib.getLib liburing}/lib -luring"
+    + lib.optionalString stdenv.targetPlatform.isx86_64
+      " -Ctarget-cpu=x86-64-v2";
 };
 
 

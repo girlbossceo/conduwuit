@@ -13,6 +13,9 @@ lib.optionalAttrs stdenv.hostPlatform.isStatic {
     lib.concatStringsSep
       " "
       ([]
+        ++ lib.optionals
+          stdenv.targetPlatform.isx86_64
+          [ "-C" "target-cpu=x86-64-v2" ]
         # This disables PIE for static builds, which isn't great in terms
         # of security. Unfortunately, my hand is forced because nixpkgs'
         # `libstdc++.a` is built without `-fPIE`, which precludes us from
