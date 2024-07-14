@@ -10,7 +10,7 @@ extern crate conduit_api as api;
 
 pub(crate) fn build(server: &Arc<Server>) -> Router {
 	let state = service::services();
-	let router = Router::new()
+	api::router::build(Router::new(), server)
 		.route("/", get(it_works))
 		.fallback(not_found)
 		.with_state(state);

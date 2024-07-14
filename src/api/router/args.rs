@@ -1,24 +1,18 @@
-mod auth;
-mod handler;
-mod request;
-mod response;
-
 use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, BytesMut};
-use conduit::{debug, debug_warn, trace, warn};
+use conduit::{debug, debug_warn, trace, warn, Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, IncomingRequest},
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
 
-use self::{auth::Auth, request::Request};
-pub(super) use self::{handler::RouterExt, response::RumaResponse};
-use crate::{service::appservice::RegistrationInfo, services, Error, Result};
+use super::{auth, auth::Auth, request, request::Request};
+use crate::{service::appservice::RegistrationInfo, services};
 
 /// Extractor for Ruma request structs
-pub(crate) struct Ruma<T> {
+pub(crate) struct Args<T> {
 	/// Request struct body
 	pub(crate) body: T,
 
@@ -44,7 +38,7 @@ pub(crate) struct Ruma<T> {
 }
 
 #[async_trait]
-impl<T, S> FromRequest<S, Body> for Ruma<T>
+impl<T, S> FromRequest<S, Body> for Args<T>
 where
 	T: IncomingRequest,
 {
@@ -65,7 +59,7 @@ where
 	}
 }
 
-impl<T> Deref for Ruma<T> {
+impl<T> Deref for Args<T> {
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target { &self.body }

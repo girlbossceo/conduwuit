@@ -1,3 +1,9 @@
+mod args;
+mod auth;
+mod handler;
+mod request;
+mod response;
+
 use axum::{
 	response::IntoResponse,
 	routing::{any, get, post},
@@ -7,7 +13,9 @@ use conduit::{err, Error, Server};
 use http::Uri;
 use ruma::api::client::error::ErrorKind;
 
-use crate::{client, router::RouterExt, server};
+use self::handler::RouterExt;
+pub(super) use self::{ar::Ruma, response::RumaResponse};
+use crate::{client, server};
 
 pub fn build(router: Router, server: &Server) -> Router {
 	let config = &server.config;
@@ -95,7 +103,7 @@ pub fn build(router: Router, server: &Server) -> Router {
 		.ruma_route(client::get_member_events_route)
 		.ruma_route(client::get_protocols_route)
 		.route("/_matrix/client/unstable/thirdparty/protocols",
-		    get(client::get_protocols_route_unstable))
+			get(client::get_protocols_route_unstable))
 		.ruma_route(client::send_message_event_route)
 		.ruma_route(client::send_state_event_for_key_route)
 		.ruma_route(client::get_state_events_route)
@@ -180,15 +188,15 @@ pub fn build(router: Router, server: &Server) -> Router {
 		.ruma_route(client::get_relating_events_with_rel_type_route)
 		.ruma_route(client::get_relating_events_route)
 		.ruma_route(client::get_hierarchy_route)
-        .ruma_route(client::get_mutual_rooms_route)
-        .ruma_route(client::get_room_summary)
-        .route(
-            "/_matrix/client/unstable/im.nheko.summary/rooms/:room_id_or_alias/summary",
-            get(client::get_room_summary_legacy)
-        )
-        .ruma_route(client::well_known_support)
-        .ruma_route(client::well_known_client)
-        .route("/_conduwuit/server_version", get(client::conduwuit_server_version))
+		.ruma_route(client::get_mutual_rooms_route)
+		.ruma_route(client::get_room_summary)
+		.route(
+			"/_matrix/client/unstable/im.nheko.summary/rooms/:room_id_or_alias/summary",
+			get(client::get_room_summary_legacy)
+		)
+		.ruma_route(client::well_known_support)
+		.ruma_route(client::well_known_client)
+		.route("/_conduwuit/server_version", get(client::conduwuit_server_version))
 		.route("/_matrix/client/r0/rooms/:room_id/initialSync", get(initial_sync))
 		.route("/_matrix/client/v3/rooms/:room_id/initialSync", get(initial_sync))
 		.route("/client/server.json", get(client::syncv3_client_server_json));
@@ -233,7 +241,7 @@ pub fn build(router: Router, server: &Server) -> Router {
 }
 
 async fn initial_sync(_uri: Uri) -> impl IntoResponse {
-	Error::BadRequest(ErrorKind::GuestAccessForbidden, "Guest access not implemented")
+	err!(Request(GuestAccessForbidden("Guest access not implemented")))
 }
 
 async fn federation_disabled() -> impl IntoResponse { err!(Config("allow_federation", "Federation is disabled.")) }
