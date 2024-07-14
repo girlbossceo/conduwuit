@@ -1,23 +1,29 @@
 use figment::Figment;
 
 use super::DEPRECATED_KEYS;
-use crate::{debug, error, info, warn, Config, Err, Result};
+use crate::{debug, debug_info, error, info, warn, Config, Err, Result};
 
 #[allow(clippy::cognitive_complexity)]
 pub fn check(config: &Config) -> Result<()> {
-	#[cfg(debug_assertions)]
-	info!("Note: conduwuit was built without optimisations (i.e. debug build)");
+	if cfg!(debug_assertions) {
+		info!("Note: conduwuit was built without optimisations (i.e. debug build)");
+	}
 
-	#[cfg(all(feature = "rocksdb", not(feature = "sha256_media")))] // prevents catching this in `--all-features`
-	warn!(
-		"Note the rocksdb feature was deleted from conduwuit. SQLite support was removed and RocksDB is the only \
-		 supported backend now. Please update your build script to remove this feature."
-	);
-	#[cfg(all(feature = "sha256_media", not(feature = "rocksdb")))] // prevents catching this in `--all-features`
-	warn!(
-		"Note the sha256_media feature was deleted from conduwuit, it is now fully integrated in a \
-		 forwards-compatible way. Please update your build script to remove this feature."
-	);
+	// prevents catching this in `--all-features`
+	if cfg!(all(feature = "rocksdb", not(feature = "sha256_media"))) {
+		warn!(
+			"Note the rocksdb feature was deleted from conduwuit. SQLite support was removed and RocksDB is the only \
+			 supported backend now. Please update your build script to remove this feature."
+		);
+	}
+
+	// prevents catching this in `--all-features`
+	if cfg!(all(feature = "sha256_media", not(feature = "rocksdb"))) {
+		warn!(
+			"Note the sha256_media feature was deleted from conduwuit, it is now fully integrated in a \
+			 forwards-compatible way. Please update your build script to remove this feature."
+		);
+	}
 
 	warn_deprecated(config);
 	warn_unknown_key(config);
@@ -26,28 +32,27 @@ pub fn check(config: &Config) -> Result<()> {
 		return Err!(Config("sentry_endpoint", "Sentry cannot be enabled without an endpoint set"));
 	}
 
-	#[cfg(all(feature = "hardened_malloc", feature = "jemalloc"))]
-	warn!(
-		"hardened_malloc and jemalloc are both enabled, this causes jemalloc to be used. If using --all-features, \
-		 this is harmless."
-	);
+	if cfg!(all(feature = "hardened_malloc", feature = "jemalloc")) {
+		warn!(
+			"hardened_malloc and jemalloc are both enabled, this causes jemalloc to be used. If using --all-features, \
+			 this is harmless."
+		);
+	}
 
-	#[cfg(not(unix))]
-	if config.unix_socket_path.is_some() {
+	if cfg!(not(unix)) && config.unix_socket_path.is_some() {
 		return Err!(Config(
 			"unix_socket_path",
-			"UNIX socket support is only available on *nix platforms. Please remove \"unix_socket_path\" from your \
-			 config.",
+			"UNIX socket support is only available on *nix platforms. Please remove 'unix_socket_path' from your \
+			 config."
 		));
 	}
 
-	#[cfg(unix)]
-	if config.unix_socket_path.is_none() {
+	if cfg!(unix) && config.unix_socket_path.is_none() {
 		config.get_bind_addrs().iter().for_each(|addr| {
 			use std::path::Path;
 
 			if addr.ip().is_loopback() {
-				crate::debug_info!("Found loopback listening address {addr}, running checks if we're in a container.",);
+				debug_info!("Found loopback listening address {addr}, running checks if we're in a container.");
 
 				if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
 				/* Host */
@@ -90,8 +95,7 @@ pub fn check(config: &Config) -> Result<()> {
 	}
 
 	// yeah, unless the user built a debug build hopefully for local testing only
-	#[cfg(not(debug_assertions))]
-	if config.server_name == "your.server.name" {
+	if cfg!(not(debug_assertions)) && config.server_name == "your.server.name" {
 		return Err!(Config(
 			"server_name",
 			"You must specify a valid server name for production usage of conduwuit."
