@@ -87,6 +87,12 @@ buildDepsOnlyEnv =
           "-DHAVE_SSE=1"
           "-DHAVE_SSE42=1"
         ]
+        else if stdenv.targetPlatform.isAarch64
+        then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
+        ++ lib.optionals stdenv.targetPlatform.isAarch64 [
+          # cortex-a55 == ARMv8.2-a
+          "-DPORTABLE=armv8.2-a"
+        ]
         else old.cmakeFlags;
     });
   in
@@ -116,7 +122,9 @@ buildPackageEnv = {
     + lib.optionalString (enableLiburing && stdenv.hostPlatform.isStatic)
       " -L${lib.getLib liburing}/lib -luring"
     + lib.optionalString stdenv.targetPlatform.isx86_64
-      " -Ctarget-cpu=x86-64-v2";
+      " -Ctarget-cpu=x86-64-v2"
+    + lib.optionalString stdenv.targetPlatform.isAarch64
+      " -Ctarget-cpu=cortex-a55"; # cortex-a55 == ARMv8.2-a
 };
 
 
