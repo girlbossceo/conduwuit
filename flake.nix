@@ -44,10 +44,21 @@
           # we have this already at https://github.com/girlbossceo/rocksdb/commit/a935c0273e1ba44eacf88ce3685a9b9831486155
           # unsetting this so i don't have to revert it and make this nix exclusive
           patches = [];
-          # no real reason to have snappy, no one uses this
           cmakeFlags = pkgs.lib.subtractLists
-            [ "-DWITH_SNAPPY=1" ]
-            old.cmakeFlags;
+            [
+              # no real reason to have snappy, no one uses this
+              "-DWITH_SNAPPY=1"
+              # we dont need to use ldb or sst_dump (core_tools)
+              "-DWITH_CORE_TOOLS=1"
+            ]
+            old.cmakeFlags
+            ++ [ "-DWITH_CORE_TOOLS=0" ];
+
+          # outputs has "tools" which we dont need or use
+          outputs = [ "out" ];
+
+          # preInstall hooks has stuff for messing with ldb/sst_dump which we dont need or use
+          preInstall = "";
         });
         # TODO: remove once https://github.com/NixOS/nixpkgs/pull/314945 is available
         liburing = pkgs.liburing.overrideAttrs (old: {
