@@ -50,9 +50,18 @@
               "-DWITH_SNAPPY=1"
               # we dont need to use ldb or sst_dump (core_tools)
               "-DWITH_CORE_TOOLS=1"
+              # we dont need to build rocksdb tests
+              "-DWITH_TESTS=1"
             ]
             old.cmakeFlags
-            ++ [ "-DWITH_CORE_TOOLS=0" ];
+            ++ [
+              # we dont need to use ldb or sst_dump (core_tools)
+              "-DWITH_CORE_TOOLS=0"
+              # we dont need trace tools
+              "-DWITH_TRACE_TOOLS=0"
+              # we dont need to build rocksdb tests
+              "-DWITH_TESTS=0"
+            ];
 
           # outputs has "tools" which we dont need or use
           outputs = [ "out" ];
