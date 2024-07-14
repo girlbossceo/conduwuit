@@ -52,6 +52,8 @@
               "-DWITH_CORE_TOOLS=1"
               # we dont need to build rocksdb tests
               "-DWITH_TESTS=1"
+              # we use rust-rocksdb via C interface and dont need C++ RTTI
+              "-DUSE_RTTI=1"
             ]
             old.cmakeFlags
             ++ [
@@ -61,6 +63,8 @@
               "-DWITH_TRACE_TOOLS=0"
               # we dont need to build rocksdb tests
               "-DWITH_TESTS=0"
+              # we use rust-rocksdb via C interface and dont need C++ RTTI
+              "-DUSE_RTTI=0"
             ];
 
           # outputs has "tools" which we dont need or use
