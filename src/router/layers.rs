@@ -1,11 +1,11 @@
-use std::{any::Any, io, sync::Arc, time::Duration};
+use std::{any::Any, sync::Arc, time::Duration};
 
 use axum::{
 	extract::{DefaultBodyLimit, MatchedPath},
 	Router,
 };
 use axum_client_ip::SecureClientIpSource;
-use conduit::Server;
+use conduit::{Result, Server};
 use http::{
 	header::{self, HeaderName},
 	HeaderValue, Method, StatusCode,
@@ -22,11 +22,19 @@ use tracing::Level;
 
 use crate::{request, router};
 
-const CONDUWUIT_CSP: &str = "sandbox; default-src 'none'; font-src 'none'; script-src 'none'; frame-ancestors 'none'; \
-                             form-action 'none'; base-uri 'none';";
-const CONDUWUIT_PERMISSIONS_POLICY: &str = "interest-cohort=(),browsing-topics=()";
+const CONDUWUIT_CSP: &[&str] = &[
+	"sandbox",
+	"default-src 'none'",
+	"font-src 'none'",
+	"script-src 'none'",
+	"frame-ancestors 'none'",
+	"form-action 'none'",
+	"base-uri 'none'",
+];
 
-pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
+const CONDUWUIT_PERMISSIONS_POLICY: &[&str] = &["interest-cohort=()", "browsing-topics=()"];
+
+pub(crate) fn build(server: &Arc<Server>) -> Result<Router> {
 	let layers = ServiceBuilder::new();
 
 	#[cfg(feature = "sentry_telemetry")]
@@ -65,11 +73,11 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			HeaderName::from_static("permissions-policy"),
-			HeaderValue::from_static(CONDUWUIT_PERMISSIONS_POLICY),
+			HeaderValue::from_str(&CONDUWUIT_PERMISSIONS_POLICY.join(","))?,
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			header::CONTENT_SECURITY_POLICY,
-			HeaderValue::from_static(CONDUWUIT_CSP),
+			HeaderValue::from_str(&CONDUWUIT_CSP.join("; "))?,
 		))
 		.layer(cors_layer(server))
 		.layer(body_limit_layer(server))

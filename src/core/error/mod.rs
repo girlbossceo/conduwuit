@@ -53,6 +53,8 @@ pub enum Error {
 	Path(#[from] axum::extract::rejection::PathRejection),
 	#[error("{0}")]
 	Http(#[from] http::Error),
+	#[error("{0}")]
+	HttpHeader(#[from] http::header::InvalidHeaderValue),
 
 	// ruma
 	#[error("{0}")]

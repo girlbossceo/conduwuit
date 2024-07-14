@@ -1,6 +1,9 @@
 use std::sync::{atomic::Ordering, Arc};
 
-use axum::{extract::State, response::IntoResponse};
+use axum::{
+	extract::State,
+	response::{IntoResponse, Response},
+};
 use conduit::{debug, debug_error, debug_warn, defer, error, trace, Error, Result, Server};
 use http::{Method, StatusCode, Uri};
 use ruma::api::client::error::{Error as RumaError, ErrorBody, ErrorKind};
@@ -8,7 +11,7 @@ use ruma::api::client::error::{Error as RumaError, ErrorBody, ErrorKind};
 #[tracing::instrument(skip_all, level = "debug")]
 pub(crate) async fn spawn(
 	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
-) -> Result<axum::response::Response, StatusCode> {
+) -> Result<Response, StatusCode> {
 	if !server.running() {
 		debug_warn!("unavailable pending shutdown");
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
@@ -30,7 +33,7 @@ pub(crate) async fn spawn(
 #[tracing::instrument(skip_all, name = "handle")]
 pub(crate) async fn handle(
 	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
-) -> Result<axum::response::Response, StatusCode> {
+) -> Result<Response, StatusCode> {
 	if !server.running() {
 		debug_warn!(
 			method = %req.method(),
@@ -57,9 +60,7 @@ pub(crate) async fn handle(
 	handle_result(&method, &uri, result)
 }
 
-fn handle_result(
-	method: &Method, uri: &Uri, result: axum::response::Response,
-) -> Result<axum::response::Response, StatusCode> {
+fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Response, StatusCode> {
 	handle_result_log(method, uri, &result);
 	match result.status() {
 		StatusCode::METHOD_NOT_ALLOWED => handle_result_405(method, uri, &result),
@@ -67,9 +68,7 @@ fn handle_result(
 	}
 }
 
-fn handle_result_405(
-	_method: &Method, _uri: &Uri, result: &axum::response::Response,
-) -> Result<axum::response::Response, StatusCode> {
+fn handle_result_405(_method: &Method, _uri: &Uri, result: &Response) -> Result<Response, StatusCode> {
 	let error = Error::RumaError(RumaError {
 		status_code: result.status(),
 		body: ErrorBody::Standard {
@@ -81,7 +80,7 @@ fn handle_result_405(
 	Ok(error.into_response())
 }
 
-fn handle_result_log(method: &Method, uri: &Uri, result: &axum::response::Response) {
+fn handle_result_log(method: &Method, uri: &Uri, result: &Response) {
 	let status = result.status();
 	let reason = status.canonical_reason().unwrap_or("Unknown Reason");
 	let code = status.as_u16();
