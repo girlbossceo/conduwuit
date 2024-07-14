@@ -118,7 +118,7 @@ jobs:
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
                   nix develop .#all-features --command true
 
@@ -240,7 +240,7 @@ jobs:
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
                   nix develop .#all-features --command true
 
