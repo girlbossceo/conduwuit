@@ -405,8 +405,8 @@ features = [
 ]
 
 [workspace.dependencies.rustyline-async]
-git = "https://github.com/girlbossceo/rustyline-async"
-rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
+version = "0.4.2"
+default-features = false
 
 [workspace.dependencies.termimad]
 version = "0.29.4"
@@ -441,6 +441,12 @@ rev = "b348dca742af641c47bc390261f60711c2af573c"
 [patch.crates-io.axum-server]
 git = "https://github.com/girlbossceo/axum-server"
 rev = "8e3368d899079818934e61cc9c839abcbbcada8a"
+
+# adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
+# adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
+[patch.crates-io.rustyline-async]
+git = "https://github.com/girlbossceo/rustyline-async"
+rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
 
 #
 # Our crates
