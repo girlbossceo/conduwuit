@@ -443,7 +443,9 @@ impl crate::globals::resolver::Resolver {
 impl CachedDest {
 	#[inline]
 	#[must_use]
-	pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+	pub fn valid(&self) -> bool { true }
+
+	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
 
 	#[must_use]
 	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36) }
@@ -452,7 +454,9 @@ impl CachedDest {
 impl CachedOverride {
 	#[inline]
 	#[must_use]
-	pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+	pub fn valid(&self) -> bool { true }
+
+	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
 
 	#[must_use]
 	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12) }
