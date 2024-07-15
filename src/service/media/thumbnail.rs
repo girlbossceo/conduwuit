@@ -1,4 +1,4 @@
-use std::{io::Cursor, num::Saturating as Sat};
+use std::{cmp, io::Cursor, num::Saturating as Sat};
 
 use conduit::{checked, Result};
 use image::{imageops::FilterType, DynamicImage};
@@ -127,26 +127,29 @@ fn thumbnail_generate(image: &DynamicImage, width: u32, height: u32, crop: bool)
 }
 
 fn thumbnail_dimension(image: &DynamicImage, width: u32, height: u32) -> Result<(u32, u32)> {
-	let original_width = image.width();
-	let original_height = image.height();
+	let image_width = image.width();
+	let image_height = image.height();
 
-	let ratio = Sat(original_width) * Sat(height);
-	let nratio = Sat(width) * Sat(original_height);
-	let use_width = nratio <= ratio;
+	let width = cmp::min(width, image_width);
+	let height = cmp::min(height, image_height);
 
-	let intermediate = if use_width {
-		Sat(original_height) * Sat(checked!(width / original_width)?)
+	let use_width = Sat(width) * Sat(image_height) < Sat(height) * Sat(image_width);
+
+	let x = if use_width {
+		let dividend = (Sat(height) * Sat(image_width)).0;
+		checked!(dividend / image_height)?
 	} else {
-		Sat(original_width) * Sat(checked!(height / original_height)?)
+		width
 	};
 
-	let dims = if use_width {
-		(width, intermediate.0)
+	let y = if !use_width {
+		let dividend = (Sat(width) * Sat(image_height)).0;
+		checked!(dividend / image_width)?
 	} else {
-		(intermediate.0, height)
+		height
 	};
 
-	Ok(dims)
+	Ok((x, y))
 }
 
 /// Returns width, height of the thumbnail and whether it should be cropped.
