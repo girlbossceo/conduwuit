@@ -425,16 +425,16 @@ version = "0.1"
 # https://github.com/girlbossceo/tracing/commit/b348dca742af641c47bc390261f60711c2af573c
 [patch.crates-io.tracing-subscriber]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 [patch.crates-io.tracing]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 [patch.crates-io.tracing-core]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 [patch.crates-io.tracing-log]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 
 # fixes hyper graceful shutdowns [https://github.com/programatik29/axum-server/issues/114]
 # https://github.com/girlbossceo/axum-server/commit/8e3368d899079818934e61cc9c839abcbbcada8a
