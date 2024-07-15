@@ -68,7 +68,7 @@ pub enum Error {
 	#[error("{0}: {1}")]
 	BadRequest(ruma::api::client::error::ErrorKind, &'static str), //TODO: remove
 	#[error("{0}: {1}")]
-	Request(ruma::api::client::error::ErrorKind, Cow<'static, str>),
+	Request(ruma::api::client::error::ErrorKind, Cow<'static, str>, http::StatusCode),
 	#[error("from {0}: {1}")]
 	Redaction(ruma::OwnedServerName, ruma::canonical_json::RedactionError),
 	#[error("Remote server {0} responded with: {1}")]
@@ -120,7 +120,7 @@ impl Error {
 
 		match self {
 			Self::Federation(_, error) => response::ruma_error_kind(error).clone(),
-			Self::BadRequest(kind, _) | Self::Request(kind, _) => kind.clone(),
+			Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
 			_ => Unknown,
 		}
 	}
@@ -128,7 +128,8 @@ impl Error {
 	pub fn status_code(&self) -> http::StatusCode {
 		match self {
 			Self::Federation(_, ref error) | Self::RumaError(ref error) => error.status_code,
-			Self::BadRequest(ref kind, _) | Self::Request(ref kind, _) => response::bad_request_code(kind),
+			Self::Request(ref kind, _, code) => response::status_code(kind, *code),
+			Self::BadRequest(ref kind, ..) => response::bad_request_code(kind),
 			Self::Conflict(_) => http::StatusCode::CONFLICT,
 			_ => http::StatusCode::INTERNAL_SERVER_ERROR,
 		}

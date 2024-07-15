@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{response::IntoResponse, routing::get, Router};
 use conduit::{Error, Server};
 use conduit_service as service;
-use http::Uri;
+use http::{StatusCode, Uri};
 use ruma::api::client::error::ErrorKind;
 
 extern crate conduit_api as api;
@@ -19,7 +19,7 @@ pub(crate) fn build(server: &Arc<Server>) -> Router {
 }
 
 async fn not_found(_uri: Uri) -> impl IntoResponse {
-	Error::BadRequest(ErrorKind::Unrecognized, "Unrecognized request")
+	Error::Request(ErrorKind::Unrecognized, "Not Found".into(), StatusCode::NOT_FOUND)
 }
 
 async fn it_works() -> &'static str { "hewwo from conduwuit woof!" }

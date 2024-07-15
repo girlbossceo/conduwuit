@@ -49,14 +49,16 @@ macro_rules! err {
 		$crate::$level!($($args),*);
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::forbidden(),
-			$crate::format_maybe!($($args),*)
+			$crate::format_maybe!($($args),*),
+			::http::StatusCode::BAD_REQUEST
 		)
 	}};
 
 	(Request(Forbidden($($args:expr),*))) => {
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::forbidden(),
-			$crate::format_maybe!($($args),*)
+			$crate::format_maybe!($($args),*),
+			::http::StatusCode::BAD_REQUEST
 		)
 	};
 
@@ -64,14 +66,16 @@ macro_rules! err {
 		$crate::$level!($($args),*);
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::$variant,
-			$crate::format_maybe!($($args),*)
+			$crate::format_maybe!($($args),*),
+			::http::StatusCode::BAD_REQUEST
 		)
 	}};
 
 	(Request($variant:ident($($args:expr),*))) => {
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::$variant,
-			$crate::format_maybe!($($args),*)
+			$crate::format_maybe!($($args),*),
+			::http::StatusCode::BAD_REQUEST
 		)
 	};
 

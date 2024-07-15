@@ -4,9 +4,8 @@ use axum::{
 	extract::State,
 	response::{IntoResponse, Response},
 };
-use conduit::{debug, debug_error, debug_warn, defer, error, trace, Error, Result, Server};
+use conduit::{debug, debug_error, debug_warn, defer, err, error, trace, Result, Server};
 use http::{Method, StatusCode, Uri};
-use ruma::api::client::error::{Error as RumaError, ErrorBody, ErrorKind};
 
 #[tracing::instrument(skip_all, level = "debug")]
 pub(crate) async fn spawn(
@@ -58,33 +57,13 @@ pub(crate) async fn handle(
 		trace!(active, finished, "leave");
 	}};
 
-	let method = req.method().clone();
 	let uri = req.uri().clone();
+	let method = req.method().clone();
 	let result = next.run(req).await;
 	handle_result(&method, &uri, result)
 }
 
 fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Response, StatusCode> {
-	handle_result_log(method, uri, &result);
-	match result.status() {
-		StatusCode::METHOD_NOT_ALLOWED => handle_result_405(method, uri, &result),
-		_ => Ok(result),
-	}
-}
-
-fn handle_result_405(_method: &Method, _uri: &Uri, result: &Response) -> Result<Response, StatusCode> {
-	let error = Error::RumaError(RumaError {
-		status_code: result.status(),
-		body: ErrorBody::Standard {
-			kind: ErrorKind::Unrecognized,
-			message: "M_UNRECOGNIZED: Method not allowed for endpoint".to_owned(),
-		},
-	});
-
-	Ok(error.into_response())
-}
-
-fn handle_result_log(method: &Method, uri: &Uri, result: &Response) {
 	let status = result.status();
 	let reason = status.canonical_reason().unwrap_or("Unknown Reason");
 	let code = status.as_u16();
@@ -97,4 +76,10 @@ fn handle_result_log(method: &Method, uri: &Uri, result: &Response) {
 	} else {
 		trace!(method = ?method, uri = ?uri, "{code} {reason}");
 	}
+
+	if status == StatusCode::METHOD_NOT_ALLOWED {
+		return Ok(err!(Request(Unrecognized("Method Not Allowed"))).into_response());
+	}
+
+	Ok(result)
 }
