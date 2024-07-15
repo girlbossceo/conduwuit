@@ -31,6 +31,7 @@
 //!    Err(Database(error!("problem with db: {msg}")))` logs the error at the
 //!    callsite and then returns the error with the same string. Caller has the
 //!    option of replacing `error!` with `debug_error!`.
+
 #[macro_export]
 macro_rules! Err {
 	($($args:tt)*) => {

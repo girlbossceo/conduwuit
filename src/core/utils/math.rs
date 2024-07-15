@@ -2,14 +2,14 @@ use std::{cmp, time::Duration};
 
 pub use checked_ops::checked_ops;
 
-use crate::{Error, Result};
+use crate::{Err, Error, Result};
 
 /// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
 #[macro_export]
 macro_rules! checked {
 	($($input:tt)*) => {
 		$crate::utils::math::checked_ops!($($input)*)
-			.ok_or_else(|| $crate::Error::Arithmetic("operation overflowed or result invalid"))
+			.ok_or_else(|| $crate::err!(Arithmetic("operation overflowed or result invalid")))
 	}
 }
 
@@ -21,7 +21,7 @@ macro_rules! validated {
 	($($input:tt)*) => {
 		//#[allow(clippy::arithmetic_side_effects)] {
 		//Some($($input)*)
-		//	.ok_or_else(|| $crate::Error::Arithmetic("this error should never been seen"))
+		//	.ok_or_else(|| $crate::err!(Arithmetic("this error should never been seen")))
 		//}
 
 		//NOTE: remove me when stmt_expr_attributes is stable
@@ -57,7 +57,7 @@ pub fn continue_exponential_backoff(min: Duration, max: Duration, elapsed: Durat
 #[allow(clippy::as_conversions)]
 pub fn usize_from_f64(val: f64) -> Result<usize, Error> {
 	if val < 0.0 {
-		return Err(Error::Arithmetic("Converting negative float to unsigned integer"));
+		return Err!(Arithmetic("Converting negative float to unsigned integer"));
 	}
 
 	//SAFETY: <https://doc.rust-lang.org/std/primitive.f64.html#method.to_int_unchecked>

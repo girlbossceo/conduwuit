@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, net::IpAddr, time::Instant};
 
 use axum_client_ip::InsecureClientIp;
-use conduit::debug_warn;
+use conduit::{debug, debug_warn, err, trace, warn, Err};
 use ruma::{
 	api::{
 		client::error::ErrorKind,
@@ -18,7 +18,6 @@ use ruma::{
 	OwnedEventId, ServerName,
 };
 use tokio::sync::RwLock;
-use tracing::{debug, error, trace, warn};
 
 use crate::{
 	service::rooms::event_handler::parse_incoming_pdu,
@@ -39,24 +38,17 @@ pub(crate) async fn send_transaction_message_route(
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	if *origin != body.body.origin {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Not allowed to send transactions on behalf of other servers",
-		));
+		return Err!(Request(Forbidden(
+			"Not allowed to send transactions on behalf of other servers"
+		)));
 	}
 
 	if body.pdus.len() > 50_usize {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Not allowed to send more than 50 PDUs in one transaction",
-		));
+		return Err!(Request(Forbidden("Not allowed to send more than 50 PDUs in one transaction")));
 	}
 
 	if body.edus.len() > 100_usize {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Not allowed to send more than 100 EDUs in one transaction",
-		));
+		return Err!(Request(Forbidden("Not allowed to send more than 100 EDUs in one transaction")));
 	}
 
 	let txn_start_time = Instant::now();
@@ -392,10 +384,9 @@ async fn handle_edu_direct_to_device(
 						target_user_id,
 						target_device_id,
 						&ev_type.to_string(),
-						event.deserialize_as().map_err(|e| {
-							error!("To-Device event is invalid: {event:?} {e}");
-							Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid")
-						})?,
+						event
+							.deserialize_as()
+							.map_err(|e| err!(Request(InvalidParam(error!("To-Device event is invalid: {e}")))))?,
 					)?;
 				},
 
@@ -408,7 +399,7 @@ async fn handle_edu_direct_to_device(
 							&ev_type.to_string(),
 							event
 								.deserialize_as()
-								.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid"))?,
+								.map_err(|e| err!(Request(InvalidParam("Event is invalid: {e}"))))?,
 						)?;
 					}
 				},

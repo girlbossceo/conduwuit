@@ -78,7 +78,7 @@ pub enum Error {
 
 	// conduwuit
 	#[error("Arithmetic operation failed: {0}")]
-	Arithmetic(&'static str),
+	Arithmetic(Cow<'static, str>),
 	#[error("There was a problem with the '{0}' directive in your configuration: {1}")]
 	Config(&'static str, Cow<'static, str>),
 	#[error("{0}")]

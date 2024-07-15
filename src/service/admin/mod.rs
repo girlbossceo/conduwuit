@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{debug, error, Error, Result};
+use conduit::{debug, error, error::default_log, Error, Result};
 pub use create::create_admin_room;
 pub use grant::make_user_admin;
 use loole::{Receiver, Sender};
@@ -239,9 +239,9 @@ async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, use
 		.build_and_append_pdu(response_pdu, user_id, room_id, &state_lock)
 		.await
 	{
-		if let Err(e) = handle_response_error(e, room_id, user_id, &state_lock).await {
-			error!("{e}");
-		}
+		handle_response_error(e, room_id, user_id, &state_lock)
+			.await
+			.unwrap_or_else(default_log);
 	}
 }
 

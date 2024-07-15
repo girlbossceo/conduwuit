@@ -6,7 +6,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc, time::SystemTime};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{debug, debug_error, err, error, utils, Result, Server};
+use conduit::{debug, debug_error, err, error, utils, Err, Result, Server};
 use data::{Data, Metadata};
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
@@ -100,10 +100,9 @@ impl Service {
 
 			Ok(())
 		} else {
-			error!("Failed to find any media keys for MXC \"{mxc}\" in our database (MXC does not exist)");
-			Err(Error::bad_database(
-				"Failed to find any media keys for the provided MXC in our database (MXC does not exist)",
-			))
+			Err!(Database(error!(
+				"Failed to find any media keys for MXC {mxc:?} in our database."
+			)))
 		}
 	}
 
@@ -137,23 +136,16 @@ impl Service {
 		let all_keys = self.db.get_all_media_keys();
 
 		let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
-			Ok(duration) => {
-				debug!("Parsed duration: {:?}", duration);
-				debug!("System time now: {:?}", SystemTime::now());
-				SystemTime::now().checked_sub(duration).ok_or_else(|| {
-					Error::bad_database("Duration specified is not valid against the current system time")
-				})?
-			},
-			Err(e) => {
-				error!("Failed to parse user-specified time duration: {}", e);
-				return Err(Error::bad_database("Failed to parse user-specified time duration."));
-			},
+			Err(e) => return Err!(Database(error!("Failed to parse specified time duration: {e}"))),
+			Ok(duration) => SystemTime::now()
+				.checked_sub(duration)
+				.ok_or(err!(Arithmetic("Duration {duration:?} is too large")))?,
 		};
 
 		let mut remote_mxcs: Vec<String> = vec![];
 
 		for key in all_keys {
-			debug!("Full MXC key from database: {:?}", key);
+			debug!("Full MXC key from database: {key:?}");
 
 			// we need to get the MXC URL from the first part of the key (the first 0xff /
 			// 255 push). this is all necessary because of conduit using magic keys for
@@ -162,24 +154,19 @@ impl Service {
 			let mxc = parts
 				.next()
 				.map(|bytes| {
-					utils::string_from_bytes(bytes).map_err(|e| {
-						error!("Failed to parse MXC unicode bytes from our database: {}", e);
-						Error::bad_database("Failed to parse MXC unicode bytes from our database")
-					})
+					utils::string_from_bytes(bytes)
+						.map_err(|e| err!(Database(error!("Failed to parse MXC unicode bytes from our database: {e}"))))
 				})
 				.transpose()?;
 
 			let Some(mxc_s) = mxc else {
-				return Err(Error::bad_database(
-					"Parsed MXC URL unicode bytes from database but still is None",
-				));
+				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
 			};
 
-			debug!("Parsed MXC key to URL: {}", mxc_s);
-
+			debug!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
 			if mxc.server_name() == Ok(services().globals.server_name()) {
-				debug!("Ignoring local media MXC: {}", mxc);
+				debug!("Ignoring local media MXC: {mxc}");
 				// ignore our own MXC URLs as this would be local media.
 				continue;
 			}
@@ -198,14 +185,14 @@ impl Service {
 				},
 				Err(err) => {
 					if force {
-						error!("Could not delete MXC path {:?}: {:?}. Skipping...", path, err);
+						error!("Could not delete MXC path {path:?}: {err:?}. Skipping...");
 						continue;
 					}
 					return Err(err.into());
 				},
 			};
-			debug!("File created at: {:?}", file_created_at);
 
+			debug!("File created at: {file_created_at:?}");
 			if file_created_at <= user_duration {
 				debug!("File is within user duration, pushing to list of file paths and keys to delete.");
 				remote_mxcs.push(mxc.to_string());
@@ -215,15 +202,12 @@ impl Service {
 		debug!(
 			"Finished going through all our media in database for eligible keys to delete, checking if these are empty"
 		);
-
 		if remote_mxcs.is_empty() {
-			return Err(Error::bad_database("Did not found any eligible MXCs to delete."));
+			return Err!(Database("Did not found any eligible MXCs to delete."));
 		}
 
-		debug!("Deleting media now in the past \"{:?}\".", user_duration);
-
+		debug!("Deleting media now in the past {user_duration:?}.");
 		let mut deletion_count: usize = 0;
-
 		for mxc in remote_mxcs {
 			debug!("Deleting MXC {mxc} from database and filesystem");
 			self.delete(&mxc).await?;
