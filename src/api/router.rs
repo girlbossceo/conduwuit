@@ -9,15 +9,16 @@ use axum::{
 	routing::{any, get, post},
 	Router,
 };
-use conduit::{err, Error, Server};
+use conduit::{err, Server};
 use http::Uri;
-use ruma::api::client::error::ErrorKind;
 
 use self::handler::RouterExt;
-pub(super) use self::{ar::Ruma, response::RumaResponse};
+pub(super) use self::{args::Args as Ruma, response::RumaResponse};
 use crate::{client, server};
 
-pub fn build(router: Router, server: &Server) -> Router {
+pub type State = &'static service::Services;
+
+pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 	let config = &server.config;
 	let router = router
 		.ruma_route(client::get_supported_versions_route)
