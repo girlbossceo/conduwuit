@@ -5,7 +5,7 @@ use axum::{
 	Router,
 };
 use axum_client_ip::SecureClientIpSource;
-use conduit::{Result, Server};
+use conduit::{error, Result, Server};
 use http::{
 	header::{self, HeaderName},
 	HeaderValue, Method, StatusCode,
@@ -149,7 +149,7 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max(server.config.max_request_size) }
 
 #[allow(clippy::needless_pass_by_value)]
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, name = "panic")]
 fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
 	conduit_service::services()
 		.server
@@ -165,17 +165,17 @@ fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_u
 		"Unknown internal server error occurred.".to_owned()
 	};
 
+	error!("{details:#}");
 	let body = serde_json::json!({
 		"errcode": "M_UNKNOWN",
 		"error": "M_UNKNOWN: Internal server error occurred",
 		"details": details,
-	})
-	.to_string();
+	});
 
 	http::Response::builder()
 		.status(StatusCode::INTERNAL_SERVER_ERROR)
 		.header(header::CONTENT_TYPE, "application/json")
-		.body(http_body_util::Full::from(body))
+		.body(http_body_util::Full::from(body.to_string()))
 		.expect("Failed to create response for our panic catcher?")
 }
 
