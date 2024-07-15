@@ -127,8 +127,8 @@ async fn fini(server: &Arc<Server>, listener: UnixListener, mut tasks: JoinSet<(
 	debug!("Waiting for requests to finish...");
 	while server.metrics.requests_spawn_active.load(Ordering::Relaxed) > 0 {
 		tokio::select! {
-			_ = tasks.join_next() => {}
-			() = sleep(FINI_POLL_INTERVAL) => {}
+			task = tasks.join_next() => if task.is_none() { break; },
+			() = sleep(FINI_POLL_INTERVAL) => {},
 		}
 	}
 
