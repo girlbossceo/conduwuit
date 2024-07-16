@@ -5,7 +5,7 @@ use database::Database;
 use tokio::sync::Mutex;
 
 use crate::{
-	account_data, admin, appservice, globals, key_backups,
+	account_data, admin, appservice, client, globals, key_backups,
 	manager::Manager,
 	media, presence, pusher, resolver, rooms, sending, service,
 	service::{Args, Map, Service},
@@ -14,6 +14,7 @@ use crate::{
 
 pub struct Services {
 	pub resolver: Arc<resolver::Service>,
+	pub client: Arc<client::Service>,
 	pub globals: Arc<globals::Service>,
 	pub rooms: rooms::Service,
 	pub appservice: Arc<appservice::Service>,
@@ -52,6 +53,7 @@ impl Services {
 
 		Ok(Self {
 			resolver: build!(resolver::Service),
+			client: build!(client::Service),
 			globals: build!(globals::Service),
 			rooms: rooms::Service {
 				alias: build!(rooms::alias::Service),

@@ -43,6 +43,12 @@ pub(crate) struct Args<'a> {
 pub(crate) type Map = BTreeMap<String, MapVal>;
 pub(crate) type MapVal = (Arc<dyn Service>, Arc<dyn Any + Send + Sync>);
 
+impl Args<'_> {
+	pub(crate) fn get_service<T: Any + Send + Sync>(&self, name: &str) -> Option<Arc<T>> {
+		get::<T>(self.service, name)
+	}
+}
+
 pub(crate) fn get<T: Any + Send + Sync>(map: &Map, name: &str) -> Option<Arc<T>> {
 	map.get(name).map(|(_, s)| {
 		s.clone()

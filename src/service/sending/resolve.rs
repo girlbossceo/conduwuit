@@ -178,7 +178,6 @@ async fn request_well_known(dest: &str) -> Result<Option<String>> {
 	}
 
 	let response = services()
-		.globals
 		.client
 		.well_known
 		.get(&format!("https://{dest}/.well-known/matrix/server"))

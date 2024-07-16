@@ -49,7 +49,6 @@ where
 	let reqwest_request = reqwest::Request::try_from(http_request)?;
 
 	let mut response = services()
-		.globals
 		.client
 		.appservice
 		.execute(reqwest_request)

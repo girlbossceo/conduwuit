@@ -194,7 +194,7 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
-		let client = &services().globals.client.federation;
+		let client = &services().client.federation;
 		send::send(client, dest, request).await
 	}
 

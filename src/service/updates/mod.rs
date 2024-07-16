@@ -64,7 +64,6 @@ impl Service {
 	#[tracing::instrument(skip_all)]
 	async fn handle_updates(&self) -> Result<()> {
 		let response = services()
-			.globals
 			.client
 			.default
 			.get(CHECK_FOR_UPDATES_URL)

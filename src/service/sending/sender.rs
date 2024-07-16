@@ -611,11 +611,10 @@ async fn send_events_dest_normal(
 		}
 	}
 
-	let client = &services().globals.client.sender;
 	//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
 	// transaction");
 	send::send(
-		client,
+		&services().client.sender,
 		server,
 		send_transaction_message::v1::Request {
 			origin: services().globals.server_name().to_owned(),

@@ -84,12 +84,7 @@ impl Service {
 			}
 		}
 
-		let response = services()
-			.globals
-			.client
-			.pusher
-			.execute(reqwest_request)
-			.await;
+		let response = services().client.pusher.execute(reqwest_request).await;
 
 		match response {
 			Ok(mut response) => {

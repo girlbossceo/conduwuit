@@ -621,7 +621,7 @@ async fn request_url_preview(services: &Services, url: &str) -> Result<UrlPrevie
 		}
 	}
 
-	let client = &services.globals.client.url_preview;
+	let client = &services.client.url_preview;
 	let response = client.head(url).send().await?;
 
 	if let Some(remote_addr) = response.remote_addr() {

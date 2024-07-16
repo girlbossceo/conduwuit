@@ -35,7 +35,6 @@ pub(super) async fn fetch_support_well_known(
 	_body: Vec<&str>, server_name: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	let response = services()
-		.globals
 		.client
 		.default
 		.get(format!("https://{server_name}/.well-known/matrix/support"))
