@@ -309,7 +309,7 @@ features = [
 
 [workspace.dependencies.ruma-identifiers-validation]
 git = "https://github.com/girlbossceo/ruwuma"
-rev = "fd686e77950680462377c9105dfb4136dd49c7a0"
+rev = "c51ccb2c68d2e3557eb12b1a49036531711ec0e5"
 
 [workspace.dependencies.rust-rocksdb]
 path = "deps/rust-rocksdb"
