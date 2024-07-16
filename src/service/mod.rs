@@ -12,6 +12,7 @@ pub mod key_backups;
 pub mod media;
 pub mod presence;
 pub mod pusher;
+pub mod resolver;
 pub mod rooms;
 pub mod sending;
 pub mod transaction_ids;

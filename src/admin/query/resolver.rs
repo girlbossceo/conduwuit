@@ -19,7 +19,7 @@ pub(super) async fn resolver(subcommand: Resolver) -> Result<RoomMessageEventCon
 }
 
 async fn destinations_cache(server_name: Option<OwnedServerName>) -> Result<RoomMessageEventContent> {
-	use service::sending::CachedDest;
+	use service::resolver::CachedDest;
 
 	let mut out = String::new();
 	writeln!(out, "| Server Name | Destination | Hostname | Expires |")?;
@@ -36,12 +36,7 @@ async fn destinations_cache(server_name: Option<OwnedServerName>) -> Result<Room
 		writeln!(out, "| {name} | {dest} | {host} | {expire} |").expect("wrote line");
 	};
 
-	let map = services()
-		.globals
-		.resolver
-		.destinations
-		.read()
-		.expect("locked");
+	let map = services().resolver.destinations.read().expect("locked");
 
 	if let Some(server_name) = server_name.as_ref() {
 		map.get_key_value(server_name).map(row);
@@ -53,7 +48,7 @@ async fn destinations_cache(server_name: Option<OwnedServerName>) -> Result<Room
 }
 
 async fn overrides_cache(server_name: Option<String>) -> Result<RoomMessageEventContent> {
-	use service::sending::CachedOverride;
+	use service::resolver::CachedOverride;
 
 	let mut out = String::new();
 	writeln!(out, "| Server Name | IP  | Port | Expires |")?;
@@ -70,12 +65,7 @@ async fn overrides_cache(server_name: Option<String>) -> Result<RoomMessageEvent
 		writeln!(out, "| {name} | {ips:?} | {port} | {expire} |").expect("wrote line");
 	};
 
-	let map = services()
-		.globals
-		.resolver
-		.overrides
-		.read()
-		.expect("locked");
+	let map = services().resolver.overrides.read().expect("locked");
 
 	if let Some(server_name) = server_name.as_ref() {
 		map.get_key_value(server_name).map(row);

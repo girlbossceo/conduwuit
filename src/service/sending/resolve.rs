@@ -1,40 +1,17 @@
 use std::{
-	fmt,
 	fmt::Debug,
 	net::{IpAddr, SocketAddr},
-	time::SystemTime,
 };
 
-use conduit::{debug, debug_error, debug_info, debug_warn, trace, utils::rand, Err, Error, Result};
+use conduit::{debug, debug_error, debug_info, debug_warn, trace, Err, Error, Result};
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
-use ruma::{OwnedServerName, ServerName};
+use ruma::ServerName;
 
-use crate::services;
-
-/// Wraps either an literal IP address plus port, or a hostname plus complement
-/// (colon-plus-port if it was specified).
-///
-/// Note: A `FedDest::Named` might contain an IP address in string form if there
-/// was no port specified to construct a `SocketAddr` with.
-///
-/// # Examples:
-/// ```rust
-/// # use conduit_service::sending::FedDest;
-/// # fn main() -> Result<(), std::net::AddrParseError> {
-/// FedDest::Literal("198.51.100.3:8448".parse()?);
-/// FedDest::Literal("[2001:db8::4:5]:443".parse()?);
-/// FedDest::Named("matrix.example.org".to_owned(), String::new());
-/// FedDest::Named("matrix.example.org".to_owned(), ":8448".to_owned());
-/// FedDest::Named("198.51.100.5".to_owned(), String::new());
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FedDest {
-	Literal(SocketAddr),
-	Named(String, String),
-}
+use crate::{
+	resolver::{add_port_to_hostname, get_ip_with_port, CachedDest, CachedOverride, FedDest},
+	services,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ActualDest {
@@ -44,27 +21,10 @@ pub(crate) struct ActualDest {
 	pub(crate) cached: bool,
 }
 
-#[derive(Clone, Debug)]
-pub struct CachedDest {
-	pub dest: FedDest,
-	pub host: String,
-	pub expire: SystemTime,
-}
-
-#[derive(Clone, Debug)]
-pub struct CachedOverride {
-	pub ips: Vec<IpAddr>,
-	pub port: u16,
-	pub expire: SystemTime,
-}
-
 #[tracing::instrument(skip_all, name = "resolve")]
 pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDest> {
 	let cached;
-	let cached_result = services()
-		.globals
-		.resolver
-		.get_cached_destination(server_name);
+	let cached_result = services().resolver.get_cached_destination(server_name);
 
 	let CachedDest {
 		dest,
@@ -213,7 +173,7 @@ async fn actual_dest_5(dest: &ServerName, cache: bool) -> Result<FedDest> {
 #[tracing::instrument(skip_all, name = "well-known")]
 async fn request_well_known(dest: &str) -> Result<Option<String>> {
 	trace!("Requesting well known for {dest}");
-	if !services().globals.resolver.has_cached_override(dest) {
+	if !services().resolver.has_cached_override(dest) {
 		query_and_cache_override(dest, dest, 8448).await?;
 	}
 
@@ -273,7 +233,6 @@ async fn conditional_query_and_cache_override(overname: &str, hostname: &str, po
 #[tracing::instrument(skip_all, name = "ip")]
 async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
 	match services()
-		.globals
 		.resolver
 		.resolver
 		.lookup_ip(hostname.to_owned())
@@ -285,7 +244,7 @@ async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u1
 				debug_info!("{overname:?} overriden by {hostname:?}");
 			}
 
-			services().globals.resolver.set_cached_override(
+			services().resolver.set_cached_override(
 				overname.to_owned(),
 				CachedOverride {
 					ips: override_ip.iter().collect(),
@@ -314,7 +273,6 @@ async fn query_srv_record(hostname: &'_ str) -> Result<Option<FedDest>> {
 		debug!("querying SRV for {:?}", hostname);
 		let hostname = hostname.trim_end_matches('.');
 		services()
-			.globals
 			.resolver
 			.resolver
 			.srv_lookup(hostname.to_owned())
@@ -383,167 +341,4 @@ pub(crate) fn validate_ip(ip: &IPAddress) -> Result<()> {
 	}
 
 	Ok(())
-}
-
-fn get_ip_with_port(dest_str: &str) -> Option<FedDest> {
-	if let Ok(dest) = dest_str.parse::<SocketAddr>() {
-		Some(FedDest::Literal(dest))
-	} else if let Ok(ip_addr) = dest_str.parse::<IpAddr>() {
-		Some(FedDest::Literal(SocketAddr::new(ip_addr, 8448)))
-	} else {
-		None
-	}
-}
-
-fn add_port_to_hostname(dest_str: &str) -> FedDest {
-	let (host, port) = match dest_str.find(':') {
-		None => (dest_str, ":8448"),
-		Some(pos) => dest_str.split_at(pos),
-	};
-
-	FedDest::Named(host.to_owned(), port.to_owned())
-}
-
-impl crate::globals::resolver::Resolver {
-	pub(crate) fn set_cached_destination(&self, name: OwnedServerName, dest: CachedDest) -> Option<CachedDest> {
-		trace!(?name, ?dest, "set cached destination");
-		self.destinations
-			.write()
-			.expect("locked for writing")
-			.insert(name, dest)
-	}
-
-	pub(crate) fn get_cached_destination(&self, name: &ServerName) -> Option<CachedDest> {
-		self.destinations
-			.read()
-			.expect("locked for reading")
-			.get(name)
-			.filter(|cached| cached.valid())
-			.cloned()
-	}
-
-	pub(crate) fn set_cached_override(&self, name: String, over: CachedOverride) -> Option<CachedOverride> {
-		trace!(?name, ?over, "set cached override");
-		self.overrides
-			.write()
-			.expect("locked for writing")
-			.insert(name, over)
-	}
-
-	pub(crate) fn has_cached_override(&self, name: &str) -> bool {
-		self.overrides
-			.read()
-			.expect("locked for reading")
-			.get(name)
-			.filter(|cached| cached.valid())
-			.is_some()
-	}
-}
-
-impl CachedDest {
-	#[inline]
-	#[must_use]
-	pub fn valid(&self) -> bool { true }
-
-	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
-
-	#[must_use]
-	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36) }
-}
-
-impl CachedOverride {
-	#[inline]
-	#[must_use]
-	pub fn valid(&self) -> bool { true }
-
-	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
-
-	#[must_use]
-	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12) }
-}
-
-impl FedDest {
-	fn into_https_string(self) -> String {
-		match self {
-			Self::Literal(addr) => format!("https://{addr}"),
-			Self::Named(host, port) => format!("https://{host}{port}"),
-		}
-	}
-
-	fn into_uri_string(self) -> String {
-		match self {
-			Self::Literal(addr) => addr.to_string(),
-			Self::Named(host, port) => format!("{host}{port}"),
-		}
-	}
-
-	fn hostname(&self) -> String {
-		match &self {
-			Self::Literal(addr) => addr.ip().to_string(),
-			Self::Named(host, _) => host.clone(),
-		}
-	}
-
-	#[inline]
-	#[allow(clippy::string_slice)]
-	fn port(&self) -> Option<u16> {
-		match &self {
-			Self::Literal(addr) => Some(addr.port()),
-			Self::Named(_, port) => port[1..].parse().ok(),
-		}
-	}
-}
-
-impl fmt::Display for FedDest {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Named(host, port) => write!(f, "{host}{port}"),
-			Self::Literal(addr) => write!(f, "{addr}"),
-		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::{add_port_to_hostname, get_ip_with_port, FedDest};
-
-	#[test]
-	fn ips_get_default_ports() {
-		assert_eq!(
-			get_ip_with_port("1.1.1.1"),
-			Some(FedDest::Literal("1.1.1.1:8448".parse().unwrap()))
-		);
-		assert_eq!(
-			get_ip_with_port("dead:beef::"),
-			Some(FedDest::Literal("[dead:beef::]:8448".parse().unwrap()))
-		);
-	}
-
-	#[test]
-	fn ips_keep_custom_ports() {
-		assert_eq!(
-			get_ip_with_port("1.1.1.1:1234"),
-			Some(FedDest::Literal("1.1.1.1:1234".parse().unwrap()))
-		);
-		assert_eq!(
-			get_ip_with_port("[dead::beef]:8933"),
-			Some(FedDest::Literal("[dead::beef]:8933".parse().unwrap()))
-		);
-	}
-
-	#[test]
-	fn hostnames_get_default_ports() {
-		assert_eq!(
-			add_port_to_hostname("example.com"),
-			FedDest::Named(String::from("example.com"), String::from(":8448"))
-		);
-	}
-
-	#[test]
-	fn hostnames_keep_custom_ports() {
-		assert_eq!(
-			add_port_to_hostname("example.com:1337"),
-			FedDest::Named(String::from("example.com"), String::from(":1337"))
-		);
-	}
 }

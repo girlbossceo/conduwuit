@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use reqwest::redirect;
 
-use crate::{globals::resolver, Config, Result};
+use crate::{resolver, Config, Result};
 
 pub struct Client {
 	pub default: reqwest::Client,
@@ -15,7 +15,7 @@ pub struct Client {
 }
 
 impl Client {
-	pub fn new(config: &Config, resolver: &Arc<resolver::Resolver>) -> Self {
+	pub fn new(config: &Config, resolver: &Arc<resolver::Service>) -> Self {
 		Self {
 			default: Self::base(config)
 				.unwrap()

@@ -15,11 +15,8 @@ use ruma::{
 };
 use tracing::{debug, trace};
 
-use super::{
-	resolve,
-	resolve::{ActualDest, CachedDest},
-};
-use crate::{debug_error, debug_warn, services, Error, Result};
+use super::{resolve, resolve::ActualDest};
+use crate::{debug_error, debug_warn, resolver::CachedDest, services, Error, Result};
 
 #[tracing::instrument(skip_all, name = "send")]
 pub async fn send<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
@@ -109,7 +106,7 @@ where
 
 	let response = T::IncomingResponse::try_from_http_response(http_response);
 	if response.is_ok() && !actual.cached {
-		services().globals.resolver.set_cached_destination(
+		services().resolver.set_cached_destination(
 			dest.to_owned(),
 			CachedDest {
 				dest: actual.dest.clone(),

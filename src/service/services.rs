@@ -7,12 +7,14 @@ use tokio::sync::Mutex;
 use crate::{
 	account_data, admin, appservice, globals, key_backups,
 	manager::Manager,
-	media, presence, pusher, rooms, sending, service,
+	media, presence, pusher, resolver, rooms, sending, service,
 	service::{Args, Map, Service},
 	transaction_ids, uiaa, updates, users,
 };
 
 pub struct Services {
+	pub resolver: Arc<resolver::Service>,
+	pub globals: Arc<globals::Service>,
 	pub rooms: rooms::Service,
 	pub appservice: Arc<appservice::Service>,
 	pub pusher: Arc<pusher::Service>,
@@ -26,7 +28,6 @@ pub struct Services {
 	pub media: Arc<media::Service>,
 	pub sending: Arc<sending::Service>,
 	pub updates: Arc<updates::Service>,
-	pub globals: Arc<globals::Service>,
 
 	manager: Mutex<Option<Arc<Manager>>>,
 	pub(crate) service: Map,
@@ -42,7 +43,7 @@ impl Services {
 				let built = <$tyname>::build(Args {
 					server: &server,
 					db: &db,
-					_service: &service,
+					service: &service,
 				})?;
 				service.insert(built.name().to_owned(), (built.clone(), built.clone()));
 				built
@@ -50,6 +51,8 @@ impl Services {
 		}
 
 		Ok(Self {
+			resolver: build!(resolver::Service),
+			globals: build!(globals::Service),
 			rooms: rooms::Service {
 				alias: build!(rooms::alias::Service),
 				auth_chain: build!(rooms::auth_chain::Service),
@@ -84,7 +87,6 @@ impl Services {
 			media: build!(media::Service),
 			sending: build!(sending::Service),
 			updates: build!(updates::Service),
-			globals: build!(globals::Service),
 			manager: Mutex::new(None),
 			service,
 			server,

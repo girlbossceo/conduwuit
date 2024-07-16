@@ -37,7 +37,7 @@ pub(crate) trait Service: Any + Send + Sync {
 pub(crate) struct Args<'a> {
 	pub(crate) server: &'a Arc<Server>,
 	pub(crate) db: &'a Arc<Database>,
-	pub(crate) _service: &'a Map,
+	pub(crate) service: &'a Map,
 }
 
 pub(crate) type Map = BTreeMap<String, MapVal>;

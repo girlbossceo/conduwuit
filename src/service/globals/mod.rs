@@ -2,7 +2,6 @@ mod client;
 mod data;
 mod emerg_access;
 pub(super) mod migrations;
-pub(crate) mod resolver;
 
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -25,7 +24,7 @@ use ruma::{
 use tokio::sync::Mutex;
 use url::Url;
 
-use crate::services;
+use crate::{resolver, service, services};
 
 pub struct Service {
 	pub db: Data,
@@ -34,7 +33,6 @@ pub struct Service {
 	pub cidr_range_denylist: Vec<IPAddress>,
 	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
-	pub resolver: Arc<resolver::Resolver>,
 	pub client: client::Client,
 	pub stable_room_versions: Vec<RoomVersionId>,
 	pub unstable_room_versions: Vec<RoomVersionId>,
@@ -68,8 +66,6 @@ impl crate::Service for Service {
 			.as_ref()
 			.map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
 
-		let resolver = Arc::new(resolver::Resolver::new(config));
-
 		// Supported and stable room versions
 		let stable_room_versions = vec![
 			RoomVersionId::V6,
@@ -89,12 +85,14 @@ impl crate::Service for Service {
 			cidr_range_denylist.push(cidr);
 		}
 
+		let resolver = service::get::<resolver::Service>(args.service, "resolver")
+			.expect("resolver must be built prior to globals");
+
 		let mut s = Self {
 			db,
 			config: config.clone(),
 			cidr_range_denylist,
 			keypair: Arc::new(keypair),
-			resolver: resolver.clone(),
 			client: client::Client::new(config, &resolver),
 			jwt_decoding_key,
 			stable_room_versions,
@@ -126,8 +124,6 @@ impl crate::Service for Service {
 	}
 
 	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
-		self.resolver.memory_usage(out)?;
-
 		let bad_event_ratelimiter = self
 			.bad_event_ratelimiter
 			.read()
@@ -146,8 +142,6 @@ impl crate::Service for Service {
 	}
 
 	fn clear_cache(&self) {
-		self.resolver.clear_cache();
-
 		self.bad_event_ratelimiter
 			.write()
 			.expect("locked for writing")
@@ -159,7 +153,7 @@ impl crate::Service for Service {
 			.clear();
 	}
 
-	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+	fn name(&self) -> &str { service::make_name(std::module_path!()) }
 }
 
 impl Service {
