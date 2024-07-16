@@ -12,7 +12,7 @@ extern crate conduit_service as service;
 
 use std::sync::atomic::Ordering;
 
-use conduit::{debug, debug_info, error, info, trace, Error, Result, Server};
+use conduit::{debug, debug_info, error, info, Error, Result, Server};
 
 use crate::serve;
 
@@ -103,20 +103,20 @@ async fn signal(server: Arc<Server>, tx: Sender<()>, handle: axum_server::Handle
 }
 
 async fn handle_shutdown(server: &Arc<Server>, tx: &Sender<()>, handle: &axum_server::Handle, sig: &str) {
-	debug!("Received signal {}", sig);
+	debug!("Received signal {sig}");
 	if let Err(e) = tx.send(()) {
 		error!("failed sending shutdown transaction to channel: {e}");
 	}
 
-	let pending = server.metrics.requests_spawn_active.load(Ordering::Relaxed);
-	if pending > 0 {
-		let timeout = Duration::from_secs(36);
-		trace!(pending, ?timeout, "Notifying for graceful shutdown");
-		handle.graceful_shutdown(Some(timeout));
-	} else {
-		debug!(pending, "Notifying for immediate shutdown");
-		handle.shutdown();
-	}
+	let timeout = Duration::from_secs(36);
+	debug!(
+		?timeout,
+		spawn_active = ?server.metrics.requests_spawn_active.load(Ordering::Relaxed),
+		handle_active = ?server.metrics.requests_handle_active.load(Ordering::Relaxed),
+		"Notifying for graceful shutdown"
+	);
+
+	handle.graceful_shutdown(Some(timeout));
 }
 
 async fn handle_services_poll(
