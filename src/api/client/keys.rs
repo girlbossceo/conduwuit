@@ -3,6 +3,7 @@ use std::{
 	time::Instant,
 };
 
+use axum::extract::State;
 use conduit::{utils, utils::math::continue_exponential_backoff_secs, Error, Result};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
@@ -22,7 +23,7 @@ use service::user_is_local;
 use tracing::debug;
 
 use super::SESSION_ID_LENGTH;
-use crate::{services, Ruma};
+use crate::{service::Services, Ruma};
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
@@ -31,12 +32,14 @@ use crate::{services, Ruma};
 /// - Adds one time keys
 /// - If there are no device keys yet: Adds device keys (TODO: merge with
 ///   existing keys?)
-pub(crate) async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> Result<upload_keys::v3::Response> {
+pub(crate) async fn upload_keys_route(
+	State(services): State<crate::State>, body: Ruma<upload_keys::v3::Request>,
+) -> Result<upload_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	for (key_key, key_value) in &body.one_time_keys {
-		services()
+		services
 			.users
 			.add_one_time_key(sender_user, sender_device, key_key, key_value)?;
 	}
@@ -44,19 +47,19 @@ pub(crate) async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> R
 	if let Some(device_keys) = &body.device_keys {
 		// TODO: merge this and the existing event?
 		// This check is needed to assure that signatures are kept
-		if services()
+		if services
 			.users
 			.get_device_keys(sender_user, sender_device)?
 			.is_none()
 		{
-			services()
+			services
 				.users
 				.add_device_keys(sender_user, sender_device, device_keys)?;
 		}
 	}
 
 	Ok(upload_keys::v3::Response {
-		one_time_key_counts: services()
+		one_time_key_counts: services
 			.users
 			.count_one_time_keys(sender_user, sender_device)?,
 	})
@@ -70,10 +73,13 @@ pub(crate) async fn upload_keys_route(body: Ruma<upload_keys::v3::Request>) -> R
 /// - Gets master keys, self-signing keys, user signing keys and device keys.
 /// - The master and self-signing keys contain signatures that the user is
 ///   allowed to see
-pub(crate) async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<get_keys::v3::Response> {
+pub(crate) async fn get_keys_route(
+	State(services): State<crate::State>, body: Ruma<get_keys::v3::Request>,
+) -> Result<get_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	get_keys_helper(
+		services,
 		Some(sender_user),
 		&body.device_keys,
 		|u| u == sender_user,
@@ -85,8 +91,10 @@ pub(crate) async fn get_keys_route(body: Ruma<get_keys::v3::Request>) -> Result<
 /// # `POST /_matrix/client/r0/keys/claim`
 ///
 /// Claims one-time keys
-pub(crate) async fn claim_keys_route(body: Ruma<claim_keys::v3::Request>) -> Result<claim_keys::v3::Response> {
-	claim_keys_helper(&body.one_time_keys).await
+pub(crate) async fn claim_keys_route(
+	State(services): State<crate::State>, body: Ruma<claim_keys::v3::Request>,
+) -> Result<claim_keys::v3::Response> {
+	claim_keys_helper(services, &body.one_time_keys).await
 }
 
 /// # `POST /_matrix/client/r0/keys/device_signing/upload`
@@ -95,7 +103,7 @@ pub(crate) async fn claim_keys_route(body: Ruma<claim_keys::v3::Request>) -> Res
 ///
 /// - Requires UIAA to verify password
 pub(crate) async fn upload_signing_keys_route(
-	body: Ruma<upload_signing_keys::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<upload_signing_keys::v3::Request>,
 ) -> Result<upload_signing_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -112,7 +120,7 @@ pub(crate) async fn upload_signing_keys_route(
 	};
 
 	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services()
+		let (worked, uiaainfo) = services
 			.uiaa
 			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
 		if !worked {
@@ -121,7 +129,7 @@ pub(crate) async fn upload_signing_keys_route(
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services()
+		services
 			.uiaa
 			.create(sender_user, sender_device, &uiaainfo, &json)?;
 		return Err(Error::Uiaa(uiaainfo));
@@ -130,7 +138,7 @@ pub(crate) async fn upload_signing_keys_route(
 	}
 
 	if let Some(master_key) = &body.master_key {
-		services().users.add_cross_signing_keys(
+		services.users.add_cross_signing_keys(
 			sender_user,
 			master_key,
 			&body.self_signing_key,
@@ -146,7 +154,7 @@ pub(crate) async fn upload_signing_keys_route(
 ///
 /// Uploads end-to-end key signatures from the sender user.
 pub(crate) async fn upload_signatures_route(
-	body: Ruma<upload_signatures::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<upload_signatures::v3::Request>,
 ) -> Result<upload_signatures::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -173,7 +181,7 @@ pub(crate) async fn upload_signatures_route(
 						.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature value."))?
 						.to_owned(),
 				);
-				services()
+				services
 					.users
 					.sign_key(user_id, key_id, signature, sender_user)?;
 			}
@@ -192,14 +200,14 @@ pub(crate) async fn upload_signatures_route(
 ///
 /// - TODO: left users
 pub(crate) async fn get_key_changes_route(
-	body: Ruma<get_key_changes::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_key_changes::v3::Request>,
 ) -> Result<get_key_changes::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let mut device_list_updates = HashSet::new();
 
 	device_list_updates.extend(
-		services()
+		services
 			.users
 			.keys_changed(
 				sender_user.as_str(),
@@ -215,14 +223,14 @@ pub(crate) async fn get_key_changes_route(
 			.filter_map(Result::ok),
 	);
 
-	for room_id in services()
+	for room_id in services
 		.rooms
 		.state_cache
 		.rooms_joined(sender_user)
 		.filter_map(Result::ok)
 	{
 		device_list_updates.extend(
-			services()
+			services
 				.users
 				.keys_changed(
 					room_id.as_ref(),
@@ -245,8 +253,8 @@ pub(crate) async fn get_key_changes_route(
 }
 
 pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
-	sender_user: Option<&UserId>, device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>, allowed_signatures: F,
-	include_display_names: bool,
+	services: &Services, sender_user: Option<&UserId>, device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>,
+	allowed_signatures: F, include_display_names: bool,
 ) -> Result<get_keys::v3::Response> {
 	let mut master_keys = BTreeMap::new();
 	let mut self_signing_keys = BTreeMap::new();
@@ -268,10 +276,10 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 
 		if device_ids.is_empty() {
 			let mut container = BTreeMap::new();
-			for device_id in services().users.all_device_ids(user_id) {
+			for device_id in services.users.all_device_ids(user_id) {
 				let device_id = device_id?;
-				if let Some(mut keys) = services().users.get_device_keys(user_id, &device_id)? {
-					let metadata = services()
+				if let Some(mut keys) = services.users.get_device_keys(user_id, &device_id)? {
+					let metadata = services
 						.users
 						.get_device_metadata(user_id, &device_id)?
 						.ok_or_else(|| Error::bad_database("all_device_keys contained nonexistent device."))?;
@@ -286,8 +294,8 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 		} else {
 			for device_id in device_ids {
 				let mut container = BTreeMap::new();
-				if let Some(mut keys) = services().users.get_device_keys(user_id, device_id)? {
-					let metadata = services()
+				if let Some(mut keys) = services.users.get_device_keys(user_id, device_id)? {
+					let metadata = services
 						.users
 						.get_device_metadata(user_id, device_id)?
 						.ok_or(Error::BadRequest(
@@ -303,21 +311,21 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 			}
 		}
 
-		if let Some(master_key) = services()
+		if let Some(master_key) = services
 			.users
 			.get_master_key(sender_user, user_id, &allowed_signatures)?
 		{
 			master_keys.insert(user_id.to_owned(), master_key);
 		}
 		if let Some(self_signing_key) =
-			services()
+			services
 				.users
 				.get_self_signing_key(sender_user, user_id, &allowed_signatures)?
 		{
 			self_signing_keys.insert(user_id.to_owned(), self_signing_key);
 		}
 		if Some(user_id) == sender_user {
-			if let Some(user_signing_key) = services().users.get_user_signing_key(user_id)? {
+			if let Some(user_signing_key) = services.users.get_user_signing_key(user_id)? {
 				user_signing_keys.insert(user_id.to_owned(), user_signing_key);
 			}
 		}
@@ -326,7 +334,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	let mut failures = BTreeMap::new();
 
 	let back_off = |id| async {
-		match services()
+		match services
 			.globals
 			.bad_query_ratelimiter
 			.write()
@@ -345,7 +353,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	let mut futures: FuturesUnordered<_> = get_over_federation
 		.into_iter()
 		.map(|(server, vec)| async move {
-			if let Some((time, tries)) = services()
+			if let Some((time, tries)) = services
 				.globals
 				.bad_query_ratelimiter
 				.read()
@@ -369,7 +377,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 			let request = federation::keys::get_keys::v1::Request {
 				device_keys: device_keys_input_fed,
 			};
-			let response = services()
+			let response = services
 				.sending
 				.send_federation_request(server, request)
 				.await;
@@ -381,19 +389,19 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	while let Some((server, response)) = futures.next().await {
 		if let Ok(Ok(response)) = response {
 			for (user, masterkey) in response.master_keys {
-				let (master_key_id, mut master_key) = services().users.parse_master_key(&user, &masterkey)?;
+				let (master_key_id, mut master_key) = services.users.parse_master_key(&user, &masterkey)?;
 
 				if let Some(our_master_key) =
-					services()
+					services
 						.users
 						.get_key(&master_key_id, sender_user, &user, &allowed_signatures)?
 				{
-					let (_, our_master_key) = services().users.parse_master_key(&user, &our_master_key)?;
+					let (_, our_master_key) = services.users.parse_master_key(&user, &our_master_key)?;
 					master_key.signatures.extend(our_master_key.signatures);
 				}
 				let json = serde_json::to_value(master_key).expect("to_value always works");
 				let raw = serde_json::from_value(json).expect("Raw::from_value always works");
-				services().users.add_cross_signing_keys(
+				services.users.add_cross_signing_keys(
 					&user, &raw, &None, &None,
 					false, /* Dont notify. A notification would trigger another key request resulting in an
 					       * endless loop */
@@ -444,7 +452,7 @@ fn add_unsigned_device_display_name(
 }
 
 pub(crate) async fn claim_keys_helper(
-	one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, DeviceKeyAlgorithm>>,
+	services: &Services, one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, DeviceKeyAlgorithm>>,
 ) -> Result<claim_keys::v3::Response> {
 	let mut one_time_keys = BTreeMap::new();
 
@@ -460,7 +468,7 @@ pub(crate) async fn claim_keys_helper(
 
 		let mut container = BTreeMap::new();
 		for (device_id, key_algorithm) in map {
-			if let Some(one_time_keys) = services()
+			if let Some(one_time_keys) = services
 				.users
 				.take_one_time_key(user_id, device_id, key_algorithm)?
 			{
@@ -483,7 +491,7 @@ pub(crate) async fn claim_keys_helper(
 			}
 			(
 				server,
-				services()
+				services
 					.sending
 					.send_federation_request(
 						server,

@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use axum::extract::State;
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_leave_event},
 	events::{
@@ -14,19 +15,19 @@ use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::RwLock;
 
 use crate::{
-	service::{pdu::gen_event_id_canonical_json, server_is_ours},
-	services, Error, Result, Ruma,
+	service::{pdu::gen_event_id_canonical_json, server_is_ours, Services},
+	Error, Result, Ruma,
 };
 
 /// # `PUT /_matrix/federation/v1/send_leave/{roomId}/{eventId}`
 ///
 /// Submits a signed leave event.
 pub(crate) async fn create_leave_event_v1_route(
-	body: Ruma<create_leave_event::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<create_leave_event::v1::Request>,
 ) -> Result<create_leave_event::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	create_leave_event(origin, &body.room_id, &body.pdu).await?;
+	create_leave_event(services, origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v1::Response::new())
 }
@@ -35,28 +36,30 @@ pub(crate) async fn create_leave_event_v1_route(
 ///
 /// Submits a signed leave event.
 pub(crate) async fn create_leave_event_v2_route(
-	body: Ruma<create_leave_event::v2::Request>,
+	State(services): State<crate::State>, body: Ruma<create_leave_event::v2::Request>,
 ) -> Result<create_leave_event::v2::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	create_leave_event(origin, &body.room_id, &body.pdu).await?;
+	create_leave_event(services, origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v2::Response::new())
 }
 
-async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue) -> Result<()> {
-	if !services().rooms.metadata.exists(room_id)? {
+async fn create_leave_event(
+	services: &Services, origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
+) -> Result<()> {
+	if !services.rooms.metadata.exists(room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
 	// ACL check origin
-	services().rooms.event_handler.acl_check(origin, room_id)?;
+	services.rooms.event_handler.acl_check(origin, room_id)?;
 
 	let pub_key_map = RwLock::new(BTreeMap::new());
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
-	let room_version_id = services().rooms.state.get_room_version(room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(room_id)?;
 	let Ok((event_id, value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
 		return Err(Error::BadRequest(
@@ -107,7 +110,7 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid."))?;
 
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(sender.server_name(), room_id)?;
@@ -145,19 +148,19 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
-	services()
+	services
 		.rooms
 		.event_handler
 		.fetch_required_signing_keys([&value], &pub_key_map)
 		.await?;
 
-	let mutex_lock = services()
+	let mutex_lock = services
 		.rooms
 		.event_handler
 		.mutex_federation
 		.lock(room_id)
 		.await;
-	let pdu_id: Vec<u8> = services()
+	let pdu_id: Vec<u8> = services
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
@@ -166,14 +169,14 @@ async fn create_leave_event(origin: &ServerName, room_id: &RoomId, pdu: &RawJson
 
 	drop(mutex_lock);
 
-	let servers = services()
+	let servers = services
 		.rooms
 		.state_cache
 		.room_servers(room_id)
 		.filter_map(Result::ok)
 		.filter(|server| !server_is_ours(server));
 
-	services().sending.send_pdu_servers(servers, &pdu_id)?;
+	services.sending.send_pdu_servers(servers, &pdu_id)?;
 
 	Ok(())
 }

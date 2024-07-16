@@ -1,17 +1,20 @@
 use std::str::FromStr;
 
+use axum::extract::State;
 use ruma::{
 	api::client::{error::ErrorKind, space::get_hierarchy},
 	UInt,
 };
 
-use crate::{service::rooms::spaces::PaginationToken, services, Error, Result, Ruma};
+use crate::{service::rooms::spaces::PaginationToken, Error, Result, Ruma};
 
 /// # `GET /_matrix/client/v1/rooms/{room_id}/hierarchy`
 ///
 /// Paginates over the space tree in a depth-first manner to locate child rooms
 /// of a given space.
-pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) -> Result<get_hierarchy::v1::Response> {
+pub(crate) async fn get_hierarchy_route(
+	State(services): State<crate::State>, body: Ruma<get_hierarchy::v1::Request>,
+) -> Result<get_hierarchy::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let limit = body
@@ -39,7 +42,7 @@ pub(crate) async fn get_hierarchy_route(body: Ruma<get_hierarchy::v1::Request>) 
 		}
 	}
 
-	services()
+	services
 		.rooms
 		.spaces
 		.get_client_hierarchy(

@@ -1,30 +1,28 @@
+use axum::extract::State;
 use ruma::api::client::relations::{
 	get_relating_events, get_relating_events_with_rel_type, get_relating_events_with_rel_type_and_event_type,
 };
 
-use crate::{services, Result, Ruma};
+use crate::{Result, Ruma};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}/{eventType}`
 pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
-	body: Ruma<get_relating_events_with_rel_type_and_event_type::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<get_relating_events_with_rel_type_and_event_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type_and_event_type::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let res = services()
-		.rooms
-		.pdu_metadata
-		.paginate_relations_with_filter(
-			sender_user,
-			&body.room_id,
-			&body.event_id,
-			&Some(body.event_type.clone()),
-			&Some(body.rel_type.clone()),
-			&body.from,
-			&body.to,
-			&body.limit,
-			body.recurse,
-			body.dir,
-		)?;
+	let res = services.rooms.pdu_metadata.paginate_relations_with_filter(
+		sender_user,
+		&body.room_id,
+		&body.event_id,
+		&Some(body.event_type.clone()),
+		&Some(body.rel_type.clone()),
+		&body.from,
+		&body.to,
+		&body.limit,
+		body.recurse,
+		body.dir,
+	)?;
 
 	Ok(get_relating_events_with_rel_type_and_event_type::v1::Response {
 		chunk: res.chunk,
@@ -36,25 +34,22 @@ pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}`
 pub(crate) async fn get_relating_events_with_rel_type_route(
-	body: Ruma<get_relating_events_with_rel_type::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<get_relating_events_with_rel_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let res = services()
-		.rooms
-		.pdu_metadata
-		.paginate_relations_with_filter(
-			sender_user,
-			&body.room_id,
-			&body.event_id,
-			&None,
-			&Some(body.rel_type.clone()),
-			&body.from,
-			&body.to,
-			&body.limit,
-			body.recurse,
-			body.dir,
-		)?;
+	let res = services.rooms.pdu_metadata.paginate_relations_with_filter(
+		sender_user,
+		&body.room_id,
+		&body.event_id,
+		&None,
+		&Some(body.rel_type.clone()),
+		&body.from,
+		&body.to,
+		&body.limit,
+		body.recurse,
+		body.dir,
+	)?;
 
 	Ok(get_relating_events_with_rel_type::v1::Response {
 		chunk: res.chunk,
@@ -66,23 +61,20 @@ pub(crate) async fn get_relating_events_with_rel_type_route(
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}`
 pub(crate) async fn get_relating_events_route(
-	body: Ruma<get_relating_events::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<get_relating_events::v1::Request>,
 ) -> Result<get_relating_events::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	services()
-		.rooms
-		.pdu_metadata
-		.paginate_relations_with_filter(
-			sender_user,
-			&body.room_id,
-			&body.event_id,
-			&None,
-			&None,
-			&body.from,
-			&body.to,
-			&body.limit,
-			body.recurse,
-			body.dir,
-		)
+	services.rooms.pdu_metadata.paginate_relations_with_filter(
+		sender_user,
+		&body.room_id,
+		&body.event_id,
+		&None,
+		&None,
+		&body.from,
+		&body.to,
+		&body.limit,
+		body.recurse,
+		body.dir,
+	)
 }

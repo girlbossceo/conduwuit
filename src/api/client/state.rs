@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axum::extract::State;
 use conduit::{debug_info, error};
 use ruma::{
 	api::client::{
@@ -19,8 +20,8 @@ use ruma::{
 };
 
 use crate::{
-	service::{pdu::PduBuilder, server_is_ours},
-	services, Error, Result, Ruma, RumaResponse,
+	service::{pdu::PduBuilder, server_is_ours, Services},
+	Error, Result, Ruma, RumaResponse,
 };
 
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
@@ -32,12 +33,13 @@ use crate::{
 ///   allowed
 /// - If event is new `canonical_alias`: Rejects if alias is incorrect
 pub(crate) async fn send_state_event_for_key_route(
-	body: Ruma<send_state_event::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<send_state_event::v3::Request>,
 ) -> Result<send_state_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	Ok(send_state_event::v3::Response {
 		event_id: send_state_event_for_key_helper(
+			services,
 			sender_user,
 			&body.room_id,
 			&body.event_type,
@@ -58,9 +60,11 @@ pub(crate) async fn send_state_event_for_key_route(
 ///   allowed
 /// - If event is new `canonical_alias`: Rejects if alias is incorrect
 pub(crate) async fn send_state_event_for_empty_key_route(
-	body: Ruma<send_state_event::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<send_state_event::v3::Request>,
 ) -> Result<RumaResponse<send_state_event::v3::Response>> {
-	send_state_event_for_key_route(body).await.map(RumaResponse)
+	send_state_event_for_key_route(State(services), body)
+		.await
+		.map(RumaResponse)
 }
 
 /// # `GET /_matrix/client/v3/rooms/{roomid}/state`
@@ -70,11 +74,11 @@ pub(crate) async fn send_state_event_for_empty_key_route(
 /// - If not joined: Only works if current room history visibility is world
 ///   readable
 pub(crate) async fn get_state_events_route(
-	body: Ruma<get_state_events::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_state_events::v3::Request>,
 ) -> Result<get_state_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.user_can_see_state_events(sender_user, &body.room_id)?
@@ -86,7 +90,7 @@ pub(crate) async fn get_state_events_route(
 	}
 
 	Ok(get_state_events::v3::Response {
-		room_state: services()
+		room_state: services
 			.rooms
 			.state_accessor
 			.room_state_full(&body.room_id)
@@ -106,11 +110,11 @@ pub(crate) async fn get_state_events_route(
 /// - If not joined: Only works if current room history visibility is world
 ///   readable
 pub(crate) async fn get_state_events_for_key_route(
-	body: Ruma<get_state_events_for_key::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_state_events_for_key::v3::Request>,
 ) -> Result<get_state_events_for_key::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.user_can_see_state_events(sender_user, &body.room_id)?
@@ -121,7 +125,7 @@ pub(crate) async fn get_state_events_for_key_route(
 		));
 	}
 
-	let event = services()
+	let event = services
 		.rooms
 		.state_accessor
 		.room_state_get(&body.room_id, &body.event_type, &body.state_key)?
@@ -161,17 +165,20 @@ pub(crate) async fn get_state_events_for_key_route(
 /// - If not joined: Only works if current room history visibility is world
 ///   readable
 pub(crate) async fn get_state_events_for_empty_key_route(
-	body: Ruma<get_state_events_for_key::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_state_events_for_key::v3::Request>,
 ) -> Result<RumaResponse<get_state_events_for_key::v3::Response>> {
-	get_state_events_for_key_route(body).await.map(RumaResponse)
+	get_state_events_for_key_route(State(services), body)
+		.await
+		.map(RumaResponse)
 }
 
 async fn send_state_event_for_key_helper(
-	sender: &UserId, room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>, state_key: String,
+	services: &Services, sender: &UserId, room_id: &RoomId, event_type: &StateEventType,
+	json: &Raw<AnyStateEventContent>, state_key: String,
 ) -> Result<Arc<EventId>> {
-	allowed_to_send_state_event(room_id, event_type, json).await?;
-	let state_lock = services().rooms.state.mutex.lock(room_id).await;
-	let event_id = services()
+	allowed_to_send_state_event(services, room_id, event_type, json).await?;
+	let state_lock = services.rooms.state.mutex.lock(room_id).await;
+	let event_id = services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -192,12 +199,12 @@ async fn send_state_event_for_key_helper(
 }
 
 async fn allowed_to_send_state_event(
-	room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>,
+	services: &Services, room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>,
 ) -> Result<()> {
 	match event_type {
 		// Forbid m.room.encryption if encryption is disabled
 		StateEventType::RoomEncryption => {
-			if !services().globals.allow_encryption() {
+			if !services.globals.allow_encryption() {
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Encryption has been disabled"));
 			}
 		},
@@ -244,7 +251,7 @@ async fn allowed_to_send_state_event(
 
 				for alias in aliases {
 					if !server_is_ours(alias.server_name())
-						|| services()
+						|| services
                            .rooms
                            .alias
                            .resolve_local_alias(&alias)?

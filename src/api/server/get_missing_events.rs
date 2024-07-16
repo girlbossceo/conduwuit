@@ -1,9 +1,10 @@
+use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_missing_events},
 	OwnedEventId, RoomId,
 };
-use service::{sending::convert_to_outgoing_federation_event, services};
+use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -11,20 +12,20 @@ use crate::Ruma;
 ///
 /// Retrieves events that the sender is missing.
 pub(crate) async fn get_missing_events_route(
-	body: Ruma<get_missing_events::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(origin, &body.room_id)?;
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.is_world_readable(&body.room_id)?
-		&& !services()
+		&& !services
 			.rooms
 			.state_cache
 			.server_in_room(origin, &body.room_id)?
@@ -43,7 +44,7 @@ pub(crate) async fn get_missing_events_route(
 
 	let mut i: usize = 0;
 	while i < queued_events.len() && events.len() < limit {
-		if let Some(pdu) = services().rooms.timeline.get_pdu_json(&queued_events[i])? {
+		if let Some(pdu) = services.rooms.timeline.get_pdu_json(&queued_events[i])? {
 			let room_id_str = pdu
 				.get("room_id")
 				.and_then(|val| val.as_str())
@@ -61,7 +62,7 @@ pub(crate) async fn get_missing_events_route(
 				continue;
 			}
 
-			if !services()
+			if !services
 				.rooms
 				.state_accessor
 				.server_can_see_event(origin, &body.room_id, &queued_events[i])?

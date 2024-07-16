@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 
+use axum::extract::State;
 use ruma::{
 	api::client::{context::get_context, error::ErrorKind, filter::LazyLoadOptions},
 	events::StateEventType,
 };
 use tracing::error;
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context`
 ///
@@ -14,7 +15,9 @@ use crate::{services, Error, Result, Ruma};
 ///
 /// - Only works if the user is joined (TODO: always allow, but only show events
 ///   if the user was joined, depending on history_visibility)
-pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> Result<get_context::v3::Response> {
+pub(crate) async fn get_context_route(
+	State(services): State<crate::State>, body: Ruma<get_context::v3::Request>,
+) -> Result<get_context::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
@@ -27,13 +30,13 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 
 	let mut lazy_loaded = HashSet::new();
 
-	let base_token = services()
+	let base_token = services
 		.rooms
 		.timeline
 		.get_pdu_count(&body.event_id)?
 		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Base event id not found."))?;
 
-	let base_event = services()
+	let base_event = services
 		.rooms
 		.timeline
 		.get_pdu(&body.event_id)?
@@ -41,7 +44,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 
 	let room_id = base_event.room_id.clone();
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.user_can_see_event(sender_user, &room_id, &body.event_id)?
@@ -52,7 +55,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		));
 	}
 
-	if !services().rooms.lazy_loading.lazy_load_was_sent_before(
+	if !services.rooms.lazy_loading.lazy_load_was_sent_before(
 		sender_user,
 		sender_device,
 		&room_id,
@@ -67,14 +70,14 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 
 	let base_event = base_event.to_room_event();
 
-	let events_before: Vec<_> = services()
+	let events_before: Vec<_> = services
 		.rooms
 		.timeline
 		.pdus_until(sender_user, &room_id, base_token)?
 		.take(limit / 2)
 		.filter_map(Result::ok) // Remove buggy events
 		.filter(|(_, pdu)| {
-			services()
+			services
 				.rooms
 				.state_accessor
 				.user_can_see_event(sender_user, &room_id, &pdu.event_id)
@@ -83,7 +86,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		.collect();
 
 	for (_, event) in &events_before {
-		if !services().rooms.lazy_loading.lazy_load_was_sent_before(
+		if !services.rooms.lazy_loading.lazy_load_was_sent_before(
 			sender_user,
 			sender_device,
 			&room_id,
@@ -103,14 +106,14 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		.map(|(_, pdu)| pdu.to_room_event())
 		.collect();
 
-	let events_after: Vec<_> = services()
+	let events_after: Vec<_> = services
 		.rooms
 		.timeline
 		.pdus_after(sender_user, &room_id, base_token)?
 		.take(limit / 2)
 		.filter_map(Result::ok) // Remove buggy events
 		.filter(|(_, pdu)| {
-			services()
+			services
 				.rooms
 				.state_accessor
 				.user_can_see_event(sender_user, &room_id, &pdu.event_id)
@@ -119,7 +122,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		.collect();
 
 	for (_, event) in &events_after {
-		if !services().rooms.lazy_loading.lazy_load_was_sent_before(
+		if !services.rooms.lazy_loading.lazy_load_was_sent_before(
 			sender_user,
 			sender_device,
 			&room_id,
@@ -130,7 +133,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 		}
 	}
 
-	let shortstatehash = services()
+	let shortstatehash = services
 		.rooms
 		.state_accessor
 		.pdu_shortstatehash(
@@ -139,7 +142,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 				.map_or(&*body.event_id, |(_, e)| &*e.event_id),
 		)?
 		.map_or(
-			services()
+			services
 				.rooms
 				.state
 				.get_room_shortstatehash(&room_id)?
@@ -147,7 +150,7 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 			|hash| hash,
 		);
 
-	let state_ids = services()
+	let state_ids = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
@@ -165,20 +168,20 @@ pub(crate) async fn get_context_route(body: Ruma<get_context::v3::Request>) -> R
 	let mut state = Vec::with_capacity(state_ids.len());
 
 	for (shortstatekey, id) in state_ids {
-		let (event_type, state_key) = services()
+		let (event_type, state_key) = services
 			.rooms
 			.short
 			.get_statekey_from_short(shortstatekey)?;
 
 		if event_type != StateEventType::RoomMember {
-			let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+			let Some(pdu) = services.rooms.timeline.get_pdu(&id)? else {
 				error!("Pdu in state not found: {}", id);
 				continue;
 			};
 
 			state.push(pdu.to_state_event());
 		} else if !lazy_load_enabled || lazy_loaded.contains(&state_key) {
-			let Some(pdu) = services().rooms.timeline.get_pdu(&id)? else {
+			let Some(pdu) = services.rooms.timeline.get_pdu(&id)? else {
 				error!("Pdu in state not found: {}", id);
 				continue;
 			};

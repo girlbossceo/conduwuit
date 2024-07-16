@@ -1,3 +1,4 @@
+use axum::extract::State;
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_join_event},
 	events::{
@@ -12,15 +13,18 @@ use ruma::{
 use serde_json::value::to_raw_value;
 use tracing::warn;
 
-use crate::{service::pdu::PduBuilder, services, Error, Result, Ruma};
+use crate::{
+	service::{pdu::PduBuilder, Services},
+	Error, Result, Ruma,
+};
 
 /// # `GET /_matrix/federation/v1/make_join/{roomId}/{userId}`
 ///
 /// Creates a join template.
 pub(crate) async fn create_join_event_template_route(
-	body: Ruma<prepare_join_event::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<prepare_join_event::v1::Request>,
 ) -> Result<prepare_join_event::v1::Response> {
-	if !services().rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
@@ -33,12 +37,12 @@ pub(crate) async fn create_join_event_template_route(
 	}
 
 	// ACL check origin server
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(origin, &body.room_id)?;
 
-	if services()
+	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
@@ -56,7 +60,7 @@ pub(crate) async fn create_join_event_template_route(
 	}
 
 	if let Some(server) = body.room_id.server_name() {
-		if services()
+		if services
 			.globals
 			.config
 			.forbidden_remote_server_names
@@ -69,25 +73,25 @@ pub(crate) async fn create_join_event_template_route(
 		}
 	}
 
-	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(&body.room_id)?;
 
-	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let join_authorized_via_users_server = if (services()
+	let join_authorized_via_users_server = if (services
 		.rooms
 		.state_cache
 		.is_left(&body.user_id, &body.room_id)
 		.unwrap_or(true))
-		&& user_can_perform_restricted_join(&body.user_id, &body.room_id, &room_version_id)?
+		&& user_can_perform_restricted_join(services, &body.user_id, &body.room_id, &room_version_id)?
 	{
-		let auth_user = services()
+		let auth_user = services
 			.rooms
 			.state_cache
 			.room_members(&body.room_id)
 			.filter_map(Result::ok)
-			.filter(|user| user.server_name() == services().globals.server_name())
+			.filter(|user| user.server_name() == services.globals.server_name())
 			.find(|user| {
-				services()
+				services
 					.rooms
 					.state_accessor
 					.user_can_invite(&body.room_id, user, &body.user_id, &state_lock)
@@ -106,7 +110,7 @@ pub(crate) async fn create_join_event_template_route(
 		None
 	};
 
-	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(&body.room_id)?;
 	if !body.ver.contains(&room_version_id) {
 		return Err(Error::BadRequest(
 			ErrorKind::IncompatibleRoomVersion {
@@ -128,7 +132,7 @@ pub(crate) async fn create_join_event_template_route(
 	})
 	.expect("member event is valid value");
 
-	let (_pdu, mut pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
+	let (_pdu, mut pdu_json) = services.rooms.timeline.create_hash_and_sign_event(
 		PduBuilder {
 			event_type: TimelineEventType::RoomMember,
 			content,
@@ -157,15 +161,14 @@ pub(crate) async fn create_join_event_template_route(
 /// externally, either by using the state cache or attempting to authorize the
 /// event.
 pub(crate) fn user_can_perform_restricted_join(
-	user_id: &UserId, room_id: &RoomId, room_version_id: &RoomVersionId,
+	services: &Services, user_id: &UserId, room_id: &RoomId, room_version_id: &RoomVersionId,
 ) -> Result<bool> {
 	use RoomVersionId::*;
 
-	let join_rules_event =
-		services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+	let join_rules_event = services
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
 
 	let Some(join_rules_event_content) = join_rules_event
 		.as_ref()
@@ -198,7 +201,7 @@ pub(crate) fn user_can_perform_restricted_join(
 			}
 		})
 		.any(|m| {
-			services()
+			services
 				.rooms
 				.state_cache
 				.is_joined(user_id, &m.room_id)

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use axum::extract::State;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -14,7 +15,7 @@ use ruma::{
 };
 use tracing::debug;
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `POST /_matrix/client/r0/search`
 ///
@@ -22,7 +23,9 @@ use crate::{services, Error, Result, Ruma};
 ///
 /// - Only works if the user is currently joined to the room (TODO: Respect
 ///   history visibility)
-pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) -> Result<search_events::v3::Response> {
+pub(crate) async fn search_events_route(
+	State(services): State<crate::State>, body: Ruma<search_events::v3::Request>,
+) -> Result<search_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let search_criteria = body.search_categories.room_events.as_ref().unwrap();
@@ -30,7 +33,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	let include_state = &search_criteria.include_state;
 
 	let room_ids = filter.rooms.clone().unwrap_or_else(|| {
-		services()
+		services
 			.rooms
 			.state_cache
 			.rooms_joined(sender_user)
@@ -50,11 +53,7 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 
 	if include_state.is_some_and(|include_state| include_state) {
 		for room_id in &room_ids {
-			if !services()
-				.rooms
-				.state_cache
-				.is_joined(sender_user, room_id)?
-			{
+			if !services.rooms.state_cache.is_joined(sender_user, room_id)? {
 				return Err(Error::BadRequest(
 					ErrorKind::forbidden(),
 					"You don't have permission to view this room.",
@@ -62,12 +61,12 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 			}
 
 			// check if sender_user can see state events
-			if services()
+			if services
 				.rooms
 				.state_accessor
 				.user_can_see_state_events(sender_user, room_id)?
 			{
-				let room_state = services()
+				let room_state = services
 					.rooms
 					.state_accessor
 					.room_state_full(room_id)
@@ -91,18 +90,14 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 	let mut searches = Vec::new();
 
 	for room_id in &room_ids {
-		if !services()
-			.rooms
-			.state_cache
-			.is_joined(sender_user, room_id)?
-		{
+		if !services.rooms.state_cache.is_joined(sender_user, room_id)? {
 			return Err(Error::BadRequest(
 				ErrorKind::forbidden(),
 				"You don't have permission to view this room.",
 			));
 		}
 
-		if let Some(search) = services()
+		if let Some(search) = services
 			.rooms
 			.search
 			.search_pdus(room_id, &search_criteria.search_term)?
@@ -135,14 +130,14 @@ pub(crate) async fn search_events_route(body: Ruma<search_events::v3::Request>) 
 		.iter()
 		.skip(skip)
 		.filter_map(|result| {
-			services()
+			services
 				.rooms
 				.timeline
 				.get_pdu_from_id(result)
 				.ok()?
 				.filter(|pdu| {
 					!pdu.is_redacted()
-						&& services()
+						&& services
 							.rooms
 							.state_accessor
 							.user_can_see_event(sender_user, &pdu.room_id, &pdu.event_id)

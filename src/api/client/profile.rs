@@ -1,3 +1,4 @@
+use axum::extract::State;
 use ruma::{
 	api::{
 		client::{
@@ -14,8 +15,8 @@ use serde_json::value::to_raw_value;
 use tracing::warn;
 
 use crate::{
-	service::{pdu::PduBuilder, user_is_local},
-	services, Error, Result, Ruma,
+	service::{pdu::PduBuilder, user_is_local, Services},
+	Error, Result, Ruma,
 };
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
@@ -24,21 +25,21 @@ use crate::{
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub(crate) async fn set_displayname_route(
-	body: Ruma<set_display_name::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<set_display_name::v3::Request>,
 ) -> Result<set_display_name::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let all_joined_rooms: Vec<OwnedRoomId> = services()
+	let all_joined_rooms: Vec<OwnedRoomId> = services
 		.rooms
 		.state_cache
 		.rooms_joined(sender_user)
 		.filter_map(Result::ok)
 		.collect();
 
-	update_displayname(sender_user.clone(), body.displayname.clone(), all_joined_rooms).await?;
+	update_displayname(services, sender_user.clone(), body.displayname.clone(), all_joined_rooms).await?;
 
-	if services().globals.allow_local_presence() {
+	if services.globals.allow_local_presence() {
 		// Presence update
-		services()
+		services
 			.presence
 			.ping_presence(sender_user, &PresenceState::Online)?;
 	}
@@ -53,11 +54,11 @@ pub(crate) async fn set_displayname_route(
 /// - If user is on another server and we do not have a local copy already fetch
 ///   displayname over federation
 pub(crate) async fn get_displayname_route(
-	body: Ruma<get_display_name::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
 	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
-		if let Ok(response) = services()
+		if let Ok(response) = services
 			.sending
 			.send_federation_request(
 				body.user_id.server_name(),
@@ -68,19 +69,19 @@ pub(crate) async fn get_displayname_route(
 			)
 			.await
 		{
-			if !services().users.exists(&body.user_id)? {
-				services().users.create(&body.user_id, None)?;
+			if !services.users.exists(&body.user_id)? {
+				services.users.create(&body.user_id, None)?;
 			}
 
-			services()
+			services
 				.users
 				.set_displayname(&body.user_id, response.displayname.clone())
 				.await?;
-			services()
+			services
 				.users
 				.set_avatar_url(&body.user_id, response.avatar_url.clone())
 				.await?;
-			services()
+			services
 				.users
 				.set_blurhash(&body.user_id, response.blurhash.clone())
 				.await?;
@@ -91,14 +92,14 @@ pub(crate) async fn get_displayname_route(
 		}
 	}
 
-	if !services().users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id)? {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_display_name::v3::Response {
-		displayname: services().users.displayname(&body.user_id)?,
+		displayname: services.users.displayname(&body.user_id)?,
 	})
 }
 
@@ -108,10 +109,10 @@ pub(crate) async fn get_displayname_route(
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub(crate) async fn set_avatar_url_route(
-	body: Ruma<set_avatar_url::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<set_avatar_url::v3::Request>,
 ) -> Result<set_avatar_url::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let all_joined_rooms: Vec<OwnedRoomId> = services()
+	let all_joined_rooms: Vec<OwnedRoomId> = services
 		.rooms
 		.state_cache
 		.rooms_joined(sender_user)
@@ -119,6 +120,7 @@ pub(crate) async fn set_avatar_url_route(
 		.collect();
 
 	update_avatar_url(
+		services,
 		sender_user.clone(),
 		body.avatar_url.clone(),
 		body.blurhash.clone(),
@@ -126,9 +128,9 @@ pub(crate) async fn set_avatar_url_route(
 	)
 	.await?;
 
-	if services().globals.allow_local_presence() {
+	if services.globals.allow_local_presence() {
 		// Presence update
-		services()
+		services
 			.presence
 			.ping_presence(sender_user, &PresenceState::Online)?;
 	}
@@ -143,11 +145,11 @@ pub(crate) async fn set_avatar_url_route(
 /// - If user is on another server and we do not have a local copy already fetch
 ///   `avatar_url` and blurhash over federation
 pub(crate) async fn get_avatar_url_route(
-	body: Ruma<get_avatar_url::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
 	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
-		if let Ok(response) = services()
+		if let Ok(response) = services
 			.sending
 			.send_federation_request(
 				body.user_id.server_name(),
@@ -158,19 +160,19 @@ pub(crate) async fn get_avatar_url_route(
 			)
 			.await
 		{
-			if !services().users.exists(&body.user_id)? {
-				services().users.create(&body.user_id, None)?;
+			if !services.users.exists(&body.user_id)? {
+				services.users.create(&body.user_id, None)?;
 			}
 
-			services()
+			services
 				.users
 				.set_displayname(&body.user_id, response.displayname.clone())
 				.await?;
-			services()
+			services
 				.users
 				.set_avatar_url(&body.user_id, response.avatar_url.clone())
 				.await?;
-			services()
+			services
 				.users
 				.set_blurhash(&body.user_id, response.blurhash.clone())
 				.await?;
@@ -182,15 +184,15 @@ pub(crate) async fn get_avatar_url_route(
 		}
 	}
 
-	if !services().users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id)? {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_avatar_url::v3::Response {
-		avatar_url: services().users.avatar_url(&body.user_id)?,
-		blurhash: services().users.blurhash(&body.user_id)?,
+		avatar_url: services.users.avatar_url(&body.user_id)?,
+		blurhash: services.users.blurhash(&body.user_id)?,
 	})
 }
 
@@ -200,10 +202,12 @@ pub(crate) async fn get_avatar_url_route(
 ///
 /// - If user is on another server and we do not have a local copy already,
 ///   fetch profile over federation.
-pub(crate) async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> Result<get_profile::v3::Response> {
+pub(crate) async fn get_profile_route(
+	State(services): State<crate::State>, body: Ruma<get_profile::v3::Request>,
+) -> Result<get_profile::v3::Response> {
 	if !user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
-		if let Ok(response) = services()
+		if let Ok(response) = services
 			.sending
 			.send_federation_request(
 				body.user_id.server_name(),
@@ -214,19 +218,19 @@ pub(crate) async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> R
 			)
 			.await
 		{
-			if !services().users.exists(&body.user_id)? {
-				services().users.create(&body.user_id, None)?;
+			if !services.users.exists(&body.user_id)? {
+				services.users.create(&body.user_id, None)?;
 			}
 
-			services()
+			services
 				.users
 				.set_displayname(&body.user_id, response.displayname.clone())
 				.await?;
-			services()
+			services
 				.users
 				.set_avatar_url(&body.user_id, response.avatar_url.clone())
 				.await?;
-			services()
+			services
 				.users
 				.set_blurhash(&body.user_id, response.blurhash.clone())
 				.await?;
@@ -239,23 +243,23 @@ pub(crate) async fn get_profile_route(body: Ruma<get_profile::v3::Request>) -> R
 		}
 	}
 
-	if !services().users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id)? {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_profile::v3::Response {
-		avatar_url: services().users.avatar_url(&body.user_id)?,
-		blurhash: services().users.blurhash(&body.user_id)?,
-		displayname: services().users.displayname(&body.user_id)?,
+		avatar_url: services.users.avatar_url(&body.user_id)?,
+		blurhash: services.users.blurhash(&body.user_id)?,
+		displayname: services.users.displayname(&body.user_id)?,
 	})
 }
 
 pub async fn update_displayname(
-	user_id: OwnedUserId, displayname: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
+	services: &Services, user_id: OwnedUserId, displayname: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
-	services()
+	services
 		.users
 		.set_displayname(&user_id, displayname.clone())
 		.await?;
@@ -271,7 +275,7 @@ pub async fn update_displayname(
 						displayname: displayname.clone(),
 						join_authorized_via_users_server: None,
 						..serde_json::from_str(
-							services()
+							services
 								.rooms
 								.state_accessor
 								.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
@@ -294,19 +298,20 @@ pub async fn update_displayname(
 		.filter_map(Result::ok)
 		.collect();
 
-	update_all_rooms(all_joined_rooms, user_id).await;
+	update_all_rooms(services, all_joined_rooms, user_id).await;
 
 	Ok(())
 }
 
 pub async fn update_avatar_url(
-	user_id: OwnedUserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
+	services: &Services, user_id: OwnedUserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>,
+	all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
-	services()
+	services
 		.users
 		.set_avatar_url(&user_id, avatar_url.clone())
 		.await?;
-	services()
+	services
 		.users
 		.set_blurhash(&user_id, blurhash.clone())
 		.await?;
@@ -323,7 +328,7 @@ pub async fn update_avatar_url(
 						blurhash: blurhash.clone(),
 						join_authorized_via_users_server: None,
 						..serde_json::from_str(
-							services()
+							services
 								.rooms
 								.state_accessor
 								.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
@@ -346,15 +351,17 @@ pub async fn update_avatar_url(
 		.filter_map(Result::ok)
 		.collect();
 
-	update_all_rooms(all_joined_rooms, user_id).await;
+	update_all_rooms(services, all_joined_rooms, user_id).await;
 
 	Ok(())
 }
 
-pub async fn update_all_rooms(all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: OwnedUserId) {
+pub async fn update_all_rooms(
+	services: &Services, all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: OwnedUserId,
+) {
 	for (pdu_builder, room_id) in all_joined_rooms {
-		let state_lock = services().rooms.state.mutex.lock(room_id).await;
-		if let Err(e) = services()
+		let state_lock = services.rooms.state.mutex.lock(room_id).await;
+		if let Err(e) = services
 			.rooms
 			.timeline
 			.build_and_append_pdu(pdu_builder, &user_id, room_id, &state_lock)

@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use ruma::{
 	api::{
@@ -7,16 +8,17 @@ use ruma::{
 	directory::Filter,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
 #[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_filtered_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v1::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
-	if !services()
+	if !services
 		.globals
 		.allow_public_room_directory_over_federation()
 	{
@@ -24,6 +26,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	}
 
 	let response = crate::client::get_public_rooms_filtered_helper(
+		services,
 		None,
 		body.limit,
 		body.since.as_deref(),
@@ -46,9 +49,10 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 #[tracing::instrument(skip_all, fields(%client), "publicrooms")]
 pub(crate) async fn get_public_rooms_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms::v1::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
-	if !services()
+	if !services
 		.globals
 		.allow_public_room_directory_over_federation()
 	{
@@ -56,6 +60,7 @@ pub(crate) async fn get_public_rooms_route(
 	}
 
 	let response = crate::client::get_public_rooms_filtered_helper(
+		services,
 		None,
 		body.limit,
 		body.since.as_deref(),

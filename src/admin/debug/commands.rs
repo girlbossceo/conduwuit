@@ -530,7 +530,7 @@ pub(super) async fn force_set_room_state_from_server(
 	for result in remote_state_response
 		.pdus
 		.iter()
-		.map(|pdu| validate_and_add_event_id(pdu, &room_version, &pub_key_map))
+		.map(|pdu| validate_and_add_event_id(services(), pdu, &room_version, &pub_key_map))
 	{
 		let Ok((event_id, value)) = result.await else {
 			continue;
@@ -558,7 +558,7 @@ pub(super) async fn force_set_room_state_from_server(
 	for result in remote_state_response
 		.auth_chain
 		.iter()
-		.map(|pdu| validate_and_add_event_id(pdu, &room_version, &pub_key_map))
+		.map(|pdu| validate_and_add_event_id(services(), pdu, &room_version, &pub_key_map))
 	{
 		let Ok((event_id, value)) = result.await else {
 			continue;

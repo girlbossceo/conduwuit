@@ -6,17 +6,17 @@ use axum_extra::{
 	typed_header::TypedHeaderRejectionReason,
 	TypedHeader,
 };
-use conduit::Err;
+use conduit::{warn, Err, Error, Result};
 use http::uri::PathAndQuery;
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, Metadata},
 	server_util::authorization::XMatrix,
 	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
-use tracing::warn;
+use service::Services;
 
 use super::request::Request;
-use crate::{service::appservice::RegistrationInfo, services, Error, Result};
+use crate::service::appservice::RegistrationInfo;
 
 enum Token {
 	Appservice(Box<RegistrationInfo>),
@@ -33,7 +33,7 @@ pub(super) struct Auth {
 }
 
 pub(super) async fn auth(
-	request: &mut Request, json_body: &Option<CanonicalJsonValue>, metadata: &Metadata,
+	services: &Services, request: &mut Request, json_body: &Option<CanonicalJsonValue>, metadata: &Metadata,
 ) -> Result<Auth> {
 	let bearer: Option<TypedHeader<Authorization<Bearer>>> = request.parts.extract().await?;
 	let token = match &bearer {
@@ -42,9 +42,9 @@ pub(super) async fn auth(
 	};
 
 	let token = if let Some(token) = token {
-		if let Some(reg_info) = services().appservice.find_from_token(token).await {
+		if let Some(reg_info) = services.appservice.find_from_token(token).await {
 			Token::Appservice(Box::new(reg_info))
-		} else if let Some((user_id, device_id)) = services().users.find_from_token(token)? {
+		} else if let Some((user_id, device_id)) = services.users.find_from_token(token)? {
 			Token::User((user_id, OwnedDeviceId::from(device_id)))
 		} else {
 			Token::Invalid
@@ -57,7 +57,7 @@ pub(super) async fn auth(
 		match request.parts.uri.path() {
 			// TODO: can we check this better?
 			"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
-				if !services()
+				if !services
 					.globals
 					.config
 					.allow_public_room_directory_without_auth
@@ -98,7 +98,7 @@ pub(super) async fn auth(
 				))
 			}
 		},
-		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(request, info)?),
+		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(services, request, info)?),
 		(AuthScheme::None | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken, Token::Appservice(info)) => {
 			Ok(Auth {
 				origin: None,
@@ -110,7 +110,7 @@ pub(super) async fn auth(
 		(AuthScheme::AccessToken, Token::None) => match request.parts.uri.path() {
 			// TODO: can we check this better?
 			"/_matrix/client/v3/voip/turnServer" | "/_matrix/client/r0/voip/turnServer" => {
-				if services().globals.config.turn_allow_guests {
+				if services.globals.config.turn_allow_guests {
 					Ok(Auth {
 						origin: None,
 						sender_user: None,
@@ -132,7 +132,7 @@ pub(super) async fn auth(
 			sender_device: Some(device_id),
 			appservice_info: None,
 		}),
-		(AuthScheme::ServerSignatures, Token::None) => Ok(auth_server(request, json_body).await?),
+		(AuthScheme::ServerSignatures, Token::None) => Ok(auth_server(services, request, json_body).await?),
 		(AuthScheme::None | AuthScheme::AppserviceToken | AuthScheme::AccessTokenOptional, Token::None) => Ok(Auth {
 			sender_user: None,
 			sender_device: None,
@@ -150,7 +150,7 @@ pub(super) async fn auth(
 	}
 }
 
-fn auth_appservice(request: &Request, info: Box<RegistrationInfo>) -> Result<Auth> {
+fn auth_appservice(services: &Services, request: &Request, info: Box<RegistrationInfo>) -> Result<Auth> {
 	let user_id = request
 		.query
 		.user_id
@@ -159,7 +159,7 @@ fn auth_appservice(request: &Request, info: Box<RegistrationInfo>) -> Result<Aut
 			|| {
 				UserId::parse_with_server_name(
 					info.registration.sender_localpart.as_str(),
-					services().globals.server_name(),
+					services.globals.server_name(),
 				)
 			},
 			UserId::parse,
@@ -170,7 +170,7 @@ fn auth_appservice(request: &Request, info: Box<RegistrationInfo>) -> Result<Aut
 		return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
 	}
 
-	if !services().users.exists(&user_id)? {
+	if !services.users.exists(&user_id)? {
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "User does not exist."));
 	}
 
@@ -182,8 +182,10 @@ fn auth_appservice(request: &Request, info: Box<RegistrationInfo>) -> Result<Aut
 	})
 }
 
-async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValue>) -> Result<Auth> {
-	if !services().globals.allow_federation() {
+async fn auth_server(
+	services: &Services, request: &mut Request, json_body: &Option<CanonicalJsonValue>,
+) -> Result<Auth> {
+	if !services.globals.allow_federation() {
 		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
@@ -216,7 +218,7 @@ async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValu
 		),
 	)]);
 
-	let server_destination = services().globals.server_name().as_str().to_owned();
+	let server_destination = services.globals.server_name().as_str().to_owned();
 	if let Some(destination) = x_matrix.destination.as_ref() {
 		if destination != &server_destination {
 			return Err(Error::BadRequest(ErrorKind::forbidden(), "Invalid authorization."));
@@ -247,7 +249,7 @@ async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValu
 		request_map.insert("content".to_owned(), json_body.clone());
 	};
 
-	let keys_result = services()
+	let keys_result = services
 		.rooms
 		.event_handler
 		.fetch_signing_keys_for_server(origin, vec![x_matrix.key.to_string()])

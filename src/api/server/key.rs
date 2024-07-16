@@ -3,7 +3,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-use axum::{response::IntoResponse, Json};
+use axum::{extract::State, response::IntoResponse, Json};
 use ruma::{
 	api::{
 		federation::discovery::{get_server_keys, ServerSigningKeys, VerifyKey},
@@ -13,7 +13,7 @@ use ruma::{
 	MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId,
 };
 
-use crate::{services, Result};
+use crate::Result;
 
 /// # `GET /_matrix/key/v2/server`
 ///
@@ -23,20 +23,20 @@ use crate::{services, Result};
 ///   this will be valid forever.
 // Response type for this endpoint is Json because we need to calculate a
 // signature for the response
-pub(crate) async fn get_server_keys_route() -> Result<impl IntoResponse> {
+pub(crate) async fn get_server_keys_route(State(services): State<crate::State>) -> Result<impl IntoResponse> {
 	let verify_keys: BTreeMap<OwnedServerSigningKeyId, VerifyKey> = BTreeMap::from([(
-		format!("ed25519:{}", services().globals.keypair().version())
+		format!("ed25519:{}", services.globals.keypair().version())
 			.try_into()
 			.expect("found invalid server signing keys in DB"),
 		VerifyKey {
-			key: Base64::new(services().globals.keypair().public_key().to_vec()),
+			key: Base64::new(services.globals.keypair().public_key().to_vec()),
 		},
 	)]);
 
 	let mut response = serde_json::from_slice(
 		get_server_keys::v2::Response {
 			server_key: Raw::new(&ServerSigningKeys {
-				server_name: services().globals.server_name().to_owned(),
+				server_name: services.globals.server_name().to_owned(),
 				verify_keys,
 				old_verify_keys: BTreeMap::new(),
 				signatures: BTreeMap::new(),
@@ -56,8 +56,8 @@ pub(crate) async fn get_server_keys_route() -> Result<impl IntoResponse> {
 	.unwrap();
 
 	ruma::signatures::sign_json(
-		services().globals.server_name().as_str(),
-		services().globals.keypair(),
+		services.globals.server_name().as_str(),
+		services.globals.keypair(),
 		&mut response,
 	)
 	.unwrap();
@@ -71,4 +71,6 @@ pub(crate) async fn get_server_keys_route() -> Result<impl IntoResponse> {
 ///
 /// - Matrix does not support invalidating public keys, so the key returned by
 ///   this will be valid forever.
-pub(crate) async fn get_server_keys_deprecated_route() -> impl IntoResponse { get_server_keys_route().await }
+pub(crate) async fn get_server_keys_deprecated_route(State(services): State<crate::State>) -> impl IntoResponse {
+	get_server_keys_route(State(services)).await
+}

@@ -1,3 +1,4 @@
+use axum::extract::State;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -20,7 +21,7 @@ use serde::Deserialize;
 use tracing::{debug, info, warn};
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
-use crate::{services, utils, utils::hash, Error, Result, Ruma};
+use crate::{utils, utils::hash, Error, Result, Ruma};
 
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -55,7 +56,9 @@ pub(crate) async fn get_login_types_route(
 /// Note: You can use [`GET
 /// /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
-pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login::v3::Response> {
+pub(crate) async fn login_route(
+	State(services): State<crate::State>, body: Ruma<login::v3::Request>,
+) -> Result<login::v3::Response> {
 	// Validate login method
 	// TODO: Other login methods
 	let user_id = match &body.login_info {
@@ -68,7 +71,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 		}) => {
 			debug!("Got password login type");
 			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				UserId::parse_with_server_name(user_id.to_lowercase(), services().globals.server_name())
+				UserId::parse_with_server_name(user_id.to_lowercase(), services.globals.server_name())
 			} else if let Some(user) = user {
 				UserId::parse(user)
 			} else {
@@ -77,7 +80,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 			}
 			.map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
-			let hash = services()
+			let hash = services
 				.users
 				.password_hash(&user_id)?
 				.ok_or(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."))?;
@@ -96,7 +99,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 			token,
 		}) => {
 			debug!("Got token login type");
-			if let Some(jwt_decoding_key) = services().globals.jwt_decoding_key() {
+			if let Some(jwt_decoding_key) = services.globals.jwt_decoding_key() {
 				let token =
 					jsonwebtoken::decode::<Claims>(token, jwt_decoding_key, &jsonwebtoken::Validation::default())
 						.map_err(|e| {
@@ -106,7 +109,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 
 				let username = token.claims.sub.to_lowercase();
 
-				UserId::parse_with_server_name(username, services().globals.server_name()).map_err(|e| {
+				UserId::parse_with_server_name(username, services.globals.server_name()).map_err(|e| {
 					warn!("Failed to parse username from user logging in: {e}");
 					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
 				})?
@@ -124,7 +127,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 		}) => {
 			debug!("Got appservice login type");
 			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				UserId::parse_with_server_name(user_id.to_lowercase(), services().globals.server_name())
+				UserId::parse_with_server_name(user_id.to_lowercase(), services.globals.server_name())
 			} else if let Some(user) = user {
 				UserId::parse(user)
 			} else {
@@ -164,22 +167,22 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 
 	// Determine if device_id was provided and exists in the db for this user
 	let device_exists = body.device_id.as_ref().map_or(false, |device_id| {
-		services()
+		services
 			.users
 			.all_device_ids(&user_id)
 			.any(|x| x.as_ref().map_or(false, |v| v == device_id))
 	});
 
 	if device_exists {
-		services().users.set_token(&user_id, &device_id, &token)?;
+		services.users.set_token(&user_id, &device_id, &token)?;
 	} else {
-		services()
+		services
 			.users
 			.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
 	}
 
 	// send client well-known if specified so the client knows to reconfigure itself
-	let client_discovery_info: Option<DiscoveryInfo> = services()
+	let client_discovery_info: Option<DiscoveryInfo> = services
 		.globals
 		.well_known_client()
 		.as_ref()
@@ -197,7 +200,7 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 		device_id,
 		well_known: client_discovery_info,
 		expires_in: None,
-		home_server: Some(services().globals.server_name().to_owned()),
+		home_server: Some(services.globals.server_name().to_owned()),
 		refresh_token: None,
 	})
 }
@@ -211,14 +214,16 @@ pub(crate) async fn login_route(body: Ruma<login::v3::Request>) -> Result<login:
 ///   last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-pub(crate) async fn logout_route(body: Ruma<logout::v3::Request>) -> Result<logout::v3::Response> {
+pub(crate) async fn logout_route(
+	State(services): State<crate::State>, body: Ruma<logout::v3::Request>,
+) -> Result<logout::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-	services().users.remove_device(sender_user, sender_device)?;
+	services.users.remove_device(sender_user, sender_device)?;
 
 	// send device list update for user after logout
-	services().users.mark_device_key_update(sender_user)?;
+	services.users.mark_device_key_update(sender_user)?;
 
 	Ok(logout::v3::Response::new())
 }
@@ -236,15 +241,17 @@ pub(crate) async fn logout_route(body: Ruma<logout::v3::Request>) -> Result<logo
 /// Note: This is equivalent to calling [`GET
 /// /_matrix/client/r0/logout`](fn.logout_route.html) from each device of this
 /// user.
-pub(crate) async fn logout_all_route(body: Ruma<logout_all::v3::Request>) -> Result<logout_all::v3::Response> {
+pub(crate) async fn logout_all_route(
+	State(services): State<crate::State>, body: Ruma<logout_all::v3::Request>,
+) -> Result<logout_all::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	for device_id in services().users.all_device_ids(sender_user).flatten() {
-		services().users.remove_device(sender_user, &device_id)?;
+	for device_id in services.users.all_device_ids(sender_user).flatten() {
+		services.users.remove_device(sender_user, &device_id)?;
 	}
 
 	// send device list update for user after logout
-	services().users.mark_device_key_update(sender_user)?;
+	services.users.mark_device_key_update(sender_user)?;
 
 	Ok(logout_all::v3::Response::new())
 }

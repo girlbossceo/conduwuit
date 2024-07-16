@@ -5,6 +5,7 @@ use std::{
 	time::Instant,
 };
 
+use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{
 	debug, debug_warn, error, info, trace, utils, utils::math::continue_exponential_backoff_secs, warn, Error,
@@ -43,9 +44,9 @@ use crate::{
 		pdu::{gen_event_id_canonical_json, PduBuilder},
 		rooms::state::RoomMutexGuard,
 		sending::convert_to_outgoing_federation_event,
-		server_is_ours, user_is_local,
+		server_is_ours, user_is_local, Services,
 	},
-	services, Ruma,
+	Ruma,
 };
 
 /// Checks if the room is banned in any way possible and the sender user is not
@@ -53,14 +54,15 @@ use crate::{
 ///
 /// Performs automatic deactivation if `auto_deactivate_banned_room_attempts` is
 /// enabled
-#[tracing::instrument]
+#[tracing::instrument(skip(services))]
 async fn banned_room_check(
-	user_id: &UserId, room_id: Option<&RoomId>, server_name: Option<&ServerName>, client_ip: IpAddr,
+	services: &Services, user_id: &UserId, room_id: Option<&RoomId>, server_name: Option<&ServerName>,
+	client_ip: IpAddr,
 ) -> Result<()> {
-	if !services().users.is_admin(user_id)? {
+	if !services.users.is_admin(user_id)? {
 		if let Some(room_id) = room_id {
-			if services().rooms.metadata.is_banned(room_id)?
-				|| services()
+			if services.rooms.metadata.is_banned(room_id)?
+				|| services
 					.globals
 					.config
 					.forbidden_remote_server_names
@@ -71,13 +73,9 @@ async fn banned_room_check(
 					 room or banned room server name: {room_id}"
 				);
 
-				if services()
-					.globals
-					.config
-					.auto_deactivate_banned_room_attempts
-				{
+				if services.globals.config.auto_deactivate_banned_room_attempts {
 					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
-					services()
+					services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
 							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
@@ -85,20 +83,20 @@ async fn banned_room_check(
 						)))
 						.await;
 
-					if let Err(e) = services().users.deactivate_account(user_id) {
+					if let Err(e) = services.users.deactivate_account(user_id) {
 						warn!(%user_id, %e, "Failed to deactivate account");
 					}
 
-					let all_joined_rooms: Vec<OwnedRoomId> = services()
+					let all_joined_rooms: Vec<OwnedRoomId> = services
 						.rooms
 						.state_cache
 						.rooms_joined(user_id)
 						.filter_map(Result::ok)
 						.collect();
 
-					update_displayname(user_id.into(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(user_id.into(), None, None, all_joined_rooms).await?;
-					leave_all_rooms(user_id).await;
+					update_displayname(services, user_id.into(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(services, user_id.into(), None, None, all_joined_rooms).await?;
+					leave_all_rooms(services, user_id).await;
 				}
 
 				return Err(Error::BadRequest(
@@ -107,7 +105,7 @@ async fn banned_room_check(
 				));
 			}
 		} else if let Some(server_name) = server_name {
-			if services()
+			if services
 				.globals
 				.config
 				.forbidden_remote_server_names
@@ -118,13 +116,9 @@ async fn banned_room_check(
 					 that is globally forbidden. Rejecting.",
 				);
 
-				if services()
-					.globals
-					.config
-					.auto_deactivate_banned_room_attempts
-				{
+				if services.globals.config.auto_deactivate_banned_room_attempts {
 					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
-					services()
+					services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
 							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
@@ -132,20 +126,20 @@ async fn banned_room_check(
 						)))
 						.await;
 
-					if let Err(e) = services().users.deactivate_account(user_id) {
+					if let Err(e) = services.users.deactivate_account(user_id) {
 						warn!(%user_id, %e, "Failed to deactivate account");
 					}
 
-					let all_joined_rooms: Vec<OwnedRoomId> = services()
+					let all_joined_rooms: Vec<OwnedRoomId> = services
 						.rooms
 						.state_cache
 						.rooms_joined(user_id)
 						.filter_map(Result::ok)
 						.collect();
 
-					update_displayname(user_id.into(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(user_id.into(), None, None, all_joined_rooms).await?;
-					leave_all_rooms(user_id).await;
+					update_displayname(services, user_id.into(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(services, user_id.into(), None, None, all_joined_rooms).await?;
+					leave_all_rooms(services, user_id).await;
 				}
 
 				return Err(Error::BadRequest(
@@ -169,14 +163,22 @@ async fn banned_room_check(
 ///   federation
 #[tracing::instrument(skip_all, fields(%client_ip), name = "join")]
 pub(crate) async fn join_room_by_id_route(
-	InsecureClientIp(client_ip): InsecureClientIp, body: Ruma<join_room_by_id::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client_ip): InsecureClientIp,
+	body: Ruma<join_room_by_id::v3::Request>,
 ) -> Result<join_room_by_id::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name(), client_ip).await?;
+	banned_room_check(
+		services,
+		sender_user,
+		Some(&body.room_id),
+		body.room_id.server_name(),
+		client_ip,
+	)
+	.await?;
 
 	// There is no body.server_name for /roomId/join
-	let mut servers = services()
+	let mut servers = services
 		.rooms
 		.state_cache
 		.servers_invite_via(&body.room_id)
@@ -184,7 +186,7 @@ pub(crate) async fn join_room_by_id_route(
 		.collect::<Vec<_>>();
 
 	servers.extend(
-		services()
+		services
 			.rooms
 			.state_cache
 			.invite_state(sender_user, &body.room_id)?
@@ -202,6 +204,7 @@ pub(crate) async fn join_room_by_id_route(
 	}
 
 	join_room_by_id_helper(
+		services,
 		sender_user,
 		&body.room_id,
 		body.reason.clone(),
@@ -222,18 +225,19 @@ pub(crate) async fn join_room_by_id_route(
 ///   via room alias server name and room ID server name
 #[tracing::instrument(skip_all, fields(%client), name = "join")]
 pub(crate) async fn join_room_by_id_or_alias_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<join_room_by_id_or_alias::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<join_room_by_id_or_alias::v3::Request>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
 	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
 	let body = body.body;
 
 	let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
 		Ok(room_id) => {
-			banned_room_check(sender_user, Some(&room_id), room_id.server_name(), client).await?;
+			banned_room_check(services, sender_user, Some(&room_id), room_id.server_name(), client).await?;
 
 			let mut servers = body.server_name.clone();
 			servers.extend(
-				services()
+				services
 					.rooms
 					.state_cache
 					.servers_invite_via(&room_id)
@@ -241,7 +245,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 			);
 
 			servers.extend(
-				services()
+				services
 					.rooms
 					.state_cache
 					.invite_state(sender_user, &room_id)?
@@ -261,21 +265,21 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 			(servers, room_id)
 		},
 		Err(room_alias) => {
-			let response = services()
+			let response = services
 				.rooms
 				.alias
 				.resolve_alias(&room_alias, Some(&body.server_name.clone()))
 				.await?;
 			let (room_id, mut pre_servers) = response;
 
-			banned_room_check(sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
+			banned_room_check(services, sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
 
 			let mut servers = body.server_name;
 			if let Some(pre_servers) = &mut pre_servers {
 				servers.append(pre_servers);
 			}
 			servers.extend(
-				services()
+				services
 					.rooms
 					.state_cache
 					.servers_invite_via(&room_id)
@@ -283,7 +287,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 			);
 
 			servers.extend(
-				services()
+				services
 					.rooms
 					.state_cache
 					.invite_state(sender_user, &room_id)?
@@ -301,6 +305,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 	};
 
 	let join_room_response = join_room_by_id_helper(
+		services,
 		sender_user,
 		&room_id,
 		body.reason.clone(),
@@ -319,10 +324,12 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 /// Tries to leave the sender user from a room.
 ///
 /// - This should always work if the user is currently joined.
-pub(crate) async fn leave_room_route(body: Ruma<leave_room::v3::Request>) -> Result<leave_room::v3::Response> {
+pub(crate) async fn leave_room_route(
+	State(services): State<crate::State>, body: Ruma<leave_room::v3::Request>,
+) -> Result<leave_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	leave_room(sender_user, &body.room_id, body.reason.clone()).await?;
+	leave_room(services, sender_user, &body.room_id, body.reason.clone()).await?;
 
 	Ok(leave_room::v3::Response::new())
 }
@@ -332,11 +339,12 @@ pub(crate) async fn leave_room_route(body: Ruma<leave_room::v3::Request>) -> Res
 /// Tries to send an invite event into the room.
 #[tracing::instrument(skip_all, fields(%client), name = "invite")]
 pub(crate) async fn invite_user_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<invite_user::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<invite_user::v3::Request>,
 ) -> Result<invite_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().users.is_admin(sender_user)? && services().globals.block_non_admin_invites() {
+	if !services.users.is_admin(sender_user)? && services.globals.block_non_admin_invites() {
 		info!(
 			"User {sender_user} is not an admin and attempted to send an invite to room {}",
 			&body.room_id
@@ -347,13 +355,13 @@ pub(crate) async fn invite_user_route(
 		));
 	}
 
-	banned_room_check(sender_user, Some(&body.room_id), body.room_id.server_name(), client).await?;
+	banned_room_check(services, sender_user, Some(&body.room_id), body.room_id.server_name(), client).await?;
 
 	if let invite_user::v3::InvitationRecipient::UserId {
 		user_id,
 	} = &body.recipient
 	{
-		invite_helper(sender_user, user_id, &body.room_id, body.reason.clone(), false).await?;
+		invite_helper(services, sender_user, user_id, &body.room_id, body.reason.clone(), false).await?;
 		Ok(invite_user::v3::Response {})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
@@ -363,13 +371,15 @@ pub(crate) async fn invite_user_route(
 /// # `POST /_matrix/client/r0/rooms/{roomId}/kick`
 ///
 /// Tries to send a kick event into the room.
-pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_user::v3::Response> {
+pub(crate) async fn kick_user_route(
+	State(services): State<crate::State>, body: Ruma<kick_user::v3::Request>,
+) -> Result<kick_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
 	let mut event: RoomMemberEventContent = serde_json::from_str(
-		services()
+		services
 			.rooms
 			.state_accessor
 			.room_state_get(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())?
@@ -385,7 +395,7 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -410,12 +420,14 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 /// # `POST /_matrix/client/r0/rooms/{roomId}/ban`
 ///
 /// Tries to send a ban event into the room.
-pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
+pub(crate) async fn ban_user_route(
+	State(services): State<crate::State>, body: Ruma<ban_user::v3::Request>,
+) -> Result<ban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let event = services()
+	let event = services
 		.rooms
 		.state_accessor
 		.room_state_get(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())?
@@ -426,7 +438,7 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 				avatar_url: None,
 				is_direct: None,
 				third_party_invite: None,
-				blurhash: services().users.blurhash(&body.user_id).unwrap_or_default(),
+				blurhash: services.users.blurhash(&body.user_id).unwrap_or_default(),
 				reason: body.reason.clone(),
 				join_authorized_via_users_server: None,
 			}),
@@ -436,7 +448,7 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 						membership: MembershipState::Ban,
 						displayname: None,
 						avatar_url: None,
-						blurhash: services().users.blurhash(&body.user_id).unwrap_or_default(),
+						blurhash: services.users.blurhash(&body.user_id).unwrap_or_default(),
 						reason: body.reason.clone(),
 						join_authorized_via_users_server: None,
 						..event
@@ -445,7 +457,7 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 			},
 		)?;
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -470,13 +482,15 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 /// # `POST /_matrix/client/r0/rooms/{roomId}/unban`
 ///
 /// Tries to send an unban event into the room.
-pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unban_user::v3::Response> {
+pub(crate) async fn unban_user_route(
+	State(services): State<crate::State>, body: Ruma<unban_user::v3::Request>,
+) -> Result<unban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
 	let mut event: RoomMemberEventContent = serde_json::from_str(
-		services()
+		services
 			.rooms
 			.state_accessor
 			.room_state_get(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())?
@@ -490,7 +504,7 @@ pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Res
 	event.reason.clone_from(&body.reason);
 	event.join_authorized_via_users_server = None;
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -521,10 +535,12 @@ pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Res
 ///
 /// Note: Other devices of the user have no way of knowing the room was
 /// forgotten, so this has to be called from every device
-pub(crate) async fn forget_room_route(body: Ruma<forget_room::v3::Request>) -> Result<forget_room::v3::Response> {
+pub(crate) async fn forget_room_route(
+	State(services): State<crate::State>, body: Ruma<forget_room::v3::Request>,
+) -> Result<forget_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if services()
+	if services
 		.rooms
 		.state_cache
 		.is_joined(sender_user, &body.room_id)?
@@ -535,7 +551,7 @@ pub(crate) async fn forget_room_route(body: Ruma<forget_room::v3::Request>) -> R
 		));
 	}
 
-	services()
+	services
 		.rooms
 		.state_cache
 		.forget(&body.room_id, sender_user)?;
@@ -546,11 +562,13 @@ pub(crate) async fn forget_room_route(body: Ruma<forget_room::v3::Request>) -> R
 /// # `POST /_matrix/client/r0/joined_rooms`
 ///
 /// Lists all rooms the user has joined.
-pub(crate) async fn joined_rooms_route(body: Ruma<joined_rooms::v3::Request>) -> Result<joined_rooms::v3::Response> {
+pub(crate) async fn joined_rooms_route(
+	State(services): State<crate::State>, body: Ruma<joined_rooms::v3::Request>,
+) -> Result<joined_rooms::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	Ok(joined_rooms::v3::Response {
-		joined_rooms: services()
+		joined_rooms: services
 			.rooms
 			.state_cache
 			.rooms_joined(sender_user)
@@ -566,11 +584,11 @@ pub(crate) async fn joined_rooms_route(body: Ruma<joined_rooms::v3::Request>) ->
 ///
 /// - Only works if the user is currently joined
 pub(crate) async fn get_member_events_route(
-	body: Ruma<get_member_events::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_member_events::v3::Request>,
 ) -> Result<get_member_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.user_can_see_state_events(sender_user, &body.room_id)?
@@ -582,7 +600,7 @@ pub(crate) async fn get_member_events_route(
 	}
 
 	Ok(get_member_events::v3::Response {
-		chunk: services()
+		chunk: services
 			.rooms
 			.state_accessor
 			.room_state_full(&body.room_id)
@@ -601,11 +619,11 @@ pub(crate) async fn get_member_events_route(
 /// - The sender user must be in the room
 /// - TODO: An appservice just needs a puppet joined
 pub(crate) async fn joined_members_route(
-	body: Ruma<joined_members::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<joined_members::v3::Request>,
 ) -> Result<joined_members::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.user_can_see_state_events(sender_user, &body.room_id)?
@@ -617,14 +635,14 @@ pub(crate) async fn joined_members_route(
 	}
 
 	let mut joined = BTreeMap::new();
-	for user_id in services()
+	for user_id in services
 		.rooms
 		.state_cache
 		.room_members(&body.room_id)
 		.filter_map(Result::ok)
 	{
-		let display_name = services().users.displayname(&user_id)?;
-		let avatar_url = services().users.avatar_url(&user_id)?;
+		let display_name = services.users.displayname(&user_id)?;
+		let avatar_url = services.users.avatar_url(&user_id)?;
 
 		joined.insert(
 			user_id,
@@ -641,46 +659,48 @@ pub(crate) async fn joined_members_route(
 }
 
 pub async fn join_room_by_id_helper(
-	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	services: &Services, sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
-	let state_lock = services().rooms.state.mutex.lock(room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
-	if matches!(services().rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
+	if matches!(services.rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
 		debug_warn!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
 			room_id: room_id.into(),
 		});
 	}
 
-	if services()
+	if services
 		.rooms
 		.state_cache
-		.server_in_room(services().globals.server_name(), room_id)?
+		.server_in_room(services.globals.server_name(), room_id)?
 		|| servers.is_empty()
 		|| (servers.len() == 1 && server_is_ours(&servers[0]))
 	{
-		join_room_by_id_helper_local(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
+		join_room_by_id_helper_local(services, sender_user, room_id, reason, servers, third_party_signed, state_lock)
+			.await
 	} else {
 		// Ask a remote server if we are not participating in this room
-		join_room_by_id_helper_remote(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
+		join_room_by_id_helper_remote(services, sender_user, room_id, reason, servers, third_party_signed, state_lock)
+			.await
 	}
 }
 
 #[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_remote")]
 async fn join_room_by_id_helper_remote(
-	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	services: &Services, sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
 ) -> Result<join_room_by_id::v3::Response> {
 	info!("Joining {room_id} over federation.");
 
-	let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
+	let (make_join_response, remote_server) = make_join_request(services, sender_user, room_id, servers).await?;
 
 	info!("make_join finished");
 
 	let room_version_id = match make_join_response.room_version {
 		Some(room_version)
-			if services()
+			if services
 				.globals
 				.supported_room_versions()
 				.contains(&room_version) =>
@@ -705,7 +725,7 @@ async fn join_room_by_id_helper_remote(
 	// TODO: Is origin needed?
 	join_event_stub.insert(
 		"origin".to_owned(),
-		CanonicalJsonValue::String(services().globals.server_name().as_str().to_owned()),
+		CanonicalJsonValue::String(services.globals.server_name().as_str().to_owned()),
 	);
 	join_event_stub.insert(
 		"origin_server_ts".to_owned(),
@@ -719,11 +739,11 @@ async fn join_room_by_id_helper_remote(
 		"content".to_owned(),
 		to_canonical_value(RoomMemberEventContent {
 			membership: MembershipState::Join,
-			displayname: services().users.displayname(sender_user)?,
-			avatar_url: services().users.avatar_url(sender_user)?,
+			displayname: services.users.displayname(sender_user)?,
+			avatar_url: services.users.avatar_url(sender_user)?,
 			is_direct: None,
 			third_party_invite: None,
-			blurhash: services().users.blurhash(sender_user)?,
+			blurhash: services.users.blurhash(sender_user)?,
 			reason,
 			join_authorized_via_users_server: join_authorized_via_users_server.clone(),
 		})
@@ -742,8 +762,8 @@ async fn join_room_by_id_helper_remote(
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present
 	ruma::signatures::hash_and_sign_event(
-		services().globals.server_name().as_str(),
-		services().globals.keypair(),
+		services.globals.server_name().as_str(),
+		services.globals.keypair(),
 		&mut join_event_stub,
 		&room_version_id,
 	)
@@ -764,7 +784,7 @@ async fn join_room_by_id_helper_remote(
 	let mut join_event = join_event_stub;
 
 	info!("Asking {remote_server} for send_join in room {room_id}");
-	let send_join_response = services()
+	let send_join_response = services
 		.sending
 		.send_federation_request(
 			&remote_server,
@@ -852,7 +872,7 @@ async fn join_room_by_id_helper_remote(
 		}
 	}
 
-	services().rooms.short.get_or_create_shortroomid(room_id)?;
+	services.rooms.short.get_or_create_shortroomid(room_id)?;
 
 	info!("Parsing join event");
 	let parsed_join_pdu = PduEvent::from_id_val(event_id, join_event.clone())
@@ -862,7 +882,7 @@ async fn join_room_by_id_helper_remote(
 	let pub_key_map = RwLock::new(BTreeMap::new());
 
 	info!("Fetching join signing keys");
-	services()
+	services
 		.rooms
 		.event_handler
 		.fetch_join_signing_keys(&send_join_response, &room_version_id, &pub_key_map)
@@ -873,7 +893,7 @@ async fn join_room_by_id_helper_remote(
 		.room_state
 		.state
 		.iter()
-		.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
+		.map(|pdu| validate_and_add_event_id(services, pdu, &room_version_id, &pub_key_map))
 	{
 		let Ok((event_id, value)) = result.await else {
 			continue;
@@ -884,12 +904,9 @@ async fn join_room_by_id_helper_remote(
 			Error::BadServerResponse("Invalid PDU in send_join response.")
 		})?;
 
-		services()
-			.rooms
-			.outlier
-			.add_pdu_outlier(&event_id, &value)?;
+		services.rooms.outlier.add_pdu_outlier(&event_id, &value)?;
 		if let Some(state_key) = &pdu.state_key {
-			let shortstatekey = services()
+			let shortstatekey = services
 				.rooms
 				.short
 				.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)?;
@@ -902,16 +919,13 @@ async fn join_room_by_id_helper_remote(
 		.room_state
 		.auth_chain
 		.iter()
-		.map(|pdu| validate_and_add_event_id(pdu, &room_version_id, &pub_key_map))
+		.map(|pdu| validate_and_add_event_id(services, pdu, &room_version_id, &pub_key_map))
 	{
 		let Ok((event_id, value)) = result.await else {
 			continue;
 		};
 
-		services()
-			.rooms
-			.outlier
-			.add_pdu_outlier(&event_id, &value)?;
+		services.rooms.outlier.add_pdu_outlier(&event_id, &value)?;
 	}
 
 	debug!("Running send_join auth check");
@@ -921,12 +935,12 @@ async fn join_room_by_id_helper_remote(
 		&parsed_join_pdu,
 		None::<PduEvent>, // TODO: third party invite
 		|k, s| {
-			services()
+			services
 				.rooms
 				.timeline
 				.get_pdu(
 					state.get(
-						&services()
+						&services
 							.rooms
 							.short
 							.get_or_create_shortstatekey(&k.to_string().into(), s)
@@ -946,37 +960,32 @@ async fn join_room_by_id_helper_remote(
 	}
 
 	info!("Saving state from send_join");
-	let (statehash_before_join, new, removed) = services().rooms.state_compressor.save_state(
+	let (statehash_before_join, new, removed) = services.rooms.state_compressor.save_state(
 		room_id,
 		Arc::new(
 			state
 				.into_iter()
-				.map(|(k, id)| {
-					services()
-						.rooms
-						.state_compressor
-						.compress_state_event(k, &id)
-				})
+				.map(|(k, id)| services.rooms.state_compressor.compress_state_event(k, &id))
 				.collect::<Result<_>>()?,
 		),
 	)?;
 
-	services()
+	services
 		.rooms
 		.state
 		.force_state(room_id, statehash_before_join, new, removed, &state_lock)
 		.await?;
 
 	info!("Updating joined counts for new room");
-	services().rooms.state_cache.update_joined_count(room_id)?;
+	services.rooms.state_cache.update_joined_count(room_id)?;
 
 	// We append to state before appending the pdu, so we don't have a moment in
 	// time with the pdu without it's state. This is okay because append_pdu can't
 	// fail.
-	let statehash_after_join = services().rooms.state.append_to_state(&parsed_join_pdu)?;
+	let statehash_after_join = services.rooms.state.append_to_state(&parsed_join_pdu)?;
 
 	info!("Appending new room join event");
-	services()
+	services
 		.rooms
 		.timeline
 		.append_pdu(
@@ -990,7 +999,7 @@ async fn join_room_by_id_helper_remote(
 	info!("Setting final room state for new room");
 	// We set the room state after inserting the pdu, so that we never have a moment
 	// in time where events in the current room state do not exist
-	services()
+	services
 		.rooms
 		.state
 		.set_room_state(room_id, statehash_after_join, &state_lock)?;
@@ -1000,16 +1009,15 @@ async fn join_room_by_id_helper_remote(
 
 #[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_local")]
 async fn join_room_by_id_helper_local(
-	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	services: &Services, sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
 ) -> Result<join_room_by_id::v3::Response> {
 	debug!("We can join locally");
 
-	let join_rules_event =
-		services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
+	let join_rules_event = services
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?;
 
 	let join_rules_event_content: Option<RoomJoinRulesEventContent> = join_rules_event
 		.as_ref()
@@ -1035,7 +1043,7 @@ async fn join_room_by_id_helper_local(
 		_ => Vec::new(),
 	};
 
-	let local_members = services()
+	let local_members = services
 		.rooms
 		.state_cache
 		.room_members(room_id)
@@ -1046,14 +1054,14 @@ async fn join_room_by_id_helper_local(
 	let mut join_authorized_via_users_server: Option<OwnedUserId> = None;
 
 	if restriction_rooms.iter().any(|restriction_room_id| {
-		services()
+		services
 			.rooms
 			.state_cache
 			.is_joined(sender_user, restriction_room_id)
 			.unwrap_or(false)
 	}) {
 		for user in local_members {
-			if services()
+			if services
 				.rooms
 				.state_accessor
 				.user_can_invite(room_id, &user, sender_user, &state_lock)
@@ -1067,17 +1075,17 @@ async fn join_room_by_id_helper_local(
 
 	let event = RoomMemberEventContent {
 		membership: MembershipState::Join,
-		displayname: services().users.displayname(sender_user)?,
-		avatar_url: services().users.avatar_url(sender_user)?,
+		displayname: services.users.displayname(sender_user)?,
+		avatar_url: services.users.avatar_url(sender_user)?,
 		is_direct: None,
 		third_party_invite: None,
-		blurhash: services().users.blurhash(sender_user)?,
+		blurhash: services.users.blurhash(sender_user)?,
 		reason: reason.clone(),
 		join_authorized_via_users_server,
 	};
 
 	// Try normal join first
-	let error = match services()
+	let error = match services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -1104,11 +1112,11 @@ async fn join_room_by_id_helper_local(
 			.any(|server_name| !server_is_ours(server_name))
 	{
 		warn!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
-		let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
+		let (make_join_response, remote_server) = make_join_request(services, sender_user, room_id, servers).await?;
 
 		let room_version_id = match make_join_response.room_version {
 			Some(room_version_id)
-				if services()
+				if services
 					.globals
 					.supported_room_versions()
 					.contains(&room_version_id) =>
@@ -1130,7 +1138,7 @@ async fn join_room_by_id_helper_local(
 		// TODO: Is origin needed?
 		join_event_stub.insert(
 			"origin".to_owned(),
-			CanonicalJsonValue::String(services().globals.server_name().as_str().to_owned()),
+			CanonicalJsonValue::String(services.globals.server_name().as_str().to_owned()),
 		);
 		join_event_stub.insert(
 			"origin_server_ts".to_owned(),
@@ -1144,11 +1152,11 @@ async fn join_room_by_id_helper_local(
 			"content".to_owned(),
 			to_canonical_value(RoomMemberEventContent {
 				membership: MembershipState::Join,
-				displayname: services().users.displayname(sender_user)?,
-				avatar_url: services().users.avatar_url(sender_user)?,
+				displayname: services.users.displayname(sender_user)?,
+				avatar_url: services.users.avatar_url(sender_user)?,
 				is_direct: None,
 				third_party_invite: None,
-				blurhash: services().users.blurhash(sender_user)?,
+				blurhash: services.users.blurhash(sender_user)?,
 				reason,
 				join_authorized_via_users_server,
 			})
@@ -1167,8 +1175,8 @@ async fn join_room_by_id_helper_local(
 		// In order to create a compatible ref hash (EventID) the `hashes` field needs
 		// to be present
 		ruma::signatures::hash_and_sign_event(
-			services().globals.server_name().as_str(),
-			services().globals.keypair(),
+			services.globals.server_name().as_str(),
+			services.globals.keypair(),
 			&mut join_event_stub,
 			&room_version_id,
 		)
@@ -1188,7 +1196,7 @@ async fn join_room_by_id_helper_local(
 		// It has enough fields to be called a proper event now
 		let join_event = join_event_stub;
 
-		let send_join_response = services()
+		let send_join_response = services
 			.sending
 			.send_federation_request(
 				&remote_server,
@@ -1219,12 +1227,12 @@ async fn join_room_by_id_helper_local(
 
 			drop(state_lock);
 			let pub_key_map = RwLock::new(BTreeMap::new());
-			services()
+			services
 				.rooms
 				.event_handler
 				.fetch_required_signing_keys([&signed_value], &pub_key_map)
 				.await?;
-			services()
+			services
 				.rooms
 				.event_handler
 				.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true, &pub_key_map)
@@ -1240,7 +1248,7 @@ async fn join_room_by_id_helper_local(
 }
 
 async fn make_join_request(
-	sender_user: &UserId, room_id: &RoomId, servers: &[OwnedServerName],
+	services: &Services, sender_user: &UserId, room_id: &RoomId, servers: &[OwnedServerName],
 ) -> Result<(federation::membership::prepare_join_event::v1::Response, OwnedServerName)> {
 	let mut make_join_response_and_server = Err(Error::BadServerResponse("No server available to assist in joining."));
 
@@ -1252,14 +1260,14 @@ async fn make_join_request(
 			continue;
 		}
 		info!("Asking {remote_server} for make_join ({make_join_counter})");
-		let make_join_response = services()
+		let make_join_response = services
 			.sending
 			.send_federation_request(
 				remote_server,
 				federation::membership::prepare_join_event::v1::Request {
 					room_id: room_id.to_owned(),
 					user_id: sender_user.to_owned(),
-					ver: services().globals.supported_room_versions(),
+					ver: services.globals.supported_room_versions(),
 				},
 			)
 			.await;
@@ -1309,7 +1317,8 @@ async fn make_join_request(
 }
 
 pub async fn validate_and_add_event_id(
-	pdu: &RawJsonValue, room_version: &RoomVersionId, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
+	services: &Services, pdu: &RawJsonValue, room_version: &RoomVersionId,
+	pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> Result<(OwnedEventId, CanonicalJsonObject)> {
 	let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
 		error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
@@ -1322,7 +1331,7 @@ pub async fn validate_and_add_event_id(
 	.expect("ruma's reference hashes are valid event ids");
 
 	let back_off = |id| async {
-		match services()
+		match services
 			.globals
 			.bad_event_ratelimiter
 			.write()
@@ -1338,7 +1347,7 @@ pub async fn validate_and_add_event_id(
 		}
 	};
 
-	if let Some((time, tries)) = services()
+	if let Some((time, tries)) = services
 		.globals
 		.bad_event_ratelimiter
 		.read()
@@ -1366,9 +1375,10 @@ pub async fn validate_and_add_event_id(
 }
 
 pub(crate) async fn invite_helper(
-	sender_user: &UserId, user_id: &UserId, room_id: &RoomId, reason: Option<String>, is_direct: bool,
+	services: &Services, sender_user: &UserId, user_id: &UserId, room_id: &RoomId, reason: Option<String>,
+	is_direct: bool,
 ) -> Result<()> {
-	if !services().users.is_admin(user_id)? && services().globals.block_non_admin_invites() {
+	if !services.users.is_admin(user_id)? && services.globals.block_non_admin_invites() {
 		info!("User {sender_user} is not an admin and attempted to send an invite to room {room_id}");
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
@@ -1378,9 +1388,9 @@ pub(crate) async fn invite_helper(
 
 	if !user_is_local(user_id) {
 		let (pdu, pdu_json, invite_room_state) = {
-			let state_lock = services().rooms.state.mutex.lock(room_id).await;
+			let state_lock = services.rooms.state.mutex.lock(room_id).await;
 			let content = to_raw_value(&RoomMemberEventContent {
-				avatar_url: services().users.avatar_url(user_id)?,
+				avatar_url: services.users.avatar_url(user_id)?,
 				displayname: None,
 				is_direct: Some(is_direct),
 				membership: MembershipState::Invite,
@@ -1391,7 +1401,7 @@ pub(crate) async fn invite_helper(
 			})
 			.expect("member event is valid value");
 
-			let (pdu, pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
+			let (pdu, pdu_json) = services.rooms.timeline.create_hash_and_sign_event(
 				PduBuilder {
 					event_type: TimelineEventType::RoomMember,
 					content,
@@ -1404,16 +1414,16 @@ pub(crate) async fn invite_helper(
 				&state_lock,
 			)?;
 
-			let invite_room_state = services().rooms.state.calculate_invite_state(&pdu)?;
+			let invite_room_state = services.rooms.state.calculate_invite_state(&pdu)?;
 
 			drop(state_lock);
 
 			(pdu, pdu_json, invite_room_state)
 		};
 
-		let room_version_id = services().rooms.state.get_room_version(room_id)?;
+		let room_version_id = services.rooms.state.get_room_version(room_id)?;
 
-		let response = services()
+		let response = services
 			.sending
 			.send_federation_request(
 				user_id.server_name(),
@@ -1423,7 +1433,7 @@ pub(crate) async fn invite_helper(
 					room_version: room_version_id.clone(),
 					event: convert_to_outgoing_federation_event(pdu_json.clone()),
 					invite_room_state,
-					via: services().rooms.state_cache.servers_route_via(room_id).ok(),
+					via: services.rooms.state_cache.servers_route_via(room_id).ok(),
 				},
 			)
 			.await?;
@@ -1459,13 +1469,13 @@ pub(crate) async fn invite_helper(
 		)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-		services()
+		services
 			.rooms
 			.event_handler
 			.fetch_required_signing_keys([&value], &pub_key_map)
 			.await?;
 
-		let pdu_id: Vec<u8> = services()
+		let pdu_id: Vec<u8> = services
 			.rooms
 			.event_handler
 			.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
@@ -1475,24 +1485,20 @@ pub(crate) async fn invite_helper(
 				"Could not accept incoming PDU as timeline event.",
 			))?;
 
-		services().sending.send_pdu_room(room_id, &pdu_id)?;
+		services.sending.send_pdu_room(room_id, &pdu_id)?;
 		return Ok(());
 	}
 
-	if !services()
-		.rooms
-		.state_cache
-		.is_joined(sender_user, room_id)?
-	{
+	if !services.rooms.state_cache.is_joined(sender_user, room_id)? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"You don't have permission to view this room.",
 		));
 	}
 
-	let state_lock = services().rooms.state.mutex.lock(room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -1500,11 +1506,11 @@ pub(crate) async fn invite_helper(
 				event_type: TimelineEventType::RoomMember,
 				content: to_raw_value(&RoomMemberEventContent {
 					membership: MembershipState::Invite,
-					displayname: services().users.displayname(user_id)?,
-					avatar_url: services().users.avatar_url(user_id)?,
+					displayname: services.users.displayname(user_id)?,
+					avatar_url: services.users.avatar_url(user_id)?,
 					is_direct: Some(is_direct),
 					third_party_invite: None,
-					blurhash: services().users.blurhash(user_id)?,
+					blurhash: services.users.blurhash(user_id)?,
 					reason,
 					join_authorized_via_users_server: None,
 				})
@@ -1526,13 +1532,13 @@ pub(crate) async fn invite_helper(
 
 // Make a user leave all their joined rooms, forgets all rooms, and ignores
 // errors
-pub async fn leave_all_rooms(user_id: &UserId) {
-	let all_rooms = services()
+pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
+	let all_rooms = services
 		.rooms
 		.state_cache
 		.rooms_joined(user_id)
 		.chain(
-			services()
+			services
 				.rooms
 				.state_cache
 				.rooms_invited(user_id)
@@ -1546,35 +1552,35 @@ pub async fn leave_all_rooms(user_id: &UserId) {
 		};
 
 		// ignore errors
-		if let Err(e) = leave_room(user_id, &room_id, None).await {
+		if let Err(e) = leave_room(services, user_id, &room_id, None).await {
 			warn!(%room_id, %user_id, %e, "Failed to leave room");
 		}
-		if let Err(e) = services().rooms.state_cache.forget(&room_id, user_id) {
+		if let Err(e) = services.rooms.state_cache.forget(&room_id, user_id) {
 			warn!(%room_id, %user_id, %e, "Failed to forget room");
 		}
 	}
 }
 
-pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {
+pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {
 	// Ask a remote server if we don't have this room
-	if !services()
+	if !services
 		.rooms
 		.state_cache
-		.server_in_room(services().globals.server_name(), room_id)?
+		.server_in_room(services.globals.server_name(), room_id)?
 	{
-		if let Err(e) = remote_leave_room(user_id, room_id).await {
+		if let Err(e) = remote_leave_room(services, user_id, room_id).await {
 			warn!("Failed to leave room {} remotely: {}", user_id, e);
 			// Don't tell the client about this error
 		}
 
-		let last_state = services()
+		let last_state = services
 			.rooms
 			.state_cache
 			.invite_state(user_id, room_id)?
-			.map_or_else(|| services().rooms.state_cache.left_state(user_id, room_id), |s| Ok(Some(s)))?;
+			.map_or_else(|| services.rooms.state_cache.left_state(user_id, room_id), |s| Ok(Some(s)))?;
 
 		// We always drop the invite, we can't rely on other servers
-		services().rooms.state_cache.update_membership(
+		services.rooms.state_cache.update_membership(
 			room_id,
 			user_id,
 			RoomMemberEventContent::new(MembershipState::Leave),
@@ -1584,10 +1590,10 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			true,
 		)?;
 	} else {
-		let state_lock = services().rooms.state.mutex.lock(room_id).await;
+		let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
 		let member_event =
-			services()
+			services
 				.rooms
 				.state_accessor
 				.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?;
@@ -1597,7 +1603,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			None => {
 				error!("Trying to leave a room you are not a member of.");
 
-				services().rooms.state_cache.update_membership(
+				services.rooms.state_cache.update_membership(
 					room_id,
 					user_id,
 					RoomMemberEventContent::new(MembershipState::Leave),
@@ -1619,7 +1625,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 		event.membership = MembershipState::Leave;
 		event.reason = reason;
 
-		services()
+		services
 			.rooms
 			.timeline
 			.build_and_append_pdu(
@@ -1640,16 +1646,16 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 	Ok(())
 }
 
-async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
+async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	let mut make_leave_response_and_server = Err(Error::BadServerResponse("No server available to assist in leaving."));
 
-	let invite_state = services()
+	let invite_state = services
 		.rooms
 		.state_cache
 		.invite_state(user_id, room_id)?
 		.ok_or(Error::BadRequest(ErrorKind::BadState, "User is not invited."))?;
 
-	let mut servers: HashSet<OwnedServerName> = services()
+	let mut servers: HashSet<OwnedServerName> = services
 		.rooms
 		.state_cache
 		.servers_invite_via(room_id)
@@ -1669,7 +1675,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	debug!("servers in remote_leave_room: {servers:?}");
 
 	for remote_server in servers {
-		let make_leave_response = services()
+		let make_leave_response = services
 			.sending
 			.send_federation_request(
 				&remote_server,
@@ -1691,7 +1697,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 
 	let room_version_id = match make_leave_response.room_version {
 		Some(version)
-			if services()
+			if services
 				.globals
 				.supported_room_versions()
 				.contains(&version) =>
@@ -1707,7 +1713,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	// TODO: Is origin needed?
 	leave_event_stub.insert(
 		"origin".to_owned(),
-		CanonicalJsonValue::String(services().globals.server_name().as_str().to_owned()),
+		CanonicalJsonValue::String(services.globals.server_name().as_str().to_owned()),
 	);
 	leave_event_stub.insert(
 		"origin_server_ts".to_owned(),
@@ -1729,8 +1735,8 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present
 	ruma::signatures::hash_and_sign_event(
-		services().globals.server_name().as_str(),
-		services().globals.keypair(),
+		services.globals.server_name().as_str(),
+		services.globals.keypair(),
 		&mut leave_event_stub,
 		&room_version_id,
 	)
@@ -1750,7 +1756,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 	// It has enough fields to be called a proper event now
 	let leave_event = leave_event_stub;
 
-	services()
+	services
 		.sending
 		.send_federation_request(
 			&remote_server,

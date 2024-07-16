@@ -128,7 +128,7 @@ async fn ban_room(
 				&local_user, &room_id
 			);
 
-			if let Err(e) = leave_room(&local_user, &room_id, None).await {
+			if let Err(e) = leave_room(services(), &local_user, &room_id, None).await {
 				warn!(%e, "Failed to leave room");
 			}
 		}
@@ -151,7 +151,7 @@ async fn ban_room(
 				})
 			}) {
 			debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
-			if let Err(e) = leave_room(&local_user, &room_id, None).await {
+			if let Err(e) = leave_room(services(), &local_user, &room_id, None).await {
 				error!(
 					"Error attempting to make local user {} leave room {} during room banning: {}",
 					&local_user, &room_id, e
@@ -334,7 +334,7 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 					"Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
 					&local_user, room_id
 				);
-				if let Err(e) = leave_room(&local_user, &room_id, None).await {
+				if let Err(e) = leave_room(services(), &local_user, &room_id, None).await {
 					warn!(%e, "Failed to leave room");
 				}
 			}
@@ -358,7 +358,7 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 					})
 				}) {
 				debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
-				if let Err(e) = leave_room(&local_user, &room_id, None).await {
+				if let Err(e) = leave_room(services(), &local_user, &room_id, None).await {
 					error!(
 						"Error attempting to make local user {} leave room {} during bulk room banning: {}",
 						&local_user, &room_id, e

@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{utils, warn, Error, PduEvent, Result};
 use ruma::{
@@ -6,7 +7,7 @@ use ruma::{
 	serde::JsonObject,
 	CanonicalJsonValue, EventId, OwnedUserId,
 };
-use service::{sending::convert_to_outgoing_federation_event, server_is_ours, services};
+use service::{sending::convert_to_outgoing_federation_event, server_is_ours};
 
 use crate::Ruma;
 
@@ -15,17 +16,18 @@ use crate::Ruma;
 /// Invites a remote user to a room.
 #[tracing::instrument(skip_all, fields(%client), name = "invite")]
 pub(crate) async fn create_invite_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<create_invite::v2::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<create_invite::v2::Request>,
 ) -> Result<create_invite::v2::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
 	// ACL check origin
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(origin, &body.room_id)?;
 
-	if !services()
+	if !services
 		.globals
 		.supported_room_versions()
 		.contains(&body.room_version)
@@ -39,7 +41,7 @@ pub(crate) async fn create_invite_route(
 	}
 
 	if let Some(server) = body.room_id.server_name() {
-		if services()
+		if services
 			.globals
 			.config
 			.forbidden_remote_server_names
@@ -52,7 +54,7 @@ pub(crate) async fn create_invite_route(
 		}
 	}
 
-	if services()
+	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
@@ -94,14 +96,14 @@ pub(crate) async fn create_invite_route(
 	}
 
 	// Make sure we're not ACL'ed from their room.
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(invited_user.server_name(), &body.room_id)?;
 
 	ruma::signatures::hash_and_sign_event(
-		services().globals.server_name().as_str(),
-		services().globals.keypair(),
+		services.globals.server_name().as_str(),
+		services.globals.keypair(),
 		&mut signed_event,
 		&body.room_version,
 	)
@@ -127,14 +129,14 @@ pub(crate) async fn create_invite_route(
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user ID."))?;
 
-	if services().rooms.metadata.is_banned(&body.room_id)? && !services().users.is_admin(&invited_user)? {
+	if services.rooms.metadata.is_banned(&body.room_id)? && !services.users.is_admin(&invited_user)? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
 		));
 	}
 
-	if services().globals.block_non_admin_invites() && !services().users.is_admin(&invited_user)? {
+	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user)? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"This server does not allow room invites.",
@@ -155,12 +157,12 @@ pub(crate) async fn create_invite_route(
 
 	// If we are active in the room, the remote server will notify us about the join
 	// via /send
-	if !services()
+	if !services
 		.rooms
 		.state_cache
-		.server_in_room(services().globals.server_name(), &body.room_id)?
+		.server_in_room(services.globals.server_name(), &body.room_id)?
 	{
-		services().rooms.state_cache.update_membership(
+		services.rooms.state_cache.update_membership(
 			&body.room_id,
 			&invited_user,
 			RoomMemberEventContent::new(MembershipState::Invite),

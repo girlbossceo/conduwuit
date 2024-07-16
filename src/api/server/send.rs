@@ -34,7 +34,7 @@ type ResolvedMap = BTreeMap<OwnedEventId, Result<(), Error>>;
 /// Push EDUs and PDUs to this server.
 #[tracing::instrument(skip_all, fields(%client), name = "send")]
 pub(crate) async fn send_transaction_message_route(
-	State(services): State<&Services>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");

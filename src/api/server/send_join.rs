@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
@@ -13,7 +14,7 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::{
-	pdu::gen_event_id_canonical_json, sending::convert_to_outgoing_federation_event, services, user_is_local,
+	pdu::gen_event_id_canonical_json, sending::convert_to_outgoing_federation_event, user_is_local, Services,
 };
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -22,18 +23,18 @@ use crate::Ruma;
 
 /// helper method for /send_join v1 and v2
 async fn create_join_event(
-	origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
+	services: &Services, origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
-	if !services().rooms.metadata.exists(room_id)? {
+	if !services.rooms.metadata.exists(room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
 	// ACL check origin server
-	services().rooms.event_handler.acl_check(origin, room_id)?;
+	services.rooms.event_handler.acl_check(origin, room_id)?;
 
 	// We need to return the state prior to joining, let's keep a reference to that
 	// here
-	let shortstatehash = services()
+	let shortstatehash = services
 		.rooms
 		.state
 		.get_room_shortstatehash(room_id)?
@@ -44,7 +45,7 @@ async fn create_join_event(
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
-	let room_version_id = services().rooms.state.get_room_version(room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(room_id)?;
 
 	let Ok((event_id, mut value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
@@ -96,7 +97,7 @@ async fn create_join_event(
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "sender is not a valid user ID."))?;
 
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(sender.server_name(), room_id)?;
@@ -128,18 +129,18 @@ async fn create_join_event(
 	if content
 		.join_authorized_via_users_server
 		.is_some_and(|user| user_is_local(&user))
-		&& super::user_can_perform_restricted_join(&sender, room_id, &room_version_id).unwrap_or_default()
+		&& super::user_can_perform_restricted_join(services, &sender, room_id, &room_version_id).unwrap_or_default()
 	{
 		ruma::signatures::hash_and_sign_event(
-			services().globals.server_name().as_str(),
-			services().globals.keypair(),
+			services.globals.server_name().as_str(),
+			services.globals.keypair(),
 			&mut value,
 			&room_version_id,
 		)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
 	}
 
-	services()
+	services
 		.rooms
 		.event_handler
 		.fetch_required_signing_keys([&value], &pub_key_map)
@@ -155,13 +156,13 @@ async fn create_join_event(
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
-	let mutex_lock = services()
+	let mutex_lock = services
 		.rooms
 		.event_handler
 		.mutex_federation
 		.lock(room_id)
 		.await;
-	let pdu_id: Vec<u8> = services()
+	let pdu_id: Vec<u8> = services
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true, &pub_key_map)
@@ -169,27 +170,27 @@ async fn create_join_event(
 		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
 	drop(mutex_lock);
 
-	let state_ids = services()
+	let state_ids = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
 		.await?;
-	let auth_chain_ids = services()
+	let auth_chain_ids = services
 		.rooms
 		.auth_chain
 		.event_ids_iter(room_id, state_ids.values().cloned().collect())
 		.await?;
 
-	services().sending.send_pdu_room(room_id, &pdu_id)?;
+	services.sending.send_pdu_room(room_id, &pdu_id)?;
 
 	Ok(create_join_event::v1::RoomState {
 		auth_chain: auth_chain_ids
-			.filter_map(|id| services().rooms.timeline.get_pdu_json(&id).ok().flatten())
+			.filter_map(|id| services.rooms.timeline.get_pdu_json(&id).ok().flatten())
 			.map(convert_to_outgoing_federation_event)
 			.collect(),
 		state: state_ids
 			.iter()
-			.filter_map(|(_, id)| services().rooms.timeline.get_pdu_json(id).ok().flatten())
+			.filter_map(|(_, id)| services.rooms.timeline.get_pdu_json(id).ok().flatten())
 			.map(convert_to_outgoing_federation_event)
 			.collect(),
 		// Event field is required if the room version supports restricted join rules.
@@ -204,11 +205,11 @@ async fn create_join_event(
 ///
 /// Submits a signed join event.
 pub(crate) async fn create_join_event_v1_route(
-	body: Ruma<create_join_event::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	if services()
+	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
@@ -225,7 +226,7 @@ pub(crate) async fn create_join_event_v1_route(
 	}
 
 	if let Some(server) = body.room_id.server_name() {
-		if services()
+		if services
 			.globals
 			.config
 			.forbidden_remote_server_names
@@ -243,7 +244,7 @@ pub(crate) async fn create_join_event_v1_route(
 		}
 	}
 
-	let room_state = create_join_event(origin, &body.room_id, &body.pdu).await?;
+	let room_state = create_join_event(services, origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_join_event::v1::Response {
 		room_state,
@@ -254,11 +255,11 @@ pub(crate) async fn create_join_event_v1_route(
 ///
 /// Submits a signed join event.
 pub(crate) async fn create_join_event_v2_route(
-	body: Ruma<create_join_event::v2::Request>,
+	State(services): State<crate::State>, body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	if services()
+	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
@@ -271,7 +272,7 @@ pub(crate) async fn create_join_event_v2_route(
 	}
 
 	if let Some(server) = body.room_id.server_name() {
-		if services()
+		if services
 			.globals
 			.config
 			.forbidden_remote_server_names
@@ -288,7 +289,7 @@ pub(crate) async fn create_join_event_v2_route(
 		auth_chain,
 		state,
 		event,
-	} = create_join_event(origin, &body.room_id, &body.pdu).await?;
+	} = create_join_event(services, origin, &body.room_id, &body.pdu).await?;
 	let room_state = create_join_event::v2::RoomState {
 		members_omitted: false,
 		auth_chain,

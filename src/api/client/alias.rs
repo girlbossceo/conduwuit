@@ -1,3 +1,4 @@
+use axum::extract::State;
 use rand::seq::SliceRandom;
 use ruma::{
 	api::client::{
@@ -8,19 +9,24 @@ use ruma::{
 };
 use tracing::debug;
 
-use crate::{service::server_is_ours, services, Error, Result, Ruma};
+use crate::{
+	service::{server_is_ours, Services},
+	Error, Result, Ruma,
+};
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Creates a new room alias on this server.
-pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) -> Result<create_alias::v3::Response> {
+pub(crate) async fn create_alias_route(
+	State(services): State<crate::State>, body: Ruma<create_alias::v3::Request>,
+) -> Result<create_alias::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	service::rooms::alias::appservice_checks(&body.room_alias, &body.appservice_info).await?;
 
 	// this isn't apart of alias_checks or delete alias route because we should
 	// allow removing forbidden room aliases
-	if services()
+	if services
 		.globals
 		.forbidden_alias_names()
 		.is_match(body.room_alias.alias())
@@ -28,7 +34,7 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room alias is forbidden."));
 	}
 
-	if services()
+	if services
 		.rooms
 		.alias
 		.resolve_local_alias(&body.room_alias)?
@@ -37,7 +43,7 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 		return Err(Error::Conflict("Alias already exists."));
 	}
 
-	services()
+	services
 		.rooms
 		.alias
 		.set_alias(&body.room_alias, &body.room_id, sender_user)?;
@@ -50,12 +56,14 @@ pub(crate) async fn create_alias_route(body: Ruma<create_alias::v3::Request>) ->
 /// Deletes a room alias from this server.
 ///
 /// - TODO: Update canonical alias event
-pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) -> Result<delete_alias::v3::Response> {
+pub(crate) async fn delete_alias_route(
+	State(services): State<crate::State>, body: Ruma<delete_alias::v3::Request>,
+) -> Result<delete_alias::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	service::rooms::alias::appservice_checks(&body.room_alias, &body.appservice_info).await?;
 
-	if services()
+	if services
 		.rooms
 		.alias
 		.resolve_local_alias(&body.room_alias)?
@@ -64,7 +72,7 @@ pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) ->
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
 	}
 
-	services()
+	services
 		.rooms
 		.alias
 		.remove_alias(&body.room_alias, sender_user)
@@ -78,11 +86,13 @@ pub(crate) async fn delete_alias_route(body: Ruma<delete_alias::v3::Request>) ->
 /// # `GET /_matrix/client/v3/directory/room/{roomAlias}`
 ///
 /// Resolve an alias locally or over federation.
-pub(crate) async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Result<get_alias::v3::Response> {
+pub(crate) async fn get_alias_route(
+	State(services): State<crate::State>, body: Ruma<get_alias::v3::Request>,
+) -> Result<get_alias::v3::Response> {
 	let room_alias = body.body.room_alias;
 	let servers = None;
 
-	let Ok((room_id, pre_servers)) = services()
+	let Ok((room_id, pre_servers)) = services
 		.rooms
 		.alias
 		.resolve_alias(&room_alias, servers.as_ref())
@@ -91,17 +101,17 @@ pub(crate) async fn get_alias_route(body: Ruma<get_alias::v3::Request>) -> Resul
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found."));
 	};
 
-	let servers = room_available_servers(&room_id, &room_alias, &pre_servers);
+	let servers = room_available_servers(services, &room_id, &room_alias, &pre_servers);
 	debug!(?room_alias, ?room_id, "available servers: {servers:?}");
 
 	Ok(get_alias::v3::Response::new(room_id, servers))
 }
 
 fn room_available_servers(
-	room_id: &RoomId, room_alias: &RoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
+	services: &Services, room_id: &RoomId, room_alias: &RoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
 ) -> Vec<OwnedServerName> {
 	// find active servers in room state cache to suggest
-	let mut servers: Vec<OwnedServerName> = services()
+	let mut servers: Vec<OwnedServerName> = services
 		.rooms
 		.state_cache
 		.room_servers(room_id)
@@ -127,7 +137,7 @@ fn room_available_servers(
 		.position(|server_name| server_is_ours(server_name))
 	{
 		servers.swap_remove(server_index);
-		servers.insert(0, services().globals.server_name().to_owned());
+		servers.insert(0, services.globals.server_name().to_owned());
 	} else if let Some(alias_server_index) = servers
 		.iter()
 		.position(|server| server == room_alias.server_name())

@@ -1,22 +1,24 @@
 use std::time::Duration;
 
+use axum::extract::State;
 use ruma::api::client::{
 	error::ErrorKind,
 	presence::{get_presence, set_presence},
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
 ///
 /// Sets the presence state of the sender user.
-pub(crate) async fn set_presence_route(body: Ruma<set_presence::v3::Request>) -> Result<set_presence::v3::Response> {
-	if !services().globals.allow_local_presence() {
+pub(crate) async fn set_presence_route(
+	State(services): State<crate::State>, body: Ruma<set_presence::v3::Request>,
+) -> Result<set_presence::v3::Response> {
+	if !services.globals.allow_local_presence() {
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Presence is disabled on this server"));
 	}
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
 	if sender_user != &body.user_id && body.appservice_info.is_none() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
@@ -24,7 +26,7 @@ pub(crate) async fn set_presence_route(body: Ruma<set_presence::v3::Request>) ->
 		));
 	}
 
-	services()
+	services
 		.presence
 		.set_presence(sender_user, &body.presence, None, None, body.status_msg.clone())?;
 
@@ -36,8 +38,10 @@ pub(crate) async fn set_presence_route(body: Ruma<set_presence::v3::Request>) ->
 /// Gets the presence state of the given user.
 ///
 /// - Only works if you share a room with the user
-pub(crate) async fn get_presence_route(body: Ruma<get_presence::v3::Request>) -> Result<get_presence::v3::Response> {
-	if !services().globals.allow_local_presence() {
+pub(crate) async fn get_presence_route(
+	State(services): State<crate::State>, body: Ruma<get_presence::v3::Request>,
+) -> Result<get_presence::v3::Response> {
+	if !services.globals.allow_local_presence() {
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Presence is disabled on this server"));
 	}
 
@@ -45,12 +49,12 @@ pub(crate) async fn get_presence_route(body: Ruma<get_presence::v3::Request>) ->
 
 	let mut presence_event = None;
 
-	for _room_id in services()
+	for _room_id in services
 		.rooms
 		.user
 		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
 	{
-		if let Some(presence) = services().presence.get_presence(&body.user_id)? {
+		if let Some(presence) = services.presence.get_presence(&body.user_id)? {
 			presence_event = Some(presence);
 			break;
 		}

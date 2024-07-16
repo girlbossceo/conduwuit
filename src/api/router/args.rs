@@ -2,11 +2,12 @@ use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, BytesMut};
-use conduit::{debug, err, trace, Error, Result};
+use conduit::{debug, err, trace, utils::string::EMPTY, Error, Result};
 use ruma::{api::IncomingRequest, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId};
+use service::Services;
 
 use super::{auth, auth::Auth, request, request::Request};
-use crate::{service::appservice::RegistrationInfo, services};
+use crate::service::appservice::RegistrationInfo;
 
 /// Extractor for Ruma request structs
 pub(crate) struct Args<T> {
@@ -42,11 +43,12 @@ where
 	type Rejection = Error;
 
 	async fn from_request(request: hyper::Request<Body>, _: &S) -> Result<Self, Self::Rejection> {
-		let mut request = request::from(request).await?;
+		let services = service::services(); // ???
+		let mut request = request::from(services, request).await?;
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&request.body).ok();
-		let auth = auth::auth(&mut request, &json_body, &T::METADATA).await?;
+		let auth = auth::auth(services, &mut request, &json_body, &T::METADATA).await?;
 		Ok(Self {
-			body: make_body::<T>(&mut request, &mut json_body, &auth)?,
+			body: make_body::<T>(services, &mut request, &mut json_body, &auth)?,
 			origin: auth.origin,
 			sender_user: auth.sender_user,
 			sender_device: auth.sender_device,
@@ -62,13 +64,16 @@ impl<T> Deref for Args<T> {
 	fn deref(&self) -> &Self::Target { &self.body }
 }
 
-fn make_body<T>(request: &mut Request, json_body: &mut Option<CanonicalJsonValue>, auth: &Auth) -> Result<T>
+fn make_body<T>(
+	services: &Services, request: &mut Request, json_body: &mut Option<CanonicalJsonValue>, auth: &Auth,
+) -> Result<T>
 where
 	T: IncomingRequest,
 {
 	let body = if let Some(CanonicalJsonValue::Object(json_body)) = json_body {
 		let user_id = auth.sender_user.clone().unwrap_or_else(|| {
-			UserId::parse_with_server_name("", services().globals.server_name()).expect("we know this is valid")
+			let server_name = services.globals.server_name();
+			UserId::parse_with_server_name(EMPTY, server_name).expect("valid user_id")
 		});
 
 		let uiaa_request = json_body
@@ -77,9 +82,9 @@ where
 			.and_then(|auth| auth.get("session"))
 			.and_then(|session| session.as_str())
 			.and_then(|session| {
-				services().uiaa.get_uiaa_request(
+				services.uiaa.get_uiaa_request(
 					&user_id,
-					&auth.sender_device.clone().unwrap_or_else(|| "".into()),
+					&auth.sender_device.clone().unwrap_or_else(|| EMPTY.into()),
 					session,
 				)
 			});

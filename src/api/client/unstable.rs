@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::warn;
 use ruma::{
@@ -6,7 +7,7 @@ use ruma::{
 	OwnedRoomId,
 };
 
-use crate::{services, Error, Result, Ruma, RumaResponse};
+use crate::{Error, Result, Ruma, RumaResponse};
 
 /// # `GET /_matrix/client/unstable/uk.half-shot.msc2666/user/mutual_rooms`
 ///
@@ -17,7 +18,8 @@ use crate::{services, Error, Result, Ruma, RumaResponse};
 /// An implementation of [MSC2666](https://github.com/matrix-org/matrix-spec-proposals/pull/2666)
 #[tracing::instrument(skip_all, fields(%client), name = "mutual_rooms")]
 pub(crate) async fn get_mutual_rooms_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<mutual_rooms::unstable::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<mutual_rooms::unstable::Request>,
 ) -> Result<mutual_rooms::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -28,14 +30,14 @@ pub(crate) async fn get_mutual_rooms_route(
 		));
 	}
 
-	if !services().users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id)? {
 		return Ok(mutual_rooms::unstable::Response {
 			joined: vec![],
 			next_batch_token: None,
 		});
 	}
 
-	let mutual_rooms: Vec<OwnedRoomId> = services()
+	let mutual_rooms: Vec<OwnedRoomId> = services
 		.rooms
 		.user
 		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
@@ -58,9 +60,10 @@ pub(crate) async fn get_mutual_rooms_route(
 ///
 /// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
 pub(crate) async fn get_room_summary_legacy(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_summary::msc3266::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_summary::msc3266::Request>,
 ) -> Result<RumaResponse<get_summary::msc3266::Response>> {
-	get_room_summary(InsecureClientIp(client), body)
+	get_room_summary(State(services), InsecureClientIp(client), body)
 		.await
 		.map(RumaResponse)
 }
@@ -74,22 +77,19 @@ pub(crate) async fn get_room_summary_legacy(
 /// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
 #[tracing::instrument(skip_all, fields(%client), name = "room_summary")]
 pub(crate) async fn get_room_summary(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_summary::msc3266::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_summary::msc3266::Request>,
 ) -> Result<get_summary::msc3266::Response> {
 	let sender_user = body.sender_user.as_ref();
 
-	let room_id = services()
-		.rooms
-		.alias
-		.resolve(&body.room_id_or_alias)
-		.await?;
+	let room_id = services.rooms.alias.resolve(&body.room_id_or_alias).await?;
 
-	if !services().rooms.metadata.exists(&room_id)? {
+	if !services.rooms.metadata.exists(&room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server"));
 	}
 
 	if sender_user.is_none()
-		&& !services()
+		&& !services
 			.rooms
 			.state_accessor
 			.is_world_readable(&room_id)
@@ -103,25 +103,25 @@ pub(crate) async fn get_room_summary(
 
 	Ok(get_summary::msc3266::Response {
 		room_id: room_id.clone(),
-		canonical_alias: services()
+		canonical_alias: services
 			.rooms
 			.state_accessor
 			.get_canonical_alias(&room_id)
 			.unwrap_or(None),
-		avatar_url: services()
+		avatar_url: services
 			.rooms
 			.state_accessor
 			.get_avatar(&room_id)?
 			.into_option()
 			.unwrap_or_default()
 			.url,
-		guest_can_join: services().rooms.state_accessor.guest_can_join(&room_id)?,
-		name: services()
+		guest_can_join: services.rooms.state_accessor.guest_can_join(&room_id)?,
+		name: services
 			.rooms
 			.state_accessor
 			.get_name(&room_id)
 			.unwrap_or(None),
-		num_joined_members: services()
+		num_joined_members: services
 			.rooms
 			.state_cache
 			.room_joined_count(&room_id)
@@ -132,21 +132,21 @@ pub(crate) async fn get_room_summary(
 			})
 			.try_into()
 			.expect("user count should not be that big"),
-		topic: services()
+		topic: services
 			.rooms
 			.state_accessor
 			.get_room_topic(&room_id)
 			.unwrap_or(None),
-		world_readable: services()
+		world_readable: services
 			.rooms
 			.state_accessor
 			.is_world_readable(&room_id)
 			.unwrap_or(false),
-		join_rule: services().rooms.state_accessor.get_join_rule(&room_id)?.0,
-		room_type: services().rooms.state_accessor.get_room_type(&room_id)?,
-		room_version: Some(services().rooms.state.get_room_version(&room_id)?),
+		join_rule: services.rooms.state_accessor.get_join_rule(&room_id)?.0,
+		room_type: services.rooms.state_accessor.get_room_type(&room_id)?,
+		room_version: Some(services.rooms.state.get_room_version(&room_id)?),
 		membership: if let Some(sender_user) = sender_user {
-			services()
+			services
 				.rooms
 				.state_accessor
 				.get_member(&room_id, sender_user)?
@@ -154,7 +154,7 @@ pub(crate) async fn get_room_summary(
 		} else {
 			None
 		},
-		encryption: services()
+		encryption: services
 			.rooms
 			.state_accessor
 			.get_room_encryption(&room_id)

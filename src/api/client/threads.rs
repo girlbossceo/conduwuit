@@ -1,12 +1,15 @@
+use axum::extract::State;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads},
 	uint,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/threads`
-pub(crate) async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> Result<get_threads::v1::Response> {
+pub(crate) async fn get_threads_route(
+	State(services): State<crate::State>, body: Ruma<get_threads::v1::Request>,
+) -> Result<get_threads::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	// Use limit or else 10, with maximum 100
@@ -24,14 +27,14 @@ pub(crate) async fn get_threads_route(body: Ruma<get_threads::v1::Request>) -> R
 		u64::MAX
 	};
 
-	let threads = services()
+	let threads = services
 		.rooms
 		.threads
 		.threads_until(sender_user, &body.room_id, from, &body.include)?
 		.take(limit)
 		.filter_map(Result::ok)
 		.filter(|(_, pdu)| {
-			services()
+			services
 				.rooms
 				.state_accessor
 				.user_can_see_event(sender_user, &body.room_id, &pdu.event_id)

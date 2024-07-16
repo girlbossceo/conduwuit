@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::authorization::get_event_authorization},
 	RoomId,
 };
-use service::{sending::convert_to_outgoing_federation_event, services};
+use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -15,20 +16,20 @@ use crate::Ruma;
 ///
 /// - This does not include the event itself
 pub(crate) async fn get_event_authorization_route(
-	body: Ruma<get_event_authorization::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(origin, &body.room_id)?;
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.is_world_readable(&body.room_id)?
-		&& !services()
+		&& !services
 			.rooms
 			.state_cache
 			.server_in_room(origin, &body.room_id)?
@@ -36,7 +37,7 @@ pub(crate) async fn get_event_authorization_route(
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
-	let event = services()
+	let event = services
 		.rooms
 		.timeline
 		.get_pdu_json(&body.event_id)?
@@ -50,7 +51,7 @@ pub(crate) async fn get_event_authorization_route(
 	let room_id =
 		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
-	let auth_chain_ids = services()
+	let auth_chain_ids = services
 		.rooms
 		.auth_chain
 		.event_ids_iter(room_id, vec![Arc::from(&*body.event_id)])
@@ -58,7 +59,7 @@ pub(crate) async fn get_event_authorization_route(
 
 	Ok(get_event_authorization::v1::Response {
 		auth_chain: auth_chain_ids
-			.filter_map(|id| services().rooms.timeline.get_pdu_json(&id).ok()?)
+			.filter_map(|id| services.rooms.timeline.get_pdu_json(&id).ok()?)
 			.map(convert_to_outgoing_federation_event)
 			.collect(),
 	})

@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{err, info, warn, Error, Result};
 use ruma::{
@@ -20,7 +21,10 @@ use ruma::{
 	uint, RoomId, ServerName, UInt, UserId,
 };
 
-use crate::{service::server_is_ours, services, Ruma};
+use crate::{
+	service::{server_is_ours, Services},
+	Ruma,
+};
 
 /// # `POST /_matrix/client/v3/publicRooms`
 ///
@@ -29,10 +33,11 @@ use crate::{service::server_is_ours, services, Ruma};
 /// - Rooms are ordered by the number of joined members
 #[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_filtered_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms_filtered::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
 	if let Some(server) = &body.server {
-		if services()
+		if services
 			.globals
 			.forbidden_remote_room_directory_server_names()
 			.contains(server)
@@ -45,6 +50,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	}
 
 	let response = get_public_rooms_filtered_helper(
+		services,
 		body.server.as_deref(),
 		body.limit,
 		body.since.as_deref(),
@@ -67,10 +73,11 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// - Rooms are ordered by the number of joined members
 #[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_public_rooms::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
 	if let Some(server) = &body.server {
-		if services()
+		if services
 			.globals
 			.forbidden_remote_room_directory_server_names()
 			.contains(server)
@@ -83,6 +90,7 @@ pub(crate) async fn get_public_rooms_route(
 	}
 
 	let response = get_public_rooms_filtered_helper(
+		services,
 		body.server.as_deref(),
 		body.limit,
 		body.since.as_deref(),
@@ -108,16 +116,17 @@ pub(crate) async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 #[tracing::instrument(skip_all, fields(%client), name = "room_directory")]
 pub(crate) async fn set_room_visibility_route(
-	InsecureClientIp(client): InsecureClientIp, body: Ruma<set_room_visibility::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services().rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id)? {
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
 
-	if !user_can_publish_room(sender_user, &body.room_id)? {
+	if !user_can_publish_room(services, sender_user, &body.room_id)? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"User is not allowed to publish this room",
@@ -126,7 +135,7 @@ pub(crate) async fn set_room_visibility_route(
 
 	match &body.visibility {
 		room::Visibility::Public => {
-			if services().globals.config.lockdown_public_room_directory && !services().users.is_admin(sender_user)? {
+			if services.globals.config.lockdown_public_room_directory && !services.users.is_admin(sender_user)? {
 				info!(
 					"Non-admin user {sender_user} tried to publish {0} to the room directory while \
 					 \"lockdown_public_room_directory\" is enabled",
@@ -139,10 +148,10 @@ pub(crate) async fn set_room_visibility_route(
 				));
 			}
 
-			services().rooms.directory.set_public(&body.room_id)?;
+			services.rooms.directory.set_public(&body.room_id)?;
 			info!("{sender_user} made {0} public", body.room_id);
 		},
-		room::Visibility::Private => services().rooms.directory.set_not_public(&body.room_id)?,
+		room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id)?,
 		_ => {
 			return Err(Error::BadRequest(
 				ErrorKind::InvalidParam,
@@ -158,15 +167,15 @@ pub(crate) async fn set_room_visibility_route(
 ///
 /// Gets the visibility of a given room in the room directory.
 pub(crate) async fn get_room_visibility_route(
-	body: Ruma<get_room_visibility::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_room_visibility::v3::Request>,
 ) -> Result<get_room_visibility::v3::Response> {
-	if !services().rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id)? {
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
 
 	Ok(get_room_visibility::v3::Response {
-		visibility: if services().rooms.directory.is_public_room(&body.room_id)? {
+		visibility: if services.rooms.directory.is_public_room(&body.room_id)? {
 			room::Visibility::Public
 		} else {
 			room::Visibility::Private
@@ -175,10 +184,11 @@ pub(crate) async fn get_room_visibility_route(
 }
 
 pub(crate) async fn get_public_rooms_filtered_helper(
-	server: Option<&ServerName>, limit: Option<UInt>, since: Option<&str>, filter: &Filter, _network: &RoomNetwork,
+	services: &Services, server: Option<&ServerName>, limit: Option<UInt>, since: Option<&str>, filter: &Filter,
+	_network: &RoomNetwork,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
 	if let Some(other_server) = server.filter(|server_name| !server_is_ours(server_name)) {
-		let response = services()
+		let response = services
 			.sending
 			.send_federation_request(
 				other_server,
@@ -224,7 +234,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		}
 	}
 
-	let mut all_rooms: Vec<_> = services()
+	let mut all_rooms: Vec<_> = services
 		.rooms
 		.directory
 		.public_rooms()
@@ -232,12 +242,12 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 			let room_id = room_id?;
 
 			let chunk = PublicRoomsChunk {
-				canonical_alias: services()
+				canonical_alias: services
 					.rooms
 					.state_accessor
 					.get_canonical_alias(&room_id)?,
-				name: services().rooms.state_accessor.get_name(&room_id)?,
-				num_joined_members: services()
+				name: services.rooms.state_accessor.get_name(&room_id)?,
+				num_joined_members: services
 					.rooms
 					.state_cache
 					.room_joined_count(&room_id)?
@@ -247,24 +257,24 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 					})
 					.try_into()
 					.expect("user count should not be that big"),
-				topic: services()
+				topic: services
 					.rooms
 					.state_accessor
 					.get_room_topic(&room_id)
 					.unwrap_or(None),
-				world_readable: services().rooms.state_accessor.is_world_readable(&room_id)?,
-				guest_can_join: services()
+				world_readable: services.rooms.state_accessor.is_world_readable(&room_id)?,
+				guest_can_join: services
 					.rooms
 					.state_accessor
 					.guest_can_join(&room_id)?,
-				avatar_url: services()
+				avatar_url: services
 					.rooms
 					.state_accessor
 					.get_avatar(&room_id)?
 					.into_option()
 					.unwrap_or_default()
 					.url,
-				join_rule: services()
+				join_rule: services
 					.rooms
 					.state_accessor
 					.room_state_get(&room_id, &StateEventType::RoomJoinRules, "")?
@@ -282,7 +292,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 					.transpose()?
 					.flatten()
 					.ok_or_else(|| Error::bad_database("Missing room join rule event for room."))?,
-				room_type: services()
+				room_type: services
 					.rooms
 					.state_accessor
 					.get_room_type(&room_id)?,
@@ -361,12 +371,11 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 
 /// Check whether the user can publish to the room directory via power levels of
 /// room history visibility event or room creator
-fn user_can_publish_room(user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-	if let Some(event) =
-		services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+fn user_can_publish_room(services: &Services, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	if let Some(event) = services
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
 	{
 		serde_json::from_str(event.content.get())
 			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
@@ -374,7 +383,7 @@ fn user_can_publish_room(user_id: &UserId, room_id: &RoomId) -> Result<bool> {
 				RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
 			})
 	} else if let Some(event) =
-		services()
+		services
 			.rooms
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomCreate, "")?

@@ -1,3 +1,4 @@
+use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_leave_event},
@@ -9,15 +10,15 @@ use ruma::{
 use serde_json::value::to_raw_value;
 
 use super::make_join::maybe_strip_event_id;
-use crate::{service::pdu::PduBuilder, services, Ruma};
+use crate::{service::pdu::PduBuilder, Ruma};
 
 /// # `PUT /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
 ///
 /// Creates a leave template.
 pub(crate) async fn create_leave_event_template_route(
-	body: Ruma<prepare_leave_event::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
-	if !services().rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id)? {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
@@ -30,13 +31,13 @@ pub(crate) async fn create_leave_event_template_route(
 	}
 
 	// ACL check origin
-	services()
+	services
 		.rooms
 		.event_handler
 		.acl_check(origin, &body.room_id)?;
 
-	let room_version_id = services().rooms.state.get_room_version(&body.room_id)?;
-	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+	let room_version_id = services.rooms.state.get_room_version(&body.room_id)?;
+	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 	let content = to_raw_value(&RoomMemberEventContent {
 		avatar_url: None,
 		blurhash: None,
@@ -49,7 +50,7 @@ pub(crate) async fn create_leave_event_template_route(
 	})
 	.expect("member event is valid value");
 
-	let (_pdu, mut pdu_json) = services().rooms.timeline.create_hash_and_sign_event(
+	let (_pdu, mut pdu_json) = services.rooms.timeline.create_hash_and_sign_event(
 		PduBuilder {
 			event_type: TimelineEventType::RoomMember,
 			content,

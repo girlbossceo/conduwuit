@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use axum::{response::IntoResponse, Json};
+use axum::{extract::State, response::IntoResponse, Json};
 use ruma::api::client::{
 	discovery::{
 		discover_homeserver::{self, HomeserverInfo, SlidingSyncProxyInfo},
@@ -10,7 +10,7 @@ use ruma::api::client::{
 	error::ErrorKind,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `GET /_matrix/client/versions`
 ///
@@ -62,9 +62,9 @@ pub(crate) async fn get_supported_versions_route(
 ///
 /// Returns the .well-known URL if it is configured, otherwise returns 404.
 pub(crate) async fn well_known_client(
-	_body: Ruma<discover_homeserver::Request>,
+	State(services): State<crate::State>, _body: Ruma<discover_homeserver::Request>,
 ) -> Result<discover_homeserver::Response> {
-	let client_url = match services().globals.well_known_client() {
+	let client_url = match services.globals.well_known_client() {
 		Some(url) => url.to_string(),
 		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
 	};
@@ -84,22 +84,24 @@ pub(crate) async fn well_known_client(
 /// # `GET /.well-known/matrix/support`
 ///
 /// Server support contact and support page of a homeserver's domain.
-pub(crate) async fn well_known_support(_body: Ruma<discover_support::Request>) -> Result<discover_support::Response> {
-	let support_page = services()
+pub(crate) async fn well_known_support(
+	State(services): State<crate::State>, _body: Ruma<discover_support::Request>,
+) -> Result<discover_support::Response> {
+	let support_page = services
 		.globals
 		.well_known_support_page()
 		.as_ref()
 		.map(ToString::to_string);
 
-	let role = services().globals.well_known_support_role().clone();
+	let role = services.globals.well_known_support_role().clone();
 
 	// support page or role must be either defined for this to be valid
 	if support_page.is_none() && role.is_none() {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Not found."));
 	}
 
-	let email_address = services().globals.well_known_support_email().clone();
-	let matrix_id = services().globals.well_known_support_mxid().clone();
+	let email_address = services.globals.well_known_support_email().clone();
+	let matrix_id = services.globals.well_known_support_mxid().clone();
 
 	// if a role is specified, an email address or matrix id is required
 	if role.is_some() && (email_address.is_none() && matrix_id.is_none()) {
@@ -134,10 +136,10 @@ pub(crate) async fn well_known_support(_body: Ruma<discover_support::Request>) -
 ///
 /// Endpoint provided by sliding sync proxy used by some clients such as Element
 /// Web as a non-standard health check.
-pub(crate) async fn syncv3_client_server_json() -> Result<impl IntoResponse> {
-	let server_url = match services().globals.well_known_client() {
+pub(crate) async fn syncv3_client_server_json(State(services): State<crate::State>) -> Result<impl IntoResponse> {
+	let server_url = match services.globals.well_known_client() {
 		Some(url) => url.to_string(),
-		None => match services().globals.well_known_server() {
+		None => match services.globals.well_known_server() {
 			Some(url) => url.to_string(),
 			None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
 		},
@@ -165,8 +167,8 @@ pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
 /// conduwuit-specific API to return the amount of users registered on this
 /// homeserver. Endpoint is disabled if federation is disabled for privacy. This
 /// only includes active users (not deactivated, no guests, etc)
-pub(crate) async fn conduwuit_local_user_count() -> Result<impl IntoResponse> {
-	let user_count = services().users.list_local_users()?.len();
+pub(crate) async fn conduwuit_local_user_count(State(services): State<crate::State>) -> Result<impl IntoResponse> {
+	let user_count = services.users.list_local_users()?.len();
 
 	Ok(Json(serde_json::json!({
 		"count": user_count

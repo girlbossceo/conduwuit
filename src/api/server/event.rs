@@ -1,9 +1,10 @@
+use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_event},
 	MilliSecondsSinceUnixEpoch, RoomId,
 };
-use service::{sending::convert_to_outgoing_federation_event, services};
+use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -13,10 +14,12 @@ use crate::Ruma;
 ///
 /// - Only works if a user of this server is currently invited or joined the
 ///   room
-pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Result<get_event::v1::Response> {
+pub(crate) async fn get_event_route(
+	State(services): State<crate::State>, body: Ruma<get_event::v1::Request>,
+) -> Result<get_event::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	let event = services()
+	let event = services
 		.rooms
 		.timeline
 		.get_pdu_json(&body.event_id)?
@@ -30,16 +33,13 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	let room_id =
 		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
-	if !services().rooms.state_accessor.is_world_readable(room_id)?
-		&& !services()
-			.rooms
-			.state_cache
-			.server_in_room(origin, room_id)?
+	if !services.rooms.state_accessor.is_world_readable(room_id)?
+		&& !services.rooms.state_cache.server_in_room(origin, room_id)?
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
 
-	if !services()
+	if !services
 		.rooms
 		.state_accessor
 		.server_can_see_event(origin, room_id, &body.event_id)?
@@ -48,7 +48,7 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	}
 
 	Ok(get_event::v1::Response {
-		origin: services().globals.server_name().to_owned(),
+		origin: services.globals.server_name().to_owned(),
 		origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
 		pdu: convert_to_outgoing_federation_event(event),
 	})

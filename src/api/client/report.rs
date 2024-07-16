@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use axum::extract::State;
 use rand::Rng;
 use ruma::{
 	api::client::{error::ErrorKind, room::report_content},
@@ -9,13 +10,18 @@ use ruma::{
 use tokio::time::sleep;
 use tracing::info;
 
-use crate::{debug_info, service::pdu::PduEvent, services, utils::HtmlEscape, Error, Result, Ruma};
+use crate::{
+	debug_info,
+	service::{pdu::PduEvent, Services},
+	utils::HtmlEscape,
+	Error, Result, Ruma,
+};
 
 /// # `POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`
 ///
 /// Reports an inappropriate event to homeserver admins
 pub(crate) async fn report_event_route(
-	body: Ruma<report_content::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<report_content::v3::Request>,
 ) -> Result<report_content::v3::Response> {
 	// user authentication
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -26,18 +32,26 @@ pub(crate) async fn report_event_route(
 	);
 
 	// check if we know about the reported event ID or if it's invalid
-	let Some(pdu) = services().rooms.timeline.get_pdu(&body.event_id)? else {
+	let Some(pdu) = services.rooms.timeline.get_pdu(&body.event_id)? else {
 		return Err(Error::BadRequest(
 			ErrorKind::NotFound,
 			"Event ID is not known to us or Event ID is invalid",
 		));
 	};
 
-	is_report_valid(&pdu.event_id, &body.room_id, sender_user, &body.reason, body.score, &pdu)?;
+	is_report_valid(
+		services,
+		&pdu.event_id,
+		&body.room_id,
+		sender_user,
+		&body.reason,
+		body.score,
+		&pdu,
+	)?;
 
 	// send admin room message that we received the report with an @room ping for
 	// urgency
-	services()
+	services
 		.admin
 		.send_message(message::RoomMessageEventContent::text_html(
 			format!(
@@ -79,8 +93,8 @@ pub(crate) async fn report_event_route(
 /// check if score is in valid range
 /// check if report reasoning is less than or equal to 750 characters
 fn is_report_valid(
-	event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: &Option<String>, score: Option<ruma::Int>,
-	pdu: &std::sync::Arc<PduEvent>,
+	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: &Option<String>,
+	score: Option<ruma::Int>, pdu: &std::sync::Arc<PduEvent>,
 ) -> Result<bool> {
 	debug_info!("Checking if report from user {sender_user} for event {event_id} in room {room_id} is valid");
 
@@ -91,7 +105,7 @@ fn is_report_valid(
 		));
 	}
 
-	if !services()
+	if !services
 		.rooms
 		.state_cache
 		.room_members(&pdu.room_id)

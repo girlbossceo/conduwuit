@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
+use axum::extract::State;
 use conduit::PduCount;
 use ruma::{
 	api::client::{
@@ -12,7 +13,10 @@ use ruma::{
 };
 use serde_json::{from_str, Value};
 
-use crate::{service::pdu::PduBuilder, services, utils, Error, PduEvent, Result, Ruma};
+use crate::{
+	service::{pdu::PduBuilder, Services},
+	utils, Error, PduEvent, Result, Ruma,
+};
 
 /// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
 ///
@@ -24,21 +28,19 @@ use crate::{service::pdu::PduBuilder, services, utils, Error, PduEvent, Result, 
 /// - Tries to send the event into the room, auth rules will determine if it is
 ///   allowed
 pub(crate) async fn send_message_event_route(
-	body: Ruma<send_message_event::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<send_message_event::v3::Request>,
 ) -> Result<send_message_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_deref();
 
-	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
 	// Forbid m.room.encrypted if encryption is disabled
-	if MessageLikeEventType::RoomEncrypted == body.event_type && !services().globals.allow_encryption() {
+	if MessageLikeEventType::RoomEncrypted == body.event_type && !services.globals.allow_encryption() {
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Encryption has been disabled"));
 	}
 
-	if body.event_type == MessageLikeEventType::CallInvite
-		&& services().rooms.directory.is_public_room(&body.room_id)?
-	{
+	if body.event_type == MessageLikeEventType::CallInvite && services.rooms.directory.is_public_room(&body.room_id)? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"Room call invites are not allowed in public rooms",
@@ -46,7 +48,7 @@ pub(crate) async fn send_message_event_route(
 	}
 
 	// Check if this is a new transaction id
-	if let Some(response) = services()
+	if let Some(response) = services
 		.transaction_ids
 		.existing_txnid(sender_user, sender_device, &body.txn_id)?
 	{
@@ -71,7 +73,7 @@ pub(crate) async fn send_message_event_route(
 	let mut unsigned = BTreeMap::new();
 	unsigned.insert("transaction_id".to_owned(), body.txn_id.to_string().into());
 
-	let event_id = services()
+	let event_id = services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -89,7 +91,7 @@ pub(crate) async fn send_message_event_route(
 		)
 		.await?;
 
-	services()
+	services
 		.transaction_ids
 		.add_txnid(sender_user, sender_device, &body.txn_id, event_id.as_bytes())?;
 
@@ -105,7 +107,7 @@ pub(crate) async fn send_message_event_route(
 /// - Only works if the user is joined (TODO: always allow, but only show events
 ///   where the user was joined, depending on `history_visibility`)
 pub(crate) async fn get_message_events_route(
-	body: Ruma<get_message_events::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<get_message_events::v3::Request>,
 ) -> Result<get_message_events::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -123,7 +125,7 @@ pub(crate) async fn get_message_events_route(
 		.as_ref()
 		.and_then(|t| PduCount::try_from_string(t).ok());
 
-	services()
+	services
 		.rooms
 		.lazy_loading
 		.lazy_load_confirm_delivery(sender_user, sender_device, &body.room_id, from)
@@ -139,12 +141,12 @@ pub(crate) async fn get_message_events_route(
 
 	match body.dir {
 		ruma::api::Direction::Forward => {
-			let events_after: Vec<_> = services()
+			let events_after: Vec<_> = services
 				.rooms
 				.timeline
 				.pdus_after(sender_user, &body.room_id, from)?
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| { contains_url_filter(pdu, &body.filter) && visibility_filter(pdu, sender_user, &body.room_id)
+				.filter(|(_, pdu)| { contains_url_filter(pdu, &body.filter) && visibility_filter(services, pdu, sender_user, &body.room_id)
 
 				})
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
@@ -157,7 +159,7 @@ pub(crate) async fn get_message_events_route(
 				 * https://github.com/vector-im/element-web/issues/21034
 				 */
 				if !cfg!(feature = "element_hacks")
-					&& !services().rooms.lazy_loading.lazy_load_was_sent_before(
+					&& !services.rooms.lazy_loading.lazy_load_was_sent_before(
 						sender_user,
 						sender_device,
 						&body.room_id,
@@ -181,17 +183,17 @@ pub(crate) async fn get_message_events_route(
 			resp.chunk = events_after;
 		},
 		ruma::api::Direction::Backward => {
-			services()
+			services
 				.rooms
 				.timeline
 				.backfill_if_required(&body.room_id, from)
 				.await?;
-			let events_before: Vec<_> = services()
+			let events_before: Vec<_> = services
 				.rooms
 				.timeline
 				.pdus_until(sender_user, &body.room_id, from)?
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| {contains_url_filter(pdu, &body.filter) && visibility_filter(pdu, sender_user, &body.room_id)})
+				.filter(|(_, pdu)| {contains_url_filter(pdu, &body.filter) && visibility_filter(services, pdu, sender_user, &body.room_id)})
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
 				.take(limit)
 				.collect();
@@ -202,7 +204,7 @@ pub(crate) async fn get_message_events_route(
 				 * https://github.com/vector-im/element-web/issues/21034
 				 */
 				if !cfg!(feature = "element_hacks")
-					&& !services().rooms.lazy_loading.lazy_load_was_sent_before(
+					&& !services.rooms.lazy_loading.lazy_load_was_sent_before(
 						sender_user,
 						sender_device,
 						&body.room_id,
@@ -229,11 +231,12 @@ pub(crate) async fn get_message_events_route(
 
 	resp.state = Vec::new();
 	for ll_id in &lazy_loaded {
-		if let Some(member_event) = services().rooms.state_accessor.room_state_get(
-			&body.room_id,
-			&StateEventType::RoomMember,
-			ll_id.as_str(),
-		)? {
+		if let Some(member_event) =
+			services
+				.rooms
+				.state_accessor
+				.room_state_get(&body.room_id, &StateEventType::RoomMember, ll_id.as_str())?
+		{
 			resp.state.push(member_event.to_state_event());
 		}
 	}
@@ -241,7 +244,7 @@ pub(crate) async fn get_message_events_route(
 	// remove the feature check when we are sure clients like element can handle it
 	if !cfg!(feature = "element_hacks") {
 		if let Some(next_token) = next_token {
-			services()
+			services
 				.rooms
 				.lazy_loading
 				.lazy_load_mark_sent(sender_user, sender_device, &body.room_id, lazy_loaded, next_token)
@@ -252,8 +255,8 @@ pub(crate) async fn get_message_events_route(
 	Ok(resp)
 }
 
-fn visibility_filter(pdu: &PduEvent, user_id: &UserId, room_id: &RoomId) -> bool {
-	services()
+fn visibility_filter(services: &Services, pdu: &PduEvent, user_id: &UserId, room_id: &RoomId) -> bool {
+	services
 		.rooms
 		.state_accessor
 		.user_can_see_event(user_id, room_id, &pdu.event_id)

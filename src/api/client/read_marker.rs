@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use axum::extract::State;
 use conduit::PduCount;
 use ruma::{
 	api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
@@ -10,7 +11,7 @@ use ruma::{
 	MilliSecondsSinceUnixEpoch,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{Error, Result, Ruma};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///
@@ -20,7 +21,7 @@ use crate::{services, Error, Result, Ruma};
 /// - If `read_receipt` is set: Update private marker and public read receipt
 ///   EDU
 pub(crate) async fn set_read_marker_route(
-	body: Ruma<set_read_marker::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<set_read_marker::v3::Request>,
 ) -> Result<set_read_marker::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -30,7 +31,7 @@ pub(crate) async fn set_read_marker_route(
 				event_id: fully_read.clone(),
 			},
 		};
-		services().account_data.update(
+		services.account_data.update(
 			Some(&body.room_id),
 			sender_user,
 			RoomAccountDataEventType::FullyRead,
@@ -39,14 +40,14 @@ pub(crate) async fn set_read_marker_route(
 	}
 
 	if body.private_read_receipt.is_some() || body.read_receipt.is_some() {
-		services()
+		services
 			.rooms
 			.user
 			.reset_notification_counts(sender_user, &body.room_id)?;
 	}
 
 	if let Some(event) = &body.private_read_receipt {
-		let count = services()
+		let count = services
 			.rooms
 			.timeline
 			.get_pdu_count(event)?
@@ -60,7 +61,7 @@ pub(crate) async fn set_read_marker_route(
 			},
 			PduCount::Normal(c) => c,
 		};
-		services()
+		services
 			.rooms
 			.read_receipt
 			.private_read_set(&body.room_id, sender_user, count)?;
@@ -82,7 +83,7 @@ pub(crate) async fn set_read_marker_route(
 		let mut receipt_content = BTreeMap::new();
 		receipt_content.insert(event.to_owned(), receipts);
 
-		services().rooms.read_receipt.readreceipt_update(
+		services.rooms.read_receipt.readreceipt_update(
 			sender_user,
 			&body.room_id,
 			&ruma::events::receipt::ReceiptEvent {
@@ -99,7 +100,7 @@ pub(crate) async fn set_read_marker_route(
 ///
 /// Sets private read marker and public read receipt EDU.
 pub(crate) async fn create_receipt_route(
-	body: Ruma<create_receipt::v3::Request>,
+	State(services): State<crate::State>, body: Ruma<create_receipt::v3::Request>,
 ) -> Result<create_receipt::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -107,7 +108,7 @@ pub(crate) async fn create_receipt_route(
 		&body.receipt_type,
 		create_receipt::v3::ReceiptType::Read | create_receipt::v3::ReceiptType::ReadPrivate
 	) {
-		services()
+		services
 			.rooms
 			.user
 			.reset_notification_counts(sender_user, &body.room_id)?;
@@ -120,7 +121,7 @@ pub(crate) async fn create_receipt_route(
 					event_id: body.event_id.clone(),
 				},
 			};
-			services().account_data.update(
+			services.account_data.update(
 				Some(&body.room_id),
 				sender_user,
 				RoomAccountDataEventType::FullyRead,
@@ -142,7 +143,7 @@ pub(crate) async fn create_receipt_route(
 			let mut receipt_content = BTreeMap::new();
 			receipt_content.insert(body.event_id.clone(), receipts);
 
-			services().rooms.read_receipt.readreceipt_update(
+			services.rooms.read_receipt.readreceipt_update(
 				sender_user,
 				&body.room_id,
 				&ruma::events::receipt::ReceiptEvent {
@@ -152,7 +153,7 @@ pub(crate) async fn create_receipt_route(
 			)?;
 		},
 		create_receipt::v3::ReceiptType::ReadPrivate => {
-			let count = services()
+			let count = services
 				.rooms
 				.timeline
 				.get_pdu_count(&body.event_id)?
@@ -166,7 +167,7 @@ pub(crate) async fn create_receipt_route(
 				},
 				PduCount::Normal(c) => c,
 			};
-			services()
+			services
 				.rooms
 				.read_receipt
 				.private_read_set(&body.room_id, sender_user, count)?;

@@ -1,16 +1,15 @@
+use axum::extract::State;
 use ruma::api::federation::openid::get_openid_userinfo;
 
-use crate::{services, Result, Ruma};
+use crate::{Result, Ruma};
 
 /// # `GET /_matrix/federation/v1/openid/userinfo`
 ///
 /// Get information about the user that generated the OpenID token.
 pub(crate) async fn get_openid_userinfo_route(
-	body: Ruma<get_openid_userinfo::v1::Request>,
+	State(services): State<crate::State>, body: Ruma<get_openid_userinfo::v1::Request>,
 ) -> Result<get_openid_userinfo::v1::Response> {
 	Ok(get_openid_userinfo::v1::Response::new(
-		services()
-			.users
-			.find_from_openid_token(&body.access_token)?,
+		services.users.find_from_openid_token(&body.access_token)?,
 	))
 }

@@ -101,6 +101,7 @@ pub(super) async fn create(
 
 			if let Some(room_id_server_name) = room.server_name() {
 				match join_room_by_id_helper(
+					services(),
 					&user_id,
 					room,
 					Some("Automatically joining this room upon registration".to_owned()),
@@ -158,9 +159,9 @@ pub(super) async fn deactivate(
 			.rooms_joined(&user_id)
 			.filter_map(Result::ok)
 			.collect();
-		update_displayname(user_id.clone(), None, all_joined_rooms.clone()).await?;
-		update_avatar_url(user_id.clone(), None, None, all_joined_rooms).await?;
-		leave_all_rooms(&user_id).await;
+		update_displayname(services(), user_id.clone(), None, all_joined_rooms.clone()).await?;
+		update_avatar_url(services(), user_id.clone(), None, None, all_joined_rooms).await?;
+		leave_all_rooms(services(), &user_id).await;
 	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -262,9 +263,9 @@ pub(super) async fn deactivate_all(
 						.rooms_joined(&user_id)
 						.filter_map(Result::ok)
 						.collect();
-					update_displayname(user_id.clone(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(user_id.clone(), None, None, all_joined_rooms).await?;
-					leave_all_rooms(&user_id).await;
+					update_displayname(services(), user_id.clone(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(services(), user_id.clone(), None, None, all_joined_rooms).await?;
+					leave_all_rooms(services(), &user_id).await;
 				}
 			},
 			Err(e) => {
@@ -347,7 +348,7 @@ pub(super) async fn force_join_room(
 	let room_id = services().rooms.alias.resolve(&room_id).await?;
 
 	assert!(service::user_is_local(&user_id), "Parsed user_id must be a local user");
-	join_room_by_id_helper(&user_id, &room_id, None, &[], None).await?;
+	join_room_by_id_helper(services(), &user_id, &room_id, None, &[], None).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been joined to {room_id}.",

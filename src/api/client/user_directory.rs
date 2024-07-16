@@ -1,3 +1,4 @@
+use axum::extract::State;
 use ruma::{
 	api::client::user_directory::search_users,
 	events::{
@@ -6,7 +7,7 @@ use ruma::{
 	},
 };
 
-use crate::{services, Result, Ruma};
+use crate::{Result, Ruma};
 
 /// # `POST /_matrix/client/r0/user_directory/search`
 ///
@@ -14,18 +15,20 @@ use crate::{services, Result, Ruma};
 ///
 /// - Hides any local users that aren't in any public rooms (i.e. those that
 ///   have the join rule set to public) and don't share a room with the sender
-pub(crate) async fn search_users_route(body: Ruma<search_users::v3::Request>) -> Result<search_users::v3::Response> {
+pub(crate) async fn search_users_route(
+	State(services): State<crate::State>, body: Ruma<search_users::v3::Request>,
+) -> Result<search_users::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let limit = usize::try_from(body.limit).unwrap_or(10); // default limit is 10
 
-	let mut users = services().users.iter().filter_map(|user_id| {
+	let mut users = services.users.iter().filter_map(|user_id| {
 		// Filter out buggy users (they should not exist, but you never know...)
 		let user_id = user_id.ok()?;
 
 		let user = search_users::v3::User {
 			user_id: user_id.clone(),
-			display_name: services().users.displayname(&user_id).ok()?,
-			avatar_url: services().users.avatar_url(&user_id).ok()?,
+			display_name: services.users.displayname(&user_id).ok()?,
+			avatar_url: services.users.avatar_url(&user_id).ok()?,
 		};
 
 		let user_id_matches = user
@@ -50,13 +53,13 @@ pub(crate) async fn search_users_route(body: Ruma<search_users::v3::Request>) ->
 		// It's a matching user, but is the sender allowed to see them?
 		let mut user_visible = false;
 
-		let user_is_in_public_rooms = services()
+		let user_is_in_public_rooms = services
 			.rooms
 			.state_cache
 			.rooms_joined(&user_id)
 			.filter_map(Result::ok)
 			.any(|room| {
-				services()
+				services
 					.rooms
 					.state_accessor
 					.room_state_get(&room, &StateEventType::RoomJoinRules, "")
@@ -71,7 +74,7 @@ pub(crate) async fn search_users_route(body: Ruma<search_users::v3::Request>) ->
 		if user_is_in_public_rooms {
 			user_visible = true;
 		} else {
-			let user_is_in_shared_rooms = services()
+			let user_is_in_shared_rooms = services
 				.rooms
 				.user
 				.get_shared_rooms(vec![sender_user.clone(), user_id])
