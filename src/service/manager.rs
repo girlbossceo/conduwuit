@@ -54,7 +54,7 @@ impl Manager {
 		);
 
 		debug!("Starting service workers...");
-		for service in self.services.service.values() {
+		for (service, ..) in self.services.service.values() {
 			self.start_worker(&mut workers, service).await?;
 		}
 

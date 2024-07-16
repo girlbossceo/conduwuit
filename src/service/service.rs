@@ -1,11 +1,11 @@
-use std::{collections::BTreeMap, fmt::Write, sync::Arc};
+use std::{any::Any, collections::BTreeMap, fmt::Write, sync::Arc};
 
 use async_trait::async_trait;
 use conduit::{utils::string::split_once_infallible, Result, Server};
 use database::Database;
 
 #[async_trait]
-pub(crate) trait Service: Send + Sync {
+pub(crate) trait Service: Any + Send + Sync {
 	/// Implement the construction of the service instance. Services are
 	/// generally singletons so expect this to only be called once for a
 	/// service type. Note that it may be called again after a server reload,
@@ -40,7 +40,16 @@ pub(crate) struct Args<'a> {
 	pub(crate) _service: &'a Map,
 }
 
-pub(crate) type Map = BTreeMap<String, Arc<dyn Service>>;
+pub(crate) type Map = BTreeMap<String, MapVal>;
+pub(crate) type MapVal = (Arc<dyn Service>, Arc<dyn Any + Send + Sync>);
+
+pub(crate) fn get<T: Any + Send + Sync>(map: &Map, name: &str) -> Option<Arc<T>> {
+	map.get(name).map(|(_, s)| {
+		s.clone()
+			.downcast::<T>()
+			.expect("Service must be correctly downcast.")
+	})
+}
 
 #[inline]
 pub(crate) fn make_name(module_path: &str) -> &str { split_once_infallible(module_path, "::").1 }

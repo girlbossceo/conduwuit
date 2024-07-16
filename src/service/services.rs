@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Write, sync::Arc};
+use std::{any::Any, collections::BTreeMap, fmt::Write, sync::Arc};
 
 use conduit::{debug, debug_info, info, trace, Result, Server};
 use database::Database;
@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 use crate::{
 	account_data, admin, appservice, globals, key_backups,
 	manager::Manager,
-	media, presence, pusher, rooms, sending,
+	media, presence, pusher, rooms, sending, service,
 	service::{Args, Map, Service},
 	transaction_ids, uiaa, updates, users,
 };
@@ -44,7 +44,7 @@ impl Services {
 					db: &db,
 					_service: &service,
 				})?;
-				service.insert(built.name().to_owned(), built.clone());
+				service.insert(built.name().to_owned(), (built.clone(), built.clone()));
 				built
 			}};
 		}
@@ -128,7 +128,7 @@ impl Services {
 	}
 
 	pub async fn clear_cache(&self) {
-		for service in self.service.values() {
+		for (service, ..) in self.service.values() {
 			service.clear_cache();
 		}
 
@@ -143,7 +143,7 @@ impl Services {
 
 	pub async fn memory_usage(&self) -> Result<String> {
 		let mut out = String::new();
-		for service in self.service.values() {
+		for (service, ..) in self.service.values() {
 			service.memory_usage(&mut out)?;
 		}
 
@@ -163,9 +163,11 @@ impl Services {
 	fn interrupt(&self) {
 		debug!("Interrupting services...");
 
-		for (name, service) in &self.service {
+		for (name, (service, ..)) in &self.service {
 			trace!("Interrupting {name}");
 			service.interrupt();
 		}
 	}
+
+	pub fn get<T: Any + Send + Sync>(&self, name: &str) -> Option<Arc<T>> { service::get::<T>(&self.service, name) }
 }
