@@ -15,7 +15,7 @@ use ruma::{
 	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
-use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve_actual_dest, services, PduEvent};
+use service::{rooms::event_handler::parse_incoming_pdu, services, PduEvent};
 use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
@@ -628,7 +628,10 @@ pub(super) async fn resolve_true_destination(
 	let capture = Capture::new(state, Some(filter), capture::fmt_markdown(logs.clone()));
 
 	let capture_scope = capture.start();
-	let actual = resolve_actual_dest(&server_name, !no_cache).await?;
+	let actual = services()
+		.resolver
+		.resolve_actual_dest(&server_name, !no_cache)
+		.await?;
 	drop(capture_scope);
 
 	let msg = format!(

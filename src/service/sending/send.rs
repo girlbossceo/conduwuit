@@ -15,8 +15,11 @@ use ruma::{
 };
 use tracing::{debug, trace};
 
-use super::{resolve, resolve::ActualDest};
-use crate::{debug_error, debug_warn, resolver::CachedDest, services, Error, Result};
+use crate::{
+	debug_error, debug_warn, resolver,
+	resolver::{actual::ActualDest, cache::CachedDest},
+	services, Error, Result,
+};
 
 #[tracing::instrument(skip_all, name = "send")]
 pub async fn send<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
@@ -27,7 +30,7 @@ where
 		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
-	let actual = resolve::get_actual_dest(dest).await?;
+	let actual = services().resolver.get_actual_dest(dest).await?;
 	let request = prepare::<T>(dest, &actual, req).await?;
 	execute::<T>(client, dest, &actual, request).await
 }
@@ -219,7 +222,7 @@ fn validate_url(url: &Url) -> Result<()> {
 	if let Some(url_host) = url.host_str() {
 		if let Ok(ip) = IPAddress::parse(url_host) {
 			trace!("Checking request URL IP {ip:?}");
-			resolve::validate_ip(&ip)?;
+			resolver::actual::validate_ip(&ip)?;
 		}
 	}
 

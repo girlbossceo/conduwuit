@@ -25,20 +25,20 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			default: base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.resolver.clone())
 				.build()
 				.unwrap(),
 
 			url_preview: base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.resolver.clone())
 				.redirect(redirect::Policy::limited(3))
 				.build()
 				.unwrap(),
 
 			well_known: base(config)
 				.unwrap()
-				.dns_resolver(resolver.hooked.clone())
+				.dns_resolver(resolver.resolver.hooked.clone())
 				.connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
 				.read_timeout(Duration::from_secs(config.well_known_timeout))
 				.timeout(Duration::from_secs(config.well_known_timeout))
@@ -49,7 +49,7 @@ impl crate::Service for Service {
 
 			federation: base(config)
 				.unwrap()
-				.dns_resolver(resolver.hooked.clone())
+				.dns_resolver(resolver.resolver.hooked.clone())
 				.read_timeout(Duration::from_secs(config.federation_timeout))
 				.timeout(Duration::from_secs(config.federation_timeout))
 				.pool_max_idle_per_host(config.federation_idle_per_host.into())
@@ -60,7 +60,7 @@ impl crate::Service for Service {
 
 			sender: base(config)
 				.unwrap()
-				.dns_resolver(resolver.hooked.clone())
+				.dns_resolver(resolver.resolver.hooked.clone())
 				.read_timeout(Duration::from_secs(config.sender_timeout))
 				.timeout(Duration::from_secs(config.sender_timeout))
 				.pool_max_idle_per_host(1)
@@ -71,7 +71,7 @@ impl crate::Service for Service {
 
 			appservice: base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.resolver.clone())
 				.connect_timeout(Duration::from_secs(5))
 				.read_timeout(Duration::from_secs(config.appservice_timeout))
 				.timeout(Duration::from_secs(config.appservice_timeout))
@@ -83,7 +83,7 @@ impl crate::Service for Service {
 
 			pusher: base(config)
 				.unwrap()
-				.dns_resolver(resolver.clone())
+				.dns_resolver(resolver.resolver.clone())
 				.pool_max_idle_per_host(1)
 				.pool_idle_timeout(Duration::from_secs(config.pusher_idle_timeout))
 				.redirect(redirect::Policy::limited(2))

@@ -1,13 +1,11 @@
 mod appservice;
 mod data;
-mod resolve;
 mod send;
 mod sender;
 
 use std::fmt::Debug;
 
 use conduit::{err, Result};
-pub use resolve::resolve_actual_dest;
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
