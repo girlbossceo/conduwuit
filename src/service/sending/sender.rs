@@ -2,11 +2,9 @@ use std::{
 	cmp,
 	collections::{BTreeMap, HashMap, HashSet},
 	fmt::Debug,
-	sync::Arc,
 	time::{Duration, Instant},
 };
 
-use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, debug_warn, error, trace, utils::math::continue_exponential_backoff_secs, warn};
 use federation::transactions::send_transaction_message;
@@ -24,9 +22,9 @@ use ruma::{
 	ServerName, UInt,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::{sync::Mutex, time::sleep_until};
+use tokio::time::sleep_until;
 
-use super::{appservice, data::Data, send, Destination, Msg, SendingEvent, Service};
+use super::{appservice, send, Destination, Msg, SendingEvent, Service};
 use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, Result};
 
 #[derive(Debug)]
@@ -46,20 +44,9 @@ const DEQUEUE_LIMIT: usize = 48;
 const SELECT_EDU_LIMIT: usize = 16;
 const CLEANUP_TIMEOUT_MS: u64 = 3500;
 
-#[async_trait]
-impl crate::Service for Service {
-	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let (sender, receiver) = loole::unbounded();
-		Ok(Arc::new(Self {
-			db: Data::new(args.db.clone()),
-			server: args.server.clone(),
-			sender,
-			receiver: Mutex::new(receiver),
-		}))
-	}
-
+impl Service {
 	#[tracing::instrument(skip_all, name = "sender")]
-	async fn worker(self: Arc<Self>) -> Result<()> {
+	pub(super) async fn sender(&self) -> Result<()> {
 		let receiver = self.receiver.lock().await;
 		let mut futures: SendingFutures<'_> = FuturesUnordered::new();
 		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
@@ -82,16 +69,6 @@ impl crate::Service for Service {
 		Ok(())
 	}
 
-	fn interrupt(&self) {
-		if !self.sender.is_closed() {
-			self.sender.close();
-		}
-	}
-
-	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
-}
-
-impl Service {
 	fn handle_response(
 		&self, response: SendingResult, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {

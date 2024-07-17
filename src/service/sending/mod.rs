@@ -5,6 +5,7 @@ mod sender;
 
 use std::{fmt::Debug, sync::Arc};
 
+use async_trait::async_trait;
 use conduit::{err, Result, Server};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
@@ -45,6 +46,32 @@ pub enum SendingEvent {
 	Pdu(Vec<u8>), // pduid
 	Edu(Vec<u8>), // pdu json
 	Flush,        // none
+}
+
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let (sender, receiver) = loole::unbounded();
+		Ok(Arc::new(Self {
+			db: data::Data::new(args.db.clone()),
+			server: args.server.clone(),
+			sender,
+			receiver: Mutex::new(receiver),
+		}))
+	}
+
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		// trait impl can't be split between files so this just glues to mod sender
+		self.sender().await
+	}
+
+	fn interrupt(&self) {
+		if !self.sender.is_closed() {
+			self.sender.close();
+		}
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
 impl Service {
