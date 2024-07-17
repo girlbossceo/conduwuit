@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use conduit::{
-	config,
 	config::Config,
-	debug_warn,
-	log::{capture, LogLevelReloadHandles, ReloadHandle},
+	debug_warn, err,
+	log::{capture, LogLevelReloadHandles},
+	Result,
 };
 use tracing_subscriber::{layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
 
@@ -14,47 +14,38 @@ pub(crate) type TracingFlameGuard = Option<tracing_flame::FlushGuard<std::io::Bu
 pub(crate) type TracingFlameGuard = ();
 
 #[allow(clippy::redundant_clone)]
-pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>) {
-	let fmt_layer = tracing_subscriber::fmt::Layer::new();
-	let filter_layer = match EnvFilter::try_new(&config.log) {
-		Ok(s) => s,
-		Err(e) => {
-			eprintln!("It looks like your config is invalid. The following error occured while parsing it: {e}");
-			EnvFilter::try_new(config::default_log()).expect("failed to set default EnvFilter")
-		},
-	};
+pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>)> {
+	let reload_handles = LogLevelReloadHandles::default();
 
-	let mut reload_handles = Vec::<Box<dyn ReloadHandle<EnvFilter> + Send + Sync>>::new();
-	let (fmt_reload_filter, fmt_reload_handle) = reload::Layer::new(filter_layer.clone());
-	reload_handles.push(Box::new(fmt_reload_handle));
-
-	let subscriber = Registry::default().with(fmt_layer.with_filter(fmt_reload_filter));
+	let console_filter = EnvFilter::try_new(&config.log).map_err(|e| err!(Config("log", "{e}.")))?;
+	let console_layer = tracing_subscriber::fmt::Layer::new();
+	let (console_reload_filter, console_reload_handle) = reload::Layer::new(console_filter.clone());
+	reload_handles.add("console", Box::new(console_reload_handle));
 
 	let cap_state = Arc::new(capture::State::new());
 	let cap_layer = capture::Layer::new(&cap_state);
-	let subscriber = subscriber.with(cap_layer);
+
+	let subscriber = Registry::default()
+		.with(console_layer.with_filter(console_reload_filter))
+		.with(cap_layer);
 
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
+		let sentry_filter =
+			EnvFilter::try_new(&config.sentry_filter).map_err(|e| err!(Config("sentry_filter", "{e}.")))?;
 		let sentry_layer = sentry_tracing::layer();
-		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(filter_layer.clone());
-		reload_handles.push(Box::new(sentry_reload_handle));
+		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(sentry_filter);
+		reload_handles.add("sentry", Box::new(sentry_reload_handle));
 		subscriber.with(sentry_layer.with_filter(sentry_reload_filter))
 	};
 
 	#[cfg(feature = "perf_measurements")]
 	let (subscriber, flame_guard) = {
 		let (flame_layer, flame_guard) = if config.tracing_flame {
-			let flame_filter = match EnvFilter::try_new(&config.tracing_flame_filter) {
-				Ok(flame_filter) => flame_filter,
-				Err(e) => panic!("tracing_flame_filter config value is invalid: {e}"),
-			};
-
-			let (flame_layer, flame_guard) =
-				match tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path) {
-					Ok(ok) => ok,
-					Err(e) => panic!("failed to initialize tracing-flame: {e}"),
-				};
+			let flame_filter = EnvFilter::try_new(&config.tracing_flame_filter)
+				.map_err(|e| err!(Config("tracing_flame_filter", "{e}.")))?;
+			let (flame_layer, flame_guard) = tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path)
+				.map_err(|e| err!(Config("tracing_flame_output_path", "{e}.")))?;
 			let flame_layer = flame_layer
 				.with_empty_samples(false)
 				.with_filter(flame_filter);
@@ -63,21 +54,20 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 			(None, None)
 		};
 
-		let jaeger_layer = if config.allow_jaeger {
+		let jaeger_filter =
+			EnvFilter::try_new(&config.jaeger_filter).map_err(|e| err!(Config("jaeger_filter", "{e}.")))?;
+		let jaeger_layer = config.allow_jaeger.then(|| {
 			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
 			let tracer = opentelemetry_jaeger::new_agent_pipeline()
 				.with_auto_split_batch(true)
 				.with_service_name("conduwuit")
 				.install_batch(opentelemetry_sdk::runtime::Tokio)
-				.unwrap();
+				.expect("jaeger agent pipeline");
 			let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-			let (jaeger_reload_filter, jaeger_reload_handle) = reload::Layer::new(filter_layer.clone());
-			reload_handles.push(Box::new(jaeger_reload_handle));
+			let (jaeger_reload_filter, jaeger_reload_handle) = reload::Layer::new(jaeger_filter.clone());
+			reload_handles.add("jaeger", Box::new(jaeger_reload_handle));
 			Some(telemetry.with_filter(jaeger_reload_filter))
-		} else {
-			None
-		};
+		});
 
 		let subscriber = subscriber.with(flame_layer).with(jaeger_layer);
 		(subscriber, flame_guard)
@@ -87,7 +77,7 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 	#[cfg_attr(not(feature = "perf_measurements"), allow(clippy::let_unit_value))]
 	let flame_guard = ();
 
-	let ret = (LogLevelReloadHandles::new(reload_handles), flame_guard, cap_state);
+	let ret = (reload_handles, flame_guard, cap_state);
 
 	// Enable the tokio console. This is slightly kludgy because we're judggling
 	// compile-time and runtime conditions to elide it, each of those changing the
@@ -100,7 +90,7 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 			.spawn();
 
 		set_global_default(subscriber.with(console_layer));
-		return ret;
+		return Ok(ret);
 	}
 
 	set_global_default(subscriber);
@@ -111,7 +101,7 @@ pub(crate) fn init(config: &Config) -> (LogLevelReloadHandles, TracingFlameGuard
 		debug_warn!("{console_disabled_reason}");
 	}
 
-	ret
+	Ok(ret)
 }
 
 fn tokio_console_enabled(config: &Config) -> (bool, &'static str) {

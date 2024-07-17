@@ -45,7 +45,6 @@ impl Console {
 		}
 	}
 
-	#[allow(clippy::let_underscore_must_use)]
 	pub async fn start(self: &Arc<Self>) {
 		let mut worker_join = self.worker_join.lock().expect("locked");
 		if worker_join.is_none() {
@@ -54,7 +53,6 @@ impl Console {
 		}
 	}
 
-	#[allow(clippy::let_underscore_must_use)]
 	pub async fn close(self: &Arc<Self>) {
 		self.interrupt();
 		let Some(worker_join) = self.worker_join.lock().expect("locked").take() else {
@@ -97,6 +95,10 @@ impl Console {
 					ReadlineEvent::Line(string) => self.clone().handle(string).await,
 					ReadlineEvent::Interrupted => continue,
 					ReadlineEvent::Eof => break,
+					ReadlineEvent::Quit => services()
+						.server
+						.shutdown()
+						.unwrap_or_else(error::default_log),
 				},
 				Err(error) => match error {
 					ReadlineError::Closed => break,
@@ -112,11 +114,11 @@ impl Console {
 		self.worker_join.lock().expect("locked").take();
 	}
 
-	#[allow(clippy::let_underscore_must_use)]
 	async fn readline(self: &Arc<Self>) -> Result<ReadlineEvent, ReadlineError> {
 		let _suppression = log::Suppress::new(&services().server);
 
 		let (mut readline, _writer) = Readline::new(PROMPT.to_owned())?;
+		readline.set_tab_completer(Self::tab_complete);
 		self.set_history(&mut readline);
 
 		let future = readline.readline();
@@ -136,7 +138,6 @@ impl Console {
 		result
 	}
 
-	#[allow(clippy::let_underscore_must_use)]
 	async fn handle(self: Arc<Self>, line: String) {
 		if line.trim().is_empty() {
 			return;
@@ -183,6 +184,13 @@ impl Console {
 		let mut history = self.history.lock().expect("locked");
 		history.push_front(line);
 		history.truncate(HISTORY_LIMIT);
+	}
+
+	fn tab_complete(line: &str) -> String {
+		services()
+			.admin
+			.complete_command(line)
+			.unwrap_or_else(|| line.to_owned())
 	}
 }
 

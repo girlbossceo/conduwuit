@@ -12,6 +12,13 @@ pub(crate) struct Data {
 	url_previews: Arc<Map>,
 }
 
+#[derive(Debug)]
+pub(super) struct Metadata {
+	pub(super) content_disposition: Option<String>,
+	pub(super) content_type: Option<String>,
+	pub(super) key: Vec<u8>,
+}
+
 impl Data {
 	pub(super) fn new(db: &Arc<Database>) -> Self {
 		Self {
@@ -104,9 +111,7 @@ impl Data {
 		Ok(keys)
 	}
 
-	pub(super) fn search_file_metadata(
-		&self, mxc: &str, width: u32, height: u32,
-	) -> Result<(Option<String>, Option<String>, Vec<u8>)> {
+	pub(super) fn search_file_metadata(&self, mxc: &str, width: u32, height: u32) -> Result<Metadata> {
 		let mut prefix = mxc.as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(&width.to_be_bytes());
@@ -141,13 +146,19 @@ impl Data {
 					.map_err(|_| Error::bad_database("Content Disposition in mediaid_file is invalid unicode."))?,
 			)
 		};
-		Ok((content_disposition, content_type, key))
+
+		Ok(Metadata {
+			content_disposition,
+			content_type,
+			key,
+		})
 	}
 
 	/// Gets all the media keys in our database (this includes all the metadata
 	/// associated with it such as width, height, content-type, etc)
 	pub(crate) fn get_all_media_keys(&self) -> Vec<Vec<u8>> { self.mediaid_file.iter().map(|(key, _)| key).collect() }
 
+	#[inline]
 	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> { self.url_previews.remove(url.as_bytes()) }
 
 	pub(super) fn set_url_preview(

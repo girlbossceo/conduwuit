@@ -2,15 +2,18 @@ mod parse_incoming_pdu;
 mod signing_keys;
 
 use std::{
-	cmp,
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
+	fmt::Write,
 	pin::Pin,
-	sync::Arc,
-	time::{Duration, Instant},
+	sync::{Arc, RwLock as StdRwLock},
+	time::Instant,
 };
 
-use conduit::{debug_error, debug_info, Error, Result, Server};
-use database::Database;
+use conduit::{
+	debug, debug_error, debug_info, err, error, info, trace,
+	utils::{math::continue_exponential_backoff_secs, MutexMap},
+	warn, Error, Result,
+};
 use futures_util::Future;
 pub use parse_incoming_pdu::parse_incoming_pdu;
 use ruma::{
@@ -27,15 +30,21 @@ use ruma::{
 	int,
 	serde::Base64,
 	state_res::{self, RoomVersion, StateMap},
-	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedUserId, RoomId, RoomVersionId, ServerName,
+	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId,
+	RoomVersionId, ServerName,
 };
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
 
 use super::state_compressor::CompressedStateEvent;
 use crate::{pdu, services, PduEvent};
 
-pub struct Service;
+pub struct Service {
+	pub federation_handletime: StdRwLock<HandleTimeMap>,
+	pub mutex_federation: RoomMutexMap,
+}
+
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+type HandleTimeMap = HashMap<OwnedRoomId, (OwnedEventId, Instant)>;
 
 // We use some AsyncRecursiveType hacks here so we can call async funtion
 // recursively.
@@ -45,9 +54,32 @@ type AsyncRecursiveCanonicalJsonVec<'a> =
 type AsyncRecursiveCanonicalJsonResult<'a> =
 	AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> { Ok(Self {}) }
+impl crate::Service for Service {
+	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			federation_handletime: HandleTimeMap::new().into(),
+			mutex_federation: RoomMutexMap::new(),
+		}))
+	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let mutex_federation = self.mutex_federation.len();
+		writeln!(out, "federation_mutex: {mutex_federation}")?;
+
+		let federation_handletime = self
+			.federation_handletime
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "federation_handletime: {federation_handletime}")?;
+
+		Ok(())
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// When receiving an event one needs to:
 	/// 0. Check the server is in the room
 	/// 1. Skip the PDU if we already know about it
@@ -180,14 +212,14 @@ impl Service {
 						.globals
 						.bad_event_ratelimiter
 						.write()
-						.await
+						.expect("locked")
 						.entry((*prev_id).to_owned())
 					{
 						hash_map::Entry::Vacant(e) => {
 							e.insert((Instant::now(), 1));
 						},
 						hash_map::Entry::Occupied(mut e) => {
-							*e.get_mut() = (Instant::now(), e.get().1 + 1);
+							*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
 						},
 					};
 				},
@@ -196,22 +228,18 @@ impl Service {
 
 		// Done with prev events, now handling the incoming event
 		let start_time = Instant::now();
-		services()
-			.globals
-			.roomid_federationhandletime
+		self.federation_handletime
 			.write()
-			.await
+			.expect("locked")
 			.insert(room_id.to_owned(), (event_id.to_owned(), start_time));
 
 		let r = self
 			.upgrade_outlier_to_timeline_pdu(incoming_pdu, val, &create_event, origin, room_id, pub_key_map)
 			.await;
 
-		services()
-			.globals
-			.roomid_federationhandletime
+		self.federation_handletime
 			.write()
-			.await
+			.expect("locked")
 			.remove(&room_id.to_owned());
 
 		r
@@ -245,18 +273,16 @@ impl Service {
 			.globals
 			.bad_event_ratelimiter
 			.read()
-			.await
+			.expect("locked")
 			.get(prev_id)
 		{
 			// Exponential backoff
-			const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-			let min_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-			let duration = time.elapsed();
-
-			if duration < min_duration {
+			const MIN_DURATION: u64 = 5 * 60;
+			const MAX_DURATION: u64 = 60 * 60 * 24;
+			if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
 				debug!(
-					duration = ?duration,
-					min_duration = ?min_duration,
+					?tries,
+					duration = ?time.elapsed(),
 					"Backing off from prev_event"
 				);
 				return Ok(());
@@ -270,21 +296,17 @@ impl Service {
 			}
 
 			let start_time = Instant::now();
-			services()
-				.globals
-				.roomid_federationhandletime
+			self.federation_handletime
 				.write()
-				.await
+				.expect("locked")
 				.insert(room_id.to_owned(), ((*prev_id).to_owned(), start_time));
 
 			self.upgrade_outlier_to_timeline_pdu(pdu, json, create_event, origin, room_id, pub_key_map)
 				.await?;
 
-			services()
-				.globals
-				.roomid_federationhandletime
+			self.federation_handletime
 				.write()
-				.await
+				.expect("locked")
 				.remove(&room_id.to_owned());
 
 			debug!(
@@ -529,55 +551,50 @@ impl Service {
 
 		// Soft fail check before doing state res
 		debug!("Performing soft-fail check");
-		let soft_fail = !state_res::event_auth::auth_check(&room_version, &incoming_pdu, None::<PduEvent>, |k, s| {
-			auth_events.get(&(k.clone(), s.to_owned()))
-		})
-		.map_err(|_e| Error::BadRequest(ErrorKind::forbidden(), "Auth check failed."))?
-			|| incoming_pdu.kind == TimelineEventType::RoomRedaction
-				&& match room_version_id {
-					RoomVersionId::V1
-					| RoomVersionId::V2
-					| RoomVersionId::V3
-					| RoomVersionId::V4
-					| RoomVersionId::V5
-					| RoomVersionId::V6
-					| RoomVersionId::V7
-					| RoomVersionId::V8
-					| RoomVersionId::V9
-					| RoomVersionId::V10 => {
-						if let Some(redact_id) = &incoming_pdu.redacts {
-							!services().rooms.state_accessor.user_can_redact(
-								redact_id,
-								&incoming_pdu.sender,
-								&incoming_pdu.room_id,
-								true,
-							)?
-						} else {
-							false
-						}
-					},
-					_ => {
-						let content = serde_json::from_str::<RoomRedactionEventContent>(incoming_pdu.content.get())
-							.map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
+		let soft_fail = {
+			use RoomVersionId::*;
 
-						if let Some(redact_id) = &content.redacts {
-							!services().rooms.state_accessor.user_can_redact(
-								redact_id,
-								&incoming_pdu.sender,
-								&incoming_pdu.room_id,
-								true,
-							)?
-						} else {
-							false
-						}
-					},
-				};
+			!state_res::event_auth::auth_check(&room_version, &incoming_pdu, None::<PduEvent>, |k, s| {
+				auth_events.get(&(k.clone(), s.to_owned()))
+			})
+			.map_err(|_e| Error::BadRequest(ErrorKind::forbidden(), "Auth check failed."))?
+				|| incoming_pdu.kind == TimelineEventType::RoomRedaction
+					&& match room_version_id {
+						V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
+							if let Some(redact_id) = &incoming_pdu.redacts {
+								!services().rooms.state_accessor.user_can_redact(
+									redact_id,
+									&incoming_pdu.sender,
+									&incoming_pdu.room_id,
+									true,
+								)?
+							} else {
+								false
+							}
+						},
+						_ => {
+							let content = serde_json::from_str::<RoomRedactionEventContent>(incoming_pdu.content.get())
+								.map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
+
+							if let Some(redact_id) = &content.redacts {
+								!services().rooms.state_accessor.user_can_redact(
+									redact_id,
+									&incoming_pdu.sender,
+									&incoming_pdu.room_id,
+									true,
+								)?
+							} else {
+								false
+							}
+						},
+					}
+		};
 
 		// 13. Use state resolution to find new room state
 
 		// We start looking at current room state now, so lets lock the room
 		trace!("Locking the room");
-		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+		let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 		// Now we calculate the set of extremities this room has after the incoming
 		// event has been applied. We start with the previous extremities (aka leaves)
@@ -951,7 +968,7 @@ impl Service {
 	/// Call /state_ids to find out what the state at this pdu is. We trust the
 	/// server's response to some extend (sic), but we still do a lot of checks
 	/// on the events
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(skip(self, pub_key_map, create_event, room_version_id))]
 	async fn fetch_state(
 		&self, origin: &ServerName, create_event: &PduEvent, room_id: &RoomId, room_version_id: &RoomVersionId,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>, event_id: &EventId,
@@ -1043,7 +1060,7 @@ impl Service {
 					.globals
 					.bad_event_ratelimiter
 					.write()
-					.await
+					.expect("locked")
 					.entry(id)
 				{
 					hash_map::Entry::Vacant(e) => {
@@ -1070,22 +1087,20 @@ impl Service {
 				let mut todo_auth_events = vec![Arc::clone(id)];
 				let mut events_in_reverse_order = Vec::with_capacity(todo_auth_events.len());
 				let mut events_all = HashSet::with_capacity(todo_auth_events.len());
-				let mut i = 0;
+				let mut i: u64 = 0;
 				while let Some(next_id) = todo_auth_events.pop() {
 					if let Some((time, tries)) = services()
 						.globals
 						.bad_event_ratelimiter
 						.read()
-						.await
+						.expect("locked")
 						.get(&*next_id)
 					{
 						// Exponential backoff
-						const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-						let min_elapsed_duration =
-							cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-						if time.elapsed() < min_elapsed_duration {
-							info!("Backing off from {}", next_id);
+						const MIN_DURATION: u64 = 5 * 60;
+						const MAX_DURATION: u64 = 60 * 60 * 24;
+						if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
+							info!("Backing off from {next_id}");
 							continue;
 						}
 					}
@@ -1094,7 +1109,7 @@ impl Service {
 						continue;
 					}
 
-					i += 1;
+					i = i.saturating_add(1);
 					if i % 100 == 0 {
 						tokio::task::yield_now().await;
 					}
@@ -1184,16 +1199,14 @@ impl Service {
 						.globals
 						.bad_event_ratelimiter
 						.read()
-						.await
+						.expect("locked")
 						.get(&**next_id)
 					{
 						// Exponential backoff
-						const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-						let min_elapsed_duration =
-							cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-						if time.elapsed() < min_elapsed_duration {
-							debug!("Backing off from {}", next_id);
+						const MIN_DURATION: u64 = 5 * 60;
+						const MAX_DURATION: u64 = 60 * 60 * 24;
+						if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
+							debug!("Backing off from {next_id}");
 							continue;
 						}
 					}
@@ -1369,15 +1382,13 @@ impl Service {
 	}
 
 	fn get_room_version_id(create_event: &PduEvent) -> Result<RoomVersionId> {
-		let create_event_content: RoomCreateEventContent =
-			serde_json::from_str(create_event.content.get()).map_err(|e| {
-				error!("Invalid create event: {}", e);
-				Error::BadDatabase("Invalid create event in db")
-			})?;
+		let create_event_content: RoomCreateEventContent = serde_json::from_str(create_event.content.get())
+			.map_err(|e| err!(Database("Invalid create event: {e}")))?;
 
 		Ok(create_event_content.room_version)
 	}
 
+	#[inline]
 	fn to_room_version(room_version_id: &RoomVersionId) -> RoomVersion {
 		RoomVersion::new(room_version_id).expect("room version is supported")
 	}

@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, RoomId};
+use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomOrAliasId, RoomId};
 
 use self::commands::*;
 
@@ -49,7 +49,7 @@ pub(super) enum UserCommand {
 	/// Markdown code block below the command.
 	DeactivateAll {
 		#[arg(short, long)]
-		/// Remove users from their joined rooms
+		/// Does not leave any rooms the user is in on deactivation
 		no_leave_rooms: bool,
 		#[arg(short, long)]
 		/// Also deactivate admin accounts and will assume leave all rooms too
@@ -62,6 +62,17 @@ pub(super) enum UserCommand {
 	/// - Lists all the rooms (local and remote) that the specified user is
 	///   joined in
 	ListJoinedRooms {
+		user_id: String,
+	},
+
+	/// - Manually join a local user to a room.
+	ForceJoinRoom {
+		user_id: String,
+		room_id: OwnedRoomOrAliasId,
+	},
+
+	/// - Grant server-admin privileges to a user.
+	MakeUserAdmin {
 		user_id: String,
 	},
 
@@ -113,6 +124,13 @@ pub(super) async fn process(command: UserCommand, body: Vec<&str>) -> Result<Roo
 		UserCommand::ListJoinedRooms {
 			user_id,
 		} => list_joined_rooms(body, user_id).await?,
+		UserCommand::ForceJoinRoom {
+			user_id,
+			room_id,
+		} => force_join_room(body, user_id, room_id).await?,
+		UserCommand::MakeUserAdmin {
+			user_id,
+		} => make_user_admin(body, user_id).await?,
 		UserCommand::PutRoomTag {
 			user_id,
 			room_id,

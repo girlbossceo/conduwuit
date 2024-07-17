@@ -199,6 +199,7 @@ impl<'a> IntoIterator for &'a Map {
 	type IntoIter = Box<dyn Iterator<Item = Self::Item> + Send + 'a>;
 	type Item = OwnedKeyValPair;
 
+	#[inline]
 	fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
@@ -232,7 +233,7 @@ fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
 	// closing the database (dropping `Engine`). Since `Arc<Engine>` is a sibling
 	// member along with this handle in `Map`, that is prevented.
 	Ok(unsafe {
-		Arc::decrement_strong_count(cf_ptr);
+		Arc::increment_strong_count(cf_ptr);
 		Arc::from_raw(cf_ptr)
 	})
 }

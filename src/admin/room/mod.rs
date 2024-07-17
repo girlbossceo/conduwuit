@@ -16,6 +16,14 @@ pub(super) enum RoomCommand {
 	/// - List all rooms the server knows about
 	List {
 		page: Option<usize>,
+
+		/// Excludes rooms that we have federation disabled with
+		#[arg(long)]
+		exclude_disabled: bool,
+
+		/// Excludes rooms that we have banned
+		#[arg(long)]
+		exclude_banned: bool,
 	},
 
 	#[command(subcommand)]
@@ -179,6 +187,8 @@ pub(super) async fn process(command: RoomCommand, body: Vec<&str>) -> Result<Roo
 
 		RoomCommand::List {
 			page,
-		} => list(body, page).await?,
+			exclude_disabled,
+			exclude_banned,
+		} => list(body, page, exclude_disabled, exclude_banned).await?,
 	})
 }

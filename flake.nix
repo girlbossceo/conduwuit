@@ -9,8 +9,7 @@
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
-    # https://github.com/girlbossceo/rocksdb/commit/db6df0b185774778457dabfcbd822cb81760cade
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.3.1"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.4.0"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 
@@ -42,6 +41,37 @@
             "v"
             (builtins.fromJSON (builtins.readFile ./flake.lock))
               .nodes.rocksdb.original.ref;
+          # we have this already at https://github.com/girlbossceo/rocksdb/commit/a935c0273e1ba44eacf88ce3685a9b9831486155
+          # unsetting this so i don't have to revert it and make this nix exclusive
+          patches = [];
+          cmakeFlags = pkgs.lib.subtractLists
+            [
+              # no real reason to have snappy, no one uses this
+              "-DWITH_SNAPPY=1"
+              # we dont need to use ldb or sst_dump (core_tools)
+              "-DWITH_CORE_TOOLS=1"
+              # we dont need to build rocksdb tests
+              "-DWITH_TESTS=1"
+              # we use rust-rocksdb via C interface and dont need C++ RTTI
+              "-DUSE_RTTI=1"
+            ]
+            old.cmakeFlags
+            ++ [
+              # we dont need to use ldb or sst_dump (core_tools)
+              "-DWITH_CORE_TOOLS=0"
+              # we dont need trace tools
+              "-DWITH_TRACE_TOOLS=0"
+              # we dont need to build rocksdb tests
+              "-DWITH_TESTS=0"
+              # we use rust-rocksdb via C interface and dont need C++ RTTI
+              "-DUSE_RTTI=0"
+            ];
+
+          # outputs has "tools" which we dont need or use
+          outputs = [ "out" ];
+
+          # preInstall hooks has stuff for messing with ldb/sst_dump which we dont need or use
+          preInstall = "";
         });
         # TODO: remove once https://github.com/NixOS/nixpkgs/pull/314945 is available
         liburing = pkgs.liburing.overrideAttrs (old: {
@@ -50,16 +80,6 @@
           configureFlags = pkgs.lib.subtractLists
             [ "--enable-static" "--disable-shared" ]
             old.configureFlags;
-
-          postInstall = old.postInstall + ''
-            # we remove the extra outputs
-            #
-            # we need to do this to prevent rocksdb from trying to link the
-            # static library in a dynamic stdenv
-            rm $out/lib/liburing*${
-              if pkgs.stdenv.hostPlatform.isStatic then ".so*" else ".a"
-            }
-          '';
         });
       });
 
@@ -124,9 +144,29 @@
     {
       packages = {
         default = scopeHost.main;
+        all-features = scopeHost.main.override {
+            all_features = true;
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
+        };
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
 
         oci-image = scopeHost.oci-image;
+        oci-image-all-features = scopeHost.oci-image.override {
+          main = scopeHost.main.override {
+            all_features = true;
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
+          };
+        };
         oci-image-hmalloc = scopeHost.oci-image.override {
           main = scopeHost.main.override {
             features = ["hardened_malloc"];
@@ -161,6 +201,20 @@
                   value = scopeCrossStatic.main;
                 }
 
+                # An output for a statically-linked binary with `--all-features`
+                {
+                  name = "${binaryName}-all-features";
+                  value = scopeCrossStatic.main.override {
+                    all_features = true;
+                    disable_features = [
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # dont include experimental features
+                        "experimental"
+                    ];
+                  };
+                }
+
                 # An output for a statically-linked binary with hardened_malloc
                 {
                   name = "${binaryName}-hmalloc";
@@ -173,6 +227,22 @@
                 {
                   name = "oci-image-${crossSystem}";
                   value = scopeCrossStatic.oci-image;
+                }
+
+                # An output for an OCI image based on that binary with `--all-features`
+                {
+                  name = "oci-image-${crossSystem}-all-features";
+                  value = scopeCrossStatic.oci-image.override {
+                    main = scopeCrossStatic.main.override {
+                      all_features = true;
+                      disable_features = [
+                          # this is non-functional on nix for some reason
+                          "hardened_malloc"
+                          # dont include experimental features
+                          "experimental"
+                      ];
+                    };
+                  };
                 }
 
                 # An output for an OCI image based on that binary with hardened_malloc
@@ -196,7 +266,15 @@
       devShells.default = mkDevShell scopeHostStatic;
       devShells.all-features = mkDevShell
         (scopeHostStatic.overrideScope (final: prev: {
-          main = prev.main.override { all_features = true; };
+          main = prev.main.override {
+            all_features = true;
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
+        };
         }));
       devShells.no-features = mkDevShell
         (scopeHostStatic.overrideScope (final: prev: {

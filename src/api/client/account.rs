@@ -309,7 +309,7 @@ pub(crate) async fn register_route(
 
 	// log in conduit admin channel if a guest registered
 	if body.appservice_info.is_none() && is_guest && services().globals.log_guest_registrations() {
-		info!("New guest user \"{user_id}\" registered on this server from IP.");
+		info!("New guest user \"{user_id}\" registered on this server.");
 
 		if let Some(device_display_name) = &body.initial_device_display_name {
 			if body
@@ -376,7 +376,7 @@ pub(crate) async fn register_route(
 
 			if let Some(room_id_server_name) = room.server_name() {
 				if let Err(e) = join_room_by_id_helper(
-					Some(&user_id),
+					&user_id,
 					room,
 					Some("Automatically joining this room upon registration".to_owned()),
 					&[room_id_server_name.to_owned(), services().globals.server_name().to_owned()],
@@ -423,7 +423,12 @@ pub(crate) async fn register_route(
 pub(crate) async fn change_password_route(
 	InsecureClientIp(client): InsecureClientIp, body: Ruma<change_password::v3::Request>,
 ) -> Result<change_password::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	// Authentication for this endpoint was made optional, but we need
+	// authentication currently
+	let sender_user = body
+		.sender_user
+		.as_ref()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	let mut uiaainfo = UiaaInfo {
@@ -512,7 +517,12 @@ pub(crate) async fn whoami_route(body: Ruma<whoami::v3::Request>) -> Result<whoa
 pub(crate) async fn deactivate_route(
 	InsecureClientIp(client): InsecureClientIp, body: Ruma<deactivate::v3::Request>,
 ) -> Result<deactivate::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	// Authentication for this endpoint was made optional, but we need
+	// authentication currently
+	let sender_user = body
+		.sender_user
+		.as_ref()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	let mut uiaainfo = UiaaInfo {

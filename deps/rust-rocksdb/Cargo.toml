@@ -10,7 +10,7 @@ repository.workspace = true
 version = "0.0.1"
 
 [features]
-default = ["snappy", "lz4", "zstd", "zlib", "bzip2"]
+default = ["lz4", "zstd", "zlib", "bzip2"]
 jemalloc = ["rust-rocksdb/jemalloc"]
 io-uring = ["rust-rocksdb/io-uring"]
 valgrind = ["rust-rocksdb/valgrind"]
@@ -27,7 +27,7 @@ malloc-usable-size = ["rust-rocksdb/malloc-usable-size"]
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/zaidoon1/rust-rocksdb"
-rev = "b4887edfb84771336930855727390edec07d63fa"
+rev = "4056a3b0f823013fec49f6d0b3e5698856e6476a"
 #branch = "master"
 default-features = false
 

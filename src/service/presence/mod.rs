@@ -2,9 +2,9 @@ mod data;
 
 use std::{sync::Arc, time::Duration};
 
-use conduit::{debug, error, utils, Error, Result, Server};
+use async_trait::async_trait;
+use conduit::{checked, debug, error, utils, Error, Result};
 use data::Data;
-use database::Database;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
@@ -12,7 +12,7 @@ use ruma::{
 	OwnedUserId, UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
-use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
+use tokio::{sync::Mutex, time::sleep};
 
 use crate::{services, user_is_local};
 
@@ -77,51 +77,58 @@ pub struct Service {
 	pub db: Data,
 	pub timer_sender: loole::Sender<(OwnedUserId, Duration)>,
 	timer_receiver: Mutex<loole::Receiver<(OwnedUserId, Duration)>>,
-	handler_join: Mutex<Option<JoinHandle<()>>>,
 	timeout_remote_users: bool,
+	idle_timeout: u64,
+	offline_timeout: u64,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Arc<Self>> {
-		let config = &server.config;
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let idle_timeout_s = config.presence_idle_timeout_s;
+		let offline_timeout_s = config.presence_offline_timeout_s;
 		let (timer_sender, timer_receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
-			db: Data::new(db),
+			db: Data::new(args.db),
 			timer_sender,
 			timer_receiver: Mutex::new(timer_receiver),
-			handler_join: Mutex::new(None),
 			timeout_remote_users: config.presence_timeout_remote_users,
+			idle_timeout: checked!(idle_timeout_s * 1_000)?,
+			offline_timeout: checked!(offline_timeout_s * 1_000)?,
 		}))
 	}
 
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to start presence handler");
-		});
-
-		_ = self.handler_join.lock().await.insert(handle);
-	}
-
-	pub async fn close(&self) {
-		self.interrupt();
-		if let Some(handler_join) = self.handler_join.lock().await.take() {
-			if let Err(e) = handler_join.await {
-				error!("Failed to shutdown: {e:?}");
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		let mut presence_timers = FuturesUnordered::new();
+		let receiver = self.timer_receiver.lock().await;
+		loop {
+			debug_assert!(!receiver.is_closed(), "channel error");
+			tokio::select! {
+				Some(user_id) = presence_timers.next() => self.process_presence_timer(&user_id)?,
+				event = receiver.recv_async() => match event {
+					Err(_e) => return Ok(()),
+					Ok((user_id, timeout)) => {
+						debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
+						presence_timers.push(presence_timer(user_id, timeout));
+					},
+				},
 			}
 		}
 	}
 
-	pub fn interrupt(&self) {
+	fn interrupt(&self) {
 		if !self.timer_sender.is_closed() {
 			self.timer_sender.close();
 		}
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Returns the latest presence event for the given user.
+	#[inline]
 	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
 		if let Some((_, presence)) = self.db.get_presence(user_id)? {
 			Ok(Some(presence))
@@ -198,26 +205,39 @@ impl Service {
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
+	#[inline]
 	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + '_> {
 		self.db.presence_since(since)
 	}
 
-	async fn handler(&self) -> Result<()> {
-		let mut presence_timers = FuturesUnordered::new();
-		let receiver = self.timer_receiver.lock().await;
-		loop {
-			debug_assert!(!receiver.is_closed(), "channel error");
-			tokio::select! {
-				Some(user_id) = presence_timers.next() => process_presence_timer(&user_id)?,
-				event = receiver.recv_async() => match event {
-					Err(_e) => return Ok(()),
-					Ok((user_id, timeout)) => {
-						debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
-						presence_timers.push(presence_timer(user_id, timeout));
-					},
-				},
-			}
+	fn process_presence_timer(&self, user_id: &OwnedUserId) -> Result<()> {
+		let mut presence_state = PresenceState::Offline;
+		let mut last_active_ago = None;
+		let mut status_msg = None;
+
+		let presence_event = self.get_presence(user_id)?;
+
+		if let Some(presence_event) = presence_event {
+			presence_state = presence_event.content.presence;
+			last_active_ago = presence_event.content.last_active_ago;
+			status_msg = presence_event.content.status_msg;
 		}
+
+		let new_state = match (&presence_state, last_active_ago.map(u64::from)) {
+			(PresenceState::Online, Some(ago)) if ago >= self.idle_timeout => Some(PresenceState::Unavailable),
+			(PresenceState::Unavailable, Some(ago)) if ago >= self.offline_timeout => Some(PresenceState::Offline),
+			_ => None,
+		};
+
+		debug!(
+			"Processed presence timer for user '{user_id}': Old state = {presence_state}, New state = {new_state:?}"
+		);
+
+		if let Some(new_state) = new_state {
+			self.set_presence(user_id, &new_state, Some(false), last_active_ago, status_msg)?;
+		}
+
+		Ok(())
 	}
 }
 
@@ -225,37 +245,4 @@ async fn presence_timer(user_id: OwnedUserId, timeout: Duration) -> OwnedUserId 
 	sleep(timeout).await;
 
 	user_id
-}
-
-fn process_presence_timer(user_id: &OwnedUserId) -> Result<()> {
-	let idle_timeout = services().globals.config.presence_idle_timeout_s * 1_000;
-	let offline_timeout = services().globals.config.presence_offline_timeout_s * 1_000;
-
-	let mut presence_state = PresenceState::Offline;
-	let mut last_active_ago = None;
-	let mut status_msg = None;
-
-	let presence_event = services().presence.get_presence(user_id)?;
-
-	if let Some(presence_event) = presence_event {
-		presence_state = presence_event.content.presence;
-		last_active_ago = presence_event.content.last_active_ago;
-		status_msg = presence_event.content.status_msg;
-	}
-
-	let new_state = match (&presence_state, last_active_ago.map(u64::from)) {
-		(PresenceState::Online, Some(ago)) if ago >= idle_timeout => Some(PresenceState::Unavailable),
-		(PresenceState::Unavailable, Some(ago)) if ago >= offline_timeout => Some(PresenceState::Offline),
-		_ => None,
-	};
-
-	debug!("Processed presence timer for user '{user_id}': Old state = {presence_state}, New state = {new_state:?}");
-
-	if let Some(new_state) = new_state {
-		services()
-			.presence
-			.set_presence(user_id, &new_state, Some(false), last_active_ago, status_msg)?;
-	}
-
-	Ok(())
 }

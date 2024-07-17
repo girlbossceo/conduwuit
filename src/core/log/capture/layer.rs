@@ -17,6 +17,7 @@ struct Visitor {
 }
 
 impl Layer {
+	#[inline]
 	pub fn new(state: &Arc<State>) -> Self {
 		Self {
 			state: state.clone(),
@@ -25,6 +26,7 @@ impl Layer {
 }
 
 impl fmt::Debug for Layer {
+	#[inline]
 	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
 		formatter.debug_struct("capture::Layer").finish()
 	}

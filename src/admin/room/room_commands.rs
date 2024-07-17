@@ -1,18 +1,46 @@
 use std::fmt::Write;
 
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
+use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{escape_html, get_room_info, handler::PAGE_SIZE, services, Result};
 
-pub(super) async fn list(_body: Vec<&str>, page: Option<usize>) -> Result<RoomMessageEventContent> {
+pub(super) async fn list(
+	_body: Vec<&str>, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool,
+) -> Result<RoomMessageEventContent> {
 	// TODO: i know there's a way to do this with clap, but i can't seem to find it
 	let page = page.unwrap_or(1);
 	let mut rooms = services()
 		.rooms
 		.metadata
 		.iter_ids()
-		.filter_map(Result::ok)
-		.map(|id: OwnedRoomId| get_room_info(&id))
+		.filter_map(|room_id| {
+			room_id
+				.ok()
+				.filter(|room_id| {
+					if exclude_disabled
+						&& services()
+							.rooms
+							.metadata
+							.is_disabled(room_id)
+							.unwrap_or(false)
+					{
+						return false;
+					}
+
+					if exclude_banned
+						&& services()
+							.rooms
+							.metadata
+							.is_banned(room_id)
+							.unwrap_or(false)
+					{
+						return false;
+					}
+
+					true
+				})
+				.map(|room_id| get_room_info(&room_id))
+		})
 		.collect::<Vec<_>>();
 	rooms.sort_by_key(|r| r.1);
 	rooms.reverse();

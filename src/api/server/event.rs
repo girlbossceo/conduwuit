@@ -1,9 +1,11 @@
+use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_event},
 	MilliSecondsSinceUnixEpoch, RoomId,
 };
+use service::{sending::convert_to_outgoing_federation_event, services};
 
-use crate::{services, Error, PduEvent, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/event/{eventId}`
 ///
@@ -48,6 +50,6 @@ pub(crate) async fn get_event_route(body: Ruma<get_event::v1::Request>) -> Resul
 	Ok(get_event::v1::Response {
 		origin: services().globals.server_name().to_owned(),
 		origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-		pdu: PduEvent::convert_to_outgoing_federation_event(event),
+		pdu: convert_to_outgoing_federation_event(event),
 	})
 }

@@ -48,10 +48,12 @@ impl Data {
 		}))
 	}
 
+	#[inline]
 	pub(super) fn is_disabled(&self, room_id: &RoomId) -> Result<bool> {
 		Ok(self.disabledroomids.get(room_id.as_bytes())?.is_some())
 	}
 
+	#[inline]
 	pub(super) fn disable_room(&self, room_id: &RoomId, disabled: bool) -> Result<()> {
 		if disabled {
 			self.disabledroomids.insert(room_id.as_bytes(), &[])?;
@@ -62,10 +64,12 @@ impl Data {
 		Ok(())
 	}
 
+	#[inline]
 	pub(super) fn is_banned(&self, room_id: &RoomId) -> Result<bool> {
 		Ok(self.bannedroomids.get(room_id.as_bytes())?.is_some())
 	}
 
+	#[inline]
 	pub(super) fn ban_room(&self, room_id: &RoomId, banned: bool) -> Result<()> {
 		if banned {
 			self.bannedroomids.insert(room_id.as_bytes(), &[])?;

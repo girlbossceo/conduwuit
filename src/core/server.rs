@@ -1,11 +1,11 @@
 use std::{
-	sync::atomic::{AtomicBool, AtomicU32, Ordering},
+	sync::atomic::{AtomicBool, Ordering},
 	time::SystemTime,
 };
 
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config::Config, log, Error, Result};
+use crate::{config::Config, log::Log, metrics::Metrics, Err, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
@@ -33,71 +33,68 @@ pub struct Server {
 	pub signal: broadcast::Sender<&'static str>,
 
 	/// Logging subsystem state
-	pub log: log::Log,
+	pub log: Log,
 
-	/// TODO: move stats
-	pub requests_spawn_active: AtomicU32,
-	pub requests_spawn_finished: AtomicU32,
-	pub requests_handle_active: AtomicU32,
-	pub requests_handle_finished: AtomicU32,
-	pub requests_panic: AtomicU32,
+	/// Metrics subsystem state
+	pub metrics: Metrics,
 }
 
 impl Server {
 	#[must_use]
-	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: log::Log) -> Self {
+	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: Log) -> Self {
 		Self {
 			config,
 			started: SystemTime::now(),
 			stopping: AtomicBool::new(false),
 			reloading: AtomicBool::new(false),
 			restarting: AtomicBool::new(false),
-			runtime,
+			runtime: runtime.clone(),
 			signal: broadcast::channel::<&'static str>(1).0,
 			log,
-			requests_spawn_active: AtomicU32::new(0),
-			requests_spawn_finished: AtomicU32::new(0),
-			requests_handle_active: AtomicU32::new(0),
-			requests_handle_finished: AtomicU32::new(0),
-			requests_panic: AtomicU32::new(0),
+			metrics: Metrics::new(runtime),
 		}
 	}
 
 	pub fn reload(&self) -> Result<()> {
 		if cfg!(not(conduit_mods)) {
-			return Err(Error::Err("Reloading not enabled".into()));
+			return Err!("Reloading not enabled");
 		}
 
 		if self.reloading.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Reloading already in progress".into()));
+			return Err!("Reloading already in progress");
 		}
 
 		if self.stopping.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Shutdown already in progress".into()));
+			return Err!("Shutdown already in progress");
 		}
 
-		self.signal("SIGINT")
+		self.signal("SIGINT").inspect_err(|_| {
+			self.stopping.store(false, Ordering::Release);
+			self.reloading.store(false, Ordering::Release);
+		})
 	}
 
 	pub fn restart(&self) -> Result<()> {
 		if self.restarting.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Restart already in progress".into()));
+			return Err!("Restart already in progress");
 		}
 
 		self.shutdown()
+			.inspect_err(|_| self.restarting.store(false, Ordering::Release))
 	}
 
 	pub fn shutdown(&self) -> Result<()> {
 		if self.stopping.swap(true, Ordering::AcqRel) {
-			return Err(Error::Err("Shutdown already in progress".into()));
+			return Err!("Shutdown already in progress");
 		}
 
 		self.signal("SIGTERM")
+			.inspect_err(|_| self.stopping.store(false, Ordering::Release))
 	}
 
 	pub fn signal(&self, sig: &'static str) -> Result<()> {
 		if let Err(e) = self.signal.send(sig) {
-			return Err(Error::Err(format!("Failed to send signal: {e}")));
+			return Err!("Failed to send signal: {e}");
 		}
 
 		Ok(())

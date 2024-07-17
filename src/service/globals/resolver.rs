@@ -1,41 +1,39 @@
 use std::{
 	collections::HashMap,
+	fmt::Write,
 	future, iter,
 	net::{IpAddr, SocketAddr},
 	sync::{Arc, RwLock},
 	time::Duration,
 };
 
-use conduit::{error, Config, Error};
+use conduit::{error, Config, Result};
 use hickory_resolver::TokioAsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use ruma::OwnedServerName;
 
-use crate::sending::FedDest;
+use crate::sending::{CachedDest, CachedOverride};
 
-type WellKnownMap = HashMap<OwnedServerName, (FedDest, String)>;
-type TlsNameMap = HashMap<String, (Vec<IpAddr>, u16)>;
+type WellKnownMap = HashMap<OwnedServerName, CachedDest>;
+type TlsNameMap = HashMap<String, CachedOverride>;
 
 pub struct Resolver {
 	pub destinations: Arc<RwLock<WellKnownMap>>, // actual_destination, host
 	pub overrides: Arc<RwLock<TlsNameMap>>,
-	pub resolver: Arc<TokioAsyncResolver>,
-	pub hooked: Arc<Hooked>,
+	pub(crate) resolver: Arc<TokioAsyncResolver>,
+	pub(crate) hooked: Arc<Hooked>,
 }
 
-pub struct Hooked {
-	pub overrides: Arc<RwLock<TlsNameMap>>,
-	pub resolver: Arc<TokioAsyncResolver>,
+pub(crate) struct Hooked {
+	overrides: Arc<RwLock<TlsNameMap>>,
+	resolver: Arc<TokioAsyncResolver>,
 }
 
 impl Resolver {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-	pub fn new(config: &Config) -> Self {
+	pub(super) fn new(config: &Config) -> Self {
 		let (sys_conf, mut opts) = hickory_resolver::system_conf::read_system_conf()
-			.map_err(|e| {
-				error!("Failed to set up hickory dns resolver with system config: {e}");
-				Error::bad_config("Failed to set up hickory dns resolver with system config.")
-			})
+			.inspect_err(|e| error!("Failed to set up hickory dns resolver with system config: {e}"))
 			.expect("DNS system config must be valid");
 
 		let mut conf = hickory_resolver::config::ResolverConfig::new();
@@ -92,6 +90,22 @@ impl Resolver {
 			}),
 		}
 	}
+
+	pub(super) fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let resolver_overrides_cache = self.overrides.read().expect("locked for reading").len();
+		writeln!(out, "resolver_overrides_cache: {resolver_overrides_cache}")?;
+
+		let resolver_destinations_cache = self.destinations.read().expect("locked for reading").len();
+		writeln!(out, "resolver_destinations_cache: {resolver_destinations_cache}")?;
+
+		Ok(())
+	}
+
+	pub(super) fn clear_cache(&self) {
+		self.overrides.write().expect("write locked").clear();
+		self.destinations.write().expect("write locked").clear();
+		self.resolver.clear_cache();
+	}
 }
 
 impl Resolve for Resolver {
@@ -100,15 +114,16 @@ impl Resolve for Resolver {
 
 impl Resolve for Hooked {
 	fn resolve(&self, name: Name) -> Resolving {
-		let addr_port = self
+		let cached = self
 			.overrides
 			.read()
 			.expect("locked for reading")
 			.get(name.as_str())
+			.filter(|cached| cached.valid())
 			.cloned();
 
-		if let Some((addr, port)) = addr_port {
-			cached_to_reqwest(&addr, port)
+		if let Some(cached) = cached {
+			cached_to_reqwest(&cached.ips, cached.port)
 		} else {
 			resolve_to_reqwest(self.resolver.clone(), name)
 		}

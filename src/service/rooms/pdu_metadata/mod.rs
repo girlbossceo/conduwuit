@@ -2,9 +2,8 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{Result, Server};
+use conduit::Result;
 use data::Data;
-use database::Database;
 use ruma::{
 	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},
@@ -28,14 +27,18 @@ struct ExtractRelatesToEventId {
 	relates_to: ExtractRelType,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
-	#[tracing::instrument(skip(self, from, to))]
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
+	#[tracing::instrument(skip(self, from, to), level = "debug")]
 	pub fn add_relation(&self, from: PduCount, to: PduCount) -> Result<()> {
 		match (from, to) {
 			(PduCount::Normal(f), PduCount::Normal(t)) => self.db.add_relation(f, t),
@@ -202,7 +205,7 @@ impl Service {
 					if let Ok(relations) = self.db.relations_until(user_id, room_id, target, until) {
 						for relation in relations.flatten() {
 							if stack_pdu.1 < max_depth {
-								stack.push((relation.clone(), stack_pdu.1 + 1));
+								stack.push((relation.clone(), stack_pdu.1.saturating_add(1)));
 							}
 
 							pdus.push(relation);
@@ -215,19 +218,19 @@ impl Service {
 			})
 	}
 
-	#[tracing::instrument(skip(self, room_id, event_ids))]
+	#[tracing::instrument(skip_all, level = "debug")]
 	pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) -> Result<()> {
 		self.db.mark_as_referenced(room_id, event_ids)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		self.db.is_event_referenced(room_id, event_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> { self.db.mark_event_soft_failed(event_id) }
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> { self.db.is_event_soft_failed(event_id) }
 }

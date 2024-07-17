@@ -2,15 +2,15 @@ mod data;
 
 use std::{
 	collections::{HashMap, HashSet},
+	fmt::Write,
 	sync::Arc,
 };
 
 use conduit::{
-	utils::{calculate_hash, mutex_map},
-	warn, Error, Result, Server,
+	utils::{calculate_hash, MutexMap, MutexMapGuard},
+	warn, Error, Result,
 };
 use data::Data;
-use database::Database;
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{
@@ -19,7 +19,7 @@ use ruma::{
 	},
 	serde::Raw,
 	state_res::{self, StateMap},
-	EventId, OwnedEventId, RoomId, RoomVersionId, UserId,
+	EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
 };
 
 use super::state_compressor::CompressedStateEvent;
@@ -27,15 +27,31 @@ use crate::{services, PduEvent};
 
 pub struct Service {
 	db: Data,
+	pub mutex: RoomMutexMap,
+}
+
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
+
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+			mutex: RoomMutexMap::new(),
+		}))
+	}
+
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let mutex = self.mutex.len();
+		writeln!(out, "state_mutex: {mutex}")?;
+
+		Ok(())
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
-	}
-
 	/// Set the room to the given statehash and update caches.
 	pub async fn force_state(
 		&self,
@@ -43,7 +59,7 @@ impl Service {
 		shortstatehash: u64,
 		statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		for event_id in statediffnew.iter().filter_map(|new| {
 			services()
@@ -113,7 +129,7 @@ impl Service {
 	///
 	/// This adds all current state events (not including the incoming event)
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
-	#[tracing::instrument(skip(self, state_ids_compressed))]
+	#[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
 	pub fn set_event_state(
 		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<u64> {
@@ -181,7 +197,7 @@ impl Service {
 	///
 	/// This adds all current state events (not including the incoming event)
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
-	#[tracing::instrument(skip(self, new_pdu))]
+	#[tracing::instrument(skip(self, new_pdu), level = "debug")]
 	pub fn append_to_state(&self, new_pdu: &PduEvent) -> Result<u64> {
 		let shorteventid = services()
 			.rooms
@@ -197,6 +213,7 @@ impl Service {
 		if let Some(state_key) = &new_pdu.state_key {
 			let states_parents = previous_shortstatehash.map_or_else(
 				|| Ok(Vec::new()),
+				#[inline]
 				|p| {
 					services()
 						.rooms
@@ -253,7 +270,7 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, invite_event))]
+	#[tracing::instrument(skip(self, invite_event), level = "debug")]
 	pub fn calculate_invite_state(&self, invite_event: &PduEvent) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let mut state = Vec::new();
 		// Add recommended events
@@ -309,18 +326,18 @@ impl Service {
 	}
 
 	/// Set the state hash to a new version, but does not update state_cache.
-	#[tracing::instrument(skip(self, mutex_lock))]
+	#[tracing::instrument(skip(self, mutex_lock), level = "debug")]
 	pub fn set_room_state(
 		&self,
 		room_id: &RoomId,
 		shortstatehash: u64,
-		mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.db.set_room_state(room_id, shortstatehash, mutex_lock)
 	}
 
 	/// Returns the room's version.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
 		let create_event = services()
 			.rooms
@@ -341,6 +358,7 @@ impl Service {
 		Ok(create_event_content.room_version)
 	}
 
+	#[inline]
 	pub fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.db.get_room_shortstatehash(room_id)
 	}
@@ -353,14 +371,14 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.db
 			.set_forward_extremities(room_id, event_ids, state_lock)
 	}
 
 	/// This fetches auth events from the current state.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_auth_events(
 		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
 		content: &serde_json::value::RawValue,

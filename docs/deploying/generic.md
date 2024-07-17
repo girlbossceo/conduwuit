@@ -23,7 +23,7 @@ Otherwise, follow standard Rust project build guides (installing git and cloning
 While conduwuit can run as any user it is better to use dedicated users for different services. This also allows
 you to make sure that the file permissions are correctly set up.
 
-In Debian or RHEL, you can use this command to create a conduwuit user:
+In Debian or Fedora/RHEL, you can use this command to create a conduwuit user:
 
 ```bash
 sudo adduser --system conduwuit --group --disabled-login --no-create-home
@@ -53,13 +53,11 @@ RocksDB is the only supported database backend.
 
 ## Setting the correct file permissions
 
-If you are using a dedicated user for conduwuit, you will need to allow it to read the config. To do that you can run this command on
-
-Debian or RHEL:
+If you are using a dedicated user for conduwuit, you will need to allow it to read the config. To do that you can run this:
 
 ```bash
 sudo chown -R root:root /etc/conduwuit
-sudo chmod 755 /etc/conduwuit
+sudo chmod -R 755 /etc/conduwuit
 ```
 
 If you use the default database path you also need to run this:

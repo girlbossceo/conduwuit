@@ -184,5 +184,10 @@ cargo test \
 name = "nix-default"
 group = "tests"
 script = """
-nix run .#default -- --help
+env DIRENV_DEVSHELL=dynamic \
+    direnv exec . \
+    bin/nix-build-and-cache just .#default
+env DIRENV_DEVSHELL=dynamic \
+    direnv exec . \
+    nix run -L .#default -- --help
 """

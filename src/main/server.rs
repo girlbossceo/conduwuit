@@ -27,7 +27,7 @@ impl Server {
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = crate::sentry::init(&config);
 
-		let (tracing_reload_handle, tracing_flame_guard, capture) = crate::tracing::init(&config);
+		let (tracing_reload_handle, tracing_flame_guard, capture) = crate::tracing::init(&config)?;
 
 		config.check()?;
 

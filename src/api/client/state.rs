@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{error, warn};
+use conduit::{debug_info, error};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -36,18 +36,16 @@ pub(crate) async fn send_state_event_for_key_route(
 ) -> Result<send_state_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event_id = send_state_event_for_key_helper(
-		sender_user,
-		&body.room_id,
-		&body.event_type,
-		&body.body.body,
-		body.state_key.clone(),
-	)
-	.await?;
-
-	let event_id = (*event_id).to_owned();
 	Ok(send_state_event::v3::Response {
-		event_id,
+		event_id: send_state_event_for_key_helper(
+			sender_user,
+			&body.room_id,
+			&body.event_type,
+			&body.body.body,
+			body.state_key.clone(),
+		)
+		.await?
+		.into(),
 	})
 }
 
@@ -128,7 +126,7 @@ pub(crate) async fn get_state_events_for_key_route(
 		.state_accessor
 		.room_state_get(&body.room_id, &body.event_type, &body.state_key)?
 		.ok_or_else(|| {
-			warn!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
+			debug_info!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
 			Error::BadRequest(ErrorKind::NotFound, "State event not found.")
 		})?;
 	if body
@@ -172,7 +170,7 @@ async fn send_state_event_for_key_helper(
 	sender: &UserId, room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>, state_key: String,
 ) -> Result<Arc<EventId>> {
 	allowed_to_send_state_event(room_id, event_type, json).await?;
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 	let event_id = services()
 		.rooms
 		.timeline

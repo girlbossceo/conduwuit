@@ -2,13 +2,13 @@ mod data;
 
 use std::{
 	collections::HashSet,
+	fmt::Write,
 	mem::size_of,
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{utils, Result, Server};
+use conduit::{checked, utils, utils::math::usize_from_f64, Result};
 use data::Data;
-use database::Database;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
@@ -52,20 +52,32 @@ pub struct Service {
 	pub stateinfo_cache: StateInfoLruCache,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		Ok(Self {
-			db: Data::new(db),
-			stateinfo_cache: StdMutex::new(LruCache::new(
-				(f64::from(config.stateinfo_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let cache_capacity = f64::from(config.stateinfo_cache_capacity) * config.cache_capacity_modifier;
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+			stateinfo_cache: StdMutex::new(LruCache::new(usize_from_f64(cache_capacity)?)),
+		}))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let stateinfo_cache = self.stateinfo_cache.lock().expect("locked").len();
+		writeln!(out, "stateinfo_cache: {stateinfo_cache}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) { self.stateinfo_cache.lock().expect("locked").clear(); }
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn load_shortstatehash_info(&self, shortstatehash: u64) -> ShortStateInfoResult {
 		if let Some(r) = self
 			.stateinfo_cache
@@ -122,6 +134,7 @@ impl Service {
 	}
 
 	/// Returns shortstatekey, event id
+	#[inline]
 	pub fn parse_compressed_state_event(&self, compressed_event: &CompressedStateEvent) -> Result<(u64, Arc<EventId>)> {
 		Ok((
 			utils::u64_from_bytes(&compressed_event[0..size_of::<u64>()]).expect("bytes have right length"),
@@ -149,18 +162,20 @@ impl Service {
 	///   for this layer
 	/// * `parent_states` - A stack with info on shortstatehash, full state,
 	///   added diff and removed diff for each parent layer
-	#[tracing::instrument(skip(self, statediffnew, statediffremoved, diff_to_sibling, parent_states))]
+	#[tracing::instrument(skip(self, statediffnew, statediffremoved, diff_to_sibling, parent_states), level = "debug")]
 	pub fn save_state_from_diff(
 		&self, shortstatehash: u64, statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		statediffremoved: Arc<HashSet<CompressedStateEvent>>, diff_to_sibling: usize,
 		mut parent_states: ParentStatesVec,
 	) -> Result<()> {
-		let diffsum = statediffnew.len() + statediffremoved.len();
+		let statediffnew_len = statediffnew.len();
+		let statediffremoved_len = statediffremoved.len();
+		let diffsum = checked!(statediffnew_len + statediffremoved_len)?;
 
 		if parent_states.len() > 3 {
 			// Number of layers
 			// To many layers, we have to go deeper
-			let parent = parent_states.pop().unwrap();
+			let parent = parent_states.pop().expect("parent must have a state");
 
 			let mut parent_new = (*parent.2).clone();
 			let mut parent_removed = (*parent.3).clone();
@@ -212,10 +227,12 @@ impl Service {
 		// 1. We add the current diff on top of the parent layer.
 		// 2. We replace a layer above
 
-		let parent = parent_states.pop().unwrap();
-		let parent_diff = parent.2.len() + parent.3.len();
+		let parent = parent_states.pop().expect("parent must have a state");
+		let parent_2_len = parent.2.len();
+		let parent_3_len = parent.3.len();
+		let parent_diff = checked!(parent_2_len + parent_3_len)?;
 
-		if diffsum * diffsum >= 2 * diff_to_sibling * parent_diff {
+		if checked!(diffsum * diffsum)? >= checked!(2 * diff_to_sibling * parent_diff)? {
 			// Diff too big, we replace above layer(s)
 			let mut parent_new = (*parent.2).clone();
 			let mut parent_removed = (*parent.3).clone();

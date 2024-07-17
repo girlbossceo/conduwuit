@@ -25,11 +25,7 @@ let
 # on the nix side depend on feature values.
 crateFeatures = path:
   let manifest = lib.importTOML "${path}/Cargo.toml"; in
-  lib.remove "default" (lib.attrNames manifest.features) ++
-  lib.attrNames
-    (lib.filterAttrs
-      (_: dependency: dependency.optional or false)
-      manifest.dependencies);
+  lib.remove "default" (lib.attrNames manifest.features);
 crateDefaultFeatures = path:
   (lib.importTOML "${path}/Cargo.toml").features.default;
 allDefaultFeatures = crateDefaultFeatures "${inputs.self}/src/main";
@@ -43,7 +39,7 @@ features'' = lib.subtractLists disable_features' features';
 
 featureEnabled = feature : builtins.elem feature features'';
 
-enableLiburing = featureEnabled "io_uring" && stdenv.isLinux;
+enableLiburing = featureEnabled "io_uring" && !stdenv.isDarwin;
 
 # This derivation will set the JEMALLOC_OVERRIDE variable, causing the
 # tikv-jemalloc-sys crate to use the nixpkgs jemalloc instead of building it's
@@ -70,12 +66,34 @@ buildDepsOnlyEnv =
       #
       # [1]: https://github.com/tikv/jemallocator/blob/ab0676d77e81268cd09b059260c75b38dbef2d51/jemalloc-sys/src/env.rs#L17
       enableJemalloc = featureEnabled "jemalloc" && !stdenv.isDarwin;
+
+      # for some reason enableLiburing in nixpkgs rocksdb is default true
+      # which breaks Darwin entirely
+      enableLiburing = enableLiburing;
     }).overrideAttrs (old: {
-      # TODO: static rocksdb fails to build on darwin
+      # TODO: static rocksdb fails to build on darwin, also see <https://github.com/NixOS/nixpkgs/issues/320448>
       # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
       meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
-      # TODO: switch to enableUring option once https://github.com/NixOS/nixpkgs/pull/314945 is available
-      buildInputs = old.buildInputs ++ lib.optional enableLiburing liburing;
+
+      enableLiburing = enableLiburing;
+
+      sse42Support = stdenv.targetPlatform.isx86_64;
+
+      cmakeFlags = if stdenv.targetPlatform.isx86_64
+        then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
+        ++ lib.optionals stdenv.targetPlatform.isx86_64 [
+          "-DPORTABLE=x86-64-v2"
+          "-DUSE_SSE=1"
+          "-DHAVE_SSE=1"
+          "-DHAVE_SSE42=1"
+        ]
+        else if stdenv.targetPlatform.isAarch64
+        then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
+        ++ lib.optionals stdenv.targetPlatform.isAarch64 [
+          # cortex-a55 == ARMv8.2-a
+          "-DPORTABLE=armv8.2-a"
+        ]
+        else old.cmakeFlags;
     });
   in
   {
@@ -102,7 +120,11 @@ buildPackageEnv = {
   # Only needed in static stdenv because these are transitive dependencies of rocksdb
   CARGO_BUILD_RUSTFLAGS = buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
     + lib.optionalString (enableLiburing && stdenv.hostPlatform.isStatic)
-      " -L${lib.getLib liburing}/lib -luring";
+      " -L${lib.getLib liburing}/lib -luring"
+    + lib.optionalString stdenv.targetPlatform.isx86_64
+      " -Ctarget-cpu=x86-64-v2"
+    + lib.optionalString stdenv.targetPlatform.isAarch64
+      " -Ctarget-cpu=cortex-a55"; # cortex-a55 == ARMv8.2-a
 };
 
 
@@ -126,6 +148,8 @@ commonAttrs = {
         "src"
       ];
     };
+
+    dontStrip = profile == "dev";
 
     buildInputs = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys';
 

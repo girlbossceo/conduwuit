@@ -8,6 +8,7 @@ pub type Maps = BTreeMap<String, Arc<Map>>;
 
 pub(crate) fn open(db: &Arc<Engine>) -> Result<Maps> { open_list(db, MAPS) }
 
+#[tracing::instrument(skip_all, level = "debug")]
 pub(crate) fn open_list(db: &Arc<Engine>, maps: &[&str]) -> Result<Maps> {
 	Ok(maps
 		.iter()

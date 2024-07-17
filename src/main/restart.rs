@@ -4,6 +4,7 @@ use std::{env, os::unix::process::CommandExt, process::Command};
 
 use conduit::{debug, info, utils};
 
+#[cold]
 pub(super) fn restart() -> ! {
 	// SAFETY: We have allowed an override for the case where the current_exe() has
 	// been replaced or removed. By default the server will fail to restart if the

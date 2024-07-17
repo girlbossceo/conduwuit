@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, mem::size_of, sync::Arc};
 
-use conduit::{debug_info, utils, warn, Error, Result};
+use conduit::{debug_info, err, utils, warn, Err, Error, Result};
 use database::{Database, Map};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
@@ -61,6 +61,7 @@ impl Data {
 	}
 
 	/// Check if a user has an account on this homeserver.
+	#[inline]
 	pub(super) fn exists(&self, user_id: &UserId) -> Result<bool> {
 		Ok(self.userid_password.get(user_id.as_bytes())?.is_some())
 	}
@@ -75,6 +76,7 @@ impl Data {
 	}
 
 	/// Returns the number of users registered on this server.
+	#[inline]
 	pub(super) fn count(&self) -> Result<usize> { Ok(self.userid_password.iter().count()) }
 
 	/// Find out which user an access token belongs to.
@@ -85,19 +87,19 @@ impl Data {
 				let mut parts = bytes.split(|&b| b == 0xFF);
 				let user_bytes = parts
 					.next()
-					.ok_or_else(|| Error::bad_database("User ID in token_userdeviceid is invalid."))?;
+					.ok_or_else(|| err!(Database("User ID in token_userdeviceid is invalid.")))?;
 				let device_bytes = parts
 					.next()
-					.ok_or_else(|| Error::bad_database("Device ID in token_userdeviceid is invalid."))?;
+					.ok_or_else(|| err!(Database("Device ID in token_userdeviceid is invalid.")))?;
 
 				Ok(Some((
 					UserId::parse(
 						utils::string_from_bytes(user_bytes)
-							.map_err(|_| Error::bad_database("User ID in token_userdeviceid is invalid unicode."))?,
+							.map_err(|e| err!(Database("User ID in token_userdeviceid is invalid unicode. {e}")))?,
 					)
-					.map_err(|_| Error::bad_database("User ID in token_userdeviceid is invalid."))?,
+					.map_err(|e| err!(Database("User ID in token_userdeviceid is invalid. {e}")))?,
 					utils::string_from_bytes(device_bytes)
-						.map_err(|_| Error::bad_database("Device ID in token_userdeviceid is invalid."))?,
+						.map_err(|e| err!(Database("Device ID in token_userdeviceid is invalid. {e}")))?,
 				)))
 			})
 	}
@@ -107,9 +109,9 @@ impl Data {
 		Box::new(self.userid_password.iter().map(|(bytes, _)| {
 			UserId::parse(
 				utils::string_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("User ID in userid_password is invalid unicode."))?,
+					.map_err(|e| err!(Database("User ID in userid_password is invalid unicode. {e}")))?,
 			)
-			.map_err(|_| Error::bad_database("User ID in userid_password is invalid."))
+			.map_err(|e| err!(Database("User ID in userid_password is invalid. {e}")))
 		}))
 	}
 
@@ -163,7 +165,7 @@ impl Data {
 			.map_or(Ok(None), |bytes| {
 				Ok(Some(
 					utils::string_from_bytes(&bytes)
-						.map_err(|_| Error::bad_database("Displayname in db is invalid."))?,
+						.map_err(|e| err!(Database("Displayname in db is invalid. {e}")))?,
 				))
 			})
 	}
@@ -186,10 +188,8 @@ impl Data {
 		self.userid_avatarurl
 			.get(user_id.as_bytes())?
 			.map(|bytes| {
-				let s_bytes = utils::string_from_bytes(&bytes).map_err(|e| {
-					warn!("Avatar URL in db is invalid: {}", e);
-					Error::bad_database("Avatar URL in db is invalid.")
-				})?;
+				let s_bytes = utils::string_from_bytes(&bytes)
+					.map_err(|e| err!(Database(warn!("Avatar URL in db is invalid: {e}"))))?;
 				let mxc_uri: OwnedMxcUri = s_bytes.into();
 				Ok(mxc_uri)
 			})
@@ -213,10 +213,7 @@ impl Data {
 		self.userid_blurhash
 			.get(user_id.as_bytes())?
 			.map(|bytes| {
-				let s = utils::string_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("Avatar URL in db is invalid."))?;
-
-				Ok(s)
+				utils::string_from_bytes(&bytes).map_err(|e| err!(Database("Avatar URL in db is invalid. {e}")))
 			})
 			.transpose()
 	}
@@ -312,9 +309,9 @@ impl Data {
 						bytes
 							.rsplit(|&b| b == 0xFF)
 							.next()
-							.ok_or_else(|| Error::bad_database("UserDevice ID in db is invalid."))?,
+							.ok_or_else(|| err!(Database("UserDevice ID in db is invalid.")))?,
 					)
-					.map_err(|_| Error::bad_database("Device ID in userdeviceid_metadata is invalid."))?
+					.map_err(|e| err!(Database("Device ID in userdeviceid_metadata is invalid. {e}")))?
 					.into())
 				}),
 		)
@@ -328,13 +325,9 @@ impl Data {
 
 		// should not be None, but we shouldn't assert either lol...
 		if self.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
-			warn!(
-				"Called set_token for a non-existent user \"{}\" and/or device ID \"{}\" with no metadata in database",
-				user_id, device_id
-			);
-			return Err(Error::bad_database(
-				"User does not exist or device ID has no metadata in database.",
-			));
+			return Err!(Database(error!(
+				"User {user_id:?} does not exist or device ID {device_id:?} has no metadata."
+			)));
 		}
 
 		// Remove old token
@@ -364,14 +357,9 @@ impl Data {
 		// Only existing devices should be able to call this, but we shouldn't assert
 		// either...
 		if self.userdeviceid_metadata.get(&key)?.is_none() {
-			warn!(
-				"Called add_one_time_key for a non-existent user \"{}\" and/or device ID \"{}\" with no metadata in \
-				 database",
-				user_id, device_id
-			);
-			return Err(Error::bad_database(
-				"User does not exist or device ID has no metadata in database.",
-			));
+			return Err!(Database(error!(
+				"User {user_id:?} does not exist or device ID {device_id:?} has no metadata."
+			)));
 		}
 
 		key.push(0xFF);
@@ -399,7 +387,7 @@ impl Data {
 			.get(user_id.as_bytes())?
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("Count in roomid_lastroomactiveupdate is invalid."))
+					.map_err(|e| err!(Database("Count in roomid_lastroomactiveupdate is invalid. {e}")))
 			})
 	}
 
@@ -427,11 +415,10 @@ impl Data {
 					serde_json::from_slice(
 						key.rsplit(|&b| b == 0xFF)
 							.next()
-							.ok_or_else(|| Error::bad_database("OneTimeKeyId in db is invalid."))?,
+							.ok_or_else(|| err!(Database("OneTimeKeyId in db is invalid.")))?,
 					)
-					.map_err(|_| Error::bad_database("OneTimeKeyId in db is invalid."))?,
-					serde_json::from_slice(&value)
-						.map_err(|_| Error::bad_database("OneTimeKeys in db are invalid."))?,
+					.map_err(|e| err!(Database("OneTimeKeyId in db is invalid. {e}")))?,
+					serde_json::from_slice(&value).map_err(|e| err!(Database("OneTimeKeys in db are invalid. {e}")))?,
 				))
 			})
 			.transpose()
@@ -455,13 +442,14 @@ impl Data {
 						bytes
 							.rsplit(|&b| b == 0xFF)
 							.next()
-							.ok_or_else(|| Error::bad_database("OneTimeKey ID in db is invalid."))?,
+							.ok_or_else(|| err!(Database("OneTimeKey ID in db is invalid.")))?,
 					)
-					.map_err(|_| Error::bad_database("DeviceKeyId in db is invalid."))?
+					.map_err(|e| err!(Database("DeviceKeyId in db is invalid. {e}")))?
 					.algorithm(),
 				)
 			}) {
-			*counts.entry(algorithm?).or_default() += uint!(1);
+			let count: &mut UInt = counts.entry(algorithm?).or_default();
+			*count = count.saturating_add(uint!(1));
 		}
 
 		Ok(counts)
@@ -578,19 +566,19 @@ impl Data {
 				.get(&key)?
 				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Tried to sign nonexistent key."))?,
 		)
-		.map_err(|_| Error::bad_database("key in keyid_key is invalid."))?;
+		.map_err(|e| err!(Database("key in keyid_key is invalid. {e}")))?;
 
 		let signatures = cross_signing_key
 			.get_mut("signatures")
-			.ok_or_else(|| Error::bad_database("key in keyid_key has no signatures field."))?
+			.ok_or_else(|| err!(Database("key in keyid_key has no signatures field.")))?
 			.as_object_mut()
-			.ok_or_else(|| Error::bad_database("key in keyid_key has invalid signatures field."))?
+			.ok_or_else(|| err!(Database("key in keyid_key has invalid signatures field.")))?
 			.entry(sender_id.to_string())
 			.or_insert_with(|| serde_json::Map::new().into());
 
 		signatures
 			.as_object_mut()
-			.ok_or_else(|| Error::bad_database("signatures in keyid_key for a user is invalid."))?
+			.ok_or_else(|| err!(Database("signatures in keyid_key for a user is invalid.")))?
 			.insert(signature.0, signature.1.into());
 
 		self.keyid_key.insert(
@@ -637,7 +625,7 @@ impl Data {
 							Error::bad_database("User ID in devicekeychangeid_userid is invalid unicode.")
 						})?,
 					)
-					.map_err(|_| Error::bad_database("User ID in devicekeychangeid_userid is invalid."))
+					.map_err(|e| err!(Database("User ID in devicekeychangeid_userid is invalid. {e}")))
 				}),
 		)
 	}
@@ -682,7 +670,7 @@ impl Data {
 
 		self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
 			Ok(Some(
-				serde_json::from_slice(&bytes).map_err(|_| Error::bad_database("DeviceKeys in db are invalid."))?,
+				serde_json::from_slice(&bytes).map_err(|e| err!(Database("DeviceKeys in db are invalid. {e}")))?,
 			))
 		})
 	}
@@ -716,7 +704,7 @@ impl Data {
 	) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
 			let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
-				.map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?;
+				.map_err(|e| err!(Database("CrossSigningKey in db is invalid. {e}")))?;
 			clean_signatures(&mut cross_signing_key, sender_user, user_id, allowed_signatures)?;
 
 			Ok(Some(Raw::from_json(
@@ -748,7 +736,7 @@ impl Data {
 				self.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
 					Ok(Some(
 						serde_json::from_slice(&bytes)
-							.map_err(|_| Error::bad_database("CrossSigningKey in db is invalid."))?,
+							.map_err(|e| err!(Database("CrossSigningKey in db is invalid. {e}")))?,
 					))
 				})
 			})
@@ -789,7 +777,7 @@ impl Data {
 		for (_, value) in self.todeviceid_events.scan_prefix(prefix) {
 			events.push(
 				serde_json::from_slice(&value)
-					.map_err(|_| Error::bad_database("Event in todeviceid_events is invalid."))?,
+					.map_err(|e| err!(Database("Event in todeviceid_events is invalid. {e}")))?,
 			);
 		}
 
@@ -812,8 +800,8 @@ impl Data {
 			.map(|(key, _)| {
 				Ok::<_, Error>((
 					key.clone(),
-					utils::u64_from_bytes(&key[key.len() - size_of::<u64>()..key.len()])
-						.map_err(|_| Error::bad_database("ToDeviceId has invalid count bytes."))?,
+					utils::u64_from_bytes(&key[key.len().saturating_sub(size_of::<u64>())..key.len()])
+						.map_err(|e| err!(Database("ToDeviceId has invalid count bytes. {e}")))?,
 				))
 			})
 			.filter_map(Result::ok)
@@ -874,7 +862,7 @@ impl Data {
 			.get(user_id.as_bytes())?
 			.map_or(Ok(None), |bytes| {
 				utils::u64_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("Invalid devicelistversion in db."))
+					.map_err(|e| err!(Database("Invalid devicelistversion in db. {e}")))
 					.map(Some)
 			})
 	}
@@ -890,7 +878,7 @@ impl Data {
 				.scan_prefix(key)
 				.map(|(_, bytes)| {
 					serde_json::from_slice::<Device>(&bytes)
-						.map_err(|_| Error::bad_database("Device in userdeviceid_metadata is invalid."))
+						.map_err(|e| err!(Database("Device in userdeviceid_metadata is invalid. {e}")))
 				}),
 		)
 	}
@@ -917,7 +905,7 @@ impl Data {
 		let raw = self.userfilterid_filter.get(&key)?;
 
 		if let Some(raw) = raw {
-			serde_json::from_slice(&raw).map_err(|_| Error::bad_database("Invalid filter event in db."))
+			serde_json::from_slice(&raw).map_err(|e| err!(Database("Invalid filter event in db. {e}")))
 		} else {
 			Ok(None)
 		}
@@ -926,10 +914,12 @@ impl Data {
 	/// Creates an OpenID token, which can be used to prove that a user has
 	/// access to an account (primarily for integrations)
 	pub(super) fn create_openid_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
-		let expires_in = services().globals.config.openid_token_ttl;
-		let expires_at = utils::millis_since_unix_epoch().saturating_add(expires_in * 1000);
+		use std::num::Saturating as Sat;
 
-		let mut value = expires_at.to_be_bytes().to_vec();
+		let expires_in = services().globals.config.openid_token_ttl;
+		let expires_at = Sat(utils::millis_since_unix_epoch()) + Sat(expires_in) * Sat(1000);
+
+		let mut value = expires_at.0.to_be_bytes().to_vec();
 		value.extend_from_slice(user_id.as_bytes());
 
 		self.openidtoken_expiresatuserid
@@ -949,7 +939,7 @@ impl Data {
 		let expires_at = u64::from_be_bytes(
 			expires_at_bytes
 				.try_into()
-				.map_err(|_| Error::bad_database("expires_at in openid_userid is invalid u64."))?,
+				.map_err(|e| err!(Database("expires_at in openid_userid is invalid u64. {e}")))?,
 		);
 
 		if expires_at < utils::millis_since_unix_epoch() {
@@ -961,9 +951,9 @@ impl Data {
 
 		UserId::parse(
 			utils::string_from_bytes(user_bytes)
-				.map_err(|_| Error::bad_database("User ID in openid_userid is invalid unicode."))?,
+				.map_err(|e| err!(Database("User ID in openid_userid is invalid unicode. {e}")))?,
 		)
-		.map_err(|_| Error::bad_database("User ID in openid_userid is invalid."))
+		.map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))
 	}
 }
 

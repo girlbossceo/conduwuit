@@ -6,7 +6,9 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
+use conduit::{debug, debug_warn, error, trace, utils::math::continue_exponential_backoff_secs, warn};
 use federation::transactions::send_transaction_message;
 use futures_util::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use ruma::{
@@ -18,12 +20,14 @@ use ruma::{
 	},
 	device_id,
 	events::{push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
-	push, uint, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, ServerName, UInt,
+	push, uint, CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerName, OwnedUserId, RoomId, RoomVersionId,
+	ServerName, UInt,
 };
-use tracing::{debug, error, warn};
+use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use tokio::{sync::Mutex, time::sleep_until};
 
-use super::{appservice, send, Destination, Msg, SendingEvent, Service};
-use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, PduEvent, Result};
+use super::{appservice, data::Data, send, Destination, Msg, SendingEvent, Service};
+use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, Result};
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -40,43 +44,58 @@ type CurTransactionStatus = HashMap<Destination, TransactionStatus>;
 
 const DEQUEUE_LIMIT: usize = 48;
 const SELECT_EDU_LIMIT: usize = 16;
+const CLEANUP_TIMEOUT_MS: u64 = 3500;
 
-impl Service {
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to start sending handler");
-		});
-
-		_ = self.handler_join.lock().await.insert(handle);
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let (sender, receiver) = loole::unbounded();
+		Ok(Arc::new(Self {
+			db: Data::new(args.db.clone()),
+			sender,
+			receiver: Mutex::new(receiver),
+			startup_netburst: config.startup_netburst,
+			startup_netburst_keep: config.startup_netburst_keep,
+		}))
 	}
 
 	#[tracing::instrument(skip_all, name = "sender")]
-	async fn handler(&self) -> Result<()> {
+	async fn worker(self: Arc<Self>) -> Result<()> {
 		let receiver = self.receiver.lock().await;
 		let mut futures: SendingFutures<'_> = FuturesUnordered::new();
 		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
 
-		self.initial_transactions(&futures, &mut statuses);
+		self.initial_requests(&futures, &mut statuses);
 		loop {
 			debug_assert!(!receiver.is_closed(), "channel error");
 			tokio::select! {
 				request = receiver.recv_async() => match request {
 					Ok(request) => self.handle_request(request, &futures, &mut statuses),
-					Err(_) => return Ok(()),
+					Err(_) => break,
 				},
 				Some(response) = futures.next() => {
-					self.handle_response(response, &mut futures, &mut statuses);
+					self.handle_response(response, &futures, &mut statuses);
 				},
 			}
 		}
+		self.finish_responses(&mut futures, &mut statuses).await;
+
+		Ok(())
 	}
 
+	fn interrupt(&self) {
+		if !self.sender.is_closed() {
+			self.sender.close();
+		}
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	fn handle_response(
-		&self, response: SendingResult, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus,
+		&self, response: SendingResult, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {
 		match response {
 			Ok(dest) => self.handle_response_ok(&dest, futures, statuses),
@@ -85,13 +104,13 @@ impl Service {
 	}
 
 	fn handle_response_err(
-		dest: Destination, _futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus, e: &Error,
+		dest: Destination, _futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus, e: &Error,
 	) {
 		debug!(dest = ?dest, "{e:?}");
 		statuses.entry(dest).and_modify(|e| {
 			*e = match e {
 				TransactionStatus::Running => TransactionStatus::Failed(1, Instant::now()),
-				TransactionStatus::Retrying(n) => TransactionStatus::Failed(*n + 1, Instant::now()),
+				TransactionStatus::Retrying(ref n) => TransactionStatus::Failed(n.saturating_add(1), Instant::now()),
 				TransactionStatus::Failed(..) => panic!("Request that was not even running failed?!"),
 			}
 		});
@@ -136,7 +155,25 @@ impl Service {
 		}
 	}
 
-	fn initial_transactions(&self, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+	async fn finish_responses(&self, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+		let now = Instant::now();
+		let timeout = Duration::from_millis(CLEANUP_TIMEOUT_MS);
+		let deadline = now.checked_add(timeout).unwrap_or(now);
+		loop {
+			trace!("Waiting for {} requests to complete...", futures.len());
+			tokio::select! {
+				() = sleep_until(deadline.into()) => break,
+				response = futures.next() => match response {
+					Some(response) => self.handle_response(response, futures, statuses),
+					None => return,
+				}
+			}
+		}
+
+		debug_warn!("Leaving with {} unfinished requests...", futures.len());
+	}
+
+	fn initial_requests(&self, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
 		let keep = usize::try_from(self.startup_netburst_keep).unwrap_or(usize::MAX);
 		let mut txns = HashMap::<Destination, Vec<SendingEvent>>::new();
 		for (key, dest, event) in self.db.active_requests().filter_map(Result::ok) {
@@ -214,11 +251,9 @@ impl Service {
 			.and_modify(|e| match e {
 				TransactionStatus::Failed(tries, time) => {
 					// Fail if a request has failed recently (exponential backoff)
-					let max_duration = Duration::from_secs(services().globals.config.sender_retry_backoff_limit);
-					let min_duration = Duration::from_secs(services().globals.config.sender_timeout);
-					let min_elapsed_duration = min_duration * (*tries) * (*tries);
-					let min_elapsed_duration = cmp::min(min_elapsed_duration, max_duration);
-					if time.elapsed() < min_elapsed_duration {
+					let min = services().globals.config.sender_timeout;
+					let max = services().globals.config.sender_retry_backoff_limit;
+					if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries) {
 						allow = false;
 					} else {
 						retry = true;
@@ -322,8 +357,10 @@ fn select_edus_presence(
 		}
 	}
 
-	let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
-	events.push(serde_json::to_vec(&presence_content).expect("PresenceEvent can be serialized"));
+	if !presence_updates.is_empty() {
+		let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
+		events.push(serde_json::to_vec(&presence_content).expect("PresenceEvent can be serialized"));
+	}
 
 	Ok(true)
 }
@@ -548,24 +585,21 @@ async fn send_events_dest_normal(
 
 	for event in &events {
 		match event {
-			SendingEvent::Pdu(pdu_id) => {
+			SendingEvent::Pdu(pdu_id) => pdu_jsons.push(convert_to_outgoing_federation_event(
 				// TODO: check room version and remove event_id if needed
-				let raw = PduEvent::convert_to_outgoing_federation_event(
-					services()
-						.rooms
-						.timeline
-						.get_pdu_json_from_id(pdu_id)
-						.map_err(|e| (dest.clone(), e))?
-						.ok_or_else(|| {
-							error!(?dest, ?server, ?pdu_id, "event not found");
-							(
-								dest.clone(),
-								Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
-							)
-						})?,
-				);
-				pdu_jsons.push(raw);
-			},
+				services()
+					.rooms
+					.timeline
+					.get_pdu_json_from_id(pdu_id)
+					.map_err(|e| (dest.clone(), e))?
+					.ok_or_else(|| {
+						error!(?dest, ?server, ?pdu_id, "event not found");
+						(
+							dest.clone(),
+							Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
+						)
+					})?,
+			)),
 			SendingEvent::Edu(edu) => {
 				if let Ok(raw) = serde_json::from_slice(edu) {
 					edu_jsons.push(raw);
@@ -610,4 +644,40 @@ async fn send_events_dest_normal(
 		dest.clone()
 	})
 	.map_err(|e| (dest.clone(), e))
+}
+
+/// This does not return a full `Pdu` it is only to satisfy ruma's types.
+#[tracing::instrument]
+pub fn convert_to_outgoing_federation_event(mut pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {
+	if let Some(unsigned) = pdu_json
+		.get_mut("unsigned")
+		.and_then(|val| val.as_object_mut())
+	{
+		unsigned.remove("transaction_id");
+	}
+
+	// room v3 and above removed the "event_id" field from remote PDU format
+	if let Some(room_id) = pdu_json
+		.get("room_id")
+		.and_then(|val| RoomId::parse(val.as_str()?).ok())
+	{
+		match services().rooms.state.get_room_version(&room_id) {
+			Ok(room_version_id) => match room_version_id {
+				RoomVersionId::V1 | RoomVersionId::V2 => {},
+				_ => _ = pdu_json.remove("event_id"),
+			},
+			Err(_) => _ = pdu_json.remove("event_id"),
+		}
+	} else {
+		pdu_json.remove("event_id");
+	}
+
+	// TODO: another option would be to convert it to a canonical string to validate
+	// size and return a Result<Raw<...>>
+	// serde_json::from_str::<Raw<_>>(
+	//     ruma::serde::to_canonical_json_string(pdu_json).expect("CanonicalJson is
+	// valid serde_json::Value"), )
+	// .expect("Raw::from_value always works")
+
+	to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
 }

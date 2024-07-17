@@ -6,6 +6,7 @@ use axum_extra::{
 	typed_header::TypedHeaderRejectionReason,
 	TypedHeader,
 };
+use conduit::Err;
 use http::uri::PathAndQuery;
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, Metadata},
@@ -183,7 +184,7 @@ fn auth_appservice(request: &Request, info: Box<RegistrationInfo>) -> Result<Aut
 
 async fn auth_server(request: &mut Request, json_body: &Option<CanonicalJsonValue>) -> Result<Auth> {
 	if !services().globals.allow_federation() {
-		return Err(Error::bad_config("Federation is disabled."));
+		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
 	let TypedHeader(Authorization(x_matrix)) = request

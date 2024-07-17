@@ -1,10 +1,15 @@
 use std::{
+	cmp,
 	cmp::Ordering,
 	collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
 	time::Duration,
 };
 
-use conduit::PduCount;
+use conduit::{
+	error,
+	utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
+	Err, PduCount,
+};
 use ruma::{
 	api::client::{
 		filter::{FilterDefinition, LazyLoadOptions},
@@ -27,7 +32,7 @@ use ruma::{
 	serde::Raw,
 	uint, DeviceId, EventId, OwnedUserId, RoomId, UInt, UserId,
 };
-use tracing::{error, Instrument as _, Span};
+use tracing::{Instrument as _, Span};
 
 use crate::{service::pdu::EventHash, services, utils, Error, PduEvent, Result, Ruma, RumaResponse};
 
@@ -194,7 +199,7 @@ pub(crate) async fn sync_events_route(
 		let (room_id, invite_state_events) = result?;
 
 		// Get and drop the lock to wait for remaining operations to finish
-		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
+		let insert_lock = services().rooms.timeline.mutex_insert.lock(&room_id).await;
 		drop(insert_lock);
 
 		let invite_count = services()
@@ -298,15 +303,9 @@ pub(crate) async fn sync_events_route(
 	{
 		// Hang a few seconds so requests are not spammed
 		// Stop hanging if new info arrives
-		let mut duration = body.timeout.unwrap_or_default();
-		if duration.as_secs() > 30 {
-			duration = Duration::from_secs(30);
-		}
-
-		#[allow(clippy::let_underscore_must_use)]
-		{
-			_ = tokio::time::timeout(duration, watcher).await;
-		}
+		let default = Duration::from_secs(30);
+		let duration = cmp::min(body.timeout.unwrap_or(default), default);
+		_ = tokio::time::timeout(duration, watcher).await;
 	}
 
 	Ok(response)
@@ -318,7 +317,7 @@ async fn handle_left_room(
 	next_batch_string: &str, full_state: bool, lazy_load_enabled: bool,
 ) -> Result<()> {
 	// Get and drop the lock to wait for remaining operations to finish
-	let insert_lock = services().globals.roomid_mutex_insert.lock(room_id).await;
+	let insert_lock = services().rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
 	let left_count = services()
@@ -520,7 +519,7 @@ async fn load_joined_room(
 ) -> Result<JoinedRoom> {
 	// Get and drop the lock to wait for remaining operations to finish
 	// This will make sure the we have all events until next_batch
-	let insert_lock = services().globals.roomid_mutex_insert.lock(room_id).await;
+	let insert_lock = services().rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
 	let (timeline_pdus, limited) = load_timeline(sender_user, room_id, sincecount, 10)?;
@@ -546,8 +545,7 @@ async fn load_joined_room(
 	// Database queries:
 
 	let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? else {
-		error!("Room {} has no state", room_id);
-		return Err(Error::BadDatabase("Room has no state"));
+		return Err!(Database(error!("Room {room_id} has no state")));
 	};
 
 	let since_shortstatehash = services()
@@ -975,8 +973,8 @@ async fn load_joined_room(
 		},
 		summary: RoomSummary {
 			heroes,
-			joined_member_count: joined_member_count.map(|n| (n as u32).into()),
-			invited_member_count: invited_member_count.map(|n| (n as u32).into()),
+			joined_member_count: joined_member_count.map(ruma_from_u64),
+			invited_member_count: invited_member_count.map(ruma_from_u64),
 		},
 		unread_notifications: UnreadNotificationsCount {
 			highlight_count,
@@ -1026,7 +1024,7 @@ fn load_timeline(
 		// Take the last events for the timeline
 		timeline_pdus = non_timeline_pdus
 			.by_ref()
-			.take(limit as usize)
+			.take(usize_from_u64_truncated(limit))
 			.collect::<Vec<_>>()
 			.into_iter()
 			.rev()
@@ -1300,7 +1298,7 @@ pub(crate) async fn sync_events_v4_route(
 							r.0,
 							UInt::try_from(all_joined_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
 						);
-						let room_ids = all_joined_rooms[(u64::from(r.0) as usize)..=(u64::from(r.1) as usize)].to_vec();
+						let room_ids = all_joined_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec();
 						new_known_rooms.extend(room_ids.iter().cloned());
 						for room_id in &room_ids {
 							let todo_room = todo_rooms
@@ -1333,7 +1331,7 @@ pub(crate) async fn sync_events_v4_route(
 						}
 					})
 					.collect(),
-				count: UInt::from(all_joined_rooms.len() as u32),
+				count: ruma_from_usize(all_joined_rooms.len()),
 			},
 		);
 
@@ -1529,20 +1527,22 @@ pub(crate) async fn sync_events_v4_route(
 				prev_batch,
 				limited,
 				joined_count: Some(
-					(services()
+					services()
 						.rooms
 						.state_cache
 						.room_joined_count(room_id)?
-						.unwrap_or(0) as u32)
-						.into(),
+						.unwrap_or(0)
+						.try_into()
+						.unwrap_or_else(|_| uint!(0)),
 				),
 				invited_count: Some(
-					(services()
+					services()
 						.rooms
 						.state_cache
 						.room_invited_count(room_id)?
-						.unwrap_or(0) as u32)
-						.into(),
+						.unwrap_or(0)
+						.try_into()
+						.unwrap_or_else(|_| uint!(0)),
 				),
 				num_live: None, // Count events in timeline greater than global sync counter
 				timestamp: None,
@@ -1557,14 +1557,9 @@ pub(crate) async fn sync_events_v4_route(
 	{
 		// Hang a few seconds so requests are not spammed
 		// Stop hanging if new info arrives
-		let mut duration = body.timeout.unwrap_or(Duration::from_secs(30));
-		if duration.as_secs() > 30 {
-			duration = Duration::from_secs(30);
-		}
-		#[allow(clippy::let_underscore_must_use)]
-		{
-			_ = tokio::time::timeout(duration, watcher).await;
-		}
+		let default = Duration::from_secs(30);
+		let duration = cmp::min(body.timeout.unwrap_or(default), default);
+		_ = tokio::time::timeout(duration, watcher).await;
 	}
 
 	Ok(sync_events::v4::Response {

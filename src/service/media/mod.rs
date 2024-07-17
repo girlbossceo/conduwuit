@@ -1,13 +1,13 @@
 mod data;
 mod tests;
+mod thumbnail;
 
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::SystemTime};
 
+use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{debug, debug_error, error, utils, Error, Result, Server};
-use data::Data;
-use database::Database;
-use image::imageops::FilterType;
+use conduit::{debug, debug_error, err, error, utils, Err, Result, Server};
+use data::{Data, Metadata};
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
 use tokio::{
@@ -20,10 +20,9 @@ use crate::services;
 
 #[derive(Debug)]
 pub struct FileMeta {
-	#[allow(dead_code)]
-	pub content_disposition: Option<String>,
+	pub content: Option<Vec<u8>>,
 	pub content_type: Option<String>,
-	pub file: Vec<u8>,
+	pub content_disposition: Option<String>,
 }
 
 #[derive(Serialize, Default)]
@@ -48,15 +47,26 @@ pub struct Service {
 	pub url_preview_mutex: RwLock<HashMap<String, Arc<Mutex<()>>>>,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			server: server.clone(),
-			db: Data::new(db),
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			server: args.server.clone(),
+			db: Data::new(args.db),
 			url_preview_mutex: RwLock::new(HashMap::new()),
-		})
+		}))
 	}
 
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		self.create_media_dir().await?;
+
+		Ok(())
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Uploads a file.
 	pub async fn create(
 		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,
@@ -90,47 +100,30 @@ impl Service {
 
 			Ok(())
 		} else {
-			error!("Failed to find any media keys for MXC \"{mxc}\" in our database (MXC does not exist)");
-			Err(Error::bad_database(
-				"Failed to find any media keys for the provided MXC in our database (MXC does not exist)",
-			))
+			Err!(Database(error!(
+				"Failed to find any media keys for MXC {mxc:?} in our database."
+			)))
 		}
-	}
-
-	/// Uploads or replaces a file thumbnail.
-	#[allow(clippy::too_many_arguments)]
-	pub async fn upload_thumbnail(
-		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,
-		content_type: Option<&str>, width: u32, height: u32, file: &[u8],
-	) -> Result<()> {
-		let key = if let Some(user) = sender_user {
-			self.db
-				.create_file_metadata(Some(user.as_str()), mxc, width, height, content_disposition, content_type)?
-		} else {
-			self.db
-				.create_file_metadata(None, mxc, width, height, content_disposition, content_type)?
-		};
-
-		//TODO: Dangling metadata in database if creation fails
-		let mut f = self.create_media_file(&key).await?;
-		f.write_all(file).await?;
-
-		Ok(())
 	}
 
 	/// Downloads a file.
 	pub async fn get(&self, mxc: &str) -> Result<Option<FileMeta>> {
-		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
-			let mut file = Vec::new();
+		if let Ok(Metadata {
+			content_disposition,
+			content_type,
+			key,
+		}) = self.db.search_file_metadata(mxc, 0, 0)
+		{
+			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
 			BufReader::new(fs::File::open(path).await?)
-				.read_to_end(&mut file)
+				.read_to_end(&mut content)
 				.await?;
 
 			Ok(Some(FileMeta {
-				content_disposition,
+				content: Some(content),
 				content_type,
-				file,
+				content_disposition,
 			}))
 		} else {
 			Ok(None)
@@ -143,23 +136,16 @@ impl Service {
 		let all_keys = self.db.get_all_media_keys();
 
 		let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
-			Ok(duration) => {
-				debug!("Parsed duration: {:?}", duration);
-				debug!("System time now: {:?}", SystemTime::now());
-				SystemTime::now().checked_sub(duration).ok_or_else(|| {
-					Error::bad_database("Duration specified is not valid against the current system time")
-				})?
-			},
-			Err(e) => {
-				error!("Failed to parse user-specified time duration: {}", e);
-				return Err(Error::bad_database("Failed to parse user-specified time duration."));
-			},
+			Err(e) => return Err!(Database(error!("Failed to parse specified time duration: {e}"))),
+			Ok(duration) => SystemTime::now()
+				.checked_sub(duration)
+				.ok_or(err!(Arithmetic("Duration {duration:?} is too large")))?,
 		};
 
 		let mut remote_mxcs: Vec<String> = vec![];
 
 		for key in all_keys {
-			debug!("Full MXC key from database: {:?}", key);
+			debug!("Full MXC key from database: {key:?}");
 
 			// we need to get the MXC URL from the first part of the key (the first 0xff /
 			// 255 push). this is all necessary because of conduit using magic keys for
@@ -168,24 +154,19 @@ impl Service {
 			let mxc = parts
 				.next()
 				.map(|bytes| {
-					utils::string_from_bytes(bytes).map_err(|e| {
-						error!("Failed to parse MXC unicode bytes from our database: {}", e);
-						Error::bad_database("Failed to parse MXC unicode bytes from our database")
-					})
+					utils::string_from_bytes(bytes)
+						.map_err(|e| err!(Database(error!("Failed to parse MXC unicode bytes from our database: {e}"))))
 				})
 				.transpose()?;
 
 			let Some(mxc_s) = mxc else {
-				return Err(Error::bad_database(
-					"Parsed MXC URL unicode bytes from database but still is None",
-				));
+				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
 			};
 
-			debug!("Parsed MXC key to URL: {}", mxc_s);
-
+			debug!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
 			if mxc.server_name() == Ok(services().globals.server_name()) {
-				debug!("Ignoring local media MXC: {}", mxc);
+				debug!("Ignoring local media MXC: {mxc}");
 				// ignore our own MXC URLs as this would be local media.
 				continue;
 			}
@@ -204,14 +185,14 @@ impl Service {
 				},
 				Err(err) => {
 					if force {
-						error!("Could not delete MXC path {:?}: {:?}. Skipping...", path, err);
+						error!("Could not delete MXC path {path:?}: {err:?}. Skipping...");
 						continue;
 					}
 					return Err(err.into());
 				},
 			};
-			debug!("File created at: {:?}", file_created_at);
 
+			debug!("File created at: {file_created_at:?}");
 			if file_created_at <= user_duration {
 				debug!("File is within user duration, pushing to list of file paths and keys to delete.");
 				remote_mxcs.push(mxc.to_string());
@@ -221,15 +202,12 @@ impl Service {
 		debug!(
 			"Finished going through all our media in database for eligible keys to delete, checking if these are empty"
 		);
-
 		if remote_mxcs.is_empty() {
-			return Err(Error::bad_database("Did not found any eligible MXCs to delete."));
+			return Err!(Database("Did not found any eligible MXCs to delete."));
 		}
 
-		debug!("Deleting media now in the past \"{:?}\".", user_duration);
-
+		debug!("Deleting media now in the past {user_duration:?}.");
 		let mut deletion_count: usize = 0;
-
 		for mxc in remote_mxcs {
 			debug!("Deleting MXC {mxc} from database and filesystem");
 			self.delete(&mxc).await?;
@@ -237,139 +215,6 @@ impl Service {
 		}
 
 		Ok(deletion_count)
-	}
-
-	/// Returns width, height of the thumbnail and whether it should be cropped.
-	/// Returns None when the server should send the original file.
-	pub fn thumbnail_properties(&self, width: u32, height: u32) -> Option<(u32, u32, bool)> {
-		match (width, height) {
-			(0..=32, 0..=32) => Some((32, 32, true)),
-			(0..=96, 0..=96) => Some((96, 96, true)),
-			(0..=320, 0..=240) => Some((320, 240, false)),
-			(0..=640, 0..=480) => Some((640, 480, false)),
-			(0..=800, 0..=600) => Some((800, 600, false)),
-			_ => None,
-		}
-	}
-
-	/// Downloads a file's thumbnail.
-	///
-	/// Here's an example on how it works:
-	///
-	/// - Client requests an image with width=567, height=567
-	/// - Server rounds that up to (800, 600), so it doesn't have to save too
-	///   many thumbnails
-	/// - Server rounds that up again to (958, 600) to fix the aspect ratio
-	///   (only for width,height>96)
-	/// - Server creates the thumbnail and sends it to the user
-	///
-	/// For width,height <= 96 the server uses another thumbnailing algorithm
-	/// which crops the image afterwards.
-	pub async fn get_thumbnail(&self, mxc: &str, width: u32, height: u32) -> Result<Option<FileMeta>> {
-		let (width, height, crop) = self
-			.thumbnail_properties(width, height)
-			.unwrap_or((0, 0, false)); // 0, 0 because that's the original file
-
-		if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, width, height) {
-			// Using saved thumbnail
-			let mut file = Vec::new();
-			let path = self.get_media_file(&key);
-			fs::File::open(path).await?.read_to_end(&mut file).await?;
-
-			Ok(Some(FileMeta {
-				content_disposition,
-				content_type,
-				file: file.clone(),
-			}))
-		} else if let Ok((content_disposition, content_type, key)) = self.db.search_file_metadata(mxc, 0, 0) {
-			// Generate a thumbnail
-			let mut file = Vec::new();
-			let path = self.get_media_file(&key);
-			fs::File::open(path).await?.read_to_end(&mut file).await?;
-
-			if let Ok(image) = image::load_from_memory(&file) {
-				let original_width = image.width();
-				let original_height = image.height();
-				if width > original_width || height > original_height {
-					return Ok(Some(FileMeta {
-						content_disposition,
-						content_type,
-						file: file.clone(),
-					}));
-				}
-
-				let thumbnail = if crop {
-					image.resize_to_fill(width, height, FilterType::CatmullRom)
-				} else {
-					let (exact_width, exact_height) = {
-						// Copied from image::dynimage::resize_dimensions
-						//
-						// https://github.com/image-rs/image/blob/6edf8ae492c4bb1dacb41da88681ea74dab1bab3/src/math/utils.rs#L5-L11
-						// Calculates the width and height an image should be
-						// resized to. This preserves aspect ratio, and based
-						// on the `fill` parameter will either fill the
-						// dimensions to fit inside the smaller constraint
-						// (will overflow the specified bounds on one axis to
-						// preserve aspect ratio), or will shrink so that both
-						// dimensions are completely contained within the given
-						// `width` and `height`, with empty space on one axis.
-						let ratio = u64::from(original_width) * u64::from(height);
-						let nratio = u64::from(width) * u64::from(original_height);
-
-						let use_width = nratio <= ratio;
-						let intermediate = if use_width {
-							u64::from(original_height) * u64::from(width) / u64::from(original_width)
-						} else {
-							u64::from(original_width) * u64::from(height) / u64::from(original_height)
-						};
-						if use_width {
-							if u32::try_from(intermediate).is_ok() {
-								(width, intermediate as u32)
-							} else {
-								((u64::from(width) * u64::from(u32::MAX) / intermediate) as u32, u32::MAX)
-							}
-						} else if u32::try_from(intermediate).is_ok() {
-							(intermediate as u32, height)
-						} else {
-							(u32::MAX, (u64::from(height) * u64::from(u32::MAX) / intermediate) as u32)
-						}
-					};
-
-					image.thumbnail_exact(exact_width, exact_height)
-				};
-
-				let mut thumbnail_bytes = Vec::new();
-				thumbnail.write_to(&mut Cursor::new(&mut thumbnail_bytes), image::ImageFormat::Png)?;
-
-				// Save thumbnail in database so we don't have to generate it again next time
-				let thumbnail_key = self.db.create_file_metadata(
-					None,
-					mxc,
-					width,
-					height,
-					content_disposition.as_deref(),
-					content_type.as_deref(),
-				)?;
-
-				let mut f = self.create_media_file(&thumbnail_key).await?;
-				f.write_all(&thumbnail_bytes).await?;
-
-				Ok(Some(FileMeta {
-					content_disposition,
-					content_type,
-					file: thumbnail_bytes.clone(),
-				}))
-			} else {
-				// Couldn't parse file to generate thumbnail, send original
-				Ok(Some(FileMeta {
-					content_disposition,
-					content_type,
-					file: file.clone(),
-				}))
-			}
-		} else {
-			Ok(None)
-		}
 	}
 
 	pub async fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> { self.db.get_url_preview(url) }

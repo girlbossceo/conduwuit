@@ -1,12 +1,12 @@
 use axum_client_ip::InsecureClientIp;
-use conduit::{warn, RumaResponse};
+use conduit::warn;
 use ruma::{
 	api::client::{error::ErrorKind, membership::mutual_rooms, room::get_summary},
 	events::room::member::MembershipState,
 	OwnedRoomId,
 };
 
-use crate::{services, Error, Result, Ruma};
+use crate::{services, Error, Result, Ruma, RumaResponse};
 
 /// # `GET /_matrix/client/unstable/uk.half-shot.msc2666/user/mutual_rooms`
 ///

@@ -5,7 +5,9 @@ pub mod defer;
 pub mod hash;
 pub mod html;
 pub mod json;
+pub mod math;
 pub mod mutex_map;
+pub mod rand;
 pub mod string;
 pub mod sys;
 mod tests;
@@ -18,30 +20,17 @@ pub use debug::slice_truncated as debug_slice_truncated;
 pub use hash::calculate_hash;
 pub use html::Escape as HtmlEscape;
 pub use json::{deserialize_from_str, to_canonical_object};
-pub use mutex_map::MutexMap;
-pub use string::{random_string, str_from_bytes, string_from_bytes};
+pub use mutex_map::{Guard as MutexMapGuard, MutexMap};
+pub use rand::string as random_string;
+pub use string::{str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
-pub use time::millis_since_unix_epoch;
-
-use crate::Result;
+pub use time::now_millis as millis_since_unix_epoch;
 
 pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
 
-/// Boilerplate for wraps which are typed to never error.
-///
-/// * <https://doc.rust-lang.org/std/convert/enum.Infallible.html>
-#[must_use]
-#[inline(always)]
-pub fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
-	match result {
-		Ok(val) => val,
-		Err(err) => match err {},
-	}
-}
-
 #[must_use]
 pub fn generate_keypair() -> Vec<u8> {
-	let mut value = random_string(8).as_bytes().to_vec();
+	let mut value = rand::string(8).as_bytes().to_vec();
 	value.push(0xFF);
 	value.extend_from_slice(
 		&ruma::signatures::Ed25519KeyPair::generate().expect("Ed25519KeyPair generation always works (?)"),

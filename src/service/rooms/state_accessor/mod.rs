@@ -2,12 +2,12 @@ mod data;
 
 use std::{
 	collections::HashMap,
+	fmt::Write,
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{error, utils::mutex_map, warn, Error, Result, Server};
+use conduit::{err, error, utils::math::usize_from_f64, warn, Error, Result};
 use data::Data;
-use database::Database;
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -33,7 +33,7 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 
-use crate::{pdu::PduBuilder, services, PduEvent};
+use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, PduEvent};
 
 pub struct Service {
 	db: Data,
@@ -41,23 +41,43 @@ pub struct Service {
 	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		Ok(Self {
-			db: Data::new(db),
-			server_visibility_cache: StdMutex::new(LruCache::new(
-				(f64::from(config.server_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-			user_visibility_cache: StdMutex::new(LruCache::new(
-				(f64::from(config.user_visibility_cache_capacity) * config.conduit_cache_capacity_modifier) as usize,
-			)),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let server_visibility_cache_capacity =
+			f64::from(config.server_visibility_cache_capacity) * config.cache_capacity_modifier;
+		let user_visibility_cache_capacity =
+			f64::from(config.user_visibility_cache_capacity) * config.cache_capacity_modifier;
+
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+			server_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(server_visibility_cache_capacity)?)),
+			user_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(user_visibility_cache_capacity)?)),
+		}))
 	}
 
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let server_visibility_cache = self.server_visibility_cache.lock().expect("locked").len();
+		writeln!(out, "server_visibility_cache: {server_visibility_cache}")?;
+
+		let user_visibility_cache = self.user_visibility_cache.lock().expect("locked").len();
+		writeln!(out, "user_visibility_cache: {user_visibility_cache}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) {
+		self.server_visibility_cache.lock().expect("locked").clear();
+		self.user_visibility_cache.lock().expect("locked").clear();
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
 		self.db.state_full_ids(shortstatehash).await
 	}
@@ -68,7 +88,7 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
@@ -77,6 +97,7 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
+	#[inline]
 	pub fn state_get(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
@@ -94,6 +115,7 @@ impl Service {
 	}
 
 	/// The user was a joined member at this state (potentially in the past)
+	#[inline]
 	fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
 		self.user_membership(shortstatehash, user_id)
 			.is_ok_and(|s| s == MembershipState::Join)
@@ -103,6 +125,7 @@ impl Service {
 
 	/// The user was an invited or joined room member at this state (potentially
 	/// in the past)
+	#[inline]
 	fn user_was_invited(&self, shortstatehash: u64, user_id: &UserId) -> bool {
 		self.user_membership(shortstatehash, user_id)
 			.is_ok_and(|s| s == MembershipState::Join || s == MembershipState::Invite)
@@ -259,14 +282,14 @@ impl Service {
 	pub fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> { self.db.pdu_shortstatehash(event_id) }
 
 	/// Returns the full room state.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		self.db.room_state_full(room_id).await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_state_get_id(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
@@ -275,7 +298,7 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
@@ -306,7 +329,7 @@ impl Service {
 	}
 
 	pub fn user_can_invite(
-		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &mutex_map::Guard<()>,
+		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &RoomMutexGuard,
 	) -> Result<bool> {
 		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
 			.expect("Event content always serializes");
@@ -431,10 +454,7 @@ impl Service {
 					.map(|c: RoomJoinRulesEventContent| {
 						(c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule))
 					})
-					.map_err(|e| {
-						error!("Invalid room join rule event in database: {e}");
-						Error::BadDatabase("Invalid room join rule event in database.")
-					})
+					.map_err(|e| err!(Database(error!("Invalid room join rule event in database: {e}"))))
 			})
 			.transpose()?
 			.unwrap_or((SpaceRoomJoinRule::Invite, vec![])))
@@ -460,10 +480,8 @@ impl Service {
 		Ok(self
 			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
 			.map(|s| {
-				serde_json::from_str::<RoomCreateEventContent>(s.content.get()).map_err(|e| {
-					error!("Invalid room create event in database: {e}");
-					Error::BadDatabase("Invalid room create event in database.")
-				})
+				serde_json::from_str::<RoomCreateEventContent>(s.content.get())
+					.map_err(|e| err!(Database(error!("Invalid room create event in database: {e}"))))
 			})
 			.transpose()?
 			.and_then(|e| e.room_type))
@@ -476,10 +494,7 @@ impl Service {
 			.map_or(Ok(None), |s| {
 				serde_json::from_str::<RoomEncryptionEventContent>(s.content.get())
 					.map(|content| Some(content.algorithm))
-					.map_err(|e| {
-						error!("Invalid room encryption event in database: {e}");
-						Error::BadDatabase("Invalid room encryption event in database.")
-					})
+					.map_err(|e| err!(Database(error!("Invalid room encryption event in database: {e}"))))
 			})
 	}
 }

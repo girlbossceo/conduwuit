@@ -15,14 +15,19 @@ pub(super) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Resul
 }
 
 pub(super) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let map = services().globals.roomid_federationhandletime.read().await;
+	let map = services()
+		.rooms
+		.event_handler
+		.federation_handletime
+		.read()
+		.expect("locked");
 	let mut msg = format!("Handling {} incoming pdus:\n", map.len());
 
 	for (r, (e, i)) in map.iter() {
 		let elapsed = i.elapsed();
-		writeln!(msg, "{} {}: {}m{}s", r, e, elapsed.as_secs() / 60, elapsed.as_secs() % 60,)
-			.expect("should be able to write to string buffer");
+		writeln!(msg, "{} {}: {}m{}s", r, e, elapsed.as_secs() / 60, elapsed.as_secs() % 60)?;
 	}
+
 	Ok(RoomMessageEventContent::text_plain(&msg))
 }
 

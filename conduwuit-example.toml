@@ -57,6 +57,16 @@
 # Defaults to 0.15
 #sentry_traces_sample_rate = 0.15
 
+# Whether to attach a stacktrace to Sentry reports.
+#sentry_attach_stacktrace = false
+
+# Send panics to sentry. This is true by default, but sentry has to be enabled.
+#sentry_send_panic = true
+
+# Send errors to sentry. This is true by default, but sentry has to be enabled. This option is
+# only effective in release-mode; forced to false in debug-mode.
+#sentry_send_error = true
+
 
 ### Database configuration
 
@@ -411,8 +421,11 @@ allow_profile_lookup_federation_requests = true
 
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
 # May be useful if you have significant memory to spare to increase performance.
+#
+# This was previously called `conduit_cache_capacity_modifier`
+#
 # Defaults to 1.0.
-#conduit_cache_capacity_modifier = 1.0
+#cache_capacity_modifier = 1.0
 
 # Set this to any float value in megabytes for conduwuit to tell the database engine that this much memory is available for database-related caches.
 # May be useful if you have significant memory to spare to increase performance.

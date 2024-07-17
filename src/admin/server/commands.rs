@@ -1,24 +1,17 @@
-use conduit::{warn, Error, Result};
+use conduit::{utils::time, warn, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::services;
 
 pub(super) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let seconds = services()
+	let elapsed = services()
 		.server
 		.started
 		.elapsed()
-		.expect("standard duration")
-		.as_secs();
-	let result = format!(
-		"up {} days, {} hours, {} minutes, {} seconds.",
-		seconds / 86400,
-		(seconds % 86400) / 60 / 60,
-		(seconds % 3600) / 60,
-		seconds % 60,
-	);
+		.expect("standard duration");
 
-	Ok(RoomMessageEventContent::notice_plain(result))
+	let result = time::pretty(elapsed);
+	Ok(RoomMessageEventContent::notice_plain(format!("{result}.")))
 }
 
 pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
@@ -27,28 +20,17 @@ pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventCont
 }
 
 pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let response0 = services().memory_usage().await;
-	let response1 = services().globals.db.memory_usage();
-	let response2 = conduit::alloc::memory_usage();
+	let services_usage = services().memory_usage().await?;
+	let database_usage = services().db.db.memory_usage()?;
+	let allocator_usage = conduit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Services:\n{response0}\n\nDatabase:\n{response1}\n{}",
-		if !response2.is_empty() {
-			format!("Allocator:\n {response2}")
-		} else {
-			String::new()
-		}
+		"Services:\n{services_usage}\nDatabase:\n{database_usage}{allocator_usage}",
 	)))
 }
 
-pub(super) async fn clear_database_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
-	services().globals.db.clear_caches(amount);
-
-	Ok(RoomMessageEventContent::text_plain("Done."))
-}
-
-pub(super) async fn clear_service_caches(_body: Vec<&str>, amount: u32) -> Result<RoomMessageEventContent> {
-	services().clear_caches(amount).await;
+pub(super) async fn clear_caches(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	services().clear_cache().await;
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }
@@ -106,11 +88,10 @@ pub(super) async fn restart(_body: Vec<&str>, force: bool) -> Result<RoomMessage
 	use conduit::utils::sys::current_exe_deleted;
 
 	if !force && current_exe_deleted() {
-		return Err(Error::Err(
-			"The server cannot be restarted because the executable was tampered with. If this is expected use --force \
-			 to override."
-				.to_owned(),
-		));
+		return Err!(
+			"The server cannot be restarted because the executable changed. If this is expected use --force to \
+			 override."
+		);
 	}
 
 	services().server.restart()?;

@@ -353,7 +353,7 @@ pub async fn update_avatar_url(
 
 pub async fn update_all_rooms(all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: OwnedUserId) {
 	for (pdu_builder, room_id) in all_joined_rooms {
-		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+		let state_lock = services().rooms.state.mutex.lock(room_id).await;
 		if let Err(e) = services()
 			.rooms
 			.timeline

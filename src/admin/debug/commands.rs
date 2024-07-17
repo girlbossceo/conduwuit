@@ -15,7 +15,7 @@ use ruma::{
 	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
-use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve::resolve_actual_dest, services, PduEvent};
+use service::{rooms::event_handler::parse_incoming_pdu, sending::resolve_actual_dest, services, PduEvent};
 use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
@@ -58,7 +58,7 @@ pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent
 		));
 	}
 
-	let string = body[1..body.len() - 1].join("\n");
+	let string = body[1..body.len().saturating_sub(1)].join("\n");
 	match serde_json::from_str(&string) {
 		Ok(value) => match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
 			Ok(hash) => {
@@ -314,6 +314,8 @@ pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMe
 pub(super) async fn change_log_level(
 	_body: Vec<&str>, filter: Option<String>, reset: bool,
 ) -> Result<RoomMessageEventContent> {
+	let handles = &["console"];
+
 	if reset {
 		let old_filter_layer = match EnvFilter::try_new(&services().globals.config.log) {
 			Ok(s) => s,
@@ -324,7 +326,12 @@ pub(super) async fn change_log_level(
 			},
 		};
 
-		match services().server.log.reload.reload(&old_filter_layer) {
+		match services()
+			.server
+			.log
+			.reload
+			.reload(&old_filter_layer, Some(handles))
+		{
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Successfully changed log level back to config value {}",
@@ -349,7 +356,12 @@ pub(super) async fn change_log_level(
 			},
 		};
 
-		match services().server.log.reload.reload(&new_filter_layer) {
+		match services()
+			.server
+			.log
+			.reload
+			.reload(&new_filter_layer, Some(handles))
+		{
 			Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain("Successfully changed log level"));
 			},
@@ -570,7 +582,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.state_compressor
 		.save_state(room_id.clone().as_ref(), new_room_state)?;
 
-	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 	services()
 		.rooms
 		.state
@@ -614,15 +626,16 @@ pub(super) async fn resolve_true_destination(
 	let state = &services().server.log.capture;
 	let logs = Arc::new(Mutex::new(String::new()));
 	let capture = Capture::new(state, Some(filter), capture::fmt_markdown(logs.clone()));
-	let (actual_dest, hostname_uri);
-	{
-		let _capture_scope = capture.start();
-		(actual_dest, hostname_uri) = resolve_actual_dest(&server_name, !no_cache).await?;
-	};
+
+	let capture_scope = capture.start();
+	let actual = resolve_actual_dest(&server_name, !no_cache).await?;
+	drop(capture_scope);
 
 	let msg = format!(
-		"{}\nDestination: {actual_dest}\nHostname URI: {hostname_uri}",
-		logs.lock().expect("locked")
+		"{}\nDestination: {}\nHostname URI: {}",
+		logs.lock().expect("locked"),
+		actual.dest,
+		actual.host,
 	);
 	Ok(RoomMessageEventContent::text_markdown(msg))
 }
@@ -631,12 +644,46 @@ pub(super) async fn resolve_true_destination(
 pub(super) fn memory_stats() -> RoomMessageEventContent {
 	let html_body = conduit::alloc::memory_stats();
 
-	if html_body.is_empty() {
+	if html_body.is_none() {
 		return RoomMessageEventContent::text_plain("malloc stats are not supported on your compiled malloc.");
 	}
 
 	RoomMessageEventContent::text_html(
 		"This command's output can only be viewed by clients that render HTML.".to_owned(),
-		html_body,
+		html_body.expect("string result"),
 	)
+}
+
+#[cfg(tokio_unstable)]
+pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let out = services().server.metrics.runtime_metrics().map_or_else(
+		|| "Runtime metrics are not available.".to_owned(),
+		|metrics| format!("```rs\n{metrics:#?}\n```"),
+	);
+
+	Ok(RoomMessageEventContent::text_markdown(out))
+}
+
+#[cfg(not(tokio_unstable))]
+pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	Ok(RoomMessageEventContent::text_markdown(
+		"Runtime metrics require building with `tokio_unstable`.",
+	))
+}
+
+#[cfg(tokio_unstable)]
+pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let out = services().server.metrics.runtime_interval().map_or_else(
+		|| "Runtime metrics are not available.".to_owned(),
+		|metrics| format!("```rs\n{metrics:#?}\n```"),
+	);
+
+	Ok(RoomMessageEventContent::text_markdown(out))
+}
+
+#[cfg(not(tokio_unstable))]
+pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	Ok(RoomMessageEventContent::text_markdown(
+		"Runtime metrics require building with `tokio_unstable`.",
+	))
 }

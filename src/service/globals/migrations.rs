@@ -50,7 +50,10 @@ pub(crate) async fn migrations(db: &Arc<Database>, config: &Config) -> Result<()
 }
 
 async fn fresh(db: &Arc<Database>, config: &Config) -> Result<()> {
-	services().globals.bump_database_version(DATABASE_VERSION)?;
+	services()
+		.globals
+		.db
+		.bump_database_version(DATABASE_VERSION)?;
 
 	db["global"].insert(b"fix_bad_double_separator_in_state_cache", &[])?;
 	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
@@ -68,57 +71,57 @@ async fn fresh(db: &Arc<Database>, config: &Config) -> Result<()> {
 
 /// Apply any migrations
 async fn migrate(db: &Arc<Database>, config: &Config) -> Result<()> {
-	if services().globals.database_version()? < 1 {
+	if services().globals.db.database_version()? < 1 {
 		db_lt_1(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 2 {
+	if services().globals.db.database_version()? < 2 {
 		db_lt_2(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 3 {
+	if services().globals.db.database_version()? < 3 {
 		db_lt_3(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 4 {
+	if services().globals.db.database_version()? < 4 {
 		db_lt_4(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 5 {
+	if services().globals.db.database_version()? < 5 {
 		db_lt_5(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 6 {
+	if services().globals.db.database_version()? < 6 {
 		db_lt_6(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 7 {
+	if services().globals.db.database_version()? < 7 {
 		db_lt_7(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 8 {
+	if services().globals.db.database_version()? < 8 {
 		db_lt_8(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 9 {
+	if services().globals.db.database_version()? < 9 {
 		db_lt_9(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 10 {
+	if services().globals.db.database_version()? < 10 {
 		db_lt_10(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 11 {
+	if services().globals.db.database_version()? < 11 {
 		db_lt_11(db, config).await?;
 	}
 
-	if services().globals.database_version()? < 12 {
+	if services().globals.db.database_version()? < 12 {
 		db_lt_12(db, config).await?;
 	}
 
 	// This migration can be reused as-is anytime the server-default rules are
 	// updated.
-	if services().globals.database_version()? < 13 {
+	if services().globals.db.database_version()? < 13 {
 		db_lt_13(db, config).await?;
 	}
 
@@ -143,10 +146,10 @@ async fn migrate(db: &Arc<Database>, config: &Config) -> Result<()> {
 	}
 
 	assert_eq!(
-		services().globals.database_version().unwrap(),
+		services().globals.db.database_version().unwrap(),
 		DATABASE_VERSION,
 		"Failed asserting local database version {} is equal to known latest conduwuit database version {}",
-		services().globals.database_version().unwrap(),
+		services().globals.db.database_version().unwrap(),
 		DATABASE_VERSION,
 	);
 
@@ -225,7 +228,7 @@ async fn db_lt_1(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		serverroomids.insert(&serverroomid, &[])?;
 	}
 
-	services().globals.bump_database_version(1)?;
+	services().globals.db.bump_database_version(1)?;
 	info!("Migration: 0 -> 1 finished");
 	Ok(())
 }
@@ -242,7 +245,7 @@ async fn db_lt_2(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		}
 	}
 
-	services().globals.bump_database_version(2)?;
+	services().globals.db.bump_database_version(2)?;
 	info!("Migration: 1 -> 2 finished");
 	Ok(())
 }
@@ -262,7 +265,7 @@ async fn db_lt_3(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		mediaid_file.insert(&key, &[])?;
 	}
 
-	services().globals.bump_database_version(3)?;
+	services().globals.db.bump_database_version(3)?;
 	info!("Migration: 2 -> 3 finished");
 	Ok(())
 }
@@ -285,7 +288,7 @@ async fn db_lt_4(_db: &Arc<Database>, config: &Config) -> Result<()> {
 		}
 	}
 
-	services().globals.bump_database_version(4)?;
+	services().globals.db.bump_database_version(4)?;
 	info!("Migration: 3 -> 4 finished");
 	Ok(())
 }
@@ -309,7 +312,7 @@ async fn db_lt_5(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		roomusertype_roomuserdataid.insert(&key, &roomuserdataid)?;
 	}
 
-	services().globals.bump_database_version(5)?;
+	services().globals.db.bump_database_version(5)?;
 	info!("Migration: 4 -> 5 finished");
 	Ok(())
 }
@@ -323,7 +326,7 @@ async fn db_lt_6(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		services().rooms.state_cache.update_joined_count(room_id)?;
 	}
 
-	services().globals.bump_database_version(6)?;
+	services().globals.db.bump_database_version(6)?;
 	info!("Migration: 5 -> 6 finished");
 	Ok(())
 }
@@ -448,7 +451,7 @@ async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		)?;
 	}
 
-	services().globals.bump_database_version(7)?;
+	services().globals.db.bump_database_version(7)?;
 	info!("Migration: 6 -> 7 finished");
 	Ok(())
 }
@@ -514,7 +517,7 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 
 	eventid_pduid.insert_batch(batch2.iter().map(database::KeyVal::from))?;
 
-	services().globals.bump_database_version(8)?;
+	services().globals.db.bump_database_version(8)?;
 	info!("Migration: 7 -> 8 finished");
 	Ok(())
 }
@@ -571,7 +574,7 @@ async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		tokenids.remove(&key)?;
 	}
 
-	services().globals.bump_database_version(9)?;
+	services().globals.db.bump_database_version(9)?;
 	info!("Migration: 8 -> 9 finished");
 	Ok(())
 }
@@ -590,7 +593,7 @@ async fn db_lt_10(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		services().users.mark_device_key_update(&user_id)?;
 	}
 
-	services().globals.bump_database_version(10)?;
+	services().globals.db.bump_database_version(10)?;
 	info!("Migration: 9 -> 10 finished");
 	Ok(())
 }
@@ -601,7 +604,7 @@ async fn db_lt_11(_db: &Arc<Database>, _config: &Config) -> Result<()> {
 	//let userdevicesessionid_uiaarequest = &db["userdevicesessionid_uiaarequest"];
 	//userdevicesessionid_uiaarequest.clear()?;
 
-	services().globals.bump_database_version(11)?;
+	services().globals.db.bump_database_version(11)?;
 	info!("Migration: 10 -> 11 finished");
 	Ok(())
 }
@@ -669,7 +672,7 @@ async fn db_lt_12(_db: &Arc<Database>, config: &Config) -> Result<()> {
 		)?;
 	}
 
-	services().globals.bump_database_version(12)?;
+	services().globals.db.bump_database_version(12)?;
 	info!("Migration: 11 -> 12 finished");
 	Ok(())
 }
@@ -706,7 +709,7 @@ async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
 		)?;
 	}
 
-	services().globals.bump_database_version(13)?;
+	services().globals.db.bump_database_version(13)?;
 	info!("Migration: 12 -> 13 finished");
 	Ok(())
 }
@@ -736,8 +739,8 @@ async fn migrate_sha256_media(db: &Arc<Database>, _config: &Config) -> Result<()
 
 	// Apply fix from when sha256_media was backward-incompat and bumped the schema
 	// version from 13 to 14. For users satisfying these conditions we can go back.
-	if services().globals.database_version()? == 14 && DATABASE_VERSION == 13 {
-		services().globals.bump_database_version(13)?;
+	if services().globals.db.database_version()? == 14 && DATABASE_VERSION == 13 {
+		services().globals.db.bump_database_version(13)?;
 	}
 
 	db["global"].insert(b"feat_sha256_media", &[])?;
@@ -833,11 +836,14 @@ async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &C
 	for (mut key, value) in roomuserid_joined.iter() {
 		iter_count = iter_count.saturating_add(1);
 		debug_info!(%iter_count);
-		let first_sep_index = key.iter().position(|&i| i == 0xFF).unwrap();
+		let first_sep_index = key
+			.iter()
+			.position(|&i| i == 0xFF)
+			.expect("found 0xFF delim");
 
 		if key
 			.iter()
-			.get(first_sep_index..=first_sep_index + 1)
+			.get(first_sep_index..=first_sep_index.saturating_add(1))
 			.copied()
 			.collect_vec()
 			== vec![0xFF, 0xFF]

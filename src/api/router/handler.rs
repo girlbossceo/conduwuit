@@ -10,7 +10,7 @@ use conduit::Result;
 use http::Method;
 use ruma::api::IncomingRequest;
 
-use super::{Ruma, RumaResponse};
+use super::{Ruma, RumaResponse, State};
 
 pub(in super::super) trait RouterExt {
 	fn ruma_route<H, T>(self, handler: H) -> Self
@@ -18,7 +18,7 @@ pub(in super::super) trait RouterExt {
 		H: RumaHandler<T>;
 }
 
-impl RouterExt for Router {
+impl RouterExt for Router<State> {
 	fn ruma_route<H, T>(self, handler: H) -> Self
 	where
 		H: RumaHandler<T>,
@@ -28,9 +28,9 @@ impl RouterExt for Router {
 }
 
 pub(in super::super) trait RumaHandler<T> {
-	fn add_routes(&self, router: Router) -> Router;
+	fn add_routes(&self, router: Router<State>) -> Router<State>;
 
-	fn add_route(&self, router: Router, path: &str) -> Router;
+	fn add_route(&self, router: Router<State>, path: &str) -> Router<State>;
 }
 
 macro_rules! ruma_handler {
@@ -41,17 +41,17 @@ macro_rules! ruma_handler {
 			Req: IncomingRequest + Send + 'static,
 			Ret: IntoResponse,
 			Fut: Future<Output = Result<Req::OutgoingResponse, Ret>> + Send,
-			Fun: FnOnce($($tx,)* Ruma<Req>) -> Fut + Clone + Send + Sync + 'static,
-			$( $tx: FromRequestParts<()> + Send + 'static, )*
+			Fun: FnOnce($($tx,)* Ruma<Req>,) -> Fut + Clone + Send + Sync + 'static,
+			$( $tx: FromRequestParts<State> + Send + 'static, )*
 		{
-			fn add_routes(&self, router: Router) -> Router {
+			fn add_routes(&self, router: Router<State>) -> Router<State> {
 				Req::METADATA
 					.history
 					.all_paths()
 					.fold(router, |router, path| self.add_route(router, path))
 			}
 
-			fn add_route(&self, router: Router, path: &str) -> Router {
+			fn add_route(&self, router: Router<State>, path: &str) -> Router<State> {
 				let handle = self.clone();
 				let method = method_to_filter(&Req::METADATA.method);
 				let action = |$($tx,)* req| async { handle($($tx,)* req).await.map(RumaResponse) };

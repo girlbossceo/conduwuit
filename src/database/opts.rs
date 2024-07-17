@@ -310,7 +310,7 @@ fn set_table_with_shared_cache(
 }
 
 fn cache_size(config: &Config, base_size: u32, entity_size: usize) -> usize {
-	let ents = f64::from(base_size) * config.conduit_cache_capacity_modifier;
+	let ents = f64::from(base_size) * config.cache_capacity_modifier;
 
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	(ents as usize)

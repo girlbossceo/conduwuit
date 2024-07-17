@@ -160,6 +160,13 @@ pub(super) enum DebugCommand {
 	/// - Print extended memory usage
 	MemoryStats,
 
+	/// - Print general tokio runtime metric totals.
+	RuntimeMetrics,
+
+	/// - Print detailed tokio runtime metrics accumulated since last command
+	///   invocation.
+	RuntimeInterval,
+
 	/// - Developer test stubs
 	#[command(subcommand)]
 	Tester(TesterCommand),
@@ -213,6 +220,8 @@ pub(super) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<Ro
 			no_cache,
 		} => resolve_true_destination(body, server_name, no_cache).await?,
 		DebugCommand::MemoryStats => memory_stats(),
+		DebugCommand::RuntimeMetrics => runtime_metrics(body).await?,
+		DebugCommand::RuntimeInterval => runtime_interval(body).await?,
 		DebugCommand::Tester(command) => tester::process(command, body).await?,
 	})
 }

@@ -90,7 +90,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 	}
 
 	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
-	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 
 	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
 		Some(room_alias_check(alias, &body.appservice_info).await?)
@@ -118,6 +118,8 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 
 	let content = match &body.creation_content {
 		Some(content) => {
+			use RoomVersionId::*;
+
 			let mut content = content
 				.deserialize_as::<CanonicalJsonObject>()
 				.map_err(|e| {
@@ -125,16 +127,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 					Error::bad_database("Failed to deserialise content as canonical JSON.")
 				})?;
 			match room_version {
-				RoomVersionId::V1
-				| RoomVersionId::V2
-				| RoomVersionId::V3
-				| RoomVersionId::V4
-				| RoomVersionId::V5
-				| RoomVersionId::V6
-				| RoomVersionId::V7
-				| RoomVersionId::V8
-				| RoomVersionId::V9
-				| RoomVersionId::V10 => {
+				V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 					content.insert(
 						"creator".into(),
 						json!(&sender_user).try_into().map_err(|e| {
@@ -143,7 +136,7 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 						})?,
 					);
 				},
-				RoomVersionId::V11 => {}, // V11 removed the "creator" key
+				V11 => {}, // V11 removed the "creator" key
 				_ => {
 					warn!("Unexpected or unsupported room version {room_version}");
 					return Err(Error::BadRequest(
@@ -152,7 +145,6 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 					));
 				},
 			}
-
 			content.insert(
 				"room_version".into(),
 				json!(room_version.as_str())
@@ -162,18 +154,11 @@ pub(crate) async fn create_room_route(body: Ruma<create_room::v3::Request>) -> R
 			content
 		},
 		None => {
+			use RoomVersionId::*;
+
 			let content = match room_version {
-				RoomVersionId::V1
-				| RoomVersionId::V2
-				| RoomVersionId::V3
-				| RoomVersionId::V4
-				| RoomVersionId::V5
-				| RoomVersionId::V6
-				| RoomVersionId::V7
-				| RoomVersionId::V8
-				| RoomVersionId::V9
-				| RoomVersionId::V10 => RoomCreateEventContent::new_v1(sender_user.clone()),
-				RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
+				V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => RoomCreateEventContent::new_v1(sender_user.clone()),
+				V11 => RoomCreateEventContent::new_v11(),
 				_ => {
 					warn!("Unexpected or unsupported room version {room_version}");
 					return Err(Error::BadRequest(
@@ -573,11 +558,7 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 		.short
 		.get_or_create_shortroomid(&replacement_room)?;
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	// Send a m.room.tombstone event to the old room to indicate that it is not
 	// intended to be used any further Fail if the sender does not have the required
@@ -605,11 +586,7 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 
 	// Change lock to replacement room
 	drop(state_lock);
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&replacement_room)
-		.await;
+	let state_lock = services().rooms.state.mutex.lock(&replacement_room).await;
 
 	// Get the old room creation event
 	let mut create_event_content = serde_json::from_str::<CanonicalJsonObject>(
@@ -631,36 +608,30 @@ pub(crate) async fn upgrade_room_route(body: Ruma<upgrade_room::v3::Request>) ->
 
 	// Send a m.room.create event containing a predecessor field and the applicable
 	// room_version
-	match body.new_version {
-		RoomVersionId::V1
-		| RoomVersionId::V2
-		| RoomVersionId::V3
-		| RoomVersionId::V4
-		| RoomVersionId::V5
-		| RoomVersionId::V6
-		| RoomVersionId::V7
-		| RoomVersionId::V8
-		| RoomVersionId::V9
-		| RoomVersionId::V10 => {
-			create_event_content.insert(
-				"creator".into(),
-				json!(&sender_user).try_into().map_err(|e| {
-					info!("Error forming creation event: {e}");
-					Error::BadRequest(ErrorKind::BadJson, "Error forming creation event")
-				})?,
-			);
-		},
-		RoomVersionId::V11 => {
-			// "creator" key no longer exists in V11 rooms
-			create_event_content.remove("creator");
-		},
-		_ => {
-			warn!("Unexpected or unsupported room version {}", body.new_version);
-			return Err(Error::BadRequest(
-				ErrorKind::BadJson,
-				"Unexpected or unsupported room version found",
-			));
-		},
+	{
+		use RoomVersionId::*;
+		match body.new_version {
+			V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
+				create_event_content.insert(
+					"creator".into(),
+					json!(&sender_user).try_into().map_err(|e| {
+						info!("Error forming creation event: {e}");
+						Error::BadRequest(ErrorKind::BadJson, "Error forming creation event")
+					})?,
+				);
+			},
+			V11 => {
+				// "creator" key no longer exists in V11 rooms
+				create_event_content.remove("creator");
+			},
+			_ => {
+				warn!("Unexpected or unsupported room version {}", body.new_version);
+				return Err(Error::BadRequest(
+					ErrorKind::BadJson,
+					"Unexpected or unsupported room version found",
+				));
+			},
+		}
 	}
 
 	create_event_content.insert(

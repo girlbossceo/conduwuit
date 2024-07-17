@@ -2,9 +2,8 @@ mod data;
 
 use std::{collections::HashMap, sync::Arc};
 
-use conduit::{Result, Server};
+use conduit::Result;
 use data::Data;
-use database::Database;
 use ruma::{
 	events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
 	serde::Raw,
@@ -15,13 +14,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Places one event in the account data of the user and removes the
 	/// previous entry.
 	#[allow(clippy::needless_pass_by_value)]
@@ -41,7 +44,7 @@ impl Service {
 	}
 
 	/// Returns all changes to the account data that happened after `since`.
-	#[tracing::instrument(skip_all, name = "since")]
+	#[tracing::instrument(skip_all, name = "since", level = "debug")]
 	pub fn changes_since(
 		&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
 	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {

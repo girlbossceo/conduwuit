@@ -2,9 +2,8 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{utils, utils::hash, Error, Result, Server};
+use conduit::{utils, utils::hash, Error, Result};
 use data::Data;
-use database::Database;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -22,13 +21,17 @@ pub struct Service {
 	pub db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Creates a new Uiaa session. Make sure the session token is unique.
 	pub fn create(
 		&self, user_id: &UserId, device_id: &DeviceId, uiaainfo: &UiaaInfo, json_body: &CanonicalJsonValue,

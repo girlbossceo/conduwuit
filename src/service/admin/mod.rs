@@ -2,11 +2,15 @@ pub mod console;
 mod create;
 mod grant;
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{
+	future::Future,
+	pin::Pin,
+	sync::{Arc, RwLock as StdRwLock},
+};
 
-use conduit::{error, utils::mutex_map, Error, Result, Server};
+use async_trait::async_trait;
+use conduit::{debug, error, error::default_log, Error, Result};
 pub use create::create_admin_room;
-use database::Database;
 pub use grant::make_user_admin;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -17,22 +21,15 @@ use ruma::{
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::sync::{Mutex, RwLock};
 
-use crate::{pdu::PduBuilder, services, user_is_local, PduEvent};
-
-const COMMAND_QUEUE_LIMIT: usize = 512;
-
-pub type CommandOutput = Option<RoomMessageEventContent>;
-pub type CommandResult = Result<CommandOutput, Error>;
-pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
-pub type Handler = fn(Command) -> HandlerResult;
+use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, user_is_local, PduEvent};
 
 pub struct Service {
 	sender: Sender<Command>,
 	receiver: Mutex<Receiver<Command>>,
-	handler_join: Mutex<Option<JoinHandle<()>>>,
-	pub handle: Mutex<Option<Handler>>,
+	pub handle: RwLock<Option<Handler>>,
+	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
 	pub console: Arc<console::Console>,
 }
@@ -43,32 +40,52 @@ pub struct Command {
 	pub reply_id: Option<OwnedEventId>,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, _db: &Arc<Database>) -> Result<Arc<Self>> {
+pub type Completer = fn(&str) -> String;
+pub type Handler = fn(Command) -> HandlerResult;
+pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
+pub type CommandResult = Result<CommandOutput, Error>;
+pub type CommandOutput = Option<RoomMessageEventContent>;
+
+const COMMAND_QUEUE_LIMIT: usize = 512;
+
+#[async_trait]
+impl crate::Service for Service {
+	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
 		Ok(Arc::new(Self {
 			sender,
 			receiver: Mutex::new(receiver),
-			handler_join: Mutex::new(None),
-			handle: Mutex::new(None),
+			handle: RwLock::new(None),
+			complete: StdRwLock::new(None),
 			#[cfg(feature = "console")]
 			console: console::Console::new(),
 		}))
 	}
 
-	pub async fn start_handler(self: &Arc<Self>) {
-		let self_ = Arc::clone(self);
-		let handle = services().server.runtime().spawn(async move {
-			self_
-				.handler()
-				.await
-				.expect("Failed to initialize admin room handler");
-		});
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		let receiver = self.receiver.lock().await;
+		let mut signals = services().server.signal.subscribe();
+		loop {
+			tokio::select! {
+				command = receiver.recv_async() => match command {
+					Ok(command) => self.handle_command(command).await,
+					Err(_) => break,
+				},
+				sig = signals.recv() => match sig {
+					Ok(sig) => self.handle_signal(sig).await,
+					Err(_) => continue,
+				},
+			}
+		}
 
-		_ = self.handler_join.lock().await.insert(handle);
+		//TODO: not unwind safe
+		#[cfg(feature = "console")]
+		self.console.close().await;
+
+		Ok(())
 	}
 
-	pub fn interrupt(&self) {
+	fn interrupt(&self) {
 		#[cfg(feature = "console")]
 		self.console.interrupt();
 
@@ -77,19 +94,10 @@ impl Service {
 		}
 	}
 
-	pub async fn close(&self) {
-		self.interrupt();
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
 
-		#[cfg(feature = "console")]
-		self.console.close().await;
-
-		if let Some(handler_join) = self.handler_join.lock().await.take() {
-			if let Err(e) = handler_join.await {
-				error!("Failed to shutdown: {e:?}");
-			}
-		}
-	}
-
+impl Service {
 	pub async fn send_text(&self, body: &str) {
 		self.send_message(RoomMessageEventContent::text_markdown(body))
 			.await;
@@ -120,26 +128,16 @@ impl Service {
 		.await
 	}
 
+	pub fn complete_command(&self, command: &str) -> Option<String> {
+		self.complete
+			.read()
+			.expect("locked for reading")
+			.map(|complete| complete(command))
+	}
+
 	async fn send(&self, message: Command) {
 		debug_assert!(!self.sender.is_closed(), "channel closed");
 		self.sender.send_async(message).await.expect("message sent");
-	}
-
-	async fn handler(self: &Arc<Self>) -> Result<()> {
-		let receiver = self.receiver.lock().await;
-		let mut signals = services().server.signal.subscribe();
-		loop {
-			tokio::select! {
-				command = receiver.recv_async() => match command {
-					Ok(command) => self.handle_command(command).await,
-					Err(_) => return Ok(()),
-				},
-				sig = signals.recv() => match sig {
-					Ok(sig) => self.handle_signal(sig).await,
-					Err(_) => continue,
-				},
-			}
-		}
 	}
 
 	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {
@@ -148,13 +146,15 @@ impl Service {
 	}
 
 	async fn handle_command(&self, command: Command) {
-		if let Ok(Some(output)) = self.process_command(command).await {
-			handle_response(output).await;
+		match self.process_command(command).await {
+			Ok(Some(output)) => handle_response(output).await,
+			Ok(None) => debug!("Command successful with no response"),
+			Err(e) => error!("Command processing error: {e}"),
 		}
 	}
 
 	async fn process_command(&self, command: Command) -> CommandResult {
-		if let Some(handle) = self.handle.lock().await.as_ref() {
+		if let Some(handle) = self.handle.read().await.as_ref() {
 			handle(command).await
 		} else {
 			Err(Error::Err("Admin module is not loaded.".into()))
@@ -224,7 +224,7 @@ async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, use
 		"sender is not admin"
 	);
 
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 	let response_pdu = PduBuilder {
 		event_type: TimelineEventType::RoomMessage,
 		content: to_raw_value(&content).expect("event is valid, we just created it"),
@@ -239,14 +239,14 @@ async fn respond_to_room(content: RoomMessageEventContent, room_id: &RoomId, use
 		.build_and_append_pdu(response_pdu, user_id, room_id, &state_lock)
 		.await
 	{
-		if let Err(e) = handle_response_error(&e, room_id, user_id, &state_lock).await {
-			error!("{e}");
-		}
+		handle_response_error(e, room_id, user_id, &state_lock)
+			.await
+			.unwrap_or_else(default_log);
 	}
 }
 
 async fn handle_response_error(
-	e: &Error, room_id: &RoomId, user_id: &UserId, state_lock: &mutex_map::Guard<()>,
+	e: Error, room_id: &RoomId, user_id: &UserId, state_lock: &RoomMutexGuard,
 ) -> Result<()> {
 	error!("Failed to build and append admin room response PDU: \"{e}\"");
 	let error_room_message = RoomMessageEventContent::text_plain(format!(

@@ -1,15 +1,19 @@
-use std::time::Instant;
+use std::{panic::AssertUnwindSafe, time::Instant};
 
-use clap::Parser;
-use conduit::trace;
-use ruma::events::{
-	relation::InReplyTo,
-	room::message::{Relation::Reply, RoomMessageEventContent},
+use clap::{CommandFactory, Parser};
+use conduit::{error, trace, Error};
+use futures_util::future::FutureExt;
+use ruma::{
+	events::{
+		relation::InReplyTo,
+		room::message::{Relation::Reply, RoomMessageEventContent},
+	},
+	OwnedEventId,
 };
 
 extern crate conduit_service as service;
 
-use conduit::Result;
+use conduit::{utils::string::common_prefix, Result};
 pub(crate) use service::admin::{Command, Service};
 use service::admin::{CommandOutput, CommandResult, HandlerResult};
 
@@ -20,7 +24,6 @@ use crate::{
 };
 pub(crate) const PAGE_SIZE: usize = 100;
 
-#[cfg_attr(test, derive(Debug))]
 #[derive(Parser)]
 #[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
 pub(crate) enum AdminCommand {
@@ -62,25 +65,46 @@ pub(crate) enum AdminCommand {
 }
 
 #[must_use]
-pub fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(command)) }
+pub(crate) fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(command)) }
+
+#[must_use]
+pub(crate) fn complete(line: &str) -> String { complete_admin_command(AdminCommand::command(), line) }
 
 #[tracing::instrument(skip_all, name = "admin")]
 async fn handle_command(command: Command) -> CommandResult {
-	let Some(mut content) = process_admin_message(command.command).await else {
-		return Ok(None);
-	};
+	AssertUnwindSafe(process_command(&command))
+		.catch_unwind()
+		.await
+		.map_err(Error::from_panic)
+		.or_else(|error| handle_panic(&error, command))
+}
 
-	content.relates_to = command.reply_id.map(|event_id| Reply {
+async fn process_command(command: &Command) -> CommandOutput {
+	process_admin_message(&command.command)
+		.await
+		.and_then(|content| reply(content, command.reply_id.clone()))
+}
+
+fn handle_panic(error: &Error, command: Command) -> CommandResult {
+	let link = "Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
+	let msg = format!("Panic occurred while processing command:\n```\n{error:#?}\n```\n{link}");
+	let content = RoomMessageEventContent::notice_markdown(msg);
+	error!("Panic while processing command: {error:?}");
+	Ok(reply(content, command.reply_id))
+}
+
+fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -> Option<RoomMessageEventContent> {
+	content.relates_to = reply_id.map(|event_id| Reply {
 		in_reply_to: InReplyTo {
 			event_id,
 		},
 	});
 
-	Ok(Some(content))
+	Some(content)
 }
 
 // Parse and process a message from the admin room
-async fn process_admin_message(msg: String) -> CommandOutput {
+async fn process_admin_message(msg: &str) -> CommandOutput {
 	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
 	let command = lines.next().expect("each string has at least one line");
 	let body = lines.collect::<Vec<_>>();
@@ -100,57 +124,9 @@ async fn process_admin_message(msg: String) -> CommandOutput {
 	match result {
 		Ok(reply) => Some(reply),
 		Err(error) => Some(RoomMessageEventContent::notice_markdown(format!(
-			"Encountered an error while handling the command:\n```\n{error}\n```"
+			"Encountered an error while handling the command:\n```\n{error:#?}\n```"
 		))),
 	}
-}
-
-// Parse chat messages from the admin room into an AdminCommand object
-fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
-	let mut argv = command_line.split_whitespace().collect::<Vec<_>>();
-
-	// Remove any escapes that came with a server-side escape command
-	if !argv.is_empty() && argv[0].ends_with("admin") {
-		argv[0] = argv[0].trim_start_matches('\\');
-	}
-
-	// First indice has to be "admin" but for console convenience we add it here
-	let server_user = services().globals.server_user.as_str();
-	if !argv.is_empty() && !argv[0].ends_with("admin") && !argv[0].starts_with(server_user) {
-		argv.insert(0, "admin");
-	}
-
-	// Replace `help command` with `command --help`
-	// Clap has a help subcommand, but it omits the long help description.
-	if argv.len() > 1 && argv[1] == "help" {
-		argv.remove(1);
-		argv.push("--help");
-	}
-
-	// Backwards compatibility with `register_appservice`-style commands
-	let command_with_dashes_argv1;
-	if argv.len() > 1 && argv[1].contains('_') {
-		command_with_dashes_argv1 = argv[1].replace('_', "-");
-		argv[1] = &command_with_dashes_argv1;
-	}
-
-	// Backwards compatibility with `register_appservice`-style commands
-	let command_with_dashes_argv2;
-	if argv.len() > 2 && argv[2].contains('_') {
-		command_with_dashes_argv2 = argv[2].replace('_', "-");
-		argv[2] = &command_with_dashes_argv2;
-	}
-
-	// if the user is using the `query` command (argv[1]), replace the database
-	// function/table calls with underscores to match the codebase
-	let command_with_dashes_argv3;
-	if argv.len() > 3 && argv[1].eq("query") {
-		command_with_dashes_argv3 = argv[3].replace('_', "-");
-		argv[3] = &command_with_dashes_argv3;
-	}
-
-	trace!(?command_line, ?argv, "parse");
-	AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
 }
 
 #[tracing::instrument(skip_all, name = "command")]
@@ -168,4 +144,98 @@ async fn process_admin_command(command: AdminCommand, body: Vec<&str>) -> Result
 	};
 
 	Ok(reply_message_content)
+}
+
+// Parse chat messages from the admin room into an AdminCommand object
+fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
+	let argv = parse_command_line(command_line);
+	AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
+}
+
+fn complete_admin_command(mut cmd: clap::Command, line: &str) -> String {
+	let argv = parse_command_line(line);
+	let mut ret = Vec::<String>::with_capacity(argv.len().saturating_add(1));
+
+	'token: for token in argv.into_iter().skip(1) {
+		let cmd_ = cmd.clone();
+		let mut choice = Vec::new();
+
+		for sub in cmd_.get_subcommands() {
+			let name = sub.get_name();
+			if *name == token {
+				// token already complete; recurse to subcommand
+				ret.push(token);
+				cmd.clone_from(sub);
+				continue 'token;
+			} else if name.starts_with(&token) {
+				// partial match; add to choices
+				choice.push(name);
+			}
+		}
+
+		if choice.len() == 1 {
+			// One choice. Add extra space because it's complete
+			let choice = *choice.first().expect("only choice");
+			ret.push(choice.to_owned());
+			ret.push(String::new());
+		} else if choice.is_empty() {
+			// Nothing found, return original string
+			ret.push(token);
+		} else {
+			// Find the common prefix
+			ret.push(common_prefix(&choice).into());
+		}
+
+		// Return from completion
+		return ret.join(" ");
+	}
+
+	// Return from no completion. Needs a space though.
+	ret.push(String::new());
+	ret.join(" ")
+}
+
+// Parse chat messages from the admin room into an AdminCommand object
+fn parse_command_line(command_line: &str) -> Vec<String> {
+	let mut argv = command_line
+		.split_whitespace()
+		.map(str::to_owned)
+		.collect::<Vec<String>>();
+
+	// Remove any escapes that came with a server-side escape command
+	if !argv.is_empty() && argv[0].ends_with("admin") {
+		argv[0] = argv[0].trim_start_matches('\\').into();
+	}
+
+	// First indice has to be "admin" but for console convenience we add it here
+	let server_user = services().globals.server_user.as_str();
+	if !argv.is_empty() && !argv[0].ends_with("admin") && !argv[0].starts_with(server_user) {
+		argv.insert(0, "admin".to_owned());
+	}
+
+	// Replace `help command` with `command --help`
+	// Clap has a help subcommand, but it omits the long help description.
+	if argv.len() > 1 && argv[1] == "help" {
+		argv.remove(1);
+		argv.push("--help".to_owned());
+	}
+
+	// Backwards compatibility with `register_appservice`-style commands
+	if argv.len() > 1 && argv[1].contains('_') {
+		argv[1] = argv[1].replace('_', "-");
+	}
+
+	// Backwards compatibility with `register_appservice`-style commands
+	if argv.len() > 2 && argv[2].contains('_') {
+		argv[2] = argv[2].replace('_', "-");
+	}
+
+	// if the user is using the `query` command (argv[1]), replace the database
+	// function/table calls with underscores to match the codebase
+	if argv.len() > 3 && argv[1].eq("query") {
+		argv[3] = argv[3].replace('_', "-");
+	}
+
+	trace!(?command_line, ?argv, "parse");
+	argv
 }

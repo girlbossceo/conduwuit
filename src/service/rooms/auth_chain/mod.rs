@@ -5,10 +5,9 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, trace, warn, Error, Result, Server};
+use conduit::{debug, error, trace, validated, warn, Err, Result};
 use data::Data;
-use database::Database;
-use ruma::{api::client::error::ErrorKind, EventId, RoomId};
+use ruma::{EventId, RoomId};
 
 use crate::services;
 
@@ -16,13 +15,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(server, db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.server, args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub async fn event_ids_iter<'a>(
 		&self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {
@@ -45,15 +48,16 @@ impl Service {
 
 		let started = std::time::Instant::now();
 		let mut buckets = [BUCKET; NUM_BUCKETS];
-		for (i, short) in services()
+		for (i, &short) in services()
 			.rooms
 			.short
 			.multi_get_or_create_shorteventid(starting_events)?
 			.iter()
 			.enumerate()
 		{
-			let bucket = short % NUM_BUCKETS as u64;
-			buckets[bucket as usize].insert((*short, starting_events[i]));
+			let bucket: usize = short.try_into()?;
+			let bucket: usize = validated!(bucket % NUM_BUCKETS)?;
+			buckets[bucket].insert((short, starting_events[i]));
 		}
 
 		debug!(
@@ -139,8 +143,11 @@ impl Service {
 			match services().rooms.timeline.get_pdu(&event_id) {
 				Ok(Some(pdu)) => {
 					if pdu.room_id != room_id {
-						error!(?event_id, ?pdu, "auth event for incorrect room_id");
-						return Err(Error::BadRequest(ErrorKind::forbidden(), "Evil event in db"));
+						return Err!(Request(Forbidden(
+							"auth event {event_id:?} for incorrect room {} which is not {}",
+							pdu.room_id,
+							room_id
+						)));
 					}
 					for auth_event in &pdu.auth_events {
 						let sauthevent = services()
@@ -170,13 +177,13 @@ impl Service {
 		self.db.get_cached_eventid_authchain(key)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) -> Result<()> {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) -> Result<()> {
 		self.db
 			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())

@@ -59,12 +59,21 @@ If the `docker run` command is not for you or your setup, you can also use one o
 Depending on your proxy setup, you can use one of the following files;
 
 - If you already have a `traefik` instance set up, use [`docker-compose.for-traefik.yml`](docker-compose.for-traefik.yml)
-- If you don't have a `traefik` instance set up (or any other reverse proxy), use [`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)
+- If you don't have a `traefik` instance set up and would like to use it, use [`docker-compose.with-traefik.yml`](docker-compose.with-traefik.yml)
+- If you want a setup that works out of the box with `caddy-docker-proxy`, use [`docker-compose.with-caddy.yml`](docker-compose.with-caddy.yml) and replace all `example.com` placeholders with your own domain
 - For any other reverse proxy, use [`docker-compose.yml`](docker-compose.yml)
 
 When picking the traefik-related compose file, rename it so it matches `docker-compose.yml`, and
 rename the override file to `docker-compose.override.yml`. Edit the latter with the values you want
 for your server.
+
+When picking the `caddy-docker-proxy` compose file, it's important to first create the `caddy` network before spinning up the containers:
+
+```bash
+docker network create caddy
+```
+
+After that, you can rename it so it matches `docker-compose.yml` and spin up the containers!
 
 Additional info about deploying conduwuit can be found [here](generic.md).
 

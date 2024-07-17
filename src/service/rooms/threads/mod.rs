@@ -2,9 +2,8 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{Error, Result, Server};
+use conduit::{Error, Result};
 use data::Data;
-use database::Database;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
 	events::relation::BundledThread,
@@ -18,13 +17,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
 	) -> Result<impl Iterator<Item = Result<(u64, PduEvent)>> + 'a> {
@@ -61,7 +64,7 @@ impl Service {
 				.and_then(|relations| serde_json::from_value::<BundledThread>(relations.clone().into()).ok())
 			{
 				// Thread already existed
-				relations.count += uint!(1);
+				relations.count = relations.count.saturating_add(uint!(1));
 				relations.latest_event = pdu.to_message_like_event();
 
 				let content = serde_json::to_value(relations).expect("to_value always works");

@@ -34,32 +34,27 @@ pub async fn create_admin_room() -> Result<()> {
 
 	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
 
-	let state_lock = services().globals.roomid_mutex_state.lock(&room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
 
 	// Create a user for the server
 	let server_user = &services().globals.server_user;
 	services().users.create(server_user, None)?;
 
 	let room_version = services().globals.default_room_version();
-	let mut content = match room_version {
-		RoomVersionId::V1
-		| RoomVersionId::V2
-		| RoomVersionId::V3
-		| RoomVersionId::V4
-		| RoomVersionId::V5
-		| RoomVersionId::V6
-		| RoomVersionId::V7
-		| RoomVersionId::V8
-		| RoomVersionId::V9
-		| RoomVersionId::V10 => RoomCreateEventContent::new_v1(server_user.clone()),
-		RoomVersionId::V11 => RoomCreateEventContent::new_v11(),
-		_ => {
-			warn!("Unexpected or unsupported room version {}", room_version);
-			return Err(Error::BadRequest(
-				ErrorKind::BadJson,
-				"Unexpected or unsupported room version found",
-			));
-		},
+
+	let mut content = {
+		use RoomVersionId::*;
+		match room_version {
+			V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => RoomCreateEventContent::new_v1(server_user.clone()),
+			V11 => RoomCreateEventContent::new_v11(),
+			_ => {
+				warn!("Unexpected or unsupported room version {}", room_version);
+				return Err(Error::BadRequest(
+					ErrorKind::BadJson,
+					"Unexpected or unsupported room version found",
+				));
+			},
+		}
 	};
 
 	content.federate = true;

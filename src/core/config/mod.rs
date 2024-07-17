@@ -1,6 +1,6 @@
 use std::{
 	collections::BTreeMap,
-	fmt::{self, Write as _},
+	fmt,
 	net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 	path::PathBuf,
 };
@@ -19,29 +19,14 @@ use ruma::{
 	api::client::discovery::discover_support::ContactRole, OwnedRoomId, OwnedServerName, OwnedUserId, RoomVersionId,
 };
 use serde::{de::IgnoredAny, Deserialize};
-use tracing::{debug, error, warn};
 use url::Url;
 
 pub use self::check::check;
 use self::proxy::ProxyConfig;
-use crate::error::Error;
+use crate::{error::Error, Err, Result};
 
 pub mod check;
 pub mod proxy;
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(transparent)]
-struct ListeningPort {
-	#[serde(with = "either::serde_untagged")]
-	ports: Either<u16, Vec<u16>>,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(transparent)]
-struct ListeningAddr {
-	#[serde(with = "either::serde_untagged")]
-	addrs: Either<IpAddr, Vec<IpAddr>>,
-}
 
 /// all the config options for conduwuit
 #[derive(Clone, Debug, Deserialize)]
@@ -73,8 +58,8 @@ pub struct Config {
 
 	#[serde(default = "default_pdu_cache_capacity")]
 	pub pdu_cache_capacity: u32,
-	#[serde(default = "default_conduit_cache_capacity_modifier")]
-	pub conduit_cache_capacity_modifier: f64,
+	#[serde(default = "default_cache_capacity_modifier", alias = "conduit_cache_capacity_modifier")]
+	pub cache_capacity_modifier: f64,
 	#[serde(default = "default_auth_chain_cache_capacity")]
 	pub auth_chain_cache_capacity: u32,
 	#[serde(default = "default_shorteventid_cache_capacity")]
@@ -114,7 +99,7 @@ pub struct Config {
 	pub ip_lookup_strategy: u8,
 
 	#[serde(default = "default_max_request_size")]
-	pub max_request_size: u32,
+	pub max_request_size: usize,
 	#[serde(default = "default_max_fetch_prev_events")]
 	pub max_fetch_prev_events: u16,
 
@@ -181,16 +166,14 @@ pub struct Config {
 	#[serde(default)]
 	pub well_known: WellKnownConfig,
 	#[serde(default)]
-	#[cfg(feature = "perf_measurements")]
 	pub allow_jaeger: bool,
+	#[serde(default = "default_jaeger_filter")]
+	pub jaeger_filter: String,
 	#[serde(default)]
-	#[cfg(feature = "perf_measurements")]
 	pub tracing_flame: bool,
 	#[serde(default = "default_tracing_flame_filter")]
-	#[cfg(feature = "perf_measurements")]
 	pub tracing_flame_filter: String,
 	#[serde(default = "default_tracing_flame_output_path")]
-	#[cfg(feature = "perf_measurements")]
 	pub tracing_flame_output_path: String,
 	#[serde(default)]
 	pub proxy: ProxyConfig,
@@ -356,6 +339,14 @@ pub struct Config {
 	pub sentry_send_server_name: bool,
 	#[serde(default = "default_sentry_traces_sample_rate")]
 	pub sentry_traces_sample_rate: f32,
+	#[serde(default)]
+	pub sentry_attach_stacktrace: bool,
+	#[serde(default = "true_fn")]
+	pub sentry_send_panic: bool,
+	#[serde(default = "true_fn")]
+	pub sentry_send_error: bool,
+	#[serde(default = "default_sentry_filter")]
+	pub sentry_filter: String,
 
 	#[serde(default)]
 	pub tokio_console: bool,
@@ -386,8 +377,23 @@ pub struct WellKnownConfig {
 	pub support_mxid: Option<OwnedUserId>,
 }
 
-const DEPRECATED_KEYS: &[&str] = &[
+#[derive(Deserialize, Clone, Debug)]
+#[serde(transparent)]
+struct ListeningPort {
+	#[serde(with = "either::serde_untagged")]
+	ports: Either<u16, Vec<u16>>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(transparent)]
+struct ListeningAddr {
+	#[serde(with = "either::serde_untagged")]
+	addrs: Either<IpAddr, Vec<IpAddr>>,
+}
+
+const DEPRECATED_KEYS: &[&str; 9] = &[
 	"cache_capacity",
+	"conduit_cache_capacity_modifier",
 	"max_concurrent_requests",
 	"well_known_client",
 	"well_known_server",
@@ -399,7 +405,7 @@ const DEPRECATED_KEYS: &[&str] = &[
 
 impl Config {
 	/// Initialize config
-	pub fn new(path: Option<PathBuf>) -> Result<Self, Error> {
+	pub fn new(path: Option<PathBuf>) -> Result<Self> {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())
@@ -422,67 +428,14 @@ impl Config {
 		};
 
 		let config = match raw_config.extract::<Self>() {
-			Err(e) => return Err(Error::BadConfig(format!("{e}"))),
+			Err(e) => return Err!("There was a problem with your configuration file: {e}"),
 			Ok(config) => config,
 		};
 
 		// don't start if we're listening on both UNIX sockets and TCP at same time
-		if Self::is_dual_listening(&raw_config) {
-			return Err(Error::bad_config("dual listening on UNIX and TCP sockets not allowed."));
-		};
+		check::is_dual_listening(&raw_config)?;
 
 		Ok(config)
-	}
-
-	/// Iterates over all the keys in the config file and warns if there is a
-	/// deprecated key specified
-	pub(crate) fn warn_deprecated(&self) {
-		debug!("Checking for deprecated config keys");
-		let mut was_deprecated = false;
-		for key in self
-			.catchall
-			.keys()
-			.filter(|key| DEPRECATED_KEYS.iter().any(|s| s == key))
-		{
-			warn!("Config parameter \"{}\" is deprecated, ignoring.", key);
-			was_deprecated = true;
-		}
-
-		if was_deprecated {
-			warn!(
-				"Read conduwuit config documentation at https://conduwuit.puppyirl.gay/configuration.html and check \
-				 your configuration if any new configuration parameters should be adjusted"
-			);
-		}
-	}
-
-	/// iterates over all the catchall keys (unknown config options) and warns
-	/// if there are any.
-	pub(crate) fn warn_unknown_key(&self) {
-		debug!("Checking for unknown config keys");
-		for key in self
-			.catchall
-			.keys()
-			.filter(|key| "config".to_owned().ne(key.to_owned()) /* "config" is expected */)
-		{
-			warn!("Config parameter \"{}\" is unknown to conduwuit, ignoring.", key);
-		}
-	}
-
-	/// Checks the presence of the `address` and `unix_socket_path` keys in the
-	/// raw_config, exiting the process if both keys were detected.
-	fn is_dual_listening(raw_config: &Figment) -> bool {
-		let check_address = raw_config.find_value("address");
-		let check_unix_socket = raw_config.find_value("unix_socket_path");
-
-		// are the check_address and check_unix_socket keys both Ok (specified) at the
-		// same time?
-		if check_address.is_ok() && check_unix_socket.is_ok() {
-			error!("TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify only one option.");
-			return true;
-		}
-
-		false
 	}
 
 	#[must_use]
@@ -516,361 +469,358 @@ impl Config {
 
 impl fmt::Display for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		// Prepare a list of config values to show
-		let lines = [
-			("Server name", self.server_name.host()),
-			("Database backend", &self.database_backend),
-			("Database path", &self.database_path.to_string_lossy()),
-			(
-				"Database backup path",
-				self.database_backup_path
-					.as_ref()
-					.map_or("", |path| path.to_str().unwrap_or("")),
-			),
-			("Database backups to keep", &self.database_backups_to_keep.to_string()),
-			("Database cache capacity (MB)", &self.db_cache_capacity_mb.to_string()),
-			("Cache capacity modifier", &self.conduit_cache_capacity_modifier.to_string()),
-			("PDU cache capacity", &self.pdu_cache_capacity.to_string()),
-			("Auth chain cache capacity", &self.auth_chain_cache_capacity.to_string()),
-			("Short eventid cache capacity", &self.shorteventid_cache_capacity.to_string()),
-			("Eventid short cache capacity", &self.eventidshort_cache_capacity.to_string()),
-			("Short statekey cache capacity", &self.shortstatekey_cache_capacity.to_string()),
-			("Statekey short cache capacity", &self.statekeyshort_cache_capacity.to_string()),
-			(
-				"Server visibility cache capacity",
-				&self.server_visibility_cache_capacity.to_string(),
-			),
-			(
-				"User visibility cache capacity",
-				&self.user_visibility_cache_capacity.to_string(),
-			),
-			("Stateinfo cache capacity", &self.stateinfo_cache_capacity.to_string()),
-			(
-				"Roomid space hierarchy cache capacity",
-				&self.roomid_spacehierarchy_cache_capacity.to_string(),
-			),
-			("DNS cache entry limit", &self.dns_cache_entries.to_string()),
-			("DNS minimum TTL", &self.dns_min_ttl.to_string()),
-			("DNS minimum NXDOMAIN TTL", &self.dns_min_ttl_nxdomain.to_string()),
-			("DNS attempts", &self.dns_attempts.to_string()),
-			("DNS timeout", &self.dns_timeout.to_string()),
-			("DNS fallback to TCP", &self.dns_tcp_fallback.to_string()),
-			("DNS query over TCP only", &self.query_over_tcp_only.to_string()),
-			("Query all nameservers", &self.query_all_nameservers.to_string()),
-			("Maximum request size (bytes)", &self.max_request_size.to_string()),
-			("Sender retry backoff limit", &self.sender_retry_backoff_limit.to_string()),
-			("Request connect timeout", &self.request_conn_timeout.to_string()),
-			("Request timeout", &self.request_timeout.to_string()),
-			("Request total timeout", &self.request_total_timeout.to_string()),
-			("Idle connections per host", &self.request_idle_per_host.to_string()),
-			("Request pool idle timeout", &self.request_idle_timeout.to_string()),
-			("Well_known connect timeout", &self.well_known_conn_timeout.to_string()),
-			("Well_known timeout", &self.well_known_timeout.to_string()),
-			("Federation timeout", &self.federation_timeout.to_string()),
-			("Federation pool idle per host", &self.federation_idle_per_host.to_string()),
-			("Federation pool idle timeout", &self.federation_idle_timeout.to_string()),
-			("Sender timeout", &self.sender_timeout.to_string()),
-			("Sender pool idle timeout", &self.sender_idle_timeout.to_string()),
-			("Appservice timeout", &self.appservice_timeout.to_string()),
-			("Appservice pool idle timeout", &self.appservice_idle_timeout.to_string()),
-			("Pusher pool idle timeout", &self.pusher_idle_timeout.to_string()),
-			("Allow registration", &self.allow_registration.to_string()),
-			(
-				"Registration token",
-				if self.registration_token.is_some() {
-					"set"
-				} else {
-					"not set (open registration!)"
-				},
-			),
-			(
-				"Allow guest registration (inherently false if allow registration is false)",
-				&self.allow_guest_registration.to_string(),
-			),
-			(
-				"Log guest registrations in admin room",
-				&self.log_guest_registrations.to_string(),
-			),
-			(
-				"Allow guests to auto join rooms",
-				&self.allow_guests_auto_join_rooms.to_string(),
-			),
-			("New user display name suffix", &self.new_user_displayname_suffix),
-			("Allow encryption", &self.allow_encryption.to_string()),
-			("Allow federation", &self.allow_federation.to_string()),
-			(
-				"Allow incoming federated presence requests (updates)",
-				&self.allow_incoming_presence.to_string(),
-			),
-			(
-				"Allow outgoing federated presence requests (updates)",
-				&self.allow_outgoing_presence.to_string(),
-			),
-			(
-				"Allow local presence requests (updates)",
-				&self.allow_local_presence.to_string(),
-			),
-			(
-				"Allow incoming remote read receipts",
-				&self.allow_incoming_read_receipts.to_string(),
-			),
-			(
-				"Allow outgoing remote read receipts",
-				&self.allow_outgoing_read_receipts.to_string(),
-			),
-			(
-				"Block non-admin room invites (local and remote, admins can still send and receive invites)",
-				&self.block_non_admin_invites.to_string(),
-			),
-			("Enable admin escape commands", &self.admin_escape_commands.to_string()),
-			("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string()),
-			("Allow incoming federated typing", &self.allow_incoming_typing.to_string()),
-			(
-				"Incoming federated typing timeout",
-				&self.typing_federation_timeout_s.to_string(),
-			),
-			("Client typing timeout minimum", &self.typing_client_timeout_min_s.to_string()),
-			("Client typing timeout maxmimum", &self.typing_client_timeout_max_s.to_string()),
-			("Allow device name federation", &self.allow_device_name_federation.to_string()),
-			(
-				"Allow incoming profile lookup federation requests",
-				&self.allow_profile_lookup_federation_requests.to_string(),
-			),
-			(
-				"Auto deactivate banned room join attempts",
-				&self.auto_deactivate_banned_room_attempts.to_string(),
-			),
-			("Notification push path", &self.notification_push_path),
-			("Allow room creation", &self.allow_room_creation.to_string()),
-			(
-				"Allow public room directory over federation",
-				&self.allow_public_room_directory_over_federation.to_string(),
-			),
-			(
-				"Allow public room directory without authentication",
-				&self.allow_public_room_directory_without_auth.to_string(),
-			),
-			(
-				"Lockdown public room directory (only allow admins to publish)",
-				&self.lockdown_public_room_directory.to_string(),
-			),
-			(
-				"JWT secret",
-				match self.jwt_secret {
-					Some(_) => "set",
-					None => "not set",
-				},
-			),
-			(
-				"Trusted key servers",
-				&self
-					.trusted_servers
-					.iter()
-					.map(|server| server.host())
-					.join(", "),
-			),
-			(
-				"Query Trusted Key Servers First",
-				&self.query_trusted_key_servers_first.to_string(),
-			),
-			("OpenID Token TTL", &self.openid_token_ttl.to_string()),
-			(
-				"TURN username",
-				if self.turn_username.is_empty() {
-					"not set"
-				} else {
-					&self.turn_username
-				},
-			),
-			("TURN password", {
-				if self.turn_password.is_empty() {
-					"not set"
-				} else {
-					"set"
-				}
-			}),
-			("TURN secret", {
-				if self.turn_secret.is_empty() {
-					"not set"
-				} else {
-					"set"
-				}
-			}),
-			("Turn TTL", &self.turn_ttl.to_string()),
-			("Turn URIs", {
-				let mut lst = vec![];
-				for item in self.turn_uris.iter().cloned().enumerate() {
-					let (_, uri): (usize, String) = item;
-					lst.push(uri);
-				}
-				&lst.join(", ")
-			}),
-			("Auto Join Rooms", {
-				let mut lst = vec![];
-				for room in &self.auto_join_rooms {
-					lst.push(room);
-				}
-				&lst.into_iter().join(", ")
-			}),
-			#[cfg(feature = "zstd_compression")]
-			("Zstd HTTP Compression", &self.zstd_compression.to_string()),
-			#[cfg(feature = "gzip_compression")]
-			("Gzip HTTP Compression", &self.gzip_compression.to_string()),
-			#[cfg(feature = "brotli_compression")]
-			("Brotli HTTP Compression", &self.brotli_compression.to_string()),
-			("RocksDB database LOG level", &self.rocksdb_log_level),
-			("RocksDB database LOG to stderr", &self.rocksdb_log_stderr.to_string()),
-			("RocksDB database LOG time-to-roll", &self.rocksdb_log_time_to_roll.to_string()),
-			("RocksDB Max LOG Files", &self.rocksdb_max_log_files.to_string()),
-			(
-				"RocksDB database max LOG file size",
-				&self.rocksdb_max_log_file_size.to_string(),
-			),
-			(
-				"RocksDB database optimize for spinning disks",
-				&self.rocksdb_optimize_for_spinning_disks.to_string(),
-			),
-			("RocksDB Direct-IO", &self.rocksdb_direct_io.to_string()),
-			("RocksDB Parallelism Threads", &self.rocksdb_parallelism_threads.to_string()),
-			("RocksDB Compression Algorithm", &self.rocksdb_compression_algo),
-			("RocksDB Compression Level", &self.rocksdb_compression_level.to_string()),
-			(
-				"RocksDB Bottommost Compression Level",
-				&self.rocksdb_bottommost_compression_level.to_string(),
-			),
-			(
-				"RocksDB Bottommost Level Compression",
-				&self.rocksdb_bottommost_compression.to_string(),
-			),
-			("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string()),
-			("RocksDB Repair Mode", &self.rocksdb_repair.to_string()),
-			("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string()),
-			(
-				"RocksDB Compaction Idle Priority",
-				&self.rocksdb_compaction_prio_idle.to_string(),
-			),
-			(
-				"RocksDB Compaction Idle IOPriority",
-				&self.rocksdb_compaction_ioprio_idle.to_string(),
-			),
-			("Media integrity checks on startup", &self.media_startup_check.to_string()),
-			("Media compatibility filesystem links", &self.media_compat_file_link.to_string()),
-			("Prevent Media Downloads From", {
-				let mut lst = vec![];
-				for domain in &self.prevent_media_downloads_from {
-					lst.push(domain.host());
-				}
-				&lst.join(", ")
-			}),
-			("Forbidden Remote Server Names (\"Global\" ACLs)", {
-				let mut lst = vec![];
-				for domain in &self.forbidden_remote_server_names {
-					lst.push(domain.host());
-				}
-				&lst.join(", ")
-			}),
-			("Forbidden Remote Room Directory Server Names", {
-				let mut lst = vec![];
-				for domain in &self.forbidden_remote_room_directory_server_names {
-					lst.push(domain.host());
-				}
-				&lst.join(", ")
-			}),
-			("Outbound Request IP Range Denylist", {
-				let mut lst = vec![];
-				for item in self.ip_range_denylist.iter().cloned().enumerate() {
-					let (_, ip): (usize, String) = item;
-					lst.push(ip);
-				}
-				&lst.join(", ")
-			}),
-			("Forbidden usernames", {
-				&self.forbidden_usernames.patterns().iter().join(", ")
-			}),
-			("Forbidden room aliases", {
-				&self.forbidden_alias_names.patterns().iter().join(", ")
-			}),
-			(
-				"URL preview domain contains allowlist",
-				&self.url_preview_domain_contains_allowlist.join(", "),
-			),
-			(
-				"URL preview domain explicit allowlist",
-				&self.url_preview_domain_explicit_allowlist.join(", "),
-			),
-			(
-				"URL preview domain explicit denylist",
-				&self.url_preview_domain_explicit_denylist.join(", "),
-			),
-			(
-				"URL preview URL contains allowlist",
-				&self.url_preview_url_contains_allowlist.join(", "),
-			),
-			("URL preview maximum spider size", &self.url_preview_max_spider_size.to_string()),
-			("URL preview check root domain", &self.url_preview_check_root_domain.to_string()),
-			(
-				"Allow check for updates / announcements check",
-				&self.allow_check_for_updates.to_string(),
-			),
-			("Enable netburst on startup", &self.startup_netburst.to_string()),
-			#[cfg(feature = "sentry_telemetry")]
-			("Sentry.io reporting and tracing", &self.sentry.to_string()),
-			#[cfg(feature = "sentry_telemetry")]
-			("Sentry.io send server_name in logs", &self.sentry_send_server_name.to_string()),
-			#[cfg(feature = "sentry_telemetry")]
-			("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string()),
-			(
-				"Well-known server name",
-				self.well_known
-					.server
-					.as_ref()
-					.map_or("", |server| server.as_str()),
-			),
-			(
-				"Well-known client URL",
-				self.well_known
-					.client
-					.as_ref()
-					.map_or("", |url| url.as_str()),
-			),
-			(
-				"Well-known support email",
-				self.well_known
-					.support_email
-					.as_ref()
-					.map_or("", |str| str.as_ref()),
-			),
-			(
-				"Well-known support Matrix ID",
-				self.well_known
-					.support_mxid
-					.as_ref()
-					.map_or("", |mxid| mxid.as_str()),
-			),
-			(
-				"Well-known support role",
-				self.well_known
-					.support_role
-					.as_ref()
-					.map_or("", |role| role.as_str()),
-			),
-			(
-				"Well-known support page/URL",
-				self.well_known
-					.support_page
-					.as_ref()
-					.map_or("", |url| url.as_str()),
-			),
-			("Enable the tokio-console", &self.tokio_console.to_string()),
-		];
+		writeln!(f, "Active config values:\n\n").expect("wrote line to formatter stream");
+		let mut line = |key: &str, val: &str| {
+			writeln!(f, "{key}: {val}").expect("wrote line to formatter stream");
+		};
 
-		let mut msg: String = "Active config values:\n\n".to_owned();
+		line("Server name", self.server_name.host());
+		line("Database backend", &self.database_backend);
+		line("Database path", &self.database_path.to_string_lossy());
+		line(
+			"Database backup path",
+			self.database_backup_path
+				.as_ref()
+				.map_or("", |path| path.to_str().unwrap_or("")),
+		);
+		line("Database backups to keep", &self.database_backups_to_keep.to_string());
+		line("Database cache capacity (MB)", &self.db_cache_capacity_mb.to_string());
+		line("Cache capacity modifier", &self.cache_capacity_modifier.to_string());
+		line("PDU cache capacity", &self.pdu_cache_capacity.to_string());
+		line("Auth chain cache capacity", &self.auth_chain_cache_capacity.to_string());
+		line("Short eventid cache capacity", &self.shorteventid_cache_capacity.to_string());
+		line("Eventid short cache capacity", &self.eventidshort_cache_capacity.to_string());
+		line("Short statekey cache capacity", &self.shortstatekey_cache_capacity.to_string());
+		line("Statekey short cache capacity", &self.statekeyshort_cache_capacity.to_string());
+		line(
+			"Server visibility cache capacity",
+			&self.server_visibility_cache_capacity.to_string(),
+		);
+		line(
+			"User visibility cache capacity",
+			&self.user_visibility_cache_capacity.to_string(),
+		);
+		line("Stateinfo cache capacity", &self.stateinfo_cache_capacity.to_string());
+		line(
+			"Roomid space hierarchy cache capacity",
+			&self.roomid_spacehierarchy_cache_capacity.to_string(),
+		);
+		line("DNS cache entry limit", &self.dns_cache_entries.to_string());
+		line("DNS minimum TTL", &self.dns_min_ttl.to_string());
+		line("DNS minimum NXDOMAIN TTL", &self.dns_min_ttl_nxdomain.to_string());
+		line("DNS attempts", &self.dns_attempts.to_string());
+		line("DNS timeout", &self.dns_timeout.to_string());
+		line("DNS fallback to TCP", &self.dns_tcp_fallback.to_string());
+		line("DNS query over TCP only", &self.query_over_tcp_only.to_string());
+		line("Query all nameservers", &self.query_all_nameservers.to_string());
+		line("Maximum request size (bytes)", &self.max_request_size.to_string());
+		line("Sender retry backoff limit", &self.sender_retry_backoff_limit.to_string());
+		line("Request connect timeout", &self.request_conn_timeout.to_string());
+		line("Request timeout", &self.request_timeout.to_string());
+		line("Request total timeout", &self.request_total_timeout.to_string());
+		line("Idle connections per host", &self.request_idle_per_host.to_string());
+		line("Request pool idle timeout", &self.request_idle_timeout.to_string());
+		line("Well_known connect timeout", &self.well_known_conn_timeout.to_string());
+		line("Well_known timeout", &self.well_known_timeout.to_string());
+		line("Federation timeout", &self.federation_timeout.to_string());
+		line("Federation pool idle per host", &self.federation_idle_per_host.to_string());
+		line("Federation pool idle timeout", &self.federation_idle_timeout.to_string());
+		line("Sender timeout", &self.sender_timeout.to_string());
+		line("Sender pool idle timeout", &self.sender_idle_timeout.to_string());
+		line("Appservice timeout", &self.appservice_timeout.to_string());
+		line("Appservice pool idle timeout", &self.appservice_idle_timeout.to_string());
+		line("Pusher pool idle timeout", &self.pusher_idle_timeout.to_string());
+		line("Allow registration", &self.allow_registration.to_string());
+		line(
+			"Registration token",
+			if self.registration_token.is_some() {
+				"set"
+			} else {
+				"not set (open registration!)"
+			},
+		);
+		line(
+			"Allow guest registration (inherently false if allow registration is false)",
+			&self.allow_guest_registration.to_string(),
+		);
+		line(
+			"Log guest registrations in admin room",
+			&self.log_guest_registrations.to_string(),
+		);
+		line(
+			"Allow guests to auto join rooms",
+			&self.allow_guests_auto_join_rooms.to_string(),
+		);
+		line("New user display name suffix", &self.new_user_displayname_suffix);
+		line("Allow encryption", &self.allow_encryption.to_string());
+		line("Allow federation", &self.allow_federation.to_string());
+		line(
+			"Allow incoming federated presence requests (updates)",
+			&self.allow_incoming_presence.to_string(),
+		);
+		line(
+			"Allow outgoing federated presence requests (updates)",
+			&self.allow_outgoing_presence.to_string(),
+		);
+		line(
+			"Allow local presence requests (updates)",
+			&self.allow_local_presence.to_string(),
+		);
+		line(
+			"Allow incoming remote read receipts",
+			&self.allow_incoming_read_receipts.to_string(),
+		);
+		line(
+			"Allow outgoing remote read receipts",
+			&self.allow_outgoing_read_receipts.to_string(),
+		);
+		line(
+			"Block non-admin room invites (local and remote, admins can still send and receive invites)",
+			&self.block_non_admin_invites.to_string(),
+		);
+		line("Enable admin escape commands", &self.admin_escape_commands.to_string());
+		line("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string());
+		line("Allow incoming federated typing", &self.allow_incoming_typing.to_string());
+		line(
+			"Incoming federated typing timeout",
+			&self.typing_federation_timeout_s.to_string(),
+		);
+		line("Client typing timeout minimum", &self.typing_client_timeout_min_s.to_string());
+		line("Client typing timeout maxmimum", &self.typing_client_timeout_max_s.to_string());
+		line("Allow device name federation", &self.allow_device_name_federation.to_string());
+		line(
+			"Allow incoming profile lookup federation requests",
+			&self.allow_profile_lookup_federation_requests.to_string(),
+		);
+		line(
+			"Auto deactivate banned room join attempts",
+			&self.auto_deactivate_banned_room_attempts.to_string(),
+		);
+		line("Notification push path", &self.notification_push_path);
+		line("Allow room creation", &self.allow_room_creation.to_string());
+		line(
+			"Allow public room directory over federation",
+			&self.allow_public_room_directory_over_federation.to_string(),
+		);
+		line(
+			"Allow public room directory without authentication",
+			&self.allow_public_room_directory_without_auth.to_string(),
+		);
+		line(
+			"Lockdown public room directory (only allow admins to publish)",
+			&self.lockdown_public_room_directory.to_string(),
+		);
+		line(
+			"JWT secret",
+			match self.jwt_secret {
+				Some(_) => "set",
+				None => "not set",
+			},
+		);
+		line(
+			"Trusted key servers",
+			&self
+				.trusted_servers
+				.iter()
+				.map(|server| server.host())
+				.join(", "),
+		);
+		line(
+			"Query Trusted Key Servers First",
+			&self.query_trusted_key_servers_first.to_string(),
+		);
+		line("OpenID Token TTL", &self.openid_token_ttl.to_string());
+		line(
+			"TURN username",
+			if self.turn_username.is_empty() {
+				"not set"
+			} else {
+				&self.turn_username
+			},
+		);
+		line("TURN password", {
+			if self.turn_password.is_empty() {
+				"not set"
+			} else {
+				"set"
+			}
+		});
+		line("TURN secret", {
+			if self.turn_secret.is_empty() {
+				"not set"
+			} else {
+				"set"
+			}
+		});
+		line("Turn TTL", &self.turn_ttl.to_string());
+		line("Turn URIs", {
+			let mut lst = vec![];
+			for item in self.turn_uris.iter().cloned().enumerate() {
+				let (_, uri): (usize, String) = item;
+				lst.push(uri);
+			}
+			&lst.join(", ")
+		});
+		line("Auto Join Rooms", {
+			let mut lst = vec![];
+			for room in &self.auto_join_rooms {
+				lst.push(room);
+			}
+			&lst.into_iter().join(", ")
+		});
+		line("Zstd HTTP Compression", &self.zstd_compression.to_string());
+		line("Gzip HTTP Compression", &self.gzip_compression.to_string());
+		line("Brotli HTTP Compression", &self.brotli_compression.to_string());
+		line("RocksDB database LOG level", &self.rocksdb_log_level);
+		line("RocksDB database LOG to stderr", &self.rocksdb_log_stderr.to_string());
+		line("RocksDB database LOG time-to-roll", &self.rocksdb_log_time_to_roll.to_string());
+		line("RocksDB Max LOG Files", &self.rocksdb_max_log_files.to_string());
+		line(
+			"RocksDB database max LOG file size",
+			&self.rocksdb_max_log_file_size.to_string(),
+		);
+		line(
+			"RocksDB database optimize for spinning disks",
+			&self.rocksdb_optimize_for_spinning_disks.to_string(),
+		);
+		line("RocksDB Direct-IO", &self.rocksdb_direct_io.to_string());
+		line("RocksDB Parallelism Threads", &self.rocksdb_parallelism_threads.to_string());
+		line("RocksDB Compression Algorithm", &self.rocksdb_compression_algo);
+		line("RocksDB Compression Level", &self.rocksdb_compression_level.to_string());
+		line(
+			"RocksDB Bottommost Compression Level",
+			&self.rocksdb_bottommost_compression_level.to_string(),
+		);
+		line(
+			"RocksDB Bottommost Level Compression",
+			&self.rocksdb_bottommost_compression.to_string(),
+		);
+		line("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string());
+		line("RocksDB Repair Mode", &self.rocksdb_repair.to_string());
+		line("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string());
+		line(
+			"RocksDB Compaction Idle Priority",
+			&self.rocksdb_compaction_prio_idle.to_string(),
+		);
+		line(
+			"RocksDB Compaction Idle IOPriority",
+			&self.rocksdb_compaction_ioprio_idle.to_string(),
+		);
+		line("Media integrity checks on startup", &self.media_startup_check.to_string());
+		line("Media compatibility filesystem links", &self.media_compat_file_link.to_string());
+		line("Prevent Media Downloads From", {
+			let mut lst = vec![];
+			for domain in &self.prevent_media_downloads_from {
+				lst.push(domain.host());
+			}
+			&lst.join(", ")
+		});
+		line("Forbidden Remote Server Names (\"Global\" ACLs)", {
+			let mut lst = vec![];
+			for domain in &self.forbidden_remote_server_names {
+				lst.push(domain.host());
+			}
+			&lst.join(", ")
+		});
+		line("Forbidden Remote Room Directory Server Names", {
+			let mut lst = vec![];
+			for domain in &self.forbidden_remote_room_directory_server_names {
+				lst.push(domain.host());
+			}
+			&lst.join(", ")
+		});
+		line("Outbound Request IP Range Denylist", {
+			let mut lst = vec![];
+			for item in self.ip_range_denylist.iter().cloned().enumerate() {
+				let (_, ip): (usize, String) = item;
+				lst.push(ip);
+			}
+			&lst.join(", ")
+		});
+		line("Forbidden usernames", {
+			&self.forbidden_usernames.patterns().iter().join(", ")
+		});
+		line("Forbidden room aliases", {
+			&self.forbidden_alias_names.patterns().iter().join(", ")
+		});
+		line(
+			"URL preview domain contains allowlist",
+			&self.url_preview_domain_contains_allowlist.join(", "),
+		);
+		line(
+			"URL preview domain explicit allowlist",
+			&self.url_preview_domain_explicit_allowlist.join(", "),
+		);
+		line(
+			"URL preview domain explicit denylist",
+			&self.url_preview_domain_explicit_denylist.join(", "),
+		);
+		line(
+			"URL preview URL contains allowlist",
+			&self.url_preview_url_contains_allowlist.join(", "),
+		);
+		line("URL preview maximum spider size", &self.url_preview_max_spider_size.to_string());
+		line("URL preview check root domain", &self.url_preview_check_root_domain.to_string());
+		line(
+			"Allow check for updates / announcements check",
+			&self.allow_check_for_updates.to_string(),
+		);
+		line("Enable netburst on startup", &self.startup_netburst.to_string());
+		#[cfg(feature = "sentry_telemetry")]
+		line("Sentry.io reporting and tracing", &self.sentry.to_string());
+		#[cfg(feature = "sentry_telemetry")]
+		line("Sentry.io send server_name in logs", &self.sentry_send_server_name.to_string());
+		#[cfg(feature = "sentry_telemetry")]
+		line("Sentry.io tracing sample rate", &self.sentry_traces_sample_rate.to_string());
+		line("Sentry.io attach stacktrace", &self.sentry_attach_stacktrace.to_string());
+		line("Sentry.io send panics", &self.sentry_send_panic.to_string());
+		line("Sentry.io send errors", &self.sentry_send_error.to_string());
+		line("Sentry.io tracing filter", &self.sentry_filter);
+		line(
+			"Well-known server name",
+			self.well_known
+				.server
+				.as_ref()
+				.map_or("", |server| server.as_str()),
+		);
+		line(
+			"Well-known client URL",
+			self.well_known
+				.client
+				.as_ref()
+				.map_or("", |url| url.as_str()),
+		);
+		line(
+			"Well-known support email",
+			self.well_known
+				.support_email
+				.as_ref()
+				.map_or("", |str| str.as_ref()),
+		);
+		line(
+			"Well-known support Matrix ID",
+			self.well_known
+				.support_mxid
+				.as_ref()
+				.map_or("", |mxid| mxid.as_str()),
+		);
+		line(
+			"Well-known support role",
+			self.well_known
+				.support_role
+				.as_ref()
+				.map_or("", |role| role.as_str()),
+		);
+		line(
+			"Well-known support page/URL",
+			self.well_known
+				.support_page
+				.as_ref()
+				.map_or("", |url| url.as_str()),
+		);
+		line("Enable the tokio-console", &self.tokio_console.to_string());
 
-		for line in lines.into_iter().enumerate() {
-			writeln!(msg, "{}: {}", line.1 .0, line.1 .1).expect("should be able to write to string buffer");
-		}
-
-		write!(f, "{msg}")
+		Ok(())
 	}
 }
 
@@ -898,7 +848,7 @@ fn default_db_cache_capacity_mb() -> f64 { 256.0 }
 
 fn default_pdu_cache_capacity() -> u32 { 150_000 }
 
-fn default_conduit_cache_capacity_modifier() -> f64 { 1.0 }
+fn default_cache_capacity_modifier() -> f64 { 1.0 }
 
 fn default_auth_chain_cache_capacity() -> u32 { 100_000 }
 
@@ -930,7 +880,7 @@ fn default_dns_timeout() -> u64 { 10 }
 
 fn default_ip_lookup_strategy() -> u8 { 5 }
 
-fn default_max_request_size() -> u32 {
+fn default_max_request_size() -> usize {
 	20 * 1024 * 1024 // Default to 20 MB
 }
 
@@ -968,10 +918,20 @@ fn default_pusher_idle_timeout() -> u64 { 15 }
 
 fn default_max_fetch_prev_events() -> u16 { 100_u16 }
 
-#[cfg(feature = "perf_measurements")]
-fn default_tracing_flame_filter() -> String { "trace,h2=off".to_owned() }
+fn default_tracing_flame_filter() -> String {
+	cfg!(debug_assertions)
+		.then_some("trace,h2=off")
+		.unwrap_or("info")
+		.to_owned()
+}
 
-#[cfg(feature = "perf_measurements")]
+fn default_jaeger_filter() -> String {
+	cfg!(debug_assertions)
+		.then_some("trace,h2=off")
+		.unwrap_or("info")
+		.to_owned()
+}
+
 fn default_tracing_flame_output_path() -> String { "./tracing.folded".to_owned() }
 
 fn default_trusted_servers() -> Vec<OwnedServerName> { vec![OwnedServerName::try_from("matrix.org").unwrap()] }
@@ -1069,5 +1029,7 @@ fn default_sentry_endpoint() -> Option<Url> {
 }
 
 fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
+
+fn default_sentry_filter() -> String { "info".to_owned() }
 
 fn default_startup_netburst_keep() -> i64 { 50 }

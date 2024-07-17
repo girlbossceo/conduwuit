@@ -2,9 +2,8 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{Result, Server};
+use conduit::{err, Result};
 use data::Data;
-use database::Database;
 use futures_util::Future;
 use regex::RegexSet;
 use ruma::{
@@ -24,6 +23,7 @@ pub struct NamespaceRegex {
 
 impl NamespaceRegex {
 	/// Checks if this namespace has rights to a namespace
+	#[inline]
 	#[must_use]
 	pub fn is_match(&self, heystack: &str) -> bool {
 		if self.is_exclusive_match(heystack) {
@@ -39,6 +39,7 @@ impl NamespaceRegex {
 	}
 
 	/// Checks if this namespace has exlusive rights to a namespace
+	#[inline]
 	#[must_use]
 	pub fn is_exclusive_match(&self, heystack: &str) -> bool {
 		if let Some(exclusive) = &self.exclusive {
@@ -56,6 +57,7 @@ impl RegistrationInfo {
 		self.users.is_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
 	}
 
+	#[inline]
 	#[must_use]
 	pub fn is_exclusive_user_match(&self, user_id: &UserId) -> bool {
 		self.users.is_exclusive_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
@@ -119,10 +121,10 @@ pub struct Service {
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let mut registration_info = BTreeMap::new();
-		let db = Data::new(db);
+		let db = Data::new(args.db);
 		// Inserting registrations into cache
 		for appservice in iter_ids(&db)? {
 			registration_info.insert(
@@ -134,12 +136,17 @@ impl Service {
 			);
 		}
 
-		Ok(Self {
+		Ok(Arc::new(Self {
 			db,
 			registration_info: RwLock::new(registration_info),
-		})
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
+	#[inline]
 	pub fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db) }
 
 	/// Registers an appservice and returns the ID to the caller
@@ -164,7 +171,7 @@ impl Service {
 			.write()
 			.await
 			.remove(service_name)
-			.ok_or_else(|| crate::Error::Err("Appservice not found".to_owned()))?;
+			.ok_or(err!("Appservice not found"))?;
 
 		// remove the appservice from the database
 		self.db.unregister_appservice(service_name)?;

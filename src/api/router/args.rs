@@ -1,24 +1,15 @@
-mod auth;
-mod handler;
-mod request;
-
 use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, BytesMut};
-pub(super) use conduit::error::RumaResponse;
-use conduit::{debug, debug_warn, trace, warn};
-use ruma::{
-	api::{client::error::ErrorKind, IncomingRequest},
-	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
-};
+use conduit::{debug, err, trace, Error, Result};
+use ruma::{api::IncomingRequest, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId};
 
-pub(super) use self::handler::RouterExt;
-use self::{auth::Auth, request::Request};
-use crate::{service::appservice::RegistrationInfo, services, Error, Result};
+use super::{auth, auth::Auth, request, request::Request};
+use crate::{service::appservice::RegistrationInfo, services};
 
 /// Extractor for Ruma request structs
-pub(crate) struct Ruma<T> {
+pub(crate) struct Args<T> {
 	/// Request struct body
 	pub(crate) body: T,
 
@@ -44,7 +35,7 @@ pub(crate) struct Ruma<T> {
 }
 
 #[async_trait]
-impl<T, S> FromRequest<S, Body> for Ruma<T>
+impl<T, S> FromRequest<S, Body> for Args<T>
 where
 	T: IncomingRequest,
 {
@@ -65,7 +56,7 @@ where
 	}
 }
 
-impl<T> Deref for Ruma<T> {
+impl<T> Deref for Args<T> {
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target { &self.body }
@@ -109,21 +100,14 @@ where
 	let mut http_request = hyper::Request::builder()
 		.uri(request.parts.uri.clone())
 		.method(request.parts.method.clone());
-	*http_request.headers_mut().unwrap() = request.parts.headers.clone();
-	let http_request = http_request.body(body).unwrap();
-	debug!(
-		"{:?} {:?} {:?}",
-		http_request.method(),
-		http_request.uri(),
-		http_request.headers()
-	);
+	*http_request.headers_mut().expect("mutable http headers") = request.parts.headers.clone();
+	let http_request = http_request.body(body).expect("http request body");
 
-	trace!("{:?} {:?} {:?}", http_request.method(), http_request.uri(), json_body);
-	let body = T::try_from_http_request(http_request, &request.path).map_err(|e| {
-		warn!("try_from_http_request failed: {e:?}",);
-		debug_warn!("JSON body: {:?}", json_body);
-		Error::BadRequest(ErrorKind::BadJson, "Failed to deserialize request.")
-	})?;
+	let headers = http_request.headers();
+	let method = http_request.method();
+	let uri = http_request.uri();
+	debug!("{method:?} {uri:?} {headers:?}");
+	trace!("{method:?} {uri:?} {json_body:?}");
 
-	Ok(body)
+	T::try_from_http_request(http_request, &request.path).map_err(|e| err!(Request(BadJson(debug_warn!("{e}")))))
 }

@@ -7,8 +7,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug_info, Server};
-use database::Database;
+use conduit::{checked, debug, debug_info, err, utils::math::usize_from_f64, warn, Error, Result};
 use lru_cache::LruCache;
 use ruma::{
 	api::{
@@ -28,9 +27,8 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, RoomId, ServerName, UInt, UserId,
 };
 use tokio::sync::Mutex;
-use tracing::{debug, error, warn};
 
-use crate::{services, Error, Result};
+use crate::services;
 
 pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -159,17 +157,20 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 	}
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, _db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		Ok(Self {
-			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(
-				(f64::from(config.roomid_spacehierarchy_cache_capacity) * config.conduit_cache_capacity_modifier)
-					as usize,
-			)),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let cache_size = f64::from(config.roomid_spacehierarchy_cache_capacity);
+		let cache_size = cache_size * config.cache_capacity_modifier;
+		Ok(Arc::new(Self {
+			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(usize_from_f64(cache_size)?)),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Gets the response for the space hierarchy over federation request
 	///
 	/// Errors if the room does not exist, so a check if the room exists should
@@ -378,10 +379,7 @@ impl Service {
 			.map(|s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomJoinRulesEventContent| c.join_rule)
-					.map_err(|e| {
-						error!("Invalid room join rule event in database: {}", e);
-						Error::BadDatabase("Invalid room join rule event in database.")
-					})
+					.map_err(|e| err!(Database(error!("Invalid room join rule event in database: {e}"))))
 			})
 			.transpose()?
 			.unwrap_or(JoinRule::Invite);
@@ -444,7 +442,7 @@ impl Service {
 	}
 
 	pub async fn get_client_hierarchy(
-		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, short_room_ids: Vec<u64>, max_depth: usize,
+		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, short_room_ids: Vec<u64>, max_depth: u64,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {
 		let mut parents = VecDeque::new();
@@ -505,12 +503,14 @@ impl Service {
 							}
 
 							// We have reached the room after where we last left off
-							if parents.len() + 1 == short_room_ids.len() {
+							let parents_len = parents.len();
+							if checked!(parents_len + 1)? == short_room_ids.len() {
 								populate_results = true;
 							}
 						}
 
-						if !children.is_empty() && parents.len() < max_depth {
+						let parents_len: u64 = parents.len().try_into()?;
+						if !children.is_empty() && parents_len < max_depth {
 							parents.push_back(current_room.clone());
 							stack.push(children);
 						}
@@ -545,9 +545,8 @@ impl Service {
 				Some(
 					PaginationToken {
 						short_room_ids,
-						limit: UInt::new(max_depth as u64).expect("When sent in request it must have been valid UInt"),
-						max_depth: UInt::new(max_depth as u64)
-							.expect("When sent in request it must have been valid UInt"),
+						limit: UInt::new(max_depth).expect("When sent in request it must have been valid UInt"),
+						max_depth: UInt::new(max_depth).expect("When sent in request it must have been valid UInt"),
 						suggested_only,
 					}
 					.to_string(),

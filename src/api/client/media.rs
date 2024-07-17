@@ -2,6 +2,8 @@
 
 use std::{io::Cursor, sync::Arc, time::Duration};
 
+use axum_client_ip::InsecureClientIp;
+use conduit::{debug, error, utils::math::ruma_from_usize, warn};
 use image::io::Reader as ImgReader;
 use ipaddress::IPAddress;
 use reqwest::Url;
@@ -12,7 +14,6 @@ use ruma::api::client::{
 		get_media_preview,
 	},
 };
-use tracing::{debug, error, warn};
 use webpage::HTML;
 
 use crate::{
@@ -44,7 +45,7 @@ pub(crate) async fn get_media_config_route(
 	_body: Ruma<get_media_config::v3::Request>,
 ) -> Result<get_media_config::v3::Response> {
 	Ok(get_media_config::v3::Response {
-		upload_size: services().globals.max_request_size().into(),
+		upload_size: ruma_from_usize(services().globals.config.max_request_size),
 	})
 }
 
@@ -64,18 +65,22 @@ pub(crate) async fn get_media_config_v1_route(
 /// # `GET /_matrix/media/v3/preview_url`
 ///
 /// Returns URL preview.
+#[tracing::instrument(skip_all, fields(%client), name = "url_preview")]
 pub(crate) async fn get_media_preview_route(
-	body: Ruma<get_media_preview::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<get_media_preview::v3::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
 	let url = &body.url;
 	if !url_preview_allowed(url) {
+		warn!(%sender_user, "URL is not allowed to be previewed: {url}");
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "URL is not allowed to be previewed"));
 	}
 
 	match get_url_preview(url).await {
 		Ok(preview) => {
 			let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
-				error!("Failed to convert UrlPreviewData into a serde json value: {}", e);
+				error!(%sender_user, "Failed to convert UrlPreviewData into a serde json value: {e}");
 				Error::BadRequest(
 					ErrorKind::LimitExceeded {
 						retry_after: Some(RetryAfter::Delay(Duration::from_secs(5))),
@@ -87,7 +92,7 @@ pub(crate) async fn get_media_preview_route(
 			Ok(get_media_preview::v3::Response::from_raw_value(res))
 		},
 		Err(e) => {
-			warn!("Failed to generate a URL preview: {e}");
+			warn!(%sender_user, "Failed to generate a URL preview: {e}");
 
 			// there doesn't seem to be an agreed-upon error code in the spec.
 			// the only response codes in the preview_url spec page are 200 and 429.
@@ -108,10 +113,13 @@ pub(crate) async fn get_media_preview_route(
 /// See <https://spec.matrix.org/legacy/legacy/#id27>
 ///
 /// Returns URL preview.
+#[tracing::instrument(skip_all, fields(%client), name = "url_preview")]
 pub(crate) async fn get_media_preview_v1_route(
-	body: Ruma<get_media_preview::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<RumaResponse<get_media_preview::v3::Response>> {
-	get_media_preview_route(body).await.map(RumaResponse)
+	get_media_preview_route(InsecureClientIp(client), body)
+		.await
+		.map(RumaResponse)
 }
 
 /// # `POST /_matrix/media/v3/upload`
@@ -120,8 +128,9 @@ pub(crate) async fn get_media_preview_v1_route(
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
+#[tracing::instrument(skip_all, fields(%client), name = "media_upload")]
 pub(crate) async fn create_content_route(
-	body: Ruma<create_content::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<create_content::v3::Request>,
 ) -> Result<create_content::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -167,10 +176,13 @@ pub(crate) async fn create_content_route(
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
+#[tracing::instrument(skip_all, fields(%client), name = "media_upload")]
 pub(crate) async fn create_content_v1_route(
-	body: Ruma<create_content::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<create_content::v3::Request>,
 ) -> Result<RumaResponse<create_content::v3::Response>> {
-	create_content_route(body).await.map(RumaResponse)
+	create_content_route(InsecureClientIp(client), body)
+		.await
+		.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}`
@@ -181,16 +193,20 @@ pub(crate) async fn create_content_v1_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
-pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> Result<get_content::v3::Response> {
+#[tracing::instrument(skip_all, fields(%client), name = "media_get")]
+pub(crate) async fn get_content_route(
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_content::v3::Request>,
+) -> Result<get_content::v3::Response> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
+		content,
 		content_type,
-		file,
 		content_disposition,
 	}) = services().media.get(&mxc).await?
 	{
 		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
+		let file = content.expect("content");
 
 		Ok(get_content::v3::Response {
 			file,
@@ -243,10 +259,13 @@ pub(crate) async fn get_content_route(body: Ruma<get_content::v3::Request>) -> R
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
+#[tracing::instrument(skip_all, fields(%client), name = "media_get")]
 pub(crate) async fn get_content_v1_route(
-	body: Ruma<get_content::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_content::v3::Request>,
 ) -> Result<RumaResponse<get_content::v3::Response>> {
-	get_content_route(body).await.map(RumaResponse)
+	get_content_route(InsecureClientIp(client), body)
+		.await
+		.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/download/{serverName}/{mediaId}/{fileName}`
@@ -257,14 +276,15 @@ pub(crate) async fn get_content_v1_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
+#[tracing::instrument(skip_all, fields(%client), name = "media_get")]
 pub(crate) async fn get_content_as_filename_route(
-	body: Ruma<get_content_as_filename::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<get_content_as_filename::v3::Response> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
+		content,
 		content_type,
-		file,
 		content_disposition,
 	}) = services().media.get(&mxc).await?
 	{
@@ -274,6 +294,7 @@ pub(crate) async fn get_content_as_filename_route(
 			Some(body.filename.clone()),
 		));
 
+		let file = content.expect("content");
 		Ok(get_content_as_filename::v3::Response {
 			file,
 			content_type,
@@ -328,10 +349,13 @@ pub(crate) async fn get_content_as_filename_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
+#[tracing::instrument(skip_all, fields(%client), name = "media_get")]
 pub(crate) async fn get_content_as_filename_v1_route(
-	body: Ruma<get_content_as_filename::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<RumaResponse<get_content_as_filename::v3::Response>> {
-	get_content_as_filename_route(body).await.map(RumaResponse)
+	get_content_as_filename_route(InsecureClientIp(client), body)
+		.await
+		.map(RumaResponse)
 }
 
 /// # `GET /_matrix/media/v3/thumbnail/{serverName}/{mediaId}`
@@ -342,14 +366,15 @@ pub(crate) async fn get_content_as_filename_v1_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
+#[tracing::instrument(skip_all, fields(%client), name = "media_thumbnail_get")]
 pub(crate) async fn get_content_thumbnail_route(
-	body: Ruma<get_content_thumbnail::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<get_content_thumbnail::v3::Response> {
 	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
 
 	if let Some(FileMeta {
+		content,
 		content_type,
-		file,
 		content_disposition,
 	}) = services()
 		.media
@@ -365,6 +390,7 @@ pub(crate) async fn get_content_thumbnail_route(
 		.await?
 	{
 		let content_disposition = Some(make_content_disposition(&content_type, content_disposition, None));
+		let file = content.expect("content");
 
 		Ok(get_content_thumbnail::v3::Response {
 			file,
@@ -453,10 +479,13 @@ pub(crate) async fn get_content_thumbnail_route(
 /// - Only redirects if `allow_redirect` is true
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
+#[tracing::instrument(skip_all, fields(%client), name = "media_thumbnail_get")]
 pub(crate) async fn get_content_thumbnail_v1_route(
-	body: Ruma<get_content_thumbnail::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<RumaResponse<get_content_thumbnail::v3::Response>> {
-	get_content_thumbnail_route(body).await.map(RumaResponse)
+	get_content_thumbnail_route(InsecureClientIp(client), body)
+		.await
+		.map(RumaResponse)
 }
 
 async fn get_remote_content(

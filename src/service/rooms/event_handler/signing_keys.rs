@@ -3,6 +3,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+use conduit::{debug, error, info, trace, warn};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::{
@@ -19,7 +20,6 @@ use ruma::{
 };
 use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::{RwLock, RwLockWriteGuard};
-use tracing::{debug, error, info, trace, warn};
 
 use crate::{services, Error, Result};
 
@@ -201,6 +201,7 @@ impl super::Service {
 
 						let result = services()
 							.globals
+							.db
 							.add_signing_key(&k.server_name, k.clone())?
 							.into_iter()
 							.map(|(k, v)| (k.to_string(), v.key))
@@ -249,6 +250,7 @@ impl super::Service {
 				if let Ok(key) = get_keys_response.server_key.deserialize() {
 					let result: BTreeMap<_, _> = services()
 						.globals
+						.db
 						.add_signing_key(&origin, key)?
 						.into_iter()
 						.map(|(k, v)| (k.to_string(), v.key))
@@ -392,7 +394,7 @@ impl super::Service {
 					}) {
 					debug!("Got signing keys: {:?}", server_keys);
 					for k in server_keys {
-						services().globals.add_signing_key(origin, k.clone())?;
+						services().globals.db.add_signing_key(origin, k.clone())?;
 						result.extend(
 							k.verify_keys
 								.into_iter()
@@ -421,6 +423,7 @@ impl super::Service {
 			{
 				services()
 					.globals
+					.db
 					.add_signing_key(origin, server_key.clone())?;
 
 				result.extend(
@@ -453,6 +456,7 @@ impl super::Service {
 			{
 				services()
 					.globals
+					.db
 					.add_signing_key(origin, server_key.clone())?;
 
 				result.extend(
@@ -499,7 +503,7 @@ impl super::Service {
 					}) {
 					debug!("Got signing keys: {:?}", server_keys);
 					for k in server_keys {
-						services().globals.add_signing_key(origin, k.clone())?;
+						services().globals.db.add_signing_key(origin, k.clone())?;
 						result.extend(
 							k.verify_keys
 								.into_iter()

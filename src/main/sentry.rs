@@ -1,18 +1,34 @@
 #![cfg(feature = "sentry_telemetry")]
 
-use std::{str::FromStr, sync::Arc};
-
-use conduit::{config::Config, trace};
-use sentry::{
-	types::{protocol::v7::Event, Dsn},
-	Breadcrumb, ClientOptions,
+use std::{
+	str::FromStr,
+	sync::{Arc, OnceLock},
 };
+
+use conduit::{config::Config, debug, trace};
+use sentry::{
+	types::{
+		protocol::v7::{Context, Event},
+		Dsn,
+	},
+	Breadcrumb, ClientOptions, Level,
+};
+
+static SEND_PANIC: OnceLock<bool> = OnceLock::new();
+static SEND_ERROR: OnceLock<bool> = OnceLock::new();
 
 pub(crate) fn init(config: &Config) -> Option<sentry::ClientInitGuard> {
 	config.sentry.then(|| sentry::init(options(config)))
 }
 
 fn options(config: &Config) -> ClientOptions {
+	SEND_PANIC
+		.set(config.sentry_send_panic)
+		.expect("SEND_PANIC was not previously set");
+	SEND_ERROR
+		.set(config.sentry_send_error)
+		.expect("SEND_ERROR was not previously set");
+
 	let dsn = config
 		.sentry_endpoint
 		.as_ref()
@@ -28,6 +44,7 @@ fn options(config: &Config) -> ClientOptions {
 		debug: cfg!(debug_assertions),
 		release: sentry::release_name!(),
 		user_agent: conduit::version::user_agent().into(),
+		attach_stacktrace: config.sentry_attach_stacktrace,
 		before_send: Some(Arc::new(before_send)),
 		before_breadcrumb: Some(Arc::new(before_breadcrumb)),
 		..Default::default()
@@ -35,11 +52,40 @@ fn options(config: &Config) -> ClientOptions {
 }
 
 fn before_send(event: Event<'static>) -> Option<Event<'static>> {
-	trace!("Sending sentry event: {event:?}");
+	if event.exception.iter().any(|e| e.ty == "panic") && !SEND_PANIC.get().unwrap_or(&true) {
+		return None;
+	}
+
+	if event.level == Level::Error {
+		if !SEND_ERROR.get().unwrap_or(&true) {
+			return None;
+		}
+
+		if cfg!(debug_assertions) {
+			return None;
+		}
+
+		//NOTE: we can enable this to specify error!(sentry = true, ...)
+		if let Some(Context::Other(context)) = event.contexts.get("Rust Tracing Fields") {
+			if !context.contains_key("sentry") {
+				//return None;
+			}
+		}
+	}
+
+	if event.level == Level::Fatal {
+		trace!("{event:#?}");
+	}
+
+	debug!("Sending sentry event: {event:?}");
 	Some(event)
 }
 
 fn before_breadcrumb(crumb: Breadcrumb) -> Option<Breadcrumb> {
-	trace!("Adding sentry breadcrumb: {crumb:?}");
+	if crumb.ty == "log" && crumb.level == Level::Debug {
+		return None;
+	}
+
+	trace!("Sentry breadcrumb: {crumb:?}");
 	Some(crumb)
 }

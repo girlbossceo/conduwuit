@@ -1,4 +1,5 @@
 use axum_client_ip::InsecureClientIp;
+use conduit::{err, info, warn, Error, Result};
 use ruma::{
 	api::{
 		client::{
@@ -10,14 +11,16 @@ use ruma::{
 	},
 	directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork},
 	events::{
-		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
+		room::{
+			join_rules::{JoinRule, RoomJoinRulesEventContent},
+			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
+		},
 		StateEventType,
 	},
-	uint, ServerName, UInt,
+	uint, RoomId, ServerName, UInt, UserId,
 };
-use tracing::{error, info, warn};
 
-use crate::{service::server_is_ours, services, Error, Result, Ruma};
+use crate::{service::server_is_ours, services, Ruma};
 
 /// # `POST /_matrix/client/v3/publicRooms`
 ///
@@ -103,8 +106,6 @@ pub(crate) async fn get_public_rooms_route(
 /// # `PUT /_matrix/client/r0/directory/list/room/{roomId}`
 ///
 /// Sets the visibility of a given room in the room directory.
-///
-/// - TODO: Access control checks
 #[tracing::instrument(skip_all, fields(%client), name = "room_directory")]
 pub(crate) async fn set_room_visibility_route(
 	InsecureClientIp(client): InsecureClientIp, body: Ruma<set_room_visibility::v3::Request>,
@@ -114,6 +115,13 @@ pub(crate) async fn set_room_visibility_route(
 	if !services().rooms.metadata.exists(&body.room_id)? {
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
+	}
+
+	if !user_can_publish_room(sender_user, &body.room_id)? {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"User is not allowed to publish this room",
+		));
 	}
 
 	match &body.visibility {
@@ -268,8 +276,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 								_ => None,
 							})
 							.map_err(|e| {
-								error!("Invalid room join rule event in database: {}", e);
-								Error::BadDatabase("Invalid room join rule event in database.")
+								err!(Database(error!("Invalid room join rule event in database: {e}")))
 							})
 					})
 					.transpose()?
@@ -350,4 +357,33 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		next_batch,
 		total_room_count_estimate: Some(total_room_count_estimate),
 	})
+}
+
+/// Check whether the user can publish to the room directory via power levels of
+/// room history visibility event or room creator
+fn user_can_publish_room(user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	if let Some(event) =
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+	{
+		serde_json::from_str(event.content.get())
+			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
+			.map(|content: RoomPowerLevelsEventContent| {
+				RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
+			})
+	} else if let Some(event) =
+		services()
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
+	{
+		Ok(event.sender == user_id)
+	} else {
+		return Err(Error::BadRequest(
+			ErrorKind::forbidden(),
+			"User is not allowed to publish this room",
+		));
+	}
 }

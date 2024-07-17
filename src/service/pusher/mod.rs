@@ -3,9 +3,8 @@ mod data;
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-use conduit::{debug_info, info, trace, warn, Error, Result, Server};
+use conduit::{debug_info, info, trace, warn, Error, Result};
 use data::Data;
-use database::Database;
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -30,13 +29,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result<()> {
 		self.db.set_pusher(sender, pusher)
 	}
@@ -183,7 +186,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, user, ruleset, pdu))]
+	#[tracing::instrument(skip(self, user, ruleset, pdu), level = "debug")]
 	pub fn get_actions<'a>(
 		&self, user: &UserId, ruleset: &'a Ruleset, power_levels: &RoomPowerLevelsEventContent,
 		pdu: &Raw<AnySyncTimelineEvent>, room_id: &RoomId,

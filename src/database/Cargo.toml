@@ -36,8 +36,8 @@ zstd_compression = [
 
 [dependencies]
 conduit-core.workspace = true
+const-str.workspace = true
 log.workspace = true
-ruma.workspace = true
 rust-rocksdb.workspace = true
 tokio.workspace = true
 tracing.workspace = true

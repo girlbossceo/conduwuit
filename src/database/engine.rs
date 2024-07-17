@@ -30,6 +30,7 @@ pub struct Engine {
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
 
 impl Engine {
+	#[tracing::instrument(skip_all)]
 	pub(crate) fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
 		let config = &server.config;
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
@@ -51,7 +52,7 @@ impl Engine {
 		if config.rocksdb_repair {
 			warn!("Starting database repair. This may take a long time...");
 			if let Err(e) = Db::repair(&db_opts, &config.database_path) {
-				error!("Repair failed: {:?}", e);
+				error!("Repair failed: {e:?}");
 			}
 		}
 
@@ -76,9 +77,9 @@ impl Engine {
 
 		let db = res.or_else(or_else)?;
 		info!(
-			"Opened database at sequence number {} in {:?}",
-			db.latest_sequence_number(),
-			load_time.elapsed()
+			sequence = %db.latest_sequence_number(),
+			time = ?load_time.elapsed(),
+			"Opened database."
 		);
 
 		Ok(Arc::new(Self {
@@ -93,15 +94,16 @@ impl Engine {
 		}))
 	}
 
+	#[tracing::instrument(skip(self))]
 	pub(crate) fn open_cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
 		let mut cfs = self.cfs.lock().expect("locked");
 		if !cfs.contains(name) {
-			debug!("Creating new column family in database: {}", name);
+			debug!("Creating new column family in database: {name}");
 
 			let mut col_cache = self.col_cache.write().expect("locked");
 			let opts = cf_options(&self.server.config, name, self.opts.clone(), &mut col_cache);
 			if let Err(e) = self.db.create_cf(name, &opts) {
-				error!("Failed to create new column family: {e}");
+				error!(?name, "Failed to create new column family: {e}");
 				return or_else(e);
 			}
 
@@ -121,6 +123,7 @@ impl Engine {
 
 	pub fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, true)) }
 
+	#[inline]
 	pub fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
 
 	pub(crate) fn cork(&self) {
@@ -133,34 +136,34 @@ impl Engine {
 			.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 	}
 
-	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	pub fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
 		let stats = get_memory_usage_stats(Some(&[&self.db]), Some(&[&self.row_cache])).or_else(or_else)?;
+		let mibs = |input| f64::from(u32::try_from(input / 1024).unwrap_or(0)) / 1024.0;
 		writeln!(
 			res,
 			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB",
-			stats.mem_table_total as f64 / 1024.0 / 1024.0,
-			stats.mem_table_unflushed as f64 / 1024.0 / 1024.0,
-			stats.mem_table_readers_total as f64 / 1024.0 / 1024.0,
-			self.row_cache.get_usage() as f64 / 1024.0 / 1024.0,
-		)
-		.expect("should be able to write to string buffer");
+			mibs(stats.mem_table_total),
+			mibs(stats.mem_table_unflushed),
+			mibs(stats.mem_table_readers_total),
+			mibs(u64::try_from(self.row_cache.get_usage())?),
+		)?;
 
 		for (name, cache) in &*self.col_cache.read().expect("locked") {
-			writeln!(res, "{} cache: {:.2} MiB", name, cache.get_usage() as f64 / 1024.0 / 1024.0,)
-				.expect("should be able to write to string buffer");
+			writeln!(res, "{name} cache: {:.2} MiB", mibs(u64::try_from(cache.get_usage())?))?;
 		}
 
 		Ok(res)
 	}
 
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cleanup(&self) -> Result<()> {
 		debug!("Running flush_opt");
 		let flushoptions = rocksdb::FlushOptions::default();
 		result(DBCommon::flush_opt(&self.db, &flushoptions))
 	}
 
+	#[tracing::instrument(skip(self))]
 	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
 		let config = &self.server.config;
 		let path = config.database_backup_path.as_ref();
@@ -213,8 +216,7 @@ impl Engine {
 				rfc2822_from_seconds(info.timestamp),
 				info.size,
 				info.num_files,
-			)
-			.expect("should be able to write to string buffer");
+			)?;
 		}
 
 		Ok(res)
@@ -225,16 +227,16 @@ impl Engine {
 			Err(e) => Ok(String::from(e)),
 			Ok(files) => {
 				let mut res = String::new();
-				writeln!(res, "| lev  | sst  | keys | dels | size | column |").expect("written to string buffer");
-				writeln!(res, "| ---: | :--- | ---: | ---: | ---: | :---   |").expect("written to string buffer");
+				writeln!(res, "| lev  | sst  | keys | dels | size | column |")?;
+				writeln!(res, "| ---: | :--- | ---: | ---: | ---: | :---   |")?;
 				for file in files {
 					writeln!(
 						res,
 						"| {} | {:<13} | {:7}+ | {:4}- | {:9} | {} |",
 						file.level, file.name, file.num_entries, file.num_deletions, file.size, file.column_family_name,
-					)
-					.expect("should be able to writeln to string buffer");
+					)?;
 				}
+
 				Ok(res)
 			},
 		}
@@ -242,6 +244,7 @@ impl Engine {
 }
 
 impl Drop for Engine {
+	#[cold]
 	fn drop(&mut self) {
 		const BLOCKING: bool = true;
 

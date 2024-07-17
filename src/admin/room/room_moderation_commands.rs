@@ -1,7 +1,5 @@
 use api::client::leave_room;
-use ruma::{
-	events::room::message::RoomMessageEventContent, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId,
-};
+use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomAliasId, RoomId, RoomOrAliasId};
 use tracing::{debug, error, info, warn};
 
 use super::{super::Service, RoomModerationCommand};
@@ -124,9 +122,7 @@ async fn ban_room(
 										.is_admin(local_user)
 										.unwrap_or(true))
 				})
-			})
-			.collect::<Vec<OwnedUserId>>()
-		{
+			}) {
 			debug!(
 				"Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
 				&local_user, &room_id
@@ -153,9 +149,7 @@ async fn ban_room(
 										.is_admin(local_user)
 										.unwrap_or(false))
 				})
-			})
-			.collect::<Vec<OwnedUserId>>()
-		{
+			}) {
 			debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
 			if let Err(e) = leave_room(&local_user, &room_id, None).await {
 				error!(
@@ -191,7 +185,10 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 		));
 	}
 
-	let rooms_s = body.clone().drain(1..body.len() - 1).collect::<Vec<_>>();
+	let rooms_s = body
+		.clone()
+		.drain(1..body.len().saturating_sub(1))
+		.collect::<Vec<_>>();
 
 	let admin_room_alias = &services().globals.admin_alias;
 
@@ -332,9 +329,7 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 												.is_admin(local_user)
 												.unwrap_or(true))
 					})
-				})
-				.collect::<Vec<OwnedUserId>>()
-			{
+				}) {
 				debug!(
 					"Attempting leave for user {} in room {} (forced, ignoring all errors, evicting admins too)",
 					&local_user, room_id
@@ -361,9 +356,7 @@ async fn ban_list_of_rooms(body: Vec<&str>, force: bool, disable_federation: boo
 												.is_admin(local_user)
 												.unwrap_or(false))
 					})
-				})
-				.collect::<Vec<OwnedUserId>>()
-			{
+				}) {
 				debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
 				if let Err(e) = leave_room(&local_user, &room_id, None).await {
 					error!(

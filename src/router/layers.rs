@@ -1,11 +1,11 @@
-use std::{any::Any, io, sync::Arc, time::Duration};
+use std::{any::Any, sync::Arc, time::Duration};
 
 use axum::{
 	extract::{DefaultBodyLimit, MatchedPath},
 	Router,
 };
 use axum_client_ip::SecureClientIpSource;
-use conduit::Server;
+use conduit::{error, Result, Server};
 use http::{
 	header::{self, HeaderName},
 	HeaderValue, Method, StatusCode,
@@ -22,11 +22,19 @@ use tracing::Level;
 
 use crate::{request, router};
 
-const CONDUWUIT_CSP: &str = "sandbox; default-src 'none'; font-src 'none'; script-src 'none'; frame-ancestors 'none'; \
-                             form-action 'none'; base-uri 'none';";
-const CONDUWUIT_PERMISSIONS_POLICY: &str = "interest-cohort=(),browsing-topics=()";
+const CONDUWUIT_CSP: &[&str] = &[
+	"sandbox",
+	"default-src 'none'",
+	"font-src 'none'",
+	"script-src 'none'",
+	"frame-ancestors 'none'",
+	"form-action 'none'",
+	"base-uri 'none'",
+];
 
-pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
+const CONDUWUIT_PERMISSIONS_POLICY: &[&str] = &["interest-cohort=()", "browsing-topics=()"];
+
+pub(crate) fn build(server: &Arc<Server>) -> Result<Router> {
 	let layers = ServiceBuilder::new();
 
 	#[cfg(feature = "sentry_telemetry")]
@@ -65,11 +73,11 @@ pub(crate) fn build(server: &Arc<Server>) -> io::Result<Router> {
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			HeaderName::from_static("permissions-policy"),
-			HeaderValue::from_static(CONDUWUIT_PERMISSIONS_POLICY),
+			HeaderValue::from_str(&CONDUWUIT_PERMISSIONS_POLICY.join(","))?,
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			header::CONTENT_SECURITY_POLICY,
-			HeaderValue::from_static(CONDUWUIT_CSP),
+			HeaderValue::from_str(&CONDUWUIT_CSP.join("; "))?,
 		))
 		.layer(cors_layer(server))
 		.layer(body_limit_layer(server))
@@ -138,21 +146,14 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 		.max_age(Duration::from_secs(86400))
 }
 
-fn body_limit_layer(server: &Server) -> DefaultBodyLimit {
-	DefaultBodyLimit::max(
-		server
-			.config
-			.max_request_size
-			.try_into()
-			.expect("failed to convert max request size"),
-	)
-}
+fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max(server.config.max_request_size) }
 
 #[allow(clippy::needless_pass_by_value)]
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, name = "panic")]
 fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
 	conduit_service::services()
 		.server
+		.metrics
 		.requests_panic
 		.fetch_add(1, std::sync::atomic::Ordering::Release);
 
@@ -164,17 +165,17 @@ fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_u
 		"Unknown internal server error occurred.".to_owned()
 	};
 
+	error!("{details:#}");
 	let body = serde_json::json!({
 		"errcode": "M_UNKNOWN",
 		"error": "M_UNKNOWN: Internal server error occurred",
 		"details": details,
-	})
-	.to_string();
+	});
 
 	http::Response::builder()
 		.status(StatusCode::INTERNAL_SERVER_ERROR)
 		.header(header::CONTENT_TYPE, "application/json")
-		.body(http_body_util::Full::from(body))
+		.body(http_body_util::Full::from(body.to_string()))
 		.expect("Failed to create response for our panic catcher?")
 }
 

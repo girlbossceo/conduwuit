@@ -3,9 +3,8 @@ mod remote;
 
 use std::sync::Arc;
 
-use conduit::{Error, Result, Server};
+use conduit::{err, Error, Result};
 use data::Data;
-use database::Database;
 use ruma::{
 	api::{appservice, client::error::ErrorKind},
 	events::{
@@ -21,13 +20,17 @@ pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	#[tracing::instrument(skip(self))]
 	pub fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
 		if alias == services().globals.admin_alias && user_id != services().globals.server_user {
@@ -86,19 +89,19 @@ impl Service {
 		)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
 		self.db.resolve_local_alias(alias)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn local_aliases_for_room<'a>(
 		&'a self, room_id: &RoomId,
-	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a> {
+	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a + Send> {
 		self.db.local_aliases_for_room(room_id)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
 		self.db.all_local_aliases()
 	}
@@ -168,7 +171,7 @@ impl Service {
 						.rooms
 						.alias
 						.resolve_local_alias(room_alias)?
-						.ok_or_else(|| Error::bad_config("Room does not exist."))?,
+						.ok_or_else(|| err!(Request(NotFound("Room does not exist."))))?,
 				));
 			}
 		}

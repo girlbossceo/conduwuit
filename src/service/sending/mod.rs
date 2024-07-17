@@ -1,31 +1,29 @@
 mod appservice;
 mod data;
-pub mod resolve;
+mod resolve;
 mod send;
 mod sender;
 
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
-use conduit::{Error, Result, Server};
-use data::Data;
-use database::Database;
-pub use resolve::FedDest;
+use conduit::{err, Result};
+pub use resolve::{resolve_actual_dest, CachedDest, CachedOverride, FedDest};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
-use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{error, warn};
+pub use sender::convert_to_outgoing_federation_event;
+use tokio::sync::Mutex;
+use tracing::warn;
 
 use crate::{server_is_ours, services};
 
 pub struct Service {
-	pub db: Data,
+	pub db: data::Data,
 
 	/// The state for a given state hash.
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
-	handler_join: Mutex<Option<JoinHandle<()>>>,
 	startup_netburst: bool,
 	startup_netburst_keep: i64,
 }
@@ -53,35 +51,7 @@ pub enum SendingEvent {
 }
 
 impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Arc<Self>> {
-		let config = &server.config;
-		let (sender, receiver) = loole::unbounded();
-		Ok(Arc::new(Self {
-			db: Data::new(db.clone()),
-			sender,
-			receiver: Mutex::new(receiver),
-			handler_join: Mutex::new(None),
-			startup_netburst: config.startup_netburst,
-			startup_netburst_keep: config.startup_netburst_keep,
-		}))
-	}
-
-	pub async fn close(&self) {
-		self.interrupt();
-		if let Some(handler_join) = self.handler_join.lock().await.take() {
-			if let Err(e) = handler_join.await {
-				error!("Failed to shutdown: {e:?}");
-			}
-		}
-	}
-
-	pub fn interrupt(&self) {
-		if !self.sender.is_closed() {
-			self.sender.close();
-		}
-	}
-
-	#[tracing::instrument(skip(self, pdu_id, user, pushkey))]
+	#[tracing::instrument(skip(self, pdu_id, user, pushkey), level = "debug")]
 	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(pdu_id.to_owned());
@@ -94,7 +64,7 @@ impl Service {
 		})
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
@@ -107,7 +77,7 @@ impl Service {
 		})
 	}
 
-	#[tracing::instrument(skip(self, room_id, pdu_id))]
+	#[tracing::instrument(skip(self, room_id, pdu_id), level = "debug")]
 	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -119,7 +89,7 @@ impl Service {
 		self.send_pdu_servers(servers, pdu_id)
 	}
 
-	#[tracing::instrument(skip(self, servers, pdu_id))]
+	#[tracing::instrument(skip(self, servers, pdu_id), level = "debug")]
 	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
 		let requests = servers
 			.into_iter()
@@ -143,7 +113,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, server, serialized))]
+	#[tracing::instrument(skip(self, server, serialized), level = "debug")]
 	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
@@ -156,7 +126,7 @@ impl Service {
 		})
 	}
 
-	#[tracing::instrument(skip(self, room_id, serialized))]
+	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
 	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -168,7 +138,7 @@ impl Service {
 		self.send_edu_servers(servers, serialized)
 	}
 
-	#[tracing::instrument(skip(self, servers, serialized))]
+	#[tracing::instrument(skip(self, servers, serialized), level = "debug")]
 	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
 		let requests = servers
 			.into_iter()
@@ -193,7 +163,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(skip(self, room_id), level = "debug")]
 	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers = services()
 			.rooms
@@ -205,7 +175,7 @@ impl Service {
 		self.flush_servers(servers)
 	}
 
-	#[tracing::instrument(skip(self, servers))]
+	#[tracing::instrument(skip(self, servers), level = "debug")]
 	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
 		let requests = servers.into_iter().map(Destination::Normal);
 		for dest in requests {
@@ -243,7 +213,7 @@ impl Service {
 
 	/// Cleanup event data
 	/// Used for instance after we remove an appservice registration
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
 		self.db
 			.delete_all_requests_for(&Destination::Appservice(appservice_id))?;
@@ -254,34 +224,52 @@ impl Service {
 	fn dispatch(&self, msg: Msg) -> Result<()> {
 		debug_assert!(!self.sender.is_full(), "channel full");
 		debug_assert!(!self.sender.is_closed(), "channel closed");
-		self.sender.send(msg).map_err(|e| Error::Err(e.to_string()))
+		self.sender.send(msg).map_err(|e| err!("{e}"))
 	}
 }
 
 impl Destination {
-	#[tracing::instrument(skip(self))]
+	#[must_use]
 	pub fn get_prefix(&self) -> Vec<u8> {
-		let mut prefix = match self {
-			Self::Appservice(server) => {
-				let mut p = b"+".to_vec();
+		match self {
+			Self::Normal(server) => {
+				let len = server.as_bytes().len().saturating_add(1);
+
+				let mut p = Vec::with_capacity(len);
 				p.extend_from_slice(server.as_bytes());
+				p.push(0xFF);
+				p
+			},
+			Self::Appservice(server) => {
+				let sigil = b"+";
+				let len = sigil
+					.len()
+					.saturating_add(server.as_bytes().len())
+					.saturating_add(1);
+
+				let mut p = Vec::with_capacity(len);
+				p.extend_from_slice(sigil);
+				p.extend_from_slice(server.as_bytes());
+				p.push(0xFF);
 				p
 			},
 			Self::Push(user, pushkey) => {
-				let mut p = b"$".to_vec();
+				let sigil = b"$";
+				let len = sigil
+					.len()
+					.saturating_add(user.as_bytes().len())
+					.saturating_add(1)
+					.saturating_add(pushkey.as_bytes().len())
+					.saturating_add(1);
+
+				let mut p = Vec::with_capacity(len);
+				p.extend_from_slice(sigil);
 				p.extend_from_slice(user.as_bytes());
 				p.push(0xFF);
 				p.extend_from_slice(pushkey.as_bytes());
+				p.push(0xFF);
 				p
 			},
-			Self::Normal(server) => {
-				let mut p = Vec::new();
-				p.extend_from_slice(server.as_bytes());
-				p
-			},
-		};
-		prefix.push(0xFF);
-
-		prefix
+		}
 	}
 }

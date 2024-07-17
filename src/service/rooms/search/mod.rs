@@ -2,33 +2,36 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{Result, Server};
+use conduit::Result;
 use data::Data;
-use database::Database;
 use ruma::RoomId;
 
 pub struct Service {
 	db: Data,
 }
 
-impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-		})
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+		}))
 	}
 
-	#[tracing::instrument(skip(self))]
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
 		self.db.index_pdu(shortroomid, pdu_id, message_body)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
 		self.db.deindex_pdu(shortroomid, pdu_id, message_body)
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn search_pdus<'a>(
 		&'a self, room_id: &RoomId, search_string: &str,
 	) -> Result<Option<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)>> {

@@ -1,13 +1,15 @@
 use std::{
-	cmp,
 	collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
 	net::IpAddr,
 	sync::Arc,
-	time::{Duration, Instant},
+	time::Instant,
 };
 
 use axum_client_ip::InsecureClientIp;
-use conduit::utils::mutex_map;
+use conduit::{
+	debug, debug_warn, error, info, trace, utils, utils::math::continue_exponential_backoff_secs, warn, Error,
+	PduEvent, Result,
+};
 use ruma::{
 	api::{
 		client::{
@@ -34,15 +36,16 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
 
 use crate::{
 	client::{update_avatar_url, update_displayname},
 	service::{
 		pdu::{gen_event_id_canonical_json, PduBuilder},
+		rooms::state::RoomMutexGuard,
+		sending::convert_to_outgoing_federation_event,
 		server_is_ours, user_is_local,
 	},
-	services, utils, Error, PduEvent, Result, Ruma,
+	services, Ruma,
 };
 
 /// Checks if the room is banned in any way possible and the sender user is not
@@ -199,7 +202,7 @@ pub(crate) async fn join_room_by_id_route(
 	}
 
 	join_room_by_id_helper(
-		body.sender_user.as_deref(),
+		sender_user,
 		&body.room_id,
 		body.reason.clone(),
 		&servers,
@@ -298,7 +301,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 	};
 
 	let join_room_response = join_room_by_id_helper(
-		Some(sender_user),
+		sender_user,
 		&room_id,
 		body.reason.clone(),
 		&servers,
@@ -363,6 +366,8 @@ pub(crate) async fn invite_user_route(
 pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Result<kick_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
 			.rooms
@@ -379,12 +384,6 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
-
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
 
 	services()
 		.rooms
@@ -413,6 +412,8 @@ pub(crate) async fn kick_user_route(body: Ruma<kick_user::v3::Request>) -> Resul
 /// Tries to send a ban event into the room.
 pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<ban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
 
 	let event = services()
 		.rooms
@@ -444,12 +445,6 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 			},
 		)?;
 
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
-
 	services()
 		.rooms
 		.timeline
@@ -478,6 +473,8 @@ pub(crate) async fn ban_user_route(body: Ruma<ban_user::v3::Request>) -> Result<
 pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Result<unban_user::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
+	let state_lock = services().rooms.state.mutex.lock(&body.room_id).await;
+
 	let mut event: RoomMemberEventContent = serde_json::from_str(
 		services()
 			.rooms
@@ -492,12 +489,6 @@ pub(crate) async fn unban_user_route(body: Ruma<unban_user::v3::Request>) -> Res
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
 	event.join_authorized_via_users_server = None;
-
-	let state_lock = services()
-		.globals
-		.roomid_mutex_state
-		.lock(&body.room_id)
-		.await;
 
 	services()
 		.rooms
@@ -650,35 +641,36 @@ pub(crate) async fn joined_members_route(
 }
 
 pub async fn join_room_by_id_helper(
-	sender_user: Option<&UserId>, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
+	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	third_party_signed: Option<&ThirdPartySigned>,
 ) -> Result<join_room_by_id::v3::Response> {
-	let sender_user = sender_user.expect("user is authenticated");
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 	if matches!(services().rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
-		info!("{sender_user} is already joined in {room_id}");
+		debug_warn!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
 			room_id: room_id.into(),
 		});
 	}
 
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
-
-	// Ask a remote server if we are not participating in this room
-	if !services()
+	if services()
 		.rooms
 		.state_cache
 		.server_in_room(services().globals.server_name(), room_id)?
+		|| servers.is_empty()
+		|| (servers.len() == 1 && server_is_ours(&servers[0]))
 	{
-		join_room_by_id_helper_remote(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
-	} else {
 		join_room_by_id_helper_local(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
+	} else {
+		// Ask a remote server if we are not participating in this room
+		join_room_by_id_helper_remote(sender_user, room_id, reason, servers, third_party_signed, state_lock).await
 	}
 }
 
+#[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_remote")]
 async fn join_room_by_id_helper_remote(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
 ) -> Result<join_room_by_id::v3::Response> {
 	info!("Joining {room_id} over federation.");
 
@@ -779,7 +771,7 @@ async fn join_room_by_id_helper_remote(
 			federation::membership::create_join_event::v2::Request {
 				room_id: room_id.to_owned(),
 				event_id: event_id.to_owned(),
-				pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+				pdu: convert_to_outgoing_federation_event(join_event.clone()),
 				omit_members: false,
 			},
 		)
@@ -788,14 +780,9 @@ async fn join_room_by_id_helper_remote(
 	info!("send_join finished");
 
 	if join_authorized_via_users_server.is_some() {
+		use RoomVersionId::*;
 		match &room_version_id {
-			RoomVersionId::V1
-			| RoomVersionId::V2
-			| RoomVersionId::V3
-			| RoomVersionId::V4
-			| RoomVersionId::V5
-			| RoomVersionId::V6
-			| RoomVersionId::V7 => {
+			V1 | V2 | V3 | V4 | V5 | V6 | V7 => {
 				warn!(
 					"Found `join_authorised_via_users_server` but room {} is version {}. Ignoring.",
 					room_id, &room_version_id
@@ -803,7 +790,7 @@ async fn join_room_by_id_helper_remote(
 			},
 			// only room versions 8 and above using `join_authorized_via_users_server` (restricted joins) need to
 			// validate and send signatures
-			RoomVersionId::V8 | RoomVersionId::V9 | RoomVersionId::V10 | RoomVersionId::V11 => {
+			V8 | V9 | V10 | V11 => {
 				if let Some(signed_raw) = &send_join_response.room_state.event {
 					info!(
 						"There is a signed event. This room is probably using restricted joins. Adding signature to \
@@ -1011,11 +998,12 @@ async fn join_room_by_id_helper_remote(
 	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
 }
 
+#[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_local")]
 async fn join_room_by_id_helper_local(
 	sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	_third_party_signed: Option<&ThirdPartySigned>, state_lock: mutex_map::Guard<()>,
+	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
 ) -> Result<join_room_by_id::v3::Response> {
-	info!("We can join locally");
+	debug!("We can join locally");
 
 	let join_rules_event =
 		services()
@@ -1115,7 +1103,7 @@ async fn join_room_by_id_helper_local(
 			.iter()
 			.any(|server_name| !server_is_ours(server_name))
 	{
-		info!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
+		warn!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
 		let (make_join_response, remote_server) = make_join_request(sender_user, room_id, servers).await?;
 
 		let room_version_id = match make_join_response.room_version {
@@ -1207,7 +1195,7 @@ async fn join_room_by_id_helper_local(
 				federation::membership::create_join_event::v2::Request {
 					room_id: room_id.to_owned(),
 					event_id: event_id.to_owned(),
-					pdu: PduEvent::convert_to_outgoing_federation_event(join_event.clone()),
+					pdu: convert_to_outgoing_federation_event(join_event.clone()),
 					omit_members: false,
 				},
 			)
@@ -1280,16 +1268,12 @@ async fn make_join_request(
 		make_join_counter = make_join_counter.saturating_add(1);
 
 		if let Err(ref e) = make_join_response {
-			trace!("make_join ErrorKind string: {:?}", e.error_code().to_string());
+			trace!("make_join ErrorKind string: {:?}", e.kind().to_string());
 
 			// converting to a string is necessary (i think) because ruma is forcing us to
 			// fill in the struct for M_INCOMPATIBLE_ROOM_VERSION
-			if e.error_code()
-				.to_string()
-				.contains("M_INCOMPATIBLE_ROOM_VERSION")
-				|| e.error_code()
-					.to_string()
-					.contains("M_UNSUPPORTED_ROOM_VERSION")
+			if e.kind().to_string().contains("M_INCOMPATIBLE_ROOM_VERSION")
+				|| e.kind().to_string().contains("M_UNSUPPORTED_ROOM_VERSION")
 			{
 				incompatible_room_version_count = incompatible_room_version_count.saturating_add(1);
 			}
@@ -1342,7 +1326,7 @@ pub async fn validate_and_add_event_id(
 			.globals
 			.bad_event_ratelimiter
 			.write()
-			.await
+			.expect("locked")
 			.entry(id)
 		{
 			Entry::Vacant(e) => {
@@ -1358,15 +1342,14 @@ pub async fn validate_and_add_event_id(
 		.globals
 		.bad_event_ratelimiter
 		.read()
-		.await
+		.expect("locked")
 		.get(&event_id)
 	{
 		// Exponential backoff
-		const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-		let min_elapsed_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-		if time.elapsed() < min_elapsed_duration {
-			debug!("Backing off from {}", event_id);
+		const MIN: u64 = 60 * 5;
+		const MAX: u64 = 60 * 60 * 24;
+		if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
+			debug!("Backing off from {event_id}");
 			return Err(Error::BadServerResponse("bad event, still backing off"));
 		}
 	}
@@ -1395,7 +1378,7 @@ pub(crate) async fn invite_helper(
 
 	if !user_is_local(user_id) {
 		let (pdu, pdu_json, invite_room_state) = {
-			let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+			let state_lock = services().rooms.state.mutex.lock(room_id).await;
 			let content = to_raw_value(&RoomMemberEventContent {
 				avatar_url: services().users.avatar_url(user_id)?,
 				displayname: None,
@@ -1438,7 +1421,7 @@ pub(crate) async fn invite_helper(
 					room_id: room_id.to_owned(),
 					event_id: (*pdu.event_id).to_owned(),
 					room_version: room_version_id.clone(),
-					event: PduEvent::convert_to_outgoing_federation_event(pdu_json.clone()),
+					event: convert_to_outgoing_federation_event(pdu_json.clone()),
 					invite_room_state,
 					via: services().rooms.state_cache.servers_route_via(room_id).ok(),
 				},
@@ -1507,7 +1490,7 @@ pub(crate) async fn invite_helper(
 		));
 	}
 
-	let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+	let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 	services()
 		.rooms
@@ -1601,7 +1584,7 @@ pub async fn leave_room(user_id: &UserId, room_id: &RoomId, reason: Option<Strin
 			true,
 		)?;
 	} else {
-		let state_lock = services().globals.roomid_mutex_state.lock(room_id).await;
+		let state_lock = services().rooms.state.mutex.lock(room_id).await;
 
 		let member_event =
 			services()
@@ -1680,8 +1663,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 			.filter_map(|event: serde_json::Value| event.get("sender").cloned())
 			.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
 			.filter_map(|sender| UserId::parse(sender).ok())
-			.map(|user| user.server_name().to_owned())
-			.collect::<HashSet<OwnedServerName>>(),
+			.map(|user| user.server_name().to_owned()),
 	);
 
 	debug!("servers in remote_leave_room: {servers:?}");
@@ -1775,7 +1757,7 @@ async fn remote_leave_room(user_id: &UserId, room_id: &RoomId) -> Result<()> {
 			federation::membership::create_leave_event::v2::Request {
 				room_id: room_id.to_owned(),
 				event_id,
-				pdu: PduEvent::convert_to_outgoing_federation_event(leave_event.clone()),
+				pdu: convert_to_outgoing_federation_event(leave_event.clone()),
 			},
 		)
 		.await?;

@@ -14,9 +14,6 @@ use ruma::{
 
 use crate::services;
 
-const COUNTER: &[u8] = b"c";
-const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
-
 pub struct Data {
 	global: Arc<Map>,
 	todeviceid_events: Arc<Map>,
@@ -34,6 +31,8 @@ pub struct Data {
 	pub(super) db: Arc<Database>,
 	counter: RwLock<u64>,
 }
+
+const COUNTER: &[u8] = b"c";
 
 impl Data {
 	pub(super) fn new(db: &Arc<Database>) -> Self {
@@ -57,6 +56,7 @@ impl Data {
 	}
 
 	pub fn next_count(&self) -> Result<u64> {
+		let _cork = self.db.cork();
 		let mut lock = self.counter.write().expect("locked");
 		let counter: &mut u64 = &mut lock;
 		debug_assert!(
@@ -64,7 +64,10 @@ impl Data {
 			"counter mismatch"
 		);
 
-		*counter = counter.wrapping_add(1);
+		*counter = counter
+			.checked_add(1)
+			.expect("counter must not overflow u64");
+
 		self.global.insert(COUNTER, &counter.to_be_bytes())?;
 
 		Ok(*counter)
@@ -89,23 +92,7 @@ impl Data {
 			.map_or(Ok(0_u64), utils::u64_from_bytes)
 	}
 
-	pub fn last_check_for_updates_id(&self) -> Result<u64> {
-		self.global
-			.get(LAST_CHECK_FOR_UPDATES_COUNT)?
-			.map_or(Ok(0_u64), |bytes| {
-				utils::u64_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("last check for updates count has invalid bytes."))
-			})
-	}
-
-	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
-		self.global
-			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
-
-		Ok(())
-	}
-
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
 		let userid_bytes = user_id.as_bytes().to_vec();
 		let mut userid_prefix = userid_bytes.clone();
@@ -206,43 +193,6 @@ impl Data {
 		Ok(())
 	}
 
-	pub fn cleanup(&self) -> Result<()> { self.db.db.cleanup() }
-
-	pub fn memory_usage(&self) -> String {
-		let (auth_chain_cache, max_auth_chain_cache) = services().rooms.auth_chain.get_cache_usage();
-		let (appservice_in_room_cache, max_appservice_in_room_cache) = services()
-			.rooms
-			.state_cache
-			.get_appservice_in_room_cache_usage();
-		let (lasttimelinecount_cache, max_lasttimelinecount_cache) = services()
-			.rooms
-			.timeline
-			.get_lasttimelinecount_cache_usage();
-
-		format!(
-			"auth_chain_cache: {auth_chain_cache} / {max_auth_chain_cache}\nappservice_in_room_cache: \
-			 {appservice_in_room_cache} / {max_appservice_in_room_cache}\nlasttimelinecount_cache: \
-			 {lasttimelinecount_cache} / {max_lasttimelinecount_cache}\n\n{}",
-			self.db.db.memory_usage().unwrap_or_default()
-		)
-	}
-
-	#[allow(clippy::unused_self)]
-	pub fn clear_caches(&self, amount: u32) {
-		if amount > 1 {
-			services().rooms.auth_chain.clear_cache();
-		}
-		if amount > 2 {
-			services()
-				.rooms
-				.state_cache
-				.clear_appservice_in_room_cache();
-		}
-		if amount > 3 {
-			services().rooms.timeline.clear_lasttimelinecount_cache();
-		}
-	}
-
 	pub fn load_keypair(&self) -> Result<Ed25519KeyPair> {
 		let keypair_bytes = self.global.get(b"keypair")?.map_or_else(
 			|| {
@@ -275,8 +225,16 @@ impl Data {
 		})
 	}
 
+	#[inline]
 	pub fn remove_keypair(&self) -> Result<()> { self.global.remove(b"keypair") }
 
+	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
+	/// in room version > 4
+	///
+	/// Remove the outdated keys and insert the new ones.
+	///
+	/// This doesn't actually check that the keys provided are newer than the
+	/// old set.
 	pub fn add_signing_key(
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
 	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
@@ -340,14 +298,18 @@ impl Data {
 		})
 	}
 
+	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
 		self.global.insert(b"version", &new_version.to_be_bytes())?;
 		Ok(())
 	}
 
+	#[inline]
 	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> { self.db.db.backup() }
 
+	#[inline]
 	pub fn backup_list(&self) -> Result<String> { self.db.db.backup_list() }
 
+	#[inline]
 	pub fn file_list(&self) -> Result<String> { self.db.db.file_list() }
 }

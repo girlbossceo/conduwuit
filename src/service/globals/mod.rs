@@ -1,40 +1,31 @@
 mod client;
 mod data;
-pub(super) mod emerg_access;
+mod emerg_access;
 pub(super) mod migrations;
-mod resolver;
-pub(super) mod updates;
+pub(crate) mod resolver;
 
 use std::{
 	collections::{BTreeMap, HashMap},
-	sync::Arc,
+	fmt::Write,
+	sync::{Arc, RwLock},
 	time::Instant,
 };
 
-use conduit::{error, trace, utils::MutexMap, Config, Result, Server};
+use async_trait::async_trait;
+use conduit::{error, trace, Config, Result};
 use data::Data;
-use database::Database;
-use hickory_resolver::TokioAsyncResolver;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
-	api::{
-		client::discovery::discover_support::ContactRole,
-		federation::discovery::{ServerSigningKeys, VerifyKey},
-	},
+	api::{client::discovery::discover_support::ContactRole, federation::discovery::VerifyKey},
 	serde::Base64,
-	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId,
-	RoomAliasId, RoomVersionId, ServerName, UserId,
+	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomAliasId,
+	RoomVersionId, ServerName, UserId,
 };
-use tokio::{
-	sync::{Mutex, RwLock},
-	task::JoinHandle,
-};
+use tokio::sync::Mutex;
 use url::Url;
 
 use crate::services;
-
-type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
 pub struct Service {
 	pub db: Data,
@@ -50,20 +41,18 @@ pub struct Service {
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
-	pub roomid_mutex_insert: MutexMap<OwnedRoomId, ()>,
-	pub roomid_mutex_state: MutexMap<OwnedRoomId, ()>,
-	pub roomid_mutex_federation: MutexMap<OwnedRoomId, ()>,
-	pub roomid_federationhandletime: RwLock<HashMap<OwnedRoomId, (OwnedEventId, Instant)>>,
-	pub updates_handle: Mutex<Option<JoinHandle<()>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
 }
 
-impl Service {
-	pub fn build(server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		let config = &server.config;
-		let db = Data::new(db);
+type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
+
+#[async_trait]
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let config = &args.server.config;
+		let db = Data::new(args.db);
 		let keypair = db.load_keypair();
 
 		let keypair = match keypair {
@@ -114,11 +103,6 @@ impl Service {
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			roomid_mutex_state: MutexMap::<OwnedRoomId, ()>::new(),
-			roomid_mutex_insert: MutexMap::<OwnedRoomId, ()>::new(),
-			roomid_mutex_federation: MutexMap::<OwnedRoomId, ()>::new(),
-			roomid_federationhandletime: RwLock::new(HashMap::new()),
-			updates_handle: Mutex::new(None),
 			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
@@ -134,9 +118,65 @@ impl Service {
 			s.config.default_room_version = crate::config::default_default_room_version();
 		};
 
-		Ok(s)
+		Ok(Arc::new(s))
 	}
 
+	async fn worker(self: Arc<Self>) -> Result<()> {
+		emerg_access::init_emergency_access();
+
+		Ok(())
+	}
+
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		self.resolver.memory_usage(out)?;
+
+		let bad_event_ratelimiter = self
+			.bad_event_ratelimiter
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "bad_event_ratelimiter: {bad_event_ratelimiter}")?;
+
+		let bad_query_ratelimiter = self
+			.bad_query_ratelimiter
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "bad_query_ratelimiter: {bad_query_ratelimiter}")?;
+
+		let bad_signature_ratelimiter = self
+			.bad_signature_ratelimiter
+			.read()
+			.expect("locked for reading")
+			.len();
+		writeln!(out, "bad_signature_ratelimiter: {bad_signature_ratelimiter}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) {
+		self.resolver.clear_cache();
+
+		self.bad_event_ratelimiter
+			.write()
+			.expect("locked for writing")
+			.clear();
+
+		self.bad_query_ratelimiter
+			.write()
+			.expect("locked for writing")
+			.clear();
+
+		self.bad_signature_ratelimiter
+			.write()
+			.expect("locked for writing")
+			.clear();
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	/// Returns this server's keypair.
 	pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair { &self.keypair }
 
@@ -146,19 +186,11 @@ impl Service {
 	#[inline]
 	pub fn current_count(&self) -> Result<u64> { Ok(self.db.current_count()) }
 
-	#[tracing::instrument(skip(self))]
-	pub fn last_check_for_updates_id(&self) -> Result<u64> { self.db.last_check_for_updates_id() }
-
-	#[tracing::instrument(skip(self))]
-	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> { self.db.update_check_for_updates_id(id) }
-
 	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
 		self.db.watch(user_id, device_id).await
 	}
 
 	pub fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }
-
-	pub fn max_request_size(&self) -> u32 { self.config.max_request_size }
 
 	pub fn max_fetch_prev_events(&self) -> u16 { self.config.max_fetch_prev_events }
 
@@ -184,6 +216,7 @@ impl Service {
 
 	pub fn allow_unstable_room_versions(&self) -> bool { self.config.allow_unstable_room_versions }
 
+	#[inline]
 	pub fn default_room_version(&self) -> RoomVersionId { self.config.default_room_version.clone() }
 
 	pub fn new_user_displayname_suffix(&self) -> &String { &self.config.new_user_displayname_suffix }
@@ -193,8 +226,6 @@ impl Service {
 	pub fn trusted_servers(&self) -> &[OwnedServerName] { &self.config.trusted_servers }
 
 	pub fn query_trusted_key_servers_first(&self) -> bool { self.config.query_trusted_key_servers_first }
-
-	pub fn dns_resolver(&self) -> &TokioAsyncResolver { &self.resolver.resolver }
 
 	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
 
@@ -273,19 +304,6 @@ impl Service {
 		room_versions
 	}
 
-	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
-	/// in room version > 4
-	///
-	/// Remove the outdated keys and insert the new ones.
-	///
-	/// This doesn't actually check that the keys provided are newer than the
-	/// old set.
-	pub fn add_signing_key(
-		&self, origin: &ServerName, new_keys: ServerSigningKeys,
-	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-		self.db.add_signing_key(origin, new_keys)
-	}
-
 	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	/// for the server.
 	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
@@ -304,14 +322,11 @@ impl Service {
 		Ok(keys)
 	}
 
-	pub fn database_version(&self) -> Result<u64> { self.db.database_version() }
-
-	pub fn bump_database_version(&self, new_version: u64) -> Result<()> { self.db.bump_database_version(new_version) }
-
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
 
 	pub fn well_known_server(&self) -> &Option<OwnedServerName> { &self.config.well_known.server }
 
+	#[inline]
 	pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
 		for cidr in &self.cidr_range_denylist {
 			if cidr.includes(ip) {

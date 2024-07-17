@@ -2,14 +2,15 @@ use std::{
 	fmt,
 	fmt::Debug,
 	net::{IpAddr, SocketAddr},
+	time::SystemTime,
 };
 
+use conduit::{debug, debug_error, debug_info, debug_warn, trace, utils::rand, Err, Error, Result};
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
-use ruma::ServerName;
-use tracing::{debug, error, trace};
+use ruma::{OwnedServerName, ServerName};
 
-use crate::{debug_error, debug_info, debug_warn, services, Error, Result};
+use crate::services;
 
 /// Wraps either an literal IP address plus port, or a hostname plus complement
 /// (colon-plus-port if it was specified).
@@ -35,11 +36,26 @@ pub enum FedDest {
 	Named(String, String),
 }
 
+#[derive(Clone, Debug)]
 pub(crate) struct ActualDest {
 	pub(crate) dest: FedDest,
 	pub(crate) host: String,
 	pub(crate) string: String,
 	pub(crate) cached: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct CachedDest {
+	pub dest: FedDest,
+	pub host: String,
+	pub expire: SystemTime,
+}
+
+#[derive(Clone, Debug)]
+pub struct CachedOverride {
+	pub ips: Vec<IpAddr>,
+	pub port: u16,
+	pub expire: SystemTime,
 }
 
 #[tracing::instrument(skip_all, name = "resolve")]
@@ -48,13 +64,13 @@ pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDe
 	let cached_result = services()
 		.globals
 		.resolver
-		.destinations
-		.read()
-		.expect("locked for reading")
-		.get(server_name)
-		.cloned();
+		.get_cached_destination(server_name);
 
-	let (dest, host) = if let Some(result) = cached_result {
+	let CachedDest {
+		dest,
+		host,
+		..
+	} = if let Some(result) = cached_result {
 		cached = true;
 		result
 	} else {
@@ -77,7 +93,7 @@ pub(crate) async fn get_actual_dest(server_name: &ServerName) -> Result<ActualDe
 /// Numbers in comments below refer to bullet points in linked section of
 /// specification
 #[tracing::instrument(skip_all, name = "actual")]
-pub async fn resolve_actual_dest(dest: &ServerName, cache: bool) -> Result<(FedDest, String)> {
+pub async fn resolve_actual_dest(dest: &ServerName, cache: bool) -> Result<CachedDest> {
 	trace!("Finding actual destination for {dest}");
 	let mut host = dest.as_str().to_owned();
 	let actual_dest = match get_ip_with_port(dest.as_str()) {
@@ -109,7 +125,11 @@ pub async fn resolve_actual_dest(dest: &ServerName, cache: bool) -> Result<(FedD
 	};
 
 	debug!("Actual destination: {actual_dest:?} hostname: {host:?}");
-	Ok((actual_dest, host.into_uri_string()))
+	Ok(CachedDest {
+		dest: actual_dest,
+		host: host.into_uri_string(),
+		expire: CachedDest::default_expire(),
+	})
 }
 
 fn actual_dest_1(host_port: FedDest) -> Result<FedDest> {
@@ -193,14 +213,7 @@ async fn actual_dest_5(dest: &ServerName, cache: bool) -> Result<FedDest> {
 #[tracing::instrument(skip_all, name = "well-known")]
 async fn request_well_known(dest: &str) -> Result<Option<String>> {
 	trace!("Requesting well known for {dest}");
-	if !services()
-		.globals
-		.resolver
-		.overrides
-		.read()
-		.unwrap()
-		.contains_key(dest)
-	{
+	if !services().globals.resolver.has_cached_override(dest) {
 		query_and_cache_override(dest, dest, 8448).await?;
 	}
 
@@ -261,22 +274,25 @@ async fn conditional_query_and_cache_override(overname: &str, hostname: &str, po
 async fn query_and_cache_override(overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
 	match services()
 		.globals
-		.dns_resolver()
+		.resolver
+		.resolver
 		.lookup_ip(hostname.to_owned())
 		.await
 	{
 		Err(e) => handle_resolve_error(&e),
 		Ok(override_ip) => {
 			if hostname != overname {
-				debug_info!("{:?} overriden by {:?}", overname, hostname);
+				debug_info!("{overname:?} overriden by {hostname:?}");
 			}
-			services()
-				.globals
-				.resolver
-				.overrides
-				.write()
-				.unwrap()
-				.insert(overname.to_owned(), (override_ip.iter().collect(), port));
+
+			services().globals.resolver.set_cached_override(
+				overname.to_owned(),
+				CachedOverride {
+					ips: override_ip.iter().collect(),
+					port,
+					expire: CachedOverride::default_expire(),
+				},
+			);
 
 			Ok(())
 		},
@@ -299,7 +315,8 @@ async fn query_srv_record(hostname: &'_ str) -> Result<Option<FedDest>> {
 		let hostname = hostname.trim_end_matches('.');
 		services()
 			.globals
-			.dns_resolver()
+			.resolver
+			.resolver
 			.srv_lookup(hostname.to_owned())
 			.await
 	}
@@ -328,16 +345,13 @@ fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 			debug!("{e}");
 			Ok(())
 		},
-		_ => {
-			error!("DNS {e}");
-			Err(Error::Err(e.to_string()))
-		},
+		_ => Err!(error!("DNS {e}")),
 	}
 }
 
 fn validate_dest(dest: &ServerName) -> Result<()> {
 	if dest == services().globals.server_name() {
-		return Err(Error::bad_config("Won't send federation request to ourselves"));
+		return Err!("Won't send federation request to ourselves");
 	}
 
 	if dest.is_ip_literal() || IPAddress::is_valid(dest.host()) {
@@ -390,6 +404,64 @@ fn add_port_to_hostname(dest_str: &str) -> FedDest {
 	FedDest::Named(host.to_owned(), port.to_owned())
 }
 
+impl crate::globals::resolver::Resolver {
+	pub(crate) fn set_cached_destination(&self, name: OwnedServerName, dest: CachedDest) -> Option<CachedDest> {
+		trace!(?name, ?dest, "set cached destination");
+		self.destinations
+			.write()
+			.expect("locked for writing")
+			.insert(name, dest)
+	}
+
+	pub(crate) fn get_cached_destination(&self, name: &ServerName) -> Option<CachedDest> {
+		self.destinations
+			.read()
+			.expect("locked for reading")
+			.get(name)
+			.filter(|cached| cached.valid())
+			.cloned()
+	}
+
+	pub(crate) fn set_cached_override(&self, name: String, over: CachedOverride) -> Option<CachedOverride> {
+		trace!(?name, ?over, "set cached override");
+		self.overrides
+			.write()
+			.expect("locked for writing")
+			.insert(name, over)
+	}
+
+	pub(crate) fn has_cached_override(&self, name: &str) -> bool {
+		self.overrides
+			.read()
+			.expect("locked for reading")
+			.get(name)
+			.filter(|cached| cached.valid())
+			.is_some()
+	}
+}
+
+impl CachedDest {
+	#[inline]
+	#[must_use]
+	pub fn valid(&self) -> bool { true }
+
+	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+
+	#[must_use]
+	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36) }
+}
+
+impl CachedOverride {
+	#[inline]
+	#[must_use]
+	pub fn valid(&self) -> bool { true }
+
+	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+
+	#[must_use]
+	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12) }
+}
+
 impl FedDest {
 	fn into_https_string(self) -> String {
 		match self {
@@ -412,6 +484,8 @@ impl FedDest {
 		}
 	}
 
+	#[inline]
+	#[allow(clippy::string_slice)]
 	fn port(&self) -> Option<u16> {
 		match &self {
 			Self::Literal(addr) => Some(addr.port()),

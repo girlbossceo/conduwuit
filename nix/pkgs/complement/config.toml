@@ -5,13 +5,17 @@ allow_guest_registration = true
 allow_public_room_directory_over_federation = true
 allow_public_room_directory_without_auth = true
 allow_registration = true
-allow_unstable_room_versions = true
-database_backend = "rocksdb"
 database_path = "/database"
-log = "trace"
+log = "trace,h2=warn,hyper=warn"
 port = [8008, 8448]
 trusted_servers = []
+query_trusted_key_servers_first = false
 yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse = true
+ip_range_denylist = []
+url_preview_domain_contains_allowlist = ["*"]
+media_compat_file_link = false
+media_statup_check = false
+rocksdb_direct_io = false
 
 [global.tls]
 certs = "/certificate.crt"

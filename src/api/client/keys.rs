@@ -1,9 +1,9 @@
 use std::{
-	cmp,
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
-	time::{Duration, Instant},
+	time::Instant,
 };
 
+use conduit::{utils, utils::math::continue_exponential_backoff_secs, Error, Result};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{
@@ -18,15 +18,11 @@ use ruma::{
 	DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
 use serde_json::json;
+use service::user_is_local;
 use tracing::debug;
 
 use super::SESSION_ID_LENGTH;
-use crate::{
-	service::user_is_local,
-	services,
-	utils::{self},
-	Error, Result, Ruma,
-};
+use crate::{services, Ruma};
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
@@ -334,7 +330,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 			.globals
 			.bad_query_ratelimiter
 			.write()
-			.await
+			.expect("locked")
 			.entry(id)
 		{
 			hash_map::Entry::Vacant(e) => {
@@ -353,15 +349,14 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 				.globals
 				.bad_query_ratelimiter
 				.read()
-				.await
+				.expect("locked")
 				.get(server)
 			{
 				// Exponential backoff
-				const MAX_DURATION: Duration = Duration::from_secs(60 * 60 * 24);
-				let min_elapsed_duration = cmp::min(MAX_DURATION, Duration::from_secs(5 * 60) * (*tries) * (*tries));
-
-				if time.elapsed() < min_elapsed_duration {
-					debug!("Backing off query from {:?}", server);
+				const MIN: u64 = 5 * 60;
+				const MAX: u64 = 60 * 60 * 24;
+				if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
+					debug!("Backing off query from {server:?}");
 					return (server, Err(Error::BadServerResponse("bad query, still backing off")));
 				}
 			}

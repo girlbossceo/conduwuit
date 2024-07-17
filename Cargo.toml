@@ -20,10 +20,13 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
 rust-version = "1.77.0"
-version = "0.4.4"
+version = "0.4.5"
 
 [workspace.metadata.crane]
 name = "conduit"
+
+[workspace.dependencies.const-str]
+version = "0.5.7"
 
 [workspace.dependencies.sanitize-filename]
 version = "0.5.0"
@@ -50,7 +53,7 @@ version = "0.8.5"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 [workspace.dependencies.bytes]
-version = "1.6.0"
+version = "1.6.1"
 
 [workspace.dependencies.http-body-util]
 version = "0.1.1"
@@ -113,7 +116,7 @@ features = [
 ]
 
 [workspace.dependencies.serde]
-version = "1.0.203"
+version = "1.0.204"
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
@@ -169,7 +172,7 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.4"
+version = "4.5.9"
 default-features = false
 features = [
 	"std",
@@ -197,6 +200,9 @@ features = [
 	"io-util",
 ]
 
+[workspace.dependencies.tokio-metrics]
+version = "0.3.1"
+
 [workspace.dependencies.libloading]
 version = "0.8.3"
 
@@ -208,7 +214,7 @@ features = ["serde"]
 # standard date and time tools
 [workspace.dependencies.chrono]
 version = "0.4.38"
-features = ["alloc"]
+features = ["alloc", "std"]
 default-features = false
 
 [workspace.dependencies.hyper]
@@ -245,7 +251,7 @@ default-features = false
 
 # Used for conduit::Error type
 [workspace.dependencies.thiserror]
-version = "1.0.61"
+version = "1.0.62"
 
 # Used when hashing the state
 [workspace.dependencies.ring]
@@ -265,7 +271,7 @@ version = "2.1.1"
 version = "0.3.1"
 
 [workspace.dependencies.async-trait]
-version = "0.1.80"
+version = "0.1.81"
 
 [workspace.dependencies.lru-cache]
 version = "0.1.2"
@@ -303,7 +309,7 @@ features = [
 
 [workspace.dependencies.ruma-identifiers-validation]
 git = "https://github.com/girlbossceo/ruwuma"
-rev = "fd686e77950680462377c9105dfb4136dd49c7a0"
+rev = "c51ccb2c68d2e3557eb12b1a49036531711ec0e5"
 
 [workspace.dependencies.rust-rocksdb]
 path = "deps/rust-rocksdb"
@@ -311,7 +317,6 @@ package = "rust-rocksdb-uwu"
 features = [
 	"multi-threaded-cf",
 	"mt_static",
-	"snappy",
 	"lz4",
 	"zstd",
 	"zlib",
@@ -380,10 +385,6 @@ version = "0.5.4"
 default-features = false
 features = ["use_std"]
 
-[workspace.dependencies.tokio-metrics]
-version = "0.3.1"
-default-features = false
-
 [workspace.dependencies.console-subscriber]
 version = "0.3"
 
@@ -405,10 +406,14 @@ features = [
 
 [workspace.dependencies.rustyline-async]
 version = "0.4.2"
+default-features = false
 
 [workspace.dependencies.termimad]
 version = "0.29.4"
 default-features = false
+
+[workspace.dependencies.checked_ops]
+version = "0.1"
 
 
 #
@@ -420,22 +425,28 @@ default-features = false
 # https://github.com/girlbossceo/tracing/commit/b348dca742af641c47bc390261f60711c2af573c
 [patch.crates-io.tracing-subscriber]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 [patch.crates-io.tracing]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 [patch.crates-io.tracing-core]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 [patch.crates-io.tracing-log]
 git = "https://github.com/girlbossceo/tracing"
-rev = "b348dca742af641c47bc390261f60711c2af573c"
+rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 
 # fixes hyper graceful shutdowns [https://github.com/programatik29/axum-server/issues/114]
 # https://github.com/girlbossceo/axum-server/commit/8e3368d899079818934e61cc9c839abcbbcada8a
 [patch.crates-io.axum-server]
 git = "https://github.com/girlbossceo/axum-server"
 rev = "8e3368d899079818934e61cc9c839abcbbcada8a"
+
+# adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
+# adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
+[patch.crates-io.rustyline-async]
+git = "https://github.com/girlbossceo/rustyline-async"
+rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
 
 #
 # Our crates
@@ -726,7 +737,6 @@ nursery = "warn"
 
 ## some sadness
 missing_const_for_fn = { level = "allow", priority = 1 }             # TODO
-needless_collect = { level = "allow", priority = 1 }                 # TODO
 option_if_let_else = { level = "allow", priority = 1 }               # TODO
 redundant_pub_crate = { level = "allow", priority = 1 }              # TODO
 significant_drop_in_scrutinee = { level = "allow", priority = 1 }    # TODO
@@ -736,21 +746,14 @@ significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
 pedantic = "warn"
 
 ## some sadness
-cast_possible_truncation = { level = "allow", priority = 1 }
-cast_precision_loss = { level = "allow", priority = 1 }
-cast_sign_loss = { level = "allow", priority = 1 }
 doc_markdown = { level = "allow", priority = 1 }
-error_impl_error = { level = "allow", priority = 1 }
-expect_used = { level = "allow", priority = 1 }
+enum_glob_use = { level = "allow", priority = 1 }
 if_not_else = { level = "allow", priority = 1 }
 if_then_some_else_none = { level = "allow", priority = 1 }
-implicit_return = { level = "allow", priority = 1 }
 inline_always = { level = "allow", priority = 1 }
-map_err_ignore = { level = "allow", priority = 1 }
 missing_docs_in_private_items = { level = "allow", priority = 1 }
 missing_errors_doc = { level = "allow", priority = 1 }
 missing_panics_doc = { level = "allow", priority = 1 }
-mod_module_files = { level = "allow", priority = 1 }
 module_name_repetitions = { level = "allow", priority = 1 }
 no_effect_underscore_binding = { level = "allow", priority = 1 }
 similar_names = { level = "allow", priority = 1 }
@@ -764,8 +767,10 @@ perf = "warn"
 ###################
 #restriction = "warn"
 
-#arithmetic_side_effects = "warn"                                    # TODO
-#as_conversions = "warn"                                             # TODO
+allow_attributes = "warn"
+arithmetic_side_effects = "warn"
+as_conversions = "warn"
+as_underscore = "warn"
 assertions_on_result_states = "warn"
 dbg_macro = "warn"
 default_union_representation = "warn"
@@ -779,7 +784,6 @@ fn_to_numeric_cast_any = "warn"
 format_push_string = "warn"
 get_unwrap = "warn"
 impl_trait_in_params = "warn"
-let_underscore_must_use = "warn"
 let_underscore_untyped = "warn"
 lossy_float_literal = "warn"
 mem_forget = "warn"
@@ -793,6 +797,7 @@ rest_pat_in_fully_bound_structs = "warn"
 semicolon_outside_block = "warn"
 str_to_string = "warn"
 string_lit_chars_any = "warn"
+string_slice = "warn"
 string_to_string = "warn"
 suspicious_xor_used_as_pow = "warn"
 tests_outside_test_module = "warn"
@@ -803,6 +808,7 @@ unnecessary_safety_doc = "warn"
 unnecessary_self_imports = "warn"
 unneeded_field_pattern = "warn"
 unseparated_literal_suffix = "warn"
+#unwrap_used = "warn"                                                # TODO
 verbose_file_reads = "warn"
 
 ###################

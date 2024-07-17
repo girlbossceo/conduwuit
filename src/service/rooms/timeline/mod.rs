@@ -1,15 +1,18 @@
 mod data;
 
 use std::{
-	collections::{BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashSet},
+	fmt::Write,
 	sync::Arc,
 };
 
-use conduit::{debug, error, info, utils, utils::mutex_map, warn, Error, Result, Server};
+use conduit::{
+	debug, error, info, utils,
+	utils::{MutexMap, MutexMapGuard},
+	validated, warn, Error, Result,
+};
 use data::Data;
-use database::Database;
 use itertools::Itertools;
-use rand::prelude::SliceRandom;
 use ruma::{
 	api::{client::error::ErrorKind, federation},
 	canonical_json::to_canonical_value,
@@ -32,7 +35,7 @@ use ruma::{
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use crate::{
 	admin,
@@ -66,19 +69,48 @@ struct ExtractBody {
 
 pub struct Service {
 	db: Data,
+	pub mutex_insert: RoomMutexMap,
+}
 
-	pub lasttimelinecount_cache: Mutex<HashMap<OwnedRoomId, PduCount>>,
+type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
+pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
+
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+			mutex_insert: RoomMutexMap::new(),
+		}))
+	}
+
+	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		let lasttimelinecount_cache = self
+			.db
+			.lasttimelinecount_cache
+			.lock()
+			.expect("locked")
+			.len();
+		writeln!(out, "lasttimelinecount_cache: {lasttimelinecount_cache}")?;
+
+		let mutex_insert = self.mutex_insert.len();
+		writeln!(out, "insert_mutex: {mutex_insert}")?;
+
+		Ok(())
+	}
+
+	fn clear_cache(&self) {
+		self.db
+			.lasttimelinecount_cache
+			.lock()
+			.expect("locked")
+			.clear();
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
 impl Service {
-	pub fn build(_server: &Arc<Server>, db: &Arc<Database>) -> Result<Self> {
-		Ok(Self {
-			db: Data::new(db),
-			lasttimelinecount_cache: Mutex::new(HashMap::new()),
-		})
-	}
-
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
 		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
 			.next()
@@ -86,7 +118,7 @@ impl Service {
 			.transpose()
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
 		self.all_pdus(user_id!("@placeholder:conduwuit.placeholder"), room_id)?
 			.last()
@@ -94,7 +126,7 @@ impl Service {
 			.transpose()
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
 		self.db.last_timeline_count(sender_user, room_id)
 	}
@@ -125,40 +157,19 @@ impl Service {
 	}
 	*/
 
-	/// Returns the version of a room, if known
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
-	pub fn get_room_version(&self, room_id: &RoomId) -> Result<Option<RoomVersionId>> {
-		let create_event = services()
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
-
-		let create_event_content: Option<RoomCreateEventContent> = create_event
-			.as_ref()
-			.map(|create_event| {
-				serde_json::from_str(create_event.content.get()).map_err(|e| {
-					warn!("Invalid create event: {}", e);
-					Error::bad_database("Invalid create event in db.")
-				})
-			})
-			.transpose()?;
-
-		Ok(create_event_content.map(|content| content.room_version))
-	}
-
 	/// Returns the json of a pdu.
 	pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.db.get_pdu_json(event_id)
 	}
 
 	/// Returns the json of a pdu.
+	#[inline]
 	pub fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.db.get_non_outlier_pdu_json(event_id)
 	}
 
 	/// Returns the pdu's id.
+	#[inline]
 	pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<database::Handle<'_>>> {
 		self.db.get_pdu_id(event_id)
 	}
@@ -166,9 +177,7 @@ impl Service {
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	///
-	/// TODO: use this?
-	#[allow(dead_code)]
+	#[inline]
 	pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.db.get_non_outlier_pdu(event_id)
 	}
@@ -189,7 +198,7 @@ impl Service {
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
 		self.db.replace_pdu(pdu_id, pdu_json, pdu)
 	}
@@ -206,7 +215,7 @@ impl Service {
 		pdu: &PduEvent,
 		mut pdu_json: CanonicalJsonObject,
 		leaves: Vec<OwnedEventId>,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Vec<u8>> {
 		// Coalesce database writes for the remainder of this scope.
 		let _cork = services().db.cork_and_flush();
@@ -271,11 +280,7 @@ impl Service {
 			.state
 			.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
 
-		let insert_lock = services()
-			.globals
-			.roomid_mutex_insert
-			.lock(&pdu.room_id)
-			.await;
+		let insert_lock = self.mutex_insert.lock(&pdu.room_id).await;
 
 		let count1 = services().globals.next_count()?;
 		// Mark as read first so the sending client doesn't get a notification even if
@@ -384,18 +389,11 @@ impl Service {
 
 		match pdu.kind {
 			TimelineEventType::RoomRedaction => {
+				use RoomVersionId::*;
+
 				let room_version_id = services().rooms.state.get_room_version(&pdu.room_id)?;
 				match room_version_id {
-					RoomVersionId::V1
-					| RoomVersionId::V2
-					| RoomVersionId::V3
-					| RoomVersionId::V4
-					| RoomVersionId::V5
-					| RoomVersionId::V6
-					| RoomVersionId::V7
-					| RoomVersionId::V8
-					| RoomVersionId::V9
-					| RoomVersionId::V10 => {
+					V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 						if let Some(redact_id) = &pdu.redacts {
 							if services().rooms.state_accessor.user_can_redact(
 								redact_id,
@@ -407,7 +405,7 @@ impl Service {
 							}
 						}
 					},
-					RoomVersionId::V11 => {
+					V11 => {
 						let content =
 							serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get()).map_err(|e| {
 								warn!("Invalid content in redaction pdu: {e}");
@@ -596,7 +594,7 @@ impl Service {
 		pdu_builder: PduBuilder,
 		sender: &UserId,
 		room_id: &RoomId,
-		_mutex_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<(PduEvent, CanonicalJsonObject)> {
 		let PduBuilder {
 			event_type,
@@ -646,7 +644,7 @@ impl Service {
 			.filter_map(|event_id| Some(self.get_pdu(event_id).ok()??.depth))
 			.max()
 			.unwrap_or_else(|| uint!(0))
-			+ uint!(1);
+			.saturating_add(uint!(1));
 
 		let mut unsigned = unsigned.unwrap_or_default();
 
@@ -783,7 +781,7 @@ impl Service {
 		pdu_builder: PduBuilder,
 		sender: &UserId,
 		room_id: &RoomId,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
 		if let Some(admin_room) = admin::Service::get_admin_room()? {
@@ -863,17 +861,9 @@ impl Service {
 
 		// If redaction event is not authorized, do not append it to the timeline
 		if pdu.kind == TimelineEventType::RoomRedaction {
+			use RoomVersionId::*;
 			match services().rooms.state.get_room_version(&pdu.room_id)? {
-				RoomVersionId::V1
-				| RoomVersionId::V2
-				| RoomVersionId::V3
-				| RoomVersionId::V4
-				| RoomVersionId::V5
-				| RoomVersionId::V6
-				| RoomVersionId::V7
-				| RoomVersionId::V8
-				| RoomVersionId::V9
-				| RoomVersionId::V10 => {
+				V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 					if let Some(redact_id) = &pdu.redacts {
 						if !services().rooms.state_accessor.user_can_redact(
 							redact_id,
@@ -966,7 +956,7 @@ impl Service {
 		new_room_leaves: Vec<OwnedEventId>,
 		state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 		soft_fail: bool,
-		state_lock: &mutex_map::Guard<()>, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Option<Vec<u8>>> {
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't
@@ -996,6 +986,7 @@ impl Service {
 	}
 
 	/// Returns an iterator over all PDUs in a room.
+	#[inline]
 	pub fn all_pdus<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
@@ -1005,7 +996,7 @@ impl Service {
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn pdus_until<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
@@ -1014,7 +1005,7 @@ impl Service {
 
 	/// Returns an iterator over all events and their token in a room that
 	/// happened after the event with id `from` in chronological order.
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn pdus_after<'a>(
 		&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount,
 	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
@@ -1056,7 +1047,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(skip(self))]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
 		let first_pdu = self
 			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
@@ -1066,41 +1057,6 @@ impl Service {
 		if first_pdu.0 < from {
 			// No backfill required, there are still events between them
 			return Ok(());
-		}
-
-		let mut servers: Vec<OwnedServerName> = vec![];
-
-		// add server names of any trusted key servers if they're in the room
-		servers.extend(
-			services()
-				.rooms
-				.state_cache
-				.room_servers(room_id)
-				.filter_map(Result::ok)
-				.filter(|server_name| {
-					services().globals.trusted_servers().contains(server_name) && !server_is_ours(server_name)
-				}),
-		);
-
-		// add server names from room aliases on the room ID
-		let room_aliases = services()
-			.rooms
-			.alias
-			.local_aliases_for_room(room_id)
-			.collect::<Result<Vec<_>, _>>();
-		if let Ok(aliases) = &room_aliases {
-			for alias in aliases {
-				if !server_is_ours(alias.server_name()) {
-					servers.push(alias.server_name().to_owned());
-				}
-			}
-		}
-
-		// add room ID server name for backfill server
-		if let Some(server_name) = room_id.server_name() {
-			if !server_is_ours(server_name) {
-				servers.push(server_name.to_owned());
-			}
 		}
 
 		let power_levels: RoomPowerLevelsEventContent = services()
@@ -1114,29 +1070,39 @@ impl Service {
 			.transpose()?
 			.unwrap_or_default();
 
-		// add server names of the list of admins in the room for backfill server
-		servers.extend(
-			power_levels
-				.users
-				.iter()
-				.filter(|(_, level)| **level > power_levels.users_default)
-				.map(|(user_id, _)| user_id.server_name())
-				.filter(|server_name| !server_is_ours(server_name))
-				.map(ToOwned::to_owned),
-		);
+		let room_mods = power_levels.users.iter().filter_map(|(user_id, level)| {
+			if level > &power_levels.users_default && !server_is_ours(user_id.server_name()) {
+				Some(user_id.server_name().to_owned())
+			} else {
+				None
+			}
+		});
 
-		// don't backfill from ourselves (might be noop if we checked it above already)
-		if let Some(server_index) = servers
-			.clone()
-			.into_iter()
-			.position(|server_name| server_is_ours(&server_name))
-		{
-			servers.swap_remove(server_index);
-		}
+		let room_alias_servers = services()
+			.rooms
+			.alias
+			.local_aliases_for_room(room_id)
+			.filter_map(|alias| {
+				alias
+					.ok()
+					.filter(|alias| !server_is_ours(alias.server_name()))
+					.map(|alias| alias.server_name().to_owned())
+			});
 
-		servers.sort_unstable();
-		servers.dedup();
-		servers.shuffle(&mut rand::thread_rng());
+		let servers = room_mods
+			.chain(room_alias_servers)
+			.chain(services().globals.config.trusted_servers.clone())
+			.filter(|server_name| {
+				if server_is_ours(server_name) {
+					return false;
+				}
+
+				services()
+					.rooms
+					.state_cache
+					.server_in_room(server_name, room_id)
+					.unwrap_or(false)
+			});
 
 		for backfill_server in servers {
 			info!("Asking {backfill_server} for backfill");
@@ -1180,8 +1146,9 @@ impl Service {
 
 		// Lock so we cannot backfill the same pdu twice at the same time
 		let mutex_lock = services()
-			.globals
-			.roomid_mutex_federation
+			.rooms
+			.event_handler
+			.mutex_federation
 			.lock(&room_id)
 			.await;
 
@@ -1213,12 +1180,13 @@ impl Service {
 			.get_shortroomid(&room_id)?
 			.expect("room exists");
 
-		let insert_lock = services().globals.roomid_mutex_insert.lock(&room_id).await;
+		let insert_lock = self.mutex_insert.lock(&room_id).await;
 
+		let max = u64::MAX;
 		let count = services().globals.next_count()?;
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
 		pdu_id.extend_from_slice(&0_u64.to_be_bytes());
-		pdu_id.extend_from_slice(&(u64::MAX - count).to_be_bytes());
+		pdu_id.extend_from_slice(&(validated!(max - count)?).to_be_bytes());
 
 		// Insert pdu
 		self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value)?;
@@ -1240,19 +1208,6 @@ impl Service {
 
 		debug!("Prepended backfill pdu");
 		Ok(())
-	}
-
-	pub fn get_lasttimelinecount_cache_usage(&self) -> (usize, usize) {
-		let cache = self.db.lasttimelinecount_cache.lock().expect("locked");
-		(cache.len(), cache.capacity())
-	}
-
-	pub fn clear_lasttimelinecount_cache(&self) {
-		self.db
-			.lasttimelinecount_cache
-			.lock()
-			.expect("locked")
-			.clear();
 	}
 }
 

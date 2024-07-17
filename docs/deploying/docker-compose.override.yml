@@ -1,5 +1,4 @@
 # conduwuit - Traefik Reverse Proxy Labels
-version: '2.4' # uses '2.4' for cpuset
 
 services:
     homeserver:

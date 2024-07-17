@@ -1,6 +1,6 @@
 use std::{collections::HashSet, mem::size_of, sync::Arc};
 
-use conduit::{utils, Error, Result};
+use conduit::{checked, utils, Error, Result};
 use database::{Database, Map};
 
 use super::CompressedStateEvent;
@@ -38,11 +38,12 @@ impl Data {
 		let mut added = HashSet::new();
 		let mut removed = HashSet::new();
 
-		let mut i = size_of::<u64>();
-		while let Some(v) = value.get(i..i + 2 * size_of::<u64>()) {
+		let stride = size_of::<u64>();
+		let mut i = stride;
+		while let Some(v) = value.get(i..checked!(i + 2 * stride)?) {
 			if add_mode && v.starts_with(&0_u64.to_be_bytes()) {
 				add_mode = false;
-				i += size_of::<u64>();
+				i = checked!(i + stride)?;
 				continue;
 			}
 			if add_mode {
@@ -50,7 +51,7 @@ impl Data {
 			} else {
 				removed.insert(v.try_into().expect("we checked the size above"));
 			}
-			i += 2 * size_of::<u64>();
+			i = checked!(i + 2 * stride)?;
 		}
 
 		Ok(StateDiff {
