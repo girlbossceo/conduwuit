@@ -3,9 +3,9 @@ mod data;
 mod send;
 mod sender;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
-use conduit::{err, Result};
+use conduit::{err, Result, Server};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
@@ -18,12 +18,11 @@ use crate::{server_is_ours, services};
 
 pub struct Service {
 	pub db: data::Data,
+	server: Arc<Server>,
 
 	/// The state for a given state hash.
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
-	startup_netburst: bool,
-	startup_netburst_keep: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,7 +52,7 @@ impl Service {
 	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(pdu_id.to_owned());
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.dispatch(Msg {
 			dest,
@@ -66,7 +65,7 @@ impl Service {
 	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.dispatch(Msg {
 			dest,
@@ -93,7 +92,7 @@ impl Service {
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEvent::Pdu(pdu_id.to_owned())))
 			.collect::<Vec<_>>();
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(
 			&requests
 				.iter()
@@ -115,7 +114,7 @@ impl Service {
 	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
 		self.dispatch(Msg {
 			dest,
@@ -142,7 +141,7 @@ impl Service {
 			.into_iter()
 			.map(|server| (Destination::Normal(server), SendingEvent::Edu(serialized.clone())))
 			.collect::<Vec<_>>();
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(
 			&requests
 				.iter()

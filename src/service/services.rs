@@ -52,9 +52,9 @@ impl Services {
 		}
 
 		Ok(Self {
+			globals: build!(globals::Service),
 			resolver: build!(resolver::Service),
 			client: build!(client::Service),
-			globals: build!(globals::Service),
 			rooms: rooms::Service {
 				alias: build!(rooms::alias::Service),
 				auth_chain: build!(rooms::auth_chain::Service),

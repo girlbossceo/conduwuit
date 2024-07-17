@@ -14,7 +14,7 @@ pub struct Data {
 	servercurrentevent_data: Arc<Map>,
 	servernameevent_data: Arc<Map>,
 	servername_educount: Arc<Map>,
-	_db: Arc<Database>,
+	pub(super) db: Arc<Database>,
 }
 
 impl Data {
@@ -23,7 +23,7 @@ impl Data {
 			servercurrentevent_data: db["servercurrentevent_data"].clone(),
 			servernameevent_data: db["servernameevent_data"].clone(),
 			servername_educount: db["servername_educount"].clone(),
-			_db: db,
+			db,
 		}
 	}
 

@@ -49,14 +49,12 @@ const CLEANUP_TIMEOUT_MS: u64 = 3500;
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let config = &args.server.config;
 		let (sender, receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
 			db: Data::new(args.db.clone()),
+			server: args.server.clone(),
 			sender,
 			receiver: Mutex::new(receiver),
-			startup_netburst: config.startup_netburst,
-			startup_netburst_keep: config.startup_netburst_keep,
 		}))
 	}
 
@@ -119,7 +117,7 @@ impl Service {
 	fn handle_response_ok(
 		&self, dest: &Destination, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
 	) {
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		self.db
 			.delete_all_active_requests_for(dest)
 			.expect("all active requests deleted");
@@ -174,11 +172,11 @@ impl Service {
 	}
 
 	fn initial_requests(&self, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
-		let keep = usize::try_from(self.startup_netburst_keep).unwrap_or(usize::MAX);
+		let keep = usize::try_from(self.server.config.startup_netburst_keep).unwrap_or(usize::MAX);
 		let mut txns = HashMap::<Destination, Vec<SendingEvent>>::new();
 		for (key, dest, event) in self.db.active_requests().filter_map(Result::ok) {
 			let entry = txns.entry(dest.clone()).or_default();
-			if self.startup_netburst_keep >= 0 && entry.len() >= keep {
+			if self.server.config.startup_netburst_keep >= 0 && entry.len() >= keep {
 				warn!("Dropping unsent event {:?} {:?}", dest, String::from_utf8_lossy(&key));
 				self.db
 					.delete_active_request(&key)
@@ -189,7 +187,7 @@ impl Service {
 		}
 
 		for (dest, events) in txns {
-			if self.startup_netburst && !events.is_empty() {
+			if self.server.config.startup_netburst && !events.is_empty() {
 				statuses.insert(dest.clone(), TransactionStatus::Running);
 				futures.push(Box::pin(send_events(dest.clone(), events)));
 			}
@@ -210,7 +208,7 @@ impl Service {
 			return Ok(None);
 		}
 
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		let mut events = Vec::new();
 
 		// Must retry any previous transaction for this remote.
@@ -224,7 +222,7 @@ impl Service {
 		}
 
 		// Compose the next transaction
-		let _cork = services().db.cork();
+		let _cork = self.db.db.cork();
 		if !new_events.is_empty() {
 			self.db.mark_as_active(&new_events)?;
 			for (e, _) in new_events {
@@ -251,8 +249,8 @@ impl Service {
 			.and_modify(|e| match e {
 				TransactionStatus::Failed(tries, time) => {
 					// Fail if a request has failed recently (exponential backoff)
-					let min = services().globals.config.sender_timeout;
-					let max = services().globals.config.sender_retry_backoff_limit;
+					let min = self.server.config.sender_timeout;
+					let max = self.server.config.sender_retry_backoff_limit;
 					if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries) {
 						allow = false;
 					} else {
@@ -288,7 +286,7 @@ impl Service {
 					.filter(|user_id| user_is_local(user_id)),
 			);
 
-			if services().globals.allow_outgoing_read_receipts()
+			if self.server.config.allow_outgoing_read_receipts
 				&& !select_edus_receipts(&room_id, since, &mut max_edu_count, &mut events)?
 			{
 				break;
@@ -311,7 +309,7 @@ impl Service {
 			events.push(serde_json::to_vec(&edu).expect("json can be serialized"));
 		}
 
-		if services().globals.allow_outgoing_presence() {
+		if self.server.config.allow_outgoing_presence {
 			select_edus_presence(server_name, since, &mut max_edu_count, &mut events)?;
 		}
 
@@ -617,7 +615,7 @@ async fn send_events_dest_normal(
 		&services().client.sender,
 		server,
 		send_transaction_message::v1::Request {
-			origin: services().globals.server_name().to_owned(),
+			origin: services().server.config.server_name.clone(),
 			pdus: pdu_jsons,
 			edus: edu_jsons,
 			origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
