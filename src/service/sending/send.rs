@@ -154,7 +154,7 @@ fn sign_request<T>(dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
 where
 	T: OutgoingRequest + Debug + Send,
 {
-	let mut req_map = serde_json::Map::new();
+	let mut req_map = serde_json::Map::with_capacity(8);
 	if !http_request.body().is_empty() {
 		req_map.insert(
 			"content".to_owned(),

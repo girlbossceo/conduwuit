@@ -555,8 +555,18 @@ async fn send_events_dest_push(
 async fn send_events_dest_normal(
 	dest: &Destination, server: &OwnedServerName, events: Vec<SendingEvent>,
 ) -> SendingResult {
-	let mut edu_jsons = Vec::new();
-	let mut pdu_jsons = Vec::new();
+	let mut pdu_jsons = Vec::with_capacity(
+		events
+			.iter()
+			.filter(|event| matches!(event, SendingEvent::Pdu(_)))
+			.count(),
+	);
+	let mut edu_jsons = Vec::with_capacity(
+		events
+			.iter()
+			.filter(|event| matches!(event, SendingEvent::Edu(_)))
+			.count(),
+	);
 
 	for event in &events {
 		match event {
