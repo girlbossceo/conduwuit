@@ -116,9 +116,10 @@ impl PduEvent {
 			.map_or_else(|| Ok(BTreeMap::new()), |u| serde_json::from_str(u.get()))
 			.map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
 
-		let now: u64 = MilliSecondsSinceUnixEpoch::now().get().into();
-		let then: u64 = self.origin_server_ts.into();
-		let this_age: u64 = now - then;
+		// deliberately allowing for the possibility of negative age
+		let now: i128 = MilliSecondsSinceUnixEpoch::now().get().into();
+		let then: i128 = self.origin_server_ts.into();
+		let this_age: i128 = now - then;
 
 		unsigned.insert("age".to_owned(), to_raw_value(&this_age).unwrap());
 		self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));
