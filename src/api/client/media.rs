@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use std::{io::Cursor, sync::Arc, time::Duration};
+use std::{io::Cursor, time::Duration};
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
@@ -656,16 +656,7 @@ async fn get_url_preview(services: &Services, url: &str) -> Result<UrlPreviewDat
 	}
 
 	// ensure that only one request is made per URL
-	let mutex_request = Arc::clone(
-		services
-			.media
-			.url_preview_mutex
-			.write()
-			.await
-			.entry(url.to_owned())
-			.or_default(),
-	);
-	let _request_lock = mutex_request.lock().await;
+	let _request_lock = services.media.url_preview_mutex.lock(url).await;
 
 	match services.media.get_url_preview(url).await {
 		Some(preview) => Ok(preview),
