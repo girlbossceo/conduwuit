@@ -1,7 +1,7 @@
 use std::{any::Any, collections::BTreeMap, fmt::Write, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{utils::string::split_once_infallible, Result, Server};
+use conduit::{err, error::inspect_log, utils::string::split_once_infallible, Err, Result, Server};
 use database::Database;
 
 #[async_trait]
@@ -44,9 +44,26 @@ pub(crate) type Map = BTreeMap<String, MapVal>;
 pub(crate) type MapVal = (Arc<dyn Service>, Arc<dyn Any + Send + Sync>);
 
 impl Args<'_> {
-	pub(crate) fn get_service<T: Any + Send + Sync>(&self, name: &str) -> Option<Arc<T>> {
-		get::<T>(self.service, name)
+	pub(crate) fn require_service<T: Any + Send + Sync>(&self, name: &str) -> Arc<T> {
+		self.try_get_service::<T>(name)
+			.inspect_err(inspect_log)
+			.expect("Failure to reference service required by another service.")
 	}
+
+	pub(crate) fn try_get_service<T: Any + Send + Sync>(&self, name: &str) -> Result<Arc<T>> {
+		try_get::<T>(self.service, name)
+	}
+}
+
+pub(crate) fn try_get<T: Any + Send + Sync>(map: &Map, name: &str) -> Result<Arc<T>> {
+	map.get(name).map_or_else(
+		|| Err!("Service {name:?} does not exist or has not been built yet."),
+		|(_, s)| {
+			s.clone()
+				.downcast::<T>()
+				.map_err(|_| err!("Service {name:?} must be correctly downcast."))
+		},
+	)
 }
 
 pub(crate) fn get<T: Any + Send + Sync>(map: &Map, name: &str) -> Option<Arc<T>> {

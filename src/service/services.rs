@@ -173,5 +173,17 @@ impl Services {
 		}
 	}
 
-	pub fn get<T: Any + Send + Sync>(&self, name: &str) -> Option<Arc<T>> { service::get::<T>(&self.service, name) }
+	pub fn try_get<T>(&self, name: &str) -> Result<Arc<T>>
+	where
+		T: Any + Send + Sync,
+	{
+		service::try_get::<T>(&self.service, name)
+	}
+
+	pub fn get<T>(&self, name: &str) -> Option<Arc<T>>
+	where
+		T: Any + Send + Sync,
+	{
+		service::get::<T>(&self.service, name)
+	}
 }

@@ -18,9 +18,7 @@ pub struct Service {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
-		let resolver = args
-			.get_service::<resolver::Service>("resolver")
-			.expect("resolver must be built prior to client");
+		let resolver = args.require_service::<resolver::Service>("resolver");
 
 		Ok(Arc::new(Self {
 			default: base(config)
