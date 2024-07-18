@@ -259,6 +259,14 @@ jobs:
                   mv -v target/release/conduwuit static-${{ matrix.target }}
                   mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
+            # quick smoke test of the x86_64 static binary
+            - name: Run x86_64 static binary
+              run: |
+                  # GH actions default runners are x86_64 only
+                  if file result/bin/conduit | grep x86-64; then
+                    result/bin/conduit --version
+                  fi
+
             - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
