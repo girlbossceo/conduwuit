@@ -51,6 +51,10 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
   unprefixed = true;
 }).overrideAttrs (old: {
   configureFlags = old.configureFlags ++
+    # we dont need docs
+    [ "--disable-doc" ] ++
+    # we dont need cxx/C++ integration
+    [ "--disable-cxx" ] ++
     # tikv-jemalloc-sys/profiling feature
     lib.optional (featureEnabled "jemalloc_prof") "--enable-prof";
 });
