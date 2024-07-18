@@ -6,19 +6,29 @@ use std::{
 };
 
 use conduit::{debug, error, trace, validated, warn, Err, Result};
-use data::Data;
 use ruma::{EventId, RoomId};
 
-use crate::services;
+use self::data::Data;
+use crate::{rooms, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.server, args.db),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
+			db: Data::new(&args),
 		}))
 	}
 
@@ -27,7 +37,7 @@ impl crate::Service for Service {
 
 impl Service {
 	pub async fn event_ids_iter<'a>(
-		&self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
+		&'a self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
 	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {
 		let mut starting_events: Vec<&EventId> = Vec::with_capacity(starting_events_.len());
 		for starting_event in &starting_events_ {
@@ -38,7 +48,7 @@ impl Service {
 			.get_auth_chain(room_id, &starting_events)
 			.await?
 			.into_iter()
-			.filter_map(move |sid| services().rooms.short.get_eventid_from_short(sid).ok()))
+			.filter_map(move |sid| self.services.short.get_eventid_from_short(sid).ok()))
 	}
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
@@ -48,8 +58,8 @@ impl Service {
 
 		let started = std::time::Instant::now();
 		let mut buckets = [BUCKET; NUM_BUCKETS];
-		for (i, &short) in services()
-			.rooms
+		for (i, &short) in self
+			.services
 			.short
 			.multi_get_or_create_shorteventid(starting_events)?
 			.iter()
@@ -140,7 +150,7 @@ impl Service {
 		while let Some(event_id) = todo.pop() {
 			trace!(?event_id, "processing auth event");
 
-			match services().rooms.timeline.get_pdu(&event_id) {
+			match self.services.timeline.get_pdu(&event_id) {
 				Ok(Some(pdu)) => {
 					if pdu.room_id != room_id {
 						return Err!(Request(Forbidden(
@@ -150,10 +160,7 @@ impl Service {
 						)));
 					}
 					for auth_event in &pdu.auth_events {
-						let sauthevent = services()
-							.rooms
-							.short
-							.get_or_create_shorteventid(auth_event)?;
+						let sauthevent = self.services.short.get_or_create_shorteventid(auth_event)?;
 
 						if found.insert(sauthevent) {
 							trace!(?event_id, ?auth_event, "adding auth event to processing queue");

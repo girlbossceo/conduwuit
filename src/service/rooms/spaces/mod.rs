@@ -28,7 +28,7 @@ use ruma::{
 };
 use tokio::sync::Mutex;
 
-use crate::services;
+use crate::{rooms, sending, Dep};
 
 pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -119,42 +119,18 @@ enum Identifier<'a> {
 }
 
 pub struct Service {
+	services: Services,
 	pub roomid_spacehierarchy_cache: Mutex<LruCache<OwnedRoomId, Option<CachedSpaceHierarchySummary>>>,
 }
 
-// Here because cannot implement `From` across ruma-federation-api and
-// ruma-client-api types
-impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
-	fn from(value: CachedSpaceHierarchySummary) -> Self {
-		let SpaceHierarchyParentSummary {
-			canonical_alias,
-			name,
-			num_joined_members,
-			room_id,
-			topic,
-			world_readable,
-			guest_can_join,
-			avatar_url,
-			join_rule,
-			room_type,
-			children_state,
-			..
-		} = value.summary;
-
-		Self {
-			canonical_alias,
-			name,
-			num_joined_members,
-			room_id,
-			topic,
-			world_readable,
-			guest_can_join,
-			avatar_url,
-			join_rule,
-			room_type,
-			children_state,
-		}
-	}
+struct Services {
+	state_accessor: Dep<rooms::state_accessor::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	state: Dep<rooms::state::Service>,
+	short: Dep<rooms::short::Service>,
+	event_handler: Dep<rooms::event_handler::Service>,
+	timeline: Dep<rooms::timeline::Service>,
+	sending: Dep<sending::Service>,
 }
 
 impl crate::Service for Service {
@@ -163,6 +139,15 @@ impl crate::Service for Service {
 		let cache_size = f64::from(config.roomid_spacehierarchy_cache_capacity);
 		let cache_size = cache_size * config.cache_capacity_modifier;
 		Ok(Arc::new(Self {
+			services: Services {
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				state: args.depend::<rooms::state::Service>("rooms::state"),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				event_handler: args.depend::<rooms::event_handler::Service>("rooms::event_handler"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+				sending: args.depend::<sending::Service>("sending"),
+			},
 			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(usize_from_f64(cache_size)?)),
 		}))
 	}
@@ -226,7 +211,7 @@ impl Service {
 			.as_ref()
 		{
 			return Ok(if let Some(cached) = cached {
-				if is_accessable_child(
+				if self.is_accessible_child(
 					current_room,
 					&cached.summary.join_rule,
 					&identifier,
@@ -242,8 +227,8 @@ impl Service {
 		}
 
 		Ok(
-			if let Some(children_pdus) = get_stripped_space_child_events(current_room).await? {
-				let summary = Self::get_room_summary(current_room, children_pdus, &identifier);
+			if let Some(children_pdus) = self.get_stripped_space_child_events(current_room).await? {
+				let summary = self.get_room_summary(current_room, children_pdus, &identifier);
 				if let Ok(summary) = summary {
 					self.roomid_spacehierarchy_cache.lock().await.insert(
 						current_room.clone(),
@@ -269,7 +254,8 @@ impl Service {
 	) -> Result<Option<SummaryAccessibility>> {
 		for server in via {
 			debug_info!("Asking {server} for /hierarchy");
-			let Ok(response) = services()
+			let Ok(response) = self
+				.services
 				.sending
 				.send_federation_request(
 					server,
@@ -325,7 +311,10 @@ impl Service {
 									avatar_url,
 									join_rule,
 									room_type,
-									children_state: get_stripped_space_child_events(&room_id).await?.unwrap(),
+									children_state: self
+										.get_stripped_space_child_events(&room_id)
+										.await?
+										.unwrap(),
 									allowed_room_ids,
 								}
 							},
@@ -333,7 +322,7 @@ impl Service {
 					);
 				}
 			}
-			if is_accessable_child(
+			if self.is_accessible_child(
 				current_room,
 				&response.room.join_rule,
 				&Identifier::UserId(user_id),
@@ -370,12 +359,13 @@ impl Service {
 	}
 
 	fn get_room_summary(
-		current_room: &OwnedRoomId, children_state: Vec<Raw<HierarchySpaceChildEvent>>, identifier: &Identifier<'_>,
+		&self, current_room: &OwnedRoomId, children_state: Vec<Raw<HierarchySpaceChildEvent>>,
+		identifier: &Identifier<'_>,
 	) -> Result<SpaceHierarchyParentSummary, Error> {
 		let room_id: &RoomId = current_room;
 
-		let join_rule = services()
-			.rooms
+		let join_rule = self
+			.services
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?
 			.map(|s| {
@@ -386,12 +376,12 @@ impl Service {
 			.transpose()?
 			.unwrap_or(JoinRule::Invite);
 
-		let allowed_room_ids = services()
-			.rooms
+		let allowed_room_ids = self
+			.services
 			.state_accessor
 			.allowed_room_ids(join_rule.clone());
 
-		if !is_accessable_child(current_room, &join_rule.clone().into(), identifier, &allowed_room_ids) {
+		if !self.is_accessible_child(current_room, &join_rule.clone().into(), identifier, &allowed_room_ids) {
 			debug!("User is not allowed to see room {room_id}");
 			// This error will be caught later
 			return Err(Error::BadRequest(ErrorKind::forbidden(), "User is not allowed to see the room"));
@@ -400,18 +390,18 @@ impl Service {
 		let join_rule = join_rule.into();
 
 		Ok(SpaceHierarchyParentSummary {
-			canonical_alias: services()
-				.rooms
+			canonical_alias: self
+				.services
 				.state_accessor
 				.get_canonical_alias(room_id)
 				.unwrap_or(None),
-			name: services()
-				.rooms
+			name: self
+				.services
 				.state_accessor
 				.get_name(room_id)
 				.unwrap_or(None),
-			num_joined_members: services()
-				.rooms
+			num_joined_members: self
+				.services
 				.state_cache
 				.room_joined_count(room_id)
 				.unwrap_or_default()
@@ -422,22 +412,22 @@ impl Service {
 				.try_into()
 				.expect("user count should not be that big"),
 			room_id: room_id.to_owned(),
-			topic: services()
-				.rooms
+			topic: self
+				.services
 				.state_accessor
 				.get_room_topic(room_id)
 				.unwrap_or(None),
-			world_readable: services().rooms.state_accessor.is_world_readable(room_id)?,
-			guest_can_join: services().rooms.state_accessor.guest_can_join(room_id)?,
-			avatar_url: services()
-				.rooms
+			world_readable: self.services.state_accessor.is_world_readable(room_id)?,
+			guest_can_join: self.services.state_accessor.guest_can_join(room_id)?,
+			avatar_url: self
+				.services
 				.state_accessor
 				.get_avatar(room_id)?
 				.into_option()
 				.unwrap_or_default()
 				.url,
 			join_rule,
-			room_type: services().rooms.state_accessor.get_room_type(room_id)?,
+			room_type: self.services.state_accessor.get_room_type(room_id)?,
 			children_state,
 			allowed_room_ids,
 		})
@@ -487,7 +477,7 @@ impl Service {
                                 .into_iter()
                                 .rev()
                                 .skip_while(|(room, _)| {
-                                    if let Ok(short) = services().rooms.short.get_shortroomid(room)
+                                    if let Ok(short) = self.services.short.get_shortroomid(room)
                                     {
                                         short.as_ref() != short_room_ids.get(parents.len())
                                     } else {
@@ -541,7 +531,7 @@ impl Service {
 				let mut short_room_ids = vec![];
 
 				for room in parents {
-					short_room_ids.push(services().rooms.short.get_or_create_shortroomid(&room)?);
+					short_room_ids.push(self.services.short.get_or_create_shortroomid(&room)?);
 				}
 
 				Some(
@@ -559,128 +549,152 @@ impl Service {
 			rooms: results,
 		})
 	}
-}
 
-fn next_room_to_traverse(
-	stack: &mut Vec<Vec<(OwnedRoomId, Vec<OwnedServerName>)>>, parents: &mut VecDeque<OwnedRoomId>,
-) -> Option<(OwnedRoomId, Vec<OwnedServerName>)> {
-	while stack.last().map_or(false, Vec::is_empty) {
-		stack.pop();
-		parents.pop_back();
+	/// Simply returns the stripped m.space.child events of a room
+	async fn get_stripped_space_child_events(
+		&self, room_id: &RoomId,
+	) -> Result<Option<Vec<Raw<HierarchySpaceChildEvent>>>, Error> {
+		let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? else {
+			return Ok(None);
+		};
+
+		let state = self
+			.services
+			.state_accessor
+			.state_full_ids(current_shortstatehash)
+			.await?;
+		let mut children_pdus = Vec::new();
+		for (key, id) in state {
+			let (event_type, state_key) = self.services.short.get_statekey_from_short(key)?;
+			if event_type != StateEventType::SpaceChild {
+				continue;
+			}
+
+			let pdu = self
+				.services
+				.timeline
+				.get_pdu(&id)?
+				.ok_or_else(|| Error::bad_database("Event in space state not found"))?;
+
+			if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
+				.ok()
+				.map(|c| c.via)
+				.map_or(true, |v| v.is_empty())
+			{
+				continue;
+			}
+
+			if OwnedRoomId::try_from(state_key).is_ok() {
+				children_pdus.push(pdu.to_stripped_spacechild_state_event());
+			}
+		}
+
+		Ok(Some(children_pdus))
 	}
 
-	stack.last_mut().and_then(Vec::pop)
-}
+	/// With the given identifier, checks if a room is accessable
+	fn is_accessible_child(
+		&self, current_room: &OwnedRoomId, join_rule: &SpaceRoomJoinRule, identifier: &Identifier<'_>,
+		allowed_room_ids: &Vec<OwnedRoomId>,
+	) -> bool {
+		// Note: unwrap_or_default for bool means false
+		match identifier {
+			Identifier::ServerName(server_name) => {
+				let room_id: &RoomId = current_room;
 
-/// Simply returns the stripped m.space.child events of a room
-async fn get_stripped_space_child_events(
-	room_id: &RoomId,
-) -> Result<Option<Vec<Raw<HierarchySpaceChildEvent>>>, Error> {
-	let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? else {
-		return Ok(None);
-	};
-
-	let state = services()
-		.rooms
-		.state_accessor
-		.state_full_ids(current_shortstatehash)
-		.await?;
-	let mut children_pdus = Vec::new();
-	for (key, id) in state {
-		let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
-		if event_type != StateEventType::SpaceChild {
-			continue;
-		}
-
-		let pdu = services()
-			.rooms
-			.timeline
-			.get_pdu(&id)?
-			.ok_or_else(|| Error::bad_database("Event in space state not found"))?;
-
-		if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
-			.ok()
-			.map(|c| c.via)
-			.map_or(true, |v| v.is_empty())
-		{
-			continue;
-		}
-
-		if OwnedRoomId::try_from(state_key).is_ok() {
-			children_pdus.push(pdu.to_stripped_spacechild_state_event());
-		}
-	}
-
-	Ok(Some(children_pdus))
-}
-
-/// With the given identifier, checks if a room is accessable
-fn is_accessable_child(
-	current_room: &OwnedRoomId, join_rule: &SpaceRoomJoinRule, identifier: &Identifier<'_>,
-	allowed_room_ids: &Vec<OwnedRoomId>,
-) -> bool {
-	// Note: unwrap_or_default for bool means false
-	match identifier {
-		Identifier::ServerName(server_name) => {
-			let room_id: &RoomId = current_room;
-
-			// Checks if ACLs allow for the server to participate
-			if services()
-				.rooms
-				.event_handler
-				.acl_check(server_name, room_id)
-				.is_err()
-			{
-				return false;
-			}
-		},
-		Identifier::UserId(user_id) => {
-			if services()
-				.rooms
-				.state_cache
-				.is_joined(user_id, current_room)
-				.unwrap_or_default()
-				|| services()
-					.rooms
-					.state_cache
-					.is_invited(user_id, current_room)
-					.unwrap_or_default()
-			{
-				return true;
-			}
-		},
-	} // Takes care of join rules
-	match join_rule {
-		SpaceRoomJoinRule::Restricted => {
-			for room in allowed_room_ids {
-				match identifier {
-					Identifier::UserId(user) => {
-						if services()
-							.rooms
-							.state_cache
-							.is_joined(user, room)
-							.unwrap_or_default()
-						{
-							return true;
-						}
-					},
-					Identifier::ServerName(server) => {
-						if services()
-							.rooms
-							.state_cache
-							.server_in_room(server, room)
-							.unwrap_or_default()
-						{
-							return true;
-						}
-					},
+				// Checks if ACLs allow for the server to participate
+				if self
+					.services
+					.event_handler
+					.acl_check(server_name, room_id)
+					.is_err()
+				{
+					return false;
 				}
-			}
-			false
-		},
-		SpaceRoomJoinRule::Public | SpaceRoomJoinRule::Knock | SpaceRoomJoinRule::KnockRestricted => true,
-		// Invite only, Private, or Custom join rule
-		_ => false,
+			},
+			Identifier::UserId(user_id) => {
+				if self
+					.services
+					.state_cache
+					.is_joined(user_id, current_room)
+					.unwrap_or_default()
+					|| self
+						.services
+						.state_cache
+						.is_invited(user_id, current_room)
+						.unwrap_or_default()
+				{
+					return true;
+				}
+			},
+		} // Takes care of join rules
+		match join_rule {
+			SpaceRoomJoinRule::Restricted => {
+				for room in allowed_room_ids {
+					match identifier {
+						Identifier::UserId(user) => {
+							if self
+								.services
+								.state_cache
+								.is_joined(user, room)
+								.unwrap_or_default()
+							{
+								return true;
+							}
+						},
+						Identifier::ServerName(server) => {
+							if self
+								.services
+								.state_cache
+								.server_in_room(server, room)
+								.unwrap_or_default()
+							{
+								return true;
+							}
+						},
+					}
+				}
+				false
+			},
+			SpaceRoomJoinRule::Public | SpaceRoomJoinRule::Knock | SpaceRoomJoinRule::KnockRestricted => true,
+			// Invite only, Private, or Custom join rule
+			_ => false,
+		}
+	}
+}
+
+// Here because cannot implement `From` across ruma-federation-api and
+// ruma-client-api types
+impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
+	fn from(value: CachedSpaceHierarchySummary) -> Self {
+		let SpaceHierarchyParentSummary {
+			canonical_alias,
+			name,
+			num_joined_members,
+			room_id,
+			topic,
+			world_readable,
+			guest_can_join,
+			avatar_url,
+			join_rule,
+			room_type,
+			children_state,
+			..
+		} = value.summary;
+
+		Self {
+			canonical_alias,
+			name,
+			num_joined_members,
+			room_id,
+			topic,
+			world_readable,
+			guest_can_join,
+			avatar_url,
+			join_rule,
+			room_type,
+			children_state,
+		}
 	}
 }
 
@@ -735,4 +749,15 @@ fn get_parent_children_via(
 			})
 		})
 		.collect()
+}
+
+fn next_room_to_traverse(
+	stack: &mut Vec<Vec<(OwnedRoomId, Vec<OwnedServerName>)>>, parents: &mut VecDeque<OwnedRoomId>,
+) -> Option<(OwnedRoomId, Vec<OwnedServerName>)> {
+	while stack.last().map_or(false, Vec::is_empty) {
+		stack.pop();
+		parents.pop_back();
+	}
+
+	stack.last_mut().and_then(Vec::pop)
 }

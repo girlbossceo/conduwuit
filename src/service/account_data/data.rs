@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use conduit::{utils, warn, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
@@ -9,18 +9,27 @@ use ruma::{
 	RoomId, UserId,
 };
 
-use crate::services;
+use crate::{globals, Dep};
 
 pub(super) struct Data {
 	roomuserdataid_accountdata: Arc<Map>,
 	roomusertype_roomuserdataid: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			roomuserdataid_accountdata: db["roomuserdataid_accountdata"].clone(),
 			roomusertype_roomuserdataid: db["roomusertype_roomuserdataid"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}
 	}
 
@@ -40,7 +49,7 @@ impl Data {
 		prefix.push(0xFF);
 
 		let mut roomuserdataid = prefix.clone();
-		roomuserdataid.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
+		roomuserdataid.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
 		roomuserdataid.push(0xFF);
 		roomuserdataid.extend_from_slice(event_type.to_string().as_bytes());
 

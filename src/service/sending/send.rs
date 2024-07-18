@@ -1,6 +1,8 @@
 use std::{fmt::Debug, mem};
 
-use conduit::Err;
+use conduit::{
+	debug, debug_error, debug_warn, error::inspect_debug_log, trace, utils::string::EMPTY, Err, Error, Result,
+};
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
 use reqwest::{Client, Method, Request, Response, Url};
@@ -13,75 +15,91 @@ use ruma::{
 	server_util::authorization::XMatrix,
 	ServerName,
 };
-use tracing::{debug, trace};
 
 use crate::{
-	debug_error, debug_warn, resolver,
+	globals, resolver,
 	resolver::{actual::ActualDest, cache::CachedDest},
-	services, Error, Result,
 };
 
-#[tracing::instrument(skip_all, name = "send")]
-pub async fn send<T>(client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
-where
-	T: OutgoingRequest + Debug + Send,
-{
-	if !services().globals.allow_federation() {
-		return Err!(Config("allow_federation", "Federation is disabled."));
+impl super::Service {
+	#[tracing::instrument(skip(self, client, req), name = "send")]
+	pub async fn send<T>(&self, client: &Client, dest: &ServerName, req: T) -> Result<T::IncomingResponse>
+	where
+		T: OutgoingRequest + Debug + Send,
+	{
+		if !self.server.config.allow_federation {
+			return Err!(Config("allow_federation", "Federation is disabled."));
+		}
+
+		let actual = self.services.resolver.get_actual_dest(dest).await?;
+		let request = self.prepare::<T>(dest, &actual, req).await?;
+		self.execute::<T>(dest, &actual, request, client).await
 	}
 
-	let actual = services().resolver.get_actual_dest(dest).await?;
-	let request = prepare::<T>(dest, &actual, req).await?;
-	execute::<T>(client, dest, &actual, request).await
-}
+	async fn execute<T>(
+		&self, dest: &ServerName, actual: &ActualDest, request: Request, client: &Client,
+	) -> Result<T::IncomingResponse>
+	where
+		T: OutgoingRequest + Debug + Send,
+	{
+		let url = request.url().clone();
+		let method = request.method().clone();
 
-async fn execute<T>(
-	client: &Client, dest: &ServerName, actual: &ActualDest, request: Request,
-) -> Result<T::IncomingResponse>
-where
-	T: OutgoingRequest + Debug + Send,
-{
-	let method = request.method().clone();
-	let url = request.url().clone();
-	debug!(
-		method = ?method,
-		url = ?url,
-		"Sending request",
-	);
-	match client.execute(request).await {
-		Ok(response) => handle_response::<T>(dest, actual, &method, &url, response).await,
-		Err(e) => handle_error::<T>(dest, actual, &method, &url, e),
+		debug!(?method, ?url, "Sending request");
+		match client.execute(request).await {
+			Ok(response) => handle_response::<T>(&self.services.resolver, dest, actual, &method, &url, response).await,
+			Err(error) => handle_error::<T>(dest, actual, &method, &url, error),
+		}
 	}
-}
 
-async fn prepare<T>(dest: &ServerName, actual: &ActualDest, req: T) -> Result<Request>
-where
-	T: OutgoingRequest + Debug + Send,
-{
-	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_5];
+	async fn prepare<T>(&self, dest: &ServerName, actual: &ActualDest, req: T) -> Result<Request>
+	where
+		T: OutgoingRequest + Debug + Send,
+	{
+		const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_5];
+		const SATIR: SendAccessToken<'_> = SendAccessToken::IfRequired(EMPTY);
 
-	trace!("Preparing request");
+		trace!("Preparing request");
+		let mut http_request = req
+			.try_into_http_request::<Vec<u8>>(&actual.string, SATIR, &VERSIONS)
+			.map_err(|_| Error::BadServerResponse("Invalid destination"))?;
 
-	let mut http_request = req
-		.try_into_http_request::<Vec<u8>>(&actual.string, SendAccessToken::IfRequired(""), &VERSIONS)
-		.map_err(|_e| Error::BadServerResponse("Invalid destination"))?;
+		sign_request::<T>(&self.services.globals, dest, &mut http_request);
 
-	sign_request::<T>(dest, &mut http_request);
+		let request = Request::try_from(http_request)?;
+		self.validate_url(request.url())?;
 
-	let request = Request::try_from(http_request)?;
-	validate_url(request.url())?;
+		Ok(request)
+	}
 
-	Ok(request)
+	fn validate_url(&self, url: &Url) -> Result<()> {
+		if let Some(url_host) = url.host_str() {
+			if let Ok(ip) = IPAddress::parse(url_host) {
+				trace!("Checking request URL IP {ip:?}");
+				self.services.resolver.validate_ip(&ip)?;
+			}
+		}
+
+		Ok(())
+	}
 }
 
 async fn handle_response<T>(
-	dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url, mut response: Response,
+	resolver: &resolver::Service, dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url,
+	mut response: Response,
 ) -> Result<T::IncomingResponse>
 where
 	T: OutgoingRequest + Debug + Send,
 {
-	trace!("Received response from {} for {} with {}", actual.string, url, response.url());
 	let status = response.status();
+	trace!(
+		?status, ?method,
+		request_url = ?url,
+		response_url = ?response.url(),
+		"Received response from {}",
+		actual.string,
+	);
+
 	let mut http_response_builder = http::Response::builder()
 		.status(status)
 		.version(response.version());
@@ -92,11 +110,13 @@ where
 			.expect("http::response::Builder is usable"),
 	);
 
-	trace!("Waiting for response body");
-	let body = response.bytes().await.unwrap_or_else(|e| {
-		debug_error!("server error {}", e);
-		Vec::new().into()
-	}); // TODO: handle timeout
+	// TODO: handle timeout
+	trace!("Waiting for response body...");
+	let body = response
+		.bytes()
+		.await
+		.inspect_err(inspect_debug_log)
+		.unwrap_or_else(|_| Vec::new().into());
 
 	let http_response = http_response_builder
 		.body(body)
@@ -109,7 +129,7 @@ where
 
 	let response = T::IncomingResponse::try_from_http_response(http_response);
 	if response.is_ok() && !actual.cached {
-		services().resolver.set_cached_destination(
+		resolver.set_cached_destination(
 			dest.to_owned(),
 			CachedDest {
 				dest: actual.dest.clone(),
@@ -120,7 +140,7 @@ where
 	}
 
 	match response {
-		Err(_e) => Err(Error::BadServerResponse("Server returned bad 200 response.")),
+		Err(_) => Err(Error::BadServerResponse("Server returned bad 200 response.")),
 		Ok(response) => Ok(response),
 	}
 }
@@ -150,7 +170,7 @@ where
 	Err(e.into())
 }
 
-fn sign_request<T>(dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
+fn sign_request<T>(globals: &globals::Service, dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
 where
 	T: OutgoingRequest + Debug + Send,
 {
@@ -172,16 +192,12 @@ where
 			.to_string()
 			.into(),
 	);
-	req_map.insert("origin".to_owned(), services().globals.server_name().as_str().into());
+	req_map.insert("origin".to_owned(), globals.server_name().as_str().into());
 	req_map.insert("destination".to_owned(), dest.as_str().into());
 
 	let mut req_json = serde_json::from_value(req_map.into()).expect("valid JSON is valid BTreeMap");
-	ruma::signatures::sign_json(
-		services().globals.server_name().as_str(),
-		services().globals.keypair(),
-		&mut req_json,
-	)
-	.expect("our request json is what ruma expects");
+	ruma::signatures::sign_json(globals.server_name().as_str(), globals.keypair(), &mut req_json)
+		.expect("our request json is what ruma expects");
 
 	let req_json: serde_json::Map<String, serde_json::Value> =
 		serde_json::from_slice(&serde_json::to_vec(&req_json).unwrap()).unwrap();
@@ -207,24 +223,8 @@ where
 
 			http_request.headers_mut().insert(
 				AUTHORIZATION,
-				HeaderValue::from(&XMatrix::new(
-					services().globals.config.server_name.clone(),
-					dest.to_owned(),
-					key,
-					sig,
-				)),
+				HeaderValue::from(&XMatrix::new(globals.config.server_name.clone(), dest.to_owned(), key, sig)),
 			);
 		}
 	}
-}
-
-fn validate_url(url: &Url) -> Result<()> {
-	if let Some(url_host) = url.host_str() {
-		if let Ok(ip) = IPAddress::parse(url_host) {
-			trace!("Checking request URL IP {ip:?}");
-			resolver::actual::validate_ip(&ip)?;
-		}
-	}
-
-	Ok(())
 }

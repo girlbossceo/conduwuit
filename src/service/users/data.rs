@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, mem::size_of, sync::Arc};
 
-use conduit::{debug_info, err, utils, warn, Err, Error, Result};
-use database::{Database, Map};
+use conduit::{debug_info, err, utils, warn, Err, Error, Result, Server};
+use database::Map;
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
@@ -11,52 +11,65 @@ use ruma::{
 	OwnedMxcUri, OwnedUserId, UInt, UserId,
 };
 
-use crate::{services, users::clean_signatures};
+use crate::{globals, rooms, users::clean_signatures, Dep};
 
 pub struct Data {
-	userid_password: Arc<Map>,
+	keychangeid_userid: Arc<Map>,
+	keyid_key: Arc<Map>,
+	onetimekeyid_onetimekeys: Arc<Map>,
+	openidtoken_expiresatuserid: Arc<Map>,
+	todeviceid_events: Arc<Map>,
 	token_userdeviceid: Arc<Map>,
-	userid_displayname: Arc<Map>,
+	userdeviceid_metadata: Arc<Map>,
+	userdeviceid_token: Arc<Map>,
+	userfilterid_filter: Arc<Map>,
 	userid_avatarurl: Arc<Map>,
 	userid_blurhash: Arc<Map>,
 	userid_devicelistversion: Arc<Map>,
-	userdeviceid_token: Arc<Map>,
-	userdeviceid_metadata: Arc<Map>,
-	onetimekeyid_onetimekeys: Arc<Map>,
+	userid_displayname: Arc<Map>,
 	userid_lastonetimekeyupdate: Arc<Map>,
-	keyid_key: Arc<Map>,
 	userid_masterkeyid: Arc<Map>,
+	userid_password: Arc<Map>,
 	userid_selfsigningkeyid: Arc<Map>,
 	userid_usersigningkeyid: Arc<Map>,
-	openidtoken_expiresatuserid: Arc<Map>,
-	keychangeid_userid: Arc<Map>,
-	todeviceid_events: Arc<Map>,
-	userfilterid_filter: Arc<Map>,
-	_db: Arc<Database>,
+	services: Services,
+}
+
+struct Services {
+	server: Arc<Server>,
+	globals: Dep<globals::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	state_accessor: Dep<rooms::state_accessor::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
-			userid_password: db["userid_password"].clone(),
+			keychangeid_userid: db["keychangeid_userid"].clone(),
+			keyid_key: db["keyid_key"].clone(),
+			onetimekeyid_onetimekeys: db["onetimekeyid_onetimekeys"].clone(),
+			openidtoken_expiresatuserid: db["openidtoken_expiresatuserid"].clone(),
+			todeviceid_events: db["todeviceid_events"].clone(),
 			token_userdeviceid: db["token_userdeviceid"].clone(),
-			userid_displayname: db["userid_displayname"].clone(),
+			userdeviceid_metadata: db["userdeviceid_metadata"].clone(),
+			userdeviceid_token: db["userdeviceid_token"].clone(),
+			userfilterid_filter: db["userfilterid_filter"].clone(),
 			userid_avatarurl: db["userid_avatarurl"].clone(),
 			userid_blurhash: db["userid_blurhash"].clone(),
 			userid_devicelistversion: db["userid_devicelistversion"].clone(),
-			userdeviceid_token: db["userdeviceid_token"].clone(),
-			userdeviceid_metadata: db["userdeviceid_metadata"].clone(),
-			onetimekeyid_onetimekeys: db["onetimekeyid_onetimekeys"].clone(),
+			userid_displayname: db["userid_displayname"].clone(),
 			userid_lastonetimekeyupdate: db["userid_lastonetimekeyupdate"].clone(),
-			keyid_key: db["keyid_key"].clone(),
 			userid_masterkeyid: db["userid_masterkeyid"].clone(),
+			userid_password: db["userid_password"].clone(),
 			userid_selfsigningkeyid: db["userid_selfsigningkeyid"].clone(),
 			userid_usersigningkeyid: db["userid_usersigningkeyid"].clone(),
-			openidtoken_expiresatuserid: db["openidtoken_expiresatuserid"].clone(),
-			keychangeid_userid: db["keychangeid_userid"].clone(),
-			todeviceid_events: db["todeviceid_events"].clone(),
-			userfilterid_filter: db["userfilterid_filter"].clone(),
-			_db: db,
+			services: Services {
+				server: args.server.clone(),
+				globals: args.depend::<globals::Service>("globals"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+			},
 		}
 	}
 
@@ -377,7 +390,7 @@ impl Data {
 		)?;
 
 		self.userid_lastonetimekeyupdate
-			.insert(user_id.as_bytes(), &services().globals.next_count()?.to_be_bytes())?;
+			.insert(user_id.as_bytes(), &self.services.globals.next_count()?.to_be_bytes())?;
 
 		Ok(())
 	}
@@ -403,7 +416,7 @@ impl Data {
 		prefix.push(b':');
 
 		self.userid_lastonetimekeyupdate
-			.insert(user_id.as_bytes(), &services().globals.next_count()?.to_be_bytes())?;
+			.insert(user_id.as_bytes(), &self.services.globals.next_count()?.to_be_bytes())?;
 
 		self.onetimekeyid_onetimekeys
 			.scan_prefix(prefix)
@@ -631,16 +644,16 @@ impl Data {
 	}
 
 	pub(super) fn mark_device_key_update(&self, user_id: &UserId) -> Result<()> {
-		let count = services().globals.next_count()?.to_be_bytes();
-		for room_id in services()
-			.rooms
+		let count = self.services.globals.next_count()?.to_be_bytes();
+		for room_id in self
+			.services
 			.state_cache
 			.rooms_joined(user_id)
 			.filter_map(Result::ok)
 		{
 			// Don't send key updates to unencrypted rooms
-			if services()
-				.rooms
+			if self
+				.services
 				.state_accessor
 				.room_state_get(&room_id, &StateEventType::RoomEncryption, "")?
 				.is_none()
@@ -750,7 +763,7 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(target_device_id.as_bytes());
 		key.push(0xFF);
-		key.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
+		key.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
 
 		let mut json = serde_json::Map::new();
 		json.insert("type".to_owned(), event_type.to_owned().into());
@@ -916,7 +929,7 @@ impl Data {
 	pub(super) fn create_openid_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
 		use std::num::Saturating as Sat;
 
-		let expires_in = services().globals.config.openid_token_ttl;
+		let expires_in = self.services.server.config.openid_token_ttl;
 		let expires_at = Sat(utils::millis_since_unix_epoch()) + Sat(expires_in) * Sat(1000);
 
 		let mut value = expires_at.0.to_be_bytes().to_vec();

@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{
 	api::client::{
 		backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
@@ -11,25 +11,34 @@ use ruma::{
 	OwnedRoomId, RoomId, UserId,
 };
 
-use crate::services;
+use crate::{globals, Dep};
 
 pub(super) struct Data {
 	backupid_algorithm: Arc<Map>,
 	backupid_etag: Arc<Map>,
 	backupkeyid_backup: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			backupid_algorithm: db["backupid_algorithm"].clone(),
 			backupid_etag: db["backupid_etag"].clone(),
 			backupkeyid_backup: db["backupkeyid_backup"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}
 	}
 
 	pub(super) fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
-		let version = services().globals.next_count()?.to_string();
+		let version = self.services.globals.next_count()?.to_string();
 
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
@@ -40,7 +49,7 @@ impl Data {
 			&serde_json::to_vec(backup_metadata).expect("BackupAlgorithm::to_vec always works"),
 		)?;
 		self.backupid_etag
-			.insert(&key, &services().globals.next_count()?.to_be_bytes())?;
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())?;
 		Ok(version)
 	}
 
@@ -75,7 +84,7 @@ impl Data {
 		self.backupid_algorithm
 			.insert(&key, backup_metadata.json().get().as_bytes())?;
 		self.backupid_etag
-			.insert(&key, &services().globals.next_count()?.to_be_bytes())?;
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())?;
 		Ok(version.to_owned())
 	}
 
@@ -152,7 +161,7 @@ impl Data {
 		}
 
 		self.backupid_etag
-			.insert(&key, &services().globals.next_count()?.to_be_bytes())?;
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())?;
 
 		key.push(0xFF);
 		key.extend_from_slice(room_id.as_bytes());

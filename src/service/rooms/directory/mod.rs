@@ -2,10 +2,10 @@ mod data;
 
 use std::sync::Arc;
 
-use data::Data;
+use conduit::Result;
 use ruma::{OwnedRoomId, RoomId};
 
-use crate::Result;
+use self::data::Data;
 
 pub struct Service {
 	db: Data,

@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use conduit::{trace, utils, Error, Result};
+use conduit::{trace, utils, Error, Result, Server};
 use database::{Database, Map};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
@@ -12,7 +12,7 @@ use ruma::{
 	DeviceId, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, UserId,
 };
 
-use crate::services;
+use crate::{rooms, Dep};
 
 pub struct Data {
 	global: Arc<Map>,
@@ -28,14 +28,23 @@ pub struct Data {
 	server_signingkeys: Arc<Map>,
 	readreceiptid_readreceipt: Arc<Map>,
 	userid_lastonetimekeyupdate: Arc<Map>,
-	pub(super) db: Arc<Database>,
 	counter: RwLock<u64>,
+	pub(super) db: Arc<Database>,
+	services: Services,
+}
+
+struct Services {
+	server: Arc<Server>,
+	short: Dep<rooms::short::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	typing: Dep<rooms::typing::Service>,
 }
 
 const COUNTER: &[u8] = b"c";
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			global: db["global"].clone(),
 			todeviceid_events: db["todeviceid_events"].clone(),
@@ -50,8 +59,14 @@ impl Data {
 			server_signingkeys: db["server_signingkeys"].clone(),
 			readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
 			userid_lastonetimekeyupdate: db["userid_lastonetimekeyupdate"].clone(),
-			db: db.clone(),
 			counter: RwLock::new(Self::stored_count(&db["global"]).expect("initialized global counter")),
+			db: args.db.clone(),
+			services: Services {
+				server: args.server.clone(),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				typing: args.depend::<rooms::typing::Service>("rooms::typing"),
+			},
 		}
 	}
 
@@ -118,14 +133,14 @@ impl Data {
 		futures.push(self.userroomid_highlightcount.watch_prefix(&userid_prefix));
 
 		// Events for rooms we are in
-		for room_id in services()
-			.rooms
+		for room_id in self
+			.services
 			.state_cache
 			.rooms_joined(user_id)
 			.filter_map(Result::ok)
 		{
-			let short_roomid = services()
-				.rooms
+			let short_roomid = self
+				.services
 				.short
 				.get_shortroomid(&room_id)
 				.ok()
@@ -143,7 +158,7 @@ impl Data {
 
 			// EDUs
 			futures.push(Box::pin(async move {
-				let _result = services().rooms.typing.wait_for_update(&room_id).await;
+				let _result = self.services.typing.wait_for_update(&room_id).await;
 			}));
 
 			futures.push(self.readreceiptid_readreceipt.watch_prefix(&roomid_prefix));
@@ -176,12 +191,12 @@ impl Data {
 		futures.push(self.userid_lastonetimekeyupdate.watch_prefix(&userid_bytes));
 
 		futures.push(Box::pin(async move {
-			while services().server.running() {
-				let _result = services().server.signal.subscribe().recv().await;
+			while self.services.server.running() {
+				let _result = self.services.server.signal.subscribe().recv().await;
 			}
 		}));
 
-		if !services().server.running() {
+		if !self.services.server.running() {
 			return Ok(());
 		}
 

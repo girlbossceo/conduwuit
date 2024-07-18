@@ -1,3 +1,5 @@
+#![recursion_limit = "160"]
+
 pub mod client;
 pub mod router;
 pub mod server;

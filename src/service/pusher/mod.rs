@@ -3,8 +3,7 @@ mod data;
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-use conduit::{debug_info, info, trace, warn, Error, Result};
-use data::Data;
+use conduit::{debug_info, info, trace, utils::string_from_bytes, warn, Error, PduEvent, Result};
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -23,15 +22,32 @@ use ruma::{
 	uint, RoomId, UInt, UserId,
 };
 
-use crate::{services, PduEvent};
+use self::data::Data;
+use crate::{client, globals, rooms, users, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	client: Dep<client::Service>,
+	state_accessor: Dep<rooms::state_accessor::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	users: Dep<users::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				client: args.depend::<client::Service>("client"),
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				users: args.depend::<users::Service>("users"),
+			},
 			db: Data::new(args.db),
 		}))
 	}
@@ -62,7 +78,7 @@ impl Service {
 	{
 		const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
 
-		let dest = dest.replace(services().globals.notification_push_path(), "");
+		let dest = dest.replace(self.services.globals.notification_push_path(), "");
 		trace!("Push gateway destination: {dest}");
 
 		let http_request = request
@@ -78,13 +94,13 @@ impl Service {
 		if let Some(url_host) = reqwest_request.url().host_str() {
 			trace!("Checking request URL for IP");
 			if let Ok(ip) = IPAddress::parse(url_host) {
-				if !services().globals.valid_cidr_range(&ip) {
+				if !self.services.globals.valid_cidr_range(&ip) {
 					return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
 				}
 			}
 		}
 
-		let response = services().client.pusher.execute(reqwest_request).await;
+		let response = self.services.client.pusher.execute(reqwest_request).await;
 
 		match response {
 			Ok(mut response) => {
@@ -93,7 +109,7 @@ impl Service {
 				trace!("Checking response destination's IP");
 				if let Some(remote_addr) = response.remote_addr() {
 					if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
-						if !services().globals.valid_cidr_range(&ip) {
+						if !self.services.globals.valid_cidr_range(&ip) {
 							return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
 						}
 					}
@@ -114,7 +130,7 @@ impl Service {
 
 				if !status.is_success() {
 					info!("Push gateway {dest} returned unsuccessful HTTP response ({status})");
-					debug_info!("Push gateway response body: {:?}", crate::utils::string_from_bytes(&body));
+					debug_info!("Push gateway response body: {:?}", string_from_bytes(&body));
 
 					return Err(Error::BadServerResponse("Push gateway returned unsuccessful response"));
 				}
@@ -143,8 +159,8 @@ impl Service {
 		let mut notify = None;
 		let mut tweaks = Vec::new();
 
-		let power_levels: RoomPowerLevelsEventContent = services()
-			.rooms
+		let power_levels: RoomPowerLevelsEventContent = self
+			.services
 			.state_accessor
 			.room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
 			.map(|ev| {
@@ -195,15 +211,15 @@ impl Service {
 		let ctx = PushConditionRoomCtx {
 			room_id: room_id.to_owned(),
 			member_count: UInt::try_from(
-				services()
-					.rooms
+				self.services
 					.state_cache
 					.room_joined_count(room_id)?
 					.unwrap_or(1),
 			)
 			.unwrap_or_else(|_| uint!(0)),
 			user_id: user.to_owned(),
-			user_display_name: services()
+			user_display_name: self
+				.services
 				.users
 				.displayname(user)?
 				.unwrap_or_else(|| user.localpart().to_owned()),
@@ -263,9 +279,9 @@ impl Service {
 						notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
 					}
 
-					notifi.sender_display_name = services().users.displayname(&event.sender)?;
+					notifi.sender_display_name = self.services.users.displayname(&event.sender)?;
 
-					notifi.room_name = services().rooms.state_accessor.get_name(&event.room_id)?;
+					notifi.room_name = self.services.state_accessor.get_name(&event.room_id)?;
 
 					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
 						.await?;

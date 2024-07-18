@@ -9,12 +9,9 @@ use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
 use ruma::ServerName;
 
-use crate::{
-	resolver::{
-		cache::{CachedDest, CachedOverride},
-		fed::{add_port_to_hostname, get_ip_with_port, FedDest},
-	},
-	services,
+use crate::resolver::{
+	cache::{CachedDest, CachedOverride},
+	fed::{add_port_to_hostname, get_ip_with_port, FedDest},
 };
 
 #[derive(Clone, Debug)]
@@ -40,7 +37,7 @@ impl super::Service {
 			result
 		} else {
 			cached = false;
-			validate_dest(server_name)?;
+			self.validate_dest(server_name)?;
 			self.resolve_actual_dest(server_name, true).await?
 		};
 
@@ -188,7 +185,8 @@ impl super::Service {
 			self.query_and_cache_override(dest, dest, 8448).await?;
 		}
 
-		let response = services()
+		let response = self
+			.services
 			.client
 			.well_known
 			.get(&format!("https://{dest}/.well-known/matrix/server"))
@@ -245,19 +243,14 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "ip")]
 	async fn query_and_cache_override(&self, overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
-		match services()
-			.resolver
-			.raw()
-			.lookup_ip(hostname.to_owned())
-			.await
-		{
-			Err(e) => handle_resolve_error(&e),
+		match self.raw().lookup_ip(hostname.to_owned()).await {
+			Err(e) => Self::handle_resolve_error(&e),
 			Ok(override_ip) => {
 				if hostname != overname {
 					debug_info!("{overname:?} overriden by {hostname:?}");
 				}
 
-				services().resolver.set_cached_override(
+				self.set_cached_override(
 					overname.to_owned(),
 					CachedOverride {
 						ips: override_ip.iter().collect(),
@@ -295,62 +288,62 @@ impl super::Service {
 		for hostname in hostnames {
 			match lookup_srv(self.raw(), &hostname).await {
 				Ok(result) => return Ok(handle_successful_srv(&result)),
-				Err(e) => handle_resolve_error(&e)?,
+				Err(e) => Self::handle_resolve_error(&e)?,
 			}
 		}
 
 		Ok(None)
 	}
-}
 
-#[allow(clippy::single_match_else)]
-fn handle_resolve_error(e: &ResolveError) -> Result<()> {
-	use hickory_resolver::error::ResolveErrorKind;
+	#[allow(clippy::single_match_else)]
+	fn handle_resolve_error(e: &ResolveError) -> Result<()> {
+		use hickory_resolver::error::ResolveErrorKind;
 
-	match *e.kind() {
-		ResolveErrorKind::NoRecordsFound {
-			..
-		} => {
-			// Raise to debug_warn if we can find out the result wasn't from cache
-			debug!("{e}");
-			Ok(())
-		},
-		_ => Err!(error!("DNS {e}")),
-	}
-}
-
-fn validate_dest(dest: &ServerName) -> Result<()> {
-	if dest == services().globals.server_name() {
-		return Err!("Won't send federation request to ourselves");
+		match *e.kind() {
+			ResolveErrorKind::NoRecordsFound {
+				..
+			} => {
+				// Raise to debug_warn if we can find out the result wasn't from cache
+				debug!("{e}");
+				Ok(())
+			},
+			_ => Err!(error!("DNS {e}")),
+		}
 	}
 
-	if dest.is_ip_literal() || IPAddress::is_valid(dest.host()) {
-		validate_dest_ip_literal(dest)?;
+	fn validate_dest(&self, dest: &ServerName) -> Result<()> {
+		if dest == self.services.server.config.server_name {
+			return Err!("Won't send federation request to ourselves");
+		}
+
+		if dest.is_ip_literal() || IPAddress::is_valid(dest.host()) {
+			self.validate_dest_ip_literal(dest)?;
+		}
+
+		Ok(())
 	}
 
-	Ok(())
-}
+	fn validate_dest_ip_literal(&self, dest: &ServerName) -> Result<()> {
+		trace!("Destination is an IP literal, checking against IP range denylist.",);
+		debug_assert!(
+			dest.is_ip_literal() || !IPAddress::is_valid(dest.host()),
+			"Destination is not an IP literal."
+		);
+		let ip = IPAddress::parse(dest.host()).map_err(|e| {
+			debug_error!("Failed to parse IP literal from string: {}", e);
+			Error::BadServerResponse("Invalid IP address")
+		})?;
 
-fn validate_dest_ip_literal(dest: &ServerName) -> Result<()> {
-	trace!("Destination is an IP literal, checking against IP range denylist.",);
-	debug_assert!(
-		dest.is_ip_literal() || !IPAddress::is_valid(dest.host()),
-		"Destination is not an IP literal."
-	);
-	let ip = IPAddress::parse(dest.host()).map_err(|e| {
-		debug_error!("Failed to parse IP literal from string: {}", e);
-		Error::BadServerResponse("Invalid IP address")
-	})?;
+		self.validate_ip(&ip)?;
 
-	validate_ip(&ip)?;
-
-	Ok(())
-}
-
-pub(crate) fn validate_ip(ip: &IPAddress) -> Result<()> {
-	if !services().globals.valid_cidr_range(ip) {
-		return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+		Ok(())
 	}
 
-	Ok(())
+	pub(crate) fn validate_ip(&self, ip: &IPAddress) -> Result<()> {
+		if !self.services.globals.valid_cidr_range(ip) {
+			return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+		}
+
+		Ok(())
+	}
 }

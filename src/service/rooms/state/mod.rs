@@ -8,7 +8,7 @@ use std::{
 
 use conduit::{
 	utils::{calculate_hash, MutexMap, MutexMapGuard},
-	warn, Error, Result,
+	warn, Error, PduEvent, Result,
 };
 use data::Data;
 use ruma::{
@@ -23,11 +23,22 @@ use ruma::{
 };
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{services, PduEvent};
+use crate::{globals, rooms, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
 	pub mutex: RoomMutexMap,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	short: Dep<rooms::short::Service>,
+	spaces: Dep<rooms::spaces::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	state_accessor: Dep<rooms::state_accessor::Service>,
+	state_compressor: Dep<rooms::state_compressor::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
@@ -36,6 +47,15 @@ pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				spaces: args.depend::<rooms::spaces::Service>("rooms::spaces"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
 			db: Data::new(args.db),
 			mutex: RoomMutexMap::new(),
 		}))
@@ -62,14 +82,13 @@ impl Service {
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		for event_id in statediffnew.iter().filter_map(|new| {
-			services()
-				.rooms
+			self.services
 				.state_compressor
 				.parse_compressed_state_event(new)
 				.ok()
 				.map(|(_, id)| id)
 		}) {
-			let Some(pdu) = services().rooms.timeline.get_pdu_json(&event_id)? else {
+			let Some(pdu) = self.services.timeline.get_pdu_json(&event_id)? else {
 				continue;
 			};
 
@@ -94,7 +113,7 @@ impl Service {
 						continue;
 					};
 
-					services().rooms.state_cache.update_membership(
+					self.services.state_cache.update_membership(
 						room_id,
 						&user_id,
 						membership_event,
@@ -105,8 +124,7 @@ impl Service {
 					)?;
 				},
 				TimelineEventType::SpaceChild => {
-					services()
-						.rooms
+					self.services
 						.spaces
 						.roomid_spacehierarchy_cache
 						.lock()
@@ -117,7 +135,7 @@ impl Service {
 			}
 		}
 
-		services().rooms.state_cache.update_joined_count(room_id)?;
+		self.services.state_cache.update_joined_count(room_id)?;
 
 		self.db
 			.set_room_state(room_id, shortstatehash, state_lock)?;
@@ -133,10 +151,7 @@ impl Service {
 	pub fn set_event_state(
 		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<u64> {
-		let shorteventid = services()
-			.rooms
-			.short
-			.get_or_create_shorteventid(event_id)?;
+		let shorteventid = self.services.short.get_or_create_shorteventid(event_id)?;
 
 		let previous_shortstatehash = self.db.get_room_shortstatehash(room_id)?;
 
@@ -147,20 +162,15 @@ impl Service {
 				.collect::<Vec<_>>(),
 		);
 
-		let (shortstatehash, already_existed) = services()
-			.rooms
+		let (shortstatehash, already_existed) = self
+			.services
 			.short
 			.get_or_create_shortstatehash(&state_hash)?;
 
 		if !already_existed {
 			let states_parents = previous_shortstatehash.map_or_else(
 				|| Ok(Vec::new()),
-				|p| {
-					services()
-						.rooms
-						.state_compressor
-						.load_shortstatehash_info(p)
-				},
+				|p| self.services.state_compressor.load_shortstatehash_info(p),
 			)?;
 
 			let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
@@ -179,7 +189,7 @@ impl Service {
 			} else {
 				(state_ids_compressed, Arc::new(HashSet::new()))
 			};
-			services().rooms.state_compressor.save_state_from_diff(
+			self.services.state_compressor.save_state_from_diff(
 				shortstatehash,
 				statediffnew,
 				statediffremoved,
@@ -199,8 +209,8 @@ impl Service {
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
 	#[tracing::instrument(skip(self, new_pdu), level = "debug")]
 	pub fn append_to_state(&self, new_pdu: &PduEvent) -> Result<u64> {
-		let shorteventid = services()
-			.rooms
+		let shorteventid = self
+			.services
 			.short
 			.get_or_create_shorteventid(&new_pdu.event_id)?;
 
@@ -214,21 +224,16 @@ impl Service {
 			let states_parents = previous_shortstatehash.map_or_else(
 				|| Ok(Vec::new()),
 				#[inline]
-				|p| {
-					services()
-						.rooms
-						.state_compressor
-						.load_shortstatehash_info(p)
-				},
+				|p| self.services.state_compressor.load_shortstatehash_info(p),
 			)?;
 
-			let shortstatekey = services()
-				.rooms
+			let shortstatekey = self
+				.services
 				.short
 				.get_or_create_shortstatekey(&new_pdu.kind.to_string().into(), state_key)?;
 
-			let new = services()
-				.rooms
+			let new = self
+				.services
 				.state_compressor
 				.compress_state_event(shortstatekey, &new_pdu.event_id)?;
 
@@ -246,7 +251,7 @@ impl Service {
 			}
 
 			// TODO: statehash with deterministic inputs
-			let shortstatehash = services().globals.next_count()?;
+			let shortstatehash = self.services.globals.next_count()?;
 
 			let mut statediffnew = HashSet::new();
 			statediffnew.insert(new);
@@ -256,7 +261,7 @@ impl Service {
 				statediffremoved.insert(*replaces);
 			}
 
-			services().rooms.state_compressor.save_state_from_diff(
+			self.services.state_compressor.save_state_from_diff(
 				shortstatehash,
 				Arc::new(statediffnew),
 				Arc::new(statediffremoved),
@@ -275,22 +280,20 @@ impl Service {
 		let mut state = Vec::new();
 		// Add recommended events
 		if let Some(e) =
-			services()
-				.rooms
+			self.services
 				.state_accessor
 				.room_state_get(&invite_event.room_id, &StateEventType::RoomCreate, "")?
 		{
 			state.push(e.to_stripped_state_event());
 		}
 		if let Some(e) =
-			services()
-				.rooms
+			self.services
 				.state_accessor
 				.room_state_get(&invite_event.room_id, &StateEventType::RoomJoinRules, "")?
 		{
 			state.push(e.to_stripped_state_event());
 		}
-		if let Some(e) = services().rooms.state_accessor.room_state_get(
+		if let Some(e) = self.services.state_accessor.room_state_get(
 			&invite_event.room_id,
 			&StateEventType::RoomCanonicalAlias,
 			"",
@@ -298,22 +301,20 @@ impl Service {
 			state.push(e.to_stripped_state_event());
 		}
 		if let Some(e) =
-			services()
-				.rooms
+			self.services
 				.state_accessor
 				.room_state_get(&invite_event.room_id, &StateEventType::RoomAvatar, "")?
 		{
 			state.push(e.to_stripped_state_event());
 		}
 		if let Some(e) =
-			services()
-				.rooms
+			self.services
 				.state_accessor
 				.room_state_get(&invite_event.room_id, &StateEventType::RoomName, "")?
 		{
 			state.push(e.to_stripped_state_event());
 		}
-		if let Some(e) = services().rooms.state_accessor.room_state_get(
+		if let Some(e) = self.services.state_accessor.room_state_get(
 			&invite_event.room_id,
 			&StateEventType::RoomMember,
 			invite_event.sender.as_str(),
@@ -339,8 +340,8 @@ impl Service {
 	/// Returns the room's version.
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
-		let create_event = services()
-			.rooms
+		let create_event = self
+			.services
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
 
@@ -393,8 +394,7 @@ impl Service {
 		let mut sauthevents = auth_events
 			.into_iter()
 			.filter_map(|(event_type, state_key)| {
-				services()
-					.rooms
+				self.services
 					.short
 					.get_shortstatekey(&event_type.to_string().into(), &state_key)
 					.ok()
@@ -403,8 +403,8 @@ impl Service {
 			})
 			.collect::<HashMap<_, _>>();
 
-		let full_state = services()
-			.rooms
+		let full_state = self
+			.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)?
 			.pop()
@@ -414,16 +414,14 @@ impl Service {
 		Ok(full_state
 			.iter()
 			.filter_map(|compressed| {
-				services()
-					.rooms
+				self.services
 					.state_compressor
 					.parse_compressed_state_event(compressed)
 					.ok()
 			})
 			.filter_map(|(shortstatekey, event_id)| sauthevents.remove(&shortstatekey).map(|k| (k, event_id)))
 			.filter_map(|(k, event_id)| {
-				services()
-					.rooms
+				self.services
 					.timeline
 					.get_pdu(&event_id)
 					.ok()

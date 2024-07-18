@@ -1,28 +1,43 @@
 use std::{collections::HashMap, sync::Arc};
 
-use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use conduit::{utils, Error, PduEvent, Result};
+use database::Map;
 use ruma::{events::StateEventType, EventId, RoomId};
 
-use crate::{services, PduEvent};
+use crate::{rooms, Dep};
 
 pub(super) struct Data {
 	eventid_shorteventid: Arc<Map>,
 	shorteventid_shortstatehash: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
+	state: Dep<rooms::state::Service>,
+	state_compressor: Dep<rooms::state_compressor::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			eventid_shorteventid: db["eventid_shorteventid"].clone(),
 			shorteventid_shortstatehash: db["shorteventid_shortstatehash"].clone(),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				state: args.depend::<rooms::state::Service>("rooms::state"),
+				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
 		}
 	}
 
 	#[allow(unused_qualifications)] // async traits
 	pub(super) async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
-		let full_state = services()
-			.rooms
+		let full_state = self
+			.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)?
 			.pop()
@@ -31,8 +46,8 @@ impl Data {
 		let mut result = HashMap::new();
 		let mut i: u8 = 0;
 		for compressed in full_state.iter() {
-			let parsed = services()
-				.rooms
+			let parsed = self
+				.services
 				.state_compressor
 				.parse_compressed_state_event(compressed)?;
 			result.insert(parsed.0, parsed.1);
@@ -49,8 +64,8 @@ impl Data {
 	pub(super) async fn state_full(
 		&self, shortstatehash: u64,
 	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
-		let full_state = services()
-			.rooms
+		let full_state = self
+			.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)?
 			.pop()
@@ -60,11 +75,11 @@ impl Data {
 		let mut result = HashMap::new();
 		let mut i: u8 = 0;
 		for compressed in full_state.iter() {
-			let (_, eventid) = services()
-				.rooms
+			let (_, eventid) = self
+				.services
 				.state_compressor
 				.parse_compressed_state_event(compressed)?;
-			if let Some(pdu) = services().rooms.timeline.get_pdu(&eventid)? {
+			if let Some(pdu) = self.services.timeline.get_pdu(&eventid)? {
 				result.insert(
 					(
 						pdu.kind.to_string().into(),
@@ -92,15 +107,15 @@ impl Data {
 	pub(super) fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
-		let Some(shortstatekey) = services()
-			.rooms
+		let Some(shortstatekey) = self
+			.services
 			.short
 			.get_shortstatekey(event_type, state_key)?
 		else {
 			return Ok(None);
 		};
-		let full_state = services()
-			.rooms
+		let full_state = self
+			.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)?
 			.pop()
@@ -110,8 +125,7 @@ impl Data {
 			.iter()
 			.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
 			.and_then(|compressed| {
-				services()
-					.rooms
+				self.services
 					.state_compressor
 					.parse_compressed_state_event(compressed)
 					.ok()
@@ -125,7 +139,7 @@ impl Data {
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
 		self.state_get_id(shortstatehash, event_type, state_key)?
-			.map_or(Ok(None), |event_id| services().rooms.timeline.get_pdu(&event_id))
+			.map_or(Ok(None), |event_id| self.services.timeline.get_pdu(&event_id))
 	}
 
 	/// Returns the state hash for this pdu.
@@ -149,7 +163,7 @@ impl Data {
 	pub(super) async fn room_state_full(
 		&self, room_id: &RoomId,
 	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
-		if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
+		if let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? {
 			self.state_full(current_shortstatehash).await
 		} else {
 			Ok(HashMap::new())
@@ -161,7 +175,7 @@ impl Data {
 	pub(super) fn room_state_get_id(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<EventId>>> {
-		if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
+		if let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? {
 			self.state_get_id(current_shortstatehash, event_type, state_key)
 		} else {
 			Ok(None)
@@ -173,7 +187,7 @@ impl Data {
 	pub(super) fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Option<Arc<PduEvent>>> {
-		if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
+		if let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? {
 			self.state_get(current_shortstatehash, event_type, state_key)
 		} else {
 			Ok(None)

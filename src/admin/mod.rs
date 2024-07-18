@@ -1,3 +1,4 @@
+#![recursion_limit = "168"]
 #![allow(clippy::wildcard_imports)]
 
 pub(crate) mod appservice;

@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use itertools::Itertools;
 use ruma::{
 	events::{AnyStrippedStateEvent, AnySyncStateEvent},
@@ -12,44 +12,55 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
-use crate::{appservice::RegistrationInfo, services, user_is_local};
+use crate::{appservice::RegistrationInfo, globals, user_is_local, users, Dep};
 
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 type AnySyncStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
 type AppServiceInRoomCache = RwLock<HashMap<OwnedRoomId, HashMap<String, bool>>>;
 
 pub(super) struct Data {
-	userroomid_joined: Arc<Map>,
-	roomuserid_joined: Arc<Map>,
-	userroomid_invitestate: Arc<Map>,
-	roomuserid_invitecount: Arc<Map>,
-	userroomid_leftstate: Arc<Map>,
-	roomuserid_leftcount: Arc<Map>,
-	roomid_inviteviaservers: Arc<Map>,
-	roomuseroncejoinedids: Arc<Map>,
-	roomid_joinedcount: Arc<Map>,
-	roomid_invitedcount: Arc<Map>,
-	roomserverids: Arc<Map>,
-	serverroomids: Arc<Map>,
 	pub(super) appservice_in_room_cache: AppServiceInRoomCache,
+	roomid_invitedcount: Arc<Map>,
+	roomid_inviteviaservers: Arc<Map>,
+	roomid_joinedcount: Arc<Map>,
+	roomserverids: Arc<Map>,
+	roomuserid_invitecount: Arc<Map>,
+	roomuserid_joined: Arc<Map>,
+	roomuserid_leftcount: Arc<Map>,
+	roomuseroncejoinedids: Arc<Map>,
+	serverroomids: Arc<Map>,
+	userroomid_invitestate: Arc<Map>,
+	userroomid_joined: Arc<Map>,
+	userroomid_leftstate: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	users: Dep<users::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
-			userroomid_joined: db["userroomid_joined"].clone(),
-			roomuserid_joined: db["roomuserid_joined"].clone(),
-			userroomid_invitestate: db["userroomid_invitestate"].clone(),
-			roomuserid_invitecount: db["roomuserid_invitecount"].clone(),
-			userroomid_leftstate: db["userroomid_leftstate"].clone(),
-			roomuserid_leftcount: db["roomuserid_leftcount"].clone(),
-			roomid_inviteviaservers: db["roomid_inviteviaservers"].clone(),
-			roomuseroncejoinedids: db["roomuseroncejoinedids"].clone(),
-			roomid_joinedcount: db["roomid_joinedcount"].clone(),
-			roomid_invitedcount: db["roomid_invitedcount"].clone(),
-			roomserverids: db["roomserverids"].clone(),
-			serverroomids: db["serverroomids"].clone(),
 			appservice_in_room_cache: RwLock::new(HashMap::new()),
+			roomid_invitedcount: db["roomid_invitedcount"].clone(),
+			roomid_inviteviaservers: db["roomid_inviteviaservers"].clone(),
+			roomid_joinedcount: db["roomid_joinedcount"].clone(),
+			roomserverids: db["roomserverids"].clone(),
+			roomuserid_invitecount: db["roomuserid_invitecount"].clone(),
+			roomuserid_joined: db["roomuserid_joined"].clone(),
+			roomuserid_leftcount: db["roomuserid_leftcount"].clone(),
+			roomuseroncejoinedids: db["roomuseroncejoinedids"].clone(),
+			serverroomids: db["serverroomids"].clone(),
+			userroomid_invitestate: db["userroomid_invitestate"].clone(),
+			userroomid_joined: db["userroomid_joined"].clone(),
+			userroomid_leftstate: db["userroomid_leftstate"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				users: args.depend::<users::Service>("users"),
+			},
 		}
 	}
 
@@ -100,7 +111,7 @@ impl Data {
 			&serde_json::to_vec(&last_state.unwrap_or_default()).expect("state to bytes always works"),
 		)?;
 		self.roomuserid_invitecount
-			.insert(&roomuser_id, &services().globals.next_count()?.to_be_bytes())?;
+			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes())?;
 		self.userroomid_joined.remove(&userroom_id)?;
 		self.roomuserid_joined.remove(&roomuser_id)?;
 		self.userroomid_leftstate.remove(&userroom_id)?;
@@ -144,7 +155,7 @@ impl Data {
 			&serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
 		)?; // TODO
 		self.roomuserid_leftcount
-			.insert(&roomuser_id, &services().globals.next_count()?.to_be_bytes())?;
+			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes())?;
 		self.userroomid_joined.remove(&userroom_id)?;
 		self.roomuserid_joined.remove(&roomuser_id)?;
 		self.userroomid_invitestate.remove(&userroom_id)?;
@@ -228,7 +239,7 @@ impl Data {
 		} else {
 			let bridge_user_id = UserId::parse_with_server_name(
 				appservice.registration.sender_localpart.as_str(),
-				services().globals.server_name(),
+				self.services.globals.server_name(),
 			)
 			.ok();
 
@@ -356,7 +367,7 @@ impl Data {
 	) -> Box<dyn Iterator<Item = OwnedUserId> + 'a> {
 		Box::new(
 			self.local_users_in_room(room_id)
-				.filter(|user| !services().users.is_deactivated(user).unwrap_or(true)),
+				.filter(|user| !self.services.users.is_deactivated(user).unwrap_or(true)),
 		)
 	}
 

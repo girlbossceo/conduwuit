@@ -11,10 +11,11 @@ use rustyline_async::{Readline, ReadlineError, ReadlineEvent};
 use termimad::MadSkin;
 use tokio::task::JoinHandle;
 
-use crate::services;
+use crate::{admin, Dep};
 
 pub struct Console {
 	server: Arc<Server>,
+	admin: Dep<admin::Service>,
 	worker_join: Mutex<Option<JoinHandle<()>>>,
 	input_abort: Mutex<Option<AbortHandle>>,
 	command_abort: Mutex<Option<AbortHandle>>,
@@ -29,6 +30,7 @@ impl Console {
 	pub(super) fn new(args: &crate::Args<'_>) -> Arc<Self> {
 		Arc::new(Self {
 			server: args.server.clone(),
+			admin: args.depend::<admin::Service>("admin"),
 			worker_join: None.into(),
 			input_abort: None.into(),
 			command_abort: None.into(),
@@ -116,7 +118,8 @@ impl Console {
 		let _suppression = log::Suppress::new(&self.server);
 
 		let (mut readline, _writer) = Readline::new(PROMPT.to_owned())?;
-		readline.set_tab_completer(Self::tab_complete);
+		let self_ = Arc::clone(self);
+		readline.set_tab_completer(move |line| self_.tab_complete(line));
 		self.set_history(&mut readline);
 
 		let future = readline.readline();
@@ -154,7 +157,7 @@ impl Console {
 	}
 
 	async fn process(self: Arc<Self>, line: String) {
-		match services().admin.command_in_place(line, None).await {
+		match self.admin.command_in_place(line, None).await {
 			Ok(Some(content)) => self.output(content).await,
 			Err(e) => error!("processing command: {e}"),
 			_ => (),
@@ -184,9 +187,8 @@ impl Console {
 		history.truncate(HISTORY_LIMIT);
 	}
 
-	fn tab_complete(line: &str) -> String {
-		services()
-			.admin
+	fn tab_complete(&self, line: &str) -> String {
+		self.admin
 			.complete_command(line)
 			.unwrap_or_else(|| line.to_owned())
 	}

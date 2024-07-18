@@ -3,8 +3,7 @@ mod data;
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduit::{checked, debug, error, utils, Error, Result};
-use data::Data;
+use conduit::{checked, debug, error, utils, Error, Result, Server};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
@@ -14,7 +13,8 @@ use ruma::{
 use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::sleep};
 
-use crate::{services, user_is_local};
+use self::data::Data;
+use crate::{user_is_local, users, Dep};
 
 /// Represents data required to be kept in order to implement the presence
 /// specification.
@@ -37,11 +37,6 @@ impl Presence {
 		}
 	}
 
-	pub fn from_json_bytes_to_event(bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
-		let presence = Self::from_json_bytes(bytes)?;
-		presence.to_presence_event(user_id)
-	}
-
 	pub fn from_json_bytes(bytes: &[u8]) -> Result<Self> {
 		serde_json::from_slice(bytes).map_err(|_| Error::bad_database("Invalid presence data in database"))
 	}
@@ -51,7 +46,7 @@ impl Presence {
 	}
 
 	/// Creates a PresenceEvent from available data.
-	pub fn to_presence_event(&self, user_id: &UserId) -> Result<PresenceEvent> {
+	pub fn to_presence_event(&self, user_id: &UserId, users: &users::Service) -> Result<PresenceEvent> {
 		let now = utils::millis_since_unix_epoch();
 		let last_active_ago = if self.currently_active {
 			None
@@ -66,20 +61,26 @@ impl Presence {
 				status_msg: self.status_msg.clone(),
 				currently_active: Some(self.currently_active),
 				last_active_ago,
-				displayname: services().users.displayname(user_id)?,
-				avatar_url: services().users.avatar_url(user_id)?,
+				displayname: users.displayname(user_id)?,
+				avatar_url: users.avatar_url(user_id)?,
 			},
 		})
 	}
 }
 
 pub struct Service {
+	services: Services,
 	pub db: Data,
 	pub timer_sender: loole::Sender<(OwnedUserId, Duration)>,
 	timer_receiver: Mutex<loole::Receiver<(OwnedUserId, Duration)>>,
 	timeout_remote_users: bool,
 	idle_timeout: u64,
 	offline_timeout: u64,
+}
+
+struct Services {
+	server: Arc<Server>,
+	users: Dep<users::Service>,
 }
 
 #[async_trait]
@@ -90,7 +91,11 @@ impl crate::Service for Service {
 		let offline_timeout_s = config.presence_offline_timeout_s;
 		let (timer_sender, timer_receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			services: Services {
+				server: args.server.clone(),
+				users: args.depend::<users::Service>("users"),
+			},
+			db: Data::new(&args),
 			timer_sender,
 			timer_receiver: Mutex::new(timer_receiver),
 			timeout_remote_users: config.presence_timeout_remote_users,
@@ -182,8 +187,8 @@ impl Service {
 
 		if self.timeout_remote_users || user_is_local(user_id) {
 			let timeout = match presence_state {
-				PresenceState::Online => services().globals.config.presence_idle_timeout_s,
-				_ => services().globals.config.presence_offline_timeout_s,
+				PresenceState::Online => self.services.server.config.presence_idle_timeout_s,
+				_ => self.services.server.config.presence_offline_timeout_s,
 			};
 
 			self.timer_sender
@@ -208,6 +213,11 @@ impl Service {
 	#[inline]
 	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + '_> {
 		self.db.presence_since(since)
+	}
+
+	pub fn from_json_bytes_to_event(&self, bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
+		let presence = Presence::from_json_bytes(bytes)?;
+		presence.to_presence_event(user_id, &self.services.users)
 	}
 
 	fn process_presence_timer(&self, user_id: &OwnedUserId) -> Result<()> {

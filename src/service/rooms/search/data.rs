@@ -1,21 +1,30 @@
 use std::sync::Arc;
 
 use conduit::{utils, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::RoomId;
 
-use crate::services;
+use crate::{rooms, Dep};
 
 type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>>;
 
 pub(super) struct Data {
 	tokenids: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			tokenids: db["tokenids"].clone(),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+			},
 		}
 	}
 
@@ -51,8 +60,8 @@ impl Data {
 	}
 
 	pub(super) fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
-		let prefix = services()
-			.rooms
+		let prefix = self
+			.services
 			.short
 			.get_shortroomid(room_id)?
 			.expect("room exists")

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 
-use crate::services;
+use crate::{globals, rooms, Dep};
 
 pub(super) struct Data {
 	userroomid_notificationcount: Arc<Map>,
@@ -12,16 +12,27 @@ pub(super) struct Data {
 	roomuserid_lastnotificationread: Arc<Map>,
 	roomsynctoken_shortstatehash: Arc<Map>,
 	userroomid_joined: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	short: Dep<rooms::short::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
 			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
 			roomuserid_lastnotificationread: db["userroomid_highlightcount"].clone(), //< NOTE: known bug from conduit
 			roomsynctoken_shortstatehash: db["roomsynctoken_shortstatehash"].clone(),
 			userroomid_joined: db["userroomid_joined"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+			},
 		}
 	}
 
@@ -39,7 +50,7 @@ impl Data {
 			.insert(&userroom_id, &0_u64.to_be_bytes())?;
 
 		self.roomuserid_lastnotificationread
-			.insert(&roomuser_id, &services().globals.next_count()?.to_be_bytes())?;
+			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes())?;
 
 		Ok(())
 	}
@@ -87,8 +98,8 @@ impl Data {
 	pub(super) fn associate_token_shortstatehash(
 		&self, room_id: &RoomId, token: u64, shortstatehash: u64,
 	) -> Result<()> {
-		let shortroomid = services()
-			.rooms
+		let shortroomid = self
+			.services
 			.short
 			.get_shortroomid(room_id)?
 			.expect("room exists");
@@ -101,8 +112,8 @@ impl Data {
 	}
 
 	pub(super) fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
-		let shortroomid = services()
-			.rooms
+		let shortroomid = self
+			.services
 			.short
 			.get_shortroomid(room_id)?
 			.expect("room exists");

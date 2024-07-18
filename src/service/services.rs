@@ -1,11 +1,16 @@
-use std::{any::Any, collections::BTreeMap, fmt::Write, sync::Arc};
+use std::{
+	any::Any,
+	collections::BTreeMap,
+	fmt::Write,
+	sync::{Arc, RwLock},
+};
 
 use conduit::{debug, debug_info, info, trace, Result, Server};
 use database::Database;
 use tokio::sync::Mutex;
 
 use crate::{
-	account_data, admin, appservice, client, globals, key_backups,
+	account_data, admin, appservice, client, emergency, globals, key_backups,
 	manager::Manager,
 	media, presence, pusher, resolver, rooms, sending, service,
 	service::{Args, Map, Service},
@@ -13,22 +18,23 @@ use crate::{
 };
 
 pub struct Services {
-	pub resolver: Arc<resolver::Service>,
-	pub client: Arc<client::Service>,
-	pub globals: Arc<globals::Service>,
-	pub rooms: rooms::Service,
-	pub appservice: Arc<appservice::Service>,
-	pub pusher: Arc<pusher::Service>,
-	pub transaction_ids: Arc<transaction_ids::Service>,
-	pub uiaa: Arc<uiaa::Service>,
-	pub users: Arc<users::Service>,
 	pub account_data: Arc<account_data::Service>,
-	pub presence: Arc<presence::Service>,
 	pub admin: Arc<admin::Service>,
+	pub appservice: Arc<appservice::Service>,
+	pub client: Arc<client::Service>,
+	pub emergency: Arc<emergency::Service>,
+	pub globals: Arc<globals::Service>,
 	pub key_backups: Arc<key_backups::Service>,
 	pub media: Arc<media::Service>,
+	pub presence: Arc<presence::Service>,
+	pub pusher: Arc<pusher::Service>,
+	pub resolver: Arc<resolver::Service>,
+	pub rooms: rooms::Service,
 	pub sending: Arc<sending::Service>,
+	pub transaction_ids: Arc<transaction_ids::Service>,
+	pub uiaa: Arc<uiaa::Service>,
 	pub updates: Arc<updates::Service>,
+	pub users: Arc<users::Service>,
 
 	manager: Mutex<Option<Arc<Manager>>>,
 	pub(crate) service: Arc<Map>,
@@ -36,37 +42,34 @@ pub struct Services {
 	pub db: Arc<Database>,
 }
 
-macro_rules! build_service {
-	($map:ident, $server:ident, $db:ident, $tyname:ty) => {{
-		let built = <$tyname>::build(Args {
-			server: &$server,
-			db: &$db,
-			service: &$map,
-		})?;
-
-		Arc::get_mut(&mut $map)
-			.expect("must have mutable reference to services collection")
-			.insert(built.name().to_owned(), (built.clone(), built.clone()));
-
-		trace!("built service #{}: {:?}", $map.len(), built.name());
-		built
-	}};
-}
-
 impl Services {
 	#[allow(clippy::cognitive_complexity)]
 	pub fn build(server: Arc<Server>, db: Arc<Database>) -> Result<Self> {
-		let mut service: Arc<Map> = Arc::new(BTreeMap::new());
+		let service: Arc<Map> = Arc::new(RwLock::new(BTreeMap::new()));
 		macro_rules! build {
-			($srv:ty) => {
-				build_service!(service, server, db, $srv)
-			};
+			($tyname:ty) => {{
+				let built = <$tyname>::build(Args {
+					db: &db,
+					server: &server,
+					service: &service,
+				})?;
+				add_service(&service, built.clone(), built.clone());
+				built
+			}};
 		}
 
 		Ok(Self {
-			globals: build!(globals::Service),
+			account_data: build!(account_data::Service),
+			admin: build!(admin::Service),
+			appservice: build!(appservice::Service),
 			resolver: build!(resolver::Service),
 			client: build!(client::Service),
+			emergency: build!(emergency::Service),
+			globals: build!(globals::Service),
+			key_backups: build!(key_backups::Service),
+			media: build!(media::Service),
+			presence: build!(presence::Service),
+			pusher: build!(pusher::Service),
 			rooms: rooms::Service {
 				alias: build!(rooms::alias::Service),
 				auth_chain: build!(rooms::auth_chain::Service),
@@ -79,28 +82,22 @@ impl Services {
 				read_receipt: build!(rooms::read_receipt::Service),
 				search: build!(rooms::search::Service),
 				short: build!(rooms::short::Service),
+				spaces: build!(rooms::spaces::Service),
 				state: build!(rooms::state::Service),
 				state_accessor: build!(rooms::state_accessor::Service),
 				state_cache: build!(rooms::state_cache::Service),
 				state_compressor: build!(rooms::state_compressor::Service),
-				timeline: build!(rooms::timeline::Service),
 				threads: build!(rooms::threads::Service),
+				timeline: build!(rooms::timeline::Service),
 				typing: build!(rooms::typing::Service),
-				spaces: build!(rooms::spaces::Service),
 				user: build!(rooms::user::Service),
 			},
-			appservice: build!(appservice::Service),
-			pusher: build!(pusher::Service),
+			sending: build!(sending::Service),
 			transaction_ids: build!(transaction_ids::Service),
 			uiaa: build!(uiaa::Service),
-			users: build!(users::Service),
-			account_data: build!(account_data::Service),
-			presence: build!(presence::Service),
-			admin: build!(admin::Service),
-			key_backups: build!(key_backups::Service),
-			media: build!(media::Service),
-			sending: build!(sending::Service),
 			updates: build!(updates::Service),
+			users: build!(users::Service),
+
 			manager: Mutex::new(None),
 			service,
 			server,
@@ -111,7 +108,7 @@ impl Services {
 	pub(super) async fn start(&self) -> Result<()> {
 		debug_info!("Starting services...");
 
-		globals::migrations::migrations(&self.db, &self.server.config).await?;
+		globals::migrations::migrations(self).await?;
 		self.manager
 			.lock()
 			.await
@@ -144,7 +141,7 @@ impl Services {
 	}
 
 	pub async fn clear_cache(&self) {
-		for (service, ..) in self.service.values() {
+		for (service, ..) in self.service.read().expect("locked for reading").values() {
 			service.clear_cache();
 		}
 
@@ -159,7 +156,7 @@ impl Services {
 
 	pub async fn memory_usage(&self) -> Result<String> {
 		let mut out = String::new();
-		for (service, ..) in self.service.values() {
+		for (service, ..) in self.service.read().expect("locked for reading").values() {
 			service.memory_usage(&mut out)?;
 		}
 
@@ -179,23 +176,26 @@ impl Services {
 	fn interrupt(&self) {
 		debug!("Interrupting services...");
 
-		for (name, (service, ..)) in self.service.iter() {
+		for (name, (service, ..)) in self.service.read().expect("locked for reading").iter() {
 			trace!("Interrupting {name}");
 			service.interrupt();
 		}
 	}
 
-	pub fn try_get<T>(&self, name: &str) -> Result<Arc<T>>
-	where
-		T: Any + Send + Sync,
-	{
+	pub fn try_get<T: Send + Sync + 'static>(&self, name: &str) -> Result<Arc<T>> {
 		service::try_get::<T>(&self.service, name)
 	}
 
-	pub fn get<T>(&self, name: &str) -> Option<Arc<T>>
-	where
-		T: Any + Send + Sync,
-	{
-		service::get::<T>(&self.service, name)
-	}
+	pub fn get<T: Send + Sync + 'static>(&self, name: &str) -> Option<Arc<T>> { service::get::<T>(&self.service, name) }
+}
+
+fn add_service(map: &Arc<Map>, s: Arc<dyn Service>, a: Arc<dyn Any + Send + Sync>) {
+	let name = s.name();
+	let len = map.read().expect("locked for reading").len();
+
+	trace!("built service #{len}: {name:?}");
+
+	map.write()
+		.expect("locked for writing")
+		.insert(name.to_owned(), (s, a));
 }

@@ -43,7 +43,6 @@ use crate::{
 	service::{
 		pdu::{gen_event_id_canonical_json, PduBuilder},
 		rooms::state::RoomMutexGuard,
-		sending::convert_to_outgoing_federation_event,
 		server_is_ours, user_is_local, Services,
 	},
 	Ruma,
@@ -791,7 +790,9 @@ async fn join_room_by_id_helper_remote(
 			federation::membership::create_join_event::v2::Request {
 				room_id: room_id.to_owned(),
 				event_id: event_id.to_owned(),
-				pdu: convert_to_outgoing_federation_event(join_event.clone()),
+				pdu: services
+					.sending
+					.convert_to_outgoing_federation_event(join_event.clone()),
 				omit_members: false,
 			},
 		)
@@ -1203,7 +1204,9 @@ async fn join_room_by_id_helper_local(
 				federation::membership::create_join_event::v2::Request {
 					room_id: room_id.to_owned(),
 					event_id: event_id.to_owned(),
-					pdu: convert_to_outgoing_federation_event(join_event.clone()),
+					pdu: services
+						.sending
+						.convert_to_outgoing_federation_event(join_event.clone()),
 					omit_members: false,
 				},
 			)
@@ -1431,7 +1434,9 @@ pub(crate) async fn invite_helper(
 					room_id: room_id.to_owned(),
 					event_id: (*pdu.event_id).to_owned(),
 					room_version: room_version_id.clone(),
-					event: convert_to_outgoing_federation_event(pdu_json.clone()),
+					event: services
+						.sending
+						.convert_to_outgoing_federation_event(pdu_json.clone()),
 					invite_room_state,
 					via: services.rooms.state_cache.servers_route_via(room_id).ok(),
 				},
@@ -1763,7 +1768,9 @@ async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &Room
 			federation::membership::create_leave_event::v2::Request {
 				room_id: room_id.to_owned(),
 				event_id,
-				pdu: convert_to_outgoing_federation_event(leave_event.clone()),
+				pdu: services
+					.sending
+					.convert_to_outgoing_federation_event(leave_event.clone()),
 			},
 		)
 		.await?;

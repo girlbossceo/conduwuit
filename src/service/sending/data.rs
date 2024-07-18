@@ -5,7 +5,7 @@ use database::{Database, Map};
 use ruma::{ServerName, UserId};
 
 use super::{Destination, SendingEvent};
-use crate::services;
+use crate::{globals, Dep};
 
 type OutgoingSendingIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, Destination, SendingEvent)>> + 'a>;
 type SendingEventIter<'a> = Box<dyn Iterator<Item = Result<(Vec<u8>, SendingEvent)>> + 'a>;
@@ -15,15 +15,24 @@ pub struct Data {
 	servernameevent_data: Arc<Map>,
 	servername_educount: Arc<Map>,
 	pub(super) db: Arc<Database>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			servercurrentevent_data: db["servercurrentevent_data"].clone(),
 			servernameevent_data: db["servernameevent_data"].clone(),
 			servername_educount: db["servername_educount"].clone(),
-			db,
+			db: args.db.clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}
 	}
 
@@ -78,7 +87,7 @@ impl Data {
 			if let SendingEvent::Pdu(value) = &event {
 				key.extend_from_slice(value);
 			} else {
-				key.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
+				key.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
 			}
 			let value = if let SendingEvent::Edu(value) = &event {
 				&**value

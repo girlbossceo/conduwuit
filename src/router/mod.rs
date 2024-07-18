@@ -1,3 +1,5 @@
+#![recursion_limit = "160"]
+
 mod layers;
 mod request;
 mod router;

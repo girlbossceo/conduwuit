@@ -7,7 +7,7 @@ use ruma::{
 	serde::JsonObject,
 	CanonicalJsonValue, EventId, OwnedUserId,
 };
-use service::{sending::convert_to_outgoing_federation_event, server_is_ours};
+use service::server_is_ours;
 
 use crate::Ruma;
 
@@ -174,6 +174,8 @@ pub(crate) async fn create_invite_route(
 	}
 
 	Ok(create_invite::v2::Response {
-		event: convert_to_outgoing_federation_event(signed_event),
+		event: services
+			.sending
+			.convert_to_outgoing_federation_event(signed_event),
 	})
 }

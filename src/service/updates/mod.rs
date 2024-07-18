@@ -7,12 +7,18 @@ use ruma::events::room::message::RoomMessageEventContent;
 use serde::Deserialize;
 use tokio::{sync::Notify, time::interval};
 
-use crate::services;
+use crate::{admin, client, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Arc<Map>,
 	interrupt: Notify,
 	interval: Duration,
+}
+
+struct Services {
+	admin: Dep<admin::Service>,
+	client: Dep<client::Service>,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +41,10 @@ const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			services: Services {
+				admin: args.depend::<admin::Service>("admin"),
+				client: args.depend::<client::Service>("client"),
+			},
 			db: args.db["global"].clone(),
 			interrupt: Notify::new(),
 			interval: Duration::from_secs(CHECK_FOR_UPDATES_INTERVAL),
@@ -63,7 +73,8 @@ impl crate::Service for Service {
 impl Service {
 	#[tracing::instrument(skip_all)]
 	async fn handle_updates(&self) -> Result<()> {
-		let response = services()
+		let response = self
+			.services
 			.client
 			.default
 			.get(CHECK_FOR_UPDATES_URL)
@@ -78,7 +89,7 @@ impl Service {
 			last_update_id = last_update_id.max(update.id);
 			if update.id > self.last_check_for_updates_id()? {
 				info!("{:#}", update.message);
-				services()
+				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_markdown(format!(
 						"### the following is a message from the conduwuit puppy\n\nit was sent on `{}`:\n\n@room: {}",

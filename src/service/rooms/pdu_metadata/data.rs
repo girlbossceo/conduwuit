@@ -1,26 +1,35 @@
 use std::{mem::size_of, sync::Arc};
 
-use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use conduit::{utils, Error, PduCount, PduEvent, Result};
+use database::Map;
 use ruma::{EventId, RoomId, UserId};
 
-use crate::{services, PduCount, PduEvent};
+use crate::{rooms, Dep};
 
 pub(super) struct Data {
 	tofrom_relation: Arc<Map>,
 	referencedevents: Arc<Map>,
 	softfailedeventids: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 type PdusIterItem = Result<(PduCount, PduEvent)>;
 type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			tofrom_relation: db["tofrom_relation"].clone(),
 			referencedevents: db["referencedevents"].clone(),
 			softfailedeventids: db["softfailedeventids"].clone(),
+			services: Services {
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
 		}
 	}
 
@@ -57,8 +66,8 @@ impl Data {
 					let mut pduid = shortroomid.to_be_bytes().to_vec();
 					pduid.extend_from_slice(&from.to_be_bytes());
 
-					let mut pdu = services()
-						.rooms
+					let mut pdu = self
+						.services
 						.timeline
 						.get_pdu_from_id(&pduid)?
 						.ok_or_else(|| Error::bad_database("Pdu in tofrom_relation is invalid."))?;

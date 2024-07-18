@@ -3,8 +3,9 @@ mod data;
 use std::sync::Arc;
 
 use conduit::Result;
-use data::Data;
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
+
+use self::data::Data;
 
 pub struct Service {
 	db: Data,
@@ -13,7 +14,7 @@ pub struct Service {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			db: Data::new(&args),
 		}))
 	}
 

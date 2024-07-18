@@ -1,30 +1,39 @@
 use std::sync::Arc;
 
 use conduit::{error, utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{OwnedRoomId, RoomId};
 
-use crate::services;
+use crate::{rooms, Dep};
 
 pub(super) struct Data {
 	disabledroomids: Arc<Map>,
 	bannedroomids: Arc<Map>,
 	roomid_shortroomid: Arc<Map>,
 	pduid_pdu: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			disabledroomids: db["disabledroomids"].clone(),
 			bannedroomids: db["bannedroomids"].clone(),
 			roomid_shortroomid: db["roomid_shortroomid"].clone(),
 			pduid_pdu: db["pduid_pdu"].clone(),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+			},
 		}
 	}
 
 	pub(super) fn exists(&self, room_id: &RoomId) -> Result<bool> {
-		let prefix = match services().rooms.short.get_shortroomid(room_id)? {
+		let prefix = match self.services.short.get_shortroomid(room_id)? {
 			Some(b) => b.to_be_bytes().to_vec(),
 			None => return Ok(false),
 		};

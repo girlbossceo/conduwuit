@@ -22,7 +22,11 @@ pub(crate) async fn create_alias_route(
 ) -> Result<create_alias::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	service::rooms::alias::appservice_checks(&body.room_alias, &body.appservice_info).await?;
+	services
+		.rooms
+		.alias
+		.appservice_checks(&body.room_alias, &body.appservice_info)
+		.await?;
 
 	// this isn't apart of alias_checks or delete alias route because we should
 	// allow removing forbidden room aliases
@@ -61,7 +65,11 @@ pub(crate) async fn delete_alias_route(
 ) -> Result<delete_alias::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	service::rooms::alias::appservice_checks(&body.room_alias, &body.appservice_info).await?;
+	services
+		.rooms
+		.alias
+		.appservice_checks(&body.room_alias, &body.appservice_info)
+		.await?;
 
 	if services
 		.rooms

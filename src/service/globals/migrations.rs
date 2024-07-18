@@ -10,7 +10,6 @@ use std::{
 };
 
 use conduit::{debug, debug_info, debug_warn, error, info, utils, warn, Config, Error, Result};
-use database::Database;
 use itertools::Itertools;
 use ruma::{
 	events::{push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType},
@@ -18,7 +17,7 @@ use ruma::{
 	EventId, OwnedRoomId, RoomId, UserId,
 };
 
-use crate::services;
+use crate::Services;
 
 /// The current schema version.
 /// - If database is opened at greater version we reject with error. The
@@ -28,13 +27,13 @@ use crate::services;
 ///   equal or lesser version. These are expected to be backward-compatible.
 const DATABASE_VERSION: u64 = 13;
 
-pub(crate) async fn migrations(db: &Arc<Database>, config: &Config) -> Result<()> {
+pub(crate) async fn migrations(services: &Services) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
 	// requires recreating the database from scratch.
-	if services().users.count()? > 0 {
-		let conduit_user = &services().globals.server_user;
+	if services.users.count()? > 0 {
+		let conduit_user = &services.globals.server_user;
 
-		if !services().users.exists(conduit_user)? {
+		if !services.users.exists(conduit_user)? {
 			error!("The {} server user does not exist, and the database is not new.", conduit_user);
 			return Err(Error::bad_database(
 				"Cannot reuse an existing database after changing the server name, please delete the old one first.",
@@ -42,15 +41,18 @@ pub(crate) async fn migrations(db: &Arc<Database>, config: &Config) -> Result<()
 		}
 	}
 
-	if services().users.count()? > 0 {
-		migrate(db, config).await
+	if services.users.count()? > 0 {
+		migrate(services).await
 	} else {
-		fresh(db, config).await
+		fresh(services).await
 	}
 }
 
-async fn fresh(db: &Arc<Database>, config: &Config) -> Result<()> {
-	services()
+async fn fresh(services: &Services) -> Result<()> {
+	let db = &services.db;
+	let config = &services.server.config;
+
+	services
 		.globals
 		.db
 		.bump_database_version(DATABASE_VERSION)?;
@@ -70,97 +72,100 @@ async fn fresh(db: &Arc<Database>, config: &Config) -> Result<()> {
 }
 
 /// Apply any migrations
-async fn migrate(db: &Arc<Database>, config: &Config) -> Result<()> {
-	if services().globals.db.database_version()? < 1 {
-		db_lt_1(db, config).await?;
+async fn migrate(services: &Services) -> Result<()> {
+	let db = &services.db;
+	let config = &services.server.config;
+
+	if services.globals.db.database_version()? < 1 {
+		db_lt_1(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 2 {
-		db_lt_2(db, config).await?;
+	if services.globals.db.database_version()? < 2 {
+		db_lt_2(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 3 {
-		db_lt_3(db, config).await?;
+	if services.globals.db.database_version()? < 3 {
+		db_lt_3(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 4 {
-		db_lt_4(db, config).await?;
+	if services.globals.db.database_version()? < 4 {
+		db_lt_4(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 5 {
-		db_lt_5(db, config).await?;
+	if services.globals.db.database_version()? < 5 {
+		db_lt_5(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 6 {
-		db_lt_6(db, config).await?;
+	if services.globals.db.database_version()? < 6 {
+		db_lt_6(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 7 {
-		db_lt_7(db, config).await?;
+	if services.globals.db.database_version()? < 7 {
+		db_lt_7(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 8 {
-		db_lt_8(db, config).await?;
+	if services.globals.db.database_version()? < 8 {
+		db_lt_8(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 9 {
-		db_lt_9(db, config).await?;
+	if services.globals.db.database_version()? < 9 {
+		db_lt_9(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 10 {
-		db_lt_10(db, config).await?;
+	if services.globals.db.database_version()? < 10 {
+		db_lt_10(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 11 {
-		db_lt_11(db, config).await?;
+	if services.globals.db.database_version()? < 11 {
+		db_lt_11(services).await?;
 	}
 
-	if services().globals.db.database_version()? < 12 {
-		db_lt_12(db, config).await?;
+	if services.globals.db.database_version()? < 12 {
+		db_lt_12(services).await?;
 	}
 
 	// This migration can be reused as-is anytime the server-default rules are
 	// updated.
-	if services().globals.db.database_version()? < 13 {
-		db_lt_13(db, config).await?;
+	if services.globals.db.database_version()? < 13 {
+		db_lt_13(services).await?;
 	}
 
 	if db["global"].get(b"feat_sha256_media")?.is_none() {
-		migrate_sha256_media(db, config).await?;
+		migrate_sha256_media(services).await?;
 	} else if config.media_startup_check {
-		checkup_sha256_media(db, config).await?;
+		checkup_sha256_media(services).await?;
 	}
 
 	if db["global"]
 		.get(b"fix_bad_double_separator_in_state_cache")?
 		.is_none()
 	{
-		fix_bad_double_separator_in_state_cache(db, config).await?;
+		fix_bad_double_separator_in_state_cache(services).await?;
 	}
 
 	if db["global"]
 		.get(b"retroactively_fix_bad_data_from_roomuserid_joined")?
 		.is_none()
 	{
-		retroactively_fix_bad_data_from_roomuserid_joined(db, config).await?;
+		retroactively_fix_bad_data_from_roomuserid_joined(services).await?;
 	}
 
 	assert_eq!(
-		services().globals.db.database_version().unwrap(),
+		services.globals.db.database_version().unwrap(),
 		DATABASE_VERSION,
 		"Failed asserting local database version {} is equal to known latest conduwuit database version {}",
-		services().globals.db.database_version().unwrap(),
+		services.globals.db.database_version().unwrap(),
 		DATABASE_VERSION,
 	);
 
 	{
-		let patterns = services().globals.forbidden_usernames();
+		let patterns = services.globals.forbidden_usernames();
 		if !patterns.is_empty() {
-			for user_id in services()
+			for user_id in services
 				.users
 				.iter()
 				.filter_map(Result::ok)
-				.filter(|user| !services().users.is_deactivated(user).unwrap_or(true))
+				.filter(|user| !services.users.is_deactivated(user).unwrap_or(true))
 				.filter(|user| user.server_name() == config.server_name)
 			{
 				let matches = patterns.matches(user_id.localpart());
@@ -179,11 +184,11 @@ async fn migrate(db: &Arc<Database>, config: &Config) -> Result<()> {
 	}
 
 	{
-		let patterns = services().globals.forbidden_alias_names();
+		let patterns = services.globals.forbidden_alias_names();
 		if !patterns.is_empty() {
-			for address in services().rooms.metadata.iter_ids() {
+			for address in services.rooms.metadata.iter_ids() {
 				let room_id = address?;
-				let room_aliases = services().rooms.alias.local_aliases_for_room(&room_id);
+				let room_aliases = services.rooms.alias.local_aliases_for_room(&room_id);
 				for room_alias_result in room_aliases {
 					let room_alias = room_alias_result?;
 					let matches = patterns.matches(room_alias.alias());
@@ -211,7 +216,9 @@ async fn migrate(db: &Arc<Database>, config: &Config) -> Result<()> {
 	Ok(())
 }
 
-async fn db_lt_1(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_1(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	let roomserverids = &db["roomserverids"];
 	let serverroomids = &db["serverroomids"];
 	for (roomserverid, _) in roomserverids.iter() {
@@ -228,12 +235,14 @@ async fn db_lt_1(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		serverroomids.insert(&serverroomid, &[])?;
 	}
 
-	services().globals.db.bump_database_version(1)?;
+	services.globals.db.bump_database_version(1)?;
 	info!("Migration: 0 -> 1 finished");
 	Ok(())
 }
 
-async fn db_lt_2(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_2(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	// We accidentally inserted hashed versions of "" into the db instead of just ""
 	let userid_password = &db["roomserverids"];
 	for (userid, password) in userid_password.iter() {
@@ -245,12 +254,14 @@ async fn db_lt_2(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		}
 	}
 
-	services().globals.db.bump_database_version(2)?;
+	services.globals.db.bump_database_version(2)?;
 	info!("Migration: 1 -> 2 finished");
 	Ok(())
 }
 
-async fn db_lt_3(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_3(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	// Move media to filesystem
 	let mediaid_file = &db["mediaid_file"];
 	for (key, content) in mediaid_file.iter() {
@@ -259,41 +270,45 @@ async fn db_lt_3(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		}
 
 		#[allow(deprecated)]
-		let path = services().media.get_media_file(&key);
+		let path = services.media.get_media_file(&key);
 		let mut file = fs::File::create(path)?;
 		file.write_all(&content)?;
 		mediaid_file.insert(&key, &[])?;
 	}
 
-	services().globals.db.bump_database_version(3)?;
+	services.globals.db.bump_database_version(3)?;
 	info!("Migration: 2 -> 3 finished");
 	Ok(())
 }
 
-async fn db_lt_4(_db: &Arc<Database>, config: &Config) -> Result<()> {
-	// Add federated users to services() as deactivated
-	for our_user in services().users.iter() {
+async fn db_lt_4(services: &Services) -> Result<()> {
+	let config = &services.server.config;
+
+	// Add federated users to services as deactivated
+	for our_user in services.users.iter() {
 		let our_user = our_user?;
-		if services().users.is_deactivated(&our_user)? {
+		if services.users.is_deactivated(&our_user)? {
 			continue;
 		}
-		for room in services().rooms.state_cache.rooms_joined(&our_user) {
-			for user in services().rooms.state_cache.room_members(&room?) {
+		for room in services.rooms.state_cache.rooms_joined(&our_user) {
+			for user in services.rooms.state_cache.room_members(&room?) {
 				let user = user?;
 				if user.server_name() != config.server_name {
 					info!(?user, "Migration: creating user");
-					services().users.create(&user, None)?;
+					services.users.create(&user, None)?;
 				}
 			}
 		}
 	}
 
-	services().globals.db.bump_database_version(4)?;
+	services.globals.db.bump_database_version(4)?;
 	info!("Migration: 3 -> 4 finished");
 	Ok(())
 }
 
-async fn db_lt_5(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_5(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	// Upgrade user data store
 	let roomuserdataid_accountdata = &db["roomuserdataid_accountdata"];
 	let roomusertype_roomuserdataid = &db["roomusertype_roomuserdataid"];
@@ -312,26 +327,30 @@ async fn db_lt_5(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		roomusertype_roomuserdataid.insert(&key, &roomuserdataid)?;
 	}
 
-	services().globals.db.bump_database_version(5)?;
+	services.globals.db.bump_database_version(5)?;
 	info!("Migration: 4 -> 5 finished");
 	Ok(())
 }
 
-async fn db_lt_6(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_6(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	// Set room member count
 	let roomid_shortstatehash = &db["roomid_shortstatehash"];
 	for (roomid, _) in roomid_shortstatehash.iter() {
 		let string = utils::string_from_bytes(&roomid).unwrap();
 		let room_id = <&RoomId>::try_from(string.as_str()).unwrap();
-		services().rooms.state_cache.update_joined_count(room_id)?;
+		services.rooms.state_cache.update_joined_count(room_id)?;
 	}
 
-	services().globals.db.bump_database_version(6)?;
+	services.globals.db.bump_database_version(6)?;
 	info!("Migration: 5 -> 6 finished");
 	Ok(())
 }
 
-async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_7(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	// Upgrade state store
 	let mut last_roomstates: HashMap<OwnedRoomId, u64> = HashMap::new();
 	let mut current_sstatehash: Option<u64> = None;
@@ -347,7 +366,7 @@ async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		let states_parents = last_roomsstatehash.map_or_else(
 			|| Ok(Vec::new()),
 			|&last_roomsstatehash| {
-				services()
+				services
 					.rooms
 					.state_compressor
 					.load_shortstatehash_info(last_roomsstatehash)
@@ -371,7 +390,7 @@ async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			(current_state, HashSet::new())
 		};
 
-		services().rooms.state_compressor.save_state_from_diff(
+		services.rooms.state_compressor.save_state_from_diff(
 			current_sstatehash,
 			Arc::new(statediffnew),
 			Arc::new(statediffremoved),
@@ -380,7 +399,7 @@ async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		)?;
 
 		/*
-		let mut tmp = services().rooms.load_shortstatehash_info(&current_sstatehash)?;
+		let mut tmp = services.rooms.load_shortstatehash_info(&current_sstatehash)?;
 		let state = tmp.pop().unwrap();
 		println!(
 			"{}\t{}{:?}: {:?} + {:?} - {:?}",
@@ -425,12 +444,7 @@ async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 			let event_id = shorteventid_eventid.get(&seventid).unwrap().unwrap();
 			let string = utils::string_from_bytes(&event_id).unwrap();
 			let event_id = <&EventId>::try_from(string.as_str()).unwrap();
-			let pdu = services()
-				.rooms
-				.timeline
-				.get_pdu(event_id)
-				.unwrap()
-				.unwrap();
+			let pdu = services.rooms.timeline.get_pdu(event_id).unwrap().unwrap();
 
 			if Some(&pdu.room_id) != current_room.as_ref() {
 				current_room = Some(pdu.room_id.clone());
@@ -451,12 +465,14 @@ async fn db_lt_7(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		)?;
 	}
 
-	services().globals.db.bump_database_version(7)?;
+	services.globals.db.bump_database_version(7)?;
 	info!("Migration: 6 -> 7 finished");
 	Ok(())
 }
 
-async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_8(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	let roomid_shortstatehash = &db["roomid_shortstatehash"];
 	let roomid_shortroomid = &db["roomid_shortroomid"];
 	let pduid_pdu = &db["pduid_pdu"];
@@ -464,7 +480,7 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 
 	// Generate short room ids for all rooms
 	for (room_id, _) in roomid_shortstatehash.iter() {
-		let shortroomid = services().globals.next_count()?.to_be_bytes();
+		let shortroomid = services.globals.next_count()?.to_be_bytes();
 		roomid_shortroomid.insert(&room_id, &shortroomid)?;
 		info!("Migration: 8");
 	}
@@ -517,12 +533,14 @@ async fn db_lt_8(db: &Arc<Database>, _config: &Config) -> Result<()> {
 
 	eventid_pduid.insert_batch(batch2.iter().map(database::KeyVal::from))?;
 
-	services().globals.db.bump_database_version(8)?;
+	services.globals.db.bump_database_version(8)?;
 	info!("Migration: 7 -> 8 finished");
 	Ok(())
 }
 
-async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_9(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	let tokenids = &db["tokenids"];
 	let roomid_shortroomid = &db["roomid_shortroomid"];
 
@@ -574,12 +592,14 @@ async fn db_lt_9(db: &Arc<Database>, _config: &Config) -> Result<()> {
 		tokenids.remove(&key)?;
 	}
 
-	services().globals.db.bump_database_version(9)?;
+	services.globals.db.bump_database_version(9)?;
 	info!("Migration: 8 -> 9 finished");
 	Ok(())
 }
 
-async fn db_lt_10(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn db_lt_10(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	let statekey_shortstatekey = &db["statekey_shortstatekey"];
 	let shortstatekey_statekey = &db["shortstatekey_statekey"];
 
@@ -589,28 +609,30 @@ async fn db_lt_10(db: &Arc<Database>, _config: &Config) -> Result<()> {
 	}
 
 	// Force E2EE device list updates so we can send them over federation
-	for user_id in services().users.iter().filter_map(Result::ok) {
-		services().users.mark_device_key_update(&user_id)?;
+	for user_id in services.users.iter().filter_map(Result::ok) {
+		services.users.mark_device_key_update(&user_id)?;
 	}
 
-	services().globals.db.bump_database_version(10)?;
+	services.globals.db.bump_database_version(10)?;
 	info!("Migration: 9 -> 10 finished");
 	Ok(())
 }
 
 #[allow(unreachable_code)]
-async fn db_lt_11(_db: &Arc<Database>, _config: &Config) -> Result<()> {
-	todo!("Dropping a column to clear data is not implemented yet.");
+async fn db_lt_11(services: &Services) -> Result<()> {
+	error!("Dropping a column to clear data is not implemented yet.");
 	//let userdevicesessionid_uiaarequest = &db["userdevicesessionid_uiaarequest"];
 	//userdevicesessionid_uiaarequest.clear()?;
 
-	services().globals.db.bump_database_version(11)?;
+	services.globals.db.bump_database_version(11)?;
 	info!("Migration: 10 -> 11 finished");
 	Ok(())
 }
 
-async fn db_lt_12(_db: &Arc<Database>, config: &Config) -> Result<()> {
-	for username in services().users.list_local_users()? {
+async fn db_lt_12(services: &Services) -> Result<()> {
+	let config = &services.server.config;
+
+	for username in services.users.list_local_users()? {
 		let user = match UserId::parse_with_server_name(username.clone(), &config.server_name) {
 			Ok(u) => u,
 			Err(e) => {
@@ -619,7 +641,7 @@ async fn db_lt_12(_db: &Arc<Database>, config: &Config) -> Result<()> {
 			},
 		};
 
-		let raw_rules_list = services()
+		let raw_rules_list = services
 			.account_data
 			.get(None, &user, GlobalAccountDataEventType::PushRules.to_string().into())
 			.unwrap()
@@ -664,7 +686,7 @@ async fn db_lt_12(_db: &Arc<Database>, config: &Config) -> Result<()> {
 			}
 		}
 
-		services().account_data.update(
+		services.account_data.update(
 			None,
 			&user,
 			GlobalAccountDataEventType::PushRules.to_string().into(),
@@ -672,13 +694,15 @@ async fn db_lt_12(_db: &Arc<Database>, config: &Config) -> Result<()> {
 		)?;
 	}
 
-	services().globals.db.bump_database_version(12)?;
+	services.globals.db.bump_database_version(12)?;
 	info!("Migration: 11 -> 12 finished");
 	Ok(())
 }
 
-async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
-	for username in services().users.list_local_users()? {
+async fn db_lt_13(services: &Services) -> Result<()> {
+	let config = &services.server.config;
+
+	for username in services.users.list_local_users()? {
 		let user = match UserId::parse_with_server_name(username.clone(), &config.server_name) {
 			Ok(u) => u,
 			Err(e) => {
@@ -687,7 +711,7 @@ async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
 			},
 		};
 
-		let raw_rules_list = services()
+		let raw_rules_list = services
 			.account_data
 			.get(None, &user, GlobalAccountDataEventType::PushRules.to_string().into())
 			.unwrap()
@@ -701,7 +725,7 @@ async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
 			.global
 			.update_with_server_default(user_default_rules);
 
-		services().account_data.update(
+		services.account_data.update(
 			None,
 			&user,
 			GlobalAccountDataEventType::PushRules.to_string().into(),
@@ -709,7 +733,7 @@ async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
 		)?;
 	}
 
-	services().globals.db.bump_database_version(13)?;
+	services.globals.db.bump_database_version(13)?;
 	info!("Migration: 12 -> 13 finished");
 	Ok(())
 }
@@ -717,15 +741,17 @@ async fn db_lt_13(_db: &Arc<Database>, config: &Config) -> Result<()> {
 /// Migrates a media directory from legacy base64 file names to sha2 file names.
 /// All errors are fatal. Upon success the database is keyed to not perform this
 /// again.
-async fn migrate_sha256_media(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn migrate_sha256_media(services: &Services) -> Result<()> {
+	let db = &services.db;
+
 	warn!("Migrating legacy base64 file names to sha256 file names");
 	let mediaid_file = &db["mediaid_file"];
 
 	// Move old media files to new names
 	let mut changes = Vec::<(PathBuf, PathBuf)>::new();
 	for (key, _) in mediaid_file.iter() {
-		let old = services().media.get_media_file_b64(&key);
-		let new = services().media.get_media_file_sha256(&key);
+		let old = services.media.get_media_file_b64(&key);
+		let new = services.media.get_media_file_sha256(&key);
 		debug!(?key, ?old, ?new, num = changes.len(), "change");
 		changes.push((old, new));
 	}
@@ -739,8 +765,8 @@ async fn migrate_sha256_media(db: &Arc<Database>, _config: &Config) -> Result<()
 
 	// Apply fix from when sha256_media was backward-incompat and bumped the schema
 	// version from 13 to 14. For users satisfying these conditions we can go back.
-	if services().globals.db.database_version()? == 14 && DATABASE_VERSION == 13 {
-		services().globals.db.bump_database_version(13)?;
+	if services.globals.db.database_version()? == 14 && DATABASE_VERSION == 13 {
+		services.globals.db.bump_database_version(13)?;
 	}
 
 	db["global"].insert(b"feat_sha256_media", &[])?;
@@ -752,14 +778,16 @@ async fn migrate_sha256_media(db: &Arc<Database>, _config: &Config) -> Result<()
 /// - Going back and forth to non-sha256 legacy binaries (e.g. upstream).
 /// - Deletion of artifacts in the media directory which will then fall out of
 ///   sync with the database.
-async fn checkup_sha256_media(db: &Arc<Database>, config: &Config) -> Result<()> {
+async fn checkup_sha256_media(services: &Services) -> Result<()> {
 	use crate::media::encode_key;
 
 	debug!("Checking integrity of media directory");
+	let db = &services.db;
+	let media = &services.media;
+	let config = &services.server.config;
 	let mediaid_file = &db["mediaid_file"];
 	let mediaid_user = &db["mediaid_user"];
 	let dbs = (mediaid_file, mediaid_user);
-	let media = &services().media;
 	let timer = Instant::now();
 
 	let dir = media.get_media_dir();
@@ -791,6 +819,7 @@ async fn handle_media_check(
 	new_path: &OsStr, old_path: &OsStr,
 ) -> Result<()> {
 	use crate::media::encode_key;
+
 	let (mediaid_file, mediaid_user) = dbs;
 
 	let old_exists = files.contains(old_path);
@@ -827,8 +856,10 @@ async fn handle_media_check(
 	Ok(())
 }
 
-async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn fix_bad_double_separator_in_state_cache(services: &Services) -> Result<()> {
 	warn!("Fixing bad double separator in state_cache roomuserid_joined");
+
+	let db = &services.db;
 	let roomuserid_joined = &db["roomuserid_joined"];
 	let _cork = db.cork_and_sync();
 
@@ -864,11 +895,13 @@ async fn fix_bad_double_separator_in_state_cache(db: &Arc<Database>, _config: &C
 	Ok(())
 }
 
-async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _config: &Config) -> Result<()> {
+async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) -> Result<()> {
 	warn!("Retroactively fixing bad data from broken roomuserid_joined");
+
+	let db = &services.db;
 	let _cork = db.cork_and_sync();
 
-	let room_ids = services()
+	let room_ids = services
 		.rooms
 		.metadata
 		.iter_ids()
@@ -878,7 +911,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _
 	for room_id in room_ids.clone() {
 		debug_info!("Fixing room {room_id}");
 
-		let users_in_room = services()
+		let users_in_room = services
 			.rooms
 			.state_cache
 			.room_members(&room_id)
@@ -888,7 +921,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _
 		let joined_members = users_in_room
 			.iter()
 			.filter(|user_id| {
-				services()
+				services
 					.rooms
 					.state_accessor
 					.get_member(&room_id, user_id)
@@ -900,7 +933,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _
 		let non_joined_members = users_in_room
 			.iter()
 			.filter(|user_id| {
-				services()
+				services
 					.rooms
 					.state_accessor
 					.get_member(&room_id, user_id)
@@ -913,7 +946,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _
 
 		for user_id in joined_members {
 			debug_info!("User is joined, marking as joined");
-			services()
+			services
 				.rooms
 				.state_cache
 				.mark_as_joined(user_id, &room_id)?;
@@ -921,10 +954,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _
 
 		for user_id in non_joined_members {
 			debug_info!("User is left or banned, marking as left");
-			services()
-				.rooms
-				.state_cache
-				.mark_as_left(user_id, &room_id)?;
+			services.rooms.state_cache.mark_as_left(user_id, &room_id)?;
 		}
 	}
 
@@ -933,7 +963,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(db: &Arc<Database>, _
 			"Updating joined count for room {room_id} to fix servers in room after correcting membership states"
 		);
 
-		services().rooms.state_cache.update_joined_count(&room_id)?;
+		services.rooms.state_cache.update_joined_count(&room_id)?;
 	}
 
 	db.db.cleanup()?;

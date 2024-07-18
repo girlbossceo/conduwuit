@@ -13,9 +13,7 @@ use ruma::{
 	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use service::{
-	pdu::gen_event_id_canonical_json, sending::convert_to_outgoing_federation_event, user_is_local, Services,
-};
+use service::{pdu::gen_event_id_canonical_json, user_is_local, Services};
 use tokio::sync::RwLock;
 use tracing::warn;
 
@@ -186,12 +184,12 @@ async fn create_join_event(
 	Ok(create_join_event::v1::RoomState {
 		auth_chain: auth_chain_ids
 			.filter_map(|id| services.rooms.timeline.get_pdu_json(&id).ok().flatten())
-			.map(convert_to_outgoing_federation_event)
+			.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
 			.collect(),
 		state: state_ids
 			.iter()
 			.filter_map(|(_, id)| services.rooms.timeline.get_pdu_json(id).ok().flatten())
-			.map(convert_to_outgoing_federation_event)
+			.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
 			.collect(),
 		// Event field is required if the room version supports restricted join rules.
 		event: Some(

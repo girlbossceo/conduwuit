@@ -6,7 +6,11 @@ use std::{
 };
 
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{debug, debug_warn, error, trace, utils::math::continue_exponential_backoff_secs, warn};
+use conduit::{
+	debug, debug_warn, error, trace,
+	utils::{calculate_hash, math::continue_exponential_backoff_secs},
+	warn, Error, Result,
+};
 use federation::transactions::send_transaction_message;
 use futures_util::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use ruma::{
@@ -24,8 +28,8 @@ use ruma::{
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::time::sleep_until;
 
-use super::{appservice, send, Destination, Msg, SendingEvent, Service};
-use crate::{presence::Presence, services, user_is_local, utils::calculate_hash, Error, Result};
+use super::{appservice, Destination, Msg, SendingEvent, Service};
+use crate::user_is_local;
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -69,8 +73,8 @@ impl Service {
 		Ok(())
 	}
 
-	fn handle_response(
-		&self, response: SendingResult, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
+	fn handle_response<'a>(
+		&'a self, response: SendingResult, futures: &SendingFutures<'a>, statuses: &mut CurTransactionStatus,
 	) {
 		match response {
 			Ok(dest) => self.handle_response_ok(&dest, futures, statuses),
@@ -91,8 +95,8 @@ impl Service {
 		});
 	}
 
-	fn handle_response_ok(
-		&self, dest: &Destination, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus,
+	fn handle_response_ok<'a>(
+		&'a self, dest: &Destination, futures: &SendingFutures<'a>, statuses: &mut CurTransactionStatus,
 	) {
 		let _cork = self.db.db.cork();
 		self.db
@@ -113,24 +117,24 @@ impl Service {
 				.mark_as_active(&new_events)
 				.expect("marked as active");
 			let new_events_vec = new_events.into_iter().map(|(event, _)| event).collect();
-			futures.push(Box::pin(send_events(dest.clone(), new_events_vec)));
+			futures.push(Box::pin(self.send_events(dest.clone(), new_events_vec)));
 		} else {
 			statuses.remove(dest);
 		}
 	}
 
-	fn handle_request(&self, msg: Msg, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+	fn handle_request<'a>(&'a self, msg: Msg, futures: &SendingFutures<'a>, statuses: &mut CurTransactionStatus) {
 		let iv = vec![(msg.event, msg.queue_id)];
 		if let Ok(Some(events)) = self.select_events(&msg.dest, iv, statuses) {
 			if !events.is_empty() {
-				futures.push(Box::pin(send_events(msg.dest, events)));
+				futures.push(Box::pin(self.send_events(msg.dest, events)));
 			} else {
 				statuses.remove(&msg.dest);
 			}
 		}
 	}
 
-	async fn finish_responses(&self, futures: &mut SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+	async fn finish_responses<'a>(&'a self, futures: &mut SendingFutures<'a>, statuses: &mut CurTransactionStatus) {
 		let now = Instant::now();
 		let timeout = Duration::from_millis(CLEANUP_TIMEOUT_MS);
 		let deadline = now.checked_add(timeout).unwrap_or(now);
@@ -148,7 +152,7 @@ impl Service {
 		debug_warn!("Leaving with {} unfinished requests...", futures.len());
 	}
 
-	fn initial_requests(&self, futures: &SendingFutures<'_>, statuses: &mut CurTransactionStatus) {
+	fn initial_requests<'a>(&'a self, futures: &SendingFutures<'a>, statuses: &mut CurTransactionStatus) {
 		let keep = usize::try_from(self.server.config.startup_netburst_keep).unwrap_or(usize::MAX);
 		let mut txns = HashMap::<Destination, Vec<SendingEvent>>::new();
 		for (key, dest, event) in self.db.active_requests().filter_map(Result::ok) {
@@ -166,12 +170,12 @@ impl Service {
 		for (dest, events) in txns {
 			if self.server.config.startup_netburst && !events.is_empty() {
 				statuses.insert(dest.clone(), TransactionStatus::Running);
-				futures.push(Box::pin(send_events(dest.clone(), events)));
+				futures.push(Box::pin(self.send_events(dest.clone(), events)));
 			}
 		}
 	}
 
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(skip_all, level = "debug")]
 	fn select_events(
 		&self,
 		dest: &Destination,
@@ -218,7 +222,7 @@ impl Service {
 		Ok(Some(events))
 	}
 
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(skip_all, level = "debug")]
 	fn select_events_current(&self, dest: Destination, statuses: &mut CurTransactionStatus) -> Result<(bool, bool)> {
 		let (mut allow, mut retry) = (true, false);
 		statuses
@@ -244,7 +248,7 @@ impl Service {
 		Ok((allow, retry))
 	}
 
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(skip_all, level = "debug")]
 	fn select_edus(&self, server_name: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
 		// u64: count of last edu
 		let since = self.db.get_latest_educount(server_name)?;
@@ -252,11 +256,11 @@ impl Service {
 		let mut max_edu_count = since;
 		let mut device_list_changes = HashSet::new();
 
-		for room_id in services().rooms.state_cache.server_rooms(server_name) {
+		for room_id in self.services.state_cache.server_rooms(server_name) {
 			let room_id = room_id?;
 			// Look for device list updates in this room
 			device_list_changes.extend(
-				services()
+				self.services
 					.users
 					.keys_changed(room_id.as_ref(), since, None)
 					.filter_map(Result::ok)
@@ -264,7 +268,7 @@ impl Service {
 			);
 
 			if self.server.config.allow_outgoing_read_receipts
-				&& !select_edus_receipts(&room_id, since, &mut max_edu_count, &mut events)?
+				&& !self.select_edus_receipts(&room_id, since, &mut max_edu_count, &mut events)?
 			{
 				break;
 			}
@@ -287,381 +291,390 @@ impl Service {
 		}
 
 		if self.server.config.allow_outgoing_presence {
-			select_edus_presence(server_name, since, &mut max_edu_count, &mut events)?;
+			self.select_edus_presence(server_name, since, &mut max_edu_count, &mut events)?;
 		}
 
 		Ok((events, max_edu_count))
 	}
-}
 
-/// Look for presence
-fn select_edus_presence(
-	server_name: &ServerName, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
-) -> Result<bool> {
-	// Look for presence updates for this server
-	let mut presence_updates = Vec::new();
-	for (user_id, count, presence_bytes) in services().presence.presence_since(since) {
-		*max_edu_count = cmp::max(count, *max_edu_count);
+	/// Look for presence
+	fn select_edus_presence(
+		&self, server_name: &ServerName, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
+	) -> Result<bool> {
+		// Look for presence updates for this server
+		let mut presence_updates = Vec::new();
+		for (user_id, count, presence_bytes) in self.services.presence.presence_since(since) {
+			*max_edu_count = cmp::max(count, *max_edu_count);
 
-		if !user_is_local(&user_id) {
-			continue;
-		}
+			if !user_is_local(&user_id) {
+				continue;
+			}
 
-		if !services()
-			.rooms
-			.state_cache
-			.server_sees_user(server_name, &user_id)?
-		{
-			continue;
-		}
+			if !self
+				.services
+				.state_cache
+				.server_sees_user(server_name, &user_id)?
+			{
+				continue;
+			}
 
-		let presence_event = Presence::from_json_bytes_to_event(&presence_bytes, &user_id)?;
-		presence_updates.push(PresenceUpdate {
-			user_id,
-			presence: presence_event.content.presence,
-			currently_active: presence_event.content.currently_active.unwrap_or(false),
-			last_active_ago: presence_event
-				.content
-				.last_active_ago
-				.unwrap_or_else(|| uint!(0)),
-			status_msg: presence_event.content.status_msg,
-		});
-
-		if presence_updates.len() >= SELECT_EDU_LIMIT {
-			break;
-		}
-	}
-
-	if !presence_updates.is_empty() {
-		let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
-		events.push(serde_json::to_vec(&presence_content).expect("PresenceEvent can be serialized"));
-	}
-
-	Ok(true)
-}
-
-/// Look for read receipts in this room
-fn select_edus_receipts(
-	room_id: &RoomId, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
-) -> Result<bool> {
-	for r in services()
-		.rooms
-		.read_receipt
-		.readreceipts_since(room_id, since)
-	{
-		let (user_id, count, read_receipt) = r?;
-		*max_edu_count = cmp::max(count, *max_edu_count);
-
-		if !user_is_local(&user_id) {
-			continue;
-		}
-
-		let event = serde_json::from_str(read_receipt.json().get())
-			.map_err(|_| Error::bad_database("Invalid edu event in read_receipts."))?;
-		let federation_event = if let AnySyncEphemeralRoomEvent::Receipt(r) = event {
-			let mut read = BTreeMap::new();
-
-			let (event_id, mut receipt) = r
-				.content
-				.0
-				.into_iter()
-				.next()
-				.expect("we only use one event per read receipt");
-			let receipt = receipt
-				.remove(&ReceiptType::Read)
-				.expect("our read receipts always set this")
-				.remove(&user_id)
-				.expect("our read receipts always have the user here");
-
-			read.insert(
+			let presence_event = self
+				.services
+				.presence
+				.from_json_bytes_to_event(&presence_bytes, &user_id)?;
+			presence_updates.push(PresenceUpdate {
 				user_id,
-				ReceiptData {
-					data: receipt.clone(),
-					event_ids: vec![event_id.clone()],
-				},
-			);
+				presence: presence_event.content.presence,
+				currently_active: presence_event.content.currently_active.unwrap_or(false),
+				last_active_ago: presence_event
+					.content
+					.last_active_ago
+					.unwrap_or_else(|| uint!(0)),
+				status_msg: presence_event.content.status_msg,
+			});
 
-			let receipt_map = ReceiptMap {
-				read,
-			};
-
-			let mut receipts = BTreeMap::new();
-			receipts.insert(room_id.to_owned(), receipt_map);
-
-			Edu::Receipt(ReceiptContent {
-				receipts,
-			})
-		} else {
-			Error::bad_database("Invalid event type in read_receipts");
-			continue;
-		};
-
-		events.push(serde_json::to_vec(&federation_event).expect("json can be serialized"));
-
-		if events.len() >= SELECT_EDU_LIMIT {
-			return Ok(false);
-		}
-	}
-
-	Ok(true)
-}
-
-async fn send_events(dest: Destination, events: Vec<SendingEvent>) -> SendingResult {
-	//debug_assert!(!events.is_empty(), "sending empty transaction");
-	match dest {
-		Destination::Normal(ref server) => send_events_dest_normal(&dest, server, events).await,
-		Destination::Appservice(ref id) => send_events_dest_appservice(&dest, id, events).await,
-		Destination::Push(ref userid, ref pushkey) => send_events_dest_push(&dest, userid, pushkey, events).await,
-	}
-}
-
-#[tracing::instrument(skip(dest, events))]
-async fn send_events_dest_appservice(dest: &Destination, id: &str, events: Vec<SendingEvent>) -> SendingResult {
-	let mut pdu_jsons = Vec::new();
-
-	for event in &events {
-		match event {
-			SendingEvent::Pdu(pdu_id) => {
-				pdu_jsons.push(
-					services()
-						.rooms
-						.timeline
-						.get_pdu_from_id(pdu_id)
-						.map_err(|e| (dest.clone(), e))?
-						.ok_or_else(|| {
-							(
-								dest.clone(),
-								Error::bad_database("[Appservice] Event in servernameevent_data not found in db."),
-							)
-						})?
-						.to_room_event(),
-				);
-			},
-			SendingEvent::Edu(_) | SendingEvent::Flush => {
-				// Appservices don't need EDUs (?) and flush only;
-				// no new content
-			},
-		}
-	}
-
-	//debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
-	match appservice::send_request(
-		services()
-			.appservice
-			.get_registration(id)
-			.await
-			.ok_or_else(|| {
-				(
-					dest.clone(),
-					Error::bad_database("[Appservice] Could not load registration from db."),
-				)
-			})?,
-		ruma::api::appservice::event::push_events::v1::Request {
-			events: pdu_jsons,
-			txn_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
-				&events
-					.iter()
-					.map(|e| match e {
-						SendingEvent::Edu(b) | SendingEvent::Pdu(b) => &**b,
-						SendingEvent::Flush => &[],
-					})
-					.collect::<Vec<_>>(),
-			)))
-				.into(),
-		},
-	)
-	.await
-	{
-		Ok(_) => Ok(dest.clone()),
-		Err(e) => Err((dest.clone(), e)),
-	}
-}
-
-#[tracing::instrument(skip(dest, events))]
-async fn send_events_dest_push(
-	dest: &Destination, userid: &OwnedUserId, pushkey: &str, events: Vec<SendingEvent>,
-) -> SendingResult {
-	let mut pdus = Vec::new();
-
-	for event in &events {
-		match event {
-			SendingEvent::Pdu(pdu_id) => {
-				pdus.push(
-					services()
-						.rooms
-						.timeline
-						.get_pdu_from_id(pdu_id)
-						.map_err(|e| (dest.clone(), e))?
-						.ok_or_else(|| {
-							(
-								dest.clone(),
-								Error::bad_database("[Push] Event in servernameevent_data not found in db."),
-							)
-						})?,
-				);
-			},
-			SendingEvent::Edu(_) | SendingEvent::Flush => {
-				// Push gateways don't need EDUs (?) and flush only;
-				// no new content
-			},
-		}
-	}
-
-	for pdu in pdus {
-		// Redacted events are not notification targets (we don't send push for them)
-		if let Some(unsigned) = &pdu.unsigned {
-			if let Ok(unsigned) = serde_json::from_str::<serde_json::Value>(unsigned.get()) {
-				if unsigned.get("redacted_because").is_some() {
-					continue;
-				}
+			if presence_updates.len() >= SELECT_EDU_LIMIT {
+				break;
 			}
 		}
 
-		let Some(pusher) = services()
-			.pusher
-			.get_pusher(userid, pushkey)
-			.map_err(|e| (dest.clone(), e))?
-		else {
-			continue;
-		};
+		if !presence_updates.is_empty() {
+			let presence_content = Edu::Presence(PresenceContent::new(presence_updates));
+			events.push(serde_json::to_vec(&presence_content).expect("PresenceEvent can be serialized"));
+		}
 
-		let rules_for_user = services()
-			.account_data
-			.get(None, userid, GlobalAccountDataEventType::PushRules.to_string().into())
-			.unwrap_or_default()
-			.and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).ok())
-			.map_or_else(|| push::Ruleset::server_default(userid), |ev: PushRulesEvent| ev.content.global);
-
-		let unread: UInt = services()
-			.rooms
-			.user
-			.notification_count(userid, &pdu.room_id)
-			.map_err(|e| (dest.clone(), e))?
-			.try_into()
-			.expect("notification count can't go that high");
-
-		let _response = services()
-			.pusher
-			.send_push_notice(userid, unread, &pusher, rules_for_user, &pdu)
-			.await
-			.map(|_response| dest.clone())
-			.map_err(|e| (dest.clone(), e));
+		Ok(true)
 	}
 
-	Ok(dest.clone())
-}
+	/// Look for read receipts in this room
+	fn select_edus_receipts(
+		&self, room_id: &RoomId, since: u64, max_edu_count: &mut u64, events: &mut Vec<Vec<u8>>,
+	) -> Result<bool> {
+		for r in self
+			.services
+			.read_receipt
+			.readreceipts_since(room_id, since)
+		{
+			let (user_id, count, read_receipt) = r?;
+			*max_edu_count = cmp::max(count, *max_edu_count);
 
-#[tracing::instrument(skip(dest, events), name = "")]
-async fn send_events_dest_normal(
-	dest: &Destination, server: &OwnedServerName, events: Vec<SendingEvent>,
-) -> SendingResult {
-	let mut pdu_jsons = Vec::with_capacity(
-		events
-			.iter()
-			.filter(|event| matches!(event, SendingEvent::Pdu(_)))
-			.count(),
-	);
-	let mut edu_jsons = Vec::with_capacity(
-		events
-			.iter()
-			.filter(|event| matches!(event, SendingEvent::Edu(_)))
-			.count(),
-	);
+			if !user_is_local(&user_id) {
+				continue;
+			}
 
-	for event in &events {
-		match event {
-			SendingEvent::Pdu(pdu_id) => pdu_jsons.push(convert_to_outgoing_federation_event(
-				// TODO: check room version and remove event_id if needed
-				services()
-					.rooms
-					.timeline
-					.get_pdu_json_from_id(pdu_id)
-					.map_err(|e| (dest.clone(), e))?
-					.ok_or_else(|| {
-						error!(?dest, ?server, ?pdu_id, "event not found");
-						(
-							dest.clone(),
-							Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
-						)
-					})?,
-			)),
-			SendingEvent::Edu(edu) => {
-				if let Ok(raw) = serde_json::from_slice(edu) {
-					edu_jsons.push(raw);
-				}
-			},
-			SendingEvent::Flush => {
-				// flush only; no new content
+			let event = serde_json::from_str(read_receipt.json().get())
+				.map_err(|_| Error::bad_database("Invalid edu event in read_receipts."))?;
+			let federation_event = if let AnySyncEphemeralRoomEvent::Receipt(r) = event {
+				let mut read = BTreeMap::new();
+
+				let (event_id, mut receipt) = r
+					.content
+					.0
+					.into_iter()
+					.next()
+					.expect("we only use one event per read receipt");
+				let receipt = receipt
+					.remove(&ReceiptType::Read)
+					.expect("our read receipts always set this")
+					.remove(&user_id)
+					.expect("our read receipts always have the user here");
+
+				read.insert(
+					user_id,
+					ReceiptData {
+						data: receipt.clone(),
+						event_ids: vec![event_id.clone()],
+					},
+				);
+
+				let receipt_map = ReceiptMap {
+					read,
+				};
+
+				let mut receipts = BTreeMap::new();
+				receipts.insert(room_id.to_owned(), receipt_map);
+
+				Edu::Receipt(ReceiptContent {
+					receipts,
+				})
+			} else {
+				Error::bad_database("Invalid event type in read_receipts");
+				continue;
+			};
+
+			events.push(serde_json::to_vec(&federation_event).expect("json can be serialized"));
+
+			if events.len() >= SELECT_EDU_LIMIT {
+				return Ok(false);
+			}
+		}
+
+		Ok(true)
+	}
+
+	async fn send_events(&self, dest: Destination, events: Vec<SendingEvent>) -> SendingResult {
+		//debug_assert!(!events.is_empty(), "sending empty transaction");
+		match dest {
+			Destination::Normal(ref server) => self.send_events_dest_normal(&dest, server, events).await,
+			Destination::Appservice(ref id) => self.send_events_dest_appservice(&dest, id, events).await,
+			Destination::Push(ref userid, ref pushkey) => {
+				self.send_events_dest_push(&dest, userid, pushkey, events)
+					.await
 			},
 		}
 	}
 
-	//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
-	// transaction");
-	send::send(
-		&services().client.sender,
-		server,
-		send_transaction_message::v1::Request {
-			origin: services().server.config.server_name.clone(),
+	#[tracing::instrument(skip(self, dest, events), name = "appservice")]
+	async fn send_events_dest_appservice(
+		&self, dest: &Destination, id: &str, events: Vec<SendingEvent>,
+	) -> SendingResult {
+		let mut pdu_jsons = Vec::new();
+
+		for event in &events {
+			match event {
+				SendingEvent::Pdu(pdu_id) => {
+					pdu_jsons.push(
+						self.services
+							.timeline
+							.get_pdu_from_id(pdu_id)
+							.map_err(|e| (dest.clone(), e))?
+							.ok_or_else(|| {
+								(
+									dest.clone(),
+									Error::bad_database("[Appservice] Event in servernameevent_data not found in db."),
+								)
+							})?
+							.to_room_event(),
+					);
+				},
+				SendingEvent::Edu(_) | SendingEvent::Flush => {
+					// Appservices don't need EDUs (?) and flush only;
+					// no new content
+				},
+			}
+		}
+
+		//debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
+		let client = &self.services.client.appservice;
+		match appservice::send_request(
+			client,
+			self.services
+				.appservice
+				.get_registration(id)
+				.await
+				.ok_or_else(|| {
+					(
+						dest.clone(),
+						Error::bad_database("[Appservice] Could not load registration from db."),
+					)
+				})?,
+			ruma::api::appservice::event::push_events::v1::Request {
+				events: pdu_jsons,
+				txn_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
+					&events
+						.iter()
+						.map(|e| match e {
+							SendingEvent::Edu(b) | SendingEvent::Pdu(b) => &**b,
+							SendingEvent::Flush => &[],
+						})
+						.collect::<Vec<_>>(),
+				)))
+					.into(),
+			},
+		)
+		.await
+		{
+			Ok(_) => Ok(dest.clone()),
+			Err(e) => Err((dest.clone(), e)),
+		}
+	}
+
+	#[tracing::instrument(skip(self, dest, events), name = "push")]
+	async fn send_events_dest_push(
+		&self, dest: &Destination, userid: &OwnedUserId, pushkey: &str, events: Vec<SendingEvent>,
+	) -> SendingResult {
+		let mut pdus = Vec::new();
+
+		for event in &events {
+			match event {
+				SendingEvent::Pdu(pdu_id) => {
+					pdus.push(
+						self.services
+							.timeline
+							.get_pdu_from_id(pdu_id)
+							.map_err(|e| (dest.clone(), e))?
+							.ok_or_else(|| {
+								(
+									dest.clone(),
+									Error::bad_database("[Push] Event in servernameevent_data not found in db."),
+								)
+							})?,
+					);
+				},
+				SendingEvent::Edu(_) | SendingEvent::Flush => {
+					// Push gateways don't need EDUs (?) and flush only;
+					// no new content
+				},
+			}
+		}
+
+		for pdu in pdus {
+			// Redacted events are not notification targets (we don't send push for them)
+			if let Some(unsigned) = &pdu.unsigned {
+				if let Ok(unsigned) = serde_json::from_str::<serde_json::Value>(unsigned.get()) {
+					if unsigned.get("redacted_because").is_some() {
+						continue;
+					}
+				}
+			}
+
+			let Some(pusher) = self
+				.services
+				.pusher
+				.get_pusher(userid, pushkey)
+				.map_err(|e| (dest.clone(), e))?
+			else {
+				continue;
+			};
+
+			let rules_for_user = self
+				.services
+				.account_data
+				.get(None, userid, GlobalAccountDataEventType::PushRules.to_string().into())
+				.unwrap_or_default()
+				.and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).ok())
+				.map_or_else(|| push::Ruleset::server_default(userid), |ev: PushRulesEvent| ev.content.global);
+
+			let unread: UInt = self
+				.services
+				.user
+				.notification_count(userid, &pdu.room_id)
+				.map_err(|e| (dest.clone(), e))?
+				.try_into()
+				.expect("notification count can't go that high");
+
+			let _response = self
+				.services
+				.pusher
+				.send_push_notice(userid, unread, &pusher, rules_for_user, &pdu)
+				.await
+				.map(|_response| dest.clone())
+				.map_err(|e| (dest.clone(), e));
+		}
+
+		Ok(dest.clone())
+	}
+
+	#[tracing::instrument(skip(self, dest, events), name = "", level = "debug")]
+	async fn send_events_dest_normal(
+		&self, dest: &Destination, server: &OwnedServerName, events: Vec<SendingEvent>,
+	) -> SendingResult {
+		let mut pdu_jsons = Vec::with_capacity(
+			events
+				.iter()
+				.filter(|event| matches!(event, SendingEvent::Pdu(_)))
+				.count(),
+		);
+		let mut edu_jsons = Vec::with_capacity(
+			events
+				.iter()
+				.filter(|event| matches!(event, SendingEvent::Edu(_)))
+				.count(),
+		);
+
+		for event in &events {
+			match event {
+				// TODO: check room version and remove event_id if needed
+				SendingEvent::Pdu(pdu_id) => pdu_jsons.push(
+					self.convert_to_outgoing_federation_event(
+						self.services
+							.timeline
+							.get_pdu_json_from_id(pdu_id)
+							.map_err(|e| (dest.clone(), e))?
+							.ok_or_else(|| {
+								error!(?dest, ?server, ?pdu_id, "event not found");
+								(
+									dest.clone(),
+									Error::bad_database("[Normal] Event in servernameevent_data not found in db."),
+								)
+							})?,
+					),
+				),
+				SendingEvent::Edu(edu) => {
+					if let Ok(raw) = serde_json::from_slice(edu) {
+						edu_jsons.push(raw);
+					}
+				},
+				SendingEvent::Flush => {}, // flush only; no new content
+			}
+		}
+
+		//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
+		// transaction");
+		let transaction_id = &*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
+			&events
+				.iter()
+				.map(|e| match e {
+					SendingEvent::Edu(b) | SendingEvent::Pdu(b) => &**b,
+					SendingEvent::Flush => &[],
+				})
+				.collect::<Vec<_>>(),
+		));
+
+		let request = send_transaction_message::v1::Request {
+			origin: self.server.config.server_name.clone(),
 			pdus: pdu_jsons,
 			edus: edu_jsons,
 			origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-			transaction_id: (&*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
-				&events
+			transaction_id: transaction_id.into(),
+		};
+
+		let client = &self.services.client.sender;
+		self.send(client, server, request)
+			.await
+			.inspect(|response| {
+				response
+					.pdus
 					.iter()
-					.map(|e| match e {
-						SendingEvent::Edu(b) | SendingEvent::Pdu(b) => &**b,
-						SendingEvent::Flush => &[],
-					})
-					.collect::<Vec<_>>(),
-			)))
-				.into(),
-		},
-	)
-	.await
-	.map(|response| {
-		for pdu in response.pdus {
-			if pdu.1.is_err() {
-				warn!("error for {} from remote: {:?}", pdu.0, pdu.1);
+					.filter(|(_, res)| res.is_err())
+					.for_each(|(pdu_id, res)| warn!("error for {pdu_id} from remote: {res:?}"));
+			})
+			.map(|_| dest.clone())
+			.map_err(|e| (dest.clone(), e))
+	}
+
+	/// This does not return a full `Pdu` it is only to satisfy ruma's types.
+	pub fn convert_to_outgoing_federation_event(&self, mut pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {
+		if let Some(unsigned) = pdu_json
+			.get_mut("unsigned")
+			.and_then(|val| val.as_object_mut())
+		{
+			unsigned.remove("transaction_id");
+		}
+
+		// room v3 and above removed the "event_id" field from remote PDU format
+		if let Some(room_id) = pdu_json
+			.get("room_id")
+			.and_then(|val| RoomId::parse(val.as_str()?).ok())
+		{
+			match self.services.state.get_room_version(&room_id) {
+				Ok(room_version_id) => match room_version_id {
+					RoomVersionId::V1 | RoomVersionId::V2 => {},
+					_ => _ = pdu_json.remove("event_id"),
+				},
+				Err(_) => _ = pdu_json.remove("event_id"),
 			}
+		} else {
+			pdu_json.remove("event_id");
 		}
-		dest.clone()
-	})
-	.map_err(|e| (dest.clone(), e))
-}
 
-/// This does not return a full `Pdu` it is only to satisfy ruma's types.
-#[tracing::instrument]
-pub fn convert_to_outgoing_federation_event(mut pdu_json: CanonicalJsonObject) -> Box<RawJsonValue> {
-	if let Some(unsigned) = pdu_json
-		.get_mut("unsigned")
-		.and_then(|val| val.as_object_mut())
-	{
-		unsigned.remove("transaction_id");
+		// TODO: another option would be to convert it to a canonical string to validate
+		// size and return a Result<Raw<...>>
+		// serde_json::from_str::<Raw<_>>(
+		//     ruma::serde::to_canonical_json_string(pdu_json).expect("CanonicalJson is
+		// valid serde_json::Value"), )
+		// .expect("Raw::from_value always works")
+
+		to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
 	}
-
-	// room v3 and above removed the "event_id" field from remote PDU format
-	if let Some(room_id) = pdu_json
-		.get("room_id")
-		.and_then(|val| RoomId::parse(val.as_str()?).ok())
-	{
-		match services().rooms.state.get_room_version(&room_id) {
-			Ok(room_version_id) => match room_version_id {
-				RoomVersionId::V1 | RoomVersionId::V2 => {},
-				_ => _ = pdu_json.remove("event_id"),
-			},
-			Err(_) => _ = pdu_json.remove("event_id"),
-		}
-	} else {
-		pdu_json.remove("event_id");
-	}
-
-	// TODO: another option would be to convert it to a canonical string to validate
-	// size and return a Result<Raw<...>>
-	// serde_json::from_str::<Raw<_>>(
-	//     ruma::serde::to_canonical_json_string(pdu_json).expect("CanonicalJson is
-	// valid serde_json::Value"), )
-	// .expect("Raw::from_value always works")
-
-	to_raw_value(&pdu_json).expect("CanonicalJson is valid serde_json::Value")
 }

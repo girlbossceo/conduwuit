@@ -7,7 +7,6 @@ use std::{
 };
 
 use conduit::{Error, Result};
-use data::Data;
 use ruma::{
 	api::client::{
 		device::Device,
@@ -24,7 +23,8 @@ use ruma::{
 	UInt, UserId,
 };
 
-use crate::services;
+use self::data::Data;
+use crate::{admin, rooms, Dep};
 
 pub struct SlidingSyncCache {
 	lists: BTreeMap<String, SyncRequestList>,
@@ -36,14 +36,24 @@ pub struct SlidingSyncCache {
 type DbConnections = Mutex<BTreeMap<(OwnedUserId, OwnedDeviceId, String), Arc<Mutex<SlidingSyncCache>>>>;
 
 pub struct Service {
+	services: Services,
 	pub db: Data,
 	pub connections: DbConnections,
+}
+
+struct Services {
+	admin: Dep<admin::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db.clone()),
+			services: Services {
+				admin: args.depend::<admin::Service>("admin"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+			},
+			db: Data::new(&args),
 			connections: StdMutex::new(BTreeMap::new()),
 		}))
 	}
@@ -247,11 +257,8 @@ impl Service {
 
 	/// Check if a user is an admin
 	pub fn is_admin(&self, user_id: &UserId) -> Result<bool> {
-		if let Some(admin_room_id) = services().admin.get_admin_room()? {
-			services()
-				.rooms
-				.state_cache
-				.is_joined(user_id, &admin_room_id)
+		if let Some(admin_room_id) = self.services.admin.get_admin_room()? {
+			self.services.state_cache.is_joined(user_id, &admin_room_id)
 		} else {
 			Ok(false)
 		}

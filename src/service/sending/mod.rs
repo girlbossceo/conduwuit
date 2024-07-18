@@ -6,24 +6,37 @@ mod sender;
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{err, Result, Server};
+use conduit::{err, warn, Result, Server};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
-pub use sender::convert_to_outgoing_federation_event;
 use tokio::sync::Mutex;
-use tracing::warn;
 
-use crate::{server_is_ours, services};
+use crate::{account_data, client, globals, presence, pusher, resolver, rooms, server_is_ours, users, Dep};
 
 pub struct Service {
-	pub db: data::Data,
 	server: Arc<Server>,
-
-	/// The state for a given state hash.
+	services: Services,
+	pub db: data::Data,
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
+}
+
+struct Services {
+	client: Dep<client::Service>,
+	globals: Dep<globals::Service>,
+	resolver: Dep<resolver::Service>,
+	state: Dep<rooms::state::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	user: Dep<rooms::user::Service>,
+	users: Dep<users::Service>,
+	presence: Dep<presence::Service>,
+	read_receipt: Dep<rooms::read_receipt::Service>,
+	timeline: Dep<rooms::timeline::Service>,
+	account_data: Dep<account_data::Service>,
+	appservice: Dep<crate::appservice::Service>,
+	pusher: Dep<pusher::Service>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,8 +66,23 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let (sender, receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
-			db: data::Data::new(args.db.clone()),
 			server: args.server.clone(),
+			services: Services {
+				client: args.depend::<client::Service>("client"),
+				globals: args.depend::<globals::Service>("globals"),
+				resolver: args.depend::<resolver::Service>("resolver"),
+				state: args.depend::<rooms::state::Service>("rooms::state"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				user: args.depend::<rooms::user::Service>("rooms::user"),
+				users: args.depend::<users::Service>("users"),
+				presence: args.depend::<presence::Service>("presence"),
+				read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+				account_data: args.depend::<account_data::Service>("account_data"),
+				appservice: args.depend::<crate::appservice::Service>("appservice"),
+				pusher: args.depend::<pusher::Service>("pusher"),
+			},
+			db: data::Data::new(&args),
 			sender,
 			receiver: Mutex::new(receiver),
 		}))
@@ -103,8 +131,8 @@ impl Service {
 
 	#[tracing::instrument(skip(self, room_id, pdu_id), level = "debug")]
 	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
-		let servers = services()
-			.rooms
+		let servers = self
+			.services
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
@@ -152,8 +180,8 @@ impl Service {
 
 	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
 	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
-		let servers = services()
-			.rooms
+		let servers = self
+			.services
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
@@ -189,8 +217,8 @@ impl Service {
 
 	#[tracing::instrument(skip(self, room_id), level = "debug")]
 	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
-		let servers = services()
-			.rooms
+		let servers = self
+			.services
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
@@ -213,13 +241,13 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, request), name = "request")]
+	#[tracing::instrument(skip_all, name = "request")]
 	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
-		let client = &services().client.federation;
-		send::send(client, dest, request).await
+		let client = &self.services.client.federation;
+		self.send(client, dest, request).await
 	}
 
 	/// Sends a request to an appservice
@@ -232,7 +260,8 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
-		appservice::send_request(registration, request).await
+		let client = &self.services.client.appservice;
+		appservice::send_request(client, registration, request).await
 	}
 
 	/// Cleanup event data

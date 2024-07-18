@@ -3,8 +3,8 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{utils, utils::math::usize_from_f64, Result, Server};
-use database::{Database, Map};
+use conduit::{utils, utils::math::usize_from_f64, Result};
+use database::Map;
 use lru_cache::LruCache;
 
 pub(super) struct Data {
@@ -13,8 +13,9 @@ pub(super) struct Data {
 }
 
 impl Data {
-	pub(super) fn new(server: &Arc<Server>, db: &Arc<Database>) -> Self {
-		let config = &server.config;
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
+		let config = &args.server.config;
 		let cache_size = f64::from(config.auth_chain_cache_capacity);
 		let cache_size = usize_from_f64(cache_size * config.cache_capacity_modifier).expect("valid cache size");
 		Self {

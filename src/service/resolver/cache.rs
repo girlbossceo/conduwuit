@@ -5,11 +5,10 @@ use std::{
 	time::SystemTime,
 };
 
-use conduit::trace;
+use conduit::{trace, utils::rand};
 use ruma::{OwnedServerName, ServerName};
 
 use super::fed::FedDest;
-use crate::utils::rand;
 
 pub struct Cache {
 	pub destinations: RwLock<WellKnownMap>, // actual_destination, host

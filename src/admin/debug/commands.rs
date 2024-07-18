@@ -15,7 +15,7 @@ use ruma::{
 	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
-use service::{rooms::event_handler::parse_incoming_pdu, services, PduEvent};
+use service::services;
 use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
@@ -189,7 +189,10 @@ pub(super) async fn get_remote_pdu(
 
 			debug!("Attempting to parse PDU: {:?}", &response.pdu);
 			let parsed_pdu = {
-				let parsed_result = parse_incoming_pdu(&response.pdu);
+				let parsed_result = services()
+					.rooms
+					.event_handler
+					.parse_incoming_pdu(&response.pdu);
 				let (event_id, value, room_id) = match parsed_result {
 					Ok(t) => t,
 					Err(e) => {
@@ -510,7 +513,7 @@ pub(super) async fn force_set_room_state_from_server(
 	let mut events = Vec::with_capacity(remote_state_response.pdus.len());
 
 	for pdu in remote_state_response.pdus.clone() {
-		events.push(match parse_incoming_pdu(&pdu) {
+		events.push(match services().rooms.event_handler.parse_incoming_pdu(&pdu) {
 			Ok(t) => t,
 			Err(e) => {
 				warn!("Could not parse PDU, ignoring: {e}");

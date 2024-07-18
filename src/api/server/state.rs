@@ -3,7 +3,6 @@ use std::sync::Arc;
 use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::api::{client::error::ErrorKind, federation::event::get_room_state};
-use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -44,7 +43,11 @@ pub(crate) async fn get_room_state_route(
 		.state_full_ids(shortstatehash)
 		.await?
 		.into_values()
-		.map(|id| convert_to_outgoing_federation_event(services.rooms.timeline.get_pdu_json(&id).unwrap().unwrap()))
+		.map(|id| {
+			services
+				.sending
+				.convert_to_outgoing_federation_event(services.rooms.timeline.get_pdu_json(&id).unwrap().unwrap())
+		})
 		.collect();
 
 	let auth_chain_ids = services
@@ -61,7 +64,7 @@ pub(crate) async fn get_room_state_route(
 					.timeline
 					.get_pdu_json(&id)
 					.ok()?
-					.map(convert_to_outgoing_federation_event)
+					.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
 			})
 			.collect(),
 		pdus,

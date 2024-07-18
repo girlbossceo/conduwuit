@@ -6,7 +6,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{err, error, utils::math::usize_from_f64, warn, Error, Result};
+use conduit::{err, error, pdu::PduBuilder, utils::math::usize_from_f64, warn, Error, PduEvent, Result};
 use data::Data;
 use lru_cache::LruCache;
 use ruma::{
@@ -33,12 +33,18 @@ use ruma::{
 };
 use serde_json::value::to_raw_value;
 
-use crate::{pdu::PduBuilder, rooms::state::RoomMutexGuard, services, PduEvent};
+use crate::{rooms, rooms::state::RoomMutexGuard, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
 	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
 	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
+}
+
+struct Services {
+	state_cache: Dep<rooms::state_cache::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 impl crate::Service for Service {
@@ -50,7 +56,11 @@ impl crate::Service for Service {
 			f64::from(config.user_visibility_cache_capacity) * config.cache_capacity_modifier;
 
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			services: Services {
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
+			db: Data::new(&args),
 			server_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(server_visibility_cache_capacity)?)),
 			user_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(user_visibility_cache_capacity)?)),
 		}))
@@ -164,8 +174,8 @@ impl Service {
 			})
 			.unwrap_or(HistoryVisibility::Shared);
 
-		let mut current_server_members = services()
-			.rooms
+		let mut current_server_members = self
+			.services
 			.state_cache
 			.room_members(room_id)
 			.filter_map(Result::ok)
@@ -212,7 +222,7 @@ impl Service {
 			return Ok(*visibility);
 		}
 
-		let currently_member = services().rooms.state_cache.is_joined(user_id, room_id)?;
+		let currently_member = self.services.state_cache.is_joined(user_id, room_id)?;
 
 		let history_visibility = self
 			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?
@@ -258,7 +268,7 @@ impl Service {
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, user_id, room_id))]
 	pub fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-		let currently_member = services().rooms.state_cache.is_joined(user_id, room_id)?;
+		let currently_member = self.services.state_cache.is_joined(user_id, room_id)?;
 
 		let history_visibility = self
 			.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
@@ -342,8 +352,8 @@ impl Service {
 			redacts: None,
 		};
 
-		Ok(services()
-			.rooms
+		Ok(self
+			.services
 			.timeline
 			.create_hash_and_sign_event(new_event, sender, room_id, state_lock)
 			.is_ok())
@@ -413,7 +423,7 @@ impl Service {
 					// Falling back on m.room.create to judge power level
 					if let Some(pdu) = self.room_state_get(room_id, &StateEventType::RoomCreate, "")? {
 						Ok(pdu.sender == sender
-							|| if let Ok(Some(pdu)) = services().rooms.timeline.get_pdu(redacts) {
+							|| if let Ok(Some(pdu)) = self.services.timeline.get_pdu(redacts) {
 								pdu.sender == sender
 							} else {
 								false
@@ -430,7 +440,7 @@ impl Service {
 						.map(|event: RoomPowerLevels| {
 							event.user_can_redact_event_of_other(sender)
 								|| event.user_can_redact_own_event(sender)
-									&& if let Ok(Some(pdu)) = services().rooms.timeline.get_pdu(redacts) {
+									&& if let Ok(Some(pdu)) = self.services.timeline.get_pdu(redacts) {
 										if federation {
 											pdu.sender.server_name() == sender.server_name()
 										} else {

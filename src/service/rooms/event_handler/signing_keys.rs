@@ -3,7 +3,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-use conduit::{debug, error, info, trace, warn};
+use conduit::{debug, error, info, trace, warn, Error, Result};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::{
@@ -20,8 +20,6 @@ use ruma::{
 };
 use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::{RwLock, RwLockWriteGuard};
-
-use crate::{services, Error, Result};
 
 impl super::Service {
 	pub async fn fetch_required_signing_keys<'a, E>(
@@ -147,7 +145,8 @@ impl super::Service {
 
 			debug!("Loading signing keys for {}", origin);
 
-			let result: BTreeMap<_, _> = services()
+			let result: BTreeMap<_, _> = self
+				.services
 				.globals
 				.signing_keys_for(origin)?
 				.into_iter()
@@ -171,9 +170,10 @@ impl super::Service {
 		&self, mut servers: BTreeMap<OwnedServerName, BTreeMap<OwnedServerSigningKeyId, QueryCriteria>>,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
-		for server in services().globals.trusted_servers() {
+		for server in self.services.globals.trusted_servers() {
 			debug!("Asking batch signing keys from trusted server {}", server);
-			match services()
+			match self
+				.services
 				.sending
 				.send_federation_request(
 					server,
@@ -199,7 +199,8 @@ impl super::Service {
 						// TODO: Check signature from trusted server?
 						servers.remove(&k.server_name);
 
-						let result = services()
+						let result = self
+							.services
 							.globals
 							.db
 							.add_signing_key(&k.server_name, k.clone())?
@@ -234,7 +235,7 @@ impl super::Service {
 			.into_keys()
 			.map(|server| async move {
 				(
-					services()
+					self.services
 						.sending
 						.send_federation_request(&server, get_server_keys::v2::Request::new())
 						.await,
@@ -248,7 +249,8 @@ impl super::Service {
 			if let (Ok(get_keys_response), origin) = result {
 				debug!("Result is from {origin}");
 				if let Ok(key) = get_keys_response.server_key.deserialize() {
-					let result: BTreeMap<_, _> = services()
+					let result: BTreeMap<_, _> = self
+						.services
 						.globals
 						.db
 						.add_signing_key(&origin, key)?
@@ -297,7 +299,7 @@ impl super::Service {
 			return Ok(());
 		}
 
-		if services().globals.query_trusted_key_servers_first() {
+		if self.services.globals.query_trusted_key_servers_first() {
 			info!(
 				"query_trusted_key_servers_first is set to true, querying notary trusted key servers first for \
 				 homeserver signing keys."
@@ -349,7 +351,8 @@ impl super::Service {
 	) -> Result<BTreeMap<String, Base64>> {
 		let contains_all_ids = |keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));
 
-		let mut result: BTreeMap<_, _> = services()
+		let mut result: BTreeMap<_, _> = self
+			.services
 			.globals
 			.signing_keys_for(origin)?
 			.into_iter()
@@ -362,15 +365,16 @@ impl super::Service {
 		}
 
 		// i didnt split this out into their own functions because it's relatively small
-		if services().globals.query_trusted_key_servers_first() {
+		if self.services.globals.query_trusted_key_servers_first() {
 			info!(
 				"query_trusted_key_servers_first is set to true, querying notary trusted servers first for {origin} \
 				 keys"
 			);
 
-			for server in services().globals.trusted_servers() {
+			for server in self.services.globals.trusted_servers() {
 				debug!("Asking notary server {server} for {origin}'s signing key");
-				if let Some(server_keys) = services()
+				if let Some(server_keys) = self
+					.services
 					.sending
 					.send_federation_request(
 						server,
@@ -394,7 +398,10 @@ impl super::Service {
 					}) {
 					debug!("Got signing keys: {:?}", server_keys);
 					for k in server_keys {
-						services().globals.db.add_signing_key(origin, k.clone())?;
+						self.services
+							.globals
+							.db
+							.add_signing_key(origin, k.clone())?;
 						result.extend(
 							k.verify_keys
 								.into_iter()
@@ -414,14 +421,15 @@ impl super::Service {
 			}
 
 			debug!("Asking {origin} for their signing keys over federation");
-			if let Some(server_key) = services()
+			if let Some(server_key) = self
+				.services
 				.sending
 				.send_federation_request(origin, get_server_keys::v2::Request::new())
 				.await
 				.ok()
 				.and_then(|resp| resp.server_key.deserialize().ok())
 			{
-				services()
+				self.services
 					.globals
 					.db
 					.add_signing_key(origin, server_key.clone())?;
@@ -447,14 +455,15 @@ impl super::Service {
 			info!("query_trusted_key_servers_first is set to false, querying {origin} first");
 
 			debug!("Asking {origin} for their signing keys over federation");
-			if let Some(server_key) = services()
+			if let Some(server_key) = self
+				.services
 				.sending
 				.send_federation_request(origin, get_server_keys::v2::Request::new())
 				.await
 				.ok()
 				.and_then(|resp| resp.server_key.deserialize().ok())
 			{
-				services()
+				self.services
 					.globals
 					.db
 					.add_signing_key(origin, server_key.clone())?;
@@ -477,9 +486,10 @@ impl super::Service {
 				}
 			}
 
-			for server in services().globals.trusted_servers() {
+			for server in self.services.globals.trusted_servers() {
 				debug!("Asking notary server {server} for {origin}'s signing key");
-				if let Some(server_keys) = services()
+				if let Some(server_keys) = self
+					.services
 					.sending
 					.send_federation_request(
 						server,
@@ -503,7 +513,10 @@ impl super::Service {
 					}) {
 					debug!("Got signing keys: {:?}", server_keys);
 					for k in server_keys {
-						services().globals.db.add_signing_key(origin, k.clone())?;
+						self.services
+							.globals
+							.db
+							.add_signing_key(origin, k.clone())?;
 						result.extend(
 							k.verify_keys
 								.into_iter()

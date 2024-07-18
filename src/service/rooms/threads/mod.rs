@@ -2,7 +2,7 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{Error, Result};
+use conduit::{Error, PduEvent, Result};
 use data::Data;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
@@ -11,16 +11,24 @@ use ruma::{
 };
 use serde_json::json;
 
-use crate::{services, PduEvent};
+use crate::{rooms, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
+}
+
+struct Services {
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			services: Services {
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
+			db: Data::new(&args),
 		}))
 	}
 
@@ -35,22 +43,22 @@ impl Service {
 	}
 
 	pub fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
-		let root_id = &services()
-			.rooms
+		let root_id = self
+			.services
 			.timeline
 			.get_pdu_id(root_event_id)?
 			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Invalid event id in thread message"))?;
 
-		let root_pdu = services()
-			.rooms
+		let root_pdu = self
+			.services
 			.timeline
-			.get_pdu_from_id(root_id)?
+			.get_pdu_from_id(&root_id)?
 			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Thread root pdu not found"))?;
 
-		let mut root_pdu_json = services()
-			.rooms
+		let mut root_pdu_json = self
+			.services
 			.timeline
-			.get_pdu_json_from_id(root_id)?
+			.get_pdu_json_from_id(&root_id)?
 			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Thread root pdu not found"))?;
 
 		if let CanonicalJsonValue::Object(unsigned) = root_pdu_json
@@ -93,20 +101,19 @@ impl Service {
 				);
 			}
 
-			services()
-				.rooms
+			self.services
 				.timeline
-				.replace_pdu(root_id, &root_pdu_json, &root_pdu)?;
+				.replace_pdu(&root_id, &root_pdu_json, &root_pdu)?;
 		}
 
 		let mut users = Vec::new();
-		if let Some(userids) = self.db.get_participants(root_id)? {
+		if let Some(userids) = self.db.get_participants(&root_id)? {
 			users.extend_from_slice(&userids);
 		} else {
 			users.push(root_pdu.sender);
 		}
 		users.push(pdu.sender.clone());
 
-		self.db.update_participants(root_id, &users)
+		self.db.update_participants(&root_id, &users)
 	}
 }

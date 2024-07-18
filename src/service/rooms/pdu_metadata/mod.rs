@@ -2,8 +2,7 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::Result;
-use data::Data;
+use conduit::{PduCount, PduEvent, Result};
 use ruma::{
 	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},
@@ -11,10 +10,18 @@ use ruma::{
 };
 use serde::Deserialize;
 
-use crate::{services, PduCount, PduEvent};
+use self::data::Data;
+use crate::{rooms, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
+	state_accessor: Dep<rooms::state_accessor::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -30,7 +37,12 @@ struct ExtractRelatesToEventId {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
+			db: Data::new(&args),
 		}))
 	}
 
@@ -101,8 +113,7 @@ impl Service {
 						})
 					.take(limit)
 					.filter(|(_, pdu)| {
-						services()
-							.rooms
+						self.services
 							.state_accessor
 							.user_can_see_event(sender_user, room_id, &pdu.event_id)
 							.unwrap_or(false)
@@ -147,8 +158,7 @@ impl Service {
 						})
 					.take(limit)
 					.filter(|(_, pdu)| {
-						services()
-							.rooms
+						self.services
 							.state_accessor
 							.user_can_see_event(sender_user, room_id, &pdu.event_id)
 							.unwrap_or(false)
@@ -180,10 +190,10 @@ impl Service {
 	pub fn relations_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, target: &'a EventId, until: PduCount, max_depth: u8,
 	) -> Result<Vec<(PduCount, PduEvent)>> {
-		let room_id = services().rooms.short.get_or_create_shortroomid(room_id)?;
+		let room_id = self.services.short.get_or_create_shortroomid(room_id)?;
 		#[allow(unknown_lints)]
 		#[allow(clippy::manual_unwrap_or_default)]
-		let target = match services().rooms.timeline.get_pdu_count(target)? {
+		let target = match self.services.timeline.get_pdu_count(target)? {
 			Some(PduCount::Normal(c)) => c,
 			// TODO: Support backfilled relations
 			_ => 0, // This will result in an empty iterator

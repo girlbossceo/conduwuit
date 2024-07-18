@@ -1,23 +1,32 @@
 use std::sync::Arc;
 
 use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{api::client::error::ErrorKind, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId, UserId};
 
-use crate::services;
+use crate::{globals, Dep};
 
 pub(super) struct Data {
 	alias_userid: Arc<Map>,
 	alias_roomid: Arc<Map>,
 	aliasid_alias: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			alias_userid: db["alias_userid"].clone(),
 			alias_roomid: db["alias_roomid"].clone(),
 			aliasid_alias: db["aliasid_alias"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}
 	}
 
@@ -31,7 +40,7 @@ impl Data {
 
 		let mut aliasid = room_id.as_bytes().to_vec();
 		aliasid.push(0xFF);
-		aliasid.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
+		aliasid.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
 		self.aliasid_alias.insert(&aliasid, alias.as_bytes())?;
 
 		Ok(())

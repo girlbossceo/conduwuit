@@ -12,7 +12,7 @@ use ruma::{
 };
 use tokio::sync::RwLock;
 
-use crate::services;
+use crate::{sending, Dep};
 
 /// Compiled regular expressions for a namespace
 #[derive(Clone, Debug)]
@@ -118,7 +118,12 @@ impl TryFrom<Registration> for RegistrationInfo {
 
 pub struct Service {
 	pub db: Data,
+	services: Services,
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
+}
+
+struct Services {
+	sending: Dep<sending::Service>,
 }
 
 impl crate::Service for Service {
@@ -138,6 +143,9 @@ impl crate::Service for Service {
 
 		Ok(Arc::new(Self {
 			db,
+			services: Services {
+				sending: args.depend::<sending::Service>("sending"),
+			},
 			registration_info: RwLock::new(registration_info),
 		}))
 	}
@@ -178,7 +186,9 @@ impl Service {
 
 		// deletes all active requests for the appservice if there are any so we stop
 		// sending to the URL
-		services().sending.cleanup_events(service_name.to_owned())?;
+		self.services
+			.sending
+			.cleanup_events(service_name.to_owned())?;
 
 		Ok(())
 	}

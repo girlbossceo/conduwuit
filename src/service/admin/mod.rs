@@ -22,21 +22,25 @@ use ruma::{
 use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::{globals, rooms, rooms::state::RoomMutexGuard, user_is_local};
+use crate::{globals, rooms, rooms::state::RoomMutexGuard, user_is_local, Dep};
 
 pub struct Service {
-	server: Arc<Server>,
-	globals: Arc<globals::Service>,
-	alias: Arc<rooms::alias::Service>,
-	timeline: Arc<rooms::timeline::Service>,
-	state: Arc<rooms::state::Service>,
-	state_cache: Arc<rooms::state_cache::Service>,
+	services: Services,
 	sender: Sender<Command>,
 	receiver: Mutex<Receiver<Command>>,
 	pub handle: RwLock<Option<Handler>>,
 	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
 	pub console: Arc<console::Console>,
+}
+
+struct Services {
+	server: Arc<Server>,
+	globals: Dep<globals::Service>,
+	alias: Dep<rooms::alias::Service>,
+	timeline: Dep<rooms::timeline::Service>,
+	state: Dep<rooms::state::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
 }
 
 #[derive(Debug)]
@@ -58,12 +62,14 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
 		Ok(Arc::new(Self {
-			server: args.server.clone(),
-			globals: args.require_service::<globals::Service>("globals"),
-			alias: args.require_service::<rooms::alias::Service>("rooms::alias"),
-			timeline: args.require_service::<rooms::timeline::Service>("rooms::timeline"),
-			state: args.require_service::<rooms::state::Service>("rooms::state"),
-			state_cache: args.require_service::<rooms::state_cache::Service>("rooms::state_cache"),
+			services: Services {
+				server: args.server.clone(),
+				globals: args.depend::<globals::Service>("globals"),
+				alias: args.depend::<rooms::alias::Service>("rooms::alias"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+				state: args.depend::<rooms::state::Service>("rooms::state"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+			},
 			sender,
 			receiver: Mutex::new(receiver),
 			handle: RwLock::new(None),
@@ -75,7 +81,7 @@ impl crate::Service for Service {
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		let receiver = self.receiver.lock().await;
-		let mut signals = self.server.signal.subscribe();
+		let mut signals = self.services.server.signal.subscribe();
 		loop {
 			tokio::select! {
 				command = receiver.recv_async() => match command {
@@ -116,7 +122,7 @@ impl Service {
 
 	pub async fn send_message(&self, message_content: RoomMessageEventContent) {
 		if let Ok(Some(room_id)) = self.get_admin_room() {
-			let user_id = &self.globals.server_user;
+			let user_id = &self.services.globals.server_user;
 			self.respond_to_room(message_content, &room_id, user_id)
 				.await;
 		}
@@ -176,7 +182,7 @@ impl Service {
 	/// Checks whether a given user is an admin of this server
 	pub async fn user_is_admin(&self, user_id: &UserId) -> Result<bool> {
 		if let Ok(Some(admin_room)) = self.get_admin_room() {
-			self.state_cache.is_joined(user_id, &admin_room)
+			self.services.state_cache.is_joined(user_id, &admin_room)
 		} else {
 			Ok(false)
 		}
@@ -187,10 +193,15 @@ impl Service {
 	/// Errors are propagated from the database, and will have None if there is
 	/// no admin room
 	pub fn get_admin_room(&self) -> Result<Option<OwnedRoomId>> {
-		if let Some(room_id) = self.alias.resolve_local_alias(&self.globals.admin_alias)? {
+		if let Some(room_id) = self
+			.services
+			.alias
+			.resolve_local_alias(&self.services.globals.admin_alias)?
+		{
 			if self
+				.services
 				.state_cache
-				.is_joined(&self.globals.server_user, &room_id)?
+				.is_joined(&self.services.globals.server_user, &room_id)?
 			{
 				return Ok(Some(room_id));
 			}
@@ -207,12 +218,12 @@ impl Service {
 			return;
 		};
 
-		let Ok(Some(pdu)) = self.timeline.get_pdu(&in_reply_to.event_id) else {
+		let Ok(Some(pdu)) = self.services.timeline.get_pdu(&in_reply_to.event_id) else {
 			return;
 		};
 
 		let response_sender = if self.is_admin_room(&pdu.room_id) {
-			&self.globals.server_user
+			&self.services.globals.server_user
 		} else {
 			&pdu.sender
 		};
@@ -229,7 +240,7 @@ impl Service {
 			"sender is not admin"
 		);
 
-		let state_lock = self.state.mutex.lock(room_id).await;
+		let state_lock = self.services.state.mutex.lock(room_id).await;
 		let response_pdu = PduBuilder {
 			event_type: TimelineEventType::RoomMessage,
 			content: to_raw_value(&content).expect("event is valid, we just created it"),
@@ -239,6 +250,7 @@ impl Service {
 		};
 
 		if let Err(e) = self
+			.services
 			.timeline
 			.build_and_append_pdu(response_pdu, user_id, room_id, &state_lock)
 			.await
@@ -266,7 +278,8 @@ impl Service {
 			redacts: None,
 		};
 
-		self.timeline
+		self.services
+			.timeline
 			.build_and_append_pdu(response_pdu, user_id, room_id, state_lock)
 			.await?;
 
@@ -279,7 +292,7 @@ impl Service {
 		let is_public_escape = is_escape && body.trim_start_matches('\\').starts_with("!admin");
 
 		// Admin command with public echo (in admin room)
-		let server_user = &self.globals.server_user;
+		let server_user = &self.services.globals.server_user;
 		let is_public_prefix = body.starts_with("!admin") || body.starts_with(server_user.as_str());
 
 		// Expected backward branch
@@ -293,7 +306,7 @@ impl Service {
 		}
 
 		// Check if server-side command-escape is disabled by configuration
-		if is_public_escape && !self.globals.config.admin_escape_commands {
+		if is_public_escape && !self.services.globals.config.admin_escape_commands {
 			return false;
 		}
 
@@ -309,7 +322,7 @@ impl Service {
 
 		// This will evaluate to false if the emergency password is set up so that
 		// the administrator can execute commands as conduit
-		let emergency_password_set = self.globals.emergency_password().is_some();
+		let emergency_password_set = self.services.globals.emergency_password().is_some();
 		let from_server = pdu.sender == *server_user && !emergency_password_set;
 		if from_server && self.is_admin_room(&pdu.room_id) {
 			return false;

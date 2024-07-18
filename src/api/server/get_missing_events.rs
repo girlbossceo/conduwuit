@@ -4,7 +4,6 @@ use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_missing_events},
 	OwnedEventId, RoomId,
 };
-use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -82,7 +81,7 @@ pub(crate) async fn get_missing_events_route(
 				)
 				.map_err(|_| Error::bad_database("Invalid prev_events in event in database."))?,
 			);
-			events.push(convert_to_outgoing_federation_event(pdu));
+			events.push(services.sending.convert_to_outgoing_federation_event(pdu));
 		}
 		i = i.saturating_add(1);
 	}

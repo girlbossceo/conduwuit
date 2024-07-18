@@ -2,7 +2,7 @@ mod data;
 
 use std::sync::Arc;
 
-use conduit::{utils, utils::hash, Error, Result};
+use conduit::{error, utils, utils::hash, Error, Result, Server};
 use data::Data;
 use ruma::{
 	api::client::{
@@ -11,19 +11,30 @@ use ruma::{
 	},
 	CanonicalJsonValue, DeviceId, UserId,
 };
-use tracing::error;
 
-use crate::services;
+use crate::{globals, users, Dep};
 
 pub const SESSION_ID_LENGTH: usize = 32;
 
 pub struct Service {
+	server: Arc<Server>,
+	services: Services,
 	pub db: Data,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	users: Dep<users::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			server: args.server.clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				users: args.depend::<users::Service>("users"),
+			},
 			db: Data::new(args.db),
 		}))
 	}
@@ -87,11 +98,11 @@ impl Service {
 					return Err(Error::BadRequest(ErrorKind::Unrecognized, "Identifier type not recognized."));
 				};
 
-				let user_id = UserId::parse_with_server_name(username.clone(), services().globals.server_name())
+				let user_id = UserId::parse_with_server_name(username.clone(), self.services.globals.server_name())
 					.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "User ID is invalid."))?;
 
 				// Check if password is correct
-				if let Some(hash) = services().users.password_hash(&user_id)? {
+				if let Some(hash) = self.services.users.password_hash(&user_id)? {
 					let hash_matches = hash::verify_password(password, &hash).is_ok();
 					if !hash_matches {
 						uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {
@@ -106,7 +117,7 @@ impl Service {
 				uiaainfo.completed.push(AuthType::Password);
 			},
 			AuthData::RegistrationToken(t) => {
-				if Some(t.token.trim()) == services().globals.config.registration_token.as_deref() {
+				if Some(t.token.trim()) == self.server.config.registration_token.as_deref() {
 					uiaainfo.completed.push(AuthType::RegistrationToken);
 				} else {
 					uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {

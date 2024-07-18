@@ -1,5 +1,4 @@
 mod data;
-mod emerg_access;
 pub(super) mod migrations;
 
 use std::{
@@ -9,7 +8,6 @@ use std::{
 	time::Instant,
 };
 
-use async_trait::async_trait;
 use conduit::{error, trace, Config, Result};
 use data::Data;
 use ipaddress::IPAddress;
@@ -43,11 +41,10 @@ pub struct Service {
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
-#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		let db = Data::new(&args);
 		let config = &args.server.config;
-		let db = Data::new(args.db);
 		let keypair = db.load_keypair();
 
 		let keypair = match keypair {
@@ -104,17 +101,11 @@ impl crate::Service for Service {
 			.supported_room_versions()
 			.contains(&s.config.default_room_version)
 		{
-			error!(config=?s.config.default_room_version, fallback=?crate::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
-			s.config.default_room_version = crate::config::default_default_room_version();
+			error!(config=?s.config.default_room_version, fallback=?conduit::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
+			s.config.default_room_version = conduit::config::default_default_room_version();
 		};
 
 		Ok(Arc::new(s))
-	}
-
-	async fn worker(self: Arc<Self>) -> Result<()> {
-		emerg_access::init_emergency_access();
-
-		Ok(())
 	}
 
 	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {

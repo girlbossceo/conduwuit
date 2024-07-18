@@ -15,7 +15,7 @@ use tokio::{
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
 };
 
-use crate::services;
+use crate::{globals, Dep};
 
 #[derive(Debug)]
 pub struct FileMeta {
@@ -41,16 +41,24 @@ pub struct UrlPreviewData {
 }
 
 pub struct Service {
-	server: Arc<Server>,
+	services: Services,
 	pub(crate) db: Data,
 	pub url_preview_mutex: MutexMap<String, ()>,
+}
+
+struct Services {
+	server: Arc<Server>,
+	globals: Dep<globals::Service>,
 }
 
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			server: args.server.clone(),
+			services: Services {
+				server: args.server.clone(),
+				globals: args.depend::<globals::Service>("globals"),
+			},
 			db: Data::new(args.db),
 			url_preview_mutex: MutexMap::new(),
 		}))
@@ -164,7 +172,7 @@ impl Service {
 
 			debug!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
-			if mxc.server_name() == Ok(services().globals.server_name()) {
+			if mxc.server_name() == Ok(self.services.globals.server_name()) {
 				debug!("Ignoring local media MXC: {mxc}");
 				// ignore our own MXC URLs as this would be local media.
 				continue;
@@ -246,7 +254,7 @@ impl Service {
 		let legacy_rm = fs::remove_file(&legacy);
 		let (file_rm, legacy_rm) = tokio::join!(file_rm, legacy_rm);
 		if let Err(e) = legacy_rm {
-			if self.server.config.media_compat_file_link {
+			if self.services.server.config.media_compat_file_link {
 				debug_error!(?key, ?legacy, "Failed to remove legacy media symlink: {e}");
 			}
 		}
@@ -259,7 +267,7 @@ impl Service {
 		debug!(?key, ?path, "Creating media file");
 
 		let file = fs::File::create(&path).await?;
-		if self.server.config.media_compat_file_link {
+		if self.services.server.config.media_compat_file_link {
 			let legacy = self.get_media_file_b64(key);
 			if let Err(e) = fs::symlink(&path, &legacy).await {
 				debug_error!(
@@ -304,7 +312,7 @@ impl Service {
 	#[must_use]
 	pub fn get_media_dir(&self) -> PathBuf {
 		let mut r = PathBuf::new();
-		r.push(self.server.config.database_path.clone());
+		r.push(self.services.server.config.database_path.clone());
 		r.push("media");
 		r
 	}

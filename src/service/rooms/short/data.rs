@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use conduit::{utils, warn, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{events::StateEventType, EventId, RoomId};
 
-use crate::services;
+use crate::{globals, Dep};
 
 pub(super) struct Data {
 	eventid_shorteventid: Arc<Map>,
@@ -13,10 +13,16 @@ pub(super) struct Data {
 	shortstatekey_statekey: Arc<Map>,
 	roomid_shortroomid: Arc<Map>,
 	statehash_shortstatehash: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			eventid_shorteventid: db["eventid_shorteventid"].clone(),
 			shorteventid_eventid: db["shorteventid_eventid"].clone(),
@@ -24,6 +30,9 @@ impl Data {
 			shortstatekey_statekey: db["shortstatekey_statekey"].clone(),
 			roomid_shortroomid: db["roomid_shortroomid"].clone(),
 			statehash_shortstatehash: db["statehash_shortstatehash"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}
 	}
 
@@ -31,7 +40,7 @@ impl Data {
 		let short = if let Some(shorteventid) = self.eventid_shorteventid.get(event_id.as_bytes())? {
 			utils::u64_from_bytes(&shorteventid).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?
 		} else {
-			let shorteventid = services().globals.next_count()?;
+			let shorteventid = self.services.globals.next_count()?;
 			self.eventid_shorteventid
 				.insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
 			self.shorteventid_eventid
@@ -59,7 +68,7 @@ impl Data {
 					utils::u64_from_bytes(short).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?,
 				),
 				None => {
-					let short = services().globals.next_count()?;
+					let short = self.services.globals.next_count()?;
 					self.eventid_shorteventid
 						.insert(keys[i], &short.to_be_bytes())?;
 					self.shorteventid_eventid
@@ -98,7 +107,7 @@ impl Data {
 		let short = if let Some(shortstatekey) = self.statekey_shortstatekey.get(&statekey_vec)? {
 			utils::u64_from_bytes(&shortstatekey).map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?
 		} else {
-			let shortstatekey = services().globals.next_count()?;
+			let shortstatekey = self.services.globals.next_count()?;
 			self.statekey_shortstatekey
 				.insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
 			self.shortstatekey_statekey
@@ -158,7 +167,7 @@ impl Data {
 				true,
 			)
 		} else {
-			let shortstatehash = services().globals.next_count()?;
+			let shortstatehash = self.services.globals.next_count()?;
 			self.statehash_shortstatehash
 				.insert(state_hash, &shortstatehash.to_be_bytes())?;
 			(shortstatehash, false)
@@ -176,7 +185,7 @@ impl Data {
 		Ok(if let Some(short) = self.roomid_shortroomid.get(room_id.as_bytes())? {
 			utils::u64_from_bytes(&short).map_err(|_| Error::bad_database("Invalid shortroomid in db."))?
 		} else {
-			let short = services().globals.next_count()?;
+			let short = self.services.globals.next_count()?;
 			self.roomid_shortroomid
 				.insert(room_id.as_bytes(), &short.to_be_bytes())?;
 			short

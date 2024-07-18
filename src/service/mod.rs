@@ -1,3 +1,4 @@
+#![recursion_limit = "160"]
 #![allow(refining_impl_trait)]
 
 mod manager;
@@ -8,6 +9,7 @@ pub mod account_data;
 pub mod admin;
 pub mod appservice;
 pub mod client;
+pub mod emergency;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
@@ -26,8 +28,8 @@ extern crate conduit_database as database;
 
 use std::sync::{Arc, RwLock};
 
-pub(crate) use conduit::{config, debug_error, debug_warn, utils, Error, Result, Server};
 pub use conduit::{pdu, PduBuilder, PduCount, PduEvent};
+use conduit::{Result, Server};
 use database::Database;
 pub(crate) use service::{Args, Dep, Service};
 

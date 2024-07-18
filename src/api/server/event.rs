@@ -4,7 +4,6 @@ use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_event},
 	MilliSecondsSinceUnixEpoch, RoomId,
 };
-use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -50,6 +49,6 @@ pub(crate) async fn get_event_route(
 	Ok(get_event::v1::Response {
 		origin: services.globals.server_name().to_owned(),
 		origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-		pdu: convert_to_outgoing_federation_event(event),
+		pdu: services.sending.convert_to_outgoing_federation_event(event),
 	})
 }

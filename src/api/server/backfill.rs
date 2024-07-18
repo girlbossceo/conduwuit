@@ -4,7 +4,6 @@ use ruma::{
 	api::{client::error::ErrorKind, federation::backfill::get_backfill},
 	uint, user_id, MilliSecondsSinceUnixEpoch,
 };
-use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -67,7 +66,7 @@ pub(crate) async fn get_backfill_route(
 		})
 		.map(|(_, pdu)| services.rooms.timeline.get_pdu_json(&pdu.event_id))
 		.filter_map(|r| r.ok().flatten())
-		.map(convert_to_outgoing_federation_event)
+		.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
 		.collect();
 
 	Ok(get_backfill::v1::Response {

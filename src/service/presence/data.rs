@@ -1,21 +1,32 @@
 use std::sync::Arc;
 
 use conduit::{debug_warn, utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 
-use crate::{presence::Presence, services};
+use crate::{globals, presence::Presence, users, Dep};
 
 pub struct Data {
 	presenceid_presence: Arc<Map>,
 	userid_presenceid: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	users: Dep<users::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			presenceid_presence: db["presenceid_presence"].clone(),
 			userid_presenceid: db["userid_presenceid"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				users: args.depend::<users::Service>("users"),
+			},
 		}
 	}
 
@@ -28,7 +39,10 @@ impl Data {
 			self.presenceid_presence
 				.get(&key)?
 				.map(|presence_bytes| -> Result<(u64, PresenceEvent)> {
-					Ok((count, Presence::from_json_bytes(&presence_bytes)?.to_presence_event(user_id)?))
+					Ok((
+						count,
+						Presence::from_json_bytes(&presence_bytes)?.to_presence_event(user_id, &self.services.users)?,
+					))
 				})
 				.transpose()
 		} else {
@@ -80,7 +94,7 @@ impl Data {
 			last_active_ts,
 			status_msg,
 		);
-		let count = services().globals.next_count()?;
+		let count = self.services.globals.next_count()?;
 		let key = presenceid_key(count, user_id);
 
 		self.presenceid_presence

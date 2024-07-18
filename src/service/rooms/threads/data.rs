@@ -1,29 +1,40 @@
 use std::{mem::size_of, sync::Arc};
 
-use conduit::{checked, utils, Error, Result};
-use database::{Database, Map};
+use conduit::{checked, utils, Error, PduEvent, Result};
+use database::Map;
 use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, RoomId, UserId};
 
-use crate::{services, PduEvent};
+use crate::{rooms, Dep};
 
 type PduEventIterResult<'a> = Result<Box<dyn Iterator<Item = Result<(u64, PduEvent)>> + 'a>>;
 
 pub(super) struct Data {
 	threadid_userids: Arc<Map>,
+	services: Services,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			threadid_userids: db["threadid_userids"].clone(),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
 		}
 	}
 
 	pub(super) fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, _include: &'a IncludeThreads,
 	) -> PduEventIterResult<'a> {
-		let prefix = services()
-			.rooms
+		let prefix = self
+			.services
 			.short
 			.get_shortroomid(room_id)?
 			.expect("room exists")
@@ -40,8 +51,8 @@ impl Data {
 				.map(move |(pduid, _users)| {
 					let count = utils::u64_from_bytes(&pduid[(size_of::<u64>())..])
 						.map_err(|_| Error::bad_database("Invalid pduid in threadid_userids."))?;
-					let mut pdu = services()
-						.rooms
+					let mut pdu = self
+						.services
 						.timeline
 						.get_pdu_from_id(&pduid)?
 						.ok_or_else(|| Error::bad_database("Invalid pduid reference in threadid_userids"))?;

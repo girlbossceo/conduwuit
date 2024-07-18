@@ -21,7 +21,6 @@ use ruma::{
 use tokio::sync::RwLock;
 
 use crate::{
-	service::rooms::event_handler::parse_incoming_pdu,
 	services::Services,
 	utils::{self},
 	Error, Result, Ruma,
@@ -89,7 +88,7 @@ async fn handle_pdus(
 ) -> Result<ResolvedMap> {
 	let mut parsed_pdus = Vec::with_capacity(body.pdus.len());
 	for pdu in &body.pdus {
-		parsed_pdus.push(match parse_incoming_pdu(pdu) {
+		parsed_pdus.push(match services.rooms.event_handler.parse_incoming_pdu(pdu) {
 			Ok(t) => t,
 			Err(e) => {
 				debug_warn!("Could not parse PDU: {e}");

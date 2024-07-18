@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{debug_info, trace, utils, Result};
+use conduit::{debug_info, trace, utils, Result, Server};
 use ruma::{
 	api::federation::transactions::edu::{Edu, TypingContent},
 	events::SyncEphemeralRoomEvent,
@@ -8,19 +8,31 @@ use ruma::{
 };
 use tokio::sync::{broadcast, RwLock};
 
-use crate::{services, user_is_local};
+use crate::{globals, sending, user_is_local, Dep};
 
 pub struct Service {
-	pub typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>, // u64 is unix timestamp of timeout
-	pub last_typing_update: RwLock<BTreeMap<OwnedRoomId, u64>>,            /* timestamp of the last change to
-	                                                                        * typing
-	                                                                        * users */
+	server: Arc<Server>,
+	services: Services,
+	/// u64 is unix timestamp of timeout
+	pub typing: RwLock<BTreeMap<OwnedRoomId, BTreeMap<OwnedUserId, u64>>>,
+	/// timestamp of the last change to typing users
+	pub last_typing_update: RwLock<BTreeMap<OwnedRoomId, u64>>,
 	pub typing_update_sender: broadcast::Sender<OwnedRoomId>,
 }
 
+struct Services {
+	globals: Dep<globals::Service>,
+	sending: Dep<sending::Service>,
+}
+
 impl crate::Service for Service {
-	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			server: args.server.clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				sending: args.depend::<sending::Service>("sending"),
+			},
 			typing: RwLock::new(BTreeMap::new()),
 			last_typing_update: RwLock::new(BTreeMap::new()),
 			typing_update_sender: broadcast::channel(100).0,
@@ -45,14 +57,14 @@ impl Service {
 		self.last_typing_update
 			.write()
 			.await
-			.insert(room_id.to_owned(), services().globals.next_count()?);
+			.insert(room_id.to_owned(), self.services.globals.next_count()?);
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
 		// update federation
 		if user_is_local(user_id) {
-			Self::federation_send(room_id, user_id, true)?;
+			self.federation_send(room_id, user_id, true)?;
 		}
 
 		Ok(())
@@ -71,14 +83,14 @@ impl Service {
 		self.last_typing_update
 			.write()
 			.await
-			.insert(room_id.to_owned(), services().globals.next_count()?);
+			.insert(room_id.to_owned(), self.services.globals.next_count()?);
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
 		// update federation
 		if user_is_local(user_id) {
-			Self::federation_send(room_id, user_id, false)?;
+			self.federation_send(room_id, user_id, false)?;
 		}
 
 		Ok(())
@@ -126,7 +138,7 @@ impl Service {
 			self.last_typing_update
 				.write()
 				.await
-				.insert(room_id.to_owned(), services().globals.next_count()?);
+				.insert(room_id.to_owned(), self.services.globals.next_count()?);
 			if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 				trace!("receiver found what it was looking for and is no longer interested");
 			}
@@ -134,7 +146,7 @@ impl Service {
 			// update federation
 			for user in removable {
 				if user_is_local(&user) {
-					Self::federation_send(room_id, &user, false)?;
+					self.federation_send(room_id, &user, false)?;
 				}
 			}
 		}
@@ -171,15 +183,15 @@ impl Service {
 		})
 	}
 
-	fn federation_send(room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
+	fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
 		debug_assert!(user_is_local(user_id), "tried to broadcast typing status of remote user",);
-		if !services().globals.config.allow_outgoing_typing {
+		if !self.server.config.allow_outgoing_typing {
 			return Ok(());
 		}
 
 		let edu = Edu::Typing(TypingContent::new(room_id.to_owned(), user_id.to_owned(), typing));
 
-		services()
+		self.services
 			.sending
 			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))?;
 

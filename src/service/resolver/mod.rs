@@ -6,14 +6,22 @@ mod tests;
 
 use std::{fmt::Write, sync::Arc};
 
-use conduit::Result;
+use conduit::{Result, Server};
 use hickory_resolver::TokioAsyncResolver;
 
 use self::{cache::Cache, dns::Resolver};
+use crate::{client, globals, Dep};
 
 pub struct Service {
 	pub cache: Arc<Cache>,
 	pub resolver: Arc<Resolver>,
+	services: Services,
+}
+
+struct Services {
+	server: Arc<Server>,
+	client: Dep<client::Service>,
+	globals: Dep<globals::Service>,
 }
 
 impl crate::Service for Service {
@@ -23,6 +31,11 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			cache: cache.clone(),
 			resolver: Resolver::build(args.server, cache)?,
+			services: Services {
+				server: args.server.clone(),
+				client: args.depend::<client::Service>("client"),
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}))
 	}
 

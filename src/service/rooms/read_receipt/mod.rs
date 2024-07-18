@@ -6,16 +6,24 @@ use conduit::Result;
 use data::Data;
 use ruma::{events::receipt::ReceiptEvent, serde::Raw, OwnedUserId, RoomId, UserId};
 
-use crate::services;
+use crate::{sending, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
+}
+
+struct Services {
+	sending: Dep<sending::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			services: Services {
+				sending: args.depend::<sending::Service>("sending"),
+			},
+			db: Data::new(&args),
 		}))
 	}
 
@@ -26,7 +34,7 @@ impl Service {
 	/// Replaces the previous read receipt.
 	pub fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) -> Result<()> {
 		self.db.readreceipt_update(user_id, room_id, event)?;
-		services().sending.flush_room(room_id)?;
+		self.services.sending.flush_room(room_id)?;
 
 		Ok(())
 	}

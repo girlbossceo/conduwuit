@@ -6,7 +6,6 @@ use ruma::{
 	api::{client::error::ErrorKind, federation::authorization::get_event_authorization},
 	RoomId,
 };
-use service::sending::convert_to_outgoing_federation_event;
 
 use crate::Ruma;
 
@@ -60,7 +59,7 @@ pub(crate) async fn get_event_authorization_route(
 	Ok(get_event_authorization::v1::Response {
 		auth_chain: auth_chain_ids
 			.filter_map(|id| services.rooms.timeline.get_pdu_json(&id).ok()?)
-			.map(convert_to_outgoing_federation_event)
+			.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
 			.collect(),
 	})
 }

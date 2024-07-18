@@ -1,14 +1,14 @@
 use std::{mem::size_of, sync::Arc};
 
 use conduit::{utils, Error, Result};
-use database::{Database, Map};
+use database::Map;
 use ruma::{
 	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
 	serde::Raw,
 	CanonicalJsonObject, OwnedUserId, RoomId, UserId,
 };
 
-use crate::services;
+use crate::{globals, Dep};
 
 type AnySyncEphemeralRoomEventIter<'a> =
 	Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
@@ -16,15 +16,24 @@ type AnySyncEphemeralRoomEventIter<'a> =
 pub(super) struct Data {
 	roomuserid_privateread: Arc<Map>,
 	roomuserid_lastprivatereadupdate: Arc<Map>,
+	services: Services,
 	readreceiptid_readreceipt: Arc<Map>,
 }
 
+struct Services {
+	globals: Dep<globals::Service>,
+}
+
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
 			roomuserid_privateread: db["roomuserid_privateread"].clone(),
 			roomuserid_lastprivatereadupdate: db["roomuserid_lastprivatereadupdate"].clone(),
 			readreceiptid_readreceipt: db["readreceiptid_readreceipt"].clone(),
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+			},
 		}
 	}
 
@@ -51,7 +60,7 @@ impl Data {
 		}
 
 		let mut room_latest_id = prefix;
-		room_latest_id.extend_from_slice(&services().globals.next_count()?.to_be_bytes());
+		room_latest_id.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
 		room_latest_id.push(0xFF);
 		room_latest_id.extend_from_slice(user_id.as_bytes());
 
@@ -108,7 +117,7 @@ impl Data {
 			.insert(&key, &count.to_be_bytes())?;
 
 		self.roomuserid_lastprivatereadupdate
-			.insert(&key, &services().globals.next_count()?.to_be_bytes())
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())
 	}
 
 	pub(super) fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {

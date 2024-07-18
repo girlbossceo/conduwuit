@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use conduit::{debug, debug_info, Error, Result};
+use conduit::{debug, debug_info, utils::string_from_bytes, Error, Result};
 use database::{Database, Map};
 use ruma::api::client::error::ErrorKind;
 
-use crate::{media::UrlPreviewData, utils::string_from_bytes};
+use crate::media::UrlPreviewData;
 
 pub(crate) struct Data {
 	mediaid_file: Arc<Map>,

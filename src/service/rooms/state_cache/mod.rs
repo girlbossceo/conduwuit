@@ -21,16 +21,28 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
-use crate::{appservice::RegistrationInfo, services, user_is_local};
+use crate::{account_data, appservice::RegistrationInfo, rooms, user_is_local, users, Dep};
 
 pub struct Service {
+	services: Services,
 	db: Data,
+}
+
+struct Services {
+	account_data: Dep<account_data::Service>,
+	state_accessor: Dep<rooms::state_accessor::Service>,
+	users: Dep<users::Service>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			services: Services {
+				account_data: args.depend::<account_data::Service>("account_data"),
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				users: args.depend::<users::Service>("users"),
+			},
+			db: Data::new(&args),
 		}))
 	}
 
@@ -54,18 +66,18 @@ impl Service {
 		// update
 		#[allow(clippy::collapsible_if)]
 		if !user_is_local(user_id) {
-			if !services().users.exists(user_id)? {
-				services().users.create(user_id, None)?;
+			if !self.services.users.exists(user_id)? {
+				self.services.users.create(user_id, None)?;
 			}
 
 			/*
 			// Try to update our local copy of the user if ours does not match
-			if ((services().users.displayname(user_id)? != membership_event.displayname)
-				|| (services().users.avatar_url(user_id)? != membership_event.avatar_url)
-				|| (services().users.blurhash(user_id)? != membership_event.blurhash))
+			if ((self.services.users.displayname(user_id)? != membership_event.displayname)
+				|| (self.services.users.avatar_url(user_id)? != membership_event.avatar_url)
+				|| (self.services.users.blurhash(user_id)? != membership_event.blurhash))
 				&& (membership != MembershipState::Leave)
 			{
-				let response = services()
+				let response = self.services
 					.sending
 					.send_federation_request(
 						user_id.server_name(),
@@ -76,9 +88,9 @@ impl Service {
 					)
 					.await;
 
-				services().users.set_displayname(user_id, response.displayname.clone()).await?;
-				services().users.set_avatar_url(user_id, response.avatar_url).await?;
-				services().users.set_blurhash(user_id, response.blurhash).await?;
+				self.services.users.set_displayname(user_id, response.displayname.clone()).await?;
+				self.services.users.set_avatar_url(user_id, response.avatar_url).await?;
+				self.services.users.set_blurhash(user_id, response.blurhash).await?;
 			};
 			*/
 		}
@@ -91,8 +103,8 @@ impl Service {
 					self.db.mark_as_once_joined(user_id, room_id)?;
 
 					// Check if the room has a predecessor
-					if let Some(predecessor) = services()
-						.rooms
+					if let Some(predecessor) = self
+						.services
 						.state_accessor
 						.room_state_get(room_id, &StateEventType::RoomCreate, "")?
 						.and_then(|create| serde_json::from_str(create.content.get()).ok())
@@ -124,21 +136,23 @@ impl Service {
 						//     .ok();
 
 						// Copy old tags to new room
-						if let Some(tag_event) = services()
+						if let Some(tag_event) = self
+							.services
 							.account_data
 							.get(Some(&predecessor.room_id), user_id, RoomAccountDataEventType::Tag)?
 							.map(|event| {
 								serde_json::from_str(event.get())
 									.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
 							}) {
-							services()
+							self.services
 								.account_data
 								.update(Some(room_id), user_id, RoomAccountDataEventType::Tag, &tag_event?)
 								.ok();
 						};
 
 						// Copy direct chat flag
-						if let Some(direct_event) = services()
+						if let Some(direct_event) = self
+							.services
 							.account_data
 							.get(None, user_id, GlobalAccountDataEventType::Direct.to_string().into())?
 							.map(|event| {
@@ -156,7 +170,7 @@ impl Service {
 							}
 
 							if room_ids_updated {
-								services().account_data.update(
+								self.services.account_data.update(
 									None,
 									user_id,
 									GlobalAccountDataEventType::Direct.to_string().into(),
@@ -171,7 +185,8 @@ impl Service {
 			},
 			MembershipState::Invite => {
 				// We want to know if the sender is ignored by the receiver
-				let is_ignored = services()
+				let is_ignored = self
+					.services
 					.account_data
 					.get(
 						None,    // Ignored users are in global account data
@@ -393,8 +408,8 @@ impl Service {
 	/// See <https://spec.matrix.org/v1.10/appendices/#routing>
 	#[tracing::instrument(skip(self))]
 	pub fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
-		let most_powerful_user_server = services()
-			.rooms
+		let most_powerful_user_server = self
+			.services
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
 			.map(|pdu| {

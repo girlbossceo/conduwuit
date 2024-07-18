@@ -4,19 +4,25 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{checked, error, utils, Error, Result};
+use conduit::{checked, error, utils, Error, PduCount, PduEvent, Result};
 use database::{Database, Map};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
-use crate::{services, PduCount, PduEvent};
+use crate::{rooms, Dep};
 
 pub(super) struct Data {
+	eventid_outlierpdu: Arc<Map>,
 	eventid_pduid: Arc<Map>,
 	pduid_pdu: Arc<Map>,
-	eventid_outlierpdu: Arc<Map>,
-	userroomid_notificationcount: Arc<Map>,
 	userroomid_highlightcount: Arc<Map>,
+	userroomid_notificationcount: Arc<Map>,
 	pub(super) lasttimelinecount_cache: LastTimelineCountCache,
+	pub(super) db: Arc<Database>,
+	services: Services,
+}
+
+struct Services {
+	short: Dep<rooms::short::Service>,
 }
 
 type PdusIterItem = Result<(PduCount, PduEvent)>;
@@ -24,14 +30,19 @@ type PdusIterator<'a> = Box<dyn Iterator<Item = PdusIterItem> + 'a>;
 type LastTimelineCountCache = Mutex<HashMap<OwnedRoomId, PduCount>>;
 
 impl Data {
-	pub(super) fn new(db: &Arc<Database>) -> Self {
+	pub(super) fn new(args: &crate::Args<'_>) -> Self {
+		let db = &args.db;
 		Self {
+			eventid_outlierpdu: db["eventid_outlierpdu"].clone(),
 			eventid_pduid: db["eventid_pduid"].clone(),
 			pduid_pdu: db["pduid_pdu"].clone(),
-			eventid_outlierpdu: db["eventid_outlierpdu"].clone(),
-			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
 			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
+			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
 			lasttimelinecount_cache: Mutex::new(HashMap::new()),
+			db: args.db.clone(),
+			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+			},
 		}
 	}
 
@@ -210,7 +221,7 @@ impl Data {
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
 	pub(super) fn pdus_until(&self, user_id: &UserId, room_id: &RoomId, until: PduCount) -> Result<PdusIterator<'_>> {
-		let (prefix, current) = count_to_id(room_id, until, 1, true)?;
+		let (prefix, current) = self.count_to_id(room_id, until, 1, true)?;
 
 		let user_id = user_id.to_owned();
 
@@ -232,7 +243,7 @@ impl Data {
 	}
 
 	pub(super) fn pdus_after(&self, user_id: &UserId, room_id: &RoomId, from: PduCount) -> Result<PdusIterator<'_>> {
-		let (prefix, current) = count_to_id(room_id, from, 1, false)?;
+		let (prefix, current) = self.count_to_id(room_id, from, 1, false)?;
 
 		let user_id = user_id.to_owned();
 
@@ -277,6 +288,41 @@ impl Data {
 			.increment_batch(highlights_batch.iter().map(Vec::as_slice))?;
 		Ok(())
 	}
+
+	pub(super) fn count_to_id(
+		&self, room_id: &RoomId, count: PduCount, offset: u64, subtract: bool,
+	) -> Result<(Vec<u8>, Vec<u8>)> {
+		let prefix = self
+			.services
+			.short
+			.get_shortroomid(room_id)?
+			.ok_or_else(|| Error::bad_database("Looked for bad shortroomid in timeline"))?
+			.to_be_bytes()
+			.to_vec();
+		let mut pdu_id = prefix.clone();
+		// +1 so we don't send the base event
+		let count_raw = match count {
+			PduCount::Normal(x) => {
+				if subtract {
+					x.saturating_sub(offset)
+				} else {
+					x.saturating_add(offset)
+				}
+			},
+			PduCount::Backfilled(x) => {
+				pdu_id.extend_from_slice(&0_u64.to_be_bytes());
+				let num = u64::MAX.saturating_sub(x);
+				if subtract {
+					num.saturating_sub(offset)
+				} else {
+					num.saturating_add(offset)
+				}
+			},
+		};
+		pdu_id.extend_from_slice(&count_raw.to_be_bytes());
+
+		Ok((prefix, pdu_id))
+	}
 }
 
 /// Returns the `count` of this pdu's id.
@@ -293,39 +339,4 @@ pub(super) fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 	} else {
 		Ok(PduCount::Normal(last_u64))
 	}
-}
-
-pub(super) fn count_to_id(
-	room_id: &RoomId, count: PduCount, offset: u64, subtract: bool,
-) -> Result<(Vec<u8>, Vec<u8>)> {
-	let prefix = services()
-		.rooms
-		.short
-		.get_shortroomid(room_id)?
-		.ok_or_else(|| Error::bad_database("Looked for bad shortroomid in timeline"))?
-		.to_be_bytes()
-		.to_vec();
-	let mut pdu_id = prefix.clone();
-	// +1 so we don't send the base event
-	let count_raw = match count {
-		PduCount::Normal(x) => {
-			if subtract {
-				x.saturating_sub(offset)
-			} else {
-				x.saturating_add(offset)
-			}
-		},
-		PduCount::Backfilled(x) => {
-			pdu_id.extend_from_slice(&0_u64.to_be_bytes());
-			let num = u64::MAX.saturating_sub(x);
-			if subtract {
-				num.saturating_sub(offset)
-			} else {
-				num.saturating_add(offset)
-			}
-		},
-	};
-	pdu_id.extend_from_slice(&count_raw.to_be_bytes());
-
-	Ok((prefix, pdu_id))
 }

@@ -6,10 +6,10 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use data::Data;
+use conduit::{PduCount, Result};
 use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
-use crate::{PduCount, Result};
+use self::data::Data;
 
 pub struct Service {
 	db: Data,

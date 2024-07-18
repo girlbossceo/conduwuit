@@ -10,12 +10,11 @@ use std::{
 };
 
 use conduit::{
-	debug, debug_error, debug_info, err, error, info, trace,
+	debug, debug_error, debug_info, err, error, info, pdu, trace,
 	utils::{math::continue_exponential_backoff_secs, MutexMap},
-	warn, Error, Result,
+	warn, Error, PduEvent, Result,
 };
 use futures_util::Future;
-pub use parse_incoming_pdu::parse_incoming_pdu;
 use ruma::{
 	api::{
 		client::error::ErrorKind,
@@ -36,11 +35,26 @@ use ruma::{
 use tokio::sync::RwLock;
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{pdu, services, PduEvent};
+use crate::{globals, rooms, sending, Dep};
 
 pub struct Service {
+	services: Services,
 	pub federation_handletime: StdRwLock<HandleTimeMap>,
 	pub mutex_federation: RoomMutexMap,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	sending: Dep<sending::Service>,
+	auth_chain: Dep<rooms::auth_chain::Service>,
+	metadata: Dep<rooms::metadata::Service>,
+	outlier: Dep<rooms::outlier::Service>,
+	pdu_metadata: Dep<rooms::pdu_metadata::Service>,
+	short: Dep<rooms::short::Service>,
+	state: Dep<rooms::state::Service>,
+	state_accessor: Dep<rooms::state_accessor::Service>,
+	state_compressor: Dep<rooms::state_compressor::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
@@ -55,8 +69,21 @@ type AsyncRecursiveCanonicalJsonResult<'a> =
 	AsyncRecursiveType<'a, Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>>;
 
 impl crate::Service for Service {
-	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				sending: args.depend::<sending::Service>("sending"),
+				auth_chain: args.depend::<rooms::auth_chain::Service>("rooms::auth_chain"),
+				metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
+				outlier: args.depend::<rooms::outlier::Service>("rooms::outlier"),
+				pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				state: args.depend::<rooms::state::Service>("rooms::state"),
+				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+			},
 			federation_handletime: HandleTimeMap::new().into(),
 			mutex_federation: RoomMutexMap::new(),
 		}))
@@ -114,17 +141,17 @@ impl Service {
 		pub_key_map: &'a RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<Option<Vec<u8>>> {
 		// 1. Skip the PDU if we already have it as a timeline event
-		if let Some(pdu_id) = services().rooms.timeline.get_pdu_id(event_id)? {
+		if let Some(pdu_id) = self.services.timeline.get_pdu_id(event_id)? {
 			return Ok(Some(pdu_id.to_vec()));
 		}
 
 		// 1.1 Check the server is in the room
-		if !services().rooms.metadata.exists(room_id)? {
+		if !self.services.metadata.exists(room_id)? {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server"));
 		}
 
 		// 1.2 Check if the room is disabled
-		if services().rooms.metadata.is_disabled(room_id)? {
+		if self.services.metadata.is_disabled(room_id)? {
 			return Err(Error::BadRequest(
 				ErrorKind::forbidden(),
 				"Federation of this room is currently disabled on this server.",
@@ -147,8 +174,8 @@ impl Service {
 		self.acl_check(sender.server_name(), room_id)?;
 
 		// Fetch create event
-		let create_event = services()
-			.rooms
+		let create_event = self
+			.services
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
 			.ok_or_else(|| Error::bad_database("Failed to find create event in db."))?;
@@ -156,8 +183,8 @@ impl Service {
 		// Procure the room version
 		let room_version_id = Self::get_room_version_id(&create_event)?;
 
-		let first_pdu_in_room = services()
-			.rooms
+		let first_pdu_in_room = self
+			.services
 			.timeline
 			.first_pdu_in_room(room_id)?
 			.ok_or_else(|| Error::bad_database("Failed to find first pdu in db."))?;
@@ -208,7 +235,8 @@ impl Service {
 				Ok(()) => continue,
 				Err(e) => {
 					warn!("Prev event {} failed: {}", prev_id, e);
-					match services()
+					match self
+						.services
 						.globals
 						.bad_event_ratelimiter
 						.write()
@@ -258,7 +286,7 @@ impl Service {
 		create_event: &Arc<PduEvent>, first_pdu_in_room: &Arc<PduEvent>, prev_id: &EventId,
 	) -> Result<()> {
 		// Check for disabled again because it might have changed
-		if services().rooms.metadata.is_disabled(room_id)? {
+		if self.services.metadata.is_disabled(room_id)? {
 			debug!(
 				"Federaton of room {room_id} is currently disabled on this server. Request by origin {origin} and \
 				 event ID {event_id}"
@@ -269,7 +297,8 @@ impl Service {
 			));
 		}
 
-		if let Some((time, tries)) = services()
+		if let Some((time, tries)) = self
+			.services
 			.globals
 			.bad_event_ratelimiter
 			.read()
@@ -349,7 +378,7 @@ impl Service {
 					};
 
 					// Skip the PDU if it is redacted and we already have it as an outlier event
-					if services().rooms.timeline.get_pdu_json(event_id)?.is_some() {
+					if self.services.timeline.get_pdu_json(event_id)?.is_some() {
 						return Err(Error::BadRequest(
 							ErrorKind::InvalidParam,
 							"Event was redacted and we already knew about it",
@@ -401,7 +430,7 @@ impl Service {
 			// Build map of auth events
 			let mut auth_events = HashMap::with_capacity(incoming_pdu.auth_events.len());
 			for id in &incoming_pdu.auth_events {
-				let Some(auth_event) = services().rooms.timeline.get_pdu(id)? else {
+				let Some(auth_event) = self.services.timeline.get_pdu(id)? else {
 					warn!("Could not find auth event {}", id);
 					continue;
 				};
@@ -454,8 +483,7 @@ impl Service {
 			trace!("Validation successful.");
 
 			// 7. Persist the event as an outlier.
-			services()
-				.rooms
+			self.services
 				.outlier
 				.add_pdu_outlier(&incoming_pdu.event_id, &val)?;
 
@@ -470,12 +498,12 @@ impl Service {
 		origin: &ServerName, room_id: &RoomId, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<Option<Vec<u8>>> {
 		// Skip the PDU if we already have it as a timeline event
-		if let Ok(Some(pduid)) = services().rooms.timeline.get_pdu_id(&incoming_pdu.event_id) {
+		if let Ok(Some(pduid)) = self.services.timeline.get_pdu_id(&incoming_pdu.event_id) {
 			return Ok(Some(pduid.to_vec()));
 		}
 
-		if services()
-			.rooms
+		if self
+			.services
 			.pdu_metadata
 			.is_event_soft_failed(&incoming_pdu.event_id)?
 		{
@@ -521,14 +549,13 @@ impl Service {
 			&incoming_pdu,
 			None::<PduEvent>, // TODO: third party invite
 			|k, s| {
-				services()
-					.rooms
+				self.services
 					.short
 					.get_shortstatekey(&k.to_string().into(), s)
 					.ok()
 					.flatten()
 					.and_then(|shortstatekey| state_at_incoming_event.get(&shortstatekey))
-					.and_then(|event_id| services().rooms.timeline.get_pdu(event_id).ok().flatten())
+					.and_then(|event_id| self.services.timeline.get_pdu(event_id).ok().flatten())
 			},
 		)
 		.map_err(|_e| Error::BadRequest(ErrorKind::forbidden(), "Auth check failed."))?;
@@ -541,7 +568,7 @@ impl Service {
 		}
 
 		debug!("Gathering auth events");
-		let auth_events = services().rooms.state.get_auth_events(
+		let auth_events = self.services.state.get_auth_events(
 			room_id,
 			&incoming_pdu.kind,
 			&incoming_pdu.sender,
@@ -562,7 +589,7 @@ impl Service {
 					&& match room_version_id {
 						V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 							if let Some(redact_id) = &incoming_pdu.redacts {
-								!services().rooms.state_accessor.user_can_redact(
+								!self.services.state_accessor.user_can_redact(
 									redact_id,
 									&incoming_pdu.sender,
 									&incoming_pdu.room_id,
@@ -577,7 +604,7 @@ impl Service {
 								.map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
 
 							if let Some(redact_id) = &content.redacts {
-								!services().rooms.state_accessor.user_can_redact(
+								!self.services.state_accessor.user_can_redact(
 									redact_id,
 									&incoming_pdu.sender,
 									&incoming_pdu.room_id,
@@ -594,12 +621,12 @@ impl Service {
 
 		// We start looking at current room state now, so lets lock the room
 		trace!("Locking the room");
-		let state_lock = services().rooms.state.mutex.lock(room_id).await;
+		let state_lock = self.services.state.mutex.lock(room_id).await;
 
 		// Now we calculate the set of extremities this room has after the incoming
 		// event has been applied. We start with the previous extremities (aka leaves)
 		trace!("Calculating extremities");
-		let mut extremities = services().rooms.state.get_forward_extremities(room_id)?;
+		let mut extremities = self.services.state.get_forward_extremities(room_id)?;
 		trace!("Calculated {} extremities", extremities.len());
 
 		// Remove any forward extremities that are referenced by this incoming event's
@@ -609,22 +636,13 @@ impl Service {
 		}
 
 		// Only keep those extremities were not referenced yet
-		extremities.retain(|id| {
-			!matches!(
-				services()
-					.rooms
-					.pdu_metadata
-					.is_event_referenced(room_id, id),
-				Ok(true)
-			)
-		});
+		extremities.retain(|id| !matches!(self.services.pdu_metadata.is_event_referenced(room_id, id), Ok(true)));
 		debug!("Retained {} extremities. Compressing state", extremities.len());
 		let state_ids_compressed = Arc::new(
 			state_at_incoming_event
 				.iter()
 				.map(|(shortstatekey, id)| {
-					services()
-						.rooms
+					self.services
 						.state_compressor
 						.compress_state_event(*shortstatekey, id)
 				})
@@ -637,8 +655,8 @@ impl Service {
 			// We also add state after incoming event to the fork states
 			let mut state_after = state_at_incoming_event.clone();
 			if let Some(state_key) = &incoming_pdu.state_key {
-				let shortstatekey = services()
-					.rooms
+				let shortstatekey = self
+					.services
 					.short
 					.get_or_create_shortstatekey(&incoming_pdu.kind.to_string().into(), state_key)?;
 
@@ -651,13 +669,12 @@ impl Service {
 
 			// Set the new room state to the resolved state
 			debug!("Forcing new room state");
-			let (sstatehash, new, removed) = services()
-				.rooms
+			let (sstatehash, new, removed) = self
+				.services
 				.state_compressor
 				.save_state(room_id, new_room_state)?;
 
-			services()
-				.rooms
+			self.services
 				.state
 				.force_state(room_id, sstatehash, new, removed, &state_lock)
 				.await?;
@@ -667,8 +684,7 @@ impl Service {
 		//     if not soft fail it
 		if soft_fail {
 			debug!("Soft failing event");
-			services()
-				.rooms
+			self.services
 				.timeline
 				.append_incoming_pdu(
 					&incoming_pdu,
@@ -682,8 +698,7 @@ impl Service {
 
 			// Soft fail, we keep the event as an outlier but don't add it to the timeline
 			warn!("Event was soft failed: {:?}", incoming_pdu);
-			services()
-				.rooms
+			self.services
 				.pdu_metadata
 				.mark_event_soft_failed(&incoming_pdu.event_id)?;
 
@@ -696,8 +711,8 @@ impl Service {
 		// Now that the event has passed all auth it is added into the timeline.
 		// We use the `state_at_event` instead of `state_after` so we accurately
 		// represent the state for this event.
-		let pdu_id = services()
-			.rooms
+		let pdu_id = self
+			.services
 			.timeline
 			.append_incoming_pdu(
 				&incoming_pdu,
@@ -723,14 +738,14 @@ impl Service {
 		&self, room_id: &RoomId, room_version_id: &RoomVersionId, incoming_state: HashMap<u64, Arc<EventId>>,
 	) -> Result<Arc<HashSet<CompressedStateEvent>>> {
 		debug!("Loading current room state ids");
-		let current_sstatehash = services()
-			.rooms
+		let current_sstatehash = self
+			.services
 			.state
 			.get_room_shortstatehash(room_id)?
 			.expect("every room has state");
 
-		let current_state_ids = services()
-			.rooms
+		let current_state_ids = self
+			.services
 			.state_accessor
 			.state_full_ids(current_sstatehash)
 			.await?;
@@ -740,8 +755,7 @@ impl Service {
 		let mut auth_chain_sets = Vec::with_capacity(fork_states.len());
 		for state in &fork_states {
 			auth_chain_sets.push(
-				services()
-					.rooms
+				self.services
 					.auth_chain
 					.event_ids_iter(room_id, state.iter().map(|(_, id)| id.clone()).collect())
 					.await?
@@ -755,8 +769,7 @@ impl Service {
 			.map(|map| {
 				map.into_iter()
 					.filter_map(|(k, id)| {
-						services()
-							.rooms
+						self.services
 							.short
 							.get_statekey_from_short(k)
 							.map(|(ty, st_key)| ((ty.to_string().into(), st_key), id))
@@ -766,11 +779,11 @@ impl Service {
 			})
 			.collect();
 
-		let lock = services().globals.stateres_mutex.lock();
+		let lock = self.services.globals.stateres_mutex.lock();
 
 		debug!("Resolving state");
 		let state_resolve = state_res::resolve(room_version_id, &fork_states, auth_chain_sets, |id| {
-			let res = services().rooms.timeline.get_pdu(id);
+			let res = self.services.timeline.get_pdu(id);
 			if let Err(e) = &res {
 				error!("Failed to fetch event: {}", e);
 			}
@@ -793,12 +806,11 @@ impl Service {
 		let new_room_state = state
 			.into_iter()
 			.map(|((event_type, state_key), event_id)| {
-				let shortstatekey = services()
-					.rooms
+				let shortstatekey = self
+					.services
 					.short
 					.get_or_create_shortstatekey(&event_type.to_string().into(), &state_key)?;
-				services()
-					.rooms
+				self.services
 					.state_compressor
 					.compress_state_event(shortstatekey, &event_id)
 			})
@@ -814,15 +826,14 @@ impl Service {
 		&self, incoming_pdu: &Arc<PduEvent>,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		let prev_event = &*incoming_pdu.prev_events[0];
-		let prev_event_sstatehash = services()
-			.rooms
+		let prev_event_sstatehash = self
+			.services
 			.state_accessor
 			.pdu_shortstatehash(prev_event)?;
 
 		let state = if let Some(shortstatehash) = prev_event_sstatehash {
 			Some(
-				services()
-					.rooms
+				self.services
 					.state_accessor
 					.state_full_ids(shortstatehash)
 					.await,
@@ -833,8 +844,8 @@ impl Service {
 
 		if let Some(Ok(mut state)) = state {
 			debug!("Using cached state");
-			let prev_pdu = services()
-				.rooms
+			let prev_pdu = self
+				.services
 				.timeline
 				.get_pdu(prev_event)
 				.ok()
@@ -842,8 +853,8 @@ impl Service {
 				.ok_or_else(|| Error::bad_database("Could not find prev event, but we know the state."))?;
 
 			if let Some(state_key) = &prev_pdu.state_key {
-				let shortstatekey = services()
-					.rooms
+				let shortstatekey = self
+					.services
 					.short
 					.get_or_create_shortstatekey(&prev_pdu.kind.to_string().into(), state_key)?;
 
@@ -866,13 +877,13 @@ impl Service {
 
 		let mut okay = true;
 		for prev_eventid in &incoming_pdu.prev_events {
-			let Ok(Some(prev_event)) = services().rooms.timeline.get_pdu(prev_eventid) else {
+			let Ok(Some(prev_event)) = self.services.timeline.get_pdu(prev_eventid) else {
 				okay = false;
 				break;
 			};
 
-			let Ok(Some(sstatehash)) = services()
-				.rooms
+			let Ok(Some(sstatehash)) = self
+				.services
 				.state_accessor
 				.pdu_shortstatehash(prev_eventid)
 			else {
@@ -891,15 +902,15 @@ impl Service {
 		let mut auth_chain_sets = Vec::with_capacity(extremity_sstatehashes.len());
 
 		for (sstatehash, prev_event) in extremity_sstatehashes {
-			let mut leaf_state: HashMap<_, _> = services()
-				.rooms
+			let mut leaf_state: HashMap<_, _> = self
+				.services
 				.state_accessor
 				.state_full_ids(sstatehash)
 				.await?;
 
 			if let Some(state_key) = &prev_event.state_key {
-				let shortstatekey = services()
-					.rooms
+				let shortstatekey = self
+					.services
 					.short
 					.get_or_create_shortstatekey(&prev_event.kind.to_string().into(), state_key)?;
 				leaf_state.insert(shortstatekey, Arc::from(&*prev_event.event_id));
@@ -910,7 +921,7 @@ impl Service {
 			let mut starting_events = Vec::with_capacity(leaf_state.len());
 
 			for (k, id) in leaf_state {
-				if let Ok((ty, st_key)) = services().rooms.short.get_statekey_from_short(k) {
+				if let Ok((ty, st_key)) = self.services.short.get_statekey_from_short(k) {
 					// FIXME: Undo .to_string().into() when StateMap
 					//        is updated to use StateEventType
 					state.insert((ty.to_string().into(), st_key), id.clone());
@@ -921,8 +932,7 @@ impl Service {
 			}
 
 			auth_chain_sets.push(
-				services()
-					.rooms
+				self.services
 					.auth_chain
 					.event_ids_iter(room_id, starting_events)
 					.await?
@@ -932,9 +942,9 @@ impl Service {
 			fork_states.push(state);
 		}
 
-		let lock = services().globals.stateres_mutex.lock();
+		let lock = self.services.globals.stateres_mutex.lock();
 		let result = state_res::resolve(room_version_id, &fork_states, auth_chain_sets, |id| {
-			let res = services().rooms.timeline.get_pdu(id);
+			let res = self.services.timeline.get_pdu(id);
 			if let Err(e) = &res {
 				error!("Failed to fetch event: {}", e);
 			}
@@ -947,8 +957,8 @@ impl Service {
 				new_state
 					.into_iter()
 					.map(|((event_type, state_key), event_id)| {
-						let shortstatekey = services()
-							.rooms
+						let shortstatekey = self
+							.services
 							.short
 							.get_or_create_shortstatekey(&event_type.to_string().into(), &state_key)?;
 						Ok((shortstatekey, event_id))
@@ -974,7 +984,8 @@ impl Service {
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>, event_id: &EventId,
 	) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 		debug!("Fetching state ids");
-		match services()
+		match self
+			.services
 			.sending
 			.send_federation_request(
 				origin,
@@ -1004,8 +1015,8 @@ impl Service {
 						.clone()
 						.ok_or_else(|| Error::bad_database("Found non-state pdu in state events."))?;
 
-					let shortstatekey = services()
-						.rooms
+					let shortstatekey = self
+						.services
 						.short
 						.get_or_create_shortstatekey(&pdu.kind.to_string().into(), &state_key)?;
 
@@ -1022,8 +1033,8 @@ impl Service {
 				}
 
 				// The original create event must still be in the state
-				let create_shortstatekey = services()
-					.rooms
+				let create_shortstatekey = self
+					.services
 					.short
 					.get_shortstatekey(&StateEventType::RoomCreate, "")?
 					.expect("Room exists");
@@ -1056,7 +1067,8 @@ impl Service {
 	) -> AsyncRecursiveCanonicalJsonVec<'a> {
 		Box::pin(async move {
 			let back_off = |id| async {
-				match services()
+				match self
+					.services
 					.globals
 					.bad_event_ratelimiter
 					.write()
@@ -1075,7 +1087,7 @@ impl Service {
 				// a. Look in the main timeline (pduid_pdu tree)
 				// b. Look at outlier pdu tree
 				// (get_pdu_json checks both)
-				if let Ok(Some(local_pdu)) = services().rooms.timeline.get_pdu(id) {
+				if let Ok(Some(local_pdu)) = self.services.timeline.get_pdu(id) {
 					trace!("Found {} in db", id);
 					events_with_auth_events.push((id, Some(local_pdu), vec![]));
 					continue;
@@ -1089,7 +1101,8 @@ impl Service {
 				let mut events_all = HashSet::with_capacity(todo_auth_events.len());
 				let mut i: u64 = 0;
 				while let Some(next_id) = todo_auth_events.pop() {
-					if let Some((time, tries)) = services()
+					if let Some((time, tries)) = self
+						.services
 						.globals
 						.bad_event_ratelimiter
 						.read()
@@ -1114,13 +1127,14 @@ impl Service {
 						tokio::task::yield_now().await;
 					}
 
-					if let Ok(Some(_)) = services().rooms.timeline.get_pdu(&next_id) {
+					if let Ok(Some(_)) = self.services.timeline.get_pdu(&next_id) {
 						trace!("Found {} in db", next_id);
 						continue;
 					}
 
 					debug!("Fetching {} over federation.", next_id);
-					match services()
+					match self
+						.services
 						.sending
 						.send_federation_request(
 							origin,
@@ -1195,7 +1209,8 @@ impl Service {
 					pdus.push((local_pdu, None));
 				}
 				for (next_id, value) in events_in_reverse_order.iter().rev() {
-					if let Some((time, tries)) = services()
+					if let Some((time, tries)) = self
+						.services
 						.globals
 						.bad_event_ratelimiter
 						.read()
@@ -1244,8 +1259,8 @@ impl Service {
 		let mut eventid_info = HashMap::new();
 		let mut todo_outlier_stack: Vec<Arc<EventId>> = initial_set;
 
-		let first_pdu_in_room = services()
-			.rooms
+		let first_pdu_in_room = self
+			.services
 			.timeline
 			.first_pdu_in_room(room_id)?
 			.ok_or_else(|| Error::bad_database("Failed to find first pdu in db."))?;
@@ -1267,19 +1282,18 @@ impl Service {
 			{
 				Self::check_room_id(room_id, &pdu)?;
 
-				if amount > services().globals.max_fetch_prev_events() {
+				if amount > self.services.globals.max_fetch_prev_events() {
 					// Max limit reached
 					debug!(
 						"Max prev event limit reached! Limit: {}",
-						services().globals.max_fetch_prev_events()
+						self.services.globals.max_fetch_prev_events()
 					);
 					graph.insert(prev_event_id.clone(), HashSet::new());
 					continue;
 				}
 
 				if let Some(json) = json_opt.or_else(|| {
-					services()
-						.rooms
+					self.services
 						.outlier
 						.get_outlier_pdu_json(&prev_event_id)
 						.ok()
@@ -1335,8 +1349,7 @@ impl Service {
 	#[tracing::instrument(skip_all)]
 	pub fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result<()> {
 		let acl_event = if let Some(acl) =
-			services()
-				.rooms
+			self.services
 				.state_accessor
 				.room_state_get(room_id, &StateEventType::RoomServerAcl, "")?
 		{

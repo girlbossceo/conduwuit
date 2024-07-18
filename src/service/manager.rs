@@ -8,13 +8,13 @@ use tokio::{
 	time::sleep,
 };
 
-use crate::{service::Service, Services};
+use crate::{service, service::Service, Services};
 
 pub(crate) struct Manager {
 	manager: Mutex<Option<JoinHandle<Result<()>>>>,
 	workers: Mutex<Workers>,
 	server: Arc<Server>,
-	services: &'static Services,
+	service: Arc<service::Map>,
 }
 
 type Workers = JoinSet<WorkerResult>;
@@ -29,7 +29,7 @@ impl Manager {
 			manager: Mutex::new(None),
 			workers: Mutex::new(JoinSet::new()),
 			server: services.server.clone(),
-			services: crate::services(),
+			service: services.service.clone(),
 		})
 	}
 
@@ -53,9 +53,19 @@ impl Manager {
 				.spawn(async move { self_.worker().await }),
 		);
 
+		// we can't hold the lock during the iteration with start_worker so the values
+		// are snapshotted here
+		let services: Vec<Arc<dyn Service>> = self
+			.service
+			.read()
+			.expect("locked for reading")
+			.values()
+			.map(|v| v.0.clone())
+			.collect();
+
 		debug!("Starting service workers...");
-		for (service, ..) in self.services.service.values() {
-			self.start_worker(&mut workers, service).await?;
+		for service in services {
+			self.start_worker(&mut workers, &service).await?;
 		}
 
 		Ok(())

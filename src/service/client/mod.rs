@@ -18,7 +18,7 @@ pub struct Service {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
-		let resolver = args.require_service::<resolver::Service>("resolver");
+		let resolver = args.require::<resolver::Service>("resolver");
 
 		Ok(Arc::new(Self {
 			default: base(config)
