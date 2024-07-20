@@ -38,7 +38,6 @@ use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
 
 use crate::{
-	admin,
 	appservice::NamespaceRegex,
 	pdu::{EventHash, PduBuilder},
 	rooms::{event_handler::parse_incoming_pdu, state_compressor::CompressedStateEvent},
@@ -485,7 +484,7 @@ impl Service {
 						.search
 						.index_pdu(shortroomid, &pdu_id, &body)?;
 
-					if admin::is_admin_command(pdu, &body).await {
+					if services().admin.is_admin_command(pdu, &body).await {
 						services()
 							.admin
 							.command(body, Some((*pdu.event_id).into()))
@@ -784,7 +783,7 @@ impl Service {
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Arc<EventId>> {
 		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
-		if let Some(admin_room) = admin::Service::get_admin_room()? {
+		if let Some(admin_room) = services().admin.get_admin_room()? {
 			if admin_room == room_id {
 				match pdu.event_type() {
 					TimelineEventType::RoomEncryption => {

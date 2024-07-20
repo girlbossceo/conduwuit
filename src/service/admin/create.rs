@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use conduit::{Error, Result};
+use conduit::{pdu::PduBuilder, warn, Error, Result};
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{
@@ -21,26 +21,25 @@ use ruma::{
 	RoomId, RoomVersionId,
 };
 use serde_json::value::to_raw_value;
-use tracing::warn;
 
-use crate::{pdu::PduBuilder, services};
+use crate::Services;
 
 /// Create the admin room.
 ///
 /// Users in this room are considered admins by conduit, and the room can be
 /// used to issue admin commands by talking to the server user inside it.
-pub async fn create_admin_room() -> Result<()> {
-	let room_id = RoomId::new(services().globals.server_name());
+pub async fn create_admin_room(services: &Services) -> Result<()> {
+	let room_id = RoomId::new(services.globals.server_name());
 
-	let _short_id = services().rooms.short.get_or_create_shortroomid(&room_id)?;
+	let _short_id = services.rooms.short.get_or_create_shortroomid(&room_id)?;
 
-	let state_lock = services().rooms.state.mutex.lock(&room_id).await;
+	let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 
 	// Create a user for the server
-	let server_user = &services().globals.server_user;
-	services().users.create(server_user, None)?;
+	let server_user = &services.globals.server_user;
+	services.users.create(server_user, None)?;
 
-	let room_version = services().globals.default_room_version();
+	let room_version = services.globals.default_room_version();
 
 	let mut content = {
 		use RoomVersionId::*;
@@ -62,7 +61,7 @@ pub async fn create_admin_room() -> Result<()> {
 	content.room_version = room_version;
 
 	// 1. The room create event
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -80,7 +79,7 @@ pub async fn create_admin_room() -> Result<()> {
 		.await?;
 
 	// 2. Make conduit bot join
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -111,7 +110,7 @@ pub async fn create_admin_room() -> Result<()> {
 	let mut users = BTreeMap::new();
 	users.insert(server_user.clone(), 100.into());
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -133,7 +132,7 @@ pub async fn create_admin_room() -> Result<()> {
 		.await?;
 
 	// 4.1 Join Rules
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -152,7 +151,7 @@ pub async fn create_admin_room() -> Result<()> {
 		.await?;
 
 	// 4.2 History Visibility
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -171,7 +170,7 @@ pub async fn create_admin_room() -> Result<()> {
 		.await?;
 
 	// 4.3 Guest Access
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -190,8 +189,8 @@ pub async fn create_admin_room() -> Result<()> {
 		.await?;
 
 	// 5. Events implied by name and topic
-	let room_name = format!("{} Admin Room", services().globals.server_name());
-	services()
+	let room_name = format!("{} Admin Room", services.globals.server_name());
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -209,14 +208,14 @@ pub async fn create_admin_room() -> Result<()> {
 		)
 		.await?;
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
 			PduBuilder {
 				event_type: TimelineEventType::RoomTopic,
 				content: to_raw_value(&RoomTopicEventContent {
-					topic: format!("Manage {}", services().globals.server_name()),
+					topic: format!("Manage {}", services.globals.server_name()),
 				})
 				.expect("event is valid, we just created it"),
 				unsigned: None,
@@ -230,9 +229,9 @@ pub async fn create_admin_room() -> Result<()> {
 		.await?;
 
 	// 6. Room alias
-	let alias = &services().globals.admin_alias;
+	let alias = &services.globals.admin_alias;
 
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
@@ -253,13 +252,13 @@ pub async fn create_admin_room() -> Result<()> {
 		)
 		.await?;
 
-	services()
+	services
 		.rooms
 		.alias
 		.set_alias(alias, &room_id, server_user)?;
 
 	// 7. (ad-hoc) Disable room previews for everyone by default
-	services()
+	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(

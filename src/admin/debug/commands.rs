@@ -8,7 +8,7 @@ use api::client::validate_and_add_event_id;
 use conduit::{
 	debug, info, log,
 	log::{capture, Capture},
-	warn, Error, Result,
+	warn, Error, PduEvent, Result,
 };
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},

@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{debug, defer, error, log};
+use conduit::{debug, defer, error, log, Server};
 use futures_util::future::{AbortHandle, Abortable};
 use ruma::events::room::message::RoomMessageEventContent;
 use rustyline_async::{Readline, ReadlineError, ReadlineEvent};
@@ -14,6 +14,7 @@ use tokio::task::JoinHandle;
 use crate::services;
 
 pub struct Console {
+	server: Arc<Server>,
 	worker_join: Mutex<Option<JoinHandle<()>>>,
 	input_abort: Mutex<Option<AbortHandle>>,
 	command_abort: Mutex<Option<AbortHandle>>,
@@ -25,9 +26,9 @@ const PROMPT: &str = "uwu> ";
 const HISTORY_LIMIT: usize = 48;
 
 impl Console {
-	#[must_use]
-	pub fn new() -> Arc<Self> {
+	pub(super) fn new(args: &crate::Args<'_>) -> Arc<Self> {
 		Arc::new(Self {
+			server: args.server.clone(),
 			worker_join: None.into(),
 			input_abort: None.into(),
 			command_abort: None.into(),
@@ -37,7 +38,7 @@ impl Console {
 	}
 
 	pub(super) async fn handle_signal(self: &Arc<Self>, sig: &'static str) {
-		if !services().server.running() {
+		if !self.server.running() {
 			self.interrupt();
 		} else if sig == "SIGINT" {
 			self.interrupt_command();
@@ -49,7 +50,7 @@ impl Console {
 		let mut worker_join = self.worker_join.lock().expect("locked");
 		if worker_join.is_none() {
 			let self_ = Arc::clone(self);
-			_ = worker_join.insert(services().server.runtime().spawn(self_.worker()));
+			_ = worker_join.insert(self.server.runtime().spawn(self_.worker()));
 		}
 	}
 
@@ -89,16 +90,13 @@ impl Console {
 	#[tracing::instrument(skip_all, name = "console")]
 	async fn worker(self: Arc<Self>) {
 		debug!("session starting");
-		while services().server.running() {
+		while self.server.running() {
 			match self.readline().await {
 				Ok(event) => match event {
 					ReadlineEvent::Line(string) => self.clone().handle(string).await,
 					ReadlineEvent::Interrupted => continue,
 					ReadlineEvent::Eof => break,
-					ReadlineEvent::Quit => services()
-						.server
-						.shutdown()
-						.unwrap_or_else(error::default_log),
+					ReadlineEvent::Quit => self.server.shutdown().unwrap_or_else(error::default_log),
 				},
 				Err(error) => match error {
 					ReadlineError::Closed => break,
@@ -115,7 +113,7 @@ impl Console {
 	}
 
 	async fn readline(self: &Arc<Self>) -> Result<ReadlineEvent, ReadlineError> {
-		let _suppression = log::Suppress::new(&services().server);
+		let _suppression = log::Suppress::new(&self.server);
 
 		let (mut readline, _writer) = Readline::new(PROMPT.to_owned())?;
 		readline.set_tab_completer(Self::tab_complete);

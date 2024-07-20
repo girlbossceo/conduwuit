@@ -59,7 +59,7 @@ async fn fresh(db: &Arc<Database>, config: &Config) -> Result<()> {
 	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[])?;
 
 	// Create the admin room and server user on first run
-	crate::admin::create_admin_room().await?;
+	crate::admin::create_admin_room(services).await?;
 
 	warn!(
 		"Created new {} database with version {DATABASE_VERSION}",

@@ -14,7 +14,7 @@ use ruma::{
 extern crate conduit_service as service;
 
 use conduit::{utils::string::common_prefix, Result};
-pub(crate) use service::admin::{Command, Service};
+pub(crate) use service::admin::Command;
 use service::admin::{CommandOutput, CommandResult, HandlerResult};
 
 use crate::{

@@ -247,7 +247,7 @@ impl Service {
 
 	/// Check if a user is an admin
 	pub fn is_admin(&self, user_id: &UserId) -> Result<bool> {
-		if let Some(admin_room_id) = crate::admin::Service::get_admin_room()? {
+		if let Some(admin_room_id) = services().admin.get_admin_room()? {
 			services()
 				.rooms
 				.state_cache
