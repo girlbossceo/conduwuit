@@ -401,7 +401,7 @@ allow_profile_lookup_federation_requests = true
 # setting this to false may reduce startup time.
 #
 # Enabled by default.
-#media_statup_check = true
+#media_startup_check = true
 
 # OpenID token expiration/TTL in seconds
 #
