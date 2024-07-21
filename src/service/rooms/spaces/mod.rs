@@ -269,7 +269,7 @@ impl Service {
 	) -> Result<Option<SummaryAccessibility>> {
 		for server in via {
 			debug_info!("Asking {server} for /hierarchy");
-			if let Ok(response) = services()
+			let Ok(response) = services()
 				.sending
 				.send_federation_request(
 					server,
@@ -279,68 +279,70 @@ impl Service {
 					},
 				)
 				.await
-			{
-				debug_info!("Got response from {server} for /hierarchy\n{response:?}");
-				let summary = response.room.clone();
+			else {
+				continue;
+			};
 
-				self.roomid_spacehierarchy_cache.lock().await.insert(
-					current_room.clone(),
-					Some(CachedSpaceHierarchySummary {
-						summary: summary.clone(),
-					}),
-				);
+			debug_info!("Got response from {server} for /hierarchy\n{response:?}");
+			let summary = response.room.clone();
 
-				for child in response.children {
-					let mut guard = self.roomid_spacehierarchy_cache.lock().await;
-					if !guard.contains_key(current_room) {
-						guard.insert(
-							current_room.clone(),
-							Some(CachedSpaceHierarchySummary {
-								summary: {
-									let SpaceHierarchyChildSummary {
-										canonical_alias,
-										name,
-										num_joined_members,
-										room_id,
-										topic,
-										world_readable,
-										guest_can_join,
-										avatar_url,
-										join_rule,
-										room_type,
-										allowed_room_ids,
-									} = child;
+			self.roomid_spacehierarchy_cache.lock().await.insert(
+				current_room.clone(),
+				Some(CachedSpaceHierarchySummary {
+					summary: summary.clone(),
+				}),
+			);
 
-									SpaceHierarchyParentSummary {
-										canonical_alias,
-										name,
-										num_joined_members,
-										room_id: room_id.clone(),
-										topic,
-										world_readable,
-										guest_can_join,
-										avatar_url,
-										join_rule,
-										room_type,
-										children_state: get_stripped_space_child_events(&room_id).await?.unwrap(),
-										allowed_room_ids,
-									}
-								},
-							}),
-						);
-					}
+			for child in response.children {
+				let mut guard = self.roomid_spacehierarchy_cache.lock().await;
+				if !guard.contains_key(current_room) {
+					guard.insert(
+						current_room.clone(),
+						Some(CachedSpaceHierarchySummary {
+							summary: {
+								let SpaceHierarchyChildSummary {
+									canonical_alias,
+									name,
+									num_joined_members,
+									room_id,
+									topic,
+									world_readable,
+									guest_can_join,
+									avatar_url,
+									join_rule,
+									room_type,
+									allowed_room_ids,
+								} = child;
+
+								SpaceHierarchyParentSummary {
+									canonical_alias,
+									name,
+									num_joined_members,
+									room_id: room_id.clone(),
+									topic,
+									world_readable,
+									guest_can_join,
+									avatar_url,
+									join_rule,
+									room_type,
+									children_state: get_stripped_space_child_events(&room_id).await?.unwrap(),
+									allowed_room_ids,
+								}
+							},
+						}),
+					);
 				}
-				if is_accessable_child(
-					current_room,
-					&response.room.join_rule,
-					&Identifier::UserId(user_id),
-					&response.room.allowed_room_ids,
-				) {
-					return Ok(Some(SummaryAccessibility::Accessible(Box::new(summary.clone()))));
-				}
-
-				return Ok(Some(SummaryAccessibility::Inaccessible));
 			}
+			if is_accessable_child(
+				current_room,
+				&response.room.join_rule,
+				&Identifier::UserId(user_id),
+				&response.room.allowed_room_ids,
+			) {
+				return Ok(Some(SummaryAccessibility::Accessible(Box::new(summary.clone()))));
+			}
+
+			return Ok(Some(SummaryAccessibility::Inaccessible));
 		}
 
 		self.roomid_spacehierarchy_cache
@@ -461,24 +463,27 @@ impl Service {
 		let mut results = Vec::new();
 
 		while let Some((current_room, via)) = { next_room_to_traverse(&mut stack, &mut parents) } {
-			if limit > results.len() {
-				match (
-					self.get_summary_and_children_client(&current_room, suggested_only, sender_user, &via)
-						.await?,
-					current_room == room_id,
-				) {
-					(Some(SummaryAccessibility::Accessible(summary)), _) => {
-						let mut children: Vec<(OwnedRoomId, Vec<OwnedServerName>)> =
-							get_parent_children_via(&summary, suggested_only)
-								.into_iter()
-								.filter(|(room, _)| parents.iter().all(|parent| parent != room))
-								.rev()
-								.collect();
+			if results.len() >= limit {
+				break;
+			}
 
-						if populate_results {
-							results.push(summary_to_chunk(*summary.clone()));
-						} else {
-							children = children
+			match (
+				self.get_summary_and_children_client(&current_room, suggested_only, sender_user, &via)
+					.await?,
+				current_room == room_id,
+			) {
+				(Some(SummaryAccessibility::Accessible(summary)), _) => {
+					let mut children: Vec<(OwnedRoomId, Vec<OwnedServerName>)> =
+						get_parent_children_via(&summary, suggested_only)
+							.into_iter()
+							.filter(|(room, _)| parents.iter().all(|parent| parent != room))
+							.rev()
+							.collect();
+
+					if populate_results {
+						results.push(summary_to_chunk(*summary.clone()));
+					} else {
+						children = children
                                 .into_iter()
                                 .rev()
                                 .skip_while(|(room, _)| {
@@ -495,39 +500,36 @@ impl Service {
                                 .rev()
                                 .collect();
 
-							if children.is_empty() {
-								return Err(Error::BadRequest(
-									ErrorKind::InvalidParam,
-									"Room IDs in token were not found.",
-								));
-							}
-
-							// We have reached the room after where we last left off
-							let parents_len = parents.len();
-							if checked!(parents_len + 1)? == short_room_ids.len() {
-								populate_results = true;
-							}
+						if children.is_empty() {
+							return Err(Error::BadRequest(
+								ErrorKind::InvalidParam,
+								"Room IDs in token were not found.",
+							));
 						}
 
-						let parents_len: u64 = parents.len().try_into()?;
-						if !children.is_empty() && parents_len < max_depth {
-							parents.push_back(current_room.clone());
-							stack.push(children);
+						// We have reached the room after where we last left off
+						let parents_len = parents.len();
+						if checked!(parents_len + 1)? == short_room_ids.len() {
+							populate_results = true;
 						}
-						// Root room in the space hierarchy, we return an error
-						// if this one fails.
-					},
-					(Some(SummaryAccessibility::Inaccessible), true) => {
-						return Err(Error::BadRequest(ErrorKind::forbidden(), "The requested room is inaccessible"));
-					},
-					(None, true) => {
-						return Err(Error::BadRequest(ErrorKind::forbidden(), "The requested room was not found"));
-					},
-					// Just ignore other unavailable rooms
-					(None | Some(SummaryAccessibility::Inaccessible), false) => (),
-				}
-			} else {
-				break;
+					}
+
+					let parents_len: u64 = parents.len().try_into()?;
+					if !children.is_empty() && parents_len < max_depth {
+						parents.push_back(current_room.clone());
+						stack.push(children);
+					}
+					// Root room in the space hierarchy, we return an error
+					// if this one fails.
+				},
+				(Some(SummaryAccessibility::Inaccessible), true) => {
+					return Err(Error::BadRequest(ErrorKind::forbidden(), "The requested room is inaccessible"));
+				},
+				(None, true) => {
+					return Err(Error::BadRequest(ErrorKind::forbidden(), "The requested room was not found"));
+				},
+				// Just ignore other unavailable rooms
+				(None | Some(SummaryAccessibility::Inaccessible), false) => (),
 			}
 		}
 
@@ -574,41 +576,42 @@ fn next_room_to_traverse(
 async fn get_stripped_space_child_events(
 	room_id: &RoomId,
 ) -> Result<Option<Vec<Raw<HierarchySpaceChildEvent>>>, Error> {
-	if let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? {
-		let state = services()
-			.rooms
-			.state_accessor
-			.state_full_ids(current_shortstatehash)
-			.await?;
-		let mut children_pdus = Vec::new();
-		for (key, id) in state {
-			let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
-			if event_type != StateEventType::SpaceChild {
-				continue;
-			}
+	let Some(current_shortstatehash) = services().rooms.state.get_room_shortstatehash(room_id)? else {
+		return Ok(None);
+	};
 
-			let pdu = services()
-				.rooms
-				.timeline
-				.get_pdu(&id)?
-				.ok_or_else(|| Error::bad_database("Event in space state not found"))?;
-
-			if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
-				.ok()
-				.map(|c| c.via)
-				.map_or(true, |v| v.is_empty())
-			{
-				continue;
-			}
-
-			if OwnedRoomId::try_from(state_key).is_ok() {
-				children_pdus.push(pdu.to_stripped_spacechild_state_event());
-			}
+	let state = services()
+		.rooms
+		.state_accessor
+		.state_full_ids(current_shortstatehash)
+		.await?;
+	let mut children_pdus = Vec::new();
+	for (key, id) in state {
+		let (event_type, state_key) = services().rooms.short.get_statekey_from_short(key)?;
+		if event_type != StateEventType::SpaceChild {
+			continue;
 		}
-		Ok(Some(children_pdus))
-	} else {
-		Ok(None)
+
+		let pdu = services()
+			.rooms
+			.timeline
+			.get_pdu(&id)?
+			.ok_or_else(|| Error::bad_database("Event in space state not found"))?;
+
+		if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
+			.ok()
+			.map(|c| c.via)
+			.map_or(true, |v| v.is_empty())
+		{
+			continue;
+		}
+
+		if OwnedRoomId::try_from(state_key).is_ok() {
+			children_pdus.push(pdu.to_stripped_spacechild_state_event());
+		}
 	}
+
+	Ok(Some(children_pdus))
 }
 
 /// With the given identifier, checks if a room is accessable
