@@ -1,9 +1,16 @@
-use std::{any::Any, collections::BTreeMap, fmt::Write, sync::Arc};
+use std::{
+	any::Any,
+	collections::BTreeMap,
+	fmt::Write,
+	ops::Deref,
+	sync::{Arc, OnceLock},
+};
 
 use async_trait::async_trait;
 use conduit::{err, error::inspect_log, utils::string::split_once_infallible, Err, Result, Server};
 use database::Database;
 
+/// Abstract interface for a Service
 #[async_trait]
 pub(crate) trait Service: Any + Send + Sync {
 	/// Implement the construction of the service instance. Services are
@@ -34,25 +41,49 @@ pub(crate) trait Service: Any + Send + Sync {
 	fn name(&self) -> &str;
 }
 
+/// Args are passed to `Service::build` when a service is constructed. This
+/// allows for arguments to change with limited impact to the many services.
 pub(crate) struct Args<'a> {
 	pub(crate) server: &'a Arc<Server>,
 	pub(crate) db: &'a Arc<Database>,
-	pub(crate) service: &'a Map,
+	pub(crate) service: &'a Arc<Map>,
+}
+
+/// Dep is a reference to a service used within another service.
+/// Circular-dependencies between services require this indirection to allow the
+/// referenced service construction after the referencing service.
+pub(crate) struct Dep<T> {
+	dep: OnceLock<Arc<T>>,
+	service: Arc<Map>,
+	name: &'static str,
 }
 
 pub(crate) type Map = BTreeMap<String, MapVal>;
 pub(crate) type MapVal = (Arc<dyn Service>, Arc<dyn Any + Send + Sync>);
 
-impl Args<'_> {
-	pub(crate) fn require_service<T: Any + Send + Sync>(&self, name: &str) -> Arc<T> {
-		self.try_get_service::<T>(name)
-			.inspect_err(inspect_log)
-			.expect("Failure to reference service required by another service.")
-	}
+impl<T: Any + Send + Sync> Deref for Dep<T> {
+	type Target = Arc<T>;
 
-	pub(crate) fn try_get_service<T: Any + Send + Sync>(&self, name: &str) -> Result<Arc<T>> {
-		try_get::<T>(self.service, name)
+	fn deref(&self) -> &Self::Target {
+		self.dep
+			.get_or_init(|| require::<T>(&self.service, self.name))
 	}
+}
+
+impl Args<'_> {
+	pub(crate) fn depend_service<T: Any + Send + Sync>(&self, name: &'static str) -> Dep<T> {
+		Dep::<T> {
+			dep: OnceLock::new(),
+			service: self.service.clone(),
+			name,
+		}
+	}
+}
+
+pub(crate) fn require<T: Any + Send + Sync>(map: &Map, name: &str) -> Arc<T> {
+	try_get::<T>(map, name)
+		.inspect_err(inspect_log)
+		.expect("Failure to reference service required by another service.")
 }
 
 pub(crate) fn try_get<T: Any + Send + Sync>(map: &Map, name: &str) -> Result<Arc<T>> {

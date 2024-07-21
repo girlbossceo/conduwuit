@@ -31,24 +31,36 @@ pub struct Services {
 	pub updates: Arc<updates::Service>,
 
 	manager: Mutex<Option<Arc<Manager>>>,
-	pub(crate) service: Map,
+	pub(crate) service: Arc<Map>,
 	pub server: Arc<Server>,
 	pub db: Arc<Database>,
 }
 
+macro_rules! build_service {
+	($map:ident, $server:ident, $db:ident, $tyname:ty) => {{
+		let built = <$tyname>::build(Args {
+			server: &$server,
+			db: &$db,
+			service: &$map,
+		})?;
+
+		Arc::get_mut(&mut $map)
+			.expect("must have mutable reference to services collection")
+			.insert(built.name().to_owned(), (built.clone(), built.clone()));
+
+		trace!("built service #{}: {:?}", $map.len(), built.name());
+		built
+	}};
+}
+
 impl Services {
+	#[allow(clippy::cognitive_complexity)]
 	pub fn build(server: Arc<Server>, db: Arc<Database>) -> Result<Self> {
-		let mut service: Map = BTreeMap::new();
+		let mut service: Arc<Map> = Arc::new(BTreeMap::new());
 		macro_rules! build {
-			($tyname:ty) => {{
-				let built = <$tyname>::build(Args {
-					server: &server,
-					db: &db,
-					service: &service,
-				})?;
-				service.insert(built.name().to_owned(), (built.clone(), built.clone()));
-				built
-			}};
+			($srv:ty) => {
+				build_service!(service, server, db, $srv)
+			};
 		}
 
 		Ok(Self {
@@ -167,7 +179,7 @@ impl Services {
 	fn interrupt(&self) {
 		debug!("Interrupting services...");
 
-		for (name, (service, ..)) in &self.service {
+		for (name, (service, ..)) in self.service.iter() {
 			trace!("Interrupting {name}");
 			service.interrupt();
 		}

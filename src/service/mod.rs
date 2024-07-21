@@ -29,7 +29,7 @@ use std::sync::{Arc, RwLock};
 pub(crate) use conduit::{config, debug_error, debug_warn, utils, Error, Result, Server};
 pub use conduit::{pdu, PduBuilder, PduCount, PduEvent};
 use database::Database;
-pub(crate) use service::{Args, Service};
+pub(crate) use service::{Args, Dep, Service};
 
 pub use crate::{
 	globals::{server_is_ours, user_is_local},
