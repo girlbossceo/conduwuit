@@ -82,6 +82,8 @@ impl crate::Service for Service {
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		let receiver = self.receiver.lock().await;
 		let mut signals = self.services.server.signal.subscribe();
+		self.console_auto_start().await;
+
 		loop {
 			tokio::select! {
 				command = receiver.recv_async() => match command {
@@ -95,9 +97,7 @@ impl crate::Service for Service {
 			}
 		}
 
-		//TODO: not unwind safe
-		#[cfg(feature = "console")]
-		self.console.close().await;
+		self.console_auto_stop().await; //TODO: not unwind safe
 
 		Ok(())
 	}
@@ -339,5 +339,21 @@ impl Service {
 		} else {
 			false
 		}
+	}
+
+	/// Possibly spawn the terminal console at startup if configured.
+	async fn console_auto_start(&self) {
+		#[cfg(feature = "console")]
+		if self.services.server.config.admin_console_automatic {
+			// Allow more of the startup sequence to execute before spawning
+			tokio::task::yield_now().await;
+			self.console.start().await;
+		}
+	}
+
+	/// Shutdown the console when the admin worker terminates.
+	async fn console_auto_stop(&self) {
+		#[cfg(feature = "console")]
+		self.console.close().await;
 	}
 }

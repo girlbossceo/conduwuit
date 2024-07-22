@@ -12,6 +12,10 @@ pub(crate) struct Args {
 	#[arg(short, long)]
 	/// Optional argument to the path of a conduwuit config TOML file
 	pub(crate) config: Option<PathBuf>,
+
+	/// Activate admin command console automatically after startup.
+	#[arg(long, num_args(0))]
+	pub(crate) console: bool,
 }
 
 /// Parse commandline arguments into structured data
@@ -22,7 +26,7 @@ pub(super) fn parse() -> Args { Args::parse() }
 pub(crate) fn update(config: &mut Config, args: &Args) -> Result<()> {
 	// Indicate the admin console should be spawned automatically if the
 	// configuration file hasn't already.
-	config.admin_console_automatic |= args.console.unwrap_or(false);
+	config.admin_console_automatic |= args.console;
 
 	Ok(())
 }

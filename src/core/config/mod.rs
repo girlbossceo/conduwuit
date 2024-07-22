@@ -330,6 +330,8 @@ pub struct Config {
 	pub block_non_admin_invites: bool,
 	#[serde(default = "true_fn")]
 	pub admin_escape_commands: bool,
+	#[serde(default)]
+	pub admin_console_automatic: bool,
 
 	#[serde(default)]
 	pub sentry: bool,
@@ -579,6 +581,10 @@ impl fmt::Display for Config {
 			&self.block_non_admin_invites.to_string(),
 		);
 		line("Enable admin escape commands", &self.admin_escape_commands.to_string());
+		line(
+			"Activate admin console after startup",
+			&self.admin_console_automatic.to_string(),
+		);
 		line("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string());
 		line("Allow incoming federated typing", &self.allow_incoming_typing.to_string());
 		line(
