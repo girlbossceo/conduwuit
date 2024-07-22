@@ -21,8 +21,9 @@ pub(crate) struct Server {
 }
 
 impl Server {
-	pub(crate) fn build(args: Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Self>, Error> {
-		let config = Config::new(args.config)?;
+	pub(crate) fn build(args: &Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Self>, Error> {
+		let mut config = Config::new(&args.config)?;
+		crate::clap::update(&mut config, args)?;
 
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = crate::sentry::init(&config);

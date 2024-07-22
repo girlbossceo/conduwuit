@@ -405,7 +405,7 @@ const DEPRECATED_KEYS: &[&str; 9] = &[
 
 impl Config {
 	/// Initialize config
-	pub fn new(path: Option<PathBuf>) -> Result<Self> {
+	pub fn new(path: &Option<PathBuf>) -> Result<Self> {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())

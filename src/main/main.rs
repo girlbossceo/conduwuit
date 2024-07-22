@@ -33,7 +33,7 @@ fn main() -> Result<(), Error> {
 		.build()
 		.expect("built runtime");
 
-	let server: Arc<Server> = Server::build(args, Some(runtime.handle()))?;
+	let server: Arc<Server> = Server::build(&args, Some(runtime.handle()))?;
 	runtime.spawn(signal::signal(server.clone()));
 	runtime.block_on(async_main(&server))?;
 
