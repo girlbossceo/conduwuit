@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::{escape_html, get_room_info, handler::PAGE_SIZE, services, Result};
+use crate::{escape_html, get_room_info, services, Result, PAGE_SIZE};
 
 pub(super) async fn list(
 	_body: Vec<&str>, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool,

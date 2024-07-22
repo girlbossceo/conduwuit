@@ -12,7 +12,7 @@ fn get_help_subcommand() { get_help_inner("help"); }
 fn get_help_inner(input: &str) {
 	use clap::Parser;
 
-	use crate::handler::AdminCommand;
+	use crate::admin::AdminCommand;
 
 	let Err(error) = AdminCommand::try_parse_from(["argv[0] doesn't matter", input]) else {
 		panic!("no error!");

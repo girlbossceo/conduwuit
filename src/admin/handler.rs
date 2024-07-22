@@ -11,64 +11,16 @@ use ruma::{
 	OwnedEventId,
 };
 
-extern crate conduit_service as service;
-
 use conduit::{utils::string::common_prefix, Result};
-pub(crate) use service::admin::Command;
-use service::admin::{CommandOutput, CommandResult, HandlerResult};
+use service::admin::{Command, CommandOutput, CommandResult, HandlerResult};
 
-use crate::{
-	appservice, appservice::AppserviceCommand, check, check::CheckCommand, debug, debug::DebugCommand, federation,
-	federation::FederationCommand, media, media::MediaCommand, query, query::QueryCommand, room, room::RoomCommand,
-	server, server::ServerCommand, services, user, user::UserCommand,
-};
-pub(crate) const PAGE_SIZE: usize = 100;
-
-#[derive(Parser)]
-#[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
-pub(crate) enum AdminCommand {
-	#[command(subcommand)]
-	/// - Commands for managing appservices
-	Appservices(AppserviceCommand),
-
-	#[command(subcommand)]
-	/// - Commands for managing local users
-	Users(UserCommand),
-
-	#[command(subcommand)]
-	/// - Commands for managing rooms
-	Rooms(RoomCommand),
-
-	#[command(subcommand)]
-	/// - Commands for managing federation
-	Federation(FederationCommand),
-
-	#[command(subcommand)]
-	/// - Commands for managing the server
-	Server(ServerCommand),
-
-	#[command(subcommand)]
-	/// - Commands for managing media
-	Media(MediaCommand),
-
-	#[command(subcommand)]
-	/// - Commands for checking integrity
-	Check(CheckCommand),
-
-	#[command(subcommand)]
-	/// - Commands for debugging things
-	Debug(DebugCommand),
-
-	#[command(subcommand)]
-	/// - Low-level queries for database getters and iterators
-	Query(QueryCommand),
-}
+use crate::{admin, admin::AdminCommand, services};
 
 #[must_use]
-pub(crate) fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(command)) }
+pub(super) fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(command)) }
 
 #[must_use]
-pub(crate) fn complete(line: &str) -> String { complete_admin_command(AdminCommand::command(), line) }
+pub(super) fn complete(line: &str) -> String { complete_command(AdminCommand::command(), line) }
 
 #[tracing::instrument(skip_all, name = "admin")]
 async fn handle_command(command: Command) -> CommandResult {
@@ -80,7 +32,7 @@ async fn handle_command(command: Command) -> CommandResult {
 }
 
 async fn process_command(command: &Command) -> CommandOutput {
-	process_admin_message(&command.command)
+	process(&command.command)
 		.await
 		.and_then(|content| reply(content, command.reply_id.clone()))
 }
@@ -104,11 +56,11 @@ fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -
 }
 
 // Parse and process a message from the admin room
-async fn process_admin_message(msg: &str) -> CommandOutput {
+async fn process(msg: &str) -> CommandOutput {
 	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
 	let command = lines.next().expect("each string has at least one line");
 	let body = lines.collect::<Vec<_>>();
-	let parsed = match parse_admin_command(command) {
+	let parsed = match parse_command(command) {
 		Ok(parsed) => parsed,
 		Err(error) => {
 			let server_name = services().globals.server_name();
@@ -118,7 +70,7 @@ async fn process_admin_message(msg: &str) -> CommandOutput {
 	};
 
 	let timer = Instant::now();
-	let result = process_admin_command(parsed, body).await;
+	let result = admin::process(parsed, body).await;
 	let elapsed = timer.elapsed();
 	conduit::debug!(?command, ok = result.is_ok(), "command processed in {elapsed:?}");
 	match result {
@@ -129,31 +81,14 @@ async fn process_admin_message(msg: &str) -> CommandOutput {
 	}
 }
 
-#[tracing::instrument(skip_all, name = "command")]
-async fn process_admin_command(command: AdminCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let reply_message_content = match command {
-		AdminCommand::Appservices(command) => appservice::process(command, body).await?,
-		AdminCommand::Media(command) => media::process(command, body).await?,
-		AdminCommand::Users(command) => user::process(command, body).await?,
-		AdminCommand::Rooms(command) => room::process(command, body).await?,
-		AdminCommand::Federation(command) => federation::process(command, body).await?,
-		AdminCommand::Server(command) => server::process(command, body).await?,
-		AdminCommand::Debug(command) => debug::process(command, body).await?,
-		AdminCommand::Query(command) => query::process(command, body).await?,
-		AdminCommand::Check(command) => check::process(command, body).await?,
-	};
-
-	Ok(reply_message_content)
-}
-
 // Parse chat messages from the admin room into an AdminCommand object
-fn parse_admin_command(command_line: &str) -> Result<AdminCommand, String> {
-	let argv = parse_command_line(command_line);
+fn parse_command(command_line: &str) -> Result<AdminCommand, String> {
+	let argv = parse_line(command_line);
 	AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
 }
 
-fn complete_admin_command(mut cmd: clap::Command, line: &str) -> String {
-	let argv = parse_command_line(line);
+fn complete_command(mut cmd: clap::Command, line: &str) -> String {
+	let argv = parse_line(line);
 	let mut ret = Vec::<String>::with_capacity(argv.len().saturating_add(1));
 
 	'token: for token in argv.into_iter().skip(1) {
@@ -196,7 +131,7 @@ fn complete_admin_command(mut cmd: clap::Command, line: &str) -> String {
 }
 
 // Parse chat messages from the admin room into an AdminCommand object
-fn parse_command_line(command_line: &str) -> Vec<String> {
+fn parse_line(command_line: &str) -> Vec<String> {
 	let mut argv = command_line
 		.split_whitespace()
 		.map(str::to_owned)

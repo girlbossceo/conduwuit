@@ -3,7 +3,7 @@ use std::fmt::Write;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
 
 use super::RoomDirectoryCommand;
-use crate::{escape_html, get_room_info, handler::PAGE_SIZE, services, Result};
+use crate::{escape_html, get_room_info, services, Result, PAGE_SIZE};
 
 pub(super) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {

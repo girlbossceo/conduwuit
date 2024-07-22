@@ -1,18 +1,20 @@
 #![recursion_limit = "168"]
 #![allow(clippy::wildcard_imports)]
 
+pub(crate) mod admin;
+pub(crate) mod handler;
+mod tests;
+pub(crate) mod utils;
+
 pub(crate) mod appservice;
 pub(crate) mod check;
 pub(crate) mod debug;
 pub(crate) mod federation;
-pub(crate) mod handler;
 pub(crate) mod media;
 pub(crate) mod query;
 pub(crate) mod room;
 pub(crate) mod server;
-mod tests;
 pub(crate) mod user;
-pub(crate) mod utils;
 
 extern crate conduit_api as api;
 extern crate conduit_core as conduit;
@@ -22,6 +24,8 @@ pub(crate) use conduit::{mod_ctor, mod_dtor, Result};
 pub(crate) use service::services;
 
 pub(crate) use crate::utils::{escape_html, get_room_info};
+
+pub(crate) const PAGE_SIZE: usize = 100;
 
 mod_ctor! {}
 mod_dtor! {}
