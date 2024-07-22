@@ -39,7 +39,7 @@ pub(super) async fn list(
 
 					true
 				})
-				.map(|room_id| get_room_info(&room_id))
+				.map(|room_id| get_room_info(services(), &room_id))
 		})
 		.collect::<Vec<_>>();
 	rooms.sort_by_key(|r| r.1);

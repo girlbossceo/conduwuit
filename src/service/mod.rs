@@ -33,10 +33,7 @@ use conduit::{Result, Server};
 use database::Database;
 pub(crate) use service::{Args, Dep, Service};
 
-pub use crate::{
-	globals::{server_is_ours, user_is_local},
-	services::Services,
-};
+pub use crate::services::Services;
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}

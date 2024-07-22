@@ -90,7 +90,7 @@ pub(super) async fn remote_user_in_rooms(_body: Vec<&str>, user_id: Box<UserId>)
 		.state_cache
 		.rooms_joined(&user_id)
 		.filter_map(Result::ok)
-		.map(|room_id| get_room_info(&room_id))
+		.map(|room_id| get_room_info(services(), &room_id))
 		.collect();
 
 	if rooms.is_empty() {

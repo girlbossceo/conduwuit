@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::debug_info;
+use conduit::{debug_info, error, info, utils, warn, Error, Result};
 use register::RegistrationKind;
 use ruma::{
 	api::client::{
@@ -18,14 +18,9 @@ use ruma::{
 	events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
 	push, OwnedRoomId, UserId,
 };
-use tracing::{error, info, warn};
 
 use super::{join_room_by_id_helper, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
-use crate::{
-	service::user_is_local,
-	utils::{self},
-	Error, Result, Ruma,
-};
+use crate::Ruma;
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
 
@@ -48,7 +43,7 @@ pub(crate) async fn get_register_available_route(
 	// Validate user id
 	let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), services.globals.server_name())
 		.ok()
-		.filter(|user_id| !user_id.is_historical() && user_is_local(user_id))
+		.filter(|user_id| !user_id.is_historical() && services.globals.user_is_local(user_id))
 		.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 	// Check if username is creative enough
@@ -136,7 +131,7 @@ pub(crate) async fn register_route(
 			let proposed_user_id =
 				UserId::parse_with_server_name(username.to_lowercase(), services.globals.server_name())
 					.ok()
-					.filter(|user_id| !user_id.is_historical() && user_is_local(user_id))
+					.filter(|user_id| !user_id.is_historical() && services.globals.user_is_local(user_id))
 					.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 			if services.users.exists(&proposed_user_id)? {

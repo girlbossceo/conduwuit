@@ -20,11 +20,9 @@ use ruma::{
 	},
 	uint, RoomId, ServerName, UInt, UserId,
 };
+use service::Services;
 
-use crate::{
-	service::{server_is_ours, Services},
-	Ruma,
-};
+use crate::Ruma;
 
 /// # `POST /_matrix/client/v3/publicRooms`
 ///
@@ -187,7 +185,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 	services: &Services, server: Option<&ServerName>, limit: Option<UInt>, since: Option<&str>, filter: &Filter,
 	_network: &RoomNetwork,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
-	if let Some(other_server) = server.filter(|server_name| !server_is_ours(server_name)) {
+	if let Some(other_server) = server.filter(|server_name| !services.globals.server_is_ours(server_name)) {
 		let response = services
 			.sending
 			.send_federation_request(

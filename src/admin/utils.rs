@@ -1,8 +1,6 @@
-use conduit_core::{err, Err};
+use conduit_core::{err, Err, Result};
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
-use service::user_is_local;
-
-use crate::{services, Result};
+use service::Services;
 
 pub(crate) fn escape_html(s: &str) -> String {
 	s.replace('&', "&amp;")
@@ -10,17 +8,17 @@ pub(crate) fn escape_html(s: &str) -> String {
 		.replace('>', "&gt;")
 }
 
-pub(crate) fn get_room_info(id: &RoomId) -> (OwnedRoomId, u64, String) {
+pub(crate) fn get_room_info(services: &Services, id: &RoomId) -> (OwnedRoomId, u64, String) {
 	(
 		id.into(),
-		services()
+		services
 			.rooms
 			.state_cache
 			.room_joined_count(id)
 			.ok()
 			.flatten()
 			.unwrap_or(0),
-		services()
+		services
 			.rooms
 			.state_accessor
 			.get_name(id)
@@ -31,16 +29,16 @@ pub(crate) fn get_room_info(id: &RoomId) -> (OwnedRoomId, u64, String) {
 }
 
 /// Parses user ID
-pub(crate) fn parse_user_id(user_id: &str) -> Result<OwnedUserId> {
-	UserId::parse_with_server_name(user_id.to_lowercase(), services().globals.server_name())
+pub(crate) fn parse_user_id(services: &Services, user_id: &str) -> Result<OwnedUserId> {
+	UserId::parse_with_server_name(user_id.to_lowercase(), services.globals.server_name())
 		.map_err(|e| err!("The supplied username is not a valid username: {e}"))
 }
 
 /// Parses user ID as our local user
-pub(crate) fn parse_local_user_id(user_id: &str) -> Result<OwnedUserId> {
-	let user_id = parse_user_id(user_id)?;
+pub(crate) fn parse_local_user_id(services: &Services, user_id: &str) -> Result<OwnedUserId> {
+	let user_id = parse_user_id(services, user_id)?;
 
-	if !user_is_local(&user_id) {
+	if !services.globals.user_is_local(&user_id) {
 		return Err!("User {user_id:?} does not belong to our server.");
 	}
 
@@ -48,14 +46,14 @@ pub(crate) fn parse_local_user_id(user_id: &str) -> Result<OwnedUserId> {
 }
 
 /// Parses user ID that is an active (not guest or deactivated) local user
-pub(crate) fn parse_active_local_user_id(user_id: &str) -> Result<OwnedUserId> {
-	let user_id = parse_local_user_id(user_id)?;
+pub(crate) fn parse_active_local_user_id(services: &Services, user_id: &str) -> Result<OwnedUserId> {
+	let user_id = parse_local_user_id(services, user_id)?;
 
-	if !services().users.exists(&user_id)? {
+	if !services.users.exists(&user_id)? {
 		return Err!("User {user_id:?} does not exist on this server.");
 	}
 
-	if services().users.is_deactivated(&user_id)? {
+	if services.users.is_deactivated(&user_id)? {
 		return Err!("User {user_id:?} is deactivated.");
 	}
 

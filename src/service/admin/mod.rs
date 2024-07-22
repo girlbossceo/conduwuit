@@ -22,7 +22,7 @@ use ruma::{
 use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::{globals, rooms, rooms::state::RoomMutexGuard, user_is_local, Dep};
+use crate::{globals, rooms, rooms::state::RoomMutexGuard, Dep};
 
 pub struct Service {
 	services: Services,
@@ -301,7 +301,7 @@ impl Service {
 		}
 
 		// only allow public escaped commands by local admins
-		if is_public_escape && !user_is_local(&pdu.sender) {
+		if is_public_escape && !self.services.globals.user_is_local(&pdu.sender) {
 			return false;
 		}
 

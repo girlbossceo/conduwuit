@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::sleep};
 
 use self::data::Data;
-use crate::{user_is_local, users, Dep};
+use crate::{globals, users, Dep};
 
 /// Represents data required to be kept in order to implement the presence
 /// specification.
@@ -80,6 +80,7 @@ pub struct Service {
 
 struct Services {
 	server: Arc<Server>,
+	globals: Dep<globals::Service>,
 	users: Dep<users::Service>,
 }
 
@@ -93,6 +94,7 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			services: Services {
 				server: args.server.clone(),
+				globals: args.depend::<globals::Service>("globals"),
 				users: args.depend::<users::Service>("users"),
 			},
 			db: Data::new(&args),
@@ -185,7 +187,7 @@ impl Service {
 		self.db
 			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)?;
 
-		if self.timeout_remote_users || user_is_local(user_id) {
+		if self.timeout_remote_users || self.services.globals.user_is_local(user_id) {
 			let timeout = match presence_state {
 				PresenceState::Online => self.services.server.config.presence_idle_timeout_s,
 				_ => self.services.server.config.presence_offline_timeout_s,

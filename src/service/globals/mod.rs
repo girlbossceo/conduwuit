@@ -21,7 +21,7 @@ use ruma::{
 use tokio::sync::Mutex;
 use url::Url;
 
-use crate::{service, services};
+use crate::service;
 
 pub struct Service {
 	pub db: Data,
@@ -302,13 +302,11 @@ impl Service {
 
 		true
 	}
+
+	/// checks if `user_id` is local to us via server_name comparison
+	#[inline]
+	pub fn user_is_local(&self, user_id: &UserId) -> bool { self.server_is_ours(user_id.server_name()) }
+
+	#[inline]
+	pub fn server_is_ours(&self, server_name: &ServerName) -> bool { server_name == self.config.server_name }
 }
-
-#[inline]
-#[must_use]
-pub fn server_is_ours(server_name: &ServerName) -> bool { server_name == services().globals.config.server_name }
-
-/// checks if `user_id` is local to us via server_name comparison
-#[inline]
-#[must_use]
-pub fn user_is_local(user_id: &UserId) -> bool { server_is_ours(user_id.server_name()) }

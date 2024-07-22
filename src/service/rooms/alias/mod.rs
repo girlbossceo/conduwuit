@@ -14,7 +14,7 @@ use ruma::{
 };
 
 use self::data::Data;
-use crate::{admin, appservice, appservice::RegistrationInfo, globals, rooms, sending, server_is_ours, Dep};
+use crate::{admin, appservice, appservice::RegistrationInfo, globals, rooms, sending, Dep};
 
 pub struct Service {
 	db: Data,
@@ -85,7 +85,10 @@ impl Service {
 	pub async fn resolve_alias(
 		&self, room_alias: &RoomAliasId, servers: Option<&Vec<OwnedServerName>>,
 	) -> Result<(OwnedRoomId, Option<Vec<OwnedServerName>>)> {
-		if !server_is_ours(room_alias.server_name())
+		if !self
+			.services
+			.globals
+			.server_is_ours(room_alias.server_name())
 			&& (!servers
 				.as_ref()
 				.is_some_and(|servers| servers.contains(&self.services.globals.server_name().to_owned()))
@@ -195,7 +198,11 @@ impl Service {
 	pub async fn appservice_checks(
 		&self, room_alias: &RoomAliasId, appservice_info: &Option<RegistrationInfo>,
 	) -> Result<()> {
-		if !server_is_ours(room_alias.server_name()) {
+		if !self
+			.services
+			.globals
+			.server_is_ours(room_alias.server_name())
+		{
 			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
 		}
 

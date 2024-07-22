@@ -1,9 +1,9 @@
 use api::client::leave_room;
+use conduit::{debug, error, info, warn, Result};
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomAliasId, RoomId, RoomOrAliasId};
-use tracing::{debug, error, info, warn};
 
 use super::RoomModerationCommand;
-use crate::{get_room_info, services, user_is_local, Result};
+use crate::{get_room_info, services};
 
 pub(super) async fn process(command: RoomModerationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	match command {
@@ -110,11 +110,11 @@ async fn ban_room(
 			.room_members(&room_id)
 			.filter_map(|user| {
 				user.ok().filter(|local_user| {
-					user_is_local(local_user)
+					services().globals.user_is_local(local_user)
 								// additional wrapped check here is to avoid adding remote users
 								// who are in the admin room to the list of local users (would
 								// fail auth check)
-								&& (user_is_local(local_user)
+								&& (services().globals.user_is_local(local_user)
 									// since this is a force operation, assume user is an admin
 									// if somehow this fails
 									&& services()
@@ -484,7 +484,7 @@ async fn list_banned_rooms(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 
 			let mut rooms = room_ids
 				.into_iter()
-				.map(|room_id| get_room_info(&room_id))
+				.map(|room_id| get_room_info(services(), &room_id))
 				.collect::<Vec<_>>();
 			rooms.sort_by_key(|r| r.1);
 			rooms.reverse();

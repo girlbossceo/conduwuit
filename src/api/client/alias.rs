@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::{debug, Error, Result};
 use rand::seq::SliceRandom;
 use ruma::{
 	api::client::{
@@ -7,12 +8,9 @@ use ruma::{
 	},
 	OwnedServerName, RoomAliasId, RoomId,
 };
-use tracing::debug;
+use service::Services;
 
-use crate::{
-	service::{server_is_ours, Services},
-	Error, Result, Ruma,
-};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/v3/directory/room/{roomAlias}`
 ///
@@ -142,7 +140,7 @@ fn room_available_servers(
 	// prefer the room alias server first
 	if let Some(server_index) = servers
 		.iter()
-		.position(|server_name| server_is_ours(server_name))
+		.position(|server_name| services.globals.server_is_ours(server_name))
 	{
 		servers.swap_remove(server_index);
 		servers.insert(0, services.globals.server_name().to_owned());

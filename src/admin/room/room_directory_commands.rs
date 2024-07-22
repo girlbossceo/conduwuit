@@ -29,7 +29,7 @@ pub(super) async fn process(command: RoomDirectoryCommand, _body: Vec<&str>) -> 
 				.directory
 				.public_rooms()
 				.filter_map(Result::ok)
-				.map(|id: OwnedRoomId| get_room_info(&id))
+				.map(|id: OwnedRoomId| get_room_info(services(), &id))
 				.collect::<Vec<_>>();
 			rooms.sort_by_key(|r| r.1);
 			rooms.reverse();

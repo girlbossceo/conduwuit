@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::{pdu::PduBuilder, warn, Error, Result};
 use ruma::{
 	api::{
 		client::{
@@ -12,12 +13,9 @@ use ruma::{
 	OwnedMxcUri, OwnedRoomId, OwnedUserId,
 };
 use serde_json::value::to_raw_value;
-use tracing::warn;
+use service::Services;
 
-use crate::{
-	service::{pdu::PduBuilder, user_is_local, Services},
-	Error, Result, Ruma,
-};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/profile/{userId}/displayname`
 ///
@@ -56,7 +54,7 @@ pub(crate) async fn set_displayname_route(
 pub(crate) async fn get_displayname_route(
 	State(services): State<crate::State>, body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
-	if !user_is_local(&body.user_id) {
+	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
 		if let Ok(response) = services
 			.sending
@@ -147,7 +145,7 @@ pub(crate) async fn set_avatar_url_route(
 pub(crate) async fn get_avatar_url_route(
 	State(services): State<crate::State>, body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
-	if !user_is_local(&body.user_id) {
+	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
 		if let Ok(response) = services
 			.sending
@@ -205,7 +203,7 @@ pub(crate) async fn get_avatar_url_route(
 pub(crate) async fn get_profile_route(
 	State(services): State<crate::State>, body: Ruma<get_profile::v3::Request>,
 ) -> Result<get_profile::v3::Response> {
-	if !user_is_local(&body.user_id) {
+	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
 		if let Ok(response) = services
 			.sending

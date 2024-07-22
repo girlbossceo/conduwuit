@@ -13,7 +13,7 @@ use ruma::{
 };
 use tokio::sync::Mutex;
 
-use crate::{account_data, client, globals, presence, pusher, resolver, rooms, server_is_ours, users, Dep};
+use crate::{account_data, client, globals, presence, pusher, resolver, rooms, users, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -136,7 +136,7 @@ impl Service {
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.filter(|server_name| !server_is_ours(server_name));
+			.filter(|server_name| !self.services.globals.server_is_ours(server_name));
 
 		self.send_pdu_servers(servers, pdu_id)
 	}
@@ -185,7 +185,7 @@ impl Service {
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.filter(|server_name| !server_is_ours(server_name));
+			.filter(|server_name| !self.services.globals.server_is_ours(server_name));
 
 		self.send_edu_servers(servers, serialized)
 	}
@@ -222,7 +222,7 @@ impl Service {
 			.state_cache
 			.room_servers(room_id)
 			.filter_map(Result::ok)
-			.filter(|server_name| !server_is_ours(server_name));
+			.filter(|server_name| !self.services.globals.server_is_ours(server_name));
 
 		self.flush_servers(servers)
 	}

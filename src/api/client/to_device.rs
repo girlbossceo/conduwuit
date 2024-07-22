@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
+use conduit::{Error, Result};
 use ruma::{
 	api::{
 		client::{error::ErrorKind, to_device::send_event_to_device},
@@ -9,7 +10,7 @@ use ruma::{
 	to_device::DeviceIdOrAllDevices,
 };
 
-use crate::{user_is_local, Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/sendToDevice/{eventType}/{txnId}`
 ///
@@ -31,7 +32,7 @@ pub(crate) async fn send_event_to_device_route(
 
 	for (target_user_id, map) in &body.messages {
 		for (target_device_id_maybe, event) in map {
-			if !user_is_local(target_user_id) {
+			if !services.globals.user_is_local(target_user_id) {
 				let mut map = BTreeMap::new();
 				map.insert(target_device_id_maybe.clone(), event.clone());
 				let mut messages = BTreeMap::new();

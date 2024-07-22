@@ -19,7 +19,7 @@ extern crate conduit_core as conduit;
 extern crate conduit_service as service;
 
 pub(crate) use conduit::{mod_ctor, mod_dtor, Result};
-pub(crate) use service::{services, user_is_local};
+pub(crate) use service::services;
 
 pub(crate) use crate::utils::{escape_html, get_room_info};
 

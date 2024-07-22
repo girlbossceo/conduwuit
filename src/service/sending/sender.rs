@@ -29,7 +29,6 @@ use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::time::sleep_until;
 
 use super::{appservice, Destination, Msg, SendingEvent, Service};
-use crate::user_is_local;
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -264,7 +263,7 @@ impl Service {
 					.users
 					.keys_changed(room_id.as_ref(), since, None)
 					.filter_map(Result::ok)
-					.filter(|user_id| user_is_local(user_id)),
+					.filter(|user_id| self.services.globals.user_is_local(user_id)),
 			);
 
 			if self.server.config.allow_outgoing_read_receipts
@@ -306,7 +305,7 @@ impl Service {
 		for (user_id, count, presence_bytes) in self.services.presence.presence_since(since) {
 			*max_edu_count = cmp::max(count, *max_edu_count);
 
-			if !user_is_local(&user_id) {
+			if !self.services.globals.user_is_local(&user_id) {
 				continue;
 			}
 
@@ -358,7 +357,7 @@ impl Service {
 			let (user_id, count, read_receipt) = r?;
 			*max_edu_count = cmp::max(count, *max_edu_count);
 
-			if !user_is_local(&user_id) {
+			if !self.services.globals.user_is_local(&user_id) {
 				continue;
 			}
 

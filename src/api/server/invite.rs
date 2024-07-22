@@ -7,7 +7,6 @@ use ruma::{
 	serde::JsonObject,
 	CanonicalJsonValue, EventId, OwnedUserId,
 };
-use service::server_is_ours;
 
 use crate::Ruma;
 
@@ -88,7 +87,7 @@ pub(crate) async fn create_invite_route(
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user ID."))?;
 
-	if !server_is_ours(invited_user.server_name()) {
+	if !services.globals.server_is_ours(invited_user.server_name()) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"User does not belong to this homeserver.",

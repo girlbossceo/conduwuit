@@ -8,8 +8,11 @@ use std::{
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{
-	debug, debug_warn, error, info, trace, utils, utils::math::continue_exponential_backoff_secs, warn, Error,
-	PduEvent, Result,
+	debug, debug_warn, error, info,
+	pdu::{gen_event_id_canonical_json, PduBuilder},
+	trace, utils,
+	utils::math::continue_exponential_backoff_secs,
+	warn, Error, PduEvent, Result,
 };
 use ruma::{
 	api::{
@@ -36,15 +39,11 @@ use ruma::{
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use service::{rooms::state::RoomMutexGuard, Services};
 use tokio::sync::RwLock;
 
 use crate::{
 	client::{update_avatar_url, update_displayname},
-	service::{
-		pdu::{gen_event_id_canonical_json, PduBuilder},
-		rooms::state::RoomMutexGuard,
-		server_is_ours, user_is_local, Services,
-	},
 	Ruma,
 };
 
@@ -675,7 +674,7 @@ pub async fn join_room_by_id_helper(
 		.state_cache
 		.server_in_room(services.globals.server_name(), room_id)?
 		|| servers.is_empty()
-		|| (servers.len() == 1 && server_is_ours(&servers[0]))
+		|| (servers.len() == 1 && services.globals.server_is_ours(&servers[0]))
 	{
 		join_room_by_id_helper_local(services, sender_user, room_id, reason, servers, third_party_signed, state_lock)
 			.await
@@ -1049,7 +1048,7 @@ async fn join_room_by_id_helper_local(
 		.state_cache
 		.room_members(room_id)
 		.filter_map(Result::ok)
-		.filter(|user| user_is_local(user))
+		.filter(|user| services.globals.user_is_local(user))
 		.collect::<Vec<OwnedUserId>>();
 
 	let mut join_authorized_via_users_server: Option<OwnedUserId> = None;
@@ -1110,7 +1109,7 @@ async fn join_room_by_id_helper_local(
 	if !restriction_rooms.is_empty()
 		&& servers
 			.iter()
-			.any(|server_name| !server_is_ours(server_name))
+			.any(|server_name| !services.globals.server_is_ours(server_name))
 	{
 		warn!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
 		let (make_join_response, remote_server) = make_join_request(services, sender_user, room_id, servers).await?;
@@ -1259,7 +1258,7 @@ async fn make_join_request(
 	let mut incompatible_room_version_count: u8 = 0;
 
 	for remote_server in servers {
-		if server_is_ours(remote_server) {
+		if services.globals.server_is_ours(remote_server) {
 			continue;
 		}
 		info!("Asking {remote_server} for make_join ({make_join_counter})");
@@ -1389,7 +1388,7 @@ pub(crate) async fn invite_helper(
 		));
 	}
 
-	if !user_is_local(user_id) {
+	if !services.globals.user_is_local(user_id) {
 		let (pdu, pdu_json, invite_room_state) = {
 			let state_lock = services.rooms.state.mutex.lock(room_id).await;
 			let content = to_raw_value(&RoomMemberEventContent {

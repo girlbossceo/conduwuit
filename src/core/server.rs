@@ -109,4 +109,7 @@ impl Server {
 
 	#[inline]
 	pub fn running(&self) -> bool { !self.stopping.load(Ordering::Acquire) }
+
+	#[inline]
+	pub fn is_ours(&self, name: &str) -> bool { name == self.config.server_name }
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use conduit::{debug_info, error};
+use conduit::{debug_info, error, pdu::PduBuilder, Error, Result};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -18,11 +18,9 @@ use ruma::{
 	serde::Raw,
 	EventId, RoomId, UserId,
 };
+use service::Services;
 
-use crate::{
-	service::{pdu::PduBuilder, server_is_ours, Services},
-	Error, Result, Ruma, RumaResponse,
-};
+use crate::{Ruma, RumaResponse};
 
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
 ///
@@ -250,7 +248,7 @@ async fn allowed_to_send_state_event(
 				}
 
 				for alias in aliases {
-					if !server_is_ours(alias.server_name())
+					if !services.globals.server_is_ours(alias.server_name())
 						|| services
                            .rooms
                            .alias

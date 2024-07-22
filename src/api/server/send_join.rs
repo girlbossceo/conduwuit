@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{Error, Result};
+use conduit::{pdu::gen_event_id_canonical_json, warn, Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
 	events::{
@@ -13,9 +13,8 @@ use ruma::{
 	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use service::{pdu::gen_event_id_canonical_json, user_is_local, Services};
+use service::Services;
 use tokio::sync::RwLock;
-use tracing::warn;
 
 use crate::Ruma;
 
@@ -126,7 +125,7 @@ async fn create_join_event(
 
 	if content
 		.join_authorized_via_users_server
-		.is_some_and(|user| user_is_local(&user))
+		.is_some_and(|user| services.globals.user_is_local(&user))
 		&& super::user_can_perform_restricted_join(services, &sender, room_id, &room_version_id).unwrap_or_default()
 	{
 		ruma::signatures::hash_and_sign_event(

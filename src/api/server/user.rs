@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::{Error, Result};
 use ruma::api::{
 	client::error::ErrorKind,
 	federation::{
@@ -9,8 +10,7 @@ use ruma::api::{
 
 use crate::{
 	client::{claim_keys_helper, get_keys_helper},
-	service::user_is_local,
-	Error, Result, Ruma,
+	Ruma,
 };
 
 /// # `GET /_matrix/federation/v1/user/devices/{userId}`
@@ -19,7 +19,7 @@ use crate::{
 pub(crate) async fn get_devices_route(
 	State(services): State<crate::State>, body: Ruma<get_devices::v1::Request>,
 ) -> Result<get_devices::v1::Response> {
-	if !user_is_local(&body.user_id) {
+	if !services.globals.user_is_local(&body.user_id) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Tried to access user from other server.",
@@ -72,7 +72,11 @@ pub(crate) async fn get_devices_route(
 pub(crate) async fn get_keys_route(
 	State(services): State<crate::State>, body: Ruma<get_keys::v1::Request>,
 ) -> Result<get_keys::v1::Response> {
-	if body.device_keys.iter().any(|(u, _)| !user_is_local(u)) {
+	if body
+		.device_keys
+		.iter()
+		.any(|(u, _)| !services.globals.user_is_local(u))
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"User does not belong to this server.",
@@ -101,7 +105,11 @@ pub(crate) async fn get_keys_route(
 pub(crate) async fn claim_keys_route(
 	State(services): State<crate::State>, body: Ruma<claim_keys::v1::Request>,
 ) -> Result<claim_keys::v1::Response> {
-	if body.one_time_keys.iter().any(|(u, _)| !user_is_local(u)) {
+	if body
+		.one_time_keys
+		.iter()
+		.any(|(u, _)| !services.globals.user_is_local(u))
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Tried to access user from other server.",

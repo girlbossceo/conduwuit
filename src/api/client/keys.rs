@@ -4,7 +4,7 @@ use std::{
 };
 
 use axum::extract::State;
-use conduit::{utils, utils::math::continue_exponential_backoff_secs, Error, Result};
+use conduit::{debug, utils, utils::math::continue_exponential_backoff_secs, Error, Result};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{
@@ -19,8 +19,6 @@ use ruma::{
 	DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
 use serde_json::json;
-use service::user_is_local;
-use tracing::debug;
 
 use super::SESSION_ID_LENGTH;
 use crate::{service::Services, Ruma};
@@ -266,7 +264,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	for (user_id, device_ids) in device_keys_input {
 		let user_id: &UserId = user_id;
 
-		if !user_is_local(user_id) {
+		if !services.globals.user_is_local(user_id) {
 			get_over_federation
 				.entry(user_id.server_name())
 				.or_insert_with(Vec::new)
@@ -459,7 +457,7 @@ pub(crate) async fn claim_keys_helper(
 	let mut get_over_federation = BTreeMap::new();
 
 	for (user_id, map) in one_time_keys_input {
-		if !user_is_local(user_id) {
+		if !services.globals.user_is_local(user_id) {
 			get_over_federation
 				.entry(user_id.server_name())
 				.or_insert_with(Vec::new)

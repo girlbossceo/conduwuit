@@ -21,7 +21,7 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
-use crate::{account_data, appservice::RegistrationInfo, rooms, user_is_local, users, Dep};
+use crate::{account_data, appservice::RegistrationInfo, globals, rooms, users, Dep};
 
 pub struct Service {
 	services: Services,
@@ -30,6 +30,7 @@ pub struct Service {
 
 struct Services {
 	account_data: Dep<account_data::Service>,
+	globals: Dep<globals::Service>,
 	state_accessor: Dep<rooms::state_accessor::Service>,
 	users: Dep<users::Service>,
 }
@@ -39,6 +40,7 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			services: Services {
 				account_data: args.depend::<account_data::Service>("account_data"),
+				globals: args.depend::<globals::Service>("globals"),
 				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				users: args.depend::<users::Service>("users"),
 			},
@@ -65,7 +67,7 @@ impl Service {
 		// TODO: use futures to update remote profiles without blocking the membership
 		// update
 		#[allow(clippy::collapsible_if)]
-		if !user_is_local(user_id) {
+		if !self.services.globals.user_is_local(user_id) {
 			if !self.services.users.exists(user_id)? {
 				self.services.users.create(user_id, None)?;
 			}

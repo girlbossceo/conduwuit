@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::{Error, Result};
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;
 use ruma::{
@@ -9,7 +10,7 @@ use ruma::{
 	OwnedServerName,
 };
 
-use crate::{service::server_is_ours, Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/query/directory`
 ///
@@ -64,7 +65,7 @@ pub(crate) async fn get_profile_information_route(
 		));
 	}
 
-	if !server_is_ours(body.user_id.server_name()) {
+	if !services.globals.server_is_ours(body.user_id.server_name()) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"User does not belong to this server.",

@@ -12,7 +12,7 @@ use ruma::{
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
 };
 
-use crate::{appservice::RegistrationInfo, globals, user_is_local, users, Dep};
+use crate::{appservice::RegistrationInfo, globals, users, Dep};
 
 type StrippedStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnyStrippedStateEvent>>)>> + 'a>;
 type AnySyncStateEventIter<'a> = Box<dyn Iterator<Item = Result<(OwnedRoomId, Vec<Raw<AnySyncStateEvent>>)>> + 'a>;
@@ -355,7 +355,7 @@ impl Data {
 		Box::new(
 			self.room_members(room_id)
 				.filter_map(Result::ok)
-				.filter(|user| user_is_local(user)),
+				.filter(|user| self.services.globals.user_is_local(user)),
 		)
 	}
 

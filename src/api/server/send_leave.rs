@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
+use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_leave_event},
 	events::{
@@ -15,8 +16,8 @@ use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::RwLock;
 
 use crate::{
-	service::{pdu::gen_event_id_canonical_json, server_is_ours, Services},
-	Error, Result, Ruma,
+	service::{pdu::gen_event_id_canonical_json, Services},
+	Ruma,
 };
 
 /// # `PUT /_matrix/federation/v1/send_leave/{roomId}/{eventId}`
@@ -174,7 +175,7 @@ async fn create_leave_event(
 		.state_cache
 		.room_servers(room_id)
 		.filter_map(Result::ok)
-		.filter(|server| !server_is_ours(server));
+		.filter(|server| !services.globals.server_is_ours(server));
 
 	services.sending.send_pdu_servers(servers, &pdu_id)?;
 

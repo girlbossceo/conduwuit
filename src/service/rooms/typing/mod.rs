@@ -8,7 +8,7 @@ use ruma::{
 };
 use tokio::sync::{broadcast, RwLock};
 
-use crate::{globals, sending, user_is_local, Dep};
+use crate::{globals, sending, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -63,7 +63,7 @@ impl Service {
 		}
 
 		// update federation
-		if user_is_local(user_id) {
+		if self.services.globals.user_is_local(user_id) {
 			self.federation_send(room_id, user_id, true)?;
 		}
 
@@ -89,7 +89,7 @@ impl Service {
 		}
 
 		// update federation
-		if user_is_local(user_id) {
+		if self.services.globals.user_is_local(user_id) {
 			self.federation_send(room_id, user_id, false)?;
 		}
 
@@ -145,7 +145,7 @@ impl Service {
 
 			// update federation
 			for user in removable {
-				if user_is_local(&user) {
+				if self.services.globals.user_is_local(&user) {
 					self.federation_send(room_id, &user, false)?;
 				}
 			}
@@ -184,7 +184,11 @@ impl Service {
 	}
 
 	fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
-		debug_assert!(user_is_local(user_id), "tried to broadcast typing status of remote user",);
+		debug_assert!(
+			self.services.globals.user_is_local(user_id),
+			"tried to broadcast typing status of remote user",
+		);
+
 		if !self.server.config.allow_outgoing_typing {
 			return Ok(());
 		}

@@ -41,7 +41,7 @@ use tokio::sync::RwLock;
 use self::data::Data;
 use crate::{
 	account_data, admin, appservice, appservice::NamespaceRegex, globals, pusher, rooms,
-	rooms::state_compressor::CompressedStateEvent, sending, server_is_ours, Dep,
+	rooms::state_compressor::CompressedStateEvent, sending, Dep,
 };
 
 // Update Relationships
@@ -846,7 +846,7 @@ impl Service {
 								.state_cache
 								.room_members(room_id)
 								.filter_map(Result::ok)
-								.filter(|m| server_is_ours(m.server_name()) && m != target)
+								.filter(|m| self.services.globals.server_is_ours(m.server_name()) && m != target)
 								.count();
 							if count < 2 {
 								warn!("Last admin cannot leave from admins room");
@@ -871,7 +871,7 @@ impl Service {
 								.state_cache
 								.room_members(room_id)
 								.filter_map(Result::ok)
-								.filter(|m| server_is_ours(m.server_name()) && m != target)
+								.filter(|m| self.services.globals.server_is_ours(m.server_name()) && m != target)
 								.count();
 							if count < 2 {
 								warn!("Last admin cannot be banned in admins room");
@@ -1092,7 +1092,7 @@ impl Service {
 			.unwrap_or_default();
 
 		let room_mods = power_levels.users.iter().filter_map(|(user_id, level)| {
-			if level > &power_levels.users_default && !server_is_ours(user_id.server_name()) {
+			if level > &power_levels.users_default && !self.services.globals.user_is_local(user_id) {
 				Some(user_id.server_name().to_owned())
 			} else {
 				None
@@ -1106,7 +1106,7 @@ impl Service {
 			.filter_map(|alias| {
 				alias
 					.ok()
-					.filter(|alias| !server_is_ours(alias.server_name()))
+					.filter(|alias| !self.services.globals.server_is_ours(alias.server_name()))
 					.map(|alias| alias.server_name().to_owned())
 			});
 
@@ -1114,7 +1114,7 @@ impl Service {
 			.chain(room_alias_servers)
 			.chain(self.services.server.config.trusted_servers.clone())
 			.filter(|server_name| {
-				if server_is_ours(server_name) {
+				if self.services.globals.server_is_ours(server_name) {
 					return false;
 				}
 

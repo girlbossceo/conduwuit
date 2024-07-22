@@ -36,7 +36,7 @@ pub(super) async fn create(
 	_body: Vec<&str>, username: String, password: Option<String>,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id = parse_local_user_id(&username)?;
+	let user_id = parse_local_user_id(services(), &username)?;
 
 	if services().users.exists(&user_id)? {
 		return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
@@ -134,7 +134,7 @@ pub(super) async fn deactivate(
 	_body: Vec<&str>, no_leave_rooms: bool, user_id: String,
 ) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id = parse_local_user_id(&user_id)?;
+	let user_id = parse_local_user_id(services(), &user_id)?;
 
 	// don't deactivate the server service account
 	if user_id == services().globals.server_user {
@@ -170,7 +170,7 @@ pub(super) async fn deactivate(
 }
 
 pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
-	let user_id = parse_local_user_id(&username)?;
+	let user_id = parse_local_user_id(services(), &username)?;
 
 	if user_id == services().globals.server_user {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -211,7 +211,7 @@ pub(super) async fn deactivate_all(
 	let mut admins = Vec::new();
 
 	for username in usernames {
-		match parse_active_local_user_id(username) {
+		match parse_active_local_user_id(services(), username) {
 			Ok(user_id) => {
 				if services().users.is_admin(&user_id)? && !force {
 					services()
@@ -292,14 +292,14 @@ pub(super) async fn deactivate_all(
 
 pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id = parse_local_user_id(&user_id)?;
+	let user_id = parse_local_user_id(services(), &user_id)?;
 
 	let mut rooms: Vec<(OwnedRoomId, u64, String)> = services()
 		.rooms
 		.state_cache
 		.rooms_joined(&user_id)
 		.filter_map(Result::ok)
-		.map(|room_id| get_room_info(&room_id))
+		.map(|room_id| get_room_info(services(), &room_id))
 		.collect();
 
 	if rooms.is_empty() {
@@ -344,10 +344,13 @@ pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 pub(super) async fn force_join_room(
 	_body: Vec<&str>, user_id: String, room_id: OwnedRoomOrAliasId,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_local_user_id(&user_id)?;
+	let user_id = parse_local_user_id(services(), &user_id)?;
 	let room_id = services().rooms.alias.resolve(&room_id).await?;
 
-	assert!(service::user_is_local(&user_id), "Parsed user_id must be a local user");
+	assert!(
+		services().globals.user_is_local(&user_id),
+		"Parsed user_id must be a local user"
+	);
 	join_room_by_id_helper(services(), &user_id, &room_id, None, &[], None).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -356,13 +359,16 @@ pub(super) async fn force_join_room(
 }
 
 pub(super) async fn make_user_admin(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
-	let user_id = parse_local_user_id(&user_id)?;
+	let user_id = parse_local_user_id(services(), &user_id)?;
 	let displayname = services()
 		.users
 		.displayname(&user_id)?
 		.unwrap_or_else(|| user_id.to_string());
 
-	assert!(service::user_is_local(&user_id), "Parsed user_id must be a local user");
+	assert!(
+		services().globals.user_is_local(&user_id),
+		"Parsed user_id must be a local user"
+	);
 	services()
 		.admin
 		.make_user_admin(&user_id, displayname)
@@ -376,7 +382,7 @@ pub(super) async fn make_user_admin(_body: Vec<&str>, user_id: String) -> Result
 pub(super) async fn put_room_tag(
 	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(&user_id)?;
+	let user_id = parse_active_local_user_id(services(), &user_id)?;
 
 	let event = services()
 		.account_data
@@ -411,7 +417,7 @@ pub(super) async fn put_room_tag(
 pub(super) async fn delete_room_tag(
 	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(&user_id)?;
+	let user_id = parse_active_local_user_id(services(), &user_id)?;
 
 	let event = services()
 		.account_data
@@ -443,7 +449,7 @@ pub(super) async fn delete_room_tag(
 pub(super) async fn get_room_tags(
 	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(&user_id)?;
+	let user_id = parse_active_local_user_id(services(), &user_id)?;
 
 	let event = services()
 		.account_data
