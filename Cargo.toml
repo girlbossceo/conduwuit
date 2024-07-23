@@ -14,7 +14,7 @@ categories = ["network-programming"]
 description = "a very cool fork of Conduit, a Matrix homeserver written in Rust"
 edition = "2021"
 homepage = "https://conduwuit.puppyirl.gay/"
-keywords = ["chat", "matrix", "server"]
+keywords = ["chat", "matrix", "server", "uwu"]
 license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
@@ -204,7 +204,7 @@ features = [
 version = "0.3.1"
 
 [workspace.dependencies.libloading]
-version = "0.8.3"
+version = "0.8.5"
 
 # Validating urls in config, was already a transitive dependency
 [workspace.dependencies.url]
@@ -218,7 +218,7 @@ features = ["alloc", "std"]
 default-features = false
 
 [workspace.dependencies.hyper]
-version = "1.4.0"
+version = "1.4.1"
 features = [
 	"server",
 	"http1",
@@ -251,7 +251,7 @@ default-features = false
 
 # Used for conduit::Error type
 [workspace.dependencies.thiserror]
-version = "1.0.62"
+version = "1.0.63"
 
 # Used when hashing the state
 [workspace.dependencies.ring]
@@ -372,16 +372,17 @@ version = "0.34.0"
 version = "0.34.0"
 
 # jemalloc usage
+# locked to 0.5.4 due to static binary linking breakage
 [workspace.dependencies.tikv-jemalloc-sys]
-version = "0.5.4"
+version = "=0.5.4"
 default-features = false
 features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
-version = "0.5.4"
+version = "=0.5.4"
 default-features = false
 features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
-version = "0.5.4"
+version = "=0.5.4"
 default-features = false
 features = ["use_std"]
 
