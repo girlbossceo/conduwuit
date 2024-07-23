@@ -26,7 +26,15 @@ pub use string::{str_from_bytes, string_from_bytes};
 pub use sys::available_parallelism;
 pub use time::now_millis as millis_since_unix_epoch;
 
+#[inline]
 pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
+
+#[inline]
+pub fn exchange<T: Clone>(state: &mut T, source: T) -> T {
+	let ret = state.clone();
+	*state = source;
+	ret
+}
 
 #[must_use]
 pub fn generate_keypair() -> Vec<u8> {
