@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{utils::exchange, Result};
 
 pub const EMPTY: &str = "";
 
@@ -24,6 +24,41 @@ macro_rules! is_format {
 	($s:literal) => {
 		::const_str::contains!($s, "{") && ::const_str::contains!($s, "}")
 	};
+}
+
+#[inline]
+#[must_use]
+pub fn camel_to_snake_string(s: &str) -> String {
+	let est_len = s
+		.chars()
+		.fold(s.len(), |est, c| est.saturating_add(usize::from(c.is_ascii_uppercase())));
+
+	let mut ret = String::with_capacity(est_len);
+	camel_to_snake_case(&mut ret, s.as_bytes()).expect("string-to-string stream error");
+	ret
+}
+
+#[inline]
+pub fn camel_to_snake_case<I, O>(output: &mut O, input: I) -> Result<()>
+where
+	I: std::io::Read,
+	O: std::fmt::Write,
+{
+	let mut state = false;
+	input
+		.bytes()
+		.take_while(Result::is_ok)
+		.map(Result::unwrap)
+		.map(char::from)
+		.try_for_each(|ch| {
+			let m = ch.is_ascii_uppercase();
+			let s = exchange(&mut state, !m);
+			if m && s {
+				output.write_char('_')?;
+			}
+			output.write_char(ch.to_ascii_lowercase())?;
+			Result::<()>::Ok(())
+		})
 }
 
 /// Find the common prefix from a collection of strings and return a slice

@@ -134,3 +134,19 @@ async fn mutex_map_contend() {
 	tokio::try_join!(join_b, join_a).expect("joined");
 	assert!(map.is_empty(), "Must be empty");
 }
+
+#[test]
+fn camel_to_snake_case_0() {
+	use utils::string::camel_to_snake_string;
+
+	let res = camel_to_snake_string("CamelToSnakeCase");
+	assert_eq!(res, "camel_to_snake_case");
+}
+
+#[test]
+fn camel_to_snake_case_1() {
+	use utils::string::camel_to_snake_string;
+
+	let res = camel_to_snake_string("CAmelTOSnakeCase");
+	assert_eq!(res, "camel_tosnake_case");
+}
