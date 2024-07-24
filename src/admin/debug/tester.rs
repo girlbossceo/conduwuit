@@ -2,8 +2,7 @@ use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::Result;
 
-#[derive(clap::Subcommand)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Debug, clap::Subcommand)]
 pub(crate) enum TesterCommand {
 	Tester,
 	Timer,

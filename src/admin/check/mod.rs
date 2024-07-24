@@ -6,8 +6,7 @@ use ruma::events::room::message::RoomMessageEventContent;
 
 use self::commands::*;
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum CheckCommand {
 	AllUsers,
 }

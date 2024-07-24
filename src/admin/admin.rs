@@ -8,7 +8,7 @@ use crate::{
 	server, server::ServerCommand, user, user::UserCommand,
 };
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
 pub(crate) enum AdminCommand {
 	#[command(subcommand)]

@@ -6,8 +6,7 @@ use ruma::{events::room::message::RoomMessageEventContent, EventId, MxcUri};
 
 use self::commands::*;
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum MediaCommand {
 	/// - Deletes a single media file from our database and on the filesystem
 	///   via a single MXC URL

@@ -6,8 +6,7 @@ use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, U
 
 use self::commands::*;
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum FederationCommand {
 	/// - List all rooms we are currently handling an incoming pdu from
 	IncomingFederation,

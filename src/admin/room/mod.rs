@@ -10,8 +10,7 @@ use ruma::{events::room::message::RoomMessageEventContent, RoomId, RoomOrAliasId
 
 use self::room_commands::list;
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum RoomCommand {
 	/// - List all rooms the server knows about
 	List {
@@ -43,8 +42,7 @@ pub(super) enum RoomCommand {
 	Directory(RoomDirectoryCommand),
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum RoomInfoCommand {
 	/// - List joined members in a room
 	ListJoinedMembers {
@@ -60,8 +58,7 @@ pub(super) enum RoomInfoCommand {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum RoomAliasCommand {
 	/// - Make an alias point to a room.
 	Set {
@@ -96,8 +93,7 @@ pub(super) enum RoomAliasCommand {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum RoomDirectoryCommand {
 	/// - Publish a room to the room directory
 	Publish {
@@ -117,8 +113,7 @@ pub(super) enum RoomDirectoryCommand {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum RoomModerationCommand {
 	/// - Bans a room from local users joining and evicts all our local users
 	///   from the room. Also blocks any invites (local and remote) for the

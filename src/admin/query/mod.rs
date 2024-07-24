@@ -21,8 +21,7 @@ use self::{
 	room_alias::room_alias, sending::sending, users::users,
 };
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// Query tables from database
 pub(super) enum QueryCommand {
 	/// - account_data.rs iterators and getters
@@ -62,8 +61,7 @@ pub(super) enum QueryCommand {
 	Resolver(Resolver),
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/account_data.rs
 pub(super) enum AccountData {
 	/// - Returns all changes to the account data that happened after `since`.
@@ -87,8 +85,7 @@ pub(super) enum AccountData {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/appservice.rs
 pub(super) enum Appservice {
 	/// - Gets the appservice registration info/details from the ID as a string
@@ -101,8 +98,7 @@ pub(super) enum Appservice {
 	All,
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/presence.rs
 pub(super) enum Presence {
 	/// - Returns the latest presence event for the given user.
@@ -119,8 +115,7 @@ pub(super) enum Presence {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/rooms/alias.rs
 pub(super) enum RoomAlias {
 	ResolveLocalAlias {
@@ -138,8 +133,7 @@ pub(super) enum RoomAlias {
 	AllLocalAliases,
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum RoomStateCache {
 	ServerInRoom {
 		server: Box<ServerName>,
@@ -210,8 +204,7 @@ pub(super) enum RoomStateCache {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/globals.rs
 pub(super) enum Globals {
 	DatabaseVersion,
@@ -229,8 +222,7 @@ pub(super) enum Globals {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/sending.rs
 pub(super) enum Sending {
 	/// - Queries database for all `servercurrentevent_data`
@@ -285,15 +277,13 @@ pub(super) enum Sending {
 	},
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/users.rs
 pub(super) enum Users {
 	Iter,
 }
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 /// Resolver service and caches
 pub(super) enum Resolver {
 	/// Query the destinations cache

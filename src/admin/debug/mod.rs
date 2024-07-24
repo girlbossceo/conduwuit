@@ -8,8 +8,7 @@ use tester::TesterCommand;
 
 use self::commands::*;
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub(super) enum DebugCommand {
 	/// - Echo input of admin command
 	Echo {
