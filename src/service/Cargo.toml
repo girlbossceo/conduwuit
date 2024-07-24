@@ -57,7 +57,6 @@ lru-cache.workspace = true
 rand.workspace = true
 regex.workspace = true
 reqwest.workspace = true
-ruma-identifiers-validation.workspace = true
 ruma.workspace = true
 rustyline-async.workspace = true
 rustyline-async.optional = true

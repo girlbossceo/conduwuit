@@ -252,7 +252,7 @@ async fn request_well_known(dest: &str) -> Result<Option<String>> {
 		.as_str()
 		.unwrap_or_default();
 
-	if ruma_identifiers_validation::server_name::validate(m_server).is_err() {
+	if ruma::identifiers_validation::server_name::validate(m_server).is_err() {
 		debug_error!("response content missing or invalid");
 		return Ok(None);
 	}

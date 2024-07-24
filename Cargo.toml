@@ -280,7 +280,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "c51ccb2c68d2e3557eb12b1a49036531711ec0e5"
+rev = "c76e2873c1593a3308d4ba3e0e4a1db65acf8536"
 features = [
     "compat",
     "rand",
@@ -293,6 +293,7 @@ features = [
     "server-util",
     "unstable-exhaustive-types",
     "ring-compat",
+    "identifiers-validation",
     "unstable-unspecified",
     "unstable-msc2448",
     "unstable-msc2666",
@@ -306,10 +307,6 @@ features = [
     "unstable-msc4125",
     "unstable-extensible-events",
 ]
-
-[workspace.dependencies.ruma-identifiers-validation]
-git = "https://github.com/girlbossceo/ruwuma"
-rev = "c51ccb2c68d2e3557eb12b1a49036531711ec0e5"
 
 [workspace.dependencies.rust-rocksdb]
 path = "deps/rust-rocksdb"
