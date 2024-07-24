@@ -293,6 +293,16 @@ jobs:
                     result/bin/conduit --version
                   fi
 
+            # check validity of produced deb package, invalid debs will error on these commands
+            - name: Validate produced deb package
+              run: |
+                  # List contents
+                  dpkg-deb --contents ${{ matrix.target }}.deb
+                  dpkg-deb --contents ${{ matrix.target }}-debug.deb
+                  # List info
+                  dpkg-deb --info ${{ matrix.target }}.deb
+                  dpkg-deb --info ${{ matrix.target }}-debug.deb
+
             - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
