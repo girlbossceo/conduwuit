@@ -39,7 +39,6 @@ pub struct Service {
 	pub stable_room_versions: Vec<RoomVersionId>,
 	pub unstable_room_versions: Vec<RoomVersionId>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
-	pub bad_signature_ratelimiter: Arc<RwLock<HashMap<Vec<String>, RateLimitState>>>,
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
@@ -101,7 +100,6 @@ impl crate::Service for Service {
 			stable_room_versions,
 			unstable_room_versions,
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			bad_signature_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
@@ -144,13 +142,6 @@ impl crate::Service for Service {
 			.len();
 		writeln!(out, "bad_query_ratelimiter: {bad_query_ratelimiter}")?;
 
-		let bad_signature_ratelimiter = self
-			.bad_signature_ratelimiter
-			.read()
-			.expect("locked for reading")
-			.len();
-		writeln!(out, "bad_signature_ratelimiter: {bad_signature_ratelimiter}")?;
-
 		Ok(())
 	}
 
@@ -163,11 +154,6 @@ impl crate::Service for Service {
 			.clear();
 
 		self.bad_query_ratelimiter
-			.write()
-			.expect("locked for writing")
-			.clear();
-
-		self.bad_signature_ratelimiter
 			.write()
 			.expect("locked for writing")
 			.clear();
