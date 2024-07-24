@@ -20,13 +20,13 @@ use service::services;
 use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
-pub(super) async fn echo(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
+pub(super) async fn echo(_body: &[&str], message: Vec<String>) -> Result<RoomMessageEventContent> {
 	let message = message.join(" ");
 
 	Ok(RoomMessageEventContent::notice_plain(message))
 }
 
-pub(super) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_auth_chain(_body: &[&str], event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
 	if let Some(event) = services().rooms.timeline.get_pdu_json(&event_id)? {
 		let room_id_str = event
@@ -52,7 +52,7 @@ pub(super) async fn get_auth_chain(_body: Vec<&str>, event_id: Box<EventId>) -> 
 	}
 }
 
-pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn parse_pdu(body: &[&str]) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -80,7 +80,7 @@ pub(super) async fn parse_pdu(body: Vec<&str>) -> Result<RoomMessageEventContent
 	}
 }
 
-pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_pdu(_body: &[&str], event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let mut outlier = false;
 	let mut pdu_json = services()
 		.rooms
@@ -108,7 +108,7 @@ pub(super) async fn get_pdu(_body: Vec<&str>, event_id: Box<EventId>) -> Result<
 }
 
 pub(super) async fn get_remote_pdu_list(
-	body: Vec<&str>, server: Box<ServerName>, force: bool,
+	body: &[&str], server: Box<ServerName>, force: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -130,14 +130,15 @@ pub(super) async fn get_remote_pdu_list(
 	}
 
 	let list = body
-		.clone()
-		.drain(1..body.len().checked_sub(1).unwrap())
+		.iter()
+		.collect::<Vec<_>>()
+		.drain(1..body.len().saturating_sub(1))
 		.filter_map(|pdu| EventId::parse(pdu).ok())
 		.collect::<Vec<_>>();
 
 	for pdu in list {
 		if force {
-			if let Err(e) = get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await {
+			if let Err(e) = get_remote_pdu(&[], Box::from(pdu), server.clone()).await {
 				services()
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!(
@@ -147,7 +148,7 @@ pub(super) async fn get_remote_pdu_list(
 				warn!(%e, "Failed to get remote PDU, ignoring error");
 			}
 		} else {
-			get_remote_pdu(Vec::new(), Box::from(pdu), server.clone()).await?;
+			get_remote_pdu(&[], Box::from(pdu), server.clone()).await?;
 		}
 	}
 
@@ -155,7 +156,7 @@ pub(super) async fn get_remote_pdu_list(
 }
 
 pub(super) async fn get_remote_pdu(
-	_body: Vec<&str>, event_id: Box<EventId>, server: Box<ServerName>,
+	_body: &[&str], event_id: Box<EventId>, server: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -240,7 +241,7 @@ pub(super) async fn get_remote_pdu(
 	}
 }
 
-pub(super) async fn get_room_state(_body: Vec<&str>, room: OwnedRoomOrAliasId) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_room_state(_body: &[&str], room: OwnedRoomOrAliasId) -> Result<RoomMessageEventContent> {
 	let room_id = services().rooms.alias.resolve(&room).await?;
 	let room_state = services()
 		.rooms
@@ -267,7 +268,7 @@ pub(super) async fn get_room_state(_body: Vec<&str>, room: OwnedRoomOrAliasId) -
 	Ok(RoomMessageEventContent::notice_markdown(format!("```json\n{json}\n```")))
 }
 
-pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<RoomMessageEventContent> {
+pub(super) async fn ping(_body: &[&str], server: Box<ServerName>) -> Result<RoomMessageEventContent> {
 	if server == services().globals.server_name() {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to send federation requests to ourselves.",
@@ -305,7 +306,7 @@ pub(super) async fn ping(_body: Vec<&str>, server: Box<ServerName>) -> Result<Ro
 	}
 }
 
-pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn force_device_list_updates(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	// Force E2EE device list updates for all users
 	for user_id in services().users.iter().filter_map(Result::ok) {
 		services().users.mark_device_key_update(&user_id)?;
@@ -316,7 +317,7 @@ pub(super) async fn force_device_list_updates(_body: Vec<&str>) -> Result<RoomMe
 }
 
 pub(super) async fn change_log_level(
-	_body: Vec<&str>, filter: Option<String>, reset: bool,
+	_body: &[&str], filter: Option<String>, reset: bool,
 ) -> Result<RoomMessageEventContent> {
 	let handles = &["console"];
 
@@ -380,7 +381,7 @@ pub(super) async fn change_log_level(
 	Ok(RoomMessageEventContent::text_plain("No log level was specified."))
 }
 
-pub(super) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn sign_json(body: &[&str]) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -403,7 +404,7 @@ pub(super) async fn sign_json(body: Vec<&str>) -> Result<RoomMessageEventContent
 	}
 }
 
-pub(super) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn verify_json(body: &[&str]) -> Result<RoomMessageEventContent> {
 	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -434,7 +435,7 @@ pub(super) async fn verify_json(body: Vec<&str>) -> Result<RoomMessageEventConte
 }
 
 #[tracing::instrument(skip(_body))]
-pub(super) async fn first_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn first_pdu_in_room(_body: &[&str], room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	if !services()
 		.rooms
 		.state_cache
@@ -455,7 +456,7 @@ pub(super) async fn first_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) ->
 }
 
 #[tracing::instrument(skip(_body))]
-pub(super) async fn latest_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn latest_pdu_in_room(_body: &[&str], room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	if !services()
 		.rooms
 		.state_cache
@@ -477,7 +478,7 @@ pub(super) async fn latest_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -
 
 #[tracing::instrument(skip(_body))]
 pub(super) async fn force_set_room_state_from_server(
-	_body: Vec<&str>, room_id: Box<RoomId>, server_name: Box<ServerName>,
+	_body: &[&str], room_id: Box<RoomId>, server_name: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !services()
 		.rooms
@@ -607,7 +608,7 @@ pub(super) async fn force_set_room_state_from_server(
 }
 
 pub(super) async fn get_signing_keys(
-	_body: Vec<&str>, server_name: Option<Box<ServerName>>, _cached: bool,
+	_body: &[&str], server_name: Option<Box<ServerName>>, _cached: bool,
 ) -> Result<RoomMessageEventContent> {
 	let server_name = server_name.unwrap_or_else(|| services().server.config.server_name.clone().into());
 	let signing_keys = services().globals.signing_keys_for(&server_name)?;
@@ -619,7 +620,7 @@ pub(super) async fn get_signing_keys(
 
 #[allow(dead_code)]
 pub(super) async fn get_verify_keys(
-	_body: Vec<&str>, server_name: Option<Box<ServerName>>, cached: bool,
+	_body: &[&str], server_name: Option<Box<ServerName>>, cached: bool,
 ) -> Result<RoomMessageEventContent> {
 	let server_name = server_name.unwrap_or_else(|| services().server.config.server_name.clone().into());
 	let mut out = String::new();
@@ -651,7 +652,7 @@ pub(super) async fn get_verify_keys(
 }
 
 pub(super) async fn resolve_true_destination(
-	_body: Vec<&str>, server_name: Box<ServerName>, no_cache: bool,
+	_body: &[&str], server_name: Box<ServerName>, no_cache: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !services().globals.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -691,7 +692,7 @@ pub(super) async fn resolve_true_destination(
 	Ok(RoomMessageEventContent::text_markdown(msg))
 }
 
-pub(super) async fn memory_stats(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn memory_stats(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	let html_body = conduit::alloc::memory_stats();
 
 	if html_body.is_none() {
@@ -707,7 +708,7 @@ pub(super) async fn memory_stats(_body: Vec<&str>) -> Result<RoomMessageEventCon
 }
 
 #[cfg(tokio_unstable)]
-pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn runtime_metrics(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	let out = services().server.metrics.runtime_metrics().map_or_else(
 		|| "Runtime metrics are not available.".to_owned(),
 		|metrics| format!("```rs\n{metrics:#?}\n```"),
@@ -717,14 +718,14 @@ pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEvent
 }
 
 #[cfg(not(tokio_unstable))]
-pub(super) async fn runtime_metrics(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn runtime_metrics(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	Ok(RoomMessageEventContent::text_markdown(
 		"Runtime metrics require building with `tokio_unstable`.",
 	))
 }
 
 #[cfg(tokio_unstable)]
-pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn runtime_interval(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	let out = services().server.metrics.runtime_interval().map_or_else(
 		|| "Runtime metrics are not available.".to_owned(),
 		|metrics| format!("```rs\n{metrics:#?}\n```"),
@@ -734,13 +735,13 @@ pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEven
 }
 
 #[cfg(not(tokio_unstable))]
-pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn runtime_interval(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	Ok(RoomMessageEventContent::text_markdown(
 		"Runtime metrics require building with `tokio_unstable`.",
 	))
 }
 
-pub(super) async fn time(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn time(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	let now = SystemTime::now();
 	Ok(RoomMessageEventContent::text_markdown(utils::time::format(now, "%+")))
 }

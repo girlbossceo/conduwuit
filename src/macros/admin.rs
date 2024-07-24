@@ -32,7 +32,7 @@ fn dispatch_arm(v: &Variant) -> TokenStream2 {
 			let field = fields.named.iter().filter_map(|f| f.ident.as_ref());
 			let arg = field.clone();
 			quote! {
-				#name { #( #field ),* } => Box::pin(#handler(body, #( #arg ),*)).await?,
+				#name { #( #field ),* } => Box::pin(#handler(&body, #( #arg ),*)).await?,
 			}
 		},
 		Fields::Unnamed(fields) => {
@@ -43,7 +43,7 @@ fn dispatch_arm(v: &Variant) -> TokenStream2 {
 		},
 		Fields::Unit => {
 			quote! {
-				#name => Box::pin(#handler(body)).await?,
+				#name => Box::pin(#handler(&body)).await?,
 			}
 		},
 	}
