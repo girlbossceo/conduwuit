@@ -14,6 +14,18 @@ pub(super) enum ServerCommand {
 	/// - Show configuration values
 	ShowConfig,
 
+	/// - List the features built into the server
+	ListFeatures {
+		#[arg(short, long)]
+		available: bool,
+
+		#[arg(short, long)]
+		enabled: bool,
+
+		#[arg(short, long)]
+		comma: bool,
+	},
+
 	/// - Print database memory usage statistics
 	MemoryUsage,
 
@@ -54,6 +66,11 @@ pub(super) async fn process(command: ServerCommand, body: Vec<&str>) -> Result<R
 	Ok(match command {
 		ServerCommand::Uptime => uptime(body).await?,
 		ServerCommand::ShowConfig => show_config(body).await?,
+		ServerCommand::ListFeatures {
+			available,
+			enabled,
+			comma,
+		} => list_features(body, available, enabled, comma).await?,
 		ServerCommand::MemoryUsage => memory_usage(body).await?,
 		ServerCommand::ClearCaches => clear_caches(body).await?,
 		ServerCommand::ListBackups => list_backups(body).await?,

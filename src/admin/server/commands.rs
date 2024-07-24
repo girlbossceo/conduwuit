@@ -1,4 +1,6 @@
-use conduit::{utils::time, warn, Err, Result};
+use std::fmt::Write;
+
+use conduit::{info, utils::time, warn, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::services;
@@ -17,6 +19,47 @@ pub(super) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
 	Ok(RoomMessageEventContent::text_plain(format!("{}", services().globals.config)))
+}
+
+pub(super) async fn list_features(
+	_body: Vec<&str>, available: bool, enabled: bool, comma: bool,
+) -> Result<RoomMessageEventContent> {
+	let delim = if comma {
+		","
+	} else {
+		" "
+	};
+	if enabled && !available {
+		let features = info::rustc::features().join(delim);
+		let out = format!("```\n{features}\n```");
+		return Ok(RoomMessageEventContent::text_markdown(out));
+	}
+
+	if available && !enabled {
+		let features = info::cargo::features().join(delim);
+		let out = format!("```\n{features}\n```");
+		return Ok(RoomMessageEventContent::text_markdown(out));
+	}
+
+	let mut features = String::new();
+	let enabled = info::rustc::features();
+	let available = info::cargo::features();
+	for feature in available {
+		let active = enabled.contains(&feature.as_str());
+		let emoji = if active {
+			"✅"
+		} else {
+			"❌"
+		};
+		let remark = if active {
+			"[enabled]"
+		} else {
+			""
+		};
+		writeln!(features, "{emoji} {feature} {remark}")?;
+	}
+
+	Ok(RoomMessageEventContent::text_markdown(features))
 }
 
 pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
