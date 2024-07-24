@@ -55,6 +55,8 @@ pub enum Error {
 	Http(#[from] http::Error),
 	#[error("{0}")]
 	HttpHeader(#[from] http::header::InvalidHeaderValue),
+	#[error("{0}")]
+	CargoToml(#[from] cargo_toml::Error),
 
 	// ruma
 	#[error("{0}")]
