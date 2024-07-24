@@ -1,5 +1,6 @@
 #![recursion_limit = "168"]
 #![allow(clippy::wildcard_imports)]
+#![allow(clippy::enum_glob_use)]
 
 pub(crate) mod admin;
 pub(crate) mod handler;

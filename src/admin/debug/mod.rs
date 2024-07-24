@@ -3,11 +3,12 @@ pub(crate) mod tester;
 
 use clap::Subcommand;
 use conduit::Result;
+use conduit_macros::admin_command_dispatch;
 use ruma::{events::room::message::RoomMessageEventContent, EventId, OwnedRoomOrAliasId, RoomId, ServerName};
-use tester::TesterCommand;
 
-use self::commands::*;
+use self::{commands::*, tester::TesterCommand};
 
+#[admin_command_dispatch]
 #[derive(Debug, Subcommand)]
 pub(super) enum DebugCommand {
 	/// - Echo input of admin command
@@ -176,63 +177,6 @@ pub(super) enum DebugCommand {
 
 	/// - Developer test stubs
 	#[command(subcommand)]
+	#[allow(non_snake_case)]
 	Tester(TesterCommand),
-}
-
-pub(super) async fn process(command: DebugCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	Ok(match command {
-		DebugCommand::Echo {
-			message,
-		} => echo(body, message).await?,
-		DebugCommand::GetSigningKeys {
-			server_name,
-			cached,
-		} => get_signing_keys(body, server_name, cached).await?,
-		DebugCommand::GetAuthChain {
-			event_id,
-		} => get_auth_chain(body, event_id).await?,
-		DebugCommand::ParsePdu => parse_pdu(body).await?,
-		DebugCommand::GetPdu {
-			event_id,
-		} => get_pdu(body, event_id).await?,
-		DebugCommand::GetRemotePdu {
-			event_id,
-			server,
-		} => get_remote_pdu(body, event_id, server).await?,
-		DebugCommand::GetRoomState {
-			room_id,
-		} => get_room_state(body, room_id).await?,
-		DebugCommand::Ping {
-			server,
-		} => ping(body, server).await?,
-		DebugCommand::ForceDeviceListUpdates => force_device_list_updates(body).await?,
-		DebugCommand::ChangeLogLevel {
-			filter,
-			reset,
-		} => change_log_level(body, filter, reset).await?,
-		DebugCommand::SignJson => sign_json(body).await?,
-		DebugCommand::VerifyJson => verify_json(body).await?,
-		DebugCommand::FirstPduInRoom {
-			room_id,
-		} => first_pdu_in_room(body, room_id).await?,
-		DebugCommand::LatestPduInRoom {
-			room_id,
-		} => latest_pdu_in_room(body, room_id).await?,
-		DebugCommand::GetRemotePduList {
-			server,
-			force,
-		} => get_remote_pdu_list(body, server, force).await?,
-		DebugCommand::ForceSetRoomStateFromServer {
-			room_id,
-			server_name,
-		} => force_set_room_state_from_server(body, server_name, room_id).await?,
-		DebugCommand::ResolveTrueDestination {
-			server_name,
-			no_cache,
-		} => resolve_true_destination(body, server_name, no_cache).await?,
-		DebugCommand::MemoryStats => memory_stats(),
-		DebugCommand::RuntimeMetrics => runtime_metrics(body).await?,
-		DebugCommand::RuntimeInterval => runtime_interval(body).await?,
-		DebugCommand::Tester(command) => tester::process(command, body).await?,
-	})
 }

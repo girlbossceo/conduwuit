@@ -29,6 +29,7 @@ release_max_log_level = [
 clap.workspace = true
 conduit-api.workspace = true
 conduit-core.workspace = true
+conduit-macros.workspace = true
 conduit-service.workspace = true
 const-str.workspace = true
 futures-util.workspace = true

@@ -413,6 +413,16 @@ default-features = false
 [workspace.dependencies.checked_ops]
 version = "0.1"
 
+[workspace.dependencies.syn]
+version = "1.0"
+features = ["full", "extra-traits"]
+
+[workspace.dependencies.quote]
+version = "1.0"
+
+[workspace.dependencies.proc-macro2]
+version = "1.0.86"
+
 
 #
 # Patches
@@ -478,6 +488,11 @@ default-features = false
 [workspace.dependencies.conduit-core]
 package = "conduit_core"
 path = "src/core"
+default-features = false
+
+[workspace.dependencies.conduit-macros]
+package = "conduit_macros"
+path = "src/macros"
 default-features = false
 
 ###############################################################################

@@ -1,7 +1,7 @@
 use std::{panic::AssertUnwindSafe, time::Instant};
 
 use clap::{CommandFactory, Parser};
-use conduit::{error, trace, Error};
+use conduit::{error, trace, utils::string::common_prefix, Error, Result};
 use futures_util::future::FutureExt;
 use ruma::{
 	events::{
@@ -10,8 +10,6 @@ use ruma::{
 	},
 	OwnedEventId,
 };
-
-use conduit::{utils::string::common_prefix, Result};
 use service::{
 	admin::{Command, CommandOutput, CommandResult, HandlerResult},
 	Services,
@@ -36,7 +34,7 @@ pub(super) fn handle(command: Command) -> HandlerResult { Box::pin(handle_comman
 
 #[tracing::instrument(skip_all, name = "admin")]
 async fn handle_command(command: Command) -> CommandResult {
-	AssertUnwindSafe(process_command(&command))
+	AssertUnwindSafe(Box::pin(process_command(&command)))
 		.catch_unwind()
 		.await
 		.map_err(Error::from_panic)

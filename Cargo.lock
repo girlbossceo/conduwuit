@@ -612,6 +612,7 @@ dependencies = [
  "clap",
  "conduit_api",
  "conduit_core",
+ "conduit_macros",
  "conduit_service",
  "const-str",
  "futures-util",
@@ -710,6 +711,16 @@ dependencies = [
  "rust-rocksdb-uwu",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "conduit_macros"
+version = "0.4.5"
+dependencies = [
+ "conduit_core",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

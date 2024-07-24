@@ -477,7 +477,7 @@ pub(super) async fn latest_pdu_in_room(_body: Vec<&str>, room_id: Box<RoomId>) -
 
 #[tracing::instrument(skip(_body))]
 pub(super) async fn force_set_room_state_from_server(
-	_body: Vec<&str>, server_name: Box<ServerName>, room_id: Box<RoomId>,
+	_body: Vec<&str>, room_id: Box<RoomId>, server_name: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !services()
 		.rooms
@@ -691,18 +691,19 @@ pub(super) async fn resolve_true_destination(
 	Ok(RoomMessageEventContent::text_markdown(msg))
 }
 
-#[must_use]
-pub(super) fn memory_stats() -> RoomMessageEventContent {
+pub(super) async fn memory_stats(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	let html_body = conduit::alloc::memory_stats();
 
 	if html_body.is_none() {
-		return RoomMessageEventContent::text_plain("malloc stats are not supported on your compiled malloc.");
+		return Ok(RoomMessageEventContent::text_plain(
+			"malloc stats are not supported on your compiled malloc.",
+		));
 	}
 
-	RoomMessageEventContent::text_html(
+	Ok(RoomMessageEventContent::text_html(
 		"This command's output can only be viewed by clients that render HTML.".to_owned(),
 		html_body.expect("string result"),
-	)
+	))
 }
 
 #[cfg(tokio_unstable)]
