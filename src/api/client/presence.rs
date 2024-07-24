@@ -16,6 +16,14 @@ pub(crate) async fn set_presence_route(body: Ruma<set_presence::v3::Request>) ->
 	}
 
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	if sender_user != &body.user_id && body.appservice_info.is_none() {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Not allowed to set presence of other users",
+		));
+	}
+
 	services()
 		.presence
 		.set_presence(sender_user, &body.presence, None, None, body.status_msg.clone())?;
