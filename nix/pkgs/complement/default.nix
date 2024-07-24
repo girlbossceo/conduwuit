@@ -15,7 +15,14 @@
 let
   main' = main.override {
     profile = "dev";
-    features = ["axum_dual_protocol"];
+    all_features = true;
+    disable_release_max_log_level = true;
+    disable_features = [
+        # this is non-functional on nix for some reason
+        "hardened_malloc"
+        # dont include experimental features
+        "experimental"
+    ];
   };
 
   start = writeShellScriptBin "start" ''
