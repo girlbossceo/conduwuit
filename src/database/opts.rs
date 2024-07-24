@@ -68,6 +68,7 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	set_compression_defaults(&mut opts, config);
 
 	// Misc
+	opts.set_disable_auto_compactions(!config.rocksdb_compaction);
 	opts.create_if_missing(true);
 
 	// Default: https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords

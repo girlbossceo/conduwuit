@@ -236,6 +236,8 @@ pub struct Config {
 	pub rocksdb_compaction_prio_idle: bool,
 	#[serde(default = "true_fn")]
 	pub rocksdb_compaction_ioprio_idle: bool,
+	#[serde(default = "true_fn")]
+	pub rocksdb_compaction: bool,
 
 	pub emergency_password: Option<String>,
 
@@ -712,6 +714,7 @@ impl fmt::Display for Config {
 			"RocksDB Compaction Idle IOPriority",
 			&self.rocksdb_compaction_ioprio_idle.to_string(),
 		);
+		line("RocksDB Compaction enabled", &self.rocksdb_compaction.to_string());
 		line("Media integrity checks on startup", &self.media_startup_check.to_string());
 		line("Media compatibility filesystem links", &self.media_compat_file_link.to_string());
 		line("Prevent Media Downloads From", {
