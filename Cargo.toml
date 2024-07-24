@@ -188,7 +188,7 @@ version = "0.3.30"
 default-features = false
 
 [workspace.dependencies.tokio]
-version = "1.38.0"
+version = "1.39.1"
 features = [
 	"fs",
 	"net",
