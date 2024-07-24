@@ -23,3 +23,4 @@ pub(crate) use util::{or_else, result};
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}
+conduit::rustc_flags_capture! {}

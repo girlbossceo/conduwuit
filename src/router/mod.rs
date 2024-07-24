@@ -14,6 +14,7 @@ use conduit::{Result, Server};
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}
+conduit::rustc_flags_capture! {}
 
 #[no_mangle]
 pub extern "Rust" fn start(server: &Arc<Server>) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> {

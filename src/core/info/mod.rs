@@ -2,4 +2,7 @@
 //! etc information which can be queried by admins or used by developers.
 
 pub mod cargo;
+pub mod rustc;
 pub mod version;
+
+pub use conduit_macros::rustc_flags_capture;

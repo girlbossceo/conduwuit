@@ -28,6 +28,9 @@ name = "conduit"
 [workspace.dependencies.const-str]
 version = "0.5.7"
 
+[workspace.dependencies.ctor]
+version = "0.2.8"
+
 [workspace.dependencies.cargo_toml]
 version = "0.20"
 features = ["features"]

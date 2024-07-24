@@ -15,6 +15,7 @@ pub mod time;
 
 use std::cmp::{self, Ordering};
 
+pub use ::ctor::{ctor, dtor};
 pub use bytes::{increment, u64_from_bytes, u64_from_u8, u64_from_u8x8};
 pub use debug::slice_truncated as debug_slice_truncated;
 pub use hash::calculate_hash;

@@ -14,13 +14,15 @@ use std::{
 	time::Duration,
 };
 
-use conduit::{debug_info, error, utils::available_parallelism, Error, Result};
+use conduit::{debug_info, error, rustc_flags_capture, utils::available_parallelism, Error, Result};
 use server::Server;
 use tokio::runtime;
 
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
+
+rustc_flags_capture! {}
 
 fn main() -> Result<(), Error> {
 	let args = clap::parse();

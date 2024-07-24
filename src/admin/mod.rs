@@ -21,15 +21,16 @@ extern crate conduit_api as api;
 extern crate conduit_core as conduit;
 extern crate conduit_service as service;
 
-pub(crate) use conduit::{mod_ctor, mod_dtor, Result};
+pub(crate) use conduit::Result;
 pub(crate) use service::services;
 
 pub(crate) use crate::utils::{escape_html, get_room_info};
 
 pub(crate) const PAGE_SIZE: usize = 100;
 
-mod_ctor! {}
-mod_dtor! {}
+conduit::mod_ctor! {}
+conduit::mod_dtor! {}
+conduit::rustc_flags_capture! {}
 
 /// Install the admin command handler
 pub async fn init() {

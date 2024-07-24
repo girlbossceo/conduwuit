@@ -37,6 +37,7 @@ pub use crate::services::Services;
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}
+conduit::rustc_flags_capture! {}
 
 static SERVICES: RwLock<Option<&Services>> = RwLock::new(None);
 

@@ -12,11 +12,16 @@ pub mod utils;
 
 pub use config::Config;
 pub use error::Error;
-pub use info::{version, version::version};
+pub use info::{rustc_flags_capture, version, version::version};
 pub use pdu::{PduBuilder, PduCount, PduEvent};
 pub use server::Server;
+pub use utils::{ctor, dtor};
+
+pub use crate as conduit_core;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+rustc_flags_capture! {}
 
 #[cfg(not(conduit_mods))]
 pub mod mods {
