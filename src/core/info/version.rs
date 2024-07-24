@@ -1,9 +1,10 @@
-/// one true function for returning the conduwuit version with the necessary
-/// CONDUWUIT_VERSION_EXTRA env variables used if specified
-///
-/// Set the environment variable `CONDUWUIT_VERSION_EXTRA` to any UTF-8 string
-/// to include it in parenthesis after the SemVer version. A common value are
-/// git commit hashes.
+//! one true function for returning the conduwuit version with the necessary
+//! CONDUWUIT_VERSION_EXTRA env variables used if specified
+//!
+//! Set the environment variable `CONDUWUIT_VERSION_EXTRA` to any UTF-8 string
+//! to include it in parenthesis after the SemVer version. A common value are
+//! git commit hashes.
+
 use std::sync::OnceLock;
 
 static BRANDING: &str = "Conduwuit";
