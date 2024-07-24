@@ -2,14 +2,14 @@ use std::{
 	collections::{BTreeMap, HashMap},
 	fmt::Write,
 	sync::{Arc, Mutex},
-	time::Instant,
+	time::{Instant, SystemTime},
 };
 
 use api::client::validate_and_add_event_id;
 use conduit::{
 	debug, info, log,
 	log::{capture, Capture},
-	warn, Error, PduEvent, Result,
+	utils, warn, Error, PduEvent, Result,
 };
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
@@ -738,4 +738,9 @@ pub(super) async fn runtime_interval(_body: Vec<&str>) -> Result<RoomMessageEven
 	Ok(RoomMessageEventContent::text_markdown(
 		"Runtime metrics require building with `tokio_unstable`.",
 	))
+}
+
+pub(super) async fn time(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+	let now = SystemTime::now();
+	Ok(RoomMessageEventContent::text_markdown(utils::time::format(now, "%+")))
 }

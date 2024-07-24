@@ -175,6 +175,9 @@ pub(super) enum DebugCommand {
 	///   invocation.
 	RuntimeInterval,
 
+	/// - Print the current time
+	Time,
+
 	/// - Developer test stubs
 	#[command(subcommand)]
 	#[allow(non_snake_case)]
