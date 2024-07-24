@@ -64,6 +64,6 @@ async fn view_room_topic(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomM
 	};
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
-		"Room topic:\n\n```{room_topic}\n```"
+		"Room topic:\n```\n{room_topic}\n```"
 	)))
 }
