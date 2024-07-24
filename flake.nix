@@ -144,8 +144,25 @@
     {
       packages = {
         default = scopeHost.main;
+        default-debug = scopeHost.main.override {
+            profile = "dev";
+            # debug build users expect full logs
+            disable_release_max_log_level = true;
+        };
         all-features = scopeHost.main.override {
             all_features = true;
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
+        };
+        all-features-debug = scopeHost.main.override {
+            profile = "dev";
+            all_features = true;
+            # debug build users expect full logs
+            disable_release_max_log_level = true;
             disable_features = [
                 # this is non-functional on nix for some reason
                 "hardened_malloc"
@@ -159,6 +176,20 @@
         oci-image-all-features = scopeHost.oci-image.override {
           main = scopeHost.main.override {
             all_features = true;
+            disable_features = [
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # dont include experimental features
+                "experimental"
+            ];
+          };
+        };
+        oci-image-all-features-debug = scopeHost.oci-image.override {
+          main = scopeHost.main.override {
+            profile = "dev";
+            all_features = true;
+            # debug build users expect full logs
+            disable_release_max_log_level = true;
             disable_features = [
                 # this is non-functional on nix for some reason
                 "hardened_malloc"
@@ -201,11 +232,38 @@
                   value = scopeCrossStatic.main;
                 }
 
+                # An output for a statically-linked unstripped debug ("dev") binary
+                {
+                  name = "${binaryName}-debug";
+                  value = scopeCrossStatic.main.override {
+                    profile = "dev";
+                    # debug build users expect full logs
+                    disable_release_max_log_level = true;
+                  };
+                }
+
                 # An output for a statically-linked binary with `--all-features`
                 {
                   name = "${binaryName}-all-features";
                   value = scopeCrossStatic.main.override {
                     all_features = true;
+                    disable_features = [
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # dont include experimental features
+                        "experimental"
+                    ];
+                  };
+                }
+
+                # An output for a statically-linked unstripped debug ("dev") binary with `--all-features`
+                {
+                  name = "${binaryName}-all-features-debug";
+                  value = scopeCrossStatic.main.override {
+                    profile = "dev";
+                    all_features = true;
+                    # debug build users expect full logs
+                    disable_release_max_log_level = true;
                     disable_features = [
                         # this is non-functional on nix for some reason
                         "hardened_malloc"
@@ -229,6 +287,18 @@
                   value = scopeCrossStatic.oci-image;
                 }
 
+                # An output for an OCI image based on that unstripped debug ("dev") binary
+                {
+                  name = "oci-image-${crossSystem}-debug";
+                  value = scopeCrossStatic.oci-image.override {
+                    main = scopeCrossStatic.main.override {
+                        profile = "dev";
+                        # debug build users expect full logs
+                        disable_release_max_log_level = true;
+                    };
+                  };
+                }
+
                 # An output for an OCI image based on that binary with `--all-features`
                 {
                   name = "oci-image-${crossSystem}-all-features";
@@ -241,6 +311,25 @@
                           # dont include experimental features
                           "experimental"
                       ];
+                    };
+                  };
+                }
+
+                # An output for an OCI image based on that unstripped debug ("dev") binary with `--all-features`
+                {
+                  name = "oci-image-${crossSystem}-all-features-debug";
+                  value = scopeCrossStatic.oci-image.override {
+                    main = scopeCrossStatic.main.override {
+                        profile = "dev";
+                        all_features = true;
+                        # debug build users expect full logs
+                        disable_release_max_log_level = true;
+                        disable_features = [
+                            # this is non-functional on nix for some reason
+                            "hardened_malloc"
+                            # dont include experimental features
+                            "experimental"
+                        ];
                     };
                   };
                 }
