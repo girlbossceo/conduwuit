@@ -1,8 +1,9 @@
-use conduit_core::utils::string::camel_to_snake_string;
 use proc_macro::{Span, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{parse_macro_input, AttributeArgs, Fields, Ident, ItemEnum, Variant};
+
+use crate::utils::camel_to_snake_string;
 
 pub(super) fn command_dispatch(args: TokenStream, input_: TokenStream) -> TokenStream {
 	let input = input_.clone();

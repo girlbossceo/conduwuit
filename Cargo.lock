@@ -717,7 +717,6 @@ dependencies = [
 name = "conduit_macros"
 version = "0.4.5"
 dependencies = [
- "conduit_core",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
