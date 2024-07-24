@@ -119,6 +119,9 @@
           # Needed for producing Debian packages
           cargo-deb
 
+          # Needed for CI to check validity of produced Debian packages (dpkg-deb)
+          dpkg
+
           # Needed for Complement
           go
 

@@ -61,6 +61,11 @@ group = "versions"
 script = "markdownlint --version"
 
 [[task]]
+name = "dpkg"
+group = "versions"
+script = "dpkg --version"
+
+[[task]]
 name = "cargo-audit"
 group = "security"
 script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"

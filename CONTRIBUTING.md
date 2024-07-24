@@ -39,6 +39,7 @@ The following binaries are used in [`engage.toml`][engage.toml]:
 - [`cargo-deb`][cargo-deb]
 - [`lychee`][lychee]
 - [`markdownlint-cli`][markdownlint-cli]
+- `dpkg`
 
 ### Matrix tests
 
