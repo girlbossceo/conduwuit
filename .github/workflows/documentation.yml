@@ -107,7 +107,23 @@ jobs:
 
       - name: Cache CI dependencies
         run: |
-            bin/nix-build-and-cache ci
+            # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+            ATTEMPTS=3
+            SUCCESS=false
+            while (( ATTEMPTS-- > 0 ))
+            do
+              bin/nix-build-and-cache ci
+              if [[ $? == 0 ]]; then
+                SUCCESS=true
+                break
+              else
+                sleep 3
+              fi
+            done
+
+            if [[ $SUCCESS == "false" ]]; then
+              exit 1
+            fi
 
       - name: Run lychee and markdownlint
         run: |
@@ -116,8 +132,26 @@ jobs:
 
       - name: Build documentation (book)
         run: |
-          ./bin/nix-build-and-cache just .#book
-          cp -r --dereference result public
+            # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+            ATTEMPTS=3
+            SUCCESS=false
+            while (( ATTEMPTS-- > 0 ))
+            do
+              bin/nix-build-and-cache just .#book
+              if [[ $? == 0 ]]; then
+                SUCCESS=true
+                break
+              else
+                sleep 3
+              fi
+            done
+
+            if [[ $SUCCESS == "false" ]]; then
+              exit 1
+            fi
+
+            cp -r --dereference result public
+
       - name: Upload generated documentation (book) as normal artifact
         uses: actions/upload-artifact@v4
         with:
