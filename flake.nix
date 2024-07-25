@@ -136,6 +136,8 @@
 
           # Useful for editing the book locally
           mdbook
+
+          sccache
         ])
         ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs

@@ -27,6 +27,16 @@ concurrency:
     cancel-in-progress: true
 
 env:
+    # sccache
+    SCCACHE_GHA_ENABLED: "true"
+    RUSTC_WRAPPER: "sccache"
+    SCCACHE_BUCKET: "sccache"
+    SCCACHE_S3_USE_SSL: ${{ vars.SCCACHE_S3_USE_SSL }}
+    SCCACHE_REGION: ${{ vars.SCCACHE_REGION }}
+    SCCACHE_ENDPOINT: ${{ vars.SCCACHE_ENDPOINT }}
+    SCCACHE_CACHE_MULTIARCH: ${{ vars.SCCACHE_CACHE_MULTIARCH }}
+    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     # Required to make some things output color
     TERM: ansi
     # Publishing to my nix binary cache
@@ -126,6 +136,11 @@ jobs:
               run: |
                   bin/nix-build-and-cache ci
 
+            # use sccache for Rust
+            - name: Run sccache-cache
+              uses: mozilla-actions/sccache-action@main
+
+            # use rust-cache
             - uses: Swatinem/rust-cache@v2
 
             - name: Run CI tests
@@ -243,6 +258,13 @@ jobs:
                   nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
                   nix develop .#all-features --command true
+
+            # use sccache for Rust
+            - name: Run sccache-cache
+              uses: mozilla-actions/sccache-action@main
+
+            # use rust-cache
+            - uses: Swatinem/rust-cache@v2
 
             - name: Build static ${{ matrix.target }}
               run: |
