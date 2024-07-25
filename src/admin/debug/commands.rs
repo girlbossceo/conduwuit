@@ -745,3 +745,27 @@ pub(super) async fn time(_body: &[&str]) -> Result<RoomMessageEventContent> {
 	let now = SystemTime::now();
 	Ok(RoomMessageEventContent::text_markdown(utils::time::format(now, "%+")))
 }
+
+pub(super) async fn list_dependencies(_body: &[&str], names: bool) -> Result<RoomMessageEventContent> {
+	if names {
+		let out = info::cargo::dependencies_names().join(" ");
+		return Ok(RoomMessageEventContent::notice_markdown(out));
+	}
+
+	let deps = info::cargo::dependencies();
+	let mut out = String::new();
+	writeln!(out, "| name | version | features |")?;
+	writeln!(out, "| ---- | ------- | -------- |")?;
+	for (name, dep) in deps {
+		let version = dep.try_req().unwrap_or("*");
+		let feats = dep.req_features();
+		let feats = if !feats.is_empty() {
+			feats.join(" ")
+		} else {
+			String::new()
+		};
+		writeln!(out, "{name} | {version} | {feats}")?;
+	}
+
+	Ok(RoomMessageEventContent::notice_markdown(out))
+}

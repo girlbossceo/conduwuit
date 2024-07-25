@@ -178,6 +178,12 @@ pub(super) enum DebugCommand {
 	/// - Print the current time
 	Time,
 
+	/// - List dependencies
+	ListDependencies {
+		#[arg(short, long)]
+		names: bool,
+	},
+
 	/// - Developer test stubs
 	#[command(subcommand)]
 	#[allow(non_snake_case)]

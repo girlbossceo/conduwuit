@@ -5,7 +5,7 @@
 
 use std::sync::OnceLock;
 
-use cargo_toml::Manifest;
+use cargo_toml::{DepsSet, Manifest};
 use conduit_macros::cargo_manifest;
 
 use crate::Result;
@@ -36,6 +36,18 @@ const MAIN_MANIFEST: &'static str = ();
 /// For *enabled* features see the info::rustc module instead.
 static FEATURES: OnceLock<Vec<String>> = OnceLock::new();
 
+/// Processed list of dependencies. This is generated from the datas captured in
+/// the MANIFEST.
+static DEPENDENCIES: OnceLock<DepsSet> = OnceLock::new();
+
+#[must_use]
+pub fn dependencies_names() -> Vec<&'static str> { dependencies().keys().map(String::as_str).collect() }
+
+pub fn dependencies() -> &'static DepsSet {
+	DEPENDENCIES
+		.get_or_init(|| init_dependencies().unwrap_or_else(|e| panic!("Failed to initialize dependencies: {e}")))
+}
+
 /// List of all possible features for the project. For *enabled* features in
 /// this build see the companion function in info::rustc.
 pub fn features() -> &'static Vec<String> {
@@ -63,4 +75,14 @@ fn append_features(features: &mut Vec<String>, manifest: &str) -> Result<()> {
 	features.extend(manifest.features.keys().cloned());
 
 	Ok(())
+}
+
+fn init_dependencies() -> Result<DepsSet> {
+	let manifest = Manifest::from_str(WORKSPACE_MANIFEST)?;
+	Ok(manifest
+		.workspace
+		.as_ref()
+		.expect("manifest has workspace section")
+		.dependencies
+		.clone())
 }
