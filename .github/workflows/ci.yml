@@ -158,6 +158,8 @@ jobs:
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
+              with:
+                cache-all-crates: "true"
 
             - name: Run CI tests
               run: |
@@ -281,6 +283,8 @@ jobs:
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
+              with:
+                cache-all-crates: "true"
 
             - name: Build static ${{ matrix.target }}
               run: |
