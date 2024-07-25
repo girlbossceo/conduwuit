@@ -728,19 +728,19 @@ variant_size_differences = "allow"
 [workspace.lints.clippy]
 
 ###################
-cargo = "warn"
+cargo = { level = "warn", priority = -1 }
 
 ## some sadness
 multiple_crate_versions = { level = "allow", priority = 1 }
 
 ###################
-complexity = "warn"
+complexity = { level = "warn", priority = -1 }
 
 ###################
-correctness = "warn"
+correctness = { level = "warn", priority = -1 }
 
 ###################
-nursery = "warn"
+nursery = { level = "warn", priority = -1 }
 
 ## some sadness
 missing_const_for_fn = { level = "allow", priority = 1 }             # TODO
@@ -750,7 +750,7 @@ significant_drop_in_scrutinee = { level = "allow", priority = 1 }    # TODO
 significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
 
 ###################
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
 
 ## some sadness
 doc_markdown = { level = "allow", priority = 1 }
@@ -769,7 +769,7 @@ unnecessary_wraps = { level = "allow", priority = 1 }
 unused_async = { level = "allow", priority = 1 }
 
 ###################
-perf = "warn"
+perf = { level = "warn", priority = -1 }
 
 ###################
 #restriction = "warn"
@@ -819,14 +819,14 @@ unseparated_literal_suffix = "warn"
 verbose_file_reads = "warn"
 
 ###################
-style = "warn"
+style = { level = "warn", priority = -1 }
 
 ## some sadness
 # trivial assertions are quite alright
 assertions_on_constants = { level = "allow", priority = 1 }
 
 ###################
-suspicious = "warn"
+suspicious = { level = "warn", priority = -1 }
 
 ## some sadness
 let_underscore_future = { level = "allow", priority = 1 }
