@@ -1,5 +1,6 @@
 mod admin;
 mod cargo;
+mod debug;
 mod rustc;
 mod utils;
 
@@ -12,6 +13,9 @@ pub fn admin_command_dispatch(args: TokenStream, input: TokenStream) -> TokenStr
 
 #[proc_macro_attribute]
 pub fn cargo_manifest(args: TokenStream, input: TokenStream) -> TokenStream { cargo::manifest(args, input) }
+
+#[proc_macro_attribute]
+pub fn recursion_depth(args: TokenStream, input: TokenStream) -> TokenStream { debug::recursion_depth(args, input) }
 
 #[proc_macro]
 pub fn rustc_flags_capture(args: TokenStream) -> TokenStream { rustc::flags_capture(args) }
