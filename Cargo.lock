@@ -708,6 +708,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tokio-metrics",
+ "toml",
  "tracing",
  "tracing-core",
  "tracing-subscriber",

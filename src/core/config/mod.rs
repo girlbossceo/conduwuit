@@ -9,10 +9,8 @@ use either::{
 	Either,
 	Either::{Left, Right},
 };
-use figment::{
-	providers::{Env, Format, Toml},
-	Figment,
-};
+use figment::providers::{Env, Format, Toml};
+pub use figment::{value::Value as FigmentValue, Figment};
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{
@@ -408,8 +406,8 @@ const DEPRECATED_KEYS: &[&str; 9] = &[
 ];
 
 impl Config {
-	/// Initialize config
-	pub fn new(path: &Option<PathBuf>) -> Result<Self> {
+	/// Pre-initialize config
+	pub fn load(path: &Option<PathBuf>) -> Result<Figment> {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
 			Figment::new()
 				.merge(Toml::file(config_file_env).nested())
@@ -431,13 +429,18 @@ impl Config {
 				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		};
 
+		Ok(raw_config)
+	}
+
+	/// Finalize config
+	pub fn new(raw_config: &Figment) -> Result<Self> {
 		let config = match raw_config.extract::<Self>() {
 			Err(e) => return Err!("There was a problem with your configuration file: {e}"),
 			Ok(config) => config,
 		};
 
 		// don't start if we're listening on both UNIX sockets and TCP at same time
-		check::is_dual_listening(&raw_config)?;
+		check::is_dual_listening(raw_config)?;
 
 		Ok(config)
 	}

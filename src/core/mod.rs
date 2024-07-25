@@ -10,6 +10,7 @@ pub mod pdu;
 pub mod server;
 pub mod utils;
 
+pub use ::toml;
 pub use config::Config;
 pub use error::Error;
 pub use info::{rustc_flags_capture, version, version::version};

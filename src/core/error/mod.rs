@@ -57,6 +57,12 @@ pub enum Error {
 	HttpHeader(#[from] http::header::InvalidHeaderValue),
 	#[error("{0}")]
 	CargoToml(#[from] cargo_toml::Error),
+	#[error("{0}")]
+	FigmentError(#[from] figment::error::Error),
+	#[error("{0}")]
+	TomlSerError(#[from] toml::ser::Error),
+	#[error("{0}")]
+	TomlDeError(#[from] toml::de::Error),
 
 	// ruma
 	#[error("{0}")]

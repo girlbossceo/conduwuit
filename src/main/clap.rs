@@ -3,16 +3,24 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use conduit::{Config, Result};
+use conduit::{
+	config::{Figment, FigmentValue},
+	err, toml, Err, Result,
+};
 
 /// Commandline arguments
 #[derive(Parser, Debug)]
 #[clap(version = conduit::version(), about, long_about = None)]
 pub(crate) struct Args {
 	#[arg(short, long)]
-	/// Optional argument to the path of a conduwuit config TOML file
+	/// Path to the config TOML file (optional)
 	pub(crate) config: Option<PathBuf>,
 
+	/// Override a configuration variable using TOML 'key=value' syntax
+	#[arg(long, short('O'))]
+	pub(crate) option: Vec<String>,
+
+	#[cfg(feature = "console")]
 	/// Activate admin command console automatically after startup.
 	#[arg(long, num_args(0))]
 	pub(crate) console: bool,
@@ -23,10 +31,38 @@ pub(crate) struct Args {
 pub(super) fn parse() -> Args { Args::parse() }
 
 /// Synthesize any command line options with configuration file options.
-pub(crate) fn update(config: &mut Config, args: &Args) -> Result<()> {
+pub(crate) fn update(mut config: Figment, args: &Args) -> Result<Figment> {
+	#[cfg(feature = "console")]
 	// Indicate the admin console should be spawned automatically if the
 	// configuration file hasn't already.
-	config.admin_console_automatic |= args.console;
+	if args.console {
+		config = config.join(("admin_console_automatic", true));
+	}
 
-	Ok(())
+	// All other individual overrides can go last in case we have options which
+	// set multiple conf items at once and the user still needs granular overrides.
+	for option in &args.option {
+		let (key, val) = option
+			.split_once('=')
+			.ok_or_else(|| err!("Missing '=' in -O/--option: {option:?}"))?;
+
+		if key.is_empty() {
+			return Err!("Missing key= in -O/--option: {option:?}");
+		}
+
+		if val.is_empty() {
+			return Err!("Missing =val in -O/--option: {option:?}");
+		}
+
+		// The value has to pass for what would appear as a line in the TOML file.
+		let val = toml::from_str::<FigmentValue>(option)?;
+		let FigmentValue::Dict(_, val) = val else {
+			panic!("Unexpected Figment Value: {val:#?}");
+		};
+
+		// Figment::merge() overrides existing
+		config = config.merge((key, val[key].clone()));
+	}
+
+	Ok(config)
 }
