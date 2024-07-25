@@ -11,7 +11,7 @@ use ruma::{
 	OwnedEventId,
 };
 use service::{
-	admin::{Command, CommandOutput, CommandResult, HandlerResult},
+	admin::{CommandInput, CommandOutput, CommandResult, HandlerResult},
 	Services,
 };
 
@@ -30,10 +30,10 @@ pub(super) fn complete(line: &str) -> String {
 }
 
 #[must_use]
-pub(super) fn handle(command: Command) -> HandlerResult { Box::pin(handle_command(command)) }
+pub(super) fn handle(command: CommandInput) -> HandlerResult { Box::pin(handle_command(command)) }
 
 #[tracing::instrument(skip_all, name = "admin")]
-async fn handle_command(command: Command) -> CommandResult {
+async fn handle_command(command: CommandInput) -> CommandResult {
 	AssertUnwindSafe(Box::pin(process_command(&command)))
 		.catch_unwind()
 		.await
@@ -41,7 +41,7 @@ async fn handle_command(command: Command) -> CommandResult {
 		.or_else(|error| handle_panic(&error, command))
 }
 
-async fn process_command(command: &Command) -> CommandOutput {
+async fn process_command(command: &CommandInput) -> CommandOutput {
 	Handler {
 		services: service::services(),
 	}
@@ -50,7 +50,7 @@ async fn process_command(command: &Command) -> CommandOutput {
 	.and_then(|content| reply(content, command.reply_id.clone()))
 }
 
-fn handle_panic(error: &Error, command: Command) -> CommandResult {
+fn handle_panic(error: &Error, command: CommandInput) -> CommandResult {
 	let link = "Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
 	let msg = format!("Panic occurred while processing command:\n```\n{error:#?}\n```\n{link}");
 	let content = RoomMessageEventContent::notice_markdown(msg);

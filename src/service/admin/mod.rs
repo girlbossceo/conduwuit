@@ -26,8 +26,8 @@ use crate::{globals, rooms, rooms::state::RoomMutexGuard, Dep};
 
 pub struct Service {
 	services: Services,
-	sender: Sender<Command>,
-	receiver: Mutex<Receiver<Command>>,
+	sender: Sender<CommandInput>,
+	receiver: Mutex<Receiver<CommandInput>>,
 	pub handle: RwLock<Option<Handler>>,
 	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
@@ -44,13 +44,13 @@ struct Services {
 }
 
 #[derive(Debug)]
-pub struct Command {
+pub struct CommandInput {
 	pub command: String,
 	pub reply_id: Option<OwnedEventId>,
 }
 
 pub type Completer = fn(&str) -> String;
-pub type Handler = fn(Command) -> HandlerResult;
+pub type Handler = fn(CommandInput) -> HandlerResult;
 pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
 pub type CommandResult = Result<CommandOutput, Error>;
 pub type CommandOutput = Option<RoomMessageEventContent>;
@@ -129,7 +129,7 @@ impl Service {
 	}
 
 	pub async fn command(&self, command: String, reply_id: Option<OwnedEventId>) {
-		self.send(Command {
+		self.send(CommandInput {
 			command,
 			reply_id,
 		})
@@ -139,7 +139,7 @@ impl Service {
 	pub async fn command_in_place(
 		&self, command: String, reply_id: Option<OwnedEventId>,
 	) -> Result<Option<RoomMessageEventContent>> {
-		self.process_command(Command {
+		self.process_command(CommandInput {
 			command,
 			reply_id,
 		})
@@ -153,7 +153,7 @@ impl Service {
 			.map(|complete| complete(command))
 	}
 
-	async fn send(&self, message: Command) {
+	async fn send(&self, message: CommandInput) {
 		debug_assert!(!self.sender.is_closed(), "channel closed");
 		self.sender.send_async(message).await.expect("message sent");
 	}
@@ -163,7 +163,7 @@ impl Service {
 		self.console.handle_signal(sig).await;
 	}
 
-	async fn handle_command(&self, command: Command) {
+	async fn handle_command(&self, command: CommandInput) {
 		match self.process_command(command).await {
 			Ok(Some(output)) => self.handle_response(output).await,
 			Ok(None) => debug!("Command successful with no response"),
@@ -171,7 +171,7 @@ impl Service {
 		}
 	}
 
-	async fn process_command(&self, command: Command) -> CommandResult {
+	async fn process_command(&self, command: CommandInput) -> CommandResult {
 		if let Some(handle) = self.handle.read().await.as_ref() {
 			handle(command).await
 		} else {
