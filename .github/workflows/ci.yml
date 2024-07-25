@@ -62,6 +62,8 @@ jobs:
     tests:
         name: Test
         runs-on: ubuntu-latest
+        env:
+          CARGO_PROFILE: "test"
         steps:
             - name: Free Disk Space (Ubuntu)
               uses: jlumbroso/free-disk-space@main

@@ -657,7 +657,16 @@ opt-level = 'z'
 #	'-Clink-arg=-Wl,-z,nodelete',
 #]
 
+# primarily used for CI
 [profile.test]
+inherits = "dev"
+codegen-units = 16
+incremental = false
+
+[profile.test.package.'*']
+inherits = "dev"
+debug = 0
+codegen-units = 16
 incremental = false
 
 ###############################################################################

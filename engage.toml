@@ -73,7 +73,9 @@ script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
 [[task]]
 name = "cargo-fmt"
 group = "lints"
-script = "cargo fmt --check -- --color=always"
+script = """
+cargo fmt --check -- --color=always
+"""
 
 [[task]]
 name = "cargo-doc"
@@ -84,6 +86,7 @@ env DIRENV_DEVSHELL=all-features \
     direnv exec . \
     cargo doc \
         --workspace \
+        --profile test \
         --all-features \
         --no-deps \
         --document-private-items \
@@ -96,6 +99,7 @@ group = "lints"
 script = """
 cargo clippy \
     --workspace \
+    --profile test \
     --all-targets \
     --color=always \
     -- \
@@ -110,6 +114,7 @@ env DIRENV_DEVSHELL=all-features \
     direnv exec . \
     cargo clippy \
         --workspace \
+        --profile test \
         --all-targets \
         --all-features \
         --color=always \
@@ -123,6 +128,7 @@ group = "lints"
 script = """
 cargo clippy \
     --workspace \
+    --profile test \
     --features jemalloc \
     --all-targets \
     --color=always \
@@ -161,6 +167,7 @@ env DIRENV_DEVSHELL=all-features \
     direnv exec . \
     cargo test \
         --workspace \
+        --profile test \
         --all-targets \
         --all-features \
         --color=always \
@@ -174,6 +181,7 @@ group = "tests"
 script = """
 cargo test \
     --workspace \
+    --profile test \
     --all-targets \
     --color=always \
     -- \
@@ -190,9 +198,11 @@ name = "nix-default"
 group = "tests"
 script = """
 env DIRENV_DEVSHELL=dynamic \
+    CARGO_PROFILE="test" \
     direnv exec . \
-    bin/nix-build-and-cache just .#default
+    bin/nix-build-and-cache just .#default-test
 env DIRENV_DEVSHELL=dynamic \
+    CARGO_PROFILE="test" \
     direnv exec . \
-    nix run -L .#default -- --help
+    nix run -L .#default-test -- --help && nix run -L .#default-test -- --version
 """

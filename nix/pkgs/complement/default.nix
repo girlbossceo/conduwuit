@@ -14,7 +14,7 @@
 
 let
   main' = main.override {
-    profile = "dev";
+    profile = "test";
     all_features = true;
     disable_release_max_log_level = true;
     disable_features = [

@@ -153,7 +153,7 @@ commonAttrs = {
       ];
     };
 
-    dontStrip = profile == "dev";
+    dontStrip = profile == "dev" || profile == "test";
 
     buildInputs = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys';
 

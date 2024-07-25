@@ -154,6 +154,10 @@
             # debug build users expect full logs
             disable_release_max_log_level = true;
         };
+        default-test = scopeHost.main.override {
+            profile = "test";
+            disable_release_max_log_level = true;
+        };
         all-features = scopeHost.main.override {
             all_features = true;
             disable_features = [
@@ -243,6 +247,16 @@
                   value = scopeCrossStatic.main.override {
                     profile = "dev";
                     # debug build users expect full logs
+                    disable_release_max_log_level = true;
+                  };
+                }
+
+                # An output for a statically-linked unstripped debug binary with the
+                # "test" profile (for CI usage only)
+                {
+                  name = "${binaryName}-test";
+                  value = scopeCrossStatic.main.override {
+                    profile = "test";
                     disable_release_max_log_level = true;
                   };
                 }
