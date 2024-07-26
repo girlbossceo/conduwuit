@@ -1,4 +1,5 @@
 use axum::extract::State;
+use axum_client_ip::InsecureClientIp;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -33,8 +34,9 @@ struct Claims {
 ///
 /// Get the supported login types of this server. One of these should be used as
 /// the `type` field when logging in.
+#[tracing::instrument(skip_all, fields(%client), name = "register")]
 pub(crate) async fn get_login_types_route(
-	_body: Ruma<get_login_types::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp, _body: Ruma<get_login_types::v3::Request>,
 ) -> Result<get_login_types::v3::Response> {
 	Ok(get_login_types::v3::Response::new(vec![
 		get_login_types::v3::LoginType::Password(PasswordLoginType::default()),
@@ -56,8 +58,9 @@ pub(crate) async fn get_login_types_route(
 /// Note: You can use [`GET
 /// /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
+#[tracing::instrument(skip_all, fields(%client), name = "register")]
 pub(crate) async fn login_route(
-	State(services): State<crate::State>, body: Ruma<login::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp, body: Ruma<login::v3::Request>,
 ) -> Result<login::v3::Response> {
 	// Validate login method
 	// TODO: Other login methods
@@ -176,9 +179,13 @@ pub(crate) async fn login_route(
 	if device_exists {
 		services.users.set_token(&user_id, &device_id, &token)?;
 	} else {
-		services
-			.users
-			.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
+		services.users.create_device(
+			&user_id,
+			&device_id,
+			&token,
+			body.initial_device_display_name.clone(),
+			Some(client.to_string()),
+		)?;
 	}
 
 	// send client well-known if specified so the client knows to reconfigure itself
@@ -214,8 +221,9 @@ pub(crate) async fn login_route(
 ///   last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
+#[tracing::instrument(skip_all, fields(%client), name = "register")]
 pub(crate) async fn logout_route(
-	State(services): State<crate::State>, body: Ruma<logout::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp, body: Ruma<logout::v3::Request>,
 ) -> Result<logout::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -241,8 +249,10 @@ pub(crate) async fn logout_route(
 /// Note: This is equivalent to calling [`GET
 /// /_matrix/client/r0/logout`](fn.logout_route.html) from each device of this
 /// user.
+#[tracing::instrument(skip_all, fields(%client), name = "register")]
 pub(crate) async fn logout_all_route(
-	State(services): State<crate::State>, body: Ruma<logout_all::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<logout_all::v3::Request>,
 ) -> Result<logout_all::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
