@@ -34,9 +34,8 @@ struct Claims {
 ///
 /// Get the supported login types of this server. One of these should be used as
 /// the `type` field when logging in.
-#[tracing::instrument(skip_all, fields(%client), name = "register")]
 pub(crate) async fn get_login_types_route(
-	InsecureClientIp(client): InsecureClientIp, _body: Ruma<get_login_types::v3::Request>,
+	_body: Ruma<get_login_types::v3::Request>,
 ) -> Result<get_login_types::v3::Response> {
 	Ok(get_login_types::v3::Response::new(vec![
 		get_login_types::v3::LoginType::Password(PasswordLoginType::default()),
@@ -58,7 +57,7 @@ pub(crate) async fn get_login_types_route(
 /// Note: You can use [`GET
 /// /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
 /// supported login types.
-#[tracing::instrument(skip_all, fields(%client), name = "register")]
+#[tracing::instrument(skip_all, fields(%client), name = "login")]
 pub(crate) async fn login_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp, body: Ruma<login::v3::Request>,
 ) -> Result<login::v3::Response> {
@@ -221,7 +220,7 @@ pub(crate) async fn login_route(
 ///   last seen ts)
 /// - Forgets to-device events
 /// - Triggers device list updates
-#[tracing::instrument(skip_all, fields(%client), name = "register")]
+#[tracing::instrument(skip_all, fields(%client), name = "logout")]
 pub(crate) async fn logout_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp, body: Ruma<logout::v3::Request>,
 ) -> Result<logout::v3::Response> {
@@ -249,7 +248,7 @@ pub(crate) async fn logout_route(
 /// Note: This is equivalent to calling [`GET
 /// /_matrix/client/r0/logout`](fn.logout_route.html) from each device of this
 /// user.
-#[tracing::instrument(skip_all, fields(%client), name = "register")]
+#[tracing::instrument(skip_all, fields(%client), name = "logout")]
 pub(crate) async fn logout_all_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<logout_all::v3::Request>,
