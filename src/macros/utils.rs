@@ -1,4 +1,12 @@
-use syn::{Expr, Lit, Meta};
+use syn::{parse_str, Expr, Generics, Lit, Meta};
+
+use crate::Result;
+
+pub(crate) fn get_named_generics(args: &[Meta], name: &str) -> Result<Generics> {
+	const DEFAULT: &str = "<>";
+
+	parse_str::<Generics>(&get_named_string(args, name).unwrap_or_else(|| DEFAULT.to_owned()))
+}
 
 pub(crate) fn get_named_string(args: &[Meta], name: &str) -> Option<String> {
 	args.iter().find_map(|arg| {
