@@ -21,11 +21,13 @@ pub(crate) async fn get_context_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
+	// some clients, at least element, seem to require knowledge of redundant
+	// members for "inline" profiles on the timeline to work properly
 	let (lazy_load_enabled, lazy_load_send_redundant) = match &body.filter.lazy_load_options {
 		LazyLoadOptions::Enabled {
 			include_redundant_members,
 		} => (true, *include_redundant_members),
-		LazyLoadOptions::Disabled => (false, false),
+		LazyLoadOptions::Disabled => (false, cfg!(feature = "element_hacks")),
 	};
 
 	let mut lazy_loaded = HashSet::new();
