@@ -1,13 +1,12 @@
 use std::cmp;
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, AttributeArgs, Item};
+use quote::ToTokens;
+use syn::{Item, Meta};
 
-pub(super) fn recursion_depth(args: TokenStream, item_: TokenStream) -> TokenStream {
-	let item = item_.clone();
-	let item = parse_macro_input!(item as Item);
-	let _args = parse_macro_input!(args as AttributeArgs);
+use crate::Result;
 
+pub(super) fn recursion_depth(item: Item, _args: &[Meta]) -> Result<TokenStream> {
 	let mut best: usize = 0;
 	let mut count: usize = 0;
 	// think you'd find a fancy recursive ast visitor? think again
@@ -24,5 +23,5 @@ pub(super) fn recursion_depth(args: TokenStream, item_: TokenStream) -> TokenStr
 	println!("DEPTH: {best}");
 	println!("LENGTH: {count}");
 
-	item_
+	Ok(item.into_token_stream().into())
 }

@@ -1,23 +1,26 @@
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
-use syn::{parse_macro_input, AttributeArgs, ItemFn, Meta, NestedMeta};
+use quote::quote;
+use syn::{ItemFn, Meta, MetaList};
 
-pub(super) fn implement(args: TokenStream, input: TokenStream) -> TokenStream {
-	let args = parse_macro_input!(args as AttributeArgs);
-	let item = parse_macro_input!(input as ItemFn);
+use crate::Result;
 
-	let NestedMeta::Meta(Meta::Path(receiver)) = args
+pub(super) fn implement(item: ItemFn, args: &[Meta]) -> Result<TokenStream> {
+	let Meta::List(MetaList {
+		path,
+		..
+	}) = &args
 		.first()
 		.expect("missing path to trait or item to implement")
 	else {
 		panic!("invalid path to item for implement");
 	};
 
+	let input = item;
 	let out = quote! {
-		impl #receiver {
-			#item
+		impl #path {
+			#input
 		}
 	};
 
-	out.into_token_stream().into()
+	Ok(out.into())
 }

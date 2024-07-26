@@ -16,19 +16,19 @@ use crate::Result;
 
 #[cargo_manifest]
 const WORKSPACE_MANIFEST: &'static str = ();
-#[cargo_manifest("macros")]
+#[cargo_manifest(crate = "macros")]
 const MACROS_MANIFEST: &'static str = ();
-#[cargo_manifest("core")]
+#[cargo_manifest(crate = "core")]
 const CORE_MANIFEST: &'static str = ();
-#[cargo_manifest("database")]
+#[cargo_manifest(crate = "database")]
 const DATABASE_MANIFEST: &'static str = ();
-#[cargo_manifest("service")]
+#[cargo_manifest(crate = "service")]
 const SERVICE_MANIFEST: &'static str = ();
-#[cargo_manifest("admin")]
+#[cargo_manifest(crate = "admin")]
 const ADMIN_MANIFEST: &'static str = ();
-#[cargo_manifest("router")]
+#[cargo_manifest(crate = "router")]
 const ROUTER_MANIFEST: &'static str = ();
-#[cargo_manifest("main")]
+#[cargo_manifest(crate = "main")]
 const MAIN_MANIFEST: &'static str = ();
 
 /// Processed list of features access all project crates. This is generated from

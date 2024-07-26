@@ -1,3 +1,18 @@
+use syn::{Expr, Lit, Meta};
+
+pub(crate) fn get_named_string(args: &[Meta], name: &str) -> Option<String> {
+	args.iter().find_map(|arg| {
+		let value = arg.require_name_value().ok()?;
+		let Expr::Lit(ref lit) = value.value else {
+			return None;
+		};
+		let Lit::Str(ref str) = lit.lit else {
+			return None;
+		};
+		value.path.is_ident(name).then_some(str.value())
+	})
+}
+
 #[must_use]
 pub(crate) fn camel_to_snake_string(s: &str) -> String {
 	let mut output = String::with_capacity(

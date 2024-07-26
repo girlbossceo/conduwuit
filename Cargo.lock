@@ -731,9 +731,10 @@ dependencies = [
 name = "conduit_macros"
 version = "0.4.5"
 dependencies = [
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.71",
 ]
 
 [[package]]
