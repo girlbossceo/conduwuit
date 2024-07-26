@@ -1,6 +1,7 @@
 mod admin;
 mod cargo;
 mod debug;
+mod refutable;
 mod rustc;
 mod utils;
 
@@ -19,3 +20,6 @@ pub fn recursion_depth(args: TokenStream, input: TokenStream) -> TokenStream { d
 
 #[proc_macro]
 pub fn rustc_flags_capture(args: TokenStream) -> TokenStream { rustc::flags_capture(args) }
+
+#[proc_macro_attribute]
+pub fn refutable(args: TokenStream, input: TokenStream) -> TokenStream { refutable::refutable(args, input) }
