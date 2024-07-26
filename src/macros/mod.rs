@@ -1,6 +1,7 @@
 mod admin;
 mod cargo;
 mod debug;
+mod implement;
 mod refutable;
 mod rustc;
 mod utils;
@@ -23,3 +24,6 @@ pub fn rustc_flags_capture(args: TokenStream) -> TokenStream { rustc::flags_capt
 
 #[proc_macro_attribute]
 pub fn refutable(args: TokenStream, input: TokenStream) -> TokenStream { refutable::refutable(args, input) }
+
+#[proc_macro_attribute]
+pub fn implement(args: TokenStream, input: TokenStream) -> TokenStream { implement::implement(args, input) }
