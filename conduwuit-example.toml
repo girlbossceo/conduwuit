@@ -224,9 +224,11 @@ registration_token = "change this token for something specific to your server"
 # No default.
 # forbidden_alias_names = []
 
-# List of forbidden server names that we will block all client room joins, incoming federated room directory requests, incoming federated invites for, and incoming federated joins. This check is applied on the room ID, room alias, sender server name, and sender user's server name.
-# Basically "global" ACLs. For our user (client) checks, admin users are allowed.
-# No default.
+# List of forbidden server names that we will block incoming AND outgoing federation with, and block client room joins / remote user invites.
+#
+# This check is applied on the room ID, room alias, sender server name, sender user's server name, inbound federation X-Matrix origin, and outbound federation handler.
+#
+# Basically "global" ACLs. No default.
 # forbidden_remote_server_names = []
 
 # List of forbidden server names that we will block all outgoing federated room directory requests for. Useful for preventing our users from wandering into bad servers or spaces.

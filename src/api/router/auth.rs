@@ -6,7 +6,7 @@ use axum_extra::{
 	typed_header::TypedHeaderRejectionReason,
 	TypedHeader,
 };
-use conduit::{warn, Err, Error, Result};
+use conduit::{debug_info, warn, Err, Error, Result};
 use http::uri::PathAndQuery;
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, Metadata},
@@ -185,7 +185,7 @@ fn auth_appservice(services: &Services, request: &Request, info: Box<Registratio
 async fn auth_server(
 	services: &Services, request: &mut Request, json_body: &Option<CanonicalJsonValue>,
 ) -> Result<Auth> {
-	if !services.globals.allow_federation() {
+	if !services.server.config.allow_federation {
 		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
@@ -206,6 +206,17 @@ async fn auth_server(
 		})?;
 
 	let origin = &x_matrix.origin;
+
+	if services
+		.server
+		.config
+		.forbidden_remote_server_names
+		.contains(origin)
+	{
+		debug_info!("Refusing to accept inbound federation request to {origin}");
+		return Err!(Request(Forbidden("Federation with this homeserver is not allowed.")));
+	}
+
 	let signatures =
 		BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig.to_string()))]);
 	let signatures = BTreeMap::from_iter([(
