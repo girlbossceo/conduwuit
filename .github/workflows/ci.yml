@@ -215,6 +215,10 @@ jobs:
                       echo '```' >> $GITHUB_STEP_SUMMARY
                   fi
 
+            - name: Run cargo clean test artifacts
+              run: |
+                  cargo clean --profile test
+
     build:
         name: Build
         runs-on: ubuntu-latest
@@ -225,6 +229,9 @@ jobs:
                     - target: aarch64-unknown-linux-musl
                     - target: x86_64-unknown-linux-musl
         steps:
+            - name: Free Disk Space (Ubuntu)
+              uses: jlumbroso/free-disk-space@main
+
             - name: Sync repository
               uses: actions/checkout@v4
 
