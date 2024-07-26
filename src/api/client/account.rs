@@ -286,9 +286,13 @@ pub(crate) async fn register_route(
 	let token = utils::random_string(TOKEN_LENGTH);
 
 	// Create device for this account
-	services
-		.users
-		.create_device(&user_id, &device_id, &token, body.initial_device_display_name.clone())?;
+	services.users.create_device(
+		&user_id,
+		&device_id,
+		&token,
+		body.initial_device_display_name.clone(),
+		Some(client.to_string()),
+	)?;
 
 	debug_info!(%user_id, %device_id, "User account was created");
 
