@@ -16,7 +16,6 @@ case "$1" in
         --home "$CONDUWUIT_DATABASE_PATH" \
         --disabled-login \
         --shell "/usr/sbin/nologin" \
-        --verbose \
         conduwuit
     fi
 
