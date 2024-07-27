@@ -27,10 +27,10 @@ concurrency:
     cancel-in-progress: true
 
 env:
-    # sccache
-    SCCACHE_GHA_ENABLED: "true"
-    RUSTC_WRAPPER: "sccache"
-    SCCACHE_BUCKET: "sccache"
+    # sccache only on main repo
+    SCCACHE_GHA_ENABLED: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'true' || 'false' }}"
+    RUSTC_WRAPPER: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' }}"
+    SCCACHE_BUCKET: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' }}"
     SCCACHE_S3_USE_SSL: ${{ vars.SCCACHE_S3_USE_SSL }}
     SCCACHE_REGION: ${{ vars.SCCACHE_REGION }}
     SCCACHE_ENDPOINT: ${{ vars.SCCACHE_ENDPOINT }}
@@ -156,6 +156,7 @@ jobs:
 
             # use sccache for Rust
             - name: Run sccache-cache
+              if: (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]')
               uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
@@ -288,6 +289,7 @@ jobs:
 
             # use sccache for Rust
             - name: Run sccache-cache
+              if: (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]')
               uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
