@@ -8,6 +8,17 @@
 >
 > If there are things like Compose file issues or Dockerhub image issues, those can still be mentioned as long as they're something we can fix.
 
+## General potential issues
+
+#### Potential DNS issues when using Docker
+
+Docker has issues with its default DNS setup that may cause DNS to not be properly functional when running conduwuit, resulting in federation issues.
+The symptoms of this have shown in excessively long room joins (30+ minutes) from very long DNS timeouts, log entries of "mismatching responding nameservers", and/or partial or non-functional inbound/outbound federation.
+
+This is **not** a conduwuit issue, and is purely a Docker issue. It is not sustainable for heavy DNS activity which is normal for Matrix federation. The workarounds for this are:
+- Use DNS over TCP via the config option `query_over_tcp_only = true`
+- Don't use Docker's default DNS setup and instead allow the container to use and communicate with your host's DNS servers (host's `/etc/resolv.conf`)
+
 ## Rocksdb / database issues
 
 #### Direct IO
@@ -37,8 +48,6 @@ With this in mind:
 - If your database successfully opens, clients are recommended to clear their client cache to account for the rollback
 - Leave your conduwuit running in `PointInTime` for at least 30-60 minutes so as much possible corruption is restored
 - If all goes will, you should be able to restore back to using `TolerateCorruptedTailRecords` and you have successfully recovered your database
-
-## Media
 
 ## Debugging
 
