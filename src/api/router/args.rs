@@ -7,7 +7,7 @@ use ruma::{api::IncomingRequest, CanonicalJsonValue, OwnedDeviceId, OwnedServerN
 use service::Services;
 
 use super::{auth, auth::Auth, request, request::Request};
-use crate::service::appservice::RegistrationInfo;
+use crate::{service::appservice::RegistrationInfo, State};
 
 /// Extractor for Ruma request structs
 pub(crate) struct Args<T> {
@@ -36,14 +36,13 @@ pub(crate) struct Args<T> {
 }
 
 #[async_trait]
-impl<T, S> FromRequest<S, Body> for Args<T>
+impl<T> FromRequest<State, Body> for Args<T>
 where
 	T: IncomingRequest,
 {
 	type Rejection = Error;
 
-	async fn from_request(request: hyper::Request<Body>, _: &S) -> Result<Self, Self::Rejection> {
-		let services = service::services(); // ???
+	async fn from_request(request: hyper::Request<Body>, services: &State) -> Result<Self, Self::Rejection> {
 		let mut request = request::from(services, request).await?;
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&request.body).ok();
 		let auth = auth::auth(services, &mut request, &json_body, &T::METADATA).await?;

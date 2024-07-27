@@ -82,7 +82,7 @@ pub(crate) async fn create_join_event_template_route(
 		.state_cache
 		.is_left(&body.user_id, &body.room_id)
 		.unwrap_or(true))
-		&& user_can_perform_restricted_join(services, &body.user_id, &body.room_id, &room_version_id)?
+		&& user_can_perform_restricted_join(&services, &body.user_id, &body.room_id, &room_version_id)?
 	{
 		let auth_user = services
 			.rooms

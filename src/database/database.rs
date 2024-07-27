@@ -11,12 +11,12 @@ pub struct Database {
 
 impl Database {
 	/// Load an existing database or create a new one.
-	pub async fn open(server: &Arc<Server>) -> Result<Self> {
+	pub async fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
 		let db = Engine::open(server)?;
-		Ok(Self {
+		Ok(Arc::new(Self {
 			db: db.clone(),
 			map: maps::open(&db)?,
-		})
+		}))
 	}
 
 	#[inline]

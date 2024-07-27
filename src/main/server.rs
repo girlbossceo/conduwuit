@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use conduit::{config::Config, info, log::Log, utils::sys, Error, Result};
-use tokio::runtime;
+use tokio::{runtime, sync::Mutex};
 
 use crate::{clap::Args, tracing::TracingFlameGuard};
 
@@ -9,6 +9,8 @@ use crate::{clap::Args, tracing::TracingFlameGuard};
 pub(crate) struct Server {
 	/// Server runtime state; public portion
 	pub(crate) server: Arc<conduit::Server>,
+
+	pub(crate) services: Mutex<Option<Arc<conduit_service::Services>>>,
 
 	_tracing_flame_guard: TracingFlameGuard,
 
@@ -53,6 +55,8 @@ impl Server {
 					capture,
 				},
 			)),
+
+			services: None.into(),
 
 			_tracing_flame_guard: tracing_flame_guard,
 

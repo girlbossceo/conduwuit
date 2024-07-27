@@ -26,7 +26,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	}
 
 	let response = crate::client::get_public_rooms_filtered_helper(
-		services,
+		&services,
 		None,
 		body.limit,
 		body.since.as_deref(),
@@ -60,7 +60,7 @@ pub(crate) async fn get_public_rooms_route(
 	}
 
 	let response = crate::client::get_public_rooms_filtered_helper(
-		services,
+		&services,
 		None,
 		body.limit,
 		body.since.as_deref(),

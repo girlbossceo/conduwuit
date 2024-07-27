@@ -44,7 +44,8 @@ pub struct Services {
 
 impl Services {
 	#[allow(clippy::cognitive_complexity)]
-	pub fn build(server: Arc<Server>, db: Arc<Database>) -> Result<Self> {
+	pub async fn build(server: Arc<Server>) -> Result<Arc<Self>> {
+		let db = Database::open(&server).await?;
 		let service: Arc<Map> = Arc::new(RwLock::new(BTreeMap::new()));
 		macro_rules! build {
 			($tyname:ty) => {{
@@ -58,7 +59,7 @@ impl Services {
 			}};
 		}
 
-		Ok(Self {
+		Ok(Arc::new(Self {
 			account_data: build!(account_data::Service),
 			admin: build!(admin::Service),
 			appservice: build!(appservice::Service),
@@ -102,12 +103,13 @@ impl Services {
 			service,
 			server,
 			db,
-		})
+		}))
 	}
 
-	pub(super) async fn start(&self) -> Result<()> {
+	pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
 		debug_info!("Starting services...");
 
+		self.admin.set_services(Some(Arc::clone(self)));
 		globals::migrations::migrations(self).await?;
 		self.manager
 			.lock()
@@ -118,16 +120,18 @@ impl Services {
 			.await?;
 
 		debug_info!("Services startup complete.");
-		Ok(())
+		Ok(Arc::clone(self))
 	}
 
-	pub(super) async fn stop(&self) {
+	pub async fn stop(&self) {
 		info!("Shutting down services...");
 
 		self.interrupt();
 		if let Some(manager) = self.manager.lock().await.as_ref() {
 			manager.stop().await;
 		}
+
+		self.admin.set_services(None);
 
 		debug_info!("Services shutdown complete.");
 	}

@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
 use axum::{response::IntoResponse, routing::get, Router};
-use conduit::{Error, Server};
+use conduit::Error;
+use conduit_api::State;
+use conduit_service::Services;
 use http::{StatusCode, Uri};
 use ruma::api::client::error::ErrorKind;
 
-extern crate conduit_api as api;
-extern crate conduit_service as service;
+pub(crate) fn build(services: &Arc<Services>) -> Router {
+	let router = Router::<State>::new();
+	let state = services.clone();
 
-pub(crate) fn build(server: &Arc<Server>) -> Router {
-	let router = Router::<api::State>::new();
-
-	api::router::build(router, server)
+	conduit_api::router::build(router, &services.server)
 		.route("/", get(it_works))
 		.fallback(not_found)
-		.with_state(service::services())
+		.with_state(state)
 }
 
 async fn not_found(_uri: Uri) -> impl IntoResponse {

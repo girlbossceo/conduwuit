@@ -137,7 +137,7 @@ pub(crate) async fn sync_events_route(
 	);
 
 	if services.globals.allow_local_presence() {
-		process_presence_updates(services, &mut presence_updates, since, &sender_user).await?;
+		process_presence_updates(&services, &mut presence_updates, since, &sender_user).await?;
 	}
 
 	let all_joined_rooms = services
@@ -152,7 +152,7 @@ pub(crate) async fn sync_events_route(
 	for room_id in all_joined_rooms {
 		let room_id = room_id?;
 		if let Ok(joined_room) = load_joined_room(
-			services,
+			&services,
 			&sender_user,
 			&sender_device,
 			&room_id,
@@ -182,7 +182,7 @@ pub(crate) async fn sync_events_route(
 		.collect();
 	for result in all_left_rooms {
 		handle_left_room(
-			services,
+			&services,
 			since,
 			&result?.0,
 			&sender_user,
@@ -1214,7 +1214,7 @@ pub(crate) async fn sync_events_v4_route(
 									match new_membership {
 										MembershipState::Join => {
 											// A new user joined an encrypted room
-											if !share_encrypted_room(services, &sender_user, &user_id, room_id)? {
+											if !share_encrypted_room(&services, &sender_user, &user_id, room_id)? {
 												device_list_changes.insert(user_id);
 											}
 										},
@@ -1243,7 +1243,7 @@ pub(crate) async fn sync_events_v4_route(
 								.filter(|user_id| {
 									// Only send keys if the sender doesn't share an encrypted room with the target
 									// already
-									!share_encrypted_room(services, &sender_user, user_id, room_id).unwrap_or(false)
+									!share_encrypted_room(&services, &sender_user, user_id, room_id).unwrap_or(false)
 								}),
 						);
 					}
@@ -1407,7 +1407,8 @@ pub(crate) async fn sync_events_v4_route(
 	for (room_id, (required_state_request, timeline_limit, roomsince)) in &todo_rooms {
 		let roomsincecount = PduCount::Normal(*roomsince);
 
-		let (timeline_pdus, limited) = load_timeline(services, &sender_user, room_id, roomsincecount, *timeline_limit)?;
+		let (timeline_pdus, limited) =
+			load_timeline(&services, &sender_user, room_id, roomsincecount, *timeline_limit)?;
 
 		if roomsince != &0 && timeline_pdus.is_empty() {
 			continue;

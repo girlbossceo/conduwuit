@@ -370,7 +370,7 @@ pub(crate) async fn register_route(
 
 			if let Some(room_id_server_name) = room.server_name() {
 				if let Err(e) = join_room_by_id_helper(
-					services,
+					&services,
 					&user_id,
 					room,
 					Some("Automatically joining this room upon registration".to_owned()),
@@ -562,11 +562,11 @@ pub(crate) async fn deactivate_route(
 		.rooms_joined(sender_user)
 		.filter_map(Result::ok)
 		.collect();
-	super::update_displayname(services, sender_user.clone(), None, all_joined_rooms.clone()).await?;
-	super::update_avatar_url(services, sender_user.clone(), None, None, all_joined_rooms).await?;
+	super::update_displayname(&services, sender_user.clone(), None, all_joined_rooms.clone()).await?;
+	super::update_avatar_url(&services, sender_user.clone(), None, None, all_joined_rooms).await?;
 
 	// Make the user leave all rooms before deactivation
-	super::leave_all_rooms(services, sender_user).await;
+	super::leave_all_rooms(&services, sender_user).await;
 
 	info!("User {sender_user} deactivated their account.");
 	services

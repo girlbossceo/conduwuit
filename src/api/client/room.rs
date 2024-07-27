@@ -79,7 +79,7 @@ pub(crate) async fn create_room_route(
 	}
 
 	let room_id: OwnedRoomId = if let Some(custom_room_id) = &body.room_id {
-		custom_room_id_check(services, custom_room_id)?
+		custom_room_id_check(&services, custom_room_id)?
 	} else {
 		RoomId::new(&services.globals.config.server_name)
 	};
@@ -96,7 +96,7 @@ pub(crate) async fn create_room_route(
 	let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 
 	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
-		Some(room_alias_check(services, alias, &body.appservice_info).await?)
+		Some(room_alias_check(&services, alias, &body.appservice_info).await?)
 	} else {
 		None
 	};
@@ -438,7 +438,7 @@ pub(crate) async fn create_room_route(
 	// 8. Events implied by invite (and TODO: invite_3pid)
 	drop(state_lock);
 	for user_id in &body.invite {
-		if let Err(e) = invite_helper(services, sender_user, user_id, &room_id, None, body.is_direct).await {
+		if let Err(e) = invite_helper(&services, sender_user, user_id, &room_id, None, body.is_direct).await {
 			warn!(%e, "Failed to send invite");
 		}
 	}

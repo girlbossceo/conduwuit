@@ -6,6 +6,7 @@ use axum::{
 };
 use axum_client_ip::SecureClientIpSource;
 use conduit::{error, Result, Server};
+use conduit_service::Services;
 use http::{
 	header::{self, HeaderName},
 	HeaderValue, Method, StatusCode,
@@ -34,7 +35,8 @@ const CONDUWUIT_CSP: &[&str] = &[
 
 const CONDUWUIT_PERMISSIONS_POLICY: &[&str] = &["interest-cohort=()", "browsing-topics=()"];
 
-pub(crate) fn build(server: &Arc<Server>) -> Result<Router> {
+pub(crate) fn build(services: &Arc<Services>) -> Result<Router> {
+	let server = &services.server;
 	let layers = ServiceBuilder::new();
 
 	#[cfg(feature = "sentry_telemetry")]
@@ -83,7 +85,7 @@ pub(crate) fn build(server: &Arc<Server>) -> Result<Router> {
 		.layer(body_limit_layer(server))
 		.layer(CatchPanicLayer::custom(catch_panic));
 
-	Ok(router::build(server).layer(layers))
+	Ok(router::build(services).layer(layers))
 }
 
 #[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]
@@ -151,12 +153,14 @@ fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max
 #[allow(clippy::needless_pass_by_value)]
 #[tracing::instrument(skip_all, name = "panic")]
 fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
-	conduit_service::services()
-		.server
-		.metrics
-		.requests_panic
-		.fetch_add(1, std::sync::atomic::Ordering::Release);
-
+	//TODO: XXX
+	/*
+		conduit_service::services()
+			.server
+			.metrics
+			.requests_panic
+			.fetch_add(1, std::sync::atomic::Ordering::Release);
+	*/
 	let details = if let Some(s) = err.downcast_ref::<String>() {
 		s.clone()
 	} else if let Some(s) = err.downcast_ref::<&str>() {

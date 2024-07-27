@@ -1,28 +1,30 @@
-use std::{sync::Arc, time::Duration};
+extern crate conduit_admin as admin;
+extern crate conduit_core as conduit;
+extern crate conduit_service as service;
+
+use std::{
+	sync::{atomic::Ordering, Arc},
+	time::Duration,
+};
 
 use axum_server::Handle as ServerHandle;
+use conduit::{debug, debug_error, debug_info, error, info, Error, Result, Server};
+use service::Services;
 use tokio::{
 	sync::broadcast::{self, Sender},
 	task::JoinHandle,
 };
 
-extern crate conduit_admin as admin;
-extern crate conduit_core as conduit;
-extern crate conduit_service as service;
-
-use std::sync::atomic::Ordering;
-
-use conduit::{debug, debug_info, error, info, Error, Result, Server};
-
 use crate::serve;
 
 /// Main loop base
 #[tracing::instrument(skip_all)]
-pub(crate) async fn run(server: Arc<Server>) -> Result<()> {
+pub(crate) async fn run(services: Arc<Services>) -> Result<()> {
+	let server = &services.server;
 	debug!("Start");
 
 	// Install the admin room callback here for now
-	admin::init().await;
+	admin::init(&services.admin).await;
 
 	// Setup shutdown/signal handling
 	let handle = ServerHandle::new();
@@ -33,13 +35,13 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<()> {
 
 	let mut listener = server
 		.runtime()
-		.spawn(serve::serve(server.clone(), handle.clone(), tx.subscribe()));
+		.spawn(serve::serve(services.clone(), handle.clone(), tx.subscribe()));
 
 	// Focal point
 	debug!("Running");
 	let res = tokio::select! {
 		res = &mut listener => res.map_err(Error::from).unwrap_or_else(Err),
-		res = service::services().poll() => handle_services_poll(&server, res, listener).await,
+		res = services.poll() => handle_services_poll(server, res, listener).await,
 	};
 
 	// Join the signal handler before we leave.
@@ -47,7 +49,7 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<()> {
 	_ = sigs.await;
 
 	// Remove the admin room callback
-	admin::fini().await;
+	admin::fini(&services.admin).await;
 
 	debug_info!("Finish");
 	res
@@ -55,26 +57,33 @@ pub(crate) async fn run(server: Arc<Server>) -> Result<()> {
 
 /// Async initializations
 #[tracing::instrument(skip_all)]
-pub(crate) async fn start(server: Arc<Server>) -> Result<()> {
+pub(crate) async fn start(server: Arc<Server>) -> Result<Arc<Services>> {
 	debug!("Starting...");
 
-	service::start(&server).await?;
+	let services = Services::build(server).await?.start().await?;
 
 	#[cfg(feature = "systemd")]
 	sd_notify::notify(true, &[sd_notify::NotifyState::Ready]).expect("failed to notify systemd of ready state");
 
 	debug!("Started");
-	Ok(())
+	Ok(services)
 }
 
 /// Async destructions
 #[tracing::instrument(skip_all)]
-pub(crate) async fn stop(_server: Arc<Server>) -> Result<()> {
+pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 	debug!("Shutting down...");
 
 	// Wait for all completions before dropping or we'll lose them to the module
 	// unload and explode.
-	service::stop().await;
+	services.stop().await;
+
+	if let Err(services) = Arc::try_unwrap(services) {
+		debug_error!(
+			"{} dangling references to Services after shutdown",
+			Arc::strong_count(&services)
+		);
+	}
 
 	debug!("Cleaning up...");
 

@@ -1,4 +1,4 @@
-#![recursion_limit = "168"]
+#![recursion_limit = "192"]
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::enum_glob_use)]
 
@@ -24,7 +24,6 @@ extern crate conduit_service as service;
 
 pub(crate) use conduit::Result;
 pub(crate) use conduit_macros::{admin_command, admin_command_dispatch};
-pub(crate) use service::services;
 
 pub(crate) use crate::{
 	command::Command,
@@ -38,26 +37,19 @@ conduit::mod_dtor! {}
 conduit::rustc_flags_capture! {}
 
 /// Install the admin command handler
-pub async fn init() {
-	_ = services()
-		.admin
+pub async fn init(admin_service: &service::admin::Service) {
+	_ = admin_service
 		.complete
 		.write()
 		.expect("locked for writing")
 		.insert(handler::complete);
-	_ = services()
-		.admin
-		.handle
-		.write()
-		.await
-		.insert(handler::handle);
+	_ = admin_service.handle.write().await.insert(handler::handle);
 }
 
 /// Uninstall the admin command handler
-pub async fn fini() {
-	_ = services().admin.handle.write().await.take();
-	_ = services()
-		.admin
+pub async fn fini(admin_service: &service::admin::Service) {
+	_ = admin_service.handle.write().await.take();
+	_ = admin_service
 		.complete
 		.write()
 		.expect("locked for writing")

@@ -84,7 +84,7 @@ pub(crate) async fn get_keys_route(
 	}
 
 	let result = get_keys_helper(
-		services,
+		&services,
 		None,
 		&body.device_keys,
 		|u| Some(u.server_name()) == body.origin.as_deref(),
@@ -116,7 +116,7 @@ pub(crate) async fn claim_keys_route(
 		));
 	}
 
-	let result = claim_keys_helper(services, &body.one_time_keys).await?;
+	let result = claim_keys_helper(&services, &body.one_time_keys).await?;
 
 	Ok(claim_keys::v1::Response {
 		one_time_keys: result.one_time_keys,

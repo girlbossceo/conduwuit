@@ -107,7 +107,7 @@ pub(crate) async fn get_alias_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found."));
 	};
 
-	let servers = room_available_servers(services, &room_id, &room_alias, &pre_servers);
+	let servers = room_available_servers(&services, &room_id, &room_alias, &pre_servers);
 	debug!(?room_alias, ?room_id, "available servers: {servers:?}");
 
 	Ok(get_alias::v3::Response::new(room_id, servers))

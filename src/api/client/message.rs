@@ -146,7 +146,7 @@ pub(crate) async fn get_message_events_route(
 				.timeline
 				.pdus_after(sender_user, &body.room_id, from)?
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| { contains_url_filter(pdu, &body.filter) && visibility_filter(services, pdu, sender_user, &body.room_id)
+				.filter(|(_, pdu)| { contains_url_filter(pdu, &body.filter) && visibility_filter(&services, pdu, sender_user, &body.room_id)
 
 				})
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
@@ -193,7 +193,7 @@ pub(crate) async fn get_message_events_route(
 				.timeline
 				.pdus_until(sender_user, &body.room_id, from)?
 				.filter_map(Result::ok) // Filter out buggy events
-				.filter(|(_, pdu)| {contains_url_filter(pdu, &body.filter) && visibility_filter(services, pdu, sender_user, &body.room_id)})
+				.filter(|(_, pdu)| {contains_url_filter(pdu, &body.filter) && visibility_filter(&services, pdu, sender_user, &body.room_id)})
 				.take_while(|&(k, _)| Some(k) != to) // Stop at `to`
 				.take(limit)
 				.collect();

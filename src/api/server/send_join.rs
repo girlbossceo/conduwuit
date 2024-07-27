@@ -241,7 +241,7 @@ pub(crate) async fn create_join_event_v1_route(
 		}
 	}
 
-	let room_state = create_join_event(services, origin, &body.room_id, &body.pdu).await?;
+	let room_state = create_join_event(&services, origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_join_event::v1::Response {
 		room_state,
@@ -286,7 +286,7 @@ pub(crate) async fn create_join_event_v2_route(
 		auth_chain,
 		state,
 		event,
-	} = create_join_event(services, origin, &body.room_id, &body.pdu).await?;
+	} = create_join_event(&services, origin, &body.room_id, &body.pdu).await?;
 	let room_state = create_join_event::v2::RoomState {
 		members_omitted: false,
 		auth_chain,

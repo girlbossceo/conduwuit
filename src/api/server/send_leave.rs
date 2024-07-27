@@ -28,7 +28,7 @@ pub(crate) async fn create_leave_event_v1_route(
 ) -> Result<create_leave_event::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	create_leave_event(services, origin, &body.room_id, &body.pdu).await?;
+	create_leave_event(&services, origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v1::Response::new())
 }
@@ -41,7 +41,7 @@ pub(crate) async fn create_leave_event_v2_route(
 ) -> Result<create_leave_event::v2::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	create_leave_event(services, origin, &body.room_id, &body.pdu).await?;
+	create_leave_event(&services, origin, &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v2::Response::new())
 }

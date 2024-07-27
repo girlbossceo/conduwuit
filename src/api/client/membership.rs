@@ -167,7 +167,7 @@ pub(crate) async fn join_room_by_id_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	banned_room_check(
-		services,
+		&services,
 		sender_user,
 		Some(&body.room_id),
 		body.room_id.server_name(),
@@ -202,7 +202,7 @@ pub(crate) async fn join_room_by_id_route(
 	}
 
 	join_room_by_id_helper(
-		services,
+		&services,
 		sender_user,
 		&body.room_id,
 		body.reason.clone(),
@@ -231,7 +231,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 
 	let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
 		Ok(room_id) => {
-			banned_room_check(services, sender_user, Some(&room_id), room_id.server_name(), client).await?;
+			banned_room_check(&services, sender_user, Some(&room_id), room_id.server_name(), client).await?;
 
 			let mut servers = body.server_name.clone();
 			servers.extend(
@@ -270,7 +270,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 				.await?;
 			let (room_id, mut pre_servers) = response;
 
-			banned_room_check(services, sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
+			banned_room_check(&services, sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
 
 			let mut servers = body.server_name;
 			if let Some(pre_servers) = &mut pre_servers {
@@ -303,7 +303,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 	};
 
 	let join_room_response = join_room_by_id_helper(
-		services,
+		&services,
 		sender_user,
 		&room_id,
 		body.reason.clone(),
@@ -327,7 +327,7 @@ pub(crate) async fn leave_room_route(
 ) -> Result<leave_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	leave_room(services, sender_user, &body.room_id, body.reason.clone()).await?;
+	leave_room(&services, sender_user, &body.room_id, body.reason.clone()).await?;
 
 	Ok(leave_room::v3::Response::new())
 }
@@ -353,13 +353,13 @@ pub(crate) async fn invite_user_route(
 		));
 	}
 
-	banned_room_check(services, sender_user, Some(&body.room_id), body.room_id.server_name(), client).await?;
+	banned_room_check(&services, sender_user, Some(&body.room_id), body.room_id.server_name(), client).await?;
 
 	if let invite_user::v3::InvitationRecipient::UserId {
 		user_id,
 	} = &body.recipient
 	{
-		invite_helper(services, sender_user, user_id, &body.room_id, body.reason.clone(), false).await?;
+		invite_helper(&services, sender_user, user_id, &body.room_id, body.reason.clone(), false).await?;
 		Ok(invite_user::v3::Response {})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))

@@ -33,7 +33,7 @@ pub(crate) async fn set_displayname_route(
 		.filter_map(Result::ok)
 		.collect();
 
-	update_displayname(services, sender_user.clone(), body.displayname.clone(), all_joined_rooms).await?;
+	update_displayname(&services, sender_user.clone(), body.displayname.clone(), all_joined_rooms).await?;
 
 	if services.globals.allow_local_presence() {
 		// Presence update
@@ -118,7 +118,7 @@ pub(crate) async fn set_avatar_url_route(
 		.collect();
 
 	update_avatar_url(
-		services,
+		&services,
 		sender_user.clone(),
 		body.avatar_url.clone(),
 		body.blurhash.clone(),

@@ -76,12 +76,12 @@ pub(crate) async fn get_media_preview_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let url = &body.url;
-	if !url_preview_allowed(services, url) {
+	if !url_preview_allowed(&services, url) {
 		warn!(%sender_user, "URL is not allowed to be previewed: {url}");
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "URL is not allowed to be previewed"));
 	}
 
-	match get_url_preview(services, url).await {
+	match get_url_preview(&services, url).await {
 		Ok(preview) => {
 			let res = serde_json::value::to_raw_value(&preview).map_err(|e| {
 				error!(%sender_user, "Failed to convert UrlPreviewData into a serde json value: {e}");
@@ -221,7 +221,7 @@ pub(crate) async fn get_content_route(
 		})
 	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
 		let response = get_remote_content(
-			services,
+			&services,
 			&mxc,
 			&body.server_name,
 			body.media_id.clone(),
@@ -311,7 +311,7 @@ pub(crate) async fn get_content_as_filename_route(
 		})
 	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
 		match get_remote_content(
-			services,
+			&services,
 			&mxc,
 			&body.server_name,
 			body.media_id.clone(),

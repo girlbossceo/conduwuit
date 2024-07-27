@@ -48,7 +48,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	}
 
 	let response = get_public_rooms_filtered_helper(
-		services,
+		&services,
 		body.server.as_deref(),
 		body.limit,
 		body.since.as_deref(),
@@ -88,7 +88,7 @@ pub(crate) async fn get_public_rooms_route(
 	}
 
 	let response = get_public_rooms_filtered_helper(
-		services,
+		&services,
 		body.server.as_deref(),
 		body.limit,
 		body.since.as_deref(),
@@ -124,7 +124,7 @@ pub(crate) async fn set_room_visibility_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
 
-	if !user_can_publish_room(services, sender_user, &body.room_id)? {
+	if !user_can_publish_room(&services, sender_user, &body.room_id)? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"User is not allowed to publish this room",

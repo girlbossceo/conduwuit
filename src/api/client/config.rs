@@ -20,7 +20,7 @@ pub(crate) async fn set_global_account_data_route(
 	State(services): State<crate::State>, body: Ruma<set_global_account_data::v3::Request>,
 ) -> Result<set_global_account_data::v3::Response> {
 	set_account_data(
-		services,
+		&services,
 		None,
 		&body.sender_user,
 		&body.event_type.to_string(),
@@ -37,7 +37,7 @@ pub(crate) async fn set_room_account_data_route(
 	State(services): State<crate::State>, body: Ruma<set_room_account_data::v3::Request>,
 ) -> Result<set_room_account_data::v3::Response> {
 	set_account_data(
-		services,
+		&services,
 		Some(&body.room_id),
 		&body.sender_user,
 		&body.event_type.to_string(),

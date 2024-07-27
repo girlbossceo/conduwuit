@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{debug, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server};
+use conduit::{debug, error, error::default_log, pdu::PduBuilder, Err, Error, PduEvent, Result, Server};
 pub use create::create_admin_room;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -41,6 +41,7 @@ struct Services {
 	timeline: Dep<rooms::timeline::Service>,
 	state: Dep<rooms::state::Service>,
 	state_cache: Dep<rooms::state_cache::Service>,
+	services: StdRwLock<Option<Arc<crate::Services>>>,
 }
 
 #[derive(Debug)]
@@ -50,7 +51,7 @@ pub struct CommandInput {
 }
 
 pub type Completer = fn(&str) -> String;
-pub type Handler = fn(CommandInput) -> HandlerResult;
+pub type Handler = fn(Arc<crate::Services>, CommandInput) -> HandlerResult;
 pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
 pub type CommandResult = Result<CommandOutput, Error>;
 pub type CommandOutput = Option<RoomMessageEventContent>;
@@ -69,6 +70,7 @@ impl crate::Service for Service {
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 				state: args.depend::<rooms::state::Service>("rooms::state"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				services: None.into(),
 			},
 			sender,
 			receiver: Mutex::new(receiver),
@@ -172,10 +174,14 @@ impl Service {
 	}
 
 	async fn process_command(&self, command: CommandInput) -> CommandResult {
+		let Some(services) = self.services.services.read().expect("locked").clone() else {
+			return Err!("Services self-reference not initialized.");
+		};
+
 		if let Some(handle) = self.handle.read().await.as_ref() {
-			handle(command).await
+			handle(services, command).await
 		} else {
-			Err(Error::Err("Admin module is not loaded.".into()))
+			Err!("Admin module is not loaded.")
 		}
 	}
 
@@ -355,5 +361,11 @@ impl Service {
 	async fn console_auto_stop(&self) {
 		#[cfg(feature = "console")]
 		self.console.close().await;
+	}
+
+	/// Sets the self-reference to crate::Services which will provide context to
+	/// the admin commands.
+	pub(super) fn set_services(&self, services: Option<Arc<crate::Services>>) {
+		*self.services.services.write().expect("locked for writing") = services;
 	}
 }

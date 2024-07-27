@@ -62,8 +62,8 @@ pub(crate) async fn send_transaction_message_route(
 		"Starting txn",
 	);
 
-	let resolved_map = handle_pdus(services, &client, &body, origin, &txn_start_time).await?;
-	handle_edus(services, &client, &body, origin).await?;
+	let resolved_map = handle_pdus(&services, &client, &body, origin, &txn_start_time).await?;
+	handle_edus(&services, &client, &body, origin).await?;
 
 	debug!(
 		pdus = ?body.pdus.len(),

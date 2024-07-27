@@ -1,3 +1,5 @@
+#![recursion_limit = "192"]
+
 pub(crate) mod clap;
 mod mods;
 mod restart;
@@ -57,17 +59,38 @@ fn main() -> Result<(), Error> {
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	extern crate conduit_router as router;
 
-	if let Err(error) = router::start(&server.server).await {
-		error!("Critical error starting server: {error}");
-		return Err(error);
-	}
+	match router::start(&server.server).await {
+		Ok(services) => server.services.lock().await.insert(services),
+		Err(error) => {
+			error!("Critical error starting server: {error}");
+			return Err(error);
+		},
+	};
 
-	if let Err(error) = router::run(&server.server).await {
+	if let Err(error) = router::run(
+		server
+			.services
+			.lock()
+			.await
+			.as_ref()
+			.expect("services initialized"),
+	)
+	.await
+	{
 		error!("Critical error running server: {error}");
 		return Err(error);
 	}
 
-	if let Err(error) = router::stop(&server.server).await {
+	if let Err(error) = router::stop(
+		server
+			.services
+			.lock()
+			.await
+			.take()
+			.expect("services initialied"),
+	)
+	.await
+	{
 		error!("Critical error stopping server: {error}");
 		return Err(error);
 	}

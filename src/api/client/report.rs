@@ -40,7 +40,7 @@ pub(crate) async fn report_event_route(
 	};
 
 	is_report_valid(
-		services,
+		&services,
 		&pdu.event_id,
 		&body.room_id,
 		sender_user,

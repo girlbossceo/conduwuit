@@ -37,7 +37,7 @@ pub(crate) async fn send_state_event_for_key_route(
 
 	Ok(send_state_event::v3::Response {
 		event_id: send_state_event_for_key_helper(
-			services,
+			&services,
 			sender_user,
 			&body.room_id,
 			&body.event_type,

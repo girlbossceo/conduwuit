@@ -77,7 +77,7 @@ pub(crate) async fn get_keys_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	get_keys_helper(
-		services,
+		&services,
 		Some(sender_user),
 		&body.device_keys,
 		|u| u == sender_user,
@@ -92,7 +92,7 @@ pub(crate) async fn get_keys_route(
 pub(crate) async fn claim_keys_route(
 	State(services): State<crate::State>, body: Ruma<claim_keys::v3::Request>,
 ) -> Result<claim_keys::v3::Response> {
-	claim_keys_helper(services, &body.one_time_keys).await
+	claim_keys_helper(&services, &body.one_time_keys).await
 }
 
 /// # `POST /_matrix/client/r0/keys/device_signing/upload`
