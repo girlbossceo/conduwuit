@@ -1,24 +1,28 @@
 use std::fmt::Write;
 
+use clap::Subcommand;
 use conduit::{utils::time, Result};
 use ruma::{events::room::message::RoomMessageEventContent, OwnedServerName};
 
-use super::Resolver;
-use crate::services;
+use crate::{admin_command, admin_command_dispatch};
 
-/// All the getters and iterators in key_value/users.rs
-pub(super) async fn resolver(subcommand: Resolver) -> Result<RoomMessageEventContent> {
-	match subcommand {
-		Resolver::DestinationsCache {
-			server_name,
-		} => destinations_cache(server_name).await,
-		Resolver::OverridesCache {
-			name,
-		} => overrides_cache(name).await,
-	}
+#[admin_command_dispatch]
+#[derive(Debug, Subcommand)]
+/// Resolver service and caches
+pub(crate) enum ResolverCommand {
+	/// Query the destinations cache
+	DestinationsCache {
+		server_name: Option<OwnedServerName>,
+	},
+
+	/// Query the overrides cache
+	OverridesCache {
+		name: Option<String>,
+	},
 }
 
-async fn destinations_cache(server_name: Option<OwnedServerName>) -> Result<RoomMessageEventContent> {
+#[admin_command]
+async fn destinations_cache(&self, server_name: Option<OwnedServerName>) -> Result<RoomMessageEventContent> {
 	use service::resolver::cache::CachedDest;
 
 	let mut out = String::new();
@@ -36,7 +40,8 @@ async fn destinations_cache(server_name: Option<OwnedServerName>) -> Result<Room
 		writeln!(out, "| {name} | {dest} | {host} | {expire} |").expect("wrote line");
 	};
 
-	let map = services()
+	let map = self
+		.services
 		.resolver
 		.cache
 		.destinations
@@ -52,7 +57,8 @@ async fn destinations_cache(server_name: Option<OwnedServerName>) -> Result<Room
 	Ok(RoomMessageEventContent::notice_markdown(out))
 }
 
-async fn overrides_cache(server_name: Option<String>) -> Result<RoomMessageEventContent> {
+#[admin_command]
+async fn overrides_cache(&self, server_name: Option<String>) -> Result<RoomMessageEventContent> {
 	use service::resolver::cache::CachedOverride;
 
 	let mut out = String::new();
@@ -70,7 +76,13 @@ async fn overrides_cache(server_name: Option<String>) -> Result<RoomMessageEvent
 		writeln!(out, "| {name} | {ips:?} | {port} | {expire} |").expect("wrote line");
 	};
 
-	let map = services().resolver.cache.overrides.read().expect("locked");
+	let map = self
+		.services
+		.resolver
+		.cache
+		.overrides
+		.read()
+		.expect("locked");
 
 	if let Some(server_name) = server_name.as_ref() {
 		map.get_key_value(server_name).map(row);

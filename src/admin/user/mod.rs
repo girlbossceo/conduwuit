@@ -2,14 +2,16 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomOrAliasId, RoomId};
+use ruma::{OwnedRoomOrAliasId, RoomId};
 
-use self::commands::*;
+use crate::admin_command_dispatch;
 
+#[admin_command_dispatch]
 #[derive(Debug, Subcommand)]
 pub(super) enum UserCommand {
 	/// - Create a new user
-	Create {
+	#[clap(alias = "create")]
+	CreateUser {
 		/// Username of the new user
 		username: String,
 		/// Password of the new user, if unspecified one is generated
@@ -56,7 +58,8 @@ pub(super) enum UserCommand {
 	},
 
 	/// - List local users in the database
-	List,
+	#[clap(alias = "list")]
+	ListUsers,
 
 	/// - Lists all the rooms (local and remote) that the specified user is
 	///   joined in
@@ -100,49 +103,4 @@ pub(super) enum UserCommand {
 		user_id: String,
 		room_id: Box<RoomId>,
 	},
-}
-
-pub(super) async fn process(command: UserCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	Ok(match command {
-		UserCommand::List => list(body).await?,
-		UserCommand::Create {
-			username,
-			password,
-		} => create(body, username, password).await?,
-		UserCommand::Deactivate {
-			no_leave_rooms,
-			user_id,
-		} => deactivate(body, no_leave_rooms, user_id).await?,
-		UserCommand::ResetPassword {
-			username,
-		} => reset_password(body, username).await?,
-		UserCommand::DeactivateAll {
-			no_leave_rooms,
-			force,
-		} => deactivate_all(body, no_leave_rooms, force).await?,
-		UserCommand::ListJoinedRooms {
-			user_id,
-		} => list_joined_rooms(body, user_id).await?,
-		UserCommand::ForceJoinRoom {
-			user_id,
-			room_id,
-		} => force_join_room(body, user_id, room_id).await?,
-		UserCommand::MakeUserAdmin {
-			user_id,
-		} => make_user_admin(body, user_id).await?,
-		UserCommand::PutRoomTag {
-			user_id,
-			room_id,
-			tag,
-		} => put_room_tag(body, user_id, room_id, tag).await?,
-		UserCommand::DeleteRoomTag {
-			user_id,
-			room_id,
-			tag,
-		} => delete_room_tag(body, user_id, room_id, tag).await?,
-		UserCommand::GetRoomTags {
-			user_id,
-			room_id,
-		} => get_room_tags(body, user_id, room_id).await?,
-	})
 }

@@ -1,12 +1,14 @@
-use std::fmt::Write;
+use std::{fmt::Write, sync::Arc};
 
 use conduit::{info, utils::time, warn, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::services;
+use crate::admin_command;
 
-pub(super) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let elapsed = services()
+#[admin_command]
+pub(super) async fn uptime(&self) -> Result<RoomMessageEventContent> {
+	let elapsed = self
+		.services
 		.server
 		.started
 		.elapsed()
@@ -16,13 +18,15 @@ pub(super) async fn uptime(_body: Vec<&str>) -> Result<RoomMessageEventContent> 
 	Ok(RoomMessageEventContent::notice_plain(format!("{result}.")))
 }
 
-pub(super) async fn show_config(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+#[admin_command]
+pub(super) async fn show_config(&self) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
-	Ok(RoomMessageEventContent::text_plain(format!("{}", services().globals.config)))
+	Ok(RoomMessageEventContent::text_plain(format!("{}", self.services.globals.config)))
 }
 
+#[admin_command]
 pub(super) async fn list_features(
-	_body: Vec<&str>, available: bool, enabled: bool, comma: bool,
+	&self, available: bool, enabled: bool, comma: bool,
 ) -> Result<RoomMessageEventContent> {
 	let delim = if comma {
 		","
@@ -62,9 +66,10 @@ pub(super) async fn list_features(
 	Ok(RoomMessageEventContent::text_markdown(features))
 }
 
-pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let services_usage = services().memory_usage().await?;
-	let database_usage = services().db.db.memory_usage()?;
+#[admin_command]
+pub(super) async fn memory_usage(&self) -> Result<RoomMessageEventContent> {
+	let services_usage = self.services.memory_usage().await?;
+	let database_usage = self.services.db.db.memory_usage()?;
 	let allocator_usage = conduit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -72,14 +77,16 @@ pub(super) async fn memory_usage(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	)))
 }
 
-pub(super) async fn clear_caches(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	services().clear_cache().await;
+#[admin_command]
+pub(super) async fn clear_caches(&self) -> Result<RoomMessageEventContent> {
+	self.services.clear_cache().await;
 
 	Ok(RoomMessageEventContent::text_plain("Done."))
 }
 
-pub(super) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let result = services().globals.db.backup_list()?;
+#[admin_command]
+pub(super) async fn list_backups(&self) -> Result<RoomMessageEventContent> {
+	let result = self.services.globals.db.backup_list()?;
 
 	if result.is_empty() {
 		Ok(RoomMessageEventContent::text_plain("No backups found."))
@@ -88,46 +95,51 @@ pub(super) async fn list_backups(_body: Vec<&str>) -> Result<RoomMessageEventCon
 	}
 }
 
-pub(super) async fn backup_database(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let mut result = services()
+#[admin_command]
+pub(super) async fn backup_database(&self) -> Result<RoomMessageEventContent> {
+	let globals = Arc::clone(&self.services.globals);
+	let mut result = self
+		.services
 		.server
 		.runtime()
-		.spawn_blocking(move || match services().globals.db.backup() {
+		.spawn_blocking(move || match globals.db.backup() {
 			Ok(()) => String::new(),
 			Err(e) => (*e).to_string(),
 		})
-		.await
-		.unwrap();
+		.await?;
 
 	if result.is_empty() {
-		result = services().globals.db.backup_list()?;
+		result = self.services.globals.db.backup_list()?;
 	}
-
-	Ok(RoomMessageEventContent::text_plain(&result))
-}
-
-pub(super) async fn list_database_files(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let result = services().globals.db.file_list()?;
 
 	Ok(RoomMessageEventContent::notice_markdown(result))
 }
 
-pub(super) async fn admin_notice(_body: Vec<&str>, message: Vec<String>) -> Result<RoomMessageEventContent> {
+#[admin_command]
+pub(super) async fn list_database_files(&self) -> Result<RoomMessageEventContent> {
+	let result = self.services.globals.db.file_list()?;
+
+	Ok(RoomMessageEventContent::notice_markdown(result))
+}
+
+#[admin_command]
+pub(super) async fn admin_notice(&self, message: Vec<String>) -> Result<RoomMessageEventContent> {
 	let message = message.join(" ");
-	services().admin.send_text(&message).await;
+	self.services.admin.send_text(&message).await;
 
 	Ok(RoomMessageEventContent::notice_plain("Notice was sent to #admins"))
 }
 
-#[cfg(conduit_mods)]
-pub(super) async fn reload(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	services().server.reload()?;
+#[admin_command]
+pub(super) async fn reload_mods(&self) -> Result<RoomMessageEventContent> {
+	self.services.server.reload()?;
 
 	Ok(RoomMessageEventContent::notice_plain("Reloading server..."))
 }
 
+#[admin_command]
 #[cfg(unix)]
-pub(super) async fn restart(_body: Vec<&str>, force: bool) -> Result<RoomMessageEventContent> {
+pub(super) async fn restart(&self, force: bool) -> Result<RoomMessageEventContent> {
 	use conduit::utils::sys::current_exe_deleted;
 
 	if !force && current_exe_deleted() {
@@ -137,14 +149,15 @@ pub(super) async fn restart(_body: Vec<&str>, force: bool) -> Result<RoomMessage
 		);
 	}
 
-	services().server.restart()?;
+	self.services.server.restart()?;
 
 	Ok(RoomMessageEventContent::notice_plain("Restarting server..."))
 }
 
-pub(super) async fn shutdown(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
+#[admin_command]
+pub(super) async fn shutdown(&self) -> Result<RoomMessageEventContent> {
 	warn!("shutdown command");
-	services().server.shutdown()?;
+	self.services.server.shutdown()?;
 
 	Ok(RoomMessageEventContent::notice_plain("Shutting down server..."))
 }

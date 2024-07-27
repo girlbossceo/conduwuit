@@ -1,12 +1,49 @@
 use std::fmt::Write;
 
-use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId};
+use clap::Subcommand;
+use conduit::Result;
+use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, RoomId};
 
-use super::RoomAliasCommand;
-use crate::{escape_html, services, Result};
+use crate::{escape_html, Command};
 
-pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let server_user = &services().globals.server_user;
+#[derive(Debug, Subcommand)]
+pub(crate) enum RoomAliasCommand {
+	/// - Make an alias point to a room.
+	Set {
+		#[arg(short, long)]
+		/// Set the alias even if a room is already using it
+		force: bool,
+
+		/// The room id to set the alias on
+		room_id: Box<RoomId>,
+
+		/// The alias localpart to use (`alias`, not `#alias:servername.tld`)
+		room_alias_localpart: String,
+	},
+
+	/// - Remove a local alias
+	Remove {
+		/// The alias localpart to remove (`alias`, not `#alias:servername.tld`)
+		room_alias_localpart: String,
+	},
+
+	/// - Show which room is using an alias
+	Which {
+		/// The alias localpart to look up (`alias`, not
+		/// `#alias:servername.tld`)
+		room_alias_localpart: String,
+	},
+
+	/// - List aliases currently being used
+	List {
+		/// If set, only list the aliases for this room
+		room_id: Option<Box<RoomId>>,
+	},
+}
+
+pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+	let services = context.services;
+	let server_user = &services.globals.server_user;
 
 	match command {
 		RoomAliasCommand::Set {
@@ -19,7 +56,7 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 		| RoomAliasCommand::Which {
 			ref room_alias_localpart,
 		} => {
-			let room_alias_str = format!("#{}:{}", room_alias_localpart, services().globals.server_name());
+			let room_alias_str = format!("#{}:{}", room_alias_localpart, services.globals.server_name());
 			let room_alias = match RoomAliasId::parse_box(room_alias_str) {
 				Ok(alias) => alias,
 				Err(err) => return Ok(RoomMessageEventContent::text_plain(format!("Failed to parse alias: {err}"))),
@@ -29,8 +66,8 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					force,
 					room_id,
 					..
-				} => match (force, services().rooms.alias.resolve_local_alias(&room_alias)) {
-					(true, Ok(Some(id))) => match services()
+				} => match (force, services.rooms.alias.resolve_local_alias(&room_alias)) {
+					(true, Ok(Some(id))) => match services
 						.rooms
 						.alias
 						.set_alias(&room_alias, &room_id, server_user)
@@ -43,7 +80,7 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					(false, Ok(Some(id))) => Ok(RoomMessageEventContent::text_plain(format!(
 						"Refusing to overwrite in use alias for {id}, use -f or --force to overwrite"
 					))),
-					(_, Ok(None)) => match services()
+					(_, Ok(None)) => match services
 						.rooms
 						.alias
 						.set_alias(&room_alias, &room_id, server_user)
@@ -55,8 +92,8 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 				},
 				RoomAliasCommand::Remove {
 					..
-				} => match services().rooms.alias.resolve_local_alias(&room_alias) {
-					Ok(Some(id)) => match services()
+				} => match services.rooms.alias.resolve_local_alias(&room_alias) {
+					Ok(Some(id)) => match services
 						.rooms
 						.alias
 						.remove_alias(&room_alias, server_user)
@@ -70,7 +107,7 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 				},
 				RoomAliasCommand::Which {
 					..
-				} => match services().rooms.alias.resolve_local_alias(&room_alias) {
+				} => match services.rooms.alias.resolve_local_alias(&room_alias) {
 					Ok(Some(id)) => Ok(RoomMessageEventContent::text_plain(format!("Alias resolves to {id}"))),
 					Ok(None) => Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
 					Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {err}"))),
@@ -84,7 +121,7 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 			room_id,
 		} => {
 			if let Some(room_id) = room_id {
-				let aliases = services()
+				let aliases = services
 					.rooms
 					.alias
 					.local_aliases_for_room(&room_id)
@@ -109,14 +146,14 @@ pub(super) async fn process(command: RoomAliasCommand, _body: Vec<&str>) -> Resu
 					Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to list aliases: {err}"))),
 				}
 			} else {
-				let aliases = services()
+				let aliases = services
 					.rooms
 					.alias
 					.all_local_aliases()
 					.collect::<Result<Vec<_>, _>>();
 				match aliases {
 					Ok(aliases) => {
-						let server_name = services().globals.server_name();
+						let server_name = services.globals.server_name();
 						let plain_list = aliases
 							.iter()
 							.fold(String::new(), |mut output, (alias, id)| {

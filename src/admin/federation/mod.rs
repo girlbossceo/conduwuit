@@ -2,10 +2,11 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
+use ruma::{RoomId, ServerName, UserId};
 
-use self::commands::*;
+use crate::admin_command_dispatch;
 
+#[admin_command_dispatch]
 #[derive(Debug, Subcommand)]
 pub(super) enum FederationCommand {
 	/// - List all rooms we are currently handling an incoming pdu from
@@ -38,22 +39,4 @@ pub(super) enum FederationCommand {
 	RemoteUserInRooms {
 		user_id: Box<UserId>,
 	},
-}
-
-pub(super) async fn process(command: FederationCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	Ok(match command {
-		FederationCommand::DisableRoom {
-			room_id,
-		} => disable_room(body, room_id).await?,
-		FederationCommand::EnableRoom {
-			room_id,
-		} => enable_room(body, room_id).await?,
-		FederationCommand::IncomingFederation => incoming_federation(body).await?,
-		FederationCommand::FetchSupportWellKnown {
-			server_name,
-		} => fetch_support_well_known(body, server_name).await?,
-		FederationCommand::RemoteUserInRooms {
-			user_id,
-		} => remote_user_in_rooms(body, user_id).await?,
-	})
 }

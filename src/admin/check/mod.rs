@@ -4,15 +4,15 @@ use clap::Subcommand;
 use conduit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use self::commands::*;
+use crate::Command;
 
 #[derive(Debug, Subcommand)]
 pub(super) enum CheckCommand {
 	AllUsers,
 }
 
-pub(super) async fn process(command: CheckCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: CheckCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
 	Ok(match command {
-		CheckCommand::AllUsers => check_all_users(body).await?,
+		CheckCommand::AllUsers => context.check_all_users().await?,
 	})
 }

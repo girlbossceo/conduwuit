@@ -1,18 +1,20 @@
 use ruma::{api::appservice::Registration, events::room::message::RoomMessageEventContent};
 
-use crate::{services, Result};
+use crate::{admin_command, Result};
 
-pub(super) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
+#[admin_command]
+pub(super) async fn register(&self) -> Result<RoomMessageEventContent> {
+	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
 		));
 	}
 
-	let appservice_config = body[1..body.len().checked_sub(1).unwrap()].join("\n");
+	let appservice_config = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
 	let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
 	match parsed_config {
-		Ok(yaml) => match services().appservice.register_appservice(yaml).await {
+		Ok(yaml) => match self.services.appservice.register_appservice(yaml).await {
 			Ok(id) => Ok(RoomMessageEventContent::text_plain(format!(
 				"Appservice registered with ID: {id}."
 			))),
@@ -26,8 +28,10 @@ pub(super) async fn register(body: Vec<&str>) -> Result<RoomMessageEventContent>
 	}
 }
 
-pub(super) async fn unregister(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
-	match services()
+#[admin_command]
+pub(super) async fn unregister(&self, appservice_identifier: String) -> Result<RoomMessageEventContent> {
+	match self
+		.services
 		.appservice
 		.unregister_appservice(&appservice_identifier)
 		.await
@@ -39,8 +43,10 @@ pub(super) async fn unregister(_body: Vec<&str>, appservice_identifier: String) 
 	}
 }
 
-pub(super) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Result<RoomMessageEventContent> {
-	match services()
+#[admin_command]
+pub(super) async fn show_appservice_config(&self, appservice_identifier: String) -> Result<RoomMessageEventContent> {
+	match self
+		.services
 		.appservice
 		.get_registration(&appservice_identifier)
 		.await
@@ -54,8 +60,9 @@ pub(super) async fn show(_body: Vec<&str>, appservice_identifier: String) -> Res
 	}
 }
 
-pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let appservices = services().appservice.iter_ids().await;
+#[admin_command]
+pub(super) async fn list_registered(&self) -> Result<RoomMessageEventContent> {
+	let appservices = self.services.appservice.iter_ids().await;
 	let output = format!("Appservices ({}): {}", appservices.len(), appservices.join(", "));
 	Ok(RoomMessageEventContent::text_plain(output))
 }

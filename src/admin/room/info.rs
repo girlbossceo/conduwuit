@@ -1,22 +1,30 @@
+use clap::Subcommand;
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId};
-use service::services;
 
-use super::RoomInfoCommand;
-use crate::Result;
+use crate::{admin_command, admin_command_dispatch};
 
-pub(super) async fn process(command: RoomInfoCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	match command {
-		RoomInfoCommand::ListJoinedMembers {
-			room_id,
-		} => list_joined_members(body, room_id).await,
-		RoomInfoCommand::ViewRoomTopic {
-			room_id,
-		} => view_room_topic(body, room_id).await,
-	}
+#[admin_command_dispatch]
+#[derive(Debug, Subcommand)]
+pub(crate) enum RoomInfoCommand {
+	/// - List joined members in a room
+	ListJoinedMembers {
+		room_id: Box<RoomId>,
+	},
+
+	/// - Displays room topic
+	///
+	/// Room topics can be huge, so this is in its
+	/// own separate command
+	ViewRoomTopic {
+		room_id: Box<RoomId>,
+	},
 }
 
-async fn list_joined_members(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	let room_name = services()
+#[admin_command]
+async fn list_joined_members(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+	let room_name = self
+		.services
 		.rooms
 		.state_accessor
 		.get_name(&room_id)
@@ -24,7 +32,8 @@ async fn list_joined_members(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<R
 		.flatten()
 		.unwrap_or_else(|| room_id.to_string());
 
-	let members = services()
+	let members = self
+		.services
 		.rooms
 		.state_cache
 		.room_members(&room_id)
@@ -35,7 +44,7 @@ async fn list_joined_members(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<R
 		.map(|user_id| {
 			(
 				user_id.clone(),
-				services()
+				self.services
 					.users
 					.displayname(&user_id)
 					.unwrap_or(None)
@@ -58,8 +67,14 @@ async fn list_joined_members(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<R
 	Ok(RoomMessageEventContent::notice_markdown(output_plain))
 }
 
-async fn view_room_topic(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	let Some(room_topic) = services().rooms.state_accessor.get_room_topic(&room_id)? else {
+#[admin_command]
+async fn view_room_topic(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+	let Some(room_topic) = self
+		.services
+		.rooms
+		.state_accessor
+		.get_room_topic(&room_id)?
+	else {
 		return Ok(RoomMessageEventContent::text_plain("Room does not have a room topic set."));
 	};
 

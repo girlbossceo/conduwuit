@@ -2,15 +2,27 @@ use itertools::Itertools;
 use proc_macro::{Span, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
-use syn::{Error, Fields, Ident, ItemEnum, Meta, Variant};
+use syn::{parse_quote, Attribute, Error, Fields, Ident, ItemEnum, ItemFn, Meta, Variant};
 
 use crate::{utils::camel_to_snake_string, Result};
+
+pub(super) fn command(mut item: ItemFn, _args: &[Meta]) -> Result<TokenStream> {
+	let attr: Attribute = parse_quote! {
+		#[conduit_macros::implement(crate::Command, params = "<'_>")]
+	};
+
+	item.attrs.push(attr);
+	Ok(item.into_token_stream().into())
+}
 
 pub(super) fn command_dispatch(item: ItemEnum, _args: &[Meta]) -> Result<TokenStream> {
 	let name = &item.ident;
 	let arm: Vec<TokenStream2> = item.variants.iter().map(dispatch_arm).try_collect()?;
 	let switch = quote! {
-		pub(super) async fn process(command: #name, body: Vec<&str>) -> Result<RoomMessageEventContent> {
+		pub(super) async fn process(
+			command: #name,
+			context: &crate::Command<'_>
+		) -> Result<ruma::events::room::message::RoomMessageEventContent> {
 			use #name::*;
 			#[allow(non_snake_case)]
 			Ok(match command {
@@ -34,7 +46,7 @@ fn dispatch_arm(v: &Variant) -> Result<TokenStream2> {
 			let field = fields.named.iter().filter_map(|f| f.ident.as_ref());
 			let arg = field.clone();
 			quote! {
-				#name { #( #field ),* } => Box::pin(#handler(&body, #( #arg ),*)).await?,
+				#name { #( #field ),* } => Box::pin(context.#handler(#( #arg ),*)).await?,
 			}
 		},
 		Fields::Unnamed(fields) => {
@@ -42,12 +54,12 @@ fn dispatch_arm(v: &Variant) -> Result<TokenStream2> {
 				return Err(Error::new(Span::call_site().into(), "One unnamed field required"));
 			};
 			quote! {
-				#name ( #field ) => Box::pin(#handler::process(#field, body)).await?,
+				#name ( #field ) => Box::pin(#handler::process(#field, context)).await?,
 			}
 		},
 		Fields::Unit => {
 			quote! {
-				#name => Box::pin(#handler(&body)).await?,
+				#name => Box::pin(context.#handler()).await?,
 			}
 		},
 	};

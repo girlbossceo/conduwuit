@@ -1,14 +1,73 @@
-use ruma::events::room::message::RoomMessageEventContent;
+use clap::Subcommand;
+use conduit::Result;
+use ruma::{events::room::message::RoomMessageEventContent, ServerName, UserId};
+use service::sending::Destination;
 
-use super::Sending;
-use crate::{service::sending::Destination, services, Result};
+use crate::Command;
+
+#[derive(Debug, Subcommand)]
+/// All the getters and iterators from src/database/key_value/sending.rs
+pub(crate) enum SendingCommand {
+	/// - Queries database for all `servercurrentevent_data`
+	ActiveRequests,
+
+	/// - Queries database for `servercurrentevent_data` but for a specific
+	///   destination
+	///
+	/// This command takes only *one* format of these arguments:
+	///
+	/// appservice_id
+	/// server_name
+	/// user_id AND push_key
+	///
+	/// See src/service/sending/mod.rs for the definition of the `Destination`
+	/// enum
+	ActiveRequestsFor {
+		#[arg(short, long)]
+		appservice_id: Option<String>,
+		#[arg(short, long)]
+		server_name: Option<Box<ServerName>>,
+		#[arg(short, long)]
+		user_id: Option<Box<UserId>>,
+		#[arg(short, long)]
+		push_key: Option<String>,
+	},
+
+	/// - Queries database for `servernameevent_data` which are the queued up
+	///   requests that will eventually be sent
+	///
+	/// This command takes only *one* format of these arguments:
+	///
+	/// appservice_id
+	/// server_name
+	/// user_id AND push_key
+	///
+	/// See src/service/sending/mod.rs for the definition of the `Destination`
+	/// enum
+	QueuedRequests {
+		#[arg(short, long)]
+		appservice_id: Option<String>,
+		#[arg(short, long)]
+		server_name: Option<Box<ServerName>>,
+		#[arg(short, long)]
+		user_id: Option<Box<UserId>>,
+		#[arg(short, long)]
+		push_key: Option<String>,
+	},
+
+	GetLatestEduCount {
+		server_name: Box<ServerName>,
+	},
+}
 
 /// All the getters and iterators in key_value/sending.rs
-pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+	let services = context.services;
+
 	match subcommand {
-		Sending::ActiveRequests => {
+		SendingCommand::ActiveRequests => {
 			let timer = tokio::time::Instant::now();
-			let results = services().sending.db.active_requests();
+			let results = services.sending.db.active_requests();
 			let active_requests: Result<Vec<(_, _, _)>> = results.collect();
 			let query_time = timer.elapsed();
 
@@ -16,7 +75,7 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 				"Query completed in {query_time:?}:\n\n```rs\n{active_requests:#?}\n```"
 			)))
 		},
-		Sending::QueuedRequests {
+		SendingCommand::QueuedRequests {
 			appservice_id,
 			server_name,
 			user_id,
@@ -38,12 +97,12 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					services()
+					services
 						.sending
 						.db
 						.queued_requests(&Destination::Appservice(appservice_id))
 				},
-				(None, Some(server_name), None, None) => services()
+				(None, Some(server_name), None, None) => services
 					.sending
 					.db
 					.queued_requests(&Destination::Normal(server_name.into())),
@@ -55,7 +114,7 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					services()
+					services
 						.sending
 						.db
 						.queued_requests(&Destination::Push(user_id.into(), push_key))
@@ -81,7 +140,7 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 				"Query completed in {query_time:?}:\n\n```rs\n{queued_requests:#?}\n```"
 			)))
 		},
-		Sending::ActiveRequestsFor {
+		SendingCommand::ActiveRequestsFor {
 			appservice_id,
 			server_name,
 			user_id,
@@ -104,12 +163,12 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					services()
+					services
 						.sending
 						.db
 						.active_requests_for(&Destination::Appservice(appservice_id))
 				},
-				(None, Some(server_name), None, None) => services()
+				(None, Some(server_name), None, None) => services
 					.sending
 					.db
 					.active_requests_for(&Destination::Normal(server_name.into())),
@@ -121,7 +180,7 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 						));
 					}
 
-					services()
+					services
 						.sending
 						.db
 						.active_requests_for(&Destination::Push(user_id.into(), push_key))
@@ -147,11 +206,11 @@ pub(super) async fn sending(subcommand: Sending) -> Result<RoomMessageEventConte
 				"Query completed in {query_time:?}:\n\n```rs\n{active_requests:#?}\n```"
 			)))
 		},
-		Sending::GetLatestEduCount {
+		SendingCommand::GetLatestEduCount {
 			server_name,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().sending.db.get_latest_educount(&server_name);
+			let results = services.sending.db.get_latest_educount(&server_name);
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

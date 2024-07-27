@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{join_room_by_id_helper, leave_all_rooms, update_avatar_url, update_displayname};
-use conduit::{utils, Result};
+use conduit::{error, info, utils, warn, Result};
 use ruma::{
 	events::{
 		room::message::RoomMessageEventContent,
@@ -10,17 +10,17 @@ use ruma::{
 	},
 	OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
 };
-use tracing::{error, info, warn};
 
 use crate::{
-	escape_html, get_room_info, services,
+	admin_command, escape_html, get_room_info,
 	utils::{parse_active_local_user_id, parse_local_user_id},
 };
 
 const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
 
-pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	match services().users.list_local_users() {
+#[admin_command]
+pub(super) async fn list_users(&self) -> Result<RoomMessageEventContent> {
+	match self.services.users.list_local_users() {
 		Ok(users) => {
 			let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
 			plain_msg += users.join("\n").as_str();
@@ -32,13 +32,12 @@ pub(super) async fn list(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
 	}
 }
 
-pub(super) async fn create(
-	_body: Vec<&str>, username: String, password: Option<String>,
-) -> Result<RoomMessageEventContent> {
+#[admin_command]
+pub(super) async fn create_user(&self, username: String, password: Option<String>) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id = parse_local_user_id(services(), &username)?;
+	let user_id = parse_local_user_id(self.services, &username)?;
 
-	if services().users.exists(&user_id)? {
+	if self.services.users.exists(&user_id)? {
 		return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
 	}
 
@@ -51,30 +50,33 @@ pub(super) async fn create(
 	let password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
 
 	// Create user
-	services().users.create(&user_id, Some(password.as_str()))?;
+	self.services
+		.users
+		.create(&user_id, Some(password.as_str()))?;
 
 	// Default to pretty displayname
 	let mut displayname = user_id.localpart().to_owned();
 
 	// If `new_user_displayname_suffix` is set, registration will push whatever
 	// content is set to the user's display name with a space before it
-	if !services()
+	if !self
+		.services
 		.globals
 		.config
 		.new_user_displayname_suffix
 		.is_empty()
 	{
-		write!(displayname, " {}", services().globals.config.new_user_displayname_suffix)
+		write!(displayname, " {}", self.services.globals.config.new_user_displayname_suffix)
 			.expect("should be able to write to string buffer");
 	}
 
-	services()
+	self.services
 		.users
 		.set_displayname(&user_id, Some(displayname))
 		.await?;
 
 	// Initial account data
-	services().account_data.update(
+	self.services.account_data.update(
 		None,
 		&user_id,
 		ruma::events::GlobalAccountDataEventType::PushRules
@@ -88,12 +90,13 @@ pub(super) async fn create(
 		.expect("to json value always works"),
 	)?;
 
-	if !services().globals.config.auto_join_rooms.is_empty() {
-		for room in &services().globals.config.auto_join_rooms {
-			if !services()
+	if !self.services.globals.config.auto_join_rooms.is_empty() {
+		for room in &self.services.globals.config.auto_join_rooms {
+			if !self
+				.services
 				.rooms
 				.state_cache
-				.server_in_room(services().globals.server_name(), room)?
+				.server_in_room(self.services.globals.server_name(), room)?
 			{
 				warn!("Skipping room {room} to automatically join as we have never joined before.");
 				continue;
@@ -101,11 +104,11 @@ pub(super) async fn create(
 
 			if let Some(room_id_server_name) = room.server_name() {
 				match join_room_by_id_helper(
-					services(),
+					self.services,
 					&user_id,
 					room,
 					Some("Automatically joining this room upon registration".to_owned()),
-					&[room_id_server_name.to_owned(), services().globals.server_name().to_owned()],
+					&[room_id_server_name.to_owned(), self.services.globals.server_name().to_owned()],
 					None,
 				)
 				.await
@@ -130,38 +133,38 @@ pub(super) async fn create(
 	)))
 }
 
-pub(super) async fn deactivate(
-	_body: Vec<&str>, no_leave_rooms: bool, user_id: String,
-) -> Result<RoomMessageEventContent> {
+#[admin_command]
+pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id = parse_local_user_id(services(), &user_id)?;
+	let user_id = parse_local_user_id(self.services, &user_id)?;
 
 	// don't deactivate the server service account
-	if user_id == services().globals.server_user {
+	if user_id == self.services.globals.server_user {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to deactivate the server service account.",
 		));
 	}
 
-	services().users.deactivate_account(&user_id)?;
+	self.services.users.deactivate_account(&user_id)?;
 
 	if !no_leave_rooms {
-		services()
+		self.services
 			.admin
 			.send_message(RoomMessageEventContent::text_plain(format!(
 				"Making {user_id} leave all rooms after deactivation..."
 			)))
 			.await;
 
-		let all_joined_rooms: Vec<OwnedRoomId> = services()
+		let all_joined_rooms: Vec<OwnedRoomId> = self
+			.services
 			.rooms
 			.state_cache
 			.rooms_joined(&user_id)
 			.filter_map(Result::ok)
 			.collect();
-		update_displayname(services(), user_id.clone(), None, all_joined_rooms.clone()).await?;
-		update_avatar_url(services(), user_id.clone(), None, None, all_joined_rooms).await?;
-		leave_all_rooms(services(), &user_id).await;
+		update_displayname(self.services, user_id.clone(), None, all_joined_rooms.clone()).await?;
+		update_avatar_url(self.services, user_id.clone(), None, None, all_joined_rooms).await?;
+		leave_all_rooms(self.services, &user_id).await;
 	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -169,10 +172,11 @@ pub(super) async fn deactivate(
 	)))
 }
 
-pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result<RoomMessageEventContent> {
-	let user_id = parse_local_user_id(services(), &username)?;
+#[admin_command]
+pub(super) async fn reset_password(&self, username: String) -> Result<RoomMessageEventContent> {
+	let user_id = parse_local_user_id(self.services, &username)?;
 
-	if user_id == services().globals.server_user {
+	if user_id == self.services.globals.server_user {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to set the password for the server account. Please use the emergency password config option.",
 		));
@@ -180,7 +184,8 @@ pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result
 
 	let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
 
-	match services()
+	match self
+		.services
 		.users
 		.set_password(&user_id, Some(new_password.as_str()))
 	{
@@ -193,28 +198,29 @@ pub(super) async fn reset_password(_body: Vec<&str>, username: String) -> Result
 	}
 }
 
-pub(super) async fn deactivate_all(
-	body: Vec<&str>, no_leave_rooms: bool, force: bool,
-) -> Result<RoomMessageEventContent> {
-	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
+#[admin_command]
+pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> Result<RoomMessageEventContent> {
+	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
 		));
 	}
 
-	let usernames = body
-		.clone()
-		.drain(1..body.len().saturating_sub(1))
+	let usernames = self
+		.body
+		.to_vec()
+		.drain(1..self.body.len().saturating_sub(1))
 		.collect::<Vec<_>>();
 
 	let mut user_ids: Vec<OwnedUserId> = Vec::with_capacity(usernames.len());
 	let mut admins = Vec::new();
 
 	for username in usernames {
-		match parse_active_local_user_id(services(), username) {
+		match parse_active_local_user_id(self.services, username) {
 			Ok(user_id) => {
-				if services().users.is_admin(&user_id)? && !force {
-					services()
+				if self.services.users.is_admin(&user_id)? && !force {
+					self.services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
 							"{username} is an admin and --force is not set, skipping over"
@@ -225,8 +231,8 @@ pub(super) async fn deactivate_all(
 				}
 
 				// don't deactivate the server service account
-				if user_id == services().globals.server_user {
-					services()
+				if user_id == self.services.globals.server_user {
+					self.services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
 							"{username} is the server service account, skipping over"
@@ -238,7 +244,7 @@ pub(super) async fn deactivate_all(
 				user_ids.push(user_id);
 			},
 			Err(e) => {
-				services()
+				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!(
 						"{username} is not a valid username, skipping over: {e}"
@@ -252,24 +258,25 @@ pub(super) async fn deactivate_all(
 	let mut deactivation_count: usize = 0;
 
 	for user_id in user_ids {
-		match services().users.deactivate_account(&user_id) {
+		match self.services.users.deactivate_account(&user_id) {
 			Ok(()) => {
 				deactivation_count = deactivation_count.saturating_add(1);
 				if !no_leave_rooms {
 					info!("Forcing user {user_id} to leave all rooms apart of deactivate-all");
-					let all_joined_rooms: Vec<OwnedRoomId> = services()
+					let all_joined_rooms: Vec<OwnedRoomId> = self
+						.services
 						.rooms
 						.state_cache
 						.rooms_joined(&user_id)
 						.filter_map(Result::ok)
 						.collect();
-					update_displayname(services(), user_id.clone(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(services(), user_id.clone(), None, None, all_joined_rooms).await?;
-					leave_all_rooms(services(), &user_id).await;
+					update_displayname(self.services, user_id.clone(), None, all_joined_rooms.clone()).await?;
+					update_avatar_url(self.services, user_id.clone(), None, None, all_joined_rooms).await?;
+					leave_all_rooms(self.services, &user_id).await;
 				}
 			},
 			Err(e) => {
-				services()
+				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!("Failed deactivating user: {e}")))
 					.await;
@@ -290,16 +297,18 @@ pub(super) async fn deactivate_all(
 	}
 }
 
-pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
+#[admin_command]
+pub(super) async fn list_joined_rooms(&self, user_id: String) -> Result<RoomMessageEventContent> {
 	// Validate user id
-	let user_id = parse_local_user_id(services(), &user_id)?;
+	let user_id = parse_local_user_id(self.services, &user_id)?;
 
-	let mut rooms: Vec<(OwnedRoomId, u64, String)> = services()
+	let mut rooms: Vec<(OwnedRoomId, u64, String)> = self
+		.services
 		.rooms
 		.state_cache
 		.rooms_joined(&user_id)
 		.filter_map(Result::ok)
-		.map(|room_id| get_room_info(services(), &room_id))
+		.map(|room_id| get_room_info(self.services, &room_id))
 		.collect();
 
 	if rooms.is_empty() {
@@ -341,35 +350,38 @@ pub(super) async fn list_joined_rooms(_body: Vec<&str>, user_id: String) -> Resu
 	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
 }
 
+#[admin_command]
 pub(super) async fn force_join_room(
-	_body: Vec<&str>, user_id: String, room_id: OwnedRoomOrAliasId,
+	&self, user_id: String, room_id: OwnedRoomOrAliasId,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_local_user_id(services(), &user_id)?;
-	let room_id = services().rooms.alias.resolve(&room_id).await?;
+	let user_id = parse_local_user_id(self.services, &user_id)?;
+	let room_id = self.services.rooms.alias.resolve(&room_id).await?;
 
 	assert!(
-		services().globals.user_is_local(&user_id),
+		self.services.globals.user_is_local(&user_id),
 		"Parsed user_id must be a local user"
 	);
-	join_room_by_id_helper(services(), &user_id, &room_id, None, &[], None).await?;
+	join_room_by_id_helper(self.services, &user_id, &room_id, None, &[], None).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been joined to {room_id}.",
 	)))
 }
 
-pub(super) async fn make_user_admin(_body: Vec<&str>, user_id: String) -> Result<RoomMessageEventContent> {
-	let user_id = parse_local_user_id(services(), &user_id)?;
-	let displayname = services()
+#[admin_command]
+pub(super) async fn make_user_admin(&self, user_id: String) -> Result<RoomMessageEventContent> {
+	let user_id = parse_local_user_id(self.services, &user_id)?;
+	let displayname = self
+		.services
 		.users
 		.displayname(&user_id)?
 		.unwrap_or_else(|| user_id.to_string());
 
 	assert!(
-		services().globals.user_is_local(&user_id),
+		self.services.globals.user_is_local(&user_id),
 		"Parsed user_id must be a local user"
 	);
-	services()
+	self.services
 		.admin
 		.make_user_admin(&user_id, displayname)
 		.await?;
@@ -379,12 +391,14 @@ pub(super) async fn make_user_admin(_body: Vec<&str>, user_id: String) -> Result
 	)))
 }
 
+#[admin_command]
 pub(super) async fn put_room_tag(
-	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
+	&self, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(services(), &user_id)?;
+	let user_id = parse_active_local_user_id(self.services, &user_id)?;
 
-	let event = services()
+	let event = self
+		.services
 		.account_data
 		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
 
@@ -402,7 +416,7 @@ pub(super) async fn put_room_tag(
 		.tags
 		.insert(tag.clone().into(), TagInfo::new());
 
-	services().account_data.update(
+	self.services.account_data.update(
 		Some(&room_id),
 		&user_id,
 		RoomAccountDataEventType::Tag,
@@ -414,12 +428,14 @@ pub(super) async fn put_room_tag(
 	)))
 }
 
+#[admin_command]
 pub(super) async fn delete_room_tag(
-	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>, tag: String,
+	&self, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(services(), &user_id)?;
+	let user_id = parse_active_local_user_id(self.services, &user_id)?;
 
-	let event = services()
+	let event = self
+		.services
 		.account_data
 		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
 
@@ -434,7 +450,7 @@ pub(super) async fn delete_room_tag(
 
 	tags_event.content.tags.remove(&tag.clone().into());
 
-	services().account_data.update(
+	self.services.account_data.update(
 		Some(&room_id),
 		&user_id,
 		RoomAccountDataEventType::Tag,
@@ -446,12 +462,12 @@ pub(super) async fn delete_room_tag(
 	)))
 }
 
-pub(super) async fn get_room_tags(
-	_body: Vec<&str>, user_id: String, room_id: Box<RoomId>,
-) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(services(), &user_id)?;
+#[admin_command]
+pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+	let user_id = parse_active_local_user_id(self.services, &user_id)?;
 
-	let event = services()
+	let event = self
+		.services
 		.account_data
 		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
 

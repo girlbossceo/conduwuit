@@ -1,27 +1,48 @@
-use ruma::events::room::message::RoomMessageEventContent;
+use clap::Subcommand;
+use conduit::Result;
+use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, RoomId};
 
-use super::RoomAlias;
-use crate::{services, Result};
+use crate::Command;
+
+#[derive(Debug, Subcommand)]
+/// All the getters and iterators from src/database/key_value/rooms/alias.rs
+pub(crate) enum RoomAliasCommand {
+	ResolveLocalAlias {
+		/// Full room alias
+		alias: Box<RoomAliasId>,
+	},
+
+	/// - Iterator of all our local room aliases for the room ID
+	LocalAliasesForRoom {
+		/// Full room ID
+		room_id: Box<RoomId>,
+	},
+
+	/// - Iterator of all our local aliases in our database with their room IDs
+	AllLocalAliases,
+}
 
 /// All the getters and iterators in src/database/key_value/rooms/alias.rs
-pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+	let services = context.services;
+
 	match subcommand {
-		RoomAlias::ResolveLocalAlias {
+		RoomAliasCommand::ResolveLocalAlias {
 			alias,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().rooms.alias.resolve_local_alias(&alias);
+			let results = services.rooms.alias.resolve_local_alias(&alias);
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomAlias::LocalAliasesForRoom {
+		RoomAliasCommand::LocalAliasesForRoom {
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services().rooms.alias.local_aliases_for_room(&room_id);
+			let results = services.rooms.alias.local_aliases_for_room(&room_id);
 			let aliases: Vec<_> = results.collect();
 			let query_time = timer.elapsed();
 
@@ -29,9 +50,9 @@ pub(super) async fn room_alias(subcommand: RoomAlias) -> Result<RoomMessageEvent
 				"Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```"
 			)))
 		},
-		RoomAlias::AllLocalAliases => {
+		RoomAliasCommand::AllLocalAliases => {
 			let timer = tokio::time::Instant::now();
-			let results = services().rooms.alias.all_local_aliases();
+			let results = services.rooms.alias.all_local_aliases();
 			let aliases: Vec<_> = results.collect();
 			let query_time = timer.elapsed();
 

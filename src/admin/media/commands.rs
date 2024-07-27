@@ -1,11 +1,11 @@
-use conduit::Result;
+use conduit::{debug, info, Result};
 use ruma::{events::room::message::RoomMessageEventContent, EventId, MxcUri};
-use tracing::{debug, info};
 
-use crate::services;
+use crate::admin_command;
 
+#[admin_command]
 pub(super) async fn delete(
-	_body: Vec<&str>, mxc: Option<Box<MxcUri>>, event_id: Option<Box<EventId>>,
+	&self, mxc: Option<Box<MxcUri>>, event_id: Option<Box<EventId>>,
 ) -> Result<RoomMessageEventContent> {
 	if event_id.is_some() && mxc.is_some() {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -15,7 +15,7 @@ pub(super) async fn delete(
 
 	if let Some(mxc) = mxc {
 		debug!("Got MXC URL: {mxc}");
-		services().media.delete(mxc.as_ref()).await?;
+		self.services.media.delete(mxc.as_ref()).await?;
 
 		return Ok(RoomMessageEventContent::text_plain(
 			"Deleted the MXC from our database and on our filesystem.",
@@ -27,7 +27,7 @@ pub(super) async fn delete(
 		let mut mxc_deletion_count: usize = 0;
 
 		// parsing the PDU for any MXC URLs begins here
-		if let Some(event_json) = services().rooms.timeline.get_pdu_json(&event_id)? {
+		if let Some(event_json) = self.services.rooms.timeline.get_pdu_json(&event_id)? {
 			if let Some(content_key) = event_json.get("content") {
 				debug!("Event ID has \"content\".");
 				let content_obj = content_key.as_object();
@@ -123,7 +123,7 @@ pub(super) async fn delete(
 		}
 
 		for mxc_url in mxc_urls {
-			services().media.delete(&mxc_url).await?;
+			self.services.media.delete(&mxc_url).await?;
 			mxc_deletion_count = mxc_deletion_count.saturating_add(1);
 		}
 
@@ -138,23 +138,26 @@ pub(super) async fn delete(
 	))
 }
 
-pub(super) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	if body.len() < 2 || !body[0].trim().starts_with("```") || body.last().unwrap_or(&"").trim() != "```" {
+#[admin_command]
+pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
+	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
 		));
 	}
 
-	let mxc_list = body
-		.clone()
-		.drain(1..body.len().checked_sub(1).unwrap())
+	let mxc_list = self
+		.body
+		.to_vec()
+		.drain(1..self.body.len().checked_sub(1).unwrap())
 		.collect::<Vec<_>>();
 
 	let mut mxc_deletion_count: usize = 0;
 
 	for mxc in mxc_list {
 		debug!("Deleting MXC {mxc} in bulk");
-		services().media.delete(mxc).await?;
+		self.services.media.delete(mxc).await?;
 		mxc_deletion_count = mxc_deletion_count
 			.checked_add(1)
 			.expect("mxc_deletion_count should not get this high");
@@ -165,10 +168,10 @@ pub(super) async fn delete_list(body: Vec<&str>) -> Result<RoomMessageEventConte
 	)))
 }
 
-pub(super) async fn delete_past_remote_media(
-	_body: Vec<&str>, duration: String, force: bool,
-) -> Result<RoomMessageEventContent> {
-	let deleted_count = services()
+#[admin_command]
+pub(super) async fn delete_past_remote_media(&self, duration: String, force: bool) -> Result<RoomMessageEventContent> {
+	let deleted_count = self
+		.services
 		.media
 		.delete_all_remote_media_at_after_time(duration, force)
 		.await?;

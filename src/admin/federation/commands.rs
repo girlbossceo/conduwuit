@@ -1,21 +1,26 @@
 use std::fmt::Write;
 
+use conduit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
 
-use crate::{escape_html, get_room_info, services, Result};
+use crate::{admin_command, escape_html, get_room_info};
 
-pub(super) async fn disable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	services().rooms.metadata.disable_room(&room_id, true)?;
+#[admin_command]
+pub(super) async fn disable_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+	self.services.rooms.metadata.disable_room(&room_id, true)?;
 	Ok(RoomMessageEventContent::text_plain("Room disabled."))
 }
 
-pub(super) async fn enable_room(_body: Vec<&str>, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	services().rooms.metadata.disable_room(&room_id, false)?;
+#[admin_command]
+pub(super) async fn enable_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+	self.services.rooms.metadata.disable_room(&room_id, false)?;
 	Ok(RoomMessageEventContent::text_plain("Room enabled."))
 }
 
-pub(super) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let map = services()
+#[admin_command]
+pub(super) async fn incoming_federation(&self) -> Result<RoomMessageEventContent> {
+	let map = self
+		.services
 		.rooms
 		.event_handler
 		.federation_handletime
@@ -31,10 +36,10 @@ pub(super) async fn incoming_federation(_body: Vec<&str>) -> Result<RoomMessageE
 	Ok(RoomMessageEventContent::text_plain(&msg))
 }
 
-pub(super) async fn fetch_support_well_known(
-	_body: Vec<&str>, server_name: Box<ServerName>,
-) -> Result<RoomMessageEventContent> {
-	let response = services()
+#[admin_command]
+pub(super) async fn fetch_support_well_known(&self, server_name: Box<ServerName>) -> Result<RoomMessageEventContent> {
+	let response = self
+		.services
 		.client
 		.default
 		.get(format!("https://{server_name}/.well-known/matrix/support"))
@@ -72,25 +77,27 @@ pub(super) async fn fetch_support_well_known(
 	)))
 }
 
-pub(super) async fn remote_user_in_rooms(_body: Vec<&str>, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {
-	if user_id.server_name() == services().globals.config.server_name {
+#[admin_command]
+pub(super) async fn remote_user_in_rooms(&self, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {
+	if user_id.server_name() == self.services.globals.config.server_name {
 		return Ok(RoomMessageEventContent::text_plain(
 			"User belongs to our server, please use `list-joined-rooms` user admin command instead.",
 		));
 	}
 
-	if !services().users.exists(&user_id)? {
+	if !self.services.users.exists(&user_id)? {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Remote user does not exist in our database.",
 		));
 	}
 
-	let mut rooms: Vec<(OwnedRoomId, u64, String)> = services()
+	let mut rooms: Vec<(OwnedRoomId, u64, String)> = self
+		.services
 		.rooms
 		.state_cache
 		.rooms_joined(&user_id)
 		.filter_map(Result::ok)
-		.map(|room_id| get_room_info(services(), &room_id))
+		.map(|room_id| get_room_info(self.services, &room_id))
 		.collect();
 
 	if rooms.is_empty() {

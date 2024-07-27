@@ -3,10 +3,10 @@ pub(crate) mod tester;
 
 use clap::Subcommand;
 use conduit::Result;
-use conduit_macros::admin_command_dispatch;
-use ruma::{events::room::message::RoomMessageEventContent, EventId, OwnedRoomOrAliasId, RoomId, ServerName};
+use ruma::{EventId, OwnedRoomOrAliasId, RoomId, ServerName};
 
-use self::{commands::*, tester::TesterCommand};
+use self::tester::TesterCommand;
+use crate::admin_command_dispatch;
 
 #[admin_command_dispatch]
 #[derive(Debug, Subcommand)]

@@ -3,6 +3,7 @@
 #![allow(clippy::enum_glob_use)]
 
 pub(crate) mod admin;
+pub(crate) mod command;
 pub(crate) mod handler;
 mod tests;
 pub(crate) mod utils;
@@ -22,9 +23,13 @@ extern crate conduit_core as conduit;
 extern crate conduit_service as service;
 
 pub(crate) use conduit::Result;
+pub(crate) use conduit_macros::{admin_command, admin_command_dispatch};
 pub(crate) use service::services;
 
-pub(crate) use crate::utils::{escape_html, get_room_info};
+pub(crate) use crate::{
+	command::Command,
+	utils::{escape_html, get_room_info},
+};
 
 pub(crate) const PAGE_SIZE: usize = 100;
 

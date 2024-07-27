@@ -15,10 +15,10 @@ use service::{
 	Services,
 };
 
-use crate::{admin, admin::AdminCommand};
+use crate::{admin, admin::AdminCommand, Command};
 
-struct Handler<'a> {
-	services: &'a Services,
+struct Handler {
+	services: &'static Services,
 }
 
 #[must_use]
@@ -68,13 +68,12 @@ fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -
 	Some(content)
 }
 
-impl Handler<'_> {
+impl Handler {
 	// Parse and process a message from the admin room
 	async fn process(&self, msg: &str) -> CommandOutput {
 		let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
 		let command = lines.next().expect("each string has at least one line");
-		let body = lines.collect::<Vec<_>>();
-		let parsed = match self.parse_command(command) {
+		let (parsed, body) = match self.parse_command(command) {
 			Ok(parsed) => parsed,
 			Err(error) => {
 				let server_name = self.services.globals.server_name();
@@ -84,7 +83,12 @@ impl Handler<'_> {
 		};
 
 		let timer = Instant::now();
-		let result = Box::pin(admin::process(parsed, body)).await;
+		let body: Vec<&str> = body.iter().map(String::as_str).collect();
+		let context = Command {
+			services: self.services,
+			body: &body,
+		};
+		let result = Box::pin(admin::process(parsed, &context)).await;
 		let elapsed = timer.elapsed();
 		conduit::debug!(?command, ok = result.is_ok(), "command processed in {elapsed:?}");
 		match result {
@@ -96,9 +100,10 @@ impl Handler<'_> {
 	}
 
 	// Parse chat messages from the admin room into an AdminCommand object
-	fn parse_command(&self, command_line: &str) -> Result<AdminCommand, String> {
+	fn parse_command(&self, command_line: &str) -> Result<(AdminCommand, Vec<String>), String> {
 		let argv = self.parse_line(command_line);
-		AdminCommand::try_parse_from(argv).map_err(|error| error.to_string())
+		let com = AdminCommand::try_parse_from(&argv).map_err(|error| error.to_string())?;
+		Ok((com, argv))
 	}
 
 	fn complete_command(&self, mut cmd: clap::Command, line: &str) -> String {

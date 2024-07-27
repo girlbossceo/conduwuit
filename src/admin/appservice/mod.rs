@@ -2,11 +2,11 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::events::room::message::RoomMessageEventContent;
 
-use self::commands::*;
+use crate::admin_command_dispatch;
 
 #[derive(Debug, Subcommand)]
+#[admin_command_dispatch]
 pub(super) enum AppserviceCommand {
 	/// - Register an appservice using its registration YAML
 	///
@@ -28,24 +28,13 @@ pub(super) enum AppserviceCommand {
 	/// - Show an appservice's config using its ID
 	///
 	/// You can find the ID using the `list-appservices` command.
-	Show {
+	#[clap(alias("show"))]
+	ShowAppserviceConfig {
 		/// The appservice to show
 		appservice_identifier: String,
 	},
 
 	/// - List all the currently registered appservices
-	List,
-}
-
-pub(super) async fn process(command: AppserviceCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	Ok(match command {
-		AppserviceCommand::Register => register(body).await?,
-		AppserviceCommand::Unregister {
-			appservice_identifier,
-		} => unregister(body, appservice_identifier).await?,
-		AppserviceCommand::Show {
-			appservice_identifier,
-		} => show(body, appservice_identifier).await?,
-		AppserviceCommand::List => list(body).await?,
-	})
+	#[clap(alias("list"))]
+	ListRegistered,
 }

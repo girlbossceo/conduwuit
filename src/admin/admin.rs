@@ -3,14 +3,14 @@ use conduit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{
-	appservice, appservice::AppserviceCommand, check, check::CheckCommand, debug, debug::DebugCommand, federation,
-	federation::FederationCommand, media, media::MediaCommand, query, query::QueryCommand, room, room::RoomCommand,
-	server, server::ServerCommand, user, user::UserCommand,
+	appservice, appservice::AppserviceCommand, check, check::CheckCommand, command::Command, debug,
+	debug::DebugCommand, federation, federation::FederationCommand, media, media::MediaCommand, query,
+	query::QueryCommand, room, room::RoomCommand, server, server::ServerCommand, user, user::UserCommand,
 };
 
 #[derive(Debug, Parser)]
 #[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
-pub(crate) enum AdminCommand {
+pub(super) enum AdminCommand {
 	#[command(subcommand)]
 	/// - Commands for managing appservices
 	Appservices(AppserviceCommand),
@@ -49,18 +49,18 @@ pub(crate) enum AdminCommand {
 }
 
 #[tracing::instrument(skip_all, name = "command")]
-pub(crate) async fn process(command: AdminCommand, body: Vec<&str>) -> Result<RoomMessageEventContent> {
-	let reply_message_content = match command {
-		AdminCommand::Appservices(command) => appservice::process(command, body).await?,
-		AdminCommand::Media(command) => media::process(command, body).await?,
-		AdminCommand::Users(command) => user::process(command, body).await?,
-		AdminCommand::Rooms(command) => room::process(command, body).await?,
-		AdminCommand::Federation(command) => federation::process(command, body).await?,
-		AdminCommand::Server(command) => server::process(command, body).await?,
-		AdminCommand::Debug(command) => debug::process(command, body).await?,
-		AdminCommand::Query(command) => query::process(command, body).await?,
-		AdminCommand::Check(command) => check::process(command, body).await?,
-	};
+pub(super) async fn process(command: AdminCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+	use AdminCommand::*;
 
-	Ok(reply_message_content)
+	Ok(match command {
+		Appservices(command) => appservice::process(command, context).await?,
+		Media(command) => media::process(command, context).await?,
+		Users(command) => user::process(command, context).await?,
+		Rooms(command) => room::process(command, context).await?,
+		Federation(command) => federation::process(command, context).await?,
+		Server(command) => server::process(command, context).await?,
+		Debug(command) => debug::process(command, context).await?,
+		Query(command) => query::process(command, context).await?,
+		Check(command) => check::process(command, context).await?,
+	})
 }

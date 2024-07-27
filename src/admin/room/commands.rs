@@ -1,15 +1,18 @@
 use std::fmt::Write;
 
+use conduit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::{escape_html, get_room_info, services, Result, PAGE_SIZE};
+use crate::{admin_command, escape_html, get_room_info, PAGE_SIZE};
 
-pub(super) async fn list(
-	_body: Vec<&str>, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool,
+#[admin_command]
+pub(super) async fn list_rooms(
+	&self, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool,
 ) -> Result<RoomMessageEventContent> {
 	// TODO: i know there's a way to do this with clap, but i can't seem to find it
 	let page = page.unwrap_or(1);
-	let mut rooms = services()
+	let mut rooms = self
+		.services
 		.rooms
 		.metadata
 		.iter_ids()
@@ -18,7 +21,8 @@ pub(super) async fn list(
 				.ok()
 				.filter(|room_id| {
 					if exclude_disabled
-						&& services()
+						&& self
+							.services
 							.rooms
 							.metadata
 							.is_disabled(room_id)
@@ -28,7 +32,8 @@ pub(super) async fn list(
 					}
 
 					if exclude_banned
-						&& services()
+						&& self
+							.services
 							.rooms
 							.metadata
 							.is_banned(room_id)
@@ -39,7 +44,7 @@ pub(super) async fn list(
 
 					true
 				})
-				.map(|room_id| get_room_info(services(), &room_id))
+				.map(|room_id| get_room_info(self.services, &room_id))
 		})
 		.collect::<Vec<_>>();
 	rooms.sort_by_key(|r| r.1);
