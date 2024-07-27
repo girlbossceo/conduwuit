@@ -26,19 +26,10 @@ use ruma::{
 use self::data::Data;
 use crate::{admin, rooms, Dep};
 
-pub struct SlidingSyncCache {
-	lists: BTreeMap<String, SyncRequestList>,
-	subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
-	known_rooms: BTreeMap<String, BTreeMap<OwnedRoomId, u64>>, // For every room, the roomsince number
-	extensions: ExtensionsConfig,
-}
-
-type DbConnections = Mutex<BTreeMap<(OwnedUserId, OwnedDeviceId, String), Arc<Mutex<SlidingSyncCache>>>>;
-
 pub struct Service {
-	services: Services,
+	connections: DbConnections,
 	pub db: Data,
-	pub connections: DbConnections,
+	services: Services,
 }
 
 struct Services {
@@ -49,16 +40,27 @@ struct Services {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			connections: StdMutex::new(BTreeMap::new()),
+			db: Data::new(&args),
 			services: Services {
 				admin: args.depend::<admin::Service>("admin"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 			},
-			db: Data::new(&args),
-			connections: StdMutex::new(BTreeMap::new()),
 		}))
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+type DbConnections = Mutex<BTreeMap<DbConnectionsKey, DbConnectionsVal>>;
+type DbConnectionsKey = (OwnedUserId, OwnedDeviceId, String);
+type DbConnectionsVal = Arc<Mutex<SlidingSyncCache>>;
+
+struct SlidingSyncCache {
+	lists: BTreeMap<String, SyncRequestList>,
+	subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
+	known_rooms: BTreeMap<String, BTreeMap<OwnedRoomId, u64>>, // For every room, the roomsince number
+	extensions: ExtensionsConfig,
 }
 
 impl Service {

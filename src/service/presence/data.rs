@@ -4,7 +4,8 @@ use conduit::{debug_warn, utils, Error, Result};
 use database::Map;
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 
-use crate::{globals, presence::Presence, users, Dep};
+use super::Presence;
+use crate::{globals, users, Dep};
 
 pub struct Data {
 	presenceid_presence: Arc<Map>,
