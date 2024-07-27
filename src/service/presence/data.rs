@@ -61,6 +61,22 @@ impl Data {
 			Some(ref presence) => presence.1.content.presence != *presence_state,
 		};
 
+		let status_msg_changed = match last_presence {
+			None => true,
+			Some(ref last_presence) => {
+				let old_msg = last_presence
+					.1
+					.content
+					.status_msg
+					.clone()
+					.unwrap_or_default();
+
+				let new_msg = status_msg.clone().unwrap_or_default();
+
+				new_msg != old_msg
+			},
+		};
+
 		let now = utils::millis_since_unix_epoch();
 		let last_last_active_ts = match last_presence {
 			None => 0,
@@ -72,10 +88,10 @@ impl Data {
 			Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
 		};
 
-		// tighten for state flicker?
-		if !state_changed && last_active_ts <= last_last_active_ts {
+		// TODO: tighten for state flicker?
+		if !status_msg_changed && !state_changed && last_active_ts < last_last_active_ts {
 			debug_warn!(
-				"presence spam {:?} last_active_ts:{:?} <= {:?}",
+				"presence spam {:?} last_active_ts:{:?} < {:?}",
 				user_id,
 				last_active_ts,
 				last_last_active_ts
