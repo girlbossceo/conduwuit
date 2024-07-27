@@ -9,11 +9,13 @@ pub(super) fn flags_capture(args: TokenStream) -> TokenStream {
 	};
 
 	let flag = std::env::args().collect::<Vec<_>>();
+	let flag_len = flag.len();
 	let ret = quote! {
+		pub static RUSTC_FLAGS: [&str; #flag_len] = [#( #flag ),*];
+
 		#[conduit_core::ctor]
 		fn _set_rustc_flags() {
-			let flags = &[#( #flag ),*];
-			conduit_core::info::rustc::FLAGS.lock().expect("locked").insert(#crate_name, flags);
+			conduit_core::info::rustc::FLAGS.lock().expect("locked").insert(#crate_name, &RUSTC_FLAGS);
 		}
 
 		// static strings have to be yanked on module unload
