@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 
 use super::{path, Library};
-use crate::{Error, Result};
+use crate::{Err, Result};
 
 const OPEN_FLAGS: i32 = libloading::os::unix::RTLD_LAZY | libloading::os::unix::RTLD_GLOBAL;
 
@@ -16,7 +16,7 @@ pub fn from_path(path: &OsStr) -> Result<Library> {
 	let lib = unsafe { Library::open(Some(path), OPEN_FLAGS) };
 	if let Err(e) = lib {
 		let name = path::to_name(path)?;
-		return Err(Error::Err(format!("Loading module {name:?} failed: {e}")));
+		return Err!("Loading module {name:?} failed: {e}");
 	}
 
 	Ok(lib.expect("module loaded"))
