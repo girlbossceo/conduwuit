@@ -1,18 +1,27 @@
 #![cfg(conduit_mods)]
 
+#[no_link]
+extern crate conduit_service;
+
 use std::{
 	future::Future,
 	pin::Pin,
 	sync::{atomic::Ordering, Arc},
 };
 
-use conduit::{mods, Error, Result};
-use tracing::{debug, error};
+use conduit::{debug, error, mods, Error, Result};
+use conduit_service::Services;
 
 use crate::Server;
 
-type RunFuncResult = Pin<Box<dyn Future<Output = Result<(), Error>>>>;
-type RunFuncProto = fn(&Arc<conduit::Server>) -> RunFuncResult;
+type StartFuncResult = Pin<Box<dyn Future<Output = Result<Arc<Services>>> + Send>>;
+type StartFuncProto = fn(&Arc<conduit::Server>) -> StartFuncResult;
+
+type RunFuncResult = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+type RunFuncProto = fn(&Arc<Services>) -> RunFuncResult;
+
+type StopFuncResult = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+type StopFuncProto = fn(Arc<Services>) -> StopFuncResult;
 
 const RESTART_THRESH: &str = "conduit_service";
 const MODULE_NAMES: &[&str] = &[
@@ -33,15 +42,25 @@ pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, boo
 	let main_lock = server.mods.read().await;
 	let main_mod = (*main_lock).last().expect("main module loaded");
 	if starts {
-		let start = main_mod.get::<RunFuncProto>("start")?;
-		if let Err(error) = start(&server.server).await {
-			error!("Starting server: {error}");
-			return Err(error);
-		}
+		let start = main_mod.get::<StartFuncProto>("start")?;
+		match start(&server.server).await {
+			Ok(services) => server.services.lock().await.insert(services),
+			Err(error) => {
+				error!("Starting server: {error}");
+				return Err(error);
+			},
+		};
 	}
 	server.server.stopping.store(false, Ordering::Release);
 	let run = main_mod.get::<RunFuncProto>("run")?;
-	if let Err(error) = run(&server.server).await {
+	if let Err(error) = run(server
+		.services
+		.lock()
+		.await
+		.as_ref()
+		.expect("services initialized"))
+	.await
+	{
 		error!("Running server: {error}");
 		return Err(error);
 	}
@@ -49,8 +68,17 @@ pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, boo
 	let stops = !reloads || stale(server).await? <= restart_thresh();
 	let starts = reloads && stops;
 	if stops {
-		let stop = main_mod.get::<RunFuncProto>("stop")?;
-		if let Err(error) = stop(&server.server).await {
+		let stop = main_mod.get::<StopFuncProto>("stop")?;
+		if let Err(error) = stop(
+			server
+				.services
+				.lock()
+				.await
+				.take()
+				.expect("services initialized"),
+		)
+		.await
+		{
 			error!("Stopping server: {error}");
 			return Err(error);
 		}
@@ -103,7 +131,7 @@ pub(crate) async fn close(server: &Arc<Server>, force: bool) -> Result<usize, Er
 
 async fn stale_count(server: &Arc<Server>) -> usize {
 	let watermark = stale(server).await.unwrap_or(available());
-	available() - watermark
+	available().saturating_sub(watermark)
 }
 
 async fn stale(server: &Arc<Server>) -> Result<usize, Error> {
