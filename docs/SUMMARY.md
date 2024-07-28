@@ -10,6 +10,7 @@
   - [Docker](deploying/docker.md)
   - [Arch Linux](deploying/arch-linux.md)
   - [Debian](deploying/debian.md)
+  - [FreeBSD](deploying/freebsd.md)
 - [TURN](turn.md)
 - [Appservices](appservices.md)
 - [Maintenance](maintenance.md)
