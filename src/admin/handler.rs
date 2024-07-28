@@ -1,7 +1,7 @@
 use std::{panic::AssertUnwindSafe, sync::Arc, time::Instant};
 
 use clap::{CommandFactory, Parser};
-use conduit::{error, trace, utils::string::common_prefix, Error, Result};
+use conduit::{checked, error, trace, utils::string::common_prefix, Error, Result};
 use futures_util::future::FutureExt;
 use ruma::{
 	events::{
@@ -60,8 +60,11 @@ fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -
 
 // Parse and process a message from the admin room
 async fn process(services: Arc<Services>, msg: &str) -> CommandOutput {
-	let mut lines = msg.lines().filter(|l| !l.trim().is_empty());
-	let command = lines.next().expect("each string has at least one line");
+	let lines = msg.lines().filter(|l| !l.trim().is_empty());
+	let command = lines
+		.clone()
+		.next()
+		.expect("each string has at least one line");
 	let (parsed, body) = match parse_command(command) {
 		Ok(parsed) => parsed,
 		Err(error) => {
@@ -71,12 +74,12 @@ async fn process(services: Arc<Services>, msg: &str) -> CommandOutput {
 		},
 	};
 
-	let timer = Instant::now();
-	let body: Vec<&str> = body.iter().map(String::as_str).collect();
+	let body = parse_body(AdminCommand::command(), &body, lines.skip(1).collect()).expect("trailing body parsed");
 	let context = Command {
 		services: &services,
 		body: &body,
 	};
+	let timer = Instant::now();
 	let result = Box::pin(admin::process(parsed, &context)).await;
 	let elapsed = timer.elapsed();
 	conduit::debug!(?command, ok = result.is_ok(), "command processed in {elapsed:?}");
@@ -93,6 +96,32 @@ fn parse_command(command_line: &str) -> Result<(AdminCommand, Vec<String>), Stri
 	let argv = parse_line(command_line);
 	let com = AdminCommand::try_parse_from(&argv).map_err(|error| error.to_string())?;
 	Ok((com, argv))
+}
+
+fn parse_body<'a>(mut cmd: clap::Command, body: &'a [String], lines: Vec<&'a str>) -> Result<Vec<&'a str>> {
+	let mut start = 1;
+	'token: for token in body.iter().skip(1) {
+		let cmd_ = cmd.clone();
+		for sub in cmd_.get_subcommands() {
+			if sub.get_name() == *token {
+				start = checked!(start + 1)?;
+				cmd = sub.clone();
+				continue 'token;
+			}
+		}
+
+		// positional arguments have to be skipped too
+		let num_posargs = cmd_.get_positionals().count();
+		start = checked!(start + num_posargs)?;
+		break;
+	}
+
+	Ok(body
+		.iter()
+		.skip(start)
+		.map(String::as_str)
+		.chain(lines)
+		.collect::<Vec<&'a str>>())
 }
 
 fn complete_command(mut cmd: clap::Command, line: &str) -> String {
