@@ -33,6 +33,7 @@ version = "0.2.8"
 
 [workspace.dependencies.cargo_toml]
 version = "0.20"
+default-features = false
 features = ["features"]
 
 [workspace.dependencies.toml]
@@ -96,6 +97,7 @@ features = ["typed-header", "tracing"]
 
 [workspace.dependencies.axum-server]
 version = "0.6.0"
+default-features = false
 features = ["tls-rustls"]
 
 [workspace.dependencies.axum-client-ip]
@@ -103,10 +105,12 @@ version = "0.6.0"
 
 [workspace.dependencies.tower]
 version = "0.4.13"
+default-features = false
 features = ["util"]
 
 [workspace.dependencies.tower-http]
 version = "0.5.2"
+default-features = false
 features = [
     "add-extension",
     "cors",
@@ -129,10 +133,12 @@ features = [
 
 [workspace.dependencies.serde]
 version = "1.0.204"
+default-features = false
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
 version = "1.0.120"
+default-features = false
 features = ["raw_value"]
 
 # Used for appservice registration files
@@ -200,7 +206,8 @@ version = "0.3.30"
 default-features = false
 
 [workspace.dependencies.tokio]
-version = "1.39.1"
+version = "1.39.2"
+default-features = false
 features = [
 	"fs",
 	"net",
@@ -221,6 +228,7 @@ version = "0.8.5"
 # Validating urls in config, was already a transitive dependency
 [workspace.dependencies.url]
 version = "2.5.0"
+default-features = false
 features = ["serde"]
 
 # standard date and time tools
@@ -231,6 +239,7 @@ default-features = false
 
 [workspace.dependencies.hyper]
 version = "1.4.1"
+default-features = false
 features = [
 	"server",
 	"http1",
@@ -239,6 +248,7 @@ features = [
 
 [workspace.dependencies.hyper-util]
 version = "0.1.6"
+default-features = false
 features = [
 	"client",
 	"server-auto",
@@ -250,11 +260,13 @@ features = [
 # to support multiple variations of setting a config option
 [workspace.dependencies.either]
 version = "1.11.0"
+default-features = false
 features = ["serde"]
 
 # Used for reading the configuration from conduwuit.toml & environment variables
 [workspace.dependencies.figment]
 version = "0.10.18"
+default-features = false
 features = ["env", "toml"]
 
 [workspace.dependencies.hickory-resolver]
@@ -400,6 +412,7 @@ version = "0.3"
 
 [workspace.dependencies.nix]
 version = "0.29.0"
+default-features = false
 features = ["resource"]
 
 [workspace.dependencies.sd-notify]
@@ -427,6 +440,7 @@ version = "0.1"
 
 [workspace.dependencies.syn]
 version = "2.0.72"
+default-features = false
 features = ["full", "extra-traits"]
 
 [workspace.dependencies.quote]
