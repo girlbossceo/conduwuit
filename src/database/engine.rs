@@ -1,10 +1,11 @@
 use std::{
 	collections::{BTreeSet, HashMap},
 	fmt::Write,
+	path::PathBuf,
 	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
 };
 
-use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Result, Server};
+use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, Result, Server};
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
@@ -50,10 +51,7 @@ impl Engine {
 
 		let load_time = std::time::Instant::now();
 		if config.rocksdb_repair {
-			warn!("Starting database repair. This may take a long time...");
-			if let Err(e) = Db::repair(&db_opts, &config.database_path) {
-				error!("Repair failed: {e:?}");
-			}
+			repair(&db_opts, &config.database_path)?;
 		}
 
 		debug!("Listing column families in database");
@@ -77,6 +75,7 @@ impl Engine {
 
 		let db = res.or_else(or_else)?;
 		info!(
+			columns = cfs.len(),
 			sequence = %db.latest_sequence_number(),
 			time = ?load_time.elapsed(),
 			"Opened database."
@@ -243,6 +242,16 @@ impl Engine {
 	}
 }
 
+pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
+	warn!("Starting database repair. This may take a long time...");
+	match Db::repair(db_opts, path) {
+		Ok(()) => info!("Database repair successful."),
+		Err(e) => return Err!("Repair failed: {e:?}"),
+	}
+
+	Ok(())
+}
+
 impl Drop for Engine {
 	#[cold]
 	fn drop(&mut self) {
@@ -259,5 +268,10 @@ impl Drop for Engine {
 
 		debug!("Joining background threads...");
 		self.env.join_all_threads();
+
+		info!(
+			sequence = %self.db.latest_sequence_number(),
+			"Closing database..."
+		);
 	}
 }
