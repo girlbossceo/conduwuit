@@ -35,13 +35,13 @@ pub(super) async fn list_features(
 	};
 	if enabled && !available {
 		let features = info::rustc::features().join(delim);
-		let out = format!("```\n{features}\n```");
+		let out = format!("`\n{features}\n`");
 		return Ok(RoomMessageEventContent::text_markdown(out));
 	}
 
 	if available && !enabled {
 		let features = info::cargo::features().join(delim);
-		let out = format!("```\n{features}\n```");
+		let out = format!("`\n{features}\n`");
 		return Ok(RoomMessageEventContent::text_markdown(out));
 	}
 
