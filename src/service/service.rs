@@ -3,7 +3,7 @@ use std::{
 	collections::BTreeMap,
 	fmt::Write,
 	ops::Deref,
-	sync::{Arc, OnceLock, RwLock},
+	sync::{Arc, OnceLock, RwLock, Weak},
 };
 
 use async_trait::async_trait;
@@ -53,7 +53,7 @@ pub(crate) struct Args<'a> {
 /// Circular-dependencies between services require this indirection.
 pub(crate) struct Dep<T> {
 	dep: OnceLock<Arc<T>>,
-	service: Arc<Map>,
+	service: Weak<Map>,
 	name: &'static str,
 }
 
@@ -65,8 +65,14 @@ impl<T: Send + Sync + 'static> Deref for Dep<T> {
 
 	/// Dereference a dependency. The dependency must be ready or panics.
 	fn deref(&self) -> &Self::Target {
-		self.dep
-			.get_or_init(|| require::<T>(&self.service, self.name))
+		self.dep.get_or_init(|| {
+			let service = self
+				.service
+				.upgrade()
+				.expect("services map exists for dependency initialization.");
+
+			require::<T>(&service, self.name)
+		})
 	}
 }
 
@@ -75,7 +81,7 @@ impl Args<'_> {
 	pub(crate) fn depend<T: Send + Sync + 'static>(&self, name: &'static str) -> Dep<T> {
 		Dep::<T> {
 			dep: OnceLock::new(),
-			service: self.service.clone(),
+			service: Arc::downgrade(self.service),
 			name,
 		}
 	}
