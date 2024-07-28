@@ -57,8 +57,10 @@ pub(crate) struct Dep<T> {
 	name: &'static str,
 }
 
-pub(crate) type Map = RwLock<BTreeMap<String, MapVal>>;
-pub(crate) type MapVal = (Arc<dyn Service>, Arc<dyn Any + Send + Sync>);
+pub(crate) type Map = RwLock<MapType>;
+pub(crate) type MapType = BTreeMap<MapKey, MapVal>;
+pub(crate) type MapVal = (Weak<dyn Service>, Weak<dyn Any + Send + Sync>);
+pub(crate) type MapKey = String;
 
 impl<T: Send + Sync + 'static> Deref for Dep<T> {
 	type Target = Arc<T>;
@@ -76,9 +78,9 @@ impl<T: Send + Sync + 'static> Deref for Dep<T> {
 	}
 }
 
-impl Args<'_> {
+impl<'a> Args<'a> {
 	/// Create a lazy-reference to a service when constructing another Service.
-	pub(crate) fn depend<T: Send + Sync + 'static>(&self, name: &'static str) -> Dep<T> {
+	pub(crate) fn depend<T: Send + Sync + 'a + 'static>(&'a self, name: &'static str) -> Dep<T> {
 		Dep::<T> {
 			dep: OnceLock::new(),
 			service: Arc::downgrade(self.service),
@@ -88,31 +90,17 @@ impl Args<'_> {
 
 	/// Create a reference immediately to a service when constructing another
 	/// Service. The other service must be constructed.
-	pub(crate) fn require<T: Send + Sync + 'static>(&self, name: &str) -> Arc<T> { require::<T>(self.service, name) }
+	pub(crate) fn require<T: Send + Sync + 'a + 'static>(&'a self, name: &'static str) -> Arc<T> {
+		require::<T>(self.service, name)
+	}
 }
 
 /// Reference a Service by name. Panics if the Service does not exist or was
 /// incorrectly cast.
-pub(crate) fn require<T: Send + Sync + 'static>(map: &Map, name: &str) -> Arc<T> {
+pub(crate) fn require<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name: &'a str) -> Arc<T> {
 	try_get::<T>(map, name)
 		.inspect_err(inspect_log)
 		.expect("Failure to reference service required by another service.")
-}
-
-/// Reference a Service by name. Returns Err if the Service does not exist or
-/// was incorrectly cast.
-pub(crate) fn try_get<T: Send + Sync + 'static>(map: &Map, name: &str) -> Result<Arc<T>> {
-	map.read()
-		.expect("locked for reading")
-		.get(name)
-		.map_or_else(
-			|| Err!("Service {name:?} does not exist or has not been built yet."),
-			|(_, s)| {
-				s.clone()
-					.downcast::<T>()
-					.map_err(|_| err!("Service {name:?} must be correctly downcast."))
-			},
-		)
 }
 
 /// Reference a Service by name. Returns None if the Service does not exist, but
@@ -121,15 +109,36 @@ pub(crate) fn try_get<T: Send + Sync + 'static>(map: &Map, name: &str) -> Result
 /// # Panics
 /// Incorrect type is not a silent failure (None) as the type never has a reason
 /// to be incorrect.
-pub(crate) fn get<T: Send + Sync + 'static>(map: &Map, name: &str) -> Option<Arc<T>> {
+pub(crate) fn get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name: &'a str) -> Option<Arc<T>> {
 	map.read()
 		.expect("locked for reading")
 		.get(name)
 		.map(|(_, s)| {
-			s.clone()
-				.downcast::<T>()
-				.expect("Service must be correctly downcast.")
-		})
+			s.upgrade().map(|s| {
+				s.downcast::<T>()
+					.expect("Service must be correctly downcast.")
+			})
+		})?
+}
+
+/// Reference a Service by name. Returns Err if the Service does not exist or
+/// was incorrectly cast.
+pub(crate) fn try_get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name: &'a str) -> Result<Arc<T>> {
+	map.read()
+		.expect("locked for reading")
+		.get(name)
+		.map_or_else(
+			|| Err!("Service {name:?} does not exist or has not been built yet."),
+			|(_, s)| {
+				s.upgrade().map_or_else(
+					|| Err!("Service {name:?} no longer exists."),
+					|s| {
+						s.downcast::<T>()
+							.map_err(|_| err!("Service {name:?} must be correctly downcast."))
+					},
+				)
+			},
+		)
 }
 
 /// Utility for service implementations; see Service::name() in the trait.

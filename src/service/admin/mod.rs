@@ -5,7 +5,7 @@ mod grant;
 use std::{
 	future::Future,
 	pin::Pin,
-	sync::{Arc, RwLock as StdRwLock},
+	sync::{Arc, RwLock as StdRwLock, Weak},
 };
 
 use async_trait::async_trait;
@@ -41,7 +41,7 @@ struct Services {
 	timeline: Dep<rooms::timeline::Service>,
 	state: Dep<rooms::state::Service>,
 	state_cache: Dep<rooms::state_cache::Service>,
-	services: StdRwLock<Option<Arc<crate::Services>>>,
+	services: StdRwLock<Option<Weak<crate::Services>>>,
 }
 
 #[derive(Debug)]
@@ -174,7 +174,14 @@ impl Service {
 	}
 
 	async fn process_command(&self, command: CommandInput) -> CommandResult {
-		let Some(services) = self.services.services.read().expect("locked").clone() else {
+		let Some(services) = self
+			.services
+			.services
+			.read()
+			.expect("locked")
+			.as_ref()
+			.and_then(Weak::upgrade)
+		else {
 			return Err!("Services self-reference not initialized.");
 		};
 
@@ -365,7 +372,9 @@ impl Service {
 
 	/// Sets the self-reference to crate::Services which will provide context to
 	/// the admin commands.
-	pub(super) fn set_services(&self, services: Option<Arc<crate::Services>>) {
-		*self.services.services.write().expect("locked for writing") = services;
+	pub(super) fn set_services(&self, services: &Option<Arc<crate::Services>>) {
+		let receiver = &mut *self.services.services.write().expect("locked for writing");
+		let weak = services.as_ref().map(Arc::downgrade);
+		*receiver = weak;
 	}
 }

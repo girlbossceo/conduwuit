@@ -60,7 +60,8 @@ impl Manager {
 			.read()
 			.expect("locked for reading")
 			.values()
-			.map(|v| v.0.clone())
+			.map(|val| val.0.upgrade())
+			.map(|arc| arc.expect("services available for manager startup"))
 			.collect();
 
 		debug!("Starting service workers...");
