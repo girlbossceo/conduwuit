@@ -3,8 +3,7 @@ mod auth;
 mod handler;
 mod request;
 mod response;
-
-use std::sync::Arc;
+mod state;
 
 use axum::{
 	response::IntoResponse,
@@ -15,10 +14,9 @@ use conduit::{err, Server};
 use http::Uri;
 
 use self::handler::RouterExt;
+pub use self::state::State;
 pub(super) use self::{args::Args as Ruma, response::RumaResponse};
 use crate::{client, server};
-
-pub type State = Arc<service::Services>;
 
 pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 	let config = &server.config;

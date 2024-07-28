@@ -9,7 +9,7 @@ use ruma::api::client::error::ErrorKind;
 
 pub(crate) fn build(services: &Arc<Services>) -> Router {
 	let router = Router::<State>::new();
-	let state = services.clone();
+	let state = State::new(services.clone());
 
 	conduit_api::router::build(router, &services.server)
 		.route("/", get(it_works))
