@@ -109,7 +109,7 @@ impl Services {
 	pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
 		debug_info!("Starting services...");
 
-		self.admin.set_services(Some(Arc::clone(self)));
+		self.admin.set_services(&Some(Arc::clone(self)));
 		globals::migrations::migrations(self).await?;
 		self.manager
 			.lock()
@@ -131,7 +131,7 @@ impl Services {
 			manager.stop().await;
 		}
 
-		self.admin.set_services(None);
+		self.admin.set_services(&None);
 
 		debug_info!("Services shutdown complete.");
 	}
@@ -146,7 +146,9 @@ impl Services {
 
 	pub async fn clear_cache(&self) {
 		for (service, ..) in self.service.read().expect("locked for reading").values() {
-			service.clear_cache();
+			if let Some(service) = service.upgrade() {
+				service.clear_cache();
+			}
 		}
 
 		//TODO
@@ -161,7 +163,9 @@ impl Services {
 	pub async fn memory_usage(&self) -> Result<String> {
 		let mut out = String::new();
 		for (service, ..) in self.service.read().expect("locked for reading").values() {
-			service.memory_usage(&mut out)?;
+			if let Some(service) = service.upgrade() {
+				service.memory_usage(&mut out)?;
+			}
 		}
 
 		//TODO
@@ -179,27 +183,30 @@ impl Services {
 
 	fn interrupt(&self) {
 		debug!("Interrupting services...");
-
 		for (name, (service, ..)) in self.service.read().expect("locked for reading").iter() {
-			trace!("Interrupting {name}");
-			service.interrupt();
+			if let Some(service) = service.upgrade() {
+				trace!("Interrupting {name}");
+				service.interrupt();
+			}
 		}
 	}
 
-	pub fn try_get<T: Send + Sync + 'static>(&self, name: &str) -> Result<Arc<T>> {
+	pub fn try_get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(&'b self, name: &'a str) -> Result<Arc<T>> {
 		service::try_get::<T>(&self.service, name)
 	}
 
-	pub fn get<T: Send + Sync + 'static>(&self, name: &str) -> Option<Arc<T>> { service::get::<T>(&self.service, name) }
+	pub fn get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(&'b self, name: &'a str) -> Option<Arc<T>> {
+		service::get::<T>(&self.service, name)
+	}
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn add_service(map: &Arc<Map>, s: Arc<dyn Service>, a: Arc<dyn Any + Send + Sync>) {
 	let name = s.name();
 	let len = map.read().expect("locked for reading").len();
 
 	trace!("built service #{len}: {name:?}");
-
 	map.write()
 		.expect("locked for writing")
-		.insert(name.to_owned(), (s, a));
+		.insert(name.to_owned(), (Arc::downgrade(&s), Arc::downgrade(&a)));
 }
