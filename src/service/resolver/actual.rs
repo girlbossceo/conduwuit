@@ -189,7 +189,7 @@ impl super::Service {
 			.services
 			.client
 			.well_known
-			.get(&format!("https://{dest}/.well-known/matrix/server"))
+			.get(format!("https://{dest}/.well-known/matrix/server"))
 			.send()
 			.await;
 
