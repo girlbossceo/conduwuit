@@ -12,17 +12,19 @@ use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use self::data::Data;
 
 pub struct Service {
+	pub lazy_load_waiting: Mutex<LazyLoadWaiting>,
 	db: Data,
-
-	#[allow(clippy::type_complexity)]
-	pub lazy_load_waiting: Mutex<HashMap<(OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount), HashSet<OwnedUserId>>>,
 }
+
+type LazyLoadWaiting = HashMap<LazyLoadWaitingKey, LazyLoadWaitingVal>;
+type LazyLoadWaitingKey = (OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount);
+type LazyLoadWaitingVal = HashSet<OwnedUserId>;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
 			lazy_load_waiting: Mutex::new(HashMap::new()),
+			db: Data::new(args.db),
 		}))
 	}
 
