@@ -337,57 +337,13 @@ jobs:
                     result/bin/conduit --version
                   fi
 
-            - name: Build static debug ${{ matrix.target }}
-              run: |
-                  CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
-                  SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
-
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features-debug
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
-
-                  # > warning: dev profile is not supported and will be a hard error in the future. cargo-deb is for making releases, and it doesn't make sense to use it with dev profiles.
-                  # so we need to coerce cargo-deb into thinking this is a release binary
-                  mkdir -v -p target/release/
-                  mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
-                  cp -v -f result/bin/conduit target/release/conduwuit
-                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
-                  # -p conduit is the main crate name
-                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}-debug.deb
-                  mv -v target/release/conduwuit static-${{ matrix.target }}-debug
-                  mv -v target/release/${{ matrix.target }}-debug.deb ${{ matrix.target }}-debug.deb
-
-            # quick smoke test of the x86_64 static debug binary
-            - name: Run x86_64 static debug binary
-              run: |
-                  # GH actions default runners are x86_64 only
-                  if file result/bin/conduit | grep x86-64; then
-                    result/bin/conduit --version
-                  fi
-
             # check validity of produced deb package, invalid debs will error on these commands
             - name: Validate produced deb package
               run: |
                   # List contents
                   dpkg-deb --contents ${{ matrix.target }}.deb
-                  dpkg-deb --contents ${{ matrix.target }}-debug.deb
                   # List info
                   dpkg-deb --info ${{ matrix.target }}.deb
-                  dpkg-deb --info ${{ matrix.target }}-debug.deb
 
             - name: Upload static-${{ matrix.target }}
               uses: actions/upload-artifact@v4
@@ -401,21 +357,6 @@ jobs:
               with:
                   name: deb-${{ matrix.target }}
                   path: ${{ matrix.target }}.deb
-                  if-no-files-found: error
-                  compression-level: 0
-
-            - name: Upload static-${{ matrix.target }}-debug
-              uses: actions/upload-artifact@v4
-              with:
-                  name: static-${{ matrix.target }}-debug
-                  path: static-${{ matrix.target }}-debug
-                  if-no-files-found: error
-
-            - name: Upload deb ${{ matrix.target }}-debug
-              uses: actions/upload-artifact@v4
-              with:
-                  name: deb-${{ matrix.target }}-debug
-                  path: ${{ matrix.target }}-debug.deb
                   if-no-files-found: error
                   compression-level: 0
 
@@ -441,41 +382,11 @@ jobs:
 
                   cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
-            - name: Build debug OCI image ${{ matrix.target }}
-              run: |
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features-debug
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
-
-                  cp -v -f result oci-image-${{ matrix.target }}-debug.tar.gz
-
             - name: Upload OCI image ${{ matrix.target }}
               uses: actions/upload-artifact@v4
               with:
                   name: oci-image-${{ matrix.target }}
                   path: oci-image-${{ matrix.target }}.tar.gz
-                  if-no-files-found: error
-                  compression-level: 0
-
-            - name: Upload OCI image ${{ matrix.target }}-debug
-              uses: actions/upload-artifact@v4
-              with:
-                  name: oci-image-${{ matrix.target }}-debug
-                  path: oci-image-${{ matrix.target }}-debug.tar.gz
                   if-no-files-found: error
                   compression-level: 0
 
@@ -531,8 +442,6 @@ jobs:
               run: |
                   mv -v oci-image-x86_64-unknown-linux-musl/*.tar.gz oci-image-amd64.tar.gz
                   mv -v oci-image-aarch64-unknown-linux-musl/*.tar.gz oci-image-arm64v8.tar.gz
-                  mv -v oci-image-x86_64-unknown-linux-musl-debug/*.tar.gz oci-image-amd64-debug.tar.gz
-                  mv -v oci-image-aarch64-unknown-linux-musl-debug/*.tar.gz oci-image-arm64v8-debug.tar.gz
 
             - name: Load and push amd64 image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
@@ -556,28 +465,6 @@ jobs:
                   docker push ${{ env.GHCR_ARM64 }}
                   docker push ${{ env.GLCR_ARM64 }}
 
-            - name: Load and push amd64 debug image
-              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
-              run: |
-                  docker load -i oci-image-amd64-debug.tar.gz
-                  docker tag $(docker images -q conduit:main) ${{ env.DOCKER_AMD64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GHCR_AMD64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_AMD64 }}-debug
-                  docker push ${{ env.DOCKER_AMD64 }}-debug
-                  docker push ${{ env.GHCR_AMD64 }}-debug
-                  docker push ${{ env.GLCR_AMD64 }}-debug
-
-            - name: Load and push arm64 debug image
-              if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
-              run: |
-                  docker load -i oci-image-arm64v8-debug.tar.gz
-                  docker tag $(docker images -q conduit:main) ${{ env.DOCKER_ARM64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GHCR_ARM64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_ARM64 }}-debug
-                  docker push ${{ env.DOCKER_ARM64 }}-debug
-                  docker push ${{ env.GHCR_ARM64 }}-debug
-                  docker push ${{ env.GLCR_ARM64 }}-debug
-
             - name: Create Docker combined manifests
               run: |
                   # Dockerhub Container Registry
@@ -590,18 +477,6 @@ jobs:
                   docker manifest create ${{ env.GLCR_TAG }} --amend ${{ env.GLCR_ARM64 }} --amend ${{ env.GLCR_AMD64 }}
                   docker manifest create ${{ env.GLCR_BRANCH }} --amend ${{ env.GLCR_ARM64 }} --amend ${{ env.GLCR_AMD64 }}
 
-            - name: Create Docker combined debug manifests
-              run: |
-                  # Dockerhub Container Registry
-                  docker manifest create ${{ env.DOCKER_TAG }}-debug --amend ${{ env.DOCKER_ARM64 }}-debug --amend ${{ env.DOCKER_AMD64 }}-debug
-                  docker manifest create ${{ env.DOCKER_BRANCH }}-debug --amend ${{ env.DOCKER_ARM64 }}-debug --amend ${{ env.DOCKER_AMD64 }}-debug
-                  # GitHub Container Registry
-                  docker manifest create ${{ env.GHCR_TAG }}-debug --amend ${{ env.GHCR_ARM64 }}-debug --amend ${{ env.GHCR_AMD64 }}-debug
-                  docker manifest create ${{ env.GHCR_BRANCH }}-debug --amend ${{ env.GHCR_ARM64 }}-debug --amend ${{ env.GHCR_AMD64 }}-debug
-                  # GitLab Container Registry
-                  docker manifest create ${{ env.GLCR_TAG }}-debug --amend ${{ env.GLCR_ARM64 }}-debug --amend ${{ env.GLCR_AMD64 }}-debug
-                  docker manifest create ${{ env.GLCR_BRANCH }}-debug --amend ${{ env.GLCR_ARM64 }}-debug --amend ${{ env.GLCR_AMD64 }}-debug
-
             - name: Push manifests to Docker registries
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
@@ -611,12 +486,6 @@ jobs:
                   docker manifest push ${{ env.GHCR_BRANCH }}
                   docker manifest push ${{ env.GLCR_TAG }}
                   docker manifest push ${{ env.GLCR_BRANCH }}
-                  docker manifest push ${{ env.DOCKER_TAG }}-debug
-                  docker manifest push ${{ env.DOCKER_BRANCH }}-debug
-                  docker manifest push ${{ env.GHCR_TAG }}-debug
-                  docker manifest push ${{ env.GHCR_BRANCH }}-debug
-                  docker manifest push ${{ env.GLCR_TAG }}-debug
-                  docker manifest push ${{ env.GLCR_BRANCH }}-debug
 
             - name: Add Image Links to Job Summary
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
@@ -624,6 +493,3 @@ jobs:
                   echo "- \`docker pull ${{ env.DOCKER_TAG }}\`" >> $GITHUB_STEP_SUMMARY
                   echo "- \`docker pull ${{ env.GHCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
                   echo "- \`docker pull ${{ env.GLCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.DOCKER_TAG }}-debug\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.GHCR_TAG }}-debug\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.GLCR_TAG }}-debug\`" >> $GITHUB_STEP_SUMMARY
