@@ -20,6 +20,7 @@ use ruma::{
 			tombstone::RoomTombstoneEventContent,
 			topic::RoomTopicEventContent,
 		},
+		space::child::SpaceChildEventContent,
 		StateEventType, TimelineEventType,
 	},
 	int,
@@ -618,22 +619,14 @@ pub(crate) async fn upgrade_room_route(
 			V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 				create_event_content.insert(
 					"creator".into(),
-					json!(&sender_user).try_into().map_err(|e| {
-						info!("Error forming creation event: {e}");
-						Error::BadRequest(ErrorKind::BadJson, "Error forming creation event")
-					})?,
+					json!(&sender_user)
+						.try_into()
+						.map_err(|_| err!(Request(BadJson("Error forming creation event"))))?,
 				);
 			},
-			V11 => {
-				// "creator" key no longer exists in V11 rooms
-				create_event_content.remove("creator");
-			},
 			_ => {
-				warn!("Unexpected or unsupported room version {}", body.new_version);
-				return Err(Error::BadRequest(
-					ErrorKind::BadJson,
-					"Unexpected or unsupported room version found",
-				));
+				// "creator" key no longer exists in V11+ rooms
+				create_event_content.remove("creator");
 			},
 		}
 	}
@@ -642,26 +635,100 @@ pub(crate) async fn upgrade_room_route(
 		"room_version".into(),
 		json!(&body.new_version)
 			.try_into()
-			.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
+			.map_err(|_| err!(Request(BadJson("Error forming creation event"))))?,
 	);
 	create_event_content.insert(
 		"predecessor".into(),
 		json!(predecessor)
 			.try_into()
-			.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"))?,
+			.map_err(|_| err!(Request(BadJson("Error forming creation event"))))?,
 	);
 
-	// Validate creation event content
-	if serde_json::from_str::<CanonicalJsonObject>(
-		to_raw_value(&create_event_content)
-			.expect("Error forming creation event")
-			.get(),
-	)
-	.is_err()
+	// if the room was a space:
+	// - migrate m.space.child and/or m.space.parent
+	// - add space type to replacement room m.room.create
+	//
+	// as apart of MSC4168
+	if services
+		.rooms
+		.state_accessor
+		.get_room_type(&body.room_id)
+		.unwrap_or(None)
+		.is_some_and(|room_type| room_type == ruma::room::RoomType::Space)
 	{
-		return Err(Error::BadRequest(ErrorKind::BadJson, "Error forming creation event"));
+		create_event_content.insert(
+			"type".into(),
+			json!(ruma::room::RoomType::Space)
+				.try_into()
+				.map_err(|_| err!(Request(BadJson("Error forming creation event"))))?,
+		);
+
+		if let Some(event_content) = services
+			.rooms
+			.state_accessor
+			.room_state_get(&body.room_id, &StateEventType::SpaceChild, body.room_id.as_str())
+			.unwrap_or(None)
+		{
+			// space contents that are empty are not apart of the space
+			if !event_content.content.get().is_empty() {
+				// remove all but us from via
+				let mut new_content: SpaceChildEventContent = serde_json::from_str(event_content.content.get())
+					.map_err(|_| err!(Database(error!("Invalid m.space.child content in database"))))?;
+				new_content.via = vec![services.globals.config.server_name.clone()];
+
+				services
+					.rooms
+					.timeline
+					.build_and_append_pdu(
+						PduBuilder {
+							event_type: StateEventType::SpaceChild.to_string().into(),
+							content: to_raw_value(&new_content).expect("we just created it"),
+							unsigned: None,
+							state_key: Some(replacement_room.to_string()),
+							redacts: None,
+						},
+						sender_user,
+						&replacement_room,
+						&state_lock,
+					)
+					.await?;
+			}
+		}
+
+		if let Some(event_content) = services
+			.rooms
+			.state_accessor
+			.room_state_get(&body.room_id, &StateEventType::SpaceParent, body.room_id.as_str())
+			.unwrap_or(None)
+		{
+			// space contents that are empty are not apart of the space
+			if !event_content.content.get().is_empty() {
+				// remove all but us from via
+				let mut new_content: SpaceChildEventContent = serde_json::from_str(event_content.content.get())
+					.map_err(|_| err!(Database(error!("Invalid m.space.child content in database"))))?;
+				new_content.via = vec![services.globals.config.server_name.clone()];
+
+				services
+					.rooms
+					.timeline
+					.build_and_append_pdu(
+						PduBuilder {
+							event_type: StateEventType::SpaceParent.to_string().into(),
+							content: to_raw_value(&new_content).expect("we just created it"),
+							unsigned: None,
+							state_key: Some(replacement_room.to_string()),
+							redacts: None,
+						},
+						sender_user,
+						&replacement_room,
+						&state_lock,
+					)
+					.await?;
+			}
+		}
 	}
 
+	// m.room.create
 	services
 		.rooms
 		.timeline
@@ -755,11 +822,11 @@ pub(crate) async fn upgrade_room_route(
 			.rooms
 			.state_accessor
 			.room_state_get(&body.room_id, &StateEventType::RoomPowerLevels, "")?
-			.ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+			.ok_or_else(|| err!(Database(error!("Found room without m.room.create event."))))?
 			.content
 			.get(),
 	)
-	.map_err(|_| Error::bad_database("Invalid room event in database."))?;
+	.map_err(|_| err!(Database(error!("Invalid room event in database."))))?;
 
 	// Setting events_default and invite to the greater of 50 and users_default + 1
 	let new_level = max(
@@ -767,9 +834,7 @@ pub(crate) async fn upgrade_room_route(
 		power_levels_event_content
 			.users_default
 			.checked_add(int!(1))
-			.ok_or_else(|| {
-				Error::BadRequest(ErrorKind::BadJson, "users_default power levels event content is not valid")
-			})?,
+			.ok_or_else(|| err!(Request(BadJson("users_default power levels event content is not valid"))))?,
 	);
 	power_levels_event_content.events_default = new_level;
 	power_levels_event_content.invite = new_level;
@@ -833,7 +898,7 @@ fn default_power_levels_content(
 
 	if let Some(power_level_content_override) = power_level_content_override {
 		let json: JsonObject = serde_json::from_str(power_level_content_override.json().get())
-			.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid power_level_content_override."))?;
+			.map_err(|_| err!(Request(BadJson("Invalid power_level_content_override"))))?;
 
 		for (key, value) in json {
 			power_levels_content[key] = value;
