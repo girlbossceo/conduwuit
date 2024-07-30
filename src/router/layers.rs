@@ -48,7 +48,7 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 
 	let layers = layers
 		.sensitive_headers([header::AUTHORIZATION])
-		.layer(axum::middleware::from_fn_with_state(Arc::clone(server), request::spawn))
+		.layer(axum::middleware::from_fn_with_state(Arc::clone(services), request::spawn))
 		.layer(
 			TraceLayer::new_for_http()
 				.make_span_with(tracing_span::<_>)
@@ -56,7 +56,7 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 				.on_request(DefaultOnRequest::new().level(Level::TRACE))
 				.on_response(DefaultOnResponse::new().level(Level::DEBUG)),
 		)
-		.layer(axum::middleware::from_fn_with_state(Arc::clone(server), request::handle))
+		.layer(axum::middleware::from_fn_with_state(Arc::clone(services), request::handle))
 		.layer(SecureClientIpSource::ConnectInfo.into_extension())
 		.layer(SetResponseHeaderLayer::if_not_present(
 			HeaderName::from_static("origin-agent-cluster"), // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin-Agent-Cluster

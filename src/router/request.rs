@@ -4,13 +4,15 @@ use axum::{
 	extract::State,
 	response::{IntoResponse, Response},
 };
-use conduit::{debug, debug_error, debug_warn, defer, err, error, trace, Result, Server};
+use conduit::{debug, debug_error, debug_warn, defer, err, error, trace, Result};
+use conduit_service::Services;
 use http::{Method, StatusCode, Uri};
 
 #[tracing::instrument(skip_all, level = "debug")]
 pub(crate) async fn spawn(
-	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
+	State(services): State<Arc<Services>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
+	let server = &services.server;
 	if !server.running() {
 		debug_warn!("unavailable pending shutdown");
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
@@ -34,8 +36,9 @@ pub(crate) async fn spawn(
 
 #[tracing::instrument(skip_all, name = "handle")]
 pub(crate) async fn handle(
-	State(server): State<Arc<Server>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
+	State(services): State<Arc<Services>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
+	let server = &services.server;
 	if !server.running() {
 		debug_warn!(
 			method = %req.method(),
