@@ -6,6 +6,7 @@ use axum::{
 };
 use axum_client_ip::SecureClientIpSource;
 use conduit::{error, Result, Server};
+use conduit_api::router::state::Guard;
 use conduit_service::Services;
 use http::{
 	header::{self, HeaderName},
@@ -35,7 +36,7 @@ const CONDUWUIT_CSP: &[&str] = &[
 
 const CONDUWUIT_PERMISSIONS_POLICY: &[&str] = &["interest-cohort=()", "browsing-topics=()"];
 
-pub(crate) fn build(services: &Arc<Services>) -> Result<Router> {
+pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 	let server = &services.server;
 	let layers = ServiceBuilder::new();
 
@@ -85,7 +86,8 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<Router> {
 		.layer(body_limit_layer(server))
 		.layer(CatchPanicLayer::custom(catch_panic));
 
-	Ok(router::build(services).layer(layers))
+	let (router, guard) = router::build(services);
+	Ok((router.layer(layers), guard))
 }
 
 #[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]

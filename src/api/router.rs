@@ -3,7 +3,7 @@ mod auth;
 mod handler;
 mod request;
 mod response;
-mod state;
+pub mod state;
 
 use axum::{
 	response::IntoResponse,
@@ -14,8 +14,7 @@ use conduit::{err, Server};
 use http::Uri;
 
 use self::handler::RouterExt;
-pub use self::state::State;
-pub(super) use self::{args::Args as Ruma, response::RumaResponse};
+pub(super) use self::{args::Args as Ruma, response::RumaResponse, state::State};
 use crate::{client, server};
 
 pub fn build(router: Router<State>, server: &Server) -> Router<State> {

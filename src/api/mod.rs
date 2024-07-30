@@ -10,8 +10,7 @@ extern crate conduit_service as service;
 pub(crate) use conduit::{debug_info, pdu::PduEvent, utils, Error, Result};
 pub(crate) use service::services;
 
-pub use self::router::State;
-pub(crate) use self::router::{Ruma, RumaResponse};
+pub(crate) use self::router::{Ruma, RumaResponse, State};
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}

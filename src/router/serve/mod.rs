@@ -18,7 +18,7 @@ pub(super) async fn serve(
 	let server = &services.server;
 	let config = &server.config;
 	let addrs = config.get_bind_addrs();
-	let app = layers::build(&services)?;
+	let (app, _guard) = layers::build(&services)?;
 
 	if cfg!(unix) && config.unix_socket_path.is_some() {
 		unix::serve(server, app, shutdown).await
