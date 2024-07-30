@@ -149,23 +149,32 @@ pub(super) async fn get_remote_pdu_list(
 		.filter_map(|pdu| EventId::parse(pdu).ok())
 		.collect::<Vec<_>>();
 
+	let mut failed_count: usize = 0;
+	let mut success_count: usize = 0;
+
 	for pdu in list {
 		if force {
 			if let Err(e) = self.get_remote_pdu(Box::from(pdu), server.clone()).await {
+				failed_count = failed_count.saturating_add(1);
 				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!(
 						"Failed to get remote PDU, ignoring error: {e}"
 					)))
 					.await;
-				warn!(%e, "Failed to get remote PDU, ignoring error");
+				warn!("Failed to get remote PDU, ignoring error: {e}");
+			} else {
+				success_count = success_count.saturating_add(1);
 			}
 		} else {
 			self.get_remote_pdu(Box::from(pdu), server.clone()).await?;
+			success_count = success_count.saturating_add(1);
 		}
 	}
 
-	Ok(RoomMessageEventContent::text_plain("Fetched list of remote PDUs."))
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Fetched {success_count} remote PDUs successfully with {failed_count} failures"
+	)))
 }
 
 #[admin_command]

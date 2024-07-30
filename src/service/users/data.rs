@@ -246,6 +246,7 @@ impl Data {
 	/// Adds a new device to a user.
 	pub(super) fn create_device(
 		&self, user_id: &UserId, device_id: &DeviceId, token: &str, initial_device_display_name: Option<String>,
+		client_ip: Option<String>,
 	) -> Result<()> {
 		// This method should never be called for nonexistent users. We shouldn't assert
 		// though...
@@ -266,7 +267,7 @@ impl Data {
 			&serde_json::to_vec(&Device {
 				device_id: device_id.into(),
 				display_name: initial_device_display_name,
-				last_seen_ip: None, // TODO
+				last_seen_ip: client_ip,
 				last_seen_ts: Some(MilliSecondsSinceUnixEpoch::now()),
 			})
 			.expect("Device::to_string never fails."),

@@ -137,7 +137,11 @@
           # Useful for editing the book locally
           mdbook
 
+          # used for rust caching in CI to speed it up
           sccache
+
+          # needed so we can get rid of gcc and other unused deps that bloat OCI images
+          removeReferencesTo
         ])
         ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs

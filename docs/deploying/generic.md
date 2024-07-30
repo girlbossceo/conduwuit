@@ -9,14 +9,12 @@
 
 You may simply download the binary that fits your machine. Run `uname -m` to see what you need.
 
-Prebuilt binaries can be downloaded from the latest tagged release [here](https://github.com/girlbossceo/conduwuit/releases/latest).
-
-The latest tagged release also includes the Debian packages.
+Prebuilt fully static musl binaries can be downloaded from the latest tagged release [here](https://github.com/girlbossceo/conduwuit/releases/latest) or `main` CI branch workflow artifact output. These also include Debian packages. These binaries have jemalloc and io_uring statically linked and included with them.
 
 Alternatively, you may compile the binary yourself. We recommend using [Lix](https://lix.systems) to build conduwuit as this has the most guaranteed
 reproducibiltiy and easiest to get a build environment and output going.
 
-Otherwise, follow standard Rust project build guides (installing git and cloning the repo, getting the Rust toolchain via rustup, installing LLVM toolchain + libclang, installing liburing for io_uring and RocksDB, etc).
+Otherwise, follow standard Rust project build guides (installing git and cloning the repo, getting the Rust toolchain via rustup, installing LLVM toolchain + libclang for RocksDB, installing liburing for io_uring and RocksDB, etc).
 
 ## Adding a conduwuit user
 

@@ -106,11 +106,13 @@ pub(crate) async fn sync_events_route(
 			.unwrap_or_default(),
 	};
 
+	// some clients, at least element, seem to require knowledge of redundant
+	// members for "inline" profiles on the timeline to work properly
 	let (lazy_load_enabled, lazy_load_send_redundant) = match filter.room.state.lazy_load_options {
 		LazyLoadOptions::Enabled {
-			include_redundant_members: redundant,
-		} => (true, redundant),
-		LazyLoadOptions::Disabled => (false, false),
+			include_redundant_members,
+		} => (true, include_redundant_members),
+		LazyLoadOptions::Disabled => (false, cfg!(feature = "element_hacks")),
 	};
 
 	let full_state = body.full_state;

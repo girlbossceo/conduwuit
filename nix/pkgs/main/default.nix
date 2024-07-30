@@ -7,6 +7,7 @@
 , liburing
 , pkgsBuildHost
 , rocksdb
+, removeReferencesTo
 , rust
 , rust-jemalloc-sys
 , stdenv
@@ -94,8 +95,8 @@ buildDepsOnlyEnv =
         else if stdenv.targetPlatform.isAarch64
         then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
         ++ lib.optionals stdenv.targetPlatform.isAarch64 [
-          # cortex-a55 == ARMv8.2-a
-          "-DPORTABLE=armv8.2-a"
+          # cortex-a73 == ARMv8-A
+          "-DPORTABLE=armv8-a"
         ]
         else old.cmakeFlags;
     });
@@ -128,7 +129,7 @@ buildPackageEnv = {
     + lib.optionalString stdenv.targetPlatform.isx86_64
       " -Ctarget-cpu=x86-64-v2"
     + lib.optionalString stdenv.targetPlatform.isAarch64
-      " -Ctarget-cpu=cortex-a55"; # cortex-a55 == ARMv8.2-a
+      " -Ctarget-cpu=cortex-a73"; # cortex-a73 == ARMv8-A
 };
 
 
@@ -154,6 +155,7 @@ commonAttrs = {
     };
 
     dontStrip = profile == "dev" || profile == "test";
+    dontPatchELF = profile == "dev" || profile == "test";
 
     buildInputs = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys';
 
@@ -168,6 +170,9 @@ commonAttrs = {
       # differing values for `NIX_CFLAGS_COMPILE`, which contributes to spurious
       # rebuilds of bindgen and its depedents.
       jq
+
+      # needed so we can get rid of gcc and other unused deps that bloat OCI images
+      removeReferencesTo
   ]
   ++ lib.optionals stdenv.isDarwin [
       # https://github.com/NixOS/nixpkgs/issues/206242
@@ -177,6 +182,13 @@ commonAttrs = {
       # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
       pkgsBuildHost.darwin.apple_sdk.frameworks.Security
     ];
+
+    # for some reason gcc and other weird deps are added to OCI images and bloats it up
+    #
+    # <https://github.com/input-output-hk/haskell.nix/issues/829>
+    postInstall = with pkgsBuildHost; ''
+        find "$out" -type f -exec remove-references-to -t ${stdenv.cc} -t ${gcc} -t ${libgcc} -t ${linuxHeaders} -t ${libidn2} -t ${libunistring} '{}' +
+    '';
  };
 in
 

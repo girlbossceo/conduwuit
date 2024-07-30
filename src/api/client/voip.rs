@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use axum::extract::State;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::utils;
+use conduit::{utils, Err};
 use hmac::{Hmac, Mac};
 use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch, UserId};
 use sha1::Sha1;
@@ -19,6 +19,11 @@ type HmacSha1 = Hmac<Sha1>;
 pub(crate) async fn turn_server_route(
 	State(services): State<crate::State>, body: Ruma<get_turn_server_info::v3::Request>,
 ) -> Result<get_turn_server_info::v3::Response> {
+	// MSC4166: return M_NOT_FOUND 404 if no TURN URIs are specified in any way
+	if services.server.config.turn_uris.is_empty() {
+		return Err!(Request(NotFound("Not Found")));
+	}
+
 	let turn_secret = services.globals.turn_secret().clone();
 
 	let (username, password) = if !turn_secret.is_empty() {

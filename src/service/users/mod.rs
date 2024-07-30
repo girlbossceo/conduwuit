@@ -328,9 +328,10 @@ impl Service {
 	/// Adds a new device to a user.
 	pub fn create_device(
 		&self, user_id: &UserId, device_id: &DeviceId, token: &str, initial_device_display_name: Option<String>,
+		client_ip: Option<String>,
 	) -> Result<()> {
 		self.db
-			.create_device(user_id, device_id, token, initial_device_display_name)
+			.create_device(user_id, device_id, token, initial_device_display_name, client_ip)
 	}
 
 	/// Removes a device from a user.
