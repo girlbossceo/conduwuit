@@ -47,7 +47,6 @@ hmac.workspace = true
 http.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
-image.workspace = true
 ipaddress.workspace = true
 jsonwebtoken.workspace = true
 log.workspace = true
@@ -60,7 +59,6 @@ serde.workspace = true
 sha-1.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-webpage.workspace = true
 
 [lints]
 workspace = true

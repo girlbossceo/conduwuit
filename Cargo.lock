@@ -653,7 +653,6 @@ dependencies = [
  "http 1.1.0",
  "http-body-util",
  "hyper 1.4.1",
- "image",
  "ipaddress",
  "jsonwebtoken",
  "log",
@@ -666,7 +665,6 @@ dependencies = [
  "sha-1",
  "tokio",
  "tracing",
- "webpage",
 ]
 
 [[package]]
@@ -802,6 +800,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "webpage",
 ]
 
 [[package]]

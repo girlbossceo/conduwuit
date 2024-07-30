@@ -1,4 +1,5 @@
 mod data;
+mod preview;
 mod tests;
 mod thumbnail;
 
@@ -9,13 +10,12 @@ use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, debug_error, err, error, trace, utils, utils::MutexMap, Err, Result, Server};
 use data::{Data, Metadata};
 use ruma::{OwnedMxcUri, OwnedUserId};
-use serde::Serialize;
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
 };
 
-use crate::{globals, Dep};
+use crate::{client, globals, Dep};
 
 #[derive(Debug)]
 pub struct FileMeta {
@@ -24,43 +24,32 @@ pub struct FileMeta {
 	pub content_disposition: Option<String>,
 }
 
-#[derive(Serialize, Default)]
-pub struct UrlPreviewData {
-	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:title"))]
-	pub title: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:description"))]
-	pub description: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:image"))]
-	pub image: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "matrix:image:size"))]
-	pub image_size: Option<usize>,
-	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:image:width"))]
-	pub image_width: Option<u32>,
-	#[serde(skip_serializing_if = "Option::is_none", rename(serialize = "og:image:height"))]
-	pub image_height: Option<u32>,
-}
-
 pub struct Service {
-	services: Services,
+	url_preview_mutex: MutexMap<String, ()>,
 	pub(crate) db: Data,
-	pub url_preview_mutex: MutexMap<String, ()>,
+	services: Services,
 }
 
 struct Services {
 	server: Arc<Server>,
+	client: Dep<client::Service>,
 	globals: Dep<globals::Service>,
 }
+
+/// generated MXC ID (`media-id`) length
+pub const MXC_LENGTH: usize = 32;
 
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			url_preview_mutex: MutexMap::new(),
+			db: Data::new(args.db),
 			services: Services {
 				server: args.server.clone(),
+				client: args.depend::<client::Service>("client"),
 				globals: args.depend::<globals::Service>("globals"),
 			},
-			db: Data::new(args.db),
-			url_preview_mutex: MutexMap::new(),
 		}))
 	}
 
@@ -227,22 +216,6 @@ impl Service {
 		}
 
 		Ok(deletion_count)
-	}
-
-	pub async fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> { self.db.get_url_preview(url) }
-
-	/// TODO: use this?
-	#[allow(dead_code)]
-	pub async fn remove_url_preview(&self, url: &str) -> Result<()> {
-		// TODO: also remove the downloaded image
-		self.db.remove_url_preview(url)
-	}
-
-	pub async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<()> {
-		let now = SystemTime::now()
-			.duration_since(SystemTime::UNIX_EPOCH)
-			.expect("valid system time");
-		self.db.set_url_preview(url, data, now)
 	}
 
 	pub async fn create_media_dir(&self) -> Result<()> {

@@ -16,7 +16,7 @@ pub use error::Error;
 pub use info::{rustc_flags_capture, version, version::version};
 pub use pdu::{PduBuilder, PduCount, PduEvent};
 pub use server::Server;
-pub use utils::{ctor, dtor};
+pub use utils::{ctor, dtor, implement};
 
 pub use crate as conduit_core;
 

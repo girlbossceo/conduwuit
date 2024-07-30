@@ -4,7 +4,7 @@ use conduit::{debug, debug_info, utils::string_from_bytes, Error, Result};
 use database::{Database, Map};
 use ruma::api::client::error::ErrorKind;
 
-use crate::media::UrlPreviewData;
+use super::preview::UrlPreviewData;
 
 pub(crate) struct Data {
 	mediaid_file: Arc<Map>,
