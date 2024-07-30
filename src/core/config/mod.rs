@@ -287,7 +287,7 @@ pub struct Config {
 
 	#[serde(default = "true_fn")]
 	pub media_startup_check: bool,
-	#[serde(default = "true_fn")]
+	#[serde(default)]
 	pub media_compat_file_link: bool,
 	#[serde(default = "Vec::new")]
 	pub prevent_media_downloads_from: Vec<OwnedServerName>,

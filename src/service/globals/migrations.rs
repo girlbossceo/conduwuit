@@ -743,6 +743,7 @@ async fn db_lt_13(services: &Services) -> Result<()> {
 /// again.
 async fn migrate_sha256_media(services: &Services) -> Result<()> {
 	let db = &services.db;
+	let config = &services.server.config;
 
 	warn!("Migrating legacy base64 file names to sha256 file names");
 	let mediaid_file = &db["mediaid_file"];
@@ -759,7 +760,9 @@ async fn migrate_sha256_media(services: &Services) -> Result<()> {
 	for (old_path, path) in changes {
 		if old_path.exists() {
 			tokio::fs::rename(&old_path, &path).await?;
-			tokio::fs::symlink(&path, &old_path).await?;
+			if config.media_compat_file_link {
+				tokio::fs::symlink(&path, &old_path).await?;
+			}
 		}
 	}
 
@@ -822,8 +825,14 @@ async fn handle_media_check(
 
 	let (mediaid_file, mediaid_user) = dbs;
 
-	let old_exists = files.contains(old_path);
 	let new_exists = files.contains(new_path);
+	let old_exists = files.contains(old_path);
+	let old_is_symlink = || async {
+		tokio::fs::symlink_metadata(old_path)
+			.await
+			.map_or(false, |md| md.is_symlink())
+	};
+
 	if !old_exists && !new_exists {
 		error!(
 			media_id = ?encode_key(key), ?new_path, ?old_path,
@@ -849,8 +858,27 @@ async fn handle_media_check(
 			"Legacy media found without sha256 migration. Fixing..."
 		);
 
+		debug_assert!(
+			old_is_symlink().await,
+			"Legacy media not expected to be a symlink without an existing sha256 migration."
+		);
+
 		tokio::fs::rename(&old_path, &new_path).await?;
 		tokio::fs::symlink(&new_path, &old_path).await?;
+	}
+
+	if !config.media_compat_file_link && old_exists && old_is_symlink().await {
+		debug_warn!(
+			media_id = ?encode_key(key), ?new_path, ?old_path,
+			"Legacy link found but compat disabled. Cleansing symlink..."
+		);
+
+		debug_assert!(
+			new_exists,
+			"sha256 migration into new file expected prior to cleaning legacy symlink here."
+		);
+
+		tokio::fs::remove_file(&old_path).await?;
 	}
 
 	Ok(())

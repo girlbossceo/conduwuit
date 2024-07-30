@@ -6,7 +6,7 @@ use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{debug, debug_error, err, error, utils, utils::MutexMap, Err, Result, Server};
+use conduit::{debug, debug_error, err, error, trace, utils, utils::MutexMap, Err, Result, Server};
 use data::{Data, Metadata};
 use ruma::{OwnedMxcUri, OwnedUserId};
 use serde::Serialize;
@@ -99,10 +99,15 @@ impl Service {
 	pub async fn delete(&self, mxc: &str) -> Result<()> {
 		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc) {
 			for key in keys {
-				self.remove_media_file(&key).await?;
+				trace!(?mxc, ?key, "Deleting from filesystem");
+				if let Err(e) = self.remove_media_file(&key).await {
+					error!(?mxc, ?key, "Failed to remove media file: {e}");
+				}
 
-				debug!("Deleting MXC {mxc} from database");
-				self.db.delete_file_mxc(mxc)?;
+				trace!(?mxc, ?key, "Deleting from database");
+				if let Err(e) = self.db.delete_file_mxc(mxc) {
+					error!(?mxc, ?key, "Failed to remove media from database: {e}");
+				}
 			}
 
 			Ok(())
