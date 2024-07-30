@@ -547,7 +547,7 @@ async fn list_banned_rooms(&self) -> Result<RoomMessageEventContent> {
 			rooms.reverse();
 
 			let output_plain = format!(
-				"Rooms Banned ({}):\n```\n{}```",
+				"Rooms Banned ({}):\n```\n{}\n```",
 				rooms.len(),
 				rooms
 					.iter()
