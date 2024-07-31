@@ -229,8 +229,7 @@ pub(super) async fn get_remote_pdu(
 
 			debug!("Attempting to fetch homeserver signing keys for {server}");
 			self.services
-				.rooms
-				.event_handler
+				.server_keys
 				.fetch_required_signing_keys(parsed_pdu.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
 				.await
 				.unwrap_or_else(|e| {
@@ -443,8 +442,7 @@ pub(super) async fn verify_json(&self) -> Result<RoomMessageEventContent> {
 			let pub_key_map = RwLock::new(BTreeMap::new());
 
 			self.services
-				.rooms
-				.event_handler
+				.server_keys
 				.fetch_required_signing_keys([&value], &pub_key_map)
 				.await?;
 
@@ -562,8 +560,7 @@ pub(super) async fn force_set_room_state_from_server(
 
 	info!("Fetching required signing keys for all the state events we got");
 	self.services
-		.rooms
-		.event_handler
+		.server_keys
 		.fetch_required_signing_keys(events.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
 		.await?;
 
@@ -682,8 +679,7 @@ pub(super) async fn get_verify_keys(
 	let signature_ids: Vec<String> = Vec::new();
 	let keys = self
 		.services
-		.rooms
-		.event_handler
+		.server_keys
 		.fetch_signing_keys_for_server(&server_name, signature_ids)
 		.await?;
 

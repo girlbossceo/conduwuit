@@ -883,8 +883,7 @@ async fn join_room_by_id_helper_remote(
 
 	info!("Fetching join signing keys");
 	services
-		.rooms
-		.event_handler
+		.server_keys
 		.fetch_join_signing_keys(&send_join_response, &room_version_id, &pub_key_map)
 		.await?;
 
@@ -1230,8 +1229,7 @@ async fn join_room_by_id_helper_local(
 			drop(state_lock);
 			let pub_key_map = RwLock::new(BTreeMap::new());
 			services
-				.rooms
-				.event_handler
+				.server_keys
 				.fetch_required_signing_keys([&signed_value], &pub_key_map)
 				.await?;
 			services
@@ -1474,8 +1472,7 @@ pub(crate) async fn invite_helper(
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
 		services
-			.rooms
-			.event_handler
+			.server_keys
 			.fetch_required_signing_keys([&value], &pub_key_map)
 			.await?;
 

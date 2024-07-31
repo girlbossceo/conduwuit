@@ -138,8 +138,7 @@ async fn create_join_event(
 	}
 
 	services
-		.rooms
-		.event_handler
+		.server_keys
 		.fetch_required_signing_keys([&value], &pub_key_map)
 		.await?;
 

@@ -150,8 +150,7 @@ async fn create_leave_event(
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
 	services
-		.rooms
-		.event_handler
+		.server_keys
 		.fetch_required_signing_keys([&value], &pub_key_map)
 		.await?;
 

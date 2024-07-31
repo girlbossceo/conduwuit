@@ -250,8 +250,7 @@ async fn auth_server(
 	};
 
 	let keys_result = services
-		.rooms
-		.event_handler
+		.server_keys
 		.fetch_signing_keys_for_server(origin, vec![x_matrix.key.to_string()])
 		.await;
 

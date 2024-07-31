@@ -41,7 +41,7 @@ use tokio::sync::RwLock;
 use self::data::Data;
 use crate::{
 	account_data, admin, appservice, appservice::NamespaceRegex, globals, pusher, rooms,
-	rooms::state_compressor::CompressedStateEvent, sending, Dep,
+	rooms::state_compressor::CompressedStateEvent, sending, server_keys, Dep,
 };
 
 // Update Relationships
@@ -86,6 +86,7 @@ struct Services {
 	pdu_metadata: Dep<rooms::pdu_metadata::Service>,
 	read_receipt: Dep<rooms::read_receipt::Service>,
 	sending: Dep<sending::Service>,
+	server_keys: Dep<server_keys::Service>,
 	user: Dep<rooms::user::Service>,
 	pusher: Dep<pusher::Service>,
 	threads: Dep<rooms::threads::Service>,
@@ -114,6 +115,7 @@ impl crate::Service for Service {
 				pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
 				read_receipt: args.depend::<rooms::read_receipt::Service>("rooms::read_receipt"),
 				sending: args.depend::<sending::Service>("sending"),
+				server_keys: args.depend::<server_keys::Service>("server_keys"),
 				user: args.depend::<rooms::user::Service>("rooms::user"),
 				pusher: args.depend::<pusher::Service>("pusher"),
 				threads: args.depend::<rooms::threads::Service>("rooms::threads"),
@@ -1181,7 +1183,7 @@ impl Service {
 		}
 
 		self.services
-			.event_handler
+			.server_keys
 			.fetch_required_signing_keys([&value], pub_key_map)
 			.await?;
 

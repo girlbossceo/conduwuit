@@ -1,5 +1,6 @@
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
+	sync::Arc,
 	time::{Duration, SystemTime},
 };
 
@@ -21,7 +22,31 @@ use ruma::{
 use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::{RwLock, RwLockWriteGuard};
 
-impl super::Service {
+use crate::{globals, sending, Dep};
+
+pub struct Service {
+	services: Services,
+}
+
+struct Services {
+	globals: Dep<globals::Service>,
+	sending: Dep<sending::Service>,
+}
+
+impl crate::Service for Service {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
+		Ok(Arc::new(Self {
+			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
+				sending: args.depend::<sending::Service>("sending"),
+			},
+		}))
+	}
+
+	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Service {
 	pub async fn fetch_required_signing_keys<'a, E>(
 		&'a self, events: E, pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()>

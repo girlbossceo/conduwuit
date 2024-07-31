@@ -105,8 +105,7 @@ async fn handle_pdus(
 	let pub_key_map = RwLock::new(BTreeMap::new());
 	if !parsed_pdus.is_empty() {
 		services
-			.rooms
-			.event_handler
+			.server_keys
 			.fetch_required_signing_keys(parsed_pdus.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
 			.await
 			.unwrap_or_else(|e| warn!("Could not fetch all signatures for PDUs from {origin}: {e:?}"));

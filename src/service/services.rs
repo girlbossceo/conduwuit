@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use crate::{
 	account_data, admin, appservice, client, emergency, globals, key_backups,
 	manager::Manager,
-	media, presence, pusher, resolver, rooms, sending, service,
+	media, presence, pusher, resolver, rooms, sending, server_keys, service,
 	service::{Args, Map, Service},
 	transaction_ids, uiaa, updates, users,
 };
@@ -31,6 +31,7 @@ pub struct Services {
 	pub resolver: Arc<resolver::Service>,
 	pub rooms: rooms::Service,
 	pub sending: Arc<sending::Service>,
+	pub server_keys: Arc<server_keys::Service>,
 	pub transaction_ids: Arc<transaction_ids::Service>,
 	pub uiaa: Arc<uiaa::Service>,
 	pub updates: Arc<updates::Service>,
@@ -94,6 +95,7 @@ impl Services {
 				user: build!(rooms::user::Service),
 			},
 			sending: build!(sending::Service),
+			server_keys: build!(server_keys::Service),
 			transaction_ids: build!(transaction_ids::Service),
 			uiaa: build!(uiaa::Service),
 			updates: build!(updates::Service),

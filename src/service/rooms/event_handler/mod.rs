@@ -1,5 +1,4 @@
 mod parse_incoming_pdu;
-mod signing_keys;
 
 use std::{
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
@@ -35,7 +34,7 @@ use ruma::{
 use tokio::sync::RwLock;
 
 use super::state_compressor::CompressedStateEvent;
-use crate::{globals, rooms, sending, Dep};
+use crate::{globals, rooms, sending, server_keys, Dep};
 
 pub struct Service {
 	services: Services,
@@ -50,6 +49,7 @@ struct Services {
 	metadata: Dep<rooms::metadata::Service>,
 	outlier: Dep<rooms::outlier::Service>,
 	pdu_metadata: Dep<rooms::pdu_metadata::Service>,
+	server_keys: Dep<server_keys::Service>,
 	short: Dep<rooms::short::Service>,
 	state: Dep<rooms::state::Service>,
 	state_accessor: Dep<rooms::state_accessor::Service>,
@@ -77,6 +77,7 @@ impl crate::Service for Service {
 				auth_chain: args.depend::<rooms::auth_chain::Service>("rooms::auth_chain"),
 				metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
 				outlier: args.depend::<rooms::outlier::Service>("rooms::outlier"),
+				server_keys: args.depend::<server_keys::Service>("server_keys"),
 				pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
 				short: args.depend::<rooms::short::Service>("rooms::short"),
 				state: args.depend::<rooms::state::Service>("rooms::state"),
@@ -1187,17 +1188,19 @@ impl Service {
 
 			// We go through all the signatures we see on the PDUs and their unresolved
 			// dependencies and fetch the corresponding signing keys
-			self.fetch_required_signing_keys(
-				events_with_auth_events
-					.iter()
-					.flat_map(|(_id, _local_pdu, events)| events)
-					.map(|(_event_id, event)| event),
-				pub_key_map,
-			)
-			.await
-			.unwrap_or_else(|e| {
-				warn!("Could not fetch all signatures for PDUs from {}: {:?}", origin, e);
-			});
+			self.services
+				.server_keys
+				.fetch_required_signing_keys(
+					events_with_auth_events
+						.iter()
+						.flat_map(|(_id, _local_pdu, events)| events)
+						.map(|(_event_id, event)| event),
+					pub_key_map,
+				)
+				.await
+				.unwrap_or_else(|e| {
+					warn!("Could not fetch all signatures for PDUs from {}: {:?}", origin, e);
+				});
 
 			let mut pdus = Vec::with_capacity(events_with_auth_events.len());
 			for (id, local_pdu, events_in_reverse_order) in events_with_auth_events {
