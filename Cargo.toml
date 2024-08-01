@@ -569,7 +569,17 @@ lto = "fat"
 [profile.release-max-perf.build-override]
 inherits = "release-max-perf"
 opt-level = 0
+codegen-units = 32
 #rustflags = [
+#	'-Crelocation-model=pic',
+#	'-Ctarget-feature=-crt-static',
+#	'-Clink-arg=-Wl,--no-gc-sections',
+#]
+
+[profile.release-max-perf.package.conduit_macros]
+inherits = "release-max-perf.build-override"
+#rustflags = [
+#	'-Crelocation-model=pic',
 #	'-Ctarget-feature=-crt-static',
 #]
 
