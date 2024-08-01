@@ -14,7 +14,7 @@ pub use crate::utils::debug::*;
 #[macro_export]
 macro_rules! debug_event {
 	( $level:expr, $($x:tt)+ ) => {
-		if cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level")) {
+		if $crate::debug::logging() {
 			::tracing::event!( $level, $($x)+ )
 		} else {
 			::tracing::debug!( $($x)+ )
@@ -88,3 +88,7 @@ pub fn panic_str(p: &Box<dyn Any + Send>) -> &'static str { p.downcast_ref::<&st
 #[inline(always)]
 #[must_use]
 pub fn type_name<T>(_: &T) -> &'static str { std::any::type_name::<T>() }
+
+#[must_use]
+#[inline]
+pub const fn logging() -> bool { cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level")) }

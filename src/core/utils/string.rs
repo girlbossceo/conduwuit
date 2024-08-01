@@ -8,12 +8,12 @@ pub const EMPTY: &str = "";
 /// arguments are provided the first is assumed to be a format string.
 #[macro_export]
 macro_rules! format_maybe {
-	($s:literal) => {
+	($s:literal $(,)?) => {
 		if $crate::is_format!($s) { std::format!($s).into() } else { $s.into() }
 	};
 
-	($($args:expr),*) => {
-		std::format!($($args),*).into()
+	($s:literal, $($args:tt)+) => {
+		std::format!($s, $($args)+).into()
 	};
 }
 
@@ -23,6 +23,10 @@ macro_rules! format_maybe {
 macro_rules! is_format {
 	($s:literal) => {
 		::const_str::contains!($s, "{") && ::const_str::contains!($s, "}")
+	};
+
+	($($s:tt)+) => {
+		false
 	};
 }
 

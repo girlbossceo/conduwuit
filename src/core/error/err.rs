@@ -41,60 +41,149 @@ macro_rules! Err {
 
 #[macro_export]
 macro_rules! err {
-	(Config($item:literal, $($args:expr),*)) => {{
-		$crate::error!(config = %$item, $($args),*);
-		$crate::error::Error::Config($item, $crate::format_maybe!($($args),*))
-	}};
-
-	(Request(Forbidden($level:ident!($($args:expr),*)))) => {{
-		$crate::$level!($($args),*);
+	(Request(Forbidden($level:ident!($($args:tt)+)))) => {{
+		let mut buf = String::new();
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::forbidden(),
-			$crate::format_maybe!($($args),*),
+			$crate::err_log!(buf, $level, $($args)+),
 			::http::StatusCode::BAD_REQUEST
 		)
 	}};
 
-	(Request(Forbidden($($args:expr),*))) => {
+	(Request(Forbidden($($args:tt)+))) => {
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::forbidden(),
-			$crate::format_maybe!($($args),*),
+			$crate::format_maybe!($($args)+),
 			::http::StatusCode::BAD_REQUEST
 		)
 	};
 
-	(Request($variant:ident($level:ident!($($args:expr),*)))) => {{
-		$crate::$level!($($args),*);
+	(Request($variant:ident($level:ident!($($args:tt)+)))) => {{
+		let mut buf = String::new();
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::$variant,
-			$crate::format_maybe!($($args),*),
+			$crate::err_log!(buf, $level, $($args)+),
 			::http::StatusCode::BAD_REQUEST
 		)
 	}};
 
-	(Request($variant:ident($($args:expr),*))) => {
+	(Request($variant:ident($($args:tt)+))) => {
 		$crate::error::Error::Request(
 			::ruma::api::client::error::ErrorKind::$variant,
-			$crate::format_maybe!($($args),*),
+			$crate::format_maybe!($($args)+),
 			::http::StatusCode::BAD_REQUEST
 		)
 	};
 
-	($variant:ident($level:ident!($($args:expr),*))) => {{
-		$crate::$level!($($args),*);
-		$crate::error::Error::$variant($crate::format_maybe!($($args),*))
+	(Config($item:literal, $($args:tt)+)) => {{
+		let mut buf = String::new();
+		$crate::error::Error::Config($item, $crate::err_log!(buf, error, config = %$item, $($args)+))
 	}};
 
-	($variant:ident($($args:expr),*)) => {
-		$crate::error::Error::$variant($crate::format_maybe!($($args),*))
+	($variant:ident($level:ident!($($args:tt)+))) => {{
+		let mut buf = String::new();
+		$crate::error::Error::$variant($crate::err_log!(buf, $level, $($args)+))
+	}};
+
+	($variant:ident($($args:tt)+)) => {
+		$crate::error::Error::$variant($crate::format_maybe!($($args)+))
 	};
 
-	($level:ident!($($args:expr),*)) => {{
-		$crate::$level!($($args),*);
-		$crate::error::Error::Err($crate::format_maybe!($($args),*))
+	($level:ident!($($args:tt)+)) => {{
+		let mut buf = String::new();
+		$crate::error::Error::Err($crate::err_log!(buf, $level, $($args)+))
 	}};
 
-	($($args:expr),*) => {
-		$crate::error::Error::Err($crate::format_maybe!($($args),*))
+	($($args:tt)+) => {
+		$crate::error::Error::Err($crate::format_maybe!($($args)+))
+	};
+}
+
+/// A trinity of integration between tracing, logging, and Error. This is a
+/// customization of tracing::event! with the primary purpose of sharing the
+/// error string, fieldset parsing and formatting. An added benefit is that we
+/// can share the same callsite metadata for the source of our Error and the
+/// associated logging and tracing event dispatches.
+#[macro_export]
+macro_rules! err_log {
+	($out:ident, $level:ident, $($fields:tt)+) => {{
+		use std::{fmt, fmt::Write};
+
+		use ::tracing::{
+			callsite, callsite2, level_enabled, metadata, valueset, Callsite, Event, __macro_support,
+			__tracing_log,
+			field::{Field, ValueSet, Visit},
+			Level,
+		};
+
+		const LEVEL: Level = $crate::err_lev!($level);
+		static __CALLSITE: callsite::DefaultCallsite = callsite2! {
+			name: std::concat! {
+				"event ",
+				std::file!(),
+				":",
+				std::line!(),
+			},
+			kind: metadata::Kind::EVENT,
+			target: std::module_path!(),
+			level: LEVEL,
+			fields: $($fields)+,
+		};
+
+		let visit = &mut |vs: ValueSet<'_>| {
+			struct Visitor<'a>(&'a mut String);
+			impl Visit for Visitor<'_> {
+				fn record_debug(&mut self, field: &Field, val: &dyn fmt::Debug) {
+					if field.name() == "message" {
+						write!(self.0, "{:?}", val).expect("stream error");
+					} else {
+						write!(self.0, " {}={:?}", field.name(), val).expect("stream error");
+					}
+				}
+			}
+
+			let meta = __CALLSITE.metadata();
+			let enabled = level_enabled!(LEVEL) && {
+				let interest = __CALLSITE.interest();
+				!interest.is_never() && __macro_support::__is_enabled(meta, interest)
+			};
+
+			if enabled {
+				Event::dispatch(meta, &vs);
+			}
+
+			__tracing_log!(LEVEL, __CALLSITE, &vs);
+			vs.record(&mut Visitor(&mut $out));
+		};
+
+		(visit)(valueset!(__CALLSITE.metadata().fields(), $($fields)+));
+		($out).into()
+	}}
+}
+
+#[macro_export]
+macro_rules! err_lev {
+	(debug_warn) => {
+		if $crate::debug::logging() {
+			::tracing::Level::WARN
+		} else {
+			::tracing::Level::DEBUG
+		}
+	};
+
+	(debug_error) => {
+		if $crate::debug::logging() {
+			::tracing::Level::ERROR
+		} else {
+			::tracing::Level::DEBUG
+		}
+	};
+
+	(warn) => {
+		::tracing::Level::WARN
+	};
+
+	(error) => {
+		::tracing::Level::ERROR
 	};
 }

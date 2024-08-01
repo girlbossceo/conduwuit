@@ -5,8 +5,7 @@ mod response;
 
 use std::{any::Any, borrow::Cow, convert::Infallible, fmt};
 
-pub use log::*;
-
+pub use self::log::*;
 use crate::error;
 
 #[derive(thiserror::Error)]
