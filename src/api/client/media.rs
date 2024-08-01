@@ -5,13 +5,13 @@ use std::time::Duration;
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{
-	debug_warn, error,
+	debug_warn, err, error,
 	utils::{
 		self,
 		content_disposition::{content_disposition_type, make_content_disposition, sanitise_filename},
 		math::ruma_from_usize,
 	},
-	warn, Error, Result,
+	warn, Err, Error, Result,
 };
 use ruma::api::client::{
 	error::{ErrorKind, RetryAfter},
@@ -70,8 +70,9 @@ pub(crate) async fn get_media_preview_route(
 
 	let url = &body.url;
 	if !services.media.url_preview_allowed(url) {
-		warn!(%sender_user, "URL is not allowed to be previewed: {url}");
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "URL is not allowed to be previewed"));
+		return Err!(Request(Forbidden(
+			warn!(%sender_user, %url, "URL is not allowed to be previewed")
+		)));
 	}
 
 	match services.media.get_url_preview(url).await {
@@ -90,7 +91,6 @@ pub(crate) async fn get_media_preview_route(
 		},
 		Err(e) => {
 			warn!(%sender_user, "Failed to generate a URL preview: {e}");
-
 			// there doesn't seem to be an agreed-upon error code in the spec.
 			// the only response codes in the preview_url spec page are 200 and 429.
 			Err(Error::BadRequest(
@@ -222,10 +222,7 @@ pub(crate) async fn get_content_route(
 			body.timeout_ms,
 		)
 		.await
-		.map_err(|e| {
-			debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
-			Error::BadRequest(ErrorKind::NotFound, "Remote media error.")
-		})?;
+		.map_err(|e| err!(Request(NotFound(debug_warn!("Fetching media `{mxc}` failed: {e:?}")))))?;
 
 		let content_disposition = Some(make_content_disposition(
 			&response.content_type,
@@ -241,7 +238,7 @@ pub(crate) async fn get_content_route(
 			cache_control: Some(CACHE_CONTROL_IMMUTABLE.to_owned()),
 		})
 	} else {
-		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+		Err!(Request(NotFound("Media not found.")))
 	}
 }
 
@@ -328,13 +325,10 @@ pub(crate) async fn get_content_as_filename_route(
 					cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
 				})
 			},
-			Err(e) => {
-				debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
-				Err(Error::BadRequest(ErrorKind::NotFound, "Remote media error."))
-			},
+			Err(e) => Err!(Request(NotFound(debug_warn!("Fetching media `{mxc}` failed: {e:?}")))),
 		}
 	} else {
-		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+		Err!(Request(NotFound("Media not found.")))
 	}
 }
 
@@ -385,10 +379,10 @@ pub(crate) async fn get_content_thumbnail_route(
 			&mxc,
 			body.width
 				.try_into()
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Width is invalid."))?,
+				.map_err(|e| err!(Request(InvalidParam("Width is invalid: {e:?}"))))?,
 			body.height
 				.try_into()
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Height is invalid."))?,
+				.map_err(|e| err!(Request(InvalidParam("Height is invalid: {e:?}"))))?,
 		)
 		.await?
 	{
@@ -411,7 +405,7 @@ pub(crate) async fn get_content_thumbnail_route(
 			// we'll lie to the client and say the blocked server's media was not found and
 			// log. the client has no way of telling anyways so this is a security bonus.
 			debug_warn!("Received request for media `{}` on blocklisted server", mxc);
-			return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
+			return Err!(Request(NotFound("Media not found.")));
 		}
 
 		match services
@@ -460,13 +454,10 @@ pub(crate) async fn get_content_thumbnail_route(
 					content_disposition,
 				})
 			},
-			Err(e) => {
-				debug_warn!("Fetching media `{}` failed: {:?}", mxc, e);
-				Err(Error::BadRequest(ErrorKind::NotFound, "Remote media error."))
-			},
+			Err(e) => Err!(Request(NotFound(debug_warn!("Fetching media `{mxc}` failed: {e:?}")))),
 		}
 	} else {
-		Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."))
+		Err!(Request(NotFound("Media not found.")))
 	}
 }
 
@@ -504,7 +495,7 @@ async fn get_remote_content(
 		// we'll lie to the client and say the blocked server's media was not found and
 		// log. the client has no way of telling anyways so this is a security bonus.
 		debug_warn!("Received request for media `{mxc}` on blocklisted server");
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Media not found."));
+		return Err!(Request(NotFound("Media not found.")));
 	}
 
 	let content_response = services

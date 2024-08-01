@@ -4,7 +4,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-use conduit::{debug, error, info, trace, warn, Error, Result};
+use conduit::{debug, debug_error, debug_warn, err, error, info, trace, warn, Err, Result};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::{
@@ -57,13 +57,13 @@ impl Service {
 		for event in events {
 			for (signature_server, signature) in event
 				.get("signatures")
-				.ok_or(Error::BadServerResponse("No signatures in server response pdu."))?
+				.ok_or(err!(BadServerResponse("No signatures in server response pdu.")))?
 				.as_object()
-				.ok_or(Error::BadServerResponse("Invalid signatures object in server response pdu."))?
+				.ok_or(err!(BadServerResponse("Invalid signatures object in server response pdu.")))?
 			{
-				let signature_object = signature.as_object().ok_or(Error::BadServerResponse(
+				let signature_object = signature.as_object().ok_or(err!(BadServerResponse(
 					"Invalid signatures content object in server response pdu.",
-				))?;
+				)))?;
 
 				for signature_id in signature_object.keys() {
 					server_key_ids
@@ -94,10 +94,12 @@ impl Service {
 			.map(|(signature_server, signature_ids)| async {
 				let fetch_res = self
 					.fetch_signing_keys_for_server(
-						signature_server.as_str().try_into().map_err(|_| {
+						signature_server.as_str().try_into().map_err(|e| {
 							(
 								signature_server.clone(),
-								Error::BadServerResponse("Invalid servername in signatures of server response pdu."),
+								err!(BadServerResponse(
+									"Invalid servername in signatures of server response pdu: {e:?}"
+								)),
 							)
 						})?,
 						signature_ids.into_iter().collect(), // HashSet to Vec
@@ -107,7 +109,9 @@ impl Service {
 				match fetch_res {
 					Ok(keys) => Ok((signature_server, keys)),
 					Err(e) => {
-						warn!("Signature verification failed: Could not fetch signing key for {signature_server}: {e}",);
+						debug_error!(
+							"Signature verification failed: Could not fetch signing key for {signature_server}: {e}",
+						);
 						Err((signature_server, e))
 					},
 				}
@@ -123,7 +127,7 @@ impl Service {
 						.insert(signature_server.clone(), keys);
 				},
 				Err((signature_server, e)) => {
-					warn!("Failed to fetch keys for {}: {:?}", signature_server, e);
+					debug_warn!("Failed to fetch keys for {signature_server}: {e:?}");
 				},
 			}
 		}
@@ -141,35 +145,37 @@ impl Service {
 		pub_key_map: &mut RwLockWriteGuard<'_, BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
 		let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-			error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
-			Error::BadServerResponse("Invalid PDU in server response")
+			debug_error!("Invalid PDU in server response: {pdu:#?}");
+			err!(BadServerResponse(error!("Invalid PDU in server response: {e:?}")))
 		})?;
 
 		let signatures = value
 			.get("signatures")
-			.ok_or(Error::BadServerResponse("No signatures in server response pdu."))?
+			.ok_or(err!(BadServerResponse("No signatures in server response pdu.")))?
 			.as_object()
-			.ok_or(Error::BadServerResponse("Invalid signatures object in server response pdu."))?;
+			.ok_or(err!(BadServerResponse("Invalid signatures object in server response pdu.")))?;
 
 		for (signature_server, signature) in signatures {
-			let signature_object = signature.as_object().ok_or(Error::BadServerResponse(
+			let signature_object = signature.as_object().ok_or(err!(BadServerResponse(
 				"Invalid signatures content object in server response pdu.",
-			))?;
+			)))?;
 
 			let signature_ids = signature_object.keys().cloned().collect::<Vec<_>>();
 
 			let contains_all_ids =
 				|keys: &BTreeMap<String, Base64>| signature_ids.iter().all(|id| keys.contains_key(id));
 
-			let origin = <&ServerName>::try_from(signature_server.as_str())
-				.map_err(|_| Error::BadServerResponse("Invalid servername in signatures of server response pdu."))?;
+			let origin = <&ServerName>::try_from(signature_server.as_str()).map_err(|e| {
+				err!(BadServerResponse(
+					"Invalid servername in signatures of server response pdu: {e:?}"
+				))
+			})?;
 
 			if servers.contains_key(origin) || pub_key_map.contains_key(origin.as_str()) {
 				continue;
 			}
 
-			debug!("Loading signing keys for {}", origin);
-
+			debug!("Loading signing keys for {origin}");
 			let result: BTreeMap<_, _> = self
 				.services
 				.globals
@@ -179,7 +185,7 @@ impl Service {
 				.collect();
 
 			if !contains_all_ids(&result) {
-				debug!("Signing key not loaded for {}", origin);
+				debug_warn!("Signing key not loaded for {origin}");
 				servers.insert(origin.to_owned(), BTreeMap::new());
 			}
 
@@ -196,7 +202,7 @@ impl Service {
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
 		for server in self.services.globals.trusted_servers() {
-			debug!("Asking batch signing keys from trusted server {}", server);
+			debug!("Asking batch signing keys from trusted server {server}");
 			match self
 				.services
 				.sending
@@ -209,14 +215,16 @@ impl Service {
 				.await
 			{
 				Ok(keys) => {
-					debug!("Got signing keys: {:?}", keys);
+					debug!("Got signing keys: {keys:?}");
 					let mut pkm = pub_key_map.write().await;
 					for k in keys.server_keys {
 						let k = match k.deserialize() {
 							Ok(key) => key,
 							Err(e) => {
-								warn!("Received error {e} while fetching keys from trusted server {server}");
-								warn!("{}", k.into_json());
+								warn!(
+									"Received error {e} while fetching keys from trusted server {server}: {:#?}",
+									k.into_json()
+								);
 								continue;
 							},
 						};
@@ -236,13 +244,10 @@ impl Service {
 						pkm.insert(k.server_name.to_string(), result);
 					}
 				},
-				Err(e) => {
-					warn!(
-						"Failed sending batched key request to trusted key server {server} for the remote servers \
-						 {:?}: {e}",
-						servers
-					);
-				},
+				Err(e) => error!(
+					"Failed sending batched key request to trusted key server {server} for the remote servers \
+					 {servers:?}: {e}"
+				),
 			}
 		}
 
@@ -478,7 +483,6 @@ impl Service {
 			}
 		} else {
 			info!("query_trusted_key_servers_first is set to false, querying {origin} first");
-
 			debug!("Asking {origin} for their signing keys over federation");
 			if let Some(server_key) = self
 				.services
@@ -536,7 +540,7 @@ impl Service {
 							.filter_map(|e| e.deserialize().ok())
 							.collect::<Vec<_>>()
 					}) {
-					debug!("Got signing keys: {:?}", server_keys);
+					debug!("Got signing keys: {server_keys:?}");
 					for k in server_keys {
 						self.services
 							.globals
@@ -561,7 +565,6 @@ impl Service {
 			}
 		}
 
-		warn!("Failed to find public key for server: {origin}");
-		Err(Error::BadServerResponse("Failed to find public key for server"))
+		Err!(BadServerResponse(warn!("Failed to find public key for server {origin:?}")))
 	}
 }

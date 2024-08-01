@@ -1,7 +1,7 @@
 use std::{fmt::Debug, mem};
 
 use bytes::BytesMut;
-use conduit::{debug_error, trace, utils, warn, Error, Result};
+use conduit::{debug_error, err, trace, utils, warn, Err, Result};
 use reqwest::Client;
 use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
 
@@ -26,10 +26,7 @@ where
 	let hs_token = registration.hs_token.as_str();
 	let mut http_request = request
 		.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(hs_token), &VERSIONS)
-		.map_err(|e| {
-			warn!("Failed to find destination {dest}: {e}");
-			Error::BadServerResponse("Invalid appservice destination")
-		})?
+		.map_err(|e| err!(BadServerResponse(warn!("Failed to find destination {dest}: {e}"))))?
 		.map(BytesMut::freeze);
 
 	let mut parts = http_request.uri().clone().into_parts();
@@ -69,13 +66,11 @@ where
 	let body = response.bytes().await?; // TODO: handle timeout
 
 	if !status.is_success() {
-		warn!(
+		debug_error!("Appservice response bytes: {:?}", utils::string_from_bytes(&body));
+		return Err!(BadServerResponse(error!(
 			"Appservice \"{}\" returned unsuccessful HTTP response {status} at {dest}",
 			registration.id
-		);
-		debug_error!("Appservice response bytes: {:?}", utils::string_from_bytes(&body));
-
-		return Err(Error::BadServerResponse("Appservice returned unsuccessful HTTP response"));
+		)));
 	}
 
 	let response = T::IncomingResponse::try_from_http_response(
@@ -85,7 +80,9 @@ where
 	);
 
 	response.map(Some).map_err(|e| {
-		warn!("Appservice \"{}\" returned invalid response bytes {dest}: {e}", registration.id);
-		Error::BadServerResponse("Appservice returned bad/invalid response")
+		err!(BadServerResponse(error!(
+			"Appservice \"{}\" returned invalid response bytes {dest}: {e}",
+			registration.id
+		)))
 	})
 }

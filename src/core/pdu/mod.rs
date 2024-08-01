@@ -23,7 +23,7 @@ use serde_json::{
 	value::{to_raw_value, RawValue as RawJsonValue},
 };
 
-use crate::{warn, Error};
+use crate::{err, warn, Error};
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {
@@ -396,10 +396,8 @@ impl Ord for PduEvent {
 pub fn gen_event_id_canonical_json(
 	pdu: &RawJsonValue, room_version_id: &RoomVersionId,
 ) -> crate::Result<(OwnedEventId, CanonicalJsonObject)> {
-	let value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-		warn!("Error parsing incoming event {:?}: {:?}", pdu, e);
-		Error::BadServerResponse("Invalid PDU in server response")
-	})?;
+	let value: CanonicalJsonObject = serde_json::from_str(pdu.get())
+		.map_err(|e| err!(BadServerResponse(warn!("Error parsing incoming event: {e:?}"))))?;
 
 	let event_id = format!(
 		"${}",

@@ -4,7 +4,7 @@ use std::{
 };
 
 use axum::extract::State;
-use conduit::{debug, utils, utils::math::continue_exponential_backoff_secs, Error, Result};
+use conduit::{utils, utils::math::continue_exponential_backoff_secs, Err, Error, Result};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{
@@ -362,8 +362,7 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 				const MIN: u64 = 5 * 60;
 				const MAX: u64 = 60 * 60 * 24;
 				if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
-					debug!("Backing off query from {server:?}");
-					return (server, Err(Error::BadServerResponse("bad query, still backing off")));
+					return (server, Err!(BadServerResponse("bad query from {server:?}, still backing off")));
 				}
 			}
 

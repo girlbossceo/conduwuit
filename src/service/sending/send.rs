@@ -1,7 +1,7 @@
 use std::{fmt::Debug, mem};
 
 use conduit::{
-	debug, debug_error, debug_warn, error::inspect_debug_log, trace, utils::string::EMPTY, Err, Error, Result,
+	debug, debug_error, debug_warn, err, error::inspect_debug_log, trace, utils::string::EMPTY, Err, Error, Result,
 };
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
@@ -62,7 +62,7 @@ impl super::Service {
 		trace!("Preparing request");
 		let mut http_request = req
 			.try_into_http_request::<Vec<u8>>(&actual.string, SATIR, &VERSIONS)
-			.map_err(|_| Error::BadServerResponse("Invalid destination"))?;
+			.map_err(|e| err!(BadServerResponse("Invalid destination: {e:?}")))?;
 
 		sign_request::<T>(&self.services.globals, dest, &mut http_request);
 
@@ -139,10 +139,7 @@ where
 		);
 	}
 
-	match response {
-		Err(_) => Err(Error::BadServerResponse("Server returned bad 200 response.")),
-		Ok(response) => Ok(response),
-	}
+	response.map_err(|e| err!(BadServerResponse("Server returned bad 200 response: {e:?}")))
 }
 
 fn handle_error<T>(

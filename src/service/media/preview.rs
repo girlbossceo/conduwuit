@@ -1,10 +1,9 @@
 use std::{io::Cursor, time::SystemTime};
 
-use conduit::{debug, utils, warn, Error, Result};
+use conduit::{debug, utils, warn, Err, Result};
 use conduit_core::implement;
 use image::ImageReader as ImgReader;
 use ipaddress::IPAddress;
-use ruma::api::client::error::ErrorKind;
 use serde::Serialize;
 use url::Url;
 use webpage::HTML;
@@ -89,7 +88,7 @@ pub async fn get_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
 async fn request_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
 	if let Ok(ip) = IPAddress::parse(url) {
 		if !self.services.globals.valid_cidr_range(&ip) {
-			return Err(Error::BadServerResponse("Requesting from this address is forbidden"));
+			return Err!(BadServerResponse("Requesting from this address is forbidden"));
 		}
 	}
 
@@ -99,7 +98,7 @@ async fn request_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
 	if let Some(remote_addr) = response.remote_addr() {
 		if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
 			if !self.services.globals.valid_cidr_range(&ip) {
-				return Err(Error::BadServerResponse("Requesting from this address is forbidden"));
+				return Err!(BadServerResponse("Requesting from this address is forbidden"));
 			}
 		}
 	}
@@ -109,12 +108,12 @@ async fn request_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
 		.get(reqwest::header::CONTENT_TYPE)
 		.and_then(|x| x.to_str().ok())
 	else {
-		return Err(Error::BadRequest(ErrorKind::Unknown, "Unknown Content-Type"));
+		return Err!(Request(Unknown("Unknown Content-Type")));
 	};
 	let data = match content_type {
 		html if html.starts_with("text/html") => self.download_html(url).await?,
 		img if img.starts_with("image/") => self.download_image(url).await?,
-		_ => return Err(Error::BadRequest(ErrorKind::Unknown, "Unsupported Content-Type")),
+		_ => return Err!(Request(Unknown("Unsupported Content-Type"))),
 	};
 
 	self.set_url_preview(url, &data).await?;
@@ -142,7 +141,7 @@ async fn download_html(&self, url: &str) -> Result<UrlPreviewData> {
 	}
 	let body = String::from_utf8_lossy(&bytes);
 	let Ok(html) = HTML::from_string(body.to_string(), Some(url.to_owned())) else {
-		return Err(Error::BadRequest(ErrorKind::Unknown, "Failed to parse HTML"));
+		return Err!(Request(Unknown("Failed to parse HTML")));
 	};
 
 	let mut data = match html.opengraph.images.first() {

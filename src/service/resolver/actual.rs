@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, debug_error, debug_info, debug_warn, trace, Err, Error, Result};
+use conduit::{debug, debug_error, debug_info, debug_warn, err, trace, Err, Result};
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
 use ruma::ServerName;
@@ -329,10 +329,8 @@ impl super::Service {
 			dest.is_ip_literal() || !IPAddress::is_valid(dest.host()),
 			"Destination is not an IP literal."
 		);
-		let ip = IPAddress::parse(dest.host()).map_err(|e| {
-			debug_error!("Failed to parse IP literal from string: {}", e);
-			Error::BadServerResponse("Invalid IP address")
-		})?;
+		let ip = IPAddress::parse(dest.host())
+			.map_err(|e| err!(BadServerResponse(debug_error!("Failed to parse IP literal from string: {e}"))))?;
 
 		self.validate_ip(&ip)?;
 
@@ -341,7 +339,7 @@ impl super::Service {
 
 	pub(crate) fn validate_ip(&self, ip: &IPAddress) -> Result<()> {
 		if !self.services.globals.valid_cidr_range(ip) {
-			return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+			return Err!(BadServerResponse("Not allowed to send requests to this IP"));
 		}
 
 		Ok(())

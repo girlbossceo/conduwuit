@@ -8,11 +8,11 @@ use std::{
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{
-	debug, debug_warn, error, info,
+	debug, debug_error, debug_warn, err, error, info,
 	pdu::{gen_event_id_canonical_json, PduBuilder},
 	trace, utils,
 	utils::math::continue_exponential_backoff_secs,
-	warn, Error, PduEvent, Result,
+	warn, Err, Error, PduEvent, Result,
 };
 use ruma::{
 	api::{
@@ -705,11 +705,11 @@ async fn join_room_by_id_helper_remote(
 		{
 			room_version
 		},
-		_ => return Err(Error::BadServerResponse("Room version is not supported")),
+		_ => return Err!(BadServerResponse("Room version is not supported")),
 	};
 
 	let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
-		.map_err(|_| Error::BadServerResponse("Invalid make_join event json received from server."))?;
+		.map_err(|e| err!(BadServerResponse("Invalid make_join event json received from server: {e:?}")))?;
 
 	let join_authorized_via_users_server = join_event_stub
 		.get("content")
@@ -876,7 +876,7 @@ async fn join_room_by_id_helper_remote(
 
 	info!("Parsing join event");
 	let parsed_join_pdu = PduEvent::from_id_val(event_id, join_event.clone())
-		.map_err(|_| Error::BadServerResponse("Invalid join event PDU."))?;
+		.map_err(|e| err!(BadServerResponse("Invalid join event PDU: {e:?}")))?;
 
 	let mut state = HashMap::new();
 	let pub_key_map = RwLock::new(BTreeMap::new());
@@ -899,8 +899,8 @@ async fn join_room_by_id_helper_remote(
 		};
 
 		let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
-			warn!("Invalid PDU in send_join response: {} {:?}", e, value);
-			Error::BadServerResponse("Invalid PDU in send_join response.")
+			debug_warn!("Invalid PDU in send_join response: {value:#?}");
+			err!(BadServerResponse("Invalid PDU in send_join response: {e:?}"))
 		})?;
 
 		services.rooms.outlier.add_pdu_outlier(&event_id, &value)?;
@@ -1122,10 +1122,10 @@ async fn join_room_by_id_helper_local(
 			{
 				room_version_id
 			},
-			_ => return Err(Error::BadServerResponse("Room version is not supported")),
+			_ => return Err!(BadServerResponse("Room version is not supported")),
 		};
 		let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
-			.map_err(|_| Error::BadServerResponse("Invalid make_join event json received from server."))?;
+			.map_err(|e| err!(BadServerResponse("Invalid make_join event json received from server: {e:?}")))?;
 		let join_authorized_via_users_server = join_event_stub
 			.get("content")
 			.map(|s| {
@@ -1250,7 +1250,7 @@ async fn join_room_by_id_helper_local(
 async fn make_join_request(
 	services: &Services, sender_user: &UserId, room_id: &RoomId, servers: &[OwnedServerName],
 ) -> Result<(federation::membership::prepare_join_event::v1::Response, OwnedServerName)> {
-	let mut make_join_response_and_server = Err(Error::BadServerResponse("No server available to assist in joining."));
+	let mut make_join_response_and_server = Err!(BadServerResponse("No server available to assist in joining."));
 
 	let mut make_join_counter: u16 = 0;
 	let mut incompatible_room_version_count: u8 = 0;
@@ -1291,8 +1291,7 @@ async fn make_join_request(
 					"15 servers have responded with M_INCOMPATIBLE_ROOM_VERSION or M_UNSUPPORTED_ROOM_VERSION, \
 					 assuming that Conduwuit does not support the room {room_id}: {e}"
 				);
-				make_join_response_and_server =
-					Err(Error::BadServerResponse("Room version is not supported by Conduwuit"));
+				make_join_response_and_server = Err!(BadServerResponse("Room version is not supported by Conduwuit"));
 				return make_join_response_and_server;
 			}
 
@@ -1300,8 +1299,7 @@ async fn make_join_request(
 				warn!(
 					"50 servers failed to provide valid make_join response, assuming no server can assist in joining."
 				);
-				make_join_response_and_server =
-					Err(Error::BadServerResponse("No server available to assist in joining."));
+				make_join_response_and_server = Err!(BadServerResponse("No server available to assist in joining."));
 				return make_join_response_and_server;
 			}
 		}
@@ -1321,8 +1319,8 @@ pub async fn validate_and_add_event_id(
 	pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> Result<(OwnedEventId, CanonicalJsonObject)> {
 	let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-		error!("Invalid PDU in server response: {:?}: {:?}", pdu, e);
-		Error::BadServerResponse("Invalid PDU in server response")
+		debug_error!("Invalid PDU in server response: {pdu:#?}");
+		err!(BadServerResponse("Invalid PDU in server response: {e:?}"))
 	})?;
 	let event_id = EventId::parse(format!(
 		"${}",
@@ -1358,15 +1356,15 @@ pub async fn validate_and_add_event_id(
 		const MIN: u64 = 60 * 5;
 		const MAX: u64 = 60 * 60 * 24;
 		if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
-			debug!("Backing off from {event_id}");
-			return Err(Error::BadServerResponse("bad event, still backing off"));
+			return Err!(BadServerResponse("bad event {event_id:?}, still backing off"));
 		}
 	}
 
 	if let Err(e) = ruma::signatures::verify_event(&*pub_key_map.read().await, &value, room_version) {
-		warn!("Event {} failed verification {:?} {}", event_id, pdu, e);
+		debug_error!("Event {event_id} failed verification {pdu:#?}");
+		let e = Err!(BadServerResponse(debug_error!("Event {event_id} failed verification: {e:?}")));
 		back_off(event_id).await;
-		return Err(Error::BadServerResponse("Event failed verification."));
+		return e;
 	}
 
 	value.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
@@ -1648,7 +1646,7 @@ pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId,
 }
 
 async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-	let mut make_leave_response_and_server = Err(Error::BadServerResponse("No server available to assist in leaving."));
+	let mut make_leave_response_and_server = Err!(BadServerResponse("No server available to assist in leaving."));
 
 	let invite_state = services
 		.rooms
@@ -1705,11 +1703,11 @@ async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &Room
 		{
 			version
 		},
-		_ => return Err(Error::BadServerResponse("Room version is not supported")),
+		_ => return Err!(BadServerResponse("Room version is not supported")),
 	};
 
 	let mut leave_event_stub = serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.get())
-		.map_err(|_| Error::BadServerResponse("Invalid make_leave event json received from server."))?;
+		.map_err(|e| err!(BadServerResponse("Invalid make_leave event json received from server: {e:?}")))?;
 
 	// TODO: Is origin needed?
 	leave_event_stub.insert(

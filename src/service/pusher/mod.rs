@@ -3,7 +3,7 @@ mod data;
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-use conduit::{debug_info, info, trace, utils::string_from_bytes, warn, Error, PduEvent, Result};
+use conduit::{debug_error, err, trace, utils::string_from_bytes, warn, Err, PduEvent, Result};
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -84,8 +84,9 @@ impl Service {
 		let http_request = request
 			.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(""), &VERSIONS)
 			.map_err(|e| {
-				warn!("Failed to find destination {dest} for push gateway: {e}");
-				Error::BadServerResponse("Invalid push gateway destination")
+				err!(BadServerResponse(warn!(
+					"Failed to find destination {dest} for push gateway: {e}"
+				)))
 			})?
 			.map(BytesMut::freeze);
 
@@ -95,7 +96,7 @@ impl Service {
 			trace!("Checking request URL for IP");
 			if let Ok(ip) = IPAddress::parse(url_host) {
 				if !self.services.globals.valid_cidr_range(&ip) {
-					return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+					return Err!(BadServerResponse("Not allowed to send requests to this IP"));
 				}
 			}
 		}
@@ -110,7 +111,7 @@ impl Service {
 				if let Some(remote_addr) = response.remote_addr() {
 					if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
 						if !self.services.globals.valid_cidr_range(&ip) {
-							return Err(Error::BadServerResponse("Not allowed to send requests to this IP"));
+							return Err!(BadServerResponse("Not allowed to send requests to this IP"));
 						}
 					}
 				}
@@ -129,10 +130,10 @@ impl Service {
 				let body = response.bytes().await?; // TODO: handle timeout
 
 				if !status.is_success() {
-					info!("Push gateway {dest} returned unsuccessful HTTP response ({status})");
-					debug_info!("Push gateway response body: {:?}", string_from_bytes(&body));
-
-					return Err(Error::BadServerResponse("Push gateway returned unsuccessful response"));
+					debug_error!("Push gateway response body: {:?}", string_from_bytes(&body));
+					return Err!(BadServerResponse(error!(
+						"Push gateway {dest} returned unsuccessful HTTP response: {status}"
+					)));
 				}
 
 				let response = T::IncomingResponse::try_from_http_response(
@@ -140,13 +141,11 @@ impl Service {
 						.body(body)
 						.expect("reqwest body is valid http body"),
 				);
-				response.map_err(|e| {
-					warn!("Push gateway {dest} returned invalid response bytes: {e}");
-					Error::BadServerResponse("Push gateway returned bad/invalid response")
-				})
+				response
+					.map_err(|e| err!(BadServerResponse(error!("Push gateway {dest} returned invalid response: {e}"))))
 			},
 			Err(e) => {
-				warn!("Could not send request to pusher {dest}: {e}");
+				debug_error!("Could not send request to pusher {dest}: {e}");
 				Err(e.into())
 			},
 		}
@@ -165,7 +164,7 @@ impl Service {
 			.room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
 			.map(|ev| {
 				serde_json::from_str(ev.content.get())
-					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+					.map_err(|e| err!(Database("invalid m.room.power_levels event: {e:?}")))
 			})
 			.transpose()?
 			.unwrap_or_default();
@@ -181,8 +180,8 @@ impl Service {
 			};
 
 			if notify.is_some() {
-				return Err(Error::bad_database(
-					r#"Malformed pushrule contains more than one of these actions: ["dont_notify", "notify", "coalesce"]"#,
+				return Err!(Database(
+					r#"Malformed pushrule contains more than one of these actions: ["dont_notify", "notify", "coalesce"]"#
 				));
 			}
 

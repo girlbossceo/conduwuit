@@ -86,12 +86,12 @@ pub enum Error {
 	// conduwuit
 	#[error("Arithmetic operation failed: {0}")]
 	Arithmetic(Cow<'static, str>),
+	#[error("{0}")]
+	BadServerResponse(Cow<'static, str>),
 	#[error("There was a problem with the '{0}' directive in your configuration: {1}")]
 	Config(&'static str, Cow<'static, str>),
 	#[error("{0}")]
 	Database(Cow<'static, str>),
-	#[error("{0}")]
-	BadServerResponse(&'static str),
 	#[error("{0}")]
 	Conflict(&'static str), // This is only needed for when a room alias already exists
 

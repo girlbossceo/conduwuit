@@ -7,7 +7,7 @@ use std::{
 
 use api::client::validate_and_add_event_id;
 use conduit::{
-	debug, info, log,
+	debug, debug_error, err, info, log,
 	log::{capture, Capture},
 	utils, warn, Error, PduEvent, Result,
 };
@@ -575,8 +575,8 @@ pub(super) async fn force_set_room_state_from_server(
 		};
 
 		let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
-			warn!("Invalid PDU in fetching remote room state PDUs response: {} {:?}", e, value);
-			Error::BadServerResponse("Invalid PDU in send_join response.")
+			debug_error!("Invalid PDU in fetching remote room state PDUs response: {value:#?}");
+			err!(BadServerResponse(debug_error!("Invalid PDU in send_join response: {e:?}")))
 		})?;
 
 		self.services
