@@ -4,7 +4,9 @@ use conduit::Result;
 
 use crate::{Engine, Map};
 
-pub type Maps = BTreeMap<String, Arc<Map>>;
+pub type Maps = BTreeMap<MapsKey, MapsVal>;
+pub(crate) type MapsVal = Arc<Map>;
+pub(crate) type MapsKey = String;
 
 pub(crate) fn open(db: &Arc<Engine>) -> Result<Maps> { open_list(db, MAPS) }
 

@@ -2,7 +2,12 @@ use std::{ops::Index, sync::Arc};
 
 use conduit::{Result, Server};
 
-use crate::{cork::Cork, maps, maps::Maps, Engine, Map};
+use crate::{
+	cork::Cork,
+	maps,
+	maps::{Maps, MapsKey, MapsVal},
+	Engine, Map,
+};
 
 pub struct Database {
 	pub db: Arc<Engine>,
@@ -30,6 +35,9 @@ impl Database {
 	#[inline]
 	#[must_use]
 	pub fn cork_and_sync(&self) -> Cork { Cork::new(&self.db, true, true) }
+
+	#[inline]
+	pub fn iter_maps(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + '_ { self.map.iter() }
 }
 
 impl Index<&str> for Database {
