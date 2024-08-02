@@ -828,3 +828,24 @@ pub(super) async fn list_dependencies(&self, names: bool) -> Result<RoomMessageE
 
 	Ok(RoomMessageEventContent::notice_markdown(out))
 }
+
+#[admin_command]
+pub(super) async fn database_stats(
+	&self, property: Option<String>, map: Option<String>,
+) -> Result<RoomMessageEventContent> {
+	let property = property.unwrap_or_else(|| "rocksdb.stats".to_owned());
+	let map_name = map.as_ref().map_or(utils::string::EMPTY, String::as_str);
+
+	let mut out = String::new();
+	for (name, map) in self.services.db.iter_maps() {
+		if !map_name.is_empty() && *map_name != *name {
+			continue;
+		}
+
+		let res = map.property(&property)?;
+		let res = res.trim();
+		writeln!(out, "##### {name}:\n```\n{res}\n```")?;
+	}
+
+	Ok(RoomMessageEventContent::notice_markdown(out))
+}

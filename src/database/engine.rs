@@ -1,5 +1,6 @@
 use std::{
 	collections::{BTreeSet, HashMap},
+	ffi::CStr,
 	fmt::Write,
 	path::PathBuf,
 	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
@@ -9,7 +10,8 @@ use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, 
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
-	BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env, MultiThreaded, Options,
+	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env,
+	MultiThreaded, Options,
 };
 
 use crate::{
@@ -239,6 +241,20 @@ impl Engine {
 				Ok(res)
 			},
 		}
+	}
+
+	/// Query for database property by null-terminated name which is expected to
+	/// have a result with an integer representation. This is intended for
+	/// low-overhead programmatic use.
+	pub(crate) fn property_integer(&self, cf: &impl AsColumnFamilyRef, name: &CStr) -> Result<u64> {
+		result(self.db.property_int_value_cf(cf, name))
+			.and_then(|val| val.map_or_else(|| Err!("Property {name:?} not found."), Ok))
+	}
+
+	/// Query for database property by name receiving the result in a string.
+	pub(crate) fn property(&self, cf: &impl AsColumnFamilyRef, name: &str) -> Result<String> {
+		result(self.db.property_value_cf(cf, name))
+			.and_then(|val| val.map_or_else(|| Err!("Property {name:?} not found."), Ok))
 	}
 }
 

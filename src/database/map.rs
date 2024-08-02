@@ -1,4 +1,4 @@
-use std::{future::Future, mem::size_of, pin::Pin, sync::Arc};
+use std::{ffi::CStr, future::Future, mem::size_of, pin::Pin, sync::Arc};
 
 use conduit::{utils, Result};
 use rocksdb::{
@@ -188,6 +188,10 @@ impl Map {
 	pub fn watch_prefix<'a>(&'a self, prefix: &Key) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
 		self.watchers.watch(prefix)
 	}
+
+	pub fn property_integer(&self, name: &CStr) -> Result<u64> { self.db.property_integer(&self.cf(), name) }
+
+	pub fn property(&self, name: &str) -> Result<String> { self.db.property(&self.cf(), name) }
 
 	#[inline]
 	pub fn name(&self) -> &str { &self.name }

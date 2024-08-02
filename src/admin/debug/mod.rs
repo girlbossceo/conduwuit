@@ -184,6 +184,14 @@ pub(super) enum DebugCommand {
 		names: bool,
 	},
 
+	/// - Get database statistics
+	DatabaseStats {
+		property: Option<String>,
+
+		#[arg(short, long, alias("column"))]
+		map: Option<String>,
+	},
+
 	/// - Developer test stubs
 	#[command(subcommand)]
 	#[allow(non_snake_case)]
