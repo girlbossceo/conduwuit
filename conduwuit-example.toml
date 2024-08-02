@@ -514,6 +514,18 @@ allow_profile_lookup_federation_requests = true
 # Defaults to false as this uses more CPU when compressing.
 #rocksdb_bottommost_compression = false
 
+# Database repair mode (for RocksDB SST corruption)
+#
+# Use this option when the server reports corruption while running or panics. If the server refuses
+# to start use the recovery mode options first. Corruption errors containing the acronym 'SST' which
+# occur after startup will likely require this option.
+#
+# - Backing up your database directory is recommended prior to running the repair.
+# - Disabling repair mode and restarting the server is recommended after running the repair.
+#
+# Defaults to false
+#rocksdb_repair = false
+
 # Database recovery mode (for RocksDB WAL corruption)
 #
 # Use this option when the server reports corruption and refuses to start. Set mode 2 (PointInTime)
