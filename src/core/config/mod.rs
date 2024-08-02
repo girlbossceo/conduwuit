@@ -236,6 +236,8 @@ pub struct Config {
 	pub rocksdb_compaction_ioprio_idle: bool,
 	#[serde(default = "true_fn")]
 	pub rocksdb_compaction: bool,
+	#[serde(default = "default_rocksdb_stats_level")]
+	pub rocksdb_stats_level: u8,
 
 	pub emergency_password: Option<String>,
 
@@ -718,6 +720,7 @@ impl fmt::Display for Config {
 			&self.rocksdb_compaction_ioprio_idle.to_string(),
 		);
 		line("RocksDB Compaction enabled", &self.rocksdb_compaction.to_string());
+		line("RocksDB Statistics level", &self.rocksdb_stats_level.to_string());
 		line("Media integrity checks on startup", &self.media_startup_check.to_string());
 		line("Media compatibility filesystem links", &self.media_compat_file_link.to_string());
 		line("Prevent Media Downloads From", {
@@ -1001,6 +1004,8 @@ fn default_rocksdb_compression_level() -> i32 { 32767 }
 /// compression level as they all differ. See their `kDefaultCompressionLevel`.
 #[allow(clippy::doc_markdown)]
 fn default_rocksdb_bottommost_compression_level() -> i32 { 32767 }
+
+fn default_rocksdb_stats_level() -> u8 { 1 }
 
 // I know, it's a great name
 #[must_use]

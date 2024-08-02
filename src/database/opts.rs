@@ -2,8 +2,8 @@ use std::{cmp, collections::HashMap};
 
 use conduit::{utils, Config};
 use rocksdb::{
-	BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env, LogLevel, Options,
-	UniversalCompactOptions, UniversalCompactionStopStyle,
+	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env,
+	LogLevel, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
 };
 
 /// Create database-wide options suitable for opening the database. This also
@@ -13,6 +13,11 @@ use rocksdb::{
 /// through cf_options().
 pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_cache: &Cache) -> Options {
 	const MIN_PARALLELISM: usize = 2;
+	const DEFAULT_STATS_LEVEL: StatsLevel = if cfg!(debug_assertions) {
+		StatsLevel::ExceptDetailedTimers
+	} else {
+		StatsLevel::DisableAll
+	};
 
 	let mut opts = Options::default();
 
@@ -68,8 +73,18 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	set_compression_defaults(&mut opts, config);
 
 	// Misc
-	opts.set_disable_auto_compactions(!config.rocksdb_compaction);
 	opts.create_if_missing(true);
+	opts.set_disable_auto_compactions(!config.rocksdb_compaction);
+
+	opts.set_statistics_level(match config.rocksdb_stats_level {
+		0 => StatsLevel::DisableAll,
+		1 => DEFAULT_STATS_LEVEL,
+		2 => StatsLevel::ExceptHistogramOrTimers,
+		3 => StatsLevel::ExceptTimers,
+		4 => StatsLevel::ExceptDetailedTimers,
+		5 => StatsLevel::ExceptTimeForMutex,
+		6_u8..=u8::MAX => StatsLevel::All,
+	});
 
 	// Default: https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
 	//

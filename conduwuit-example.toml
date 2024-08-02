@@ -514,6 +514,19 @@ allow_profile_lookup_federation_requests = true
 # Defaults to false as this uses more CPU when compressing.
 #rocksdb_bottommost_compression = false
 
+# Level of statistics collection. Some admin commands to display database statistics may require
+# this option to be set. Database performance may be impacted by higher settings.
+#
+# Option is a number ranging from 0 to 6:
+# 0 = No statistics.
+# 1 = No statistics in release mode (default).
+# 2 to 3 = Statistics with no performance impact.
+# 3 to 5 = Statistics with possible performance impact.
+# 6 = All statistics.
+#
+# Defaults to 1 (No statistics, except in debug-mode)
+#rocksdb_stats_level = 1
+
 # Database repair mode (for RocksDB SST corruption)
 #
 # Use this option when the server reports corruption while running or panics. If the server refuses
