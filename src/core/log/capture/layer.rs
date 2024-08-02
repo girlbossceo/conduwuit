@@ -1,20 +1,24 @@
 use std::{fmt, sync::Arc};
 
+use arrayvec::ArrayVec;
 use tracing::field::{Field, Visit};
 use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{layer::Context, registry::LookupSpan};
 
 use super::{Capture, Data, State};
 
-pub type Value = (&'static str, String);
-
 pub struct Layer {
 	state: Arc<State>,
 }
 
 struct Visitor {
-	values: Vec<Value>,
+	values: Values,
 }
+
+type Values = ArrayVec<Value, 32>;
+pub type Value = (&'static str, String);
+
+type ScopeNames = ArrayVec<&'static str, 32>;
 
 impl Layer {
 	#[inline]
@@ -51,8 +55,9 @@ fn handle<S>(layer: &Layer, capture: &Capture, event: &Event<'_>, ctx: &Context<
 where
 	S: Subscriber + for<'a> LookupSpan<'a>,
 {
+	let names = ScopeNames::new();
 	let mut visitor = Visitor {
-		values: Vec::new(),
+		values: Values::new(),
 	};
 	event.record(&mut visitor);
 
@@ -61,7 +66,8 @@ where
 		layer,
 		event,
 		current: &ctx.current_span(),
-		values: Some(&mut visitor.values),
+		values: &visitor.values,
+		scope: &names,
 	});
 }
 
@@ -69,12 +75,21 @@ fn filter<S>(layer: &Layer, capture: &Capture, event: &Event<'_>, ctx: &Context<
 where
 	S: Subscriber + for<'a> LookupSpan<'a>,
 {
+	let values = Values::new();
+	let mut names = ScopeNames::new();
+	if let Some(scope) = ctx.event_scope(event) {
+		for span in scope {
+			names.push(span.name());
+		}
+	}
+
 	capture.filter.as_ref().map_or(true, |filter| {
 		filter(Data {
 			layer,
 			event,
 			current: &ctx.current_span(),
-			values: None,
+			values: &values,
+			scope: &names,
 		})
 	})
 }

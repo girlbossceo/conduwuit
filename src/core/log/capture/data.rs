@@ -7,7 +7,8 @@ pub struct Data<'a> {
 	pub layer: &'a Layer,
 	pub event: &'a Event<'a>,
 	pub current: &'a Current,
-	pub values: Option<&'a mut [Value]>,
+	pub values: &'a [Value],
+	pub scope: &'a [&'static str],
 }
 
 impl Data<'_> {
@@ -23,8 +24,6 @@ impl Data<'_> {
 	#[must_use]
 	pub fn message(&self) -> &str {
 		self.values
-			.as_ref()
-			.expect("values are not composed for a filter")
 			.iter()
 			.find(|(k, _)| *k == "message")
 			.map_or("", |(_, v)| v.as_str())
