@@ -72,6 +72,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayvec"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
+
+[[package]]
 name = "as_variant"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -627,6 +633,7 @@ name = "conduit_core"
 version = "0.4.6"
 dependencies = [
  "argon2",
+ "arrayvec",
  "axum",
  "bytes",
  "cargo_toml",
