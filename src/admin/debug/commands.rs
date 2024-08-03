@@ -1,16 +1,12 @@
 use std::{
 	collections::{BTreeMap, HashMap},
 	fmt::Write,
-	sync::{Arc, Mutex},
+	sync::Arc,
 	time::{Instant, SystemTime},
 };
 
 use api::client::validate_and_add_event_id;
-use conduit::{
-	debug, debug_error, err, info, log,
-	log::{capture, Capture},
-	utils, warn, Error, PduEvent, Result,
-};
+use conduit::{debug, debug_error, err, info, trace, utils, warn, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
@@ -717,30 +713,14 @@ pub(super) async fn resolve_true_destination(
 		));
 	}
 
-	let filter: &capture::Filter = &|data| {
-		data.level() <= log::Level::DEBUG
-			&& data.mod_name().starts_with("conduit")
-			&& matches!(data.span_name(), "actual" | "well-known" | "srv")
-	};
-
-	let state = &self.services.server.log.capture;
-	let logs = Arc::new(Mutex::new(String::new()));
-	let capture = Capture::new(state, Some(filter), capture::fmt_markdown(logs.clone()));
-
-	let capture_scope = capture.start();
 	let actual = self
 		.services
 		.resolver
 		.resolve_actual_dest(&server_name, !no_cache)
 		.await?;
-	drop(capture_scope);
 
-	let msg = format!(
-		"{}\nDestination: {}\nHostname URI: {}",
-		logs.lock().expect("locked"),
-		actual.dest,
-		actual.host,
-	);
+	let msg = format!("Destination: {}\nHostname URI: {}", actual.dest, actual.host,);
+
 	Ok(RoomMessageEventContent::text_markdown(msg))
 }
 
