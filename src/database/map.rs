@@ -35,6 +35,7 @@ impl Map {
 		}))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn get(&self, key: &Key) -> Result<Option<Handle<'_>>> {
 		let read_options = &self.read_options;
 		let res = self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options);
@@ -42,6 +43,7 @@ impl Map {
 		Ok(result(res)?.map(Handle::from))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn multi_get(&self, keys: &[&Key]) -> Result<Vec<Option<OwnedVal>>> {
 		// Optimization can be `true` if key vector is pre-sorted **by the column
 		// comparator**.
@@ -64,6 +66,7 @@ impl Map {
 		Ok(ret)
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn insert(&self, key: &Key, value: &Val) -> Result<()> {
 		let write_options = &self.write_options;
 		self.db
@@ -80,6 +83,7 @@ impl Map {
 		Ok(())
 	}
 
+	#[tracing::instrument(skip(self, iter), level = "trace")]
 	pub fn insert_batch<'a, I>(&'a self, iter: I) -> Result<()>
 	where
 		I: Iterator<Item = KeyVal<'a>>,
@@ -99,6 +103,7 @@ impl Map {
 		result(res)
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn remove(&self, key: &Key) -> Result<()> {
 		let write_options = &self.write_options;
 		let res = self.db.db.delete_cf_opt(&self.cf(), key, write_options);
@@ -110,6 +115,7 @@ impl Map {
 		result(res)
 	}
 
+	#[tracing::instrument(skip(self, iter), level = "trace")]
 	pub fn remove_batch<'a, I>(&'a self, iter: I) -> Result<()>
 	where
 		I: Iterator<Item = &'a Key>,
@@ -129,12 +135,14 @@ impl Map {
 		result(res)
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn iter(&self) -> OwnedKeyValPairIter<'_> {
 		let mode = IteratorMode::Start;
 		let read_options = read_options_default();
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn iter_from(&self, from: &Key, reverse: bool) -> OwnedKeyValPairIter<'_> {
 		let direction = if reverse {
 			Direction::Reverse
@@ -146,12 +154,14 @@ impl Map {
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn scan_prefix(&self, prefix: OwnedKey) -> OwnedKeyValPairIter<'_> {
 		let mode = IteratorMode::From(&prefix, Direction::Forward);
 		let read_options = read_options_default();
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn increment(&self, key: &Key) -> Result<[Byte; size_of::<u64>()]> {
 		let old = self.get(key)?;
 		let new = utils::increment(old.as_deref());
@@ -164,6 +174,7 @@ impl Map {
 		Ok(new)
 	}
 
+	#[tracing::instrument(skip(self, iter), level = "trace")]
 	pub fn increment_batch<'a, I>(&'a self, iter: I) -> Result<()>
 	where
 		I: Iterator<Item = &'a Key>,
