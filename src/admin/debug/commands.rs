@@ -213,7 +213,7 @@ pub(super) async fn get_remote_pdu(
 				Error::BadRequest(ErrorKind::Unknown, "Received response from server but failed to parse PDU")
 			})?;
 
-			debug!("Attempting to parse PDU: {:?}", &response.pdu);
+			trace!("Attempting to parse PDU: {:?}", &response.pdu);
 			let parsed_pdu = {
 				let parsed_result = self
 					.services
