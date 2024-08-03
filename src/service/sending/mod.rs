@@ -1,5 +1,6 @@
 mod appservice;
 mod data;
+mod dest;
 mod send;
 mod sender;
 
@@ -9,16 +10,18 @@ use async_trait::async_trait;
 use conduit::{err, warn, Result, Server};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
-	OwnedServerName, OwnedUserId, RoomId, ServerName, UserId,
+	OwnedServerName, RoomId, ServerName, UserId,
 };
 use tokio::sync::Mutex;
 
+use self::data::Data;
+pub use self::dest::Destination;
 use crate::{account_data, client, globals, presence, pusher, resolver, rooms, users, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
 	services: Services,
-	pub db: data::Data,
+	pub db: Data,
 	sender: loole::Sender<Msg>,
 	receiver: Mutex<loole::Receiver<Msg>>,
 }
@@ -44,13 +47,6 @@ struct Msg {
 	dest: Destination,
 	event: SendingEvent,
 	queue_id: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Destination {
-	Appservice(String),
-	Push(OwnedUserId, String), // user and pushkey
-	Normal(OwnedServerName),
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -82,7 +78,7 @@ impl crate::Service for Service {
 				appservice: args.depend::<crate::appservice::Service>("appservice"),
 				pusher: args.depend::<pusher::Service>("pusher"),
 			},
-			db: data::Data::new(&args),
+			db: Data::new(&args),
 			sender,
 			receiver: Mutex::new(receiver),
 		}))
@@ -278,51 +274,5 @@ impl Service {
 		debug_assert!(!self.sender.is_full(), "channel full");
 		debug_assert!(!self.sender.is_closed(), "channel closed");
 		self.sender.send(msg).map_err(|e| err!("{e}"))
-	}
-}
-
-impl Destination {
-	#[must_use]
-	pub fn get_prefix(&self) -> Vec<u8> {
-		match self {
-			Self::Normal(server) => {
-				let len = server.as_bytes().len().saturating_add(1);
-
-				let mut p = Vec::with_capacity(len);
-				p.extend_from_slice(server.as_bytes());
-				p.push(0xFF);
-				p
-			},
-			Self::Appservice(server) => {
-				let sigil = b"+";
-				let len = sigil
-					.len()
-					.saturating_add(server.as_bytes().len())
-					.saturating_add(1);
-
-				let mut p = Vec::with_capacity(len);
-				p.extend_from_slice(sigil);
-				p.extend_from_slice(server.as_bytes());
-				p.push(0xFF);
-				p
-			},
-			Self::Push(user, pushkey) => {
-				let sigil = b"$";
-				let len = sigil
-					.len()
-					.saturating_add(user.as_bytes().len())
-					.saturating_add(1)
-					.saturating_add(pushkey.as_bytes().len())
-					.saturating_add(1);
-
-				let mut p = Vec::with_capacity(len);
-				p.extend_from_slice(sigil);
-				p.extend_from_slice(user.as_bytes());
-				p.push(0xFF);
-				p.extend_from_slice(pushkey.as_bytes());
-				p.push(0xFF);
-				p
-			},
-		}
 	}
 }
