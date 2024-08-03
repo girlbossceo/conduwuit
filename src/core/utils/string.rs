@@ -31,6 +31,16 @@ macro_rules! is_format {
 }
 
 #[inline]
+pub fn collect_stream<F>(func: F) -> Result<String>
+where
+	F: FnOnce(&mut dyn std::fmt::Write) -> Result<()>,
+{
+	let mut out = String::new();
+	func(&mut out)?;
+	Ok(out)
+}
+
+#[inline]
 #[must_use]
 pub fn camel_to_snake_string(s: &str) -> String {
 	let est_len = s
