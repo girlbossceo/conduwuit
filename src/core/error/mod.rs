@@ -62,6 +62,8 @@ pub enum Error {
 	TomlSerError(#[from] toml::ser::Error),
 	#[error("{0}")]
 	TomlDeError(#[from] toml::de::Error),
+	#[error("{0}")]
+	Clap(#[from] clap::error::Error),
 
 	// ruma
 	#[error("{0}")]

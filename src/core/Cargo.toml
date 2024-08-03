@@ -57,6 +57,7 @@ bytes.workspace = true
 cargo_toml.workspace = true
 checked_ops.workspace = true
 chrono.workspace = true
+clap.workspace = true
 conduit-macros.workspace = true
 const-str.workspace = true
 ctor.workspace = true

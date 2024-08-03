@@ -639,6 +639,7 @@ dependencies = [
  "cargo_toml",
  "checked_ops",
  "chrono",
+ "clap",
  "conduit_macros",
  "const-str",
  "ctor",
