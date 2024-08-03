@@ -360,7 +360,7 @@ version = "0.21.0"
 version = "0.2.0"
 
 [workspace.dependencies.tracing-opentelemetry]
-version = "0.22.0"
+version = "0.25.0"
 
 [workspace.dependencies.opentelemetry_sdk]
 version = "0.21.2"
