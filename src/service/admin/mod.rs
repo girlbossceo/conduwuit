@@ -51,9 +51,9 @@ pub struct CommandInput {
 }
 
 pub type Completer = fn(&str) -> String;
-pub type Handler = fn(Arc<crate::Services>, CommandInput) -> HandlerResult;
-pub type HandlerResult = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
-pub type CommandResult = Result<CommandOutput, Error>;
+pub type Handler = fn(Arc<crate::Services>, CommandInput) -> HandlerFuture;
+pub type HandlerFuture = Pin<Box<dyn Future<Output = HandlerResult> + Send>>;
+pub type HandlerResult = Result<CommandOutput>;
 pub type CommandOutput = Option<RoomMessageEventContent>;
 
 const COMMAND_QUEUE_LIMIT: usize = 512;
@@ -173,7 +173,7 @@ impl Service {
 		}
 	}
 
-	async fn process_command(&self, command: CommandInput) -> CommandResult {
+	async fn process_command(&self, command: CommandInput) -> HandlerResult {
 		let Some(services) = self
 			.services
 			.services
