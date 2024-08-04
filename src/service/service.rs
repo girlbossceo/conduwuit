@@ -97,7 +97,10 @@ impl<'a> Args<'a> {
 
 /// Reference a Service by name. Panics if the Service does not exist or was
 /// incorrectly cast.
-pub(crate) fn require<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name: &'a str) -> Arc<T> {
+pub(crate) fn require<'a, 'b, T>(map: &'b Map, name: &'a str) -> Arc<T>
+where
+	T: Send + Sync + 'a + 'b + 'static,
+{
 	try_get::<T>(map, name)
 		.inspect_err(inspect_log)
 		.expect("Failure to reference service required by another service.")
@@ -109,7 +112,10 @@ pub(crate) fn require<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, 
 /// # Panics
 /// Incorrect type is not a silent failure (None) as the type never has a reason
 /// to be incorrect.
-pub(crate) fn get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name: &'a str) -> Option<Arc<T>> {
+pub(crate) fn get<'a, 'b, T>(map: &'b Map, name: &'a str) -> Option<Arc<T>>
+where
+	T: Send + Sync + 'a + 'b + 'static,
+{
 	map.read()
 		.expect("locked for reading")
 		.get(name)
@@ -123,7 +129,10 @@ pub(crate) fn get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name
 
 /// Reference a Service by name. Returns Err if the Service does not exist or
 /// was incorrectly cast.
-pub(crate) fn try_get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(map: &'b Map, name: &'a str) -> Result<Arc<T>> {
+pub(crate) fn try_get<'a, 'b, T>(map: &'b Map, name: &'a str) -> Result<Arc<T>>
+where
+	T: Send + Sync + 'a + 'b + 'static,
+{
 	map.read()
 		.expect("locked for reading")
 		.get(name)
