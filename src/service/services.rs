@@ -193,11 +193,17 @@ impl Services {
 		}
 	}
 
-	pub fn try_get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(&'b self, name: &'a str) -> Result<Arc<T>> {
+	pub fn try_get<'a, 'b, T>(&'b self, name: &'a str) -> Result<Arc<T>>
+	where
+		T: Send + Sync + 'a + 'b + 'static,
+	{
 		service::try_get::<T>(&self.service, name)
 	}
 
-	pub fn get<'a, 'b, T: Send + Sync + 'a + 'b + 'static>(&'b self, name: &'a str) -> Option<Arc<T>> {
+	pub fn get<'a, 'b, T>(&'b self, name: &'a str) -> Option<Arc<T>>
+	where
+		T: Send + Sync + 'a + 'b + 'static,
+	{
 		service::get::<T>(&self.service, name)
 	}
 }
