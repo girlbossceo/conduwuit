@@ -2,6 +2,7 @@ mod err;
 mod log;
 mod panic;
 mod response;
+mod serde;
 
 use std::{any::Any, borrow::Cow, convert::Infallible, fmt};
 
@@ -56,6 +57,10 @@ pub enum Error {
 	Regex(#[from] regex::Error),
 	#[error("Request error: {0}")]
 	Reqwest(#[from] reqwest::Error),
+	#[error("{0}")]
+	SerdeDe(Cow<'static, str>),
+	#[error("{0}")]
+	SerdeSer(Cow<'static, str>),
 	#[error(transparent)]
 	TomlDe(#[from] toml::de::Error),
 	#[error(transparent)]
