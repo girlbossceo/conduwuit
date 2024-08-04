@@ -1,8 +1,8 @@
-use std::{cmp, time::Duration};
+use std::{cmp, convert::TryFrom, time::Duration};
 
 pub use checked_ops::checked_ops;
 
-use crate::{Err, Error, Result};
+use crate::{debug::type_name, err, Err, Error, Result};
 
 /// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
 #[macro_export]
@@ -86,3 +86,17 @@ pub fn ruma_from_usize(val: usize) -> ruma::UInt {
 #[must_use]
 #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
 pub fn usize_from_u64_truncated(val: u64) -> usize { val as usize }
+
+#[inline]
+pub fn try_into<Dst: TryFrom<Src>, Src>(src: Src) -> Result<Dst> {
+	Dst::try_from(src).map_err(try_into_err::<Dst, Src>)
+}
+
+fn try_into_err<Dst: TryFrom<Src>, Src>(e: <Dst as TryFrom<Src>>::Error) -> Error {
+	drop(e);
+	err!(Arithmetic(
+		"failed to convert from {} to {}",
+		type_name::<Src>(),
+		type_name::<Dst>()
+	))
+}
