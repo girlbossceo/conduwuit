@@ -87,7 +87,7 @@ fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -
 // Parse and process a message from the admin room
 async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) -> CommandOutput {
 	let filter: &capture::Filter =
-		&|data| data.level() <= Level::DEBUG && data.mod_name().starts_with("conduit") && data.scope.contains(&"admin");
+		&|data| data.level() <= Level::DEBUG && data.our_modules() && data.scope.contains(&"admin");
 	let logs = Arc::new(Mutex::new(
 		collect_stream(|s| markdown_table_head(s)).expect("markdown table header"),
 	));
