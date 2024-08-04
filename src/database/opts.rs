@@ -1,6 +1,6 @@
-use std::{cmp, collections::HashMap};
+use std::{cmp, collections::HashMap, convert::TryFrom};
 
-use conduit::{utils, Config};
+use conduit::{utils, Config, Result};
 use rocksdb::{
 	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env,
 	LogLevel, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
@@ -11,8 +11,7 @@ use rocksdb::{
 /// resulting value. Note that we require special per-column options on some
 /// columns, therefor columns should only be opened after passing this result
 /// through cf_options().
-pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_cache: &Cache) -> Options {
-	const MIN_PARALLELISM: usize = 2;
+pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_cache: &Cache) -> Result<Options> {
 	const DEFAULT_STATS_LEVEL: StatsLevel = if cfg!(debug_assertions) {
 		StatsLevel::ExceptDetailedTimers
 	} else {
@@ -25,14 +24,9 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	set_logging_defaults(&mut opts, config);
 
 	// Processing
-	let threads = if config.rocksdb_parallelism_threads == 0 {
-		cmp::max(MIN_PARALLELISM, utils::available_parallelism())
-	} else {
-		cmp::max(MIN_PARALLELISM, config.rocksdb_parallelism_threads)
-	};
-
-	opts.set_max_background_jobs(threads.try_into().unwrap());
-	opts.set_max_subcompactions(threads.try_into().unwrap());
+	opts.set_enable_pipelined_write(true);
+	opts.set_max_background_jobs(num_threads::<i32>(config)?);
+	opts.set_max_subcompactions(num_threads::<u32>(config)?);
 	opts.set_max_file_opening_threads(0);
 	if config.rocksdb_compaction_prio_idle {
 		env.lower_thread_pool_cpu_priority();
@@ -100,13 +94,15 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	});
 
 	opts.set_env(env);
-	opts
+	Ok(opts)
 }
 
 /// Adjust options for the specific column by name. Provide the result of
 /// db_options() as the argument to this function and use the return value in
 /// the arguments to open the specific column.
-pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mut HashMap<String, Cache>) -> Options {
+pub(crate) fn cf_options(
+	cfg: &Config, name: &str, mut opts: Options, cache: &mut HashMap<String, Cache>,
+) -> Result<Options> {
 	// Columns with non-default compaction options
 	match name {
 		"backupid_algorithm"
@@ -169,7 +165,7 @@ pub(crate) fn cf_options(cfg: &Config, name: &str, mut opts: Options, cache: &mu
 		&_ => {},
 	}
 
-	opts
+	Ok(opts)
 }
 
 fn set_logging_defaults(opts: &mut Options, config: &Config) {
@@ -345,4 +341,16 @@ fn table_options(_config: &Config) -> BlockBasedOptions {
 	opts.set_pin_top_level_index_and_filter(true);
 
 	opts
+}
+
+fn num_threads<T: TryFrom<usize>>(config: &Config) -> Result<T> {
+	const MIN_PARALLELISM: usize = 2;
+
+	let requested = if config.rocksdb_parallelism_threads != 0 {
+		config.rocksdb_parallelism_threads
+	} else {
+		utils::available_parallelism()
+	};
+
+	utils::math::try_into::<T, usize>(cmp::max(MIN_PARALLELISM, requested))
 }
