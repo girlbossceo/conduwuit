@@ -19,7 +19,7 @@ OCI images for conduwuit are available in the registries listed below.
 
 [dh]: https://hub.docker.com/r/girlbossceo/conduwuit
 [gh]: https://github.com/girlbossceo/conduwuit/pkgs/container/conduwuit
-[gl]: https://gitlab.com/conduwuit/conduwuit/container_registry/6351657
+[gl]: https://gitlab.com/conduwuit/conduwuit/container_registry/6369729
 [shield-latest]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/latest
 [shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
 
