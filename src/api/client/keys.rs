@@ -21,7 +21,10 @@ use ruma::{
 use serde_json::json;
 
 use super::SESSION_ID_LENGTH;
-use crate::{service::Services, Ruma};
+use crate::{
+	service::{users::parse_master_key, Services},
+	Ruma,
+};
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
@@ -386,14 +389,14 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	while let Some((server, response)) = futures.next().await {
 		if let Ok(Ok(response)) = response {
 			for (user, masterkey) in response.master_keys {
-				let (master_key_id, mut master_key) = services.users.parse_master_key(&user, &masterkey)?;
+				let (master_key_id, mut master_key) = parse_master_key(&user, &masterkey)?;
 
 				if let Some(our_master_key) =
 					services
 						.users
 						.get_key(&master_key_id, sender_user, &user, &allowed_signatures)?
 				{
-					let (_, our_master_key) = services.users.parse_master_key(&user, &our_master_key)?;
+					let (_, our_master_key) = parse_master_key(&user, &our_master_key)?;
 					master_key.signatures.extend(our_master_key.signatures);
 				}
 				let json = serde_json::to_value(master_key).expect("to_value always works");

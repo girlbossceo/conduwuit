@@ -17,7 +17,7 @@ pub(super) async fn process(subcommand: UsersCommand, context: &Command<'_>) -> 
 	match subcommand {
 		UsersCommand::Iter => {
 			let timer = tokio::time::Instant::now();
-			let results = services.users.db.iter();
+			let results = services.users.iter();
 			let users = results.collect::<Vec<_>>();
 			let query_time = timer.elapsed();
 
