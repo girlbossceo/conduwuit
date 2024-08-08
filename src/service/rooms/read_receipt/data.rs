@@ -56,7 +56,7 @@ impl Data {
 					== user_id.as_bytes()
 			}) {
 			// This is the old room_latest
-			self.readreceiptid_readreceipt.remove(&old)?;
+			self.readreceiptid_readreceipt.remove(&old);
 		}
 
 		let mut room_latest_id = prefix;
@@ -67,7 +67,7 @@ impl Data {
 		self.readreceiptid_readreceipt.insert(
 			&room_latest_id,
 			&serde_json::to_vec(event).expect("EduEvent::to_string always works"),
-		)?;
+		);
 
 		Ok(())
 	}
@@ -114,10 +114,12 @@ impl Data {
 		key.extend_from_slice(user_id.as_bytes());
 
 		self.roomuserid_privateread
-			.insert(&key, &count.to_be_bytes())?;
+			.insert(&key, &count.to_be_bytes());
 
 		self.roomuserid_lastprivatereadupdate
-			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
+
+		Ok(())
 	}
 
 	pub(super) fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
@@ -125,13 +127,11 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
 
-		self.roomuserid_privateread
-			.get(&key)?
-			.map_or(Ok(None), |v| {
-				Ok(Some(
-					utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
-				))
-			})
+		self.roomuserid_privateread.get(&key).map_or(Ok(None), |v| {
+			Ok(Some(
+				utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
+			))
+		})
 	}
 
 	pub(super) fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
@@ -141,7 +141,7 @@ impl Data {
 
 		Ok(self
 			.roomuserid_lastprivatereadupdate
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid."))

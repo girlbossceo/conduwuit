@@ -16,15 +16,17 @@ impl Data {
 	}
 
 	pub(super) fn set_public(&self, room_id: &RoomId) -> Result<()> {
-		self.publicroomids.insert(room_id.as_bytes(), &[])
+		self.publicroomids.insert(room_id.as_bytes(), &[]);
+		Ok(())
 	}
 
 	pub(super) fn set_not_public(&self, room_id: &RoomId) -> Result<()> {
-		self.publicroomids.remove(room_id.as_bytes())
+		self.publicroomids.remove(room_id.as_bytes());
+		Ok(())
 	}
 
 	pub(super) fn is_public_room(&self, room_id: &RoomId) -> Result<bool> {
-		Ok(self.publicroomids.get(room_id.as_bytes())?.is_some())
+		Ok(self.publicroomids.get(room_id.as_bytes()).is_some())
 	}
 
 	pub(super) fn public_rooms<'a>(&'a self) -> Box<dyn Iterator<Item = Result<OwnedRoomId>> + 'a> {

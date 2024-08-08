@@ -10,7 +10,7 @@ use crate::Command;
 #[implement(Command, params = "<'_>")]
 pub(super) async fn check_all_users(&self) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
-	let results = self.services.users.db.iter();
+	let results = self.services.users.iter();
 	let query_time = timer.elapsed();
 
 	let users = results.collect::<Vec<_>>();

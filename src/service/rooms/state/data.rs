@@ -23,7 +23,7 @@ impl Data {
 
 	pub(super) fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_shortstatehash
-			.get(room_id.as_bytes())?
+			.get(room_id.as_bytes())
 			.map_or(Ok(None), |bytes| {
 				Ok(Some(utils::u64_from_bytes(&bytes).map_err(|_| {
 					Error::bad_database("Invalid shortstatehash in roomid_shortstatehash")
@@ -39,13 +39,13 @@ impl Data {
 		_mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
 		self.roomid_shortstatehash
-			.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes())?;
+			.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes());
 		Ok(())
 	}
 
 	pub(super) fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) -> Result<()> {
 		self.shorteventid_shortstatehash
-			.insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes())?;
+			.insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes());
 		Ok(())
 	}
 
@@ -75,13 +75,13 @@ impl Data {
 		prefix.push(0xFF);
 
 		for (key, _) in self.roomid_pduleaves.scan_prefix(prefix.clone()) {
-			self.roomid_pduleaves.remove(&key)?;
+			self.roomid_pduleaves.remove(&key);
 		}
 
 		for event_id in event_ids {
 			let mut key = prefix.clone();
 			key.extend_from_slice(event_id.as_bytes());
-			self.roomid_pduleaves.insert(&key, event_id.as_bytes())?;
+			self.roomid_pduleaves.insert(&key, event_id.as_bytes());
 		}
 
 		Ok(())

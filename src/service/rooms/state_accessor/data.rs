@@ -145,10 +145,10 @@ impl Data {
 	/// Returns the state hash for this pdu.
 	pub(super) fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> {
 		self.eventid_shorteventid
-			.get(event_id.as_bytes())?
+			.get(event_id.as_bytes())
 			.map_or(Ok(None), |shorteventid| {
 				self.shorteventid_shortstatehash
-					.get(&shorteventid)?
+					.get(&shorteventid)
 					.map(|bytes| {
 						utils::u64_from_bytes(&bytes).map_err(|_| {
 							Error::bad_database("Invalid shortstatehash bytes in shorteventid_shortstatehash")

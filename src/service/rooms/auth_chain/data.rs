@@ -35,7 +35,7 @@ impl Data {
 			// Check DB cache
 			let chain = self
 				.shorteventid_authchain
-				.get(&key[0].to_be_bytes())?
+				.get(&key[0].to_be_bytes())
 				.map(|chain| {
 					chain
 						.chunks_exact(size_of::<u64>())
@@ -66,7 +66,7 @@ impl Data {
 					.iter()
 					.flat_map(|s| s.to_be_bytes().to_vec())
 					.collect::<Vec<u8>>(),
-			)?;
+			);
 		}
 
 		// Cache in RAM

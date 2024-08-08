@@ -60,10 +60,10 @@ impl Data {
 			self.userdevicesessionid_uiaainfo.insert(
 				&userdevicesessionid,
 				&serde_json::to_vec(&uiaainfo).expect("UiaaInfo::to_vec always works"),
-			)?;
+			);
 		} else {
 			self.userdevicesessionid_uiaainfo
-				.remove(&userdevicesessionid)?;
+				.remove(&userdevicesessionid);
 		}
 
 		Ok(())
@@ -79,7 +79,7 @@ impl Data {
 		serde_json::from_slice(
 			&self
 				.userdevicesessionid_uiaainfo
-				.get(&userdevicesessionid)?
+				.get(&userdevicesessionid)
 				.ok_or(Error::BadRequest(ErrorKind::forbidden(), "UIAA session does not exist."))?,
 		)
 		.map_err(|_| Error::bad_database("UiaaInfo in userdeviceid_uiaainfo is invalid."))

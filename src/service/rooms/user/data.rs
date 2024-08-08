@@ -45,12 +45,12 @@ impl Data {
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
 		self.userroomid_notificationcount
-			.insert(&userroom_id, &0_u64.to_be_bytes())?;
+			.insert(&userroom_id, &0_u64.to_be_bytes());
 		self.userroomid_highlightcount
-			.insert(&userroom_id, &0_u64.to_be_bytes())?;
+			.insert(&userroom_id, &0_u64.to_be_bytes());
 
 		self.roomuserid_lastnotificationread
-			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes());
 
 		Ok(())
 	}
@@ -61,7 +61,7 @@ impl Data {
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
 		self.userroomid_notificationcount
-			.get(&userroom_id)?
+			.get(&userroom_id)
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid notification count in db."))
 			})
@@ -73,7 +73,7 @@ impl Data {
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
 		self.userroomid_highlightcount
-			.get(&userroom_id)?
+			.get(&userroom_id)
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid highlight count in db."))
 			})
@@ -86,7 +86,7 @@ impl Data {
 
 		Ok(self
 			.roomuserid_lastnotificationread
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid."))
@@ -108,7 +108,9 @@ impl Data {
 		key.extend_from_slice(&token.to_be_bytes());
 
 		self.roomsynctoken_shortstatehash
-			.insert(&key, &shortstatehash.to_be_bytes())
+			.insert(&key, &shortstatehash.to_be_bytes());
+
+		Ok(())
 	}
 
 	pub(super) fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
@@ -122,7 +124,7 @@ impl Data {
 		key.extend_from_slice(&token.to_be_bytes());
 
 		self.roomsynctoken_shortstatehash
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("Invalid shortstatehash in roomsynctoken_shortstatehash"))

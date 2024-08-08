@@ -72,8 +72,7 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 
 	self.services
 		.users
-		.set_displayname(&user_id, Some(displayname))
-		.await?;
+		.set_displayname(&user_id, Some(displayname))?;
 
 	// Initial account data
 	self.services.account_data.update(

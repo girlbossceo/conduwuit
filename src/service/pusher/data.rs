@@ -25,14 +25,15 @@ impl Data {
 				key.push(0xFF);
 				key.extend_from_slice(data.pusher.ids.pushkey.as_bytes());
 				self.senderkey_pusher
-					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"))?;
+					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"));
 				Ok(())
 			},
 			set_pusher::v3::PusherAction::Delete(ids) => {
 				let mut key = sender.as_bytes().to_vec();
 				key.push(0xFF);
 				key.extend_from_slice(ids.pushkey.as_bytes());
-				self.senderkey_pusher.remove(&key).map_err(Into::into)
+				self.senderkey_pusher.remove(&key);
+				Ok(())
 			},
 		}
 	}
@@ -43,7 +44,7 @@ impl Data {
 		senderkey.extend_from_slice(pushkey.as_bytes());
 
 		self.senderkey_pusher
-			.get(&senderkey)?
+			.get(&senderkey)
 			.map(|push| serde_json::from_slice(&push).map_err(|_| Error::bad_database("Invalid Pusher in db.")))
 			.transpose()
 	}

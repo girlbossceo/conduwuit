@@ -49,7 +49,7 @@ impl Engine {
 
 		let mut db_env = Env::new().or_else(or_else)?;
 		let row_cache = Cache::new_lru_cache(row_cache_capacity_bytes);
-		let db_opts = db_options(config, &mut db_env, &row_cache, col_cache.get("primary").expect("cache"));
+		let db_opts = db_options(config, &mut db_env, &row_cache, col_cache.get("primary").expect("cache"))?;
 
 		let load_time = std::time::Instant::now();
 		if config.rocksdb_repair {
@@ -63,9 +63,15 @@ impl Engine {
 			.collect::<BTreeSet<_>>();
 
 		debug!("Opening {} column family descriptors in database", cfs.len());
+		let cfopts = cfs
+			.iter()
+			.map(|name| cf_options(config, name, db_opts.clone(), &mut col_cache))
+			.collect::<Result<Vec<_>>>()?;
+
 		let cfds = cfs
 			.iter()
-			.map(|name| ColumnFamilyDescriptor::new(name, cf_options(config, name, db_opts.clone(), &mut col_cache)))
+			.zip(cfopts.into_iter())
+			.map(|(name, opts)| ColumnFamilyDescriptor::new(name, opts))
 			.collect::<Vec<_>>();
 
 		debug!("Opening database...");
@@ -102,7 +108,7 @@ impl Engine {
 			debug!("Creating new column family in database: {name}");
 
 			let mut col_cache = self.col_cache.write().expect("locked");
-			let opts = cf_options(&self.server.config, name, self.opts.clone(), &mut col_cache);
+			let opts = cf_options(&self.server.config, name, self.opts.clone(), &mut col_cache)?;
 			if let Err(e) = self.db.create_cf(name, &opts) {
 				error!(?name, "Failed to create new column family: {e}");
 				return or_else(e);

@@ -83,7 +83,7 @@ impl Data {
 			.checked_add(1)
 			.expect("counter must not overflow u64");
 
-		self.global.insert(COUNTER, &counter.to_be_bytes())?;
+		self.global.insert(COUNTER, &counter.to_be_bytes());
 
 		Ok(*counter)
 	}
@@ -102,7 +102,7 @@ impl Data {
 
 	fn stored_count(global: &Arc<Map>) -> Result<u64> {
 		global
-			.get(COUNTER)?
+			.get(COUNTER)
 			.as_deref()
 			.map_or(Ok(0_u64), utils::u64_from_bytes)
 	}
@@ -209,10 +209,10 @@ impl Data {
 	}
 
 	pub fn load_keypair(&self) -> Result<Ed25519KeyPair> {
-		let keypair_bytes = self.global.get(b"keypair")?.map_or_else(
+		let keypair_bytes = self.global.get(b"keypair").map_or_else(
 			|| {
 				let keypair = utils::generate_keypair();
-				self.global.insert(b"keypair", &keypair)?;
+				self.global.insert(b"keypair", &keypair);
 				Ok::<_, Error>(keypair)
 			},
 			|val| Ok(val.to_vec()),
@@ -241,7 +241,10 @@ impl Data {
 	}
 
 	#[inline]
-	pub fn remove_keypair(&self) -> Result<()> { self.global.remove(b"keypair") }
+	pub fn remove_keypair(&self) -> Result<()> {
+		self.global.remove(b"keypair");
+		Ok(())
+	}
 
 	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
 	/// in room version > 4
@@ -254,7 +257,7 @@ impl Data {
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
 	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
 		// Not atomic, but this is not critical
-		let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
+		let signingkeys = self.server_signingkeys.get(origin.as_bytes());
 
 		let mut keys = signingkeys
 			.and_then(|keys| serde_json::from_slice(&keys).ok())
@@ -275,7 +278,7 @@ impl Data {
 		self.server_signingkeys.insert(
 			origin.as_bytes(),
 			&serde_json::to_vec(&keys).expect("serversigningkeys can be serialized"),
-		)?;
+		);
 
 		let mut tree = keys.verify_keys;
 		tree.extend(
@@ -308,21 +311,21 @@ impl Data {
 	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<Option<ServerSigningKeys>> {
 		let signingkeys = self
 			.server_signingkeys
-			.get(origin.as_bytes())?
+			.get(origin.as_bytes())
 			.and_then(|bytes| serde_json::from_slice(&bytes).ok());
 
 		Ok(signingkeys)
 	}
 
 	pub fn database_version(&self) -> Result<u64> {
-		self.global.get(b"version")?.map_or(Ok(0), |version| {
+		self.global.get(b"version").map_or(Ok(0), |version| {
 			utils::u64_from_bytes(&version).map_err(|_| Error::bad_database("Database version id is invalid."))
 		})
 	}
 
 	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
-		self.global.insert(b"version", &new_version.to_be_bytes())?;
+		self.global.insert(b"version", &new_version.to_be_bytes());
 		Ok(())
 	}
 

@@ -1,13 +1,13 @@
-use std::{ffi::CStr, future::Future, mem::size_of, pin::Pin, sync::Arc};
+use std::{ffi::CStr, future::Future, pin::Pin, sync::Arc};
 
-use conduit::{utils, Result};
+use conduit::Result;
 use rocksdb::{
 	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
 };
 
 use crate::{
 	or_else, result,
-	slice::{Byte, Key, KeyVal, OwnedKey, OwnedKeyValPair, OwnedVal, Val},
+	slice::{Key, KeyVal, OwnedKey, OwnedKeyValPair, OwnedVal, Val},
 	watchers::Watchers,
 	Engine, Handle, Iter,
 };
@@ -35,14 +35,16 @@ impl Map {
 		}))
 	}
 
-	pub fn get(&self, key: &Key) -> Result<Option<Handle<'_>>> {
+	#[tracing::instrument(skip(self), level = "trace")]
+	pub fn get(&self, key: &Key) -> Option<Handle<'_>> {
 		let read_options = &self.read_options;
 		let res = self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options);
 
-		Ok(result(res)?.map(Handle::from))
+		result(res).expect("database query error").map(Handle::from)
 	}
 
-	pub fn multi_get(&self, keys: &[&Key]) -> Result<Vec<Option<OwnedVal>>> {
+	#[tracing::instrument(skip(self), level = "trace")]
+	pub fn multi_get(&self, keys: &[&Key]) -> Vec<Option<OwnedVal>> {
 		// Optimization can be `true` if key vector is pre-sorted **by the column
 		// comparator**.
 		const SORTED: bool = false;
@@ -57,30 +59,31 @@ impl Map {
 			match res {
 				Ok(Some(res)) => ret.push(Some((*res).to_vec())),
 				Ok(None) => ret.push(None),
-				Err(e) => return or_else(e),
+				Err(e) => or_else(e).expect("database multiget error"),
 			}
 		}
 
-		Ok(ret)
+		ret
 	}
 
-	pub fn insert(&self, key: &Key, value: &Val) -> Result<()> {
+	#[tracing::instrument(skip(self), level = "trace")]
+	pub fn insert(&self, key: &Key, value: &Val) {
 		let write_options = &self.write_options;
 		self.db
 			.db
 			.put_cf_opt(&self.cf(), key, value, write_options)
-			.or_else(or_else)?;
+			.or_else(or_else)
+			.expect("database insert error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
 
 		self.watchers.wake(key);
-
-		Ok(())
 	}
 
-	pub fn insert_batch<'a, I>(&'a self, iter: I) -> Result<()>
+	#[tracing::instrument(skip(self, iter), level = "trace")]
+	pub fn insert_batch<'a, I>(&'a self, iter: I)
 	where
 		I: Iterator<Item = KeyVal<'a>>,
 	{
@@ -90,27 +93,33 @@ impl Map {
 		}
 
 		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
+		self.db
+			.db
+			.write_opt(batch, write_options)
+			.or_else(or_else)
+			.expect("database insert batch error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
-
-		result(res)
 	}
 
-	pub fn remove(&self, key: &Key) -> Result<()> {
+	#[tracing::instrument(skip(self), level = "trace")]
+	pub fn remove(&self, key: &Key) {
 		let write_options = &self.write_options;
-		let res = self.db.db.delete_cf_opt(&self.cf(), key, write_options);
+		self.db
+			.db
+			.delete_cf_opt(&self.cf(), key, write_options)
+			.or_else(or_else)
+			.expect("database remove error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
-
-		result(res)
 	}
 
-	pub fn remove_batch<'a, I>(&'a self, iter: I) -> Result<()>
+	#[tracing::instrument(skip(self, iter), level = "trace")]
+	pub fn remove_batch<'a, I>(&'a self, iter: I)
 	where
 		I: Iterator<Item = &'a Key>,
 	{
@@ -120,21 +129,25 @@ impl Map {
 		}
 
 		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
+		self.db
+			.db
+			.write_opt(batch, write_options)
+			.or_else(or_else)
+			.expect("database remove batch error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
-
-		result(res)
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn iter(&self) -> OwnedKeyValPairIter<'_> {
 		let mode = IteratorMode::Start;
 		let read_options = read_options_default();
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn iter_from(&self, from: &Key, reverse: bool) -> OwnedKeyValPairIter<'_> {
 		let direction = if reverse {
 			Direction::Reverse
@@ -146,43 +159,11 @@ impl Map {
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn scan_prefix(&self, prefix: OwnedKey) -> OwnedKeyValPairIter<'_> {
 		let mode = IteratorMode::From(&prefix, Direction::Forward);
 		let read_options = read_options_default();
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
-	}
-
-	pub fn increment(&self, key: &Key) -> Result<[Byte; size_of::<u64>()]> {
-		let old = self.get(key)?;
-		let new = utils::increment(old.as_deref());
-		self.insert(key, &new)?;
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		Ok(new)
-	}
-
-	pub fn increment_batch<'a, I>(&'a self, iter: I) -> Result<()>
-	where
-		I: Iterator<Item = &'a Key>,
-	{
-		let mut batch = WriteBatchWithTransaction::<false>::default();
-		for key in iter {
-			let old = self.get(key)?;
-			let new = utils::increment(old.as_deref());
-			batch.put_cf(&self.cf(), key, new);
-		}
-
-		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		result(res)
 	}
 
 	pub fn watch_prefix<'a>(&'a self, prefix: &Key) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {

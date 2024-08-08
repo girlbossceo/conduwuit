@@ -24,7 +24,7 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(txn_id.as_bytes());
 
-		self.userdevicetxnid_response.insert(&key, data)?;
+		self.userdevicetxnid_response.insert(&key, data);
 
 		Ok(())
 	}
@@ -39,6 +39,6 @@ impl Data {
 		key.extend_from_slice(txn_id.as_bytes());
 
 		// If there's no entry, this is a new transaction
-		self.userdevicetxnid_response.get(&key)
+		Ok(self.userdevicetxnid_response.get(&key))
 	}
 }

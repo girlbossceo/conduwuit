@@ -36,7 +36,7 @@ impl Data {
 	pub(super) fn add_relation(&self, from: u64, to: u64) -> Result<()> {
 		let mut key = to.to_be_bytes().to_vec();
 		key.extend_from_slice(&from.to_be_bytes());
-		self.tofrom_relation.insert(&key, &[])?;
+		self.tofrom_relation.insert(&key, &[]);
 		Ok(())
 	}
 
@@ -83,7 +83,7 @@ impl Data {
 		for prev in event_ids {
 			let mut key = room_id.as_bytes().to_vec();
 			key.extend_from_slice(prev.as_bytes());
-			self.referencedevents.insert(&key, &[])?;
+			self.referencedevents.insert(&key, &[]);
 		}
 
 		Ok(())
@@ -92,16 +92,15 @@ impl Data {
 	pub(super) fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.extend_from_slice(event_id.as_bytes());
-		Ok(self.referencedevents.get(&key)?.is_some())
+		Ok(self.referencedevents.get(&key).is_some())
 	}
 
 	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> {
-		self.softfailedeventids.insert(event_id.as_bytes(), &[])
+		self.softfailedeventids.insert(event_id.as_bytes(), &[]);
+		Ok(())
 	}
 
 	pub(super) fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
-		self.softfailedeventids
-			.get(event_id.as_bytes())
-			.map(|o| o.is_some())
+		Ok(self.softfailedeventids.get(event_id.as_bytes()).is_some())
 	}
 }

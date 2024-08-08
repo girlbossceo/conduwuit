@@ -25,7 +25,7 @@ impl Data {
 	pub(super) fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
 		let value = self
 			.shortstatehash_statediff
-			.get(&shortstatehash.to_be_bytes())?
+			.get(&shortstatehash.to_be_bytes())
 			.ok_or_else(|| Error::bad_database("State hash does not exist"))?;
 		let parent = utils::u64_from_bytes(&value[0..size_of::<u64>()]).expect("bytes have right length");
 		let parent = if parent != 0 {
@@ -75,6 +75,8 @@ impl Data {
 		}
 
 		self.shortstatehash_statediff
-			.insert(&shortstatehash.to_be_bytes(), &value)
+			.insert(&shortstatehash.to_be_bytes(), &value);
+
+		Ok(())
 	}
 }

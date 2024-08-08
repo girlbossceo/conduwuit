@@ -66,16 +66,16 @@ impl Data {
 		self.roomuserdataid_accountdata.insert(
 			&roomuserdataid,
 			&serde_json::to_vec(&data).expect("to_vec always works on json values"),
-		)?;
+		);
 
-		let prev = self.roomusertype_roomuserdataid.get(&key)?;
+		let prev = self.roomusertype_roomuserdataid.get(&key);
 
 		self.roomusertype_roomuserdataid
-			.insert(&key, &roomuserdataid)?;
+			.insert(&key, &roomuserdataid);
 
 		// Remove old entry
 		if let Some(prev) = prev {
-			self.roomuserdataid_accountdata.remove(&prev)?;
+			self.roomuserdataid_accountdata.remove(&prev);
 		}
 
 		Ok(())
@@ -96,13 +96,8 @@ impl Data {
 		key.extend_from_slice(kind.to_string().as_bytes());
 
 		self.roomusertype_roomuserdataid
-			.get(&key)?
-			.and_then(|roomuserdataid| {
-				self.roomuserdataid_accountdata
-					.get(&roomuserdataid)
-					.transpose()
-			})
-			.transpose()?
+			.get(&key)
+			.and_then(|roomuserdataid| self.roomuserdataid_accountdata.get(&roomuserdataid))
 			.map(|data| serde_json::from_slice(&data).map_err(|_| Error::bad_database("could not deserialize")))
 			.transpose()
 	}

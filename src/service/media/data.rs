@@ -51,12 +51,12 @@ impl Data {
 				.unwrap_or_default(),
 		);
 
-		self.mediaid_file.insert(&key, &[])?;
+		self.mediaid_file.insert(&key, &[]);
 
 		if let Some(user) = sender_user {
 			let key = mxc.as_bytes().to_vec();
 			let user = user.as_bytes().to_vec();
-			self.mediaid_user.insert(&key, &user)?;
+			self.mediaid_user.insert(&key, &user);
 		}
 
 		Ok(key)
@@ -72,7 +72,7 @@ impl Data {
 
 		for (key, _) in self.mediaid_file.scan_prefix(prefix) {
 			debug!("Deleting key: {:?}", key);
-			self.mediaid_file.remove(&key)?;
+			self.mediaid_file.remove(&key);
 		}
 
 		for (key, value) in self.mediaid_user.scan_prefix(mxc.as_bytes().to_vec()) {
@@ -80,7 +80,7 @@ impl Data {
 				let user = string_from_bytes(&value).unwrap_or_default();
 
 				debug_info!("Deleting key \"{key:?}\" which was uploaded by user {user}");
-				self.mediaid_user.remove(&key)?;
+				self.mediaid_user.remove(&key);
 			}
 		}
 
@@ -159,7 +159,10 @@ impl Data {
 	pub(crate) fn get_all_media_keys(&self) -> Vec<Vec<u8>> { self.mediaid_file.iter().map(|(key, _)| key).collect() }
 
 	#[inline]
-	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> { self.url_previews.remove(url.as_bytes()) }
+	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> {
+		self.url_previews.remove(url.as_bytes());
+		Ok(())
+	}
 
 	pub(super) fn set_url_preview(
 		&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration,
@@ -194,11 +197,13 @@ impl Data {
 		value.push(0xFF);
 		value.extend_from_slice(&data.image_height.unwrap_or(0).to_be_bytes());
 
-		self.url_previews.insert(url.as_bytes(), &value)
+		self.url_previews.insert(url.as_bytes(), &value);
+
+		Ok(())
 	}
 
 	pub(super) fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
-		let values = self.url_previews.get(url.as_bytes()).ok()??;
+		let values = self.url_previews.get(url.as_bytes())?;
 
 		let mut values = values.split(|&b| b == 0xFF);
 

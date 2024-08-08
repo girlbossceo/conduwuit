@@ -55,12 +55,15 @@ impl Data {
 		)
 	}
 
-	pub(super) fn delete_active_request(&self, key: &[u8]) -> Result<()> { self.servercurrentevent_data.remove(key) }
+	pub(super) fn delete_active_request(&self, key: &[u8]) -> Result<()> {
+		self.servercurrentevent_data.remove(key);
+		Ok(())
+	}
 
 	pub(super) fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()> {
 		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix) {
-			self.servercurrentevent_data.remove(&key)?;
+			self.servercurrentevent_data.remove(&key);
 		}
 
 		Ok(())
@@ -69,11 +72,11 @@ impl Data {
 	pub(super) fn delete_all_requests_for(&self, destination: &Destination) -> Result<()> {
 		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
-			self.servercurrentevent_data.remove(&key).unwrap();
+			self.servercurrentevent_data.remove(&key);
 		}
 
 		for (key, _) in self.servernameevent_data.scan_prefix(prefix) {
-			self.servernameevent_data.remove(&key).unwrap();
+			self.servernameevent_data.remove(&key);
 		}
 
 		Ok(())
@@ -98,7 +101,7 @@ impl Data {
 			keys.push(key);
 		}
 		self.servernameevent_data
-			.insert_batch(batch.iter().map(database::KeyVal::from))?;
+			.insert_batch(batch.iter().map(database::KeyVal::from));
 		Ok(keys)
 	}
 
@@ -124,8 +127,8 @@ impl Data {
 			} else {
 				&[]
 			};
-			self.servercurrentevent_data.insert(key, value)?;
-			self.servernameevent_data.remove(key)?;
+			self.servercurrentevent_data.insert(key, value);
+			self.servernameevent_data.remove(key);
 		}
 
 		Ok(())
@@ -133,12 +136,14 @@ impl Data {
 
 	pub(super) fn set_latest_educount(&self, server_name: &ServerName, last_count: u64) -> Result<()> {
 		self.servername_educount
-			.insert(server_name.as_bytes(), &last_count.to_be_bytes())
+			.insert(server_name.as_bytes(), &last_count.to_be_bytes());
+
+		Ok(())
 	}
 
 	pub fn get_latest_educount(&self, server_name: &ServerName) -> Result<u64> {
 		self.servername_educount
-			.get(server_name.as_bytes())?
+			.get(server_name.as_bytes())
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid u64 in servername_educount."))
 			})

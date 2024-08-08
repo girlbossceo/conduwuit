@@ -1096,7 +1096,7 @@ pub(crate) async fn sync_events_v4_route(
 	if globalsince == 0 {
 		if let Some(conn_id) = &body.conn_id {
 			services
-				.users
+				.sync
 				.forget_sync_request_connection(sender_user.clone(), sender_device.clone(), conn_id.clone());
 		}
 	}
@@ -1104,7 +1104,7 @@ pub(crate) async fn sync_events_v4_route(
 	// Get sticky parameters from cache
 	let known_rooms =
 		services
-			.users
+			.sync
 			.update_sync_request_with_cache(sender_user.clone(), sender_device.clone(), &mut body);
 
 	let all_joined_rooms = services
@@ -1347,7 +1347,7 @@ pub(crate) async fn sync_events_v4_route(
 		);
 
 		if let Some(conn_id) = &body.conn_id {
-			services.users.update_sync_known_rooms(
+			services.sync.update_sync_known_rooms(
 				sender_user.clone(),
 				sender_device.clone(),
 				conn_id.clone(),
@@ -1386,7 +1386,7 @@ pub(crate) async fn sync_events_v4_route(
 	}
 
 	if let Some(conn_id) = &body.conn_id {
-		services.users.update_sync_known_rooms(
+		services.sync.update_sync_known_rooms(
 			sender_user.clone(),
 			sender_device.clone(),
 			conn_id.clone(),
@@ -1397,7 +1397,7 @@ pub(crate) async fn sync_events_v4_route(
 	}
 
 	if let Some(conn_id) = &body.conn_id {
-		services.users.update_sync_subscriptions(
+		services.sync.update_sync_subscriptions(
 			sender_user.clone(),
 			sender_device.clone(),
 			conn_id.clone(),

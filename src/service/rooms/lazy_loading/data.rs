@@ -25,7 +25,7 @@ impl Data {
 		key.extend_from_slice(room_id.as_bytes());
 		key.push(0xFF);
 		key.extend_from_slice(ll_user.as_bytes());
-		Ok(self.lazyloadedids.get(&key)?.is_some())
+		Ok(self.lazyloadedids.get(&key).is_some())
 	}
 
 	pub(super) fn lazy_load_confirm_delivery(
@@ -42,7 +42,7 @@ impl Data {
 		for ll_id in confirmed_user_ids {
 			let mut key = prefix.clone();
 			key.extend_from_slice(ll_id.as_bytes());
-			self.lazyloadedids.insert(&key, &[])?;
+			self.lazyloadedids.insert(&key, &[]);
 		}
 
 		Ok(())
@@ -57,7 +57,7 @@ impl Data {
 		prefix.push(0xFF);
 
 		for (key, _) in self.lazyloadedids.scan_prefix(prefix) {
-			self.lazyloadedids.remove(&key)?;
+			self.lazyloadedids.remove(&key);
 		}
 
 		Ok(())

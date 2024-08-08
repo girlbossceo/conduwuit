@@ -19,7 +19,7 @@ impl Data {
 	pub(super) fn register_appservice(&self, yaml: &Registration) -> Result<String> {
 		let id = yaml.id.as_str();
 		self.id_appserviceregistrations
-			.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes())?;
+			.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes());
 
 		Ok(id.to_owned())
 	}
@@ -31,13 +31,13 @@ impl Data {
 	/// * `service_name` - the name you send to register the service previously
 	pub(super) fn unregister_appservice(&self, service_name: &str) -> Result<()> {
 		self.id_appserviceregistrations
-			.remove(service_name.as_bytes())?;
+			.remove(service_name.as_bytes());
 		Ok(())
 	}
 
 	pub fn get_registration(&self, id: &str) -> Result<Option<Registration>> {
 		self.id_appserviceregistrations
-			.get(id.as_bytes())?
+			.get(id.as_bytes())
 			.map(|bytes| {
 				serde_yaml::from_slice(&bytes)
 					.map_err(|_| Error::bad_database("Invalid registration bytes in id_appserviceregistrations."))
