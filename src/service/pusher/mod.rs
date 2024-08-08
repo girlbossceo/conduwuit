@@ -1,9 +1,13 @@
-mod data;
-
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-use conduit::{debug_error, err, trace, utils::string_from_bytes, warn, Err, PduEvent, Result};
+use conduit::{
+	debug_error, err, trace,
+	utils::{stream::TryIgnore, string_from_bytes},
+	Err, PduEvent, Result,
+};
+use database::{Deserialized, Ignore, Interfix, Map};
+use futures::{Stream, StreamExt};
 use ipaddress::IPAddress;
 use ruma::{
 	api::{
@@ -22,12 +26,11 @@ use ruma::{
 	uint, RoomId, UInt, UserId,
 };
 
-use self::data::Data;
 use crate::{client, globals, rooms, users, Dep};
 
 pub struct Service {
-	services: Services,
 	db: Data,
+	services: Services,
 }
 
 struct Services {
@@ -38,9 +41,16 @@ struct Services {
 	users: Dep<users::Service>,
 }
 
+struct Data {
+	senderkey_pusher: Arc<Map>,
+}
+
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			db: Data {
+				senderkey_pusher: args.db["senderkey_pusher"].clone(),
+			},
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				client: args.depend::<client::Service>("client"),
@@ -48,7 +58,6 @@ impl crate::Service for Service {
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 				users: args.depend::<users::Service>("users"),
 			},
-			db: Data::new(args.db),
 		}))
 	}
 
@@ -56,19 +65,52 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result<()> {
-		self.db.set_pusher(sender, pusher)
+	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) {
+		match pusher {
+			set_pusher::v3::PusherAction::Post(data) => {
+				let mut key = sender.as_bytes().to_vec();
+				key.push(0xFF);
+				key.extend_from_slice(data.pusher.ids.pushkey.as_bytes());
+				self.db
+					.senderkey_pusher
+					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"));
+			},
+			set_pusher::v3::PusherAction::Delete(ids) => {
+				let mut key = sender.as_bytes().to_vec();
+				key.push(0xFF);
+				key.extend_from_slice(ids.pushkey.as_bytes());
+				self.db.senderkey_pusher.remove(&key);
+			},
+		}
 	}
 
-	pub fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Option<Pusher>> {
-		self.db.get_pusher(sender, pushkey)
+	pub async fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Pusher> {
+		let senderkey = (sender, pushkey);
+		self.db
+			.senderkey_pusher
+			.qry(&senderkey)
+			.await
+			.deserialized_json()
 	}
 
-	pub fn get_pushers(&self, sender: &UserId) -> Result<Vec<Pusher>> { self.db.get_pushers(sender) }
+	pub async fn get_pushers(&self, sender: &UserId) -> Vec<Pusher> {
+		let prefix = (sender, Interfix);
+		self.db
+			.senderkey_pusher
+			.stream_prefix(&prefix)
+			.ignore_err()
+			.map(|(_, val): (Ignore, &[u8])| serde_json::from_slice(val).expect("Invalid Pusher in db."))
+			.collect()
+			.await
+	}
 
-	#[must_use]
-	pub fn get_pushkeys(&self, sender: &UserId) -> Box<dyn Iterator<Item = Result<String>> + '_> {
-		self.db.get_pushkeys(sender)
+	pub fn get_pushkeys<'a>(&'a self, sender: &'a UserId) -> impl Stream<Item = &str> + Send + 'a {
+		let prefix = (sender, Interfix);
+		self.db
+			.senderkey_pusher
+			.keys_prefix(&prefix)
+			.ignore_err()
+			.map(|(_, pushkey): (Ignore, &str)| pushkey)
 	}
 
 	#[tracing::instrument(skip(self, dest, request))]
@@ -161,15 +203,18 @@ impl Service {
 		let power_levels: RoomPowerLevelsEventContent = self
 			.services
 			.state_accessor
-			.room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
-			.map(|ev| {
+			.room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")
+			.await
+			.and_then(|ev| {
 				serde_json::from_str(ev.content.get())
-					.map_err(|e| err!(Database("invalid m.room.power_levels event: {e:?}")))
+					.map_err(|e| err!(Database(error!("invalid m.room.power_levels event: {e:?}"))))
 			})
-			.transpose()?
 			.unwrap_or_default();
 
-		for action in self.get_actions(user, &ruleset, &power_levels, &pdu.to_sync_room_event(), &pdu.room_id)? {
+		for action in self
+			.get_actions(user, &ruleset, &power_levels, &pdu.to_sync_room_event(), &pdu.room_id)
+			.await?
+		{
 			let n = match action {
 				Action::Notify => true,
 				Action::SetTweak(tweak) => {
@@ -197,7 +242,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, user, ruleset, pdu), level = "debug")]
-	pub fn get_actions<'a>(
+	pub async fn get_actions<'a>(
 		&self, user: &UserId, ruleset: &'a Ruleset, power_levels: &RoomPowerLevelsEventContent,
 		pdu: &Raw<AnySyncTimelineEvent>, room_id: &RoomId,
 	) -> Result<&'a [Action]> {
@@ -207,21 +252,27 @@ impl Service {
 			notifications: power_levels.notifications.clone(),
 		};
 
+		let room_joined_count = self
+			.services
+			.state_cache
+			.room_joined_count(room_id)
+			.await
+			.unwrap_or(1)
+			.try_into()
+			.unwrap_or_else(|_| uint!(0));
+
+		let user_display_name = self
+			.services
+			.users
+			.displayname(user)
+			.await
+			.unwrap_or_else(|_| user.localpart().to_owned());
+
 		let ctx = PushConditionRoomCtx {
 			room_id: room_id.to_owned(),
-			member_count: UInt::try_from(
-				self.services
-					.state_cache
-					.room_joined_count(room_id)?
-					.unwrap_or(1),
-			)
-			.unwrap_or_else(|_| uint!(0)),
+			member_count: room_joined_count,
 			user_id: user.to_owned(),
-			user_display_name: self
-				.services
-				.users
-				.displayname(user)?
-				.unwrap_or_else(|| user.localpart().to_owned()),
+			user_display_name,
 			power_levels: Some(power_levels),
 		};
 
@@ -278,9 +329,14 @@ impl Service {
 						notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
 					}
 
-					notifi.sender_display_name = self.services.users.displayname(&event.sender)?;
+					notifi.sender_display_name = self.services.users.displayname(&event.sender).await.ok();
 
-					notifi.room_name = self.services.state_accessor.get_name(&event.room_id)?;
+					notifi.room_name = self
+						.services
+						.state_accessor
+						.get_name(&event.room_id)
+						.await
+						.ok();
 
 					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
 						.await?;

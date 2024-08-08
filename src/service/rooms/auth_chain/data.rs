@@ -24,7 +24,7 @@ impl Data {
 		}
 	}
 
-	pub(super) fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+	pub(super) async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
 		// Check RAM cache
 		if let Some(result) = self.auth_chain_cache.lock().unwrap().get_mut(key) {
 			return Ok(Some(Arc::clone(result)));
@@ -33,17 +33,14 @@ impl Data {
 		// We only save auth chains for single events in the db
 		if key.len() == 1 {
 			// Check DB cache
-			let chain = self
-				.shorteventid_authchain
-				.get(&key[0].to_be_bytes())?
-				.map(|chain| {
-					chain
-						.chunks_exact(size_of::<u64>())
-						.map(utils::u64_from_u8)
-						.collect::<Arc<[u64]>>()
-				});
+			let chain = self.shorteventid_authchain.qry(&key[0]).await.map(|chain| {
+				chain
+					.chunks_exact(size_of::<u64>())
+					.map(utils::u64_from_u8)
+					.collect::<Arc<[u64]>>()
+			});
 
-			if let Some(chain) = chain {
+			if let Ok(chain) = chain {
 				// Cache in RAM
 				self.auth_chain_cache
 					.lock()
@@ -66,7 +63,7 @@ impl Data {
 					.iter()
 					.flat_map(|s| s.to_be_bytes().to_vec())
 					.collect::<Vec<u8>>(),
-			)?;
+			);
 		}
 
 		// Cache in RAM

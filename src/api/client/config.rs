@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::err;
 use ruma::{
 	api::client::{
 		config::{get_global_account_data, get_room_account_data, set_global_account_data, set_room_account_data},
@@ -25,7 +26,8 @@ pub(crate) async fn set_global_account_data_route(
 		&body.sender_user,
 		&body.event_type.to_string(),
 		body.data.json(),
-	)?;
+	)
+	.await?;
 
 	Ok(set_global_account_data::v3::Response {})
 }
@@ -42,7 +44,8 @@ pub(crate) async fn set_room_account_data_route(
 		&body.sender_user,
 		&body.event_type.to_string(),
 		body.data.json(),
-	)?;
+	)
+	.await?;
 
 	Ok(set_room_account_data::v3::Response {})
 }
@@ -57,8 +60,9 @@ pub(crate) async fn get_global_account_data_route(
 
 	let event: Box<RawJsonValue> = services
 		.account_data
-		.get(None, sender_user, body.event_type.to_string().into())?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
+		.get(None, sender_user, body.event_type.to_string().into())
+		.await
+		.map_err(|_| err!(Request(NotFound("Data not found."))))?;
 
 	let account_data = serde_json::from_str::<ExtractGlobalEventContent>(event.get())
 		.map_err(|_| Error::bad_database("Invalid account data event in db."))?
@@ -79,8 +83,9 @@ pub(crate) async fn get_room_account_data_route(
 
 	let event: Box<RawJsonValue> = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, body.event_type.clone())?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Data not found."))?;
+		.get(Some(&body.room_id), sender_user, body.event_type.clone())
+		.await
+		.map_err(|_| err!(Request(NotFound("Data not found."))))?;
 
 	let account_data = serde_json::from_str::<ExtractRoomEventContent>(event.get())
 		.map_err(|_| Error::bad_database("Invalid account data event in db."))?
@@ -91,7 +96,7 @@ pub(crate) async fn get_room_account_data_route(
 	})
 }
 
-fn set_account_data(
+async fn set_account_data(
 	services: &Services, room_id: Option<&RoomId>, sender_user: &Option<OwnedUserId>, event_type: &str,
 	data: &RawJsonValue,
 ) -> Result<()> {
@@ -100,15 +105,18 @@ fn set_account_data(
 	let data: serde_json::Value =
 		serde_json::from_str(data.get()).map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
 
-	services.account_data.update(
-		room_id,
-		sender_user,
-		event_type.into(),
-		&json!({
-			"type": event_type,
-			"content": data,
-		}),
-	)?;
+	services
+		.account_data
+		.update(
+			room_id,
+			sender_user,
+			event_type.into(),
+			&json!({
+				"type": event_type,
+				"content": data,
+			}),
+		)
+		.await?;
 
 	Ok(())
 }

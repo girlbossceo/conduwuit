@@ -2,7 +2,8 @@ use std::fmt::Write;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId};
+use futures::StreamExt;
+use ruma::{events::room::message::RoomMessageEventContent, RoomId};
 
 use crate::{escape_html, get_room_info, Command, PAGE_SIZE};
 
@@ -31,15 +32,15 @@ pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>
 	match command {
 		RoomDirectoryCommand::Publish {
 			room_id,
-		} => match services.rooms.directory.set_public(&room_id) {
-			Ok(()) => Ok(RoomMessageEventContent::text_plain("Room published")),
-			Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to update room: {err}"))),
+		} => {
+			services.rooms.directory.set_public(&room_id);
+			Ok(RoomMessageEventContent::notice_plain("Room published"))
 		},
 		RoomDirectoryCommand::Unpublish {
 			room_id,
-		} => match services.rooms.directory.set_not_public(&room_id) {
-			Ok(()) => Ok(RoomMessageEventContent::text_plain("Room unpublished")),
-			Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to update room: {err}"))),
+		} => {
+			services.rooms.directory.set_not_public(&room_id);
+			Ok(RoomMessageEventContent::notice_plain("Room unpublished"))
 		},
 		RoomDirectoryCommand::List {
 			page,
@@ -50,9 +51,10 @@ pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>
 				.rooms
 				.directory
 				.public_rooms()
-				.filter_map(Result::ok)
-				.map(|id: OwnedRoomId| get_room_info(services, &id))
-				.collect::<Vec<_>>();
+				.then(|room_id| get_room_info(services, room_id))
+				.collect::<Vec<_>>()
+				.await;
+
 			rooms.sort_by_key(|r| r.1);
 			rooms.reverse();
 

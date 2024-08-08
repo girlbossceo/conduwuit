@@ -33,6 +33,7 @@ impl crate::Service for Service {
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		self.set_emergency_access()
+			.await
 			.inspect_err(|e| error!("Could not set the configured emergency password for the conduit user: {e}"))?;
 
 		Ok(())
@@ -44,7 +45,7 @@ impl crate::Service for Service {
 impl Service {
 	/// Sets the emergency password and push rules for the @conduit account in
 	/// case emergency password is set
-	fn set_emergency_access(&self) -> Result<bool> {
+	async fn set_emergency_access(&self) -> Result<bool> {
 		let conduit_user = &self.services.globals.server_user;
 
 		self.services
@@ -56,17 +57,20 @@ impl Service {
 			None => (Ruleset::new(), false),
 		};
 
-		self.services.account_data.update(
-			None,
-			conduit_user,
-			GlobalAccountDataEventType::PushRules.to_string().into(),
-			&serde_json::to_value(&GlobalAccountDataEvent {
-				content: PushRulesEventContent {
-					global: ruleset,
-				},
-			})
-			.expect("to json value always works"),
-		)?;
+		self.services
+			.account_data
+			.update(
+				None,
+				conduit_user,
+				GlobalAccountDataEventType::PushRules.to_string().into(),
+				&serde_json::to_value(&GlobalAccountDataEvent {
+					content: PushRulesEventContent {
+						global: ruleset,
+					},
+				})
+				.expect("to json value always works"),
+			)
+			.await?;
 
 		if pwd_set {
 			warn!(
@@ -75,7 +79,7 @@ impl Service {
 			);
 		} else {
 			// logs out any users still in the server service account and removes sessions
-			self.services.users.deactivate_account(conduit_user)?;
+			self.services.users.deactivate_account(conduit_user).await?;
 		}
 
 		Ok(pwd_set)

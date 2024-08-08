@@ -1,18 +1,14 @@
-use std::fmt;
+use std::fmt::Display;
 
 use tracing::Level;
 
 use super::Result;
 use crate::error;
 
-pub trait LogErr<T, E>
-where
-	E: fmt::Display,
-{
+pub trait LogErr<T, E: Display> {
 	#[must_use]
 	fn err_log(self, level: Level) -> Self;
 
-	#[inline]
 	#[must_use]
 	fn log_err(self) -> Self
 	where
@@ -22,15 +18,7 @@ where
 	}
 }
 
-impl<T, E> LogErr<T, E> for Result<T, E>
-where
-	E: fmt::Display,
-{
+impl<T, E: Display> LogErr<T, E> for Result<T, E> {
 	#[inline]
-	fn err_log(self, level: Level) -> Self
-	where
-		Self: Sized,
-	{
-		self.inspect_err(|error| error::inspect_log_level(&error, level))
-	}
+	fn err_log(self, level: Level) -> Self { self.inspect_err(|error| error::inspect_log_level(&error, level)) }
 }

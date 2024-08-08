@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use conduit::{Error, Result};
-use ruma::api::{client::error::ErrorKind, federation::event::get_room_state};
+use conduit::{err, result::LogErr, utils::IterStream, Err, Result};
+use futures::{FutureExt, StreamExt, TryStreamExt};
+use ruma::api::federation::event::get_room_state;
 
 use crate::Ruma;
 
@@ -17,56 +18,66 @@ pub(crate) async fn get_room_state_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
 	if !services
 		.rooms
 		.state_accessor
-		.is_world_readable(&body.room_id)?
-		&& !services
-			.rooms
-			.state_cache
-			.server_in_room(origin, &body.room_id)?
+		.is_world_readable(&body.room_id)
+		.await && !services
+		.rooms
+		.state_cache
+		.server_in_room(origin, &body.room_id)
+		.await
 	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
+		return Err!(Request(Forbidden("Server is not in room.")));
 	}
 
 	let shortstatehash = services
 		.rooms
 		.state_accessor
-		.pdu_shortstatehash(&body.event_id)?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
+		.pdu_shortstatehash(&body.event_id)
+		.await
+		.map_err(|_| err!(Request(NotFound("PDU state not found."))))?;
 
 	let pdus = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
-		.await?
-		.into_values()
-		.map(|id| {
+		.await
+		.log_err()
+		.map_err(|_| err!(Request(NotFound("PDU state IDs not found."))))?
+		.values()
+		.try_stream()
+		.and_then(|id| services.rooms.timeline.get_pdu_json(id))
+		.and_then(|pdu| {
 			services
 				.sending
-				.convert_to_outgoing_federation_event(services.rooms.timeline.get_pdu_json(&id).unwrap().unwrap())
+				.convert_to_outgoing_federation_event(pdu)
+				.map(Ok)
 		})
-		.collect();
+		.try_collect()
+		.await?;
 
-	let auth_chain_ids = services
+	let auth_chain = services
 		.rooms
 		.auth_chain
 		.event_ids_iter(&body.room_id, vec![Arc::from(&*body.event_id)])
+		.await?
+		.map(Ok)
+		.and_then(|id| async move { services.rooms.timeline.get_pdu_json(&id).await })
+		.and_then(|pdu| {
+			services
+				.sending
+				.convert_to_outgoing_federation_event(pdu)
+				.map(Ok)
+		})
+		.try_collect()
 		.await?;
 
 	Ok(get_room_state::v1::Response {
-		auth_chain: auth_chain_ids
-			.filter_map(|id| {
-				services
-					.rooms
-					.timeline
-					.get_pdu_json(&id)
-					.ok()?
-					.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-			})
-			.collect(),
+		auth_chain,
 		pdus,
 	})
 }

@@ -1,5 +1,6 @@
 use clap::Subcommand;
 use conduit::Result;
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, RoomId};
 
 use crate::Command;
@@ -31,7 +32,7 @@ pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>)
 			alias,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.rooms.alias.resolve_local_alias(&alias);
+			let results = services.rooms.alias.resolve_local_alias(&alias).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -43,7 +44,7 @@ pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>)
 		} => {
 			let timer = tokio::time::Instant::now();
 			let results = services.rooms.alias.local_aliases_for_room(&room_id);
-			let aliases: Vec<_> = results.collect();
+			let aliases: Vec<_> = results.collect().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -52,8 +53,12 @@ pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>)
 		},
 		RoomAliasCommand::AllLocalAliases => {
 			let timer = tokio::time::Instant::now();
-			let results = services.rooms.alias.all_local_aliases();
-			let aliases: Vec<_> = results.collect();
+			let aliases = services
+				.rooms
+				.alias
+				.all_local_aliases()
+				.collect::<Vec<_>>()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

@@ -19,6 +19,7 @@ pub mod resolver;
 pub mod rooms;
 pub mod sending;
 pub mod server_keys;
+pub mod sync;
 pub mod transaction_ids;
 pub mod uiaa;
 pub mod updates;

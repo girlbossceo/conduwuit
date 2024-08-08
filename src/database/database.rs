@@ -37,7 +37,7 @@ impl Database {
 	pub fn cork_and_sync(&self) -> Cork { Cork::new(&self.db, true, true) }
 
 	#[inline]
-	pub fn iter_maps(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + '_ { self.map.iter() }
+	pub fn iter_maps(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ { self.map.iter() }
 }
 
 impl Index<&str> for Database {

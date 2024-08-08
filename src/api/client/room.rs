@@ -2,6 +2,7 @@ use std::{cmp::max, collections::BTreeMap};
 
 use axum::extract::State;
 use conduit::{debug_info, debug_warn, err, Err};
+use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -74,7 +75,7 @@ pub(crate) async fn create_room_route(
 
 	if !services.globals.allow_room_creation()
 		&& body.appservice_info.is_none()
-		&& !services.users.is_admin(sender_user)?
+		&& !services.users.is_admin(sender_user).await
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room creation has been disabled."));
 	}
@@ -86,7 +87,7 @@ pub(crate) async fn create_room_route(
 	};
 
 	// check if room ID doesn't already exist instead of erroring on auth check
-	if services.rooms.short.get_shortroomid(&room_id)?.is_some() {
+	if services.rooms.short.get_shortroomid(&room_id).await.is_ok() {
 		return Err(Error::BadRequest(
 			ErrorKind::RoomInUse,
 			"Room with that custom room ID already exists",
@@ -95,7 +96,7 @@ pub(crate) async fn create_room_route(
 
 	if body.visibility == room::Visibility::Public
 		&& services.globals.config.lockdown_public_room_directory
-		&& !services.users.is_admin(sender_user)?
+		&& !services.users.is_admin(sender_user).await
 		&& body.appservice_info.is_none()
 	{
 		info!(
@@ -118,7 +119,11 @@ pub(crate) async fn create_room_route(
 		return Err!(Request(Forbidden("Publishing rooms to the room directory is not allowed")));
 	}
 
-	let _short_id = services.rooms.short.get_or_create_shortroomid(&room_id)?;
+	let _short_id = services
+		.rooms
+		.short
+		.get_or_create_shortroomid(&room_id)
+		.await;
 	let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 
 	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
@@ -218,6 +223,7 @@ pub(crate) async fn create_room_route(
 			&room_id,
 			&state_lock,
 		)
+		.boxed()
 		.await?;
 
 	// 2. Let the room creator join
@@ -229,11 +235,11 @@ pub(crate) async fn create_room_route(
 				event_type: TimelineEventType::RoomMember,
 				content: to_raw_value(&RoomMemberEventContent {
 					membership: MembershipState::Join,
-					displayname: services.users.displayname(sender_user)?,
-					avatar_url: services.users.avatar_url(sender_user)?,
+					displayname: services.users.displayname(sender_user).await.ok(),
+					avatar_url: services.users.avatar_url(sender_user).await.ok(),
 					is_direct: Some(body.is_direct),
 					third_party_invite: None,
-					blurhash: services.users.blurhash(sender_user)?,
+					blurhash: services.users.blurhash(sender_user).await.ok(),
 					reason: None,
 					join_authorized_via_users_server: None,
 				})
@@ -247,6 +253,7 @@ pub(crate) async fn create_room_route(
 			&room_id,
 			&state_lock,
 		)
+		.boxed()
 		.await?;
 
 	// 3. Power levels
@@ -284,6 +291,7 @@ pub(crate) async fn create_room_route(
 			&room_id,
 			&state_lock,
 		)
+		.boxed()
 		.await?;
 
 	// 4. Canonical room alias
@@ -308,6 +316,7 @@ pub(crate) async fn create_room_route(
 				&room_id,
 				&state_lock,
 			)
+			.boxed()
 			.await?;
 	}
 
@@ -335,6 +344,7 @@ pub(crate) async fn create_room_route(
 			&room_id,
 			&state_lock,
 		)
+		.boxed()
 		.await?;
 
 	// 5.2 History Visibility
@@ -355,6 +365,7 @@ pub(crate) async fn create_room_route(
 			&room_id,
 			&state_lock,
 		)
+		.boxed()
 		.await?;
 
 	// 5.3 Guest Access
@@ -378,6 +389,7 @@ pub(crate) async fn create_room_route(
 			&room_id,
 			&state_lock,
 		)
+		.boxed()
 		.await?;
 
 	// 6. Events listed in initial_state
@@ -410,6 +422,7 @@ pub(crate) async fn create_room_route(
 			.rooms
 			.timeline
 			.build_and_append_pdu(pdu_builder, sender_user, &room_id, &state_lock)
+			.boxed()
 			.await?;
 	}
 
@@ -432,6 +445,7 @@ pub(crate) async fn create_room_route(
 				&room_id,
 				&state_lock,
 			)
+			.boxed()
 			.await?;
 	}
 
@@ -455,13 +469,17 @@ pub(crate) async fn create_room_route(
 				&room_id,
 				&state_lock,
 			)
+			.boxed()
 			.await?;
 	}
 
 	// 8. Events implied by invite (and TODO: invite_3pid)
 	drop(state_lock);
 	for user_id in &body.invite {
-		if let Err(e) = invite_helper(&services, sender_user, user_id, &room_id, None, body.is_direct).await {
+		if let Err(e) = invite_helper(&services, sender_user, user_id, &room_id, None, body.is_direct)
+			.boxed()
+			.await
+		{
 			warn!(%e, "Failed to send invite");
 		}
 	}
@@ -475,7 +493,7 @@ pub(crate) async fn create_room_route(
 	}
 
 	if body.visibility == room::Visibility::Public {
-		services.rooms.directory.set_public(&room_id)?;
+		services.rooms.directory.set_public(&room_id);
 
 		if services.globals.config.admin_room_notices {
 			services
@@ -505,13 +523,15 @@ pub(crate) async fn get_room_event_route(
 	let event = services
 		.rooms
 		.timeline
-		.get_pdu(&body.event_id)?
-		.ok_or_else(|| err!(Request(NotFound("Event {} not found.", &body.event_id))))?;
+		.get_pdu(&body.event_id)
+		.await
+		.map_err(|_| err!(Request(NotFound("Event {} not found.", &body.event_id))))?;
 
 	if !services
 		.rooms
 		.state_accessor
-		.user_can_see_event(sender_user, &event.room_id, &body.event_id)?
+		.user_can_see_event(sender_user, &event.room_id, &body.event_id)
+		.await
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
@@ -541,7 +561,8 @@ pub(crate) async fn get_room_aliases_route(
 	if !services
 		.rooms
 		.state_accessor
-		.user_can_see_state_events(sender_user, &body.room_id)?
+		.user_can_see_state_events(sender_user, &body.room_id)
+		.await
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
@@ -554,8 +575,9 @@ pub(crate) async fn get_room_aliases_route(
 			.rooms
 			.alias
 			.local_aliases_for_room(&body.room_id)
-			.filter_map(Result::ok)
-			.collect(),
+			.map(ToOwned::to_owned)
+			.collect()
+			.await,
 	})
 }
 
@@ -591,7 +613,8 @@ pub(crate) async fn upgrade_room_route(
 	let _short_id = services
 		.rooms
 		.short
-		.get_or_create_shortroomid(&replacement_room)?;
+		.get_or_create_shortroomid(&replacement_room)
+		.await;
 
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
@@ -629,12 +652,12 @@ pub(crate) async fn upgrade_room_route(
 		services
 			.rooms
 			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomCreate, "")?
-			.ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+			.room_state_get(&body.room_id, &StateEventType::RoomCreate, "")
+			.await
+			.map_err(|_| err!(Database("Found room without m.room.create event.")))?
 			.content
 			.get(),
-	)
-	.map_err(|_| Error::bad_database("Invalid room event in database."))?;
+	)?;
 
 	// Use the m.room.tombstone event as the predecessor
 	let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
@@ -714,11 +737,11 @@ pub(crate) async fn upgrade_room_route(
 				event_type: TimelineEventType::RoomMember,
 				content: to_raw_value(&RoomMemberEventContent {
 					membership: MembershipState::Join,
-					displayname: services.users.displayname(sender_user)?,
-					avatar_url: services.users.avatar_url(sender_user)?,
+					displayname: services.users.displayname(sender_user).await.ok(),
+					avatar_url: services.users.avatar_url(sender_user).await.ok(),
 					is_direct: None,
 					third_party_invite: None,
-					blurhash: services.users.blurhash(sender_user)?,
+					blurhash: services.users.blurhash(sender_user).await.ok(),
 					reason: None,
 					join_authorized_via_users_server: None,
 				})
@@ -739,10 +762,11 @@ pub(crate) async fn upgrade_room_route(
 		let event_content = match services
 			.rooms
 			.state_accessor
-			.room_state_get(&body.room_id, event_type, "")?
+			.room_state_get(&body.room_id, event_type, "")
+			.await
 		{
-			Some(v) => v.content.clone(),
-			None => continue, // Skipping missing events.
+			Ok(v) => v.content.clone(),
+			Err(_) => continue, // Skipping missing events.
 		};
 
 		services
@@ -765,21 +789,23 @@ pub(crate) async fn upgrade_room_route(
 	}
 
 	// Moves any local aliases to the new room
-	for alias in services
+	let mut local_aliases = services
 		.rooms
 		.alias
 		.local_aliases_for_room(&body.room_id)
-		.filter_map(Result::ok)
-	{
+		.boxed();
+
+	while let Some(alias) = local_aliases.next().await {
 		services
 			.rooms
 			.alias
-			.remove_alias(&alias, sender_user)
+			.remove_alias(alias, sender_user)
 			.await?;
+
 		services
 			.rooms
 			.alias
-			.set_alias(&alias, &replacement_room, sender_user)?;
+			.set_alias(alias, &replacement_room, sender_user)?;
 	}
 
 	// Get the old room power levels
@@ -787,12 +813,12 @@ pub(crate) async fn upgrade_room_route(
 		services
 			.rooms
 			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomPowerLevels, "")?
-			.ok_or_else(|| Error::bad_database("Found room without m.room.create event."))?
+			.room_state_get(&body.room_id, &StateEventType::RoomPowerLevels, "")
+			.await
+			.map_err(|_| err!(Database("Found room without m.room.create event.")))?
 			.content
 			.get(),
-	)
-	.map_err(|_| Error::bad_database("Invalid room event in database."))?;
+	)?;
 
 	// Setting events_default and invite to the greater of 50 and users_default + 1
 	let new_level = max(
@@ -800,9 +826,7 @@ pub(crate) async fn upgrade_room_route(
 		power_levels_event_content
 			.users_default
 			.checked_add(int!(1))
-			.ok_or_else(|| {
-				Error::BadRequest(ErrorKind::BadJson, "users_default power levels event content is not valid")
-			})?,
+			.ok_or_else(|| err!(Request(BadJson("users_default power levels event content is not valid"))))?,
 	);
 	power_levels_event_content.events_default = new_level;
 	power_levels_event_content.invite = new_level;
@@ -921,8 +945,9 @@ async fn room_alias_check(
 	if services
 		.rooms
 		.alias
-		.resolve_local_alias(&full_room_alias)?
-		.is_some()
+		.resolve_local_alias(&full_room_alias)
+		.await
+		.is_ok()
 	{
 		return Err(Error::BadRequest(ErrorKind::RoomInUse, "Room alias already exists."));
 	}

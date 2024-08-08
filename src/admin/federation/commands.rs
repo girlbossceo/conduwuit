@@ -1,19 +1,20 @@
 use std::fmt::Write;
 
 use conduit::Result;
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
 
 use crate::{admin_command, escape_html, get_room_info};
 
 #[admin_command]
 pub(super) async fn disable_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	self.services.rooms.metadata.disable_room(&room_id, true)?;
+	self.services.rooms.metadata.disable_room(&room_id, true);
 	Ok(RoomMessageEventContent::text_plain("Room disabled."))
 }
 
 #[admin_command]
 pub(super) async fn enable_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	self.services.rooms.metadata.disable_room(&room_id, false)?;
+	self.services.rooms.metadata.disable_room(&room_id, false);
 	Ok(RoomMessageEventContent::text_plain("Room enabled."))
 }
 
@@ -85,7 +86,7 @@ pub(super) async fn remote_user_in_rooms(&self, user_id: Box<UserId>) -> Result<
 		));
 	}
 
-	if !self.services.users.exists(&user_id)? {
+	if !self.services.users.exists(&user_id).await {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Remote user does not exist in our database.",
 		));
@@ -96,9 +97,9 @@ pub(super) async fn remote_user_in_rooms(&self, user_id: Box<UserId>) -> Result<
 		.rooms
 		.state_cache
 		.rooms_joined(&user_id)
-		.filter_map(Result::ok)
-		.map(|room_id| get_room_info(self.services, &room_id))
-		.collect();
+		.then(|room_id| get_room_info(self.services, room_id))
+		.collect()
+		.await;
 
 	if rooms.is_empty() {
 		return Ok(RoomMessageEventContent::text_plain("User is not in any rooms."));

@@ -27,14 +27,12 @@ type StateInfoLruCache = Mutex<
 	>,
 >;
 
-type ShortStateInfoResult = Result<
-	Vec<(
-		u64,                                // sstatehash
-		Arc<HashSet<CompressedStateEvent>>, // full state
-		Arc<HashSet<CompressedStateEvent>>, // added
-		Arc<HashSet<CompressedStateEvent>>, // removed
-	)>,
->;
+type ShortStateInfoResult = Vec<(
+	u64,                                // sstatehash
+	Arc<HashSet<CompressedStateEvent>>, // full state
+	Arc<HashSet<CompressedStateEvent>>, // added
+	Arc<HashSet<CompressedStateEvent>>, // removed
+)>;
 
 type ParentStatesVec = Vec<(
 	u64,                                // sstatehash
@@ -43,7 +41,7 @@ type ParentStatesVec = Vec<(
 	Arc<HashSet<CompressedStateEvent>>, // removed
 )>;
 
-type HashSetCompressStateEvent = Result<(u64, Arc<HashSet<CompressedStateEvent>>, Arc<HashSet<CompressedStateEvent>>)>;
+type HashSetCompressStateEvent = (u64, Arc<HashSet<CompressedStateEvent>>, Arc<HashSet<CompressedStateEvent>>);
 pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 pub struct Service {
@@ -86,12 +84,11 @@ impl crate::Service for Service {
 impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn load_shortstatehash_info(&self, shortstatehash: u64) -> ShortStateInfoResult {
+	pub async fn load_shortstatehash_info(&self, shortstatehash: u64) -> Result<ShortStateInfoResult> {
 		if let Some(r) = self
 			.stateinfo_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.get_mut(&shortstatehash)
 		{
 			return Ok(r.clone());
@@ -101,11 +98,11 @@ impl Service {
 			parent,
 			added,
 			removed,
-		} = self.db.get_statediff(shortstatehash)?;
+		} = self.db.get_statediff(shortstatehash).await?;
 
 		if let Some(parent) = parent {
-			let mut response = self.load_shortstatehash_info(parent)?;
-			let mut state = (*response.last().unwrap().1).clone();
+			let mut response = Box::pin(self.load_shortstatehash_info(parent)).await?;
+			let mut state = (*response.last().expect("at least one response").1).clone();
 			state.extend(added.iter().copied());
 			let removed = (*removed).clone();
 			for r in &removed {
@@ -116,7 +113,7 @@ impl Service {
 
 			self.stateinfo_cache
 				.lock()
-				.unwrap()
+				.expect("locked")
 				.insert(shortstatehash, response.clone());
 
 			Ok(response)
@@ -124,33 +121,42 @@ impl Service {
 			let response = vec![(shortstatehash, added.clone(), added, removed)];
 			self.stateinfo_cache
 				.lock()
-				.unwrap()
+				.expect("locked")
 				.insert(shortstatehash, response.clone());
+
 			Ok(response)
 		}
 	}
 
-	pub fn compress_state_event(&self, shortstatekey: u64, event_id: &EventId) -> Result<CompressedStateEvent> {
+	pub async fn compress_state_event(&self, shortstatekey: u64, event_id: &EventId) -> CompressedStateEvent {
 		let mut v = shortstatekey.to_be_bytes().to_vec();
 		v.extend_from_slice(
 			&self
 				.services
 				.short
-				.get_or_create_shorteventid(event_id)?
+				.get_or_create_shorteventid(event_id)
+				.await
 				.to_be_bytes(),
 		);
-		Ok(v.try_into().expect("we checked the size above"))
+
+		v.try_into().expect("we checked the size above")
 	}
 
 	/// Returns shortstatekey, event id
 	#[inline]
-	pub fn parse_compressed_state_event(&self, compressed_event: &CompressedStateEvent) -> Result<(u64, Arc<EventId>)> {
-		Ok((
-			utils::u64_from_bytes(&compressed_event[0..size_of::<u64>()]).expect("bytes have right length"),
-			self.services.short.get_eventid_from_short(
-				utils::u64_from_bytes(&compressed_event[size_of::<u64>()..]).expect("bytes have right length"),
-			)?,
-		))
+	pub async fn parse_compressed_state_event(
+		&self, compressed_event: &CompressedStateEvent,
+	) -> Result<(u64, Arc<EventId>)> {
+		use utils::u64_from_u8;
+
+		let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<u64>()]);
+		let event_id = self
+			.services
+			.short
+			.get_eventid_from_short(u64_from_u8(&compressed_event[size_of::<u64>()..]))
+			.await?;
+
+		Ok((shortstatekey, event_id))
 	}
 
 	/// Creates a new shortstatehash that often is just a diff to an already
@@ -227,7 +233,7 @@ impl Service {
 					added: statediffnew,
 					removed: statediffremoved,
 				},
-			)?;
+			);
 
 			return Ok(());
 		};
@@ -280,7 +286,7 @@ impl Service {
 					added: statediffnew,
 					removed: statediffremoved,
 				},
-			)?;
+			);
 		}
 
 		Ok(())
@@ -288,10 +294,15 @@ impl Service {
 
 	/// Returns the new shortstatehash, and the state diff from the previous
 	/// room state
-	pub fn save_state(
+	pub async fn save_state(
 		&self, room_id: &RoomId, new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
-	) -> HashSetCompressStateEvent {
-		let previous_shortstatehash = self.services.state.get_room_shortstatehash(room_id)?;
+	) -> Result<HashSetCompressStateEvent> {
+		let previous_shortstatehash = self
+			.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.await
+			.ok();
 
 		let state_hash = utils::calculate_hash(
 			&new_state_ids_compressed
@@ -303,14 +314,18 @@ impl Service {
 		let (new_shortstatehash, already_existed) = self
 			.services
 			.short
-			.get_or_create_shortstatehash(&state_hash)?;
+			.get_or_create_shortstatehash(&state_hash)
+			.await;
 
 		if Some(new_shortstatehash) == previous_shortstatehash {
 			return Ok((new_shortstatehash, Arc::new(HashSet::new()), Arc::new(HashSet::new())));
 		}
 
-		let states_parents =
-			previous_shortstatehash.map_or_else(|| Ok(Vec::new()), |p| self.load_shortstatehash_info(p))?;
+		let states_parents = if let Some(p) = previous_shortstatehash {
+			self.load_shortstatehash_info(p).await.unwrap_or_default()
+		} else {
+			ShortStateInfoResult::new()
+		};
 
 		let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
 			let statediffnew: HashSet<_> = new_state_ids_compressed

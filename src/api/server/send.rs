@@ -2,7 +2,8 @@ use std::{collections::BTreeMap, net::IpAddr, time::Instant};
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug, debug_warn, err, trace, warn, Err};
+use conduit::{debug, debug_warn, err, result::LogErr, trace, utils::ReadyExt, warn, Err, Error, Result};
+use futures::StreamExt;
 use ruma::{
 	api::{
 		client::error::ErrorKind,
@@ -23,10 +24,13 @@ use tokio::sync::RwLock;
 use crate::{
 	services::Services,
 	utils::{self},
-	Error, Result, Ruma,
+	Ruma,
 };
 
-type ResolvedMap = BTreeMap<OwnedEventId, Result<(), Error>>;
+const PDU_LIMIT: usize = 50;
+const EDU_LIMIT: usize = 100;
+
+type ResolvedMap = BTreeMap<OwnedEventId, Result<()>>;
 
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
@@ -44,12 +48,16 @@ pub(crate) async fn send_transaction_message_route(
 		)));
 	}
 
-	if body.pdus.len() > 50_usize {
-		return Err!(Request(Forbidden("Not allowed to send more than 50 PDUs in one transaction")));
+	if body.pdus.len() > PDU_LIMIT {
+		return Err!(Request(Forbidden(
+			"Not allowed to send more than {PDU_LIMIT} PDUs in one transaction"
+		)));
 	}
 
-	if body.edus.len() > 100_usize {
-		return Err!(Request(Forbidden("Not allowed to send more than 100 EDUs in one transaction")));
+	if body.edus.len() > EDU_LIMIT {
+		return Err!(Request(Forbidden(
+			"Not allowed to send more than {EDU_LIMIT} EDUs in one transaction"
+		)));
 	}
 
 	let txn_start_time = Instant::now();
@@ -62,8 +70,8 @@ pub(crate) async fn send_transaction_message_route(
 		"Starting txn",
 	);
 
-	let resolved_map = handle_pdus(&services, &client, &body, origin, &txn_start_time).await?;
-	handle_edus(&services, &client, &body, origin).await?;
+	let resolved_map = handle_pdus(&services, &client, &body, origin, &txn_start_time).await;
+	handle_edus(&services, &client, &body, origin).await;
 
 	debug!(
 		pdus = ?body.pdus.len(),
@@ -85,10 +93,10 @@ pub(crate) async fn send_transaction_message_route(
 async fn handle_pdus(
 	services: &Services, _client: &IpAddr, body: &Ruma<send_transaction_message::v1::Request>, origin: &ServerName,
 	txn_start_time: &Instant,
-) -> Result<ResolvedMap> {
+) -> ResolvedMap {
 	let mut parsed_pdus = Vec::with_capacity(body.pdus.len());
 	for pdu in &body.pdus {
-		parsed_pdus.push(match services.rooms.event_handler.parse_incoming_pdu(pdu) {
+		parsed_pdus.push(match services.rooms.event_handler.parse_incoming_pdu(pdu).await {
 			Ok(t) => t,
 			Err(e) => {
 				debug_warn!("Could not parse PDU: {e}");
@@ -151,38 +159,34 @@ async fn handle_pdus(
 		}
 	}
 
-	Ok(resolved_map)
+	resolved_map
 }
 
 async fn handle_edus(
 	services: &Services, client: &IpAddr, body: &Ruma<send_transaction_message::v1::Request>, origin: &ServerName,
-) -> Result<()> {
+) {
 	for edu in body
 		.edus
 		.iter()
 		.filter_map(|edu| serde_json::from_str::<Edu>(edu.json().get()).ok())
 	{
 		match edu {
-			Edu::Presence(presence) => handle_edu_presence(services, client, origin, presence).await?,
-			Edu::Receipt(receipt) => handle_edu_receipt(services, client, origin, receipt).await?,
-			Edu::Typing(typing) => handle_edu_typing(services, client, origin, typing).await?,
-			Edu::DeviceListUpdate(content) => handle_edu_device_list_update(services, client, origin, content).await?,
-			Edu::DirectToDevice(content) => handle_edu_direct_to_device(services, client, origin, content).await?,
-			Edu::SigningKeyUpdate(content) => handle_edu_signing_key_update(services, client, origin, content).await?,
+			Edu::Presence(presence) => handle_edu_presence(services, client, origin, presence).await,
+			Edu::Receipt(receipt) => handle_edu_receipt(services, client, origin, receipt).await,
+			Edu::Typing(typing) => handle_edu_typing(services, client, origin, typing).await,
+			Edu::DeviceListUpdate(content) => handle_edu_device_list_update(services, client, origin, content).await,
+			Edu::DirectToDevice(content) => handle_edu_direct_to_device(services, client, origin, content).await,
+			Edu::SigningKeyUpdate(content) => handle_edu_signing_key_update(services, client, origin, content).await,
 			Edu::_Custom(ref _custom) => {
 				debug_warn!(?body.edus, "received custom/unknown EDU");
 			},
 		}
 	}
-
-	Ok(())
 }
 
-async fn handle_edu_presence(
-	services: &Services, _client: &IpAddr, origin: &ServerName, presence: PresenceContent,
-) -> Result<()> {
+async fn handle_edu_presence(services: &Services, _client: &IpAddr, origin: &ServerName, presence: PresenceContent) {
 	if !services.globals.allow_incoming_presence() {
-		return Ok(());
+		return;
 	}
 
 	for update in presence.push {
@@ -194,23 +198,24 @@ async fn handle_edu_presence(
 			continue;
 		}
 
-		services.presence.set_presence(
-			&update.user_id,
-			&update.presence,
-			Some(update.currently_active),
-			Some(update.last_active_ago),
-			update.status_msg.clone(),
-		)?;
+		services
+			.presence
+			.set_presence(
+				&update.user_id,
+				&update.presence,
+				Some(update.currently_active),
+				Some(update.last_active_ago),
+				update.status_msg.clone(),
+			)
+			.await
+			.log_err()
+			.ok();
 	}
-
-	Ok(())
 }
 
-async fn handle_edu_receipt(
-	services: &Services, _client: &IpAddr, origin: &ServerName, receipt: ReceiptContent,
-) -> Result<()> {
+async fn handle_edu_receipt(services: &Services, _client: &IpAddr, origin: &ServerName, receipt: ReceiptContent) {
 	if !services.globals.allow_incoming_read_receipts() {
-		return Ok(());
+		return;
 	}
 
 	for (room_id, room_updates) in receipt.receipts {
@@ -218,6 +223,7 @@ async fn handle_edu_receipt(
 			.rooms
 			.event_handler
 			.acl_check(origin, &room_id)
+			.await
 			.is_err()
 		{
 			debug_warn!(
@@ -240,8 +246,8 @@ async fn handle_edu_receipt(
 				.rooms
 				.state_cache
 				.room_members(&room_id)
-				.filter_map(Result::ok)
-				.any(|member| member.server_name() == user_id.server_name())
+				.ready_any(|member| member.server_name() == user_id.server_name())
+				.await
 			{
 				for event_id in &user_updates.event_ids {
 					let user_receipts = BTreeMap::from([(user_id.clone(), user_updates.data.clone())]);
@@ -255,7 +261,8 @@ async fn handle_edu_receipt(
 					services
 						.rooms
 						.read_receipt
-						.readreceipt_update(&user_id, &room_id, &event)?;
+						.readreceipt_update(&user_id, &room_id, &event)
+						.await;
 				}
 			} else {
 				debug_warn!(
@@ -266,15 +273,11 @@ async fn handle_edu_receipt(
 			}
 		}
 	}
-
-	Ok(())
 }
 
-async fn handle_edu_typing(
-	services: &Services, _client: &IpAddr, origin: &ServerName, typing: TypingContent,
-) -> Result<()> {
+async fn handle_edu_typing(services: &Services, _client: &IpAddr, origin: &ServerName, typing: TypingContent) {
 	if !services.globals.config.allow_incoming_typing {
-		return Ok(());
+		return;
 	}
 
 	if typing.user_id.server_name() != origin {
@@ -282,26 +285,28 @@ async fn handle_edu_typing(
 			%typing.user_id, %origin,
 			"received typing EDU for user not belonging to origin"
 		);
-		return Ok(());
+		return;
 	}
 
 	if services
 		.rooms
 		.event_handler
 		.acl_check(typing.user_id.server_name(), &typing.room_id)
+		.await
 		.is_err()
 	{
 		debug_warn!(
 			%typing.user_id, %typing.room_id, %origin,
 			"received typing EDU for ACL'd user's server"
 		);
-		return Ok(());
+		return;
 	}
 
 	if services
 		.rooms
 		.state_cache
-		.is_joined(&typing.user_id, &typing.room_id)?
+		.is_joined(&typing.user_id, &typing.room_id)
+		.await
 	{
 		if typing.typing {
 			let timeout = utils::millis_since_unix_epoch().saturating_add(
@@ -315,28 +320,29 @@ async fn handle_edu_typing(
 				.rooms
 				.typing
 				.typing_add(&typing.user_id, &typing.room_id, timeout)
-				.await?;
+				.await
+				.log_err()
+				.ok();
 		} else {
 			services
 				.rooms
 				.typing
 				.typing_remove(&typing.user_id, &typing.room_id)
-				.await?;
+				.await
+				.log_err()
+				.ok();
 		}
 	} else {
 		debug_warn!(
 			%typing.user_id, %typing.room_id, %origin,
 			"received typing EDU for user not in room"
 		);
-		return Ok(());
 	}
-
-	Ok(())
 }
 
 async fn handle_edu_device_list_update(
 	services: &Services, _client: &IpAddr, origin: &ServerName, content: DeviceListUpdateContent,
-) -> Result<()> {
+) {
 	let DeviceListUpdateContent {
 		user_id,
 		..
@@ -347,17 +353,15 @@ async fn handle_edu_device_list_update(
 			%user_id, %origin,
 			"received device list update EDU for user not belonging to origin"
 		);
-		return Ok(());
+		return;
 	}
 
-	services.users.mark_device_key_update(&user_id)?;
-
-	Ok(())
+	services.users.mark_device_key_update(&user_id).await;
 }
 
 async fn handle_edu_direct_to_device(
 	services: &Services, _client: &IpAddr, origin: &ServerName, content: DirectDeviceContent,
-) -> Result<()> {
+) {
 	let DirectDeviceContent {
 		sender,
 		ev_type,
@@ -370,45 +374,52 @@ async fn handle_edu_direct_to_device(
 			%sender, %origin,
 			"received direct to device EDU for user not belonging to origin"
 		);
-		return Ok(());
+		return;
 	}
 
 	// Check if this is a new transaction id
 	if services
 		.transaction_ids
-		.existing_txnid(&sender, None, &message_id)?
-		.is_some()
+		.existing_txnid(&sender, None, &message_id)
+		.await
+		.is_ok()
 	{
-		return Ok(());
+		return;
 	}
 
 	for (target_user_id, map) in &messages {
 		for (target_device_id_maybe, event) in map {
+			let Ok(event) = event
+				.deserialize_as()
+				.map_err(|e| err!(Request(InvalidParam(error!("To-Device event is invalid: {e}")))))
+			else {
+				continue;
+			};
+
+			let ev_type = ev_type.to_string();
 			match target_device_id_maybe {
 				DeviceIdOrAllDevices::DeviceId(target_device_id) => {
-					services.users.add_to_device_event(
-						&sender,
-						target_user_id,
-						target_device_id,
-						&ev_type.to_string(),
-						event
-							.deserialize_as()
-							.map_err(|e| err!(Request(InvalidParam(error!("To-Device event is invalid: {e}")))))?,
-					)?;
+					services
+						.users
+						.add_to_device_event(&sender, target_user_id, target_device_id, &ev_type, event)
+						.await;
 				},
 
 				DeviceIdOrAllDevices::AllDevices => {
-					for target_device_id in services.users.all_device_ids(target_user_id) {
-						services.users.add_to_device_event(
-							&sender,
-							target_user_id,
-							&target_device_id?,
-							&ev_type.to_string(),
-							event
-								.deserialize_as()
-								.map_err(|e| err!(Request(InvalidParam("Event is invalid: {e}"))))?,
-						)?;
-					}
+					let (sender, ev_type, event) = (&sender, &ev_type, &event);
+					services
+						.users
+						.all_device_ids(target_user_id)
+						.for_each(|target_device_id| {
+							services.users.add_to_device_event(
+								sender,
+								target_user_id,
+								target_device_id,
+								ev_type,
+								event.clone(),
+							)
+						})
+						.await;
 				},
 			}
 		}
@@ -417,14 +428,12 @@ async fn handle_edu_direct_to_device(
 	// Save transaction id with empty data
 	services
 		.transaction_ids
-		.add_txnid(&sender, None, &message_id, &[])?;
-
-	Ok(())
+		.add_txnid(&sender, None, &message_id, &[]);
 }
 
 async fn handle_edu_signing_key_update(
 	services: &Services, _client: &IpAddr, origin: &ServerName, content: SigningKeyUpdateContent,
-) -> Result<()> {
+) {
 	let SigningKeyUpdateContent {
 		user_id,
 		master_key,
@@ -436,14 +445,15 @@ async fn handle_edu_signing_key_update(
 			%user_id, %origin,
 			"received signing key update EDU from server that does not belong to user's server"
 		);
-		return Ok(());
+		return;
 	}
 
 	if let Some(master_key) = master_key {
 		services
 			.users
-			.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)?;
+			.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)
+			.await
+			.log_err()
+			.ok();
 	}
-
-	Ok(())
 }

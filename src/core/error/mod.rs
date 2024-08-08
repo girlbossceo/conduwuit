@@ -86,7 +86,7 @@ pub enum Error {
 	#[error("There was a problem with the '{0}' directive in your configuration: {1}")]
 	Config(&'static str, Cow<'static, str>),
 	#[error("{0}")]
-	Conflict(&'static str), // This is only needed for when a room alias already exists
+	Conflict(Cow<'static, str>), // This is only needed for when a room alias already exists
 	#[error(transparent)]
 	ContentDisposition(#[from] ruma::http_headers::ContentDispositionParseError),
 	#[error("{0}")]
@@ -107,6 +107,8 @@ pub enum Error {
 	Request(ruma::api::client::error::ErrorKind, Cow<'static, str>, http::StatusCode),
 	#[error(transparent)]
 	Ruma(#[from] ruma::api::client::error::Error),
+	#[error(transparent)]
+	StateRes(#[from] ruma::state_res::Error),
 	#[error("uiaa")]
 	Uiaa(ruma::api::client::uiaa::UiaaInfo),
 

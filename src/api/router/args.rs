@@ -10,7 +10,10 @@ use super::{auth, auth::Auth, request, request::Request};
 use crate::{service::appservice::RegistrationInfo, State};
 
 /// Extractor for Ruma request structs
-pub(crate) struct Args<T> {
+pub(crate) struct Args<T>
+where
+	T: IncomingRequest + Send + Sync + 'static,
+{
 	/// Request struct body
 	pub(crate) body: T,
 
@@ -38,7 +41,7 @@ pub(crate) struct Args<T> {
 #[async_trait]
 impl<T> FromRequest<State, Body> for Args<T>
 where
-	T: IncomingRequest,
+	T: IncomingRequest + Send + Sync + 'static,
 {
 	type Rejection = Error;
 
@@ -57,7 +60,10 @@ where
 	}
 }
 
-impl<T> Deref for Args<T> {
+impl<T> Deref for Args<T>
+where
+	T: IncomingRequest + Send + Sync + 'static,
+{
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target { &self.body }
@@ -67,7 +73,7 @@ fn make_body<T>(
 	services: &Services, request: &mut Request, json_body: &mut Option<CanonicalJsonValue>, auth: &Auth,
 ) -> Result<T>
 where
-	T: IncomingRequest,
+	T: IncomingRequest + Send + Sync + 'static,
 {
 	let body = if let Some(CanonicalJsonValue::Object(json_body)) = json_body {
 		let user_id = auth.sender_user.clone().unwrap_or_else(|| {
@@ -77,15 +83,13 @@ where
 
 		let uiaa_request = json_body
 			.get("auth")
-			.and_then(|auth| auth.as_object())
+			.and_then(CanonicalJsonValue::as_object)
 			.and_then(|auth| auth.get("session"))
-			.and_then(|session| session.as_str())
+			.and_then(CanonicalJsonValue::as_str)
 			.and_then(|session| {
-				services.uiaa.get_uiaa_request(
-					&user_id,
-					&auth.sender_device.clone().unwrap_or_else(|| EMPTY.into()),
-					session,
-				)
+				services
+					.uiaa
+					.get_uiaa_request(&user_id, auth.sender_device.as_deref(), session)
 			});
 
 		if let Some(CanonicalJsonValue::Object(initial_request)) = uiaa_request {

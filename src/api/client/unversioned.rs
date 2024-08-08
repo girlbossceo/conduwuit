@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::{extract::State, response::IntoResponse, Json};
+use futures::StreamExt;
 use ruma::api::client::{
 	discovery::{
 		discover_homeserver::{self, HomeserverInfo, SlidingSyncProxyInfo},
@@ -173,7 +174,7 @@ pub(crate) async fn conduwuit_server_version() -> Result<impl IntoResponse> {
 /// homeserver. Endpoint is disabled if federation is disabled for privacy. This
 /// only includes active users (not deactivated, no guests, etc)
 pub(crate) async fn conduwuit_local_user_count(State(services): State<crate::State>) -> Result<impl IntoResponse> {
-	let user_count = services.users.list_local_users()?.len();
+	let user_count = services.users.list_local_users().count().await;
 
 	Ok(Json(serde_json::json!({
 		"count": user_count

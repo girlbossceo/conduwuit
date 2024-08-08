@@ -106,7 +106,7 @@ impl Engine {
 		}))
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub(crate) fn open_cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
 		let mut cfs = self.cfs.lock().expect("locked");
 		if !cfs.contains(name) {

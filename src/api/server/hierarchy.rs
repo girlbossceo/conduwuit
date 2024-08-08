@@ -12,7 +12,7 @@ pub(crate) async fn get_hierarchy_route(
 ) -> Result<get_hierarchy::v1::Response> {
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
-	if services.rooms.metadata.exists(&body.room_id)? {
+	if services.rooms.metadata.exists(&body.room_id).await {
 		services
 			.rooms
 			.spaces

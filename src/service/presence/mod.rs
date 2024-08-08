@@ -4,8 +4,8 @@ mod presence;
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduit::{checked, debug, error, Error, Result, Server};
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use conduit::{checked, debug, error, result::LogErr, Error, Result, Server};
+use futures::{stream::FuturesUnordered, Stream, StreamExt, TryFutureExt};
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 use tokio::{sync::Mutex, time::sleep};
 
@@ -58,7 +58,9 @@ impl crate::Service for Service {
 		loop {
 			debug_assert!(!receiver.is_closed(), "channel error");
 			tokio::select! {
-				Some(user_id) = presence_timers.next() => self.process_presence_timer(&user_id)?,
+				Some(user_id) = presence_timers.next() => {
+					self.process_presence_timer(&user_id).await.log_err().ok();
+				},
 				event = receiver.recv_async() => match event {
 					Err(_e) => return Ok(()),
 					Ok((user_id, timeout)) => {
@@ -82,28 +84,27 @@ impl crate::Service for Service {
 impl Service {
 	/// Returns the latest presence event for the given user.
 	#[inline]
-	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<PresenceEvent>> {
-		if let Some((_, presence)) = self.db.get_presence(user_id)? {
-			Ok(Some(presence))
-		} else {
-			Ok(None)
-		}
+	pub async fn get_presence(&self, user_id: &UserId) -> Result<PresenceEvent> {
+		self.db
+			.get_presence(user_id)
+			.map_ok(|(_, presence)| presence)
+			.await
 	}
 
 	/// Pings the presence of the given user in the given room, setting the
 	/// specified state.
-	pub fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
+	pub async fn ping_presence(&self, user_id: &UserId, new_state: &PresenceState) -> Result<()> {
 		const REFRESH_TIMEOUT: u64 = 60 * 25 * 1000;
 
-		let last_presence = self.db.get_presence(user_id)?;
+		let last_presence = self.db.get_presence(user_id).await;
 		let state_changed = match last_presence {
-			None => true,
-			Some((_, ref presence)) => presence.content.presence != *new_state,
+			Err(_) => true,
+			Ok((_, ref presence)) => presence.content.presence != *new_state,
 		};
 
 		let last_last_active_ago = match last_presence {
-			None => 0_u64,
-			Some((_, ref presence)) => presence.content.last_active_ago.unwrap_or_default().into(),
+			Err(_) => 0_u64,
+			Ok((_, ref presence)) => presence.content.last_active_ago.unwrap_or_default().into(),
 		};
 
 		if !state_changed && last_last_active_ago < REFRESH_TIMEOUT {
@@ -111,17 +112,18 @@ impl Service {
 		}
 
 		let status_msg = match last_presence {
-			Some((_, ref presence)) => presence.content.status_msg.clone(),
-			None => Some(String::new()),
+			Ok((_, ref presence)) => presence.content.status_msg.clone(),
+			Err(_) => Some(String::new()),
 		};
 
 		let last_active_ago = UInt::new(0);
 		let currently_active = *new_state == PresenceState::Online;
 		self.set_presence(user_id, new_state, Some(currently_active), last_active_ago, status_msg)
+			.await
 	}
 
 	/// Adds a presence event which will be saved until a new event replaces it.
-	pub fn set_presence(
+	pub async fn set_presence(
 		&self, user_id: &UserId, state: &PresenceState, currently_active: Option<bool>, last_active_ago: Option<UInt>,
 		status_msg: Option<String>,
 	) -> Result<()> {
@@ -131,7 +133,8 @@ impl Service {
 		};
 
 		self.db
-			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)?;
+			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)
+			.await?;
 
 		if self.timeout_remote_users || self.services.globals.user_is_local(user_id) {
 			let timeout = match presence_state {
@@ -154,28 +157,33 @@ impl Service {
 	///
 	/// TODO: Why is this not used?
 	#[allow(dead_code)]
-	pub fn remove_presence(&self, user_id: &UserId) -> Result<()> { self.db.remove_presence(user_id) }
+	pub async fn remove_presence(&self, user_id: &UserId) { self.db.remove_presence(user_id).await }
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
 	#[inline]
-	pub fn presence_since(&self, since: u64) -> Box<dyn Iterator<Item = (OwnedUserId, u64, Vec<u8>)> + '_> {
+	pub fn presence_since(&self, since: u64) -> impl Stream<Item = (OwnedUserId, u64, Vec<u8>)> + Send + '_ {
 		self.db.presence_since(since)
 	}
 
-	pub fn from_json_bytes_to_event(&self, bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
+	#[inline]
+	pub async fn from_json_bytes_to_event(&self, bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
 		let presence = Presence::from_json_bytes(bytes)?;
-		presence.to_presence_event(user_id, &self.services.users)
+		let event = presence
+			.to_presence_event(user_id, &self.services.users)
+			.await;
+
+		Ok(event)
 	}
 
-	fn process_presence_timer(&self, user_id: &OwnedUserId) -> Result<()> {
+	async fn process_presence_timer(&self, user_id: &OwnedUserId) -> Result<()> {
 		let mut presence_state = PresenceState::Offline;
 		let mut last_active_ago = None;
 		let mut status_msg = None;
 
-		let presence_event = self.get_presence(user_id)?;
+		let presence_event = self.get_presence(user_id).await;
 
-		if let Some(presence_event) = presence_event {
+		if let Ok(presence_event) = presence_event {
 			presence_state = presence_event.content.presence;
 			last_active_ago = presence_event.content.last_active_ago;
 			status_msg = presence_event.content.status_msg;
@@ -192,7 +200,8 @@ impl Service {
 		);
 
 		if let Some(new_state) = new_state {
-			self.set_presence(user_id, &new_state, Some(false), last_active_ago, status_msg)?;
+			self.set_presence(user_id, &new_state, Some(false), last_active_ago, status_msg)
+				.await?;
 		}
 
 		Ok(())

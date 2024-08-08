@@ -1,11 +1,9 @@
 use axum::extract::State;
-use conduit::{debug, Error, Result};
+use conduit::{debug, Err, Result};
+use futures::StreamExt;
 use rand::seq::SliceRandom;
 use ruma::{
-	api::client::{
-		alias::{create_alias, delete_alias, get_alias},
-		error::ErrorKind,
-	},
+	api::client::alias::{create_alias, delete_alias, get_alias},
 	OwnedServerName, RoomAliasId, RoomId,
 };
 use service::Services;
@@ -33,16 +31,17 @@ pub(crate) async fn create_alias_route(
 		.forbidden_alias_names()
 		.is_match(body.room_alias.alias())
 	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room alias is forbidden."));
+		return Err!(Request(Forbidden("Room alias is forbidden.")));
 	}
 
 	if services
 		.rooms
 		.alias
-		.resolve_local_alias(&body.room_alias)?
-		.is_some()
+		.resolve_local_alias(&body.room_alias)
+		.await
+		.is_ok()
 	{
-		return Err(Error::Conflict("Alias already exists."));
+		return Err!(Conflict("Alias already exists."));
 	}
 
 	services
@@ -95,16 +94,16 @@ pub(crate) async fn get_alias_route(
 		.resolve_alias(&room_alias, servers.as_ref())
 		.await
 	else {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found."));
+		return Err!(Request(NotFound("Room with alias not found.")));
 	};
 
-	let servers = room_available_servers(&services, &room_id, &room_alias, &pre_servers);
+	let servers = room_available_servers(&services, &room_id, &room_alias, &pre_servers).await;
 	debug!(?room_alias, ?room_id, "available servers: {servers:?}");
 
 	Ok(get_alias::v3::Response::new(room_id, servers))
 }
 
-fn room_available_servers(
+async fn room_available_servers(
 	services: &Services, room_id: &RoomId, room_alias: &RoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
 ) -> Vec<OwnedServerName> {
 	// find active servers in room state cache to suggest
@@ -112,8 +111,9 @@ fn room_available_servers(
 		.rooms
 		.state_cache
 		.room_servers(room_id)
-		.filter_map(Result::ok)
-		.collect();
+		.map(ToOwned::to_owned)
+		.collect()
+		.await;
 
 	// push any servers we want in the list already (e.g. responded remote alias
 	// servers, room alias server itself)

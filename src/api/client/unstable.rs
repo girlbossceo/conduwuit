@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{warn, Err};
+use conduit::Err;
+use futures::StreamExt;
 use ruma::{
 	api::{
 		client::{
@@ -45,7 +46,7 @@ pub(crate) async fn get_mutual_rooms_route(
 		));
 	}
 
-	if !services.users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id).await {
 		return Ok(mutual_rooms::unstable::Response {
 			joined: vec![],
 			next_batch_token: None,
@@ -55,9 +56,10 @@ pub(crate) async fn get_mutual_rooms_route(
 	let mutual_rooms: Vec<OwnedRoomId> = services
 		.rooms
 		.user
-		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
-		.filter_map(Result::ok)
-		.collect();
+		.get_shared_rooms(sender_user, &body.user_id)
+		.map(ToOwned::to_owned)
+		.collect()
+		.await;
 
 	Ok(mutual_rooms::unstable::Response {
 		joined: mutual_rooms,
@@ -99,7 +101,7 @@ pub(crate) async fn get_room_summary(
 
 	let room_id = services.rooms.alias.resolve(&body.room_id_or_alias).await?;
 
-	if !services.rooms.metadata.exists(&room_id)? {
+	if !services.rooms.metadata.exists(&room_id).await {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server"));
 	}
 
@@ -108,7 +110,7 @@ pub(crate) async fn get_room_summary(
 			.rooms
 			.state_accessor
 			.is_world_readable(&room_id)
-			.unwrap_or(false)
+			.await
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
@@ -122,50 +124,58 @@ pub(crate) async fn get_room_summary(
 			.rooms
 			.state_accessor
 			.get_canonical_alias(&room_id)
-			.unwrap_or(None),
+			.await
+			.ok(),
 		avatar_url: services
 			.rooms
 			.state_accessor
-			.get_avatar(&room_id)?
+			.get_avatar(&room_id)
+			.await
 			.into_option()
 			.unwrap_or_default()
 			.url,
-		guest_can_join: services.rooms.state_accessor.guest_can_join(&room_id)?,
-		name: services
-			.rooms
-			.state_accessor
-			.get_name(&room_id)
-			.unwrap_or(None),
+		guest_can_join: services.rooms.state_accessor.guest_can_join(&room_id).await,
+		name: services.rooms.state_accessor.get_name(&room_id).await.ok(),
 		num_joined_members: services
 			.rooms
 			.state_cache
 			.room_joined_count(&room_id)
-			.unwrap_or_default()
-			.unwrap_or_else(|| {
-				warn!("Room {room_id} has no member count");
-				0
-			})
-			.try_into()
-			.expect("user count should not be that big"),
+			.await
+			.unwrap_or(0)
+			.try_into()?,
 		topic: services
 			.rooms
 			.state_accessor
 			.get_room_topic(&room_id)
-			.unwrap_or(None),
+			.await
+			.ok(),
 		world_readable: services
 			.rooms
 			.state_accessor
 			.is_world_readable(&room_id)
-			.unwrap_or(false),
-		join_rule: services.rooms.state_accessor.get_join_rule(&room_id)?.0,
-		room_type: services.rooms.state_accessor.get_room_type(&room_id)?,
-		room_version: Some(services.rooms.state.get_room_version(&room_id)?),
+			.await,
+		join_rule: services
+			.rooms
+			.state_accessor
+			.get_join_rule(&room_id)
+			.await
+			.unwrap_or_default()
+			.0,
+		room_type: services
+			.rooms
+			.state_accessor
+			.get_room_type(&room_id)
+			.await
+			.ok(),
+		room_version: services.rooms.state.get_room_version(&room_id).await.ok(),
 		membership: if let Some(sender_user) = sender_user {
 			services
 				.rooms
 				.state_accessor
-				.get_member(&room_id, sender_user)?
-				.map_or_else(|| Some(MembershipState::Leave), |content| Some(content.membership))
+				.get_member(&room_id, sender_user)
+				.await
+				.map_or_else(|_| MembershipState::Leave, |content| content.membership)
+				.into()
 		} else {
 			None
 		},
@@ -173,7 +183,8 @@ pub(crate) async fn get_room_summary(
 			.rooms
 			.state_accessor
 			.get_room_encryption(&room_id)
-			.unwrap_or_else(|_e| None),
+			.await
+			.ok(),
 	})
 }
 
@@ -191,13 +202,14 @@ pub(crate) async fn delete_timezone_key_route(
 		return Err!(Request(Forbidden("You cannot update the profile of another user")));
 	}
 
-	services.users.set_timezone(&body.user_id, None).await?;
+	services.users.set_timezone(&body.user_id, None);
 
 	if services.globals.allow_local_presence() {
 		// Presence update
 		services
 			.presence
-			.ping_presence(&body.user_id, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)
+			.await?;
 	}
 
 	Ok(delete_timezone_key::unstable::Response {})
@@ -217,16 +229,14 @@ pub(crate) async fn set_timezone_key_route(
 		return Err!(Request(Forbidden("You cannot update the profile of another user")));
 	}
 
-	services
-		.users
-		.set_timezone(&body.user_id, body.tz.clone())
-		.await?;
+	services.users.set_timezone(&body.user_id, body.tz.clone());
 
 	if services.globals.allow_local_presence() {
 		// Presence update
 		services
 			.presence
-			.ping_presence(&body.user_id, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)
+			.await?;
 	}
 
 	Ok(set_timezone_key::unstable::Response {})
@@ -280,10 +290,11 @@ pub(crate) async fn set_profile_key_route(
 			.rooms
 			.state_cache
 			.rooms_joined(&body.user_id)
-			.filter_map(Result::ok)
-			.collect();
+			.map(Into::into)
+			.collect()
+			.await;
 
-		update_displayname(&services, &body.user_id, Some(profile_key_value.to_string()), all_joined_rooms).await?;
+		update_displayname(&services, &body.user_id, Some(profile_key_value.to_string()), &all_joined_rooms).await?;
 	} else if body.key == "avatar_url" {
 		let mxc = ruma::OwnedMxcUri::from(profile_key_value.to_string());
 
@@ -291,21 +302,23 @@ pub(crate) async fn set_profile_key_route(
 			.rooms
 			.state_cache
 			.rooms_joined(&body.user_id)
-			.filter_map(Result::ok)
-			.collect();
+			.map(Into::into)
+			.collect()
+			.await;
 
-		update_avatar_url(&services, &body.user_id, Some(mxc), None, all_joined_rooms).await?;
+		update_avatar_url(&services, &body.user_id, Some(mxc), None, &all_joined_rooms).await?;
 	} else {
 		services
 			.users
-			.set_profile_key(&body.user_id, &body.key, Some(profile_key_value.clone()))?;
+			.set_profile_key(&body.user_id, &body.key, Some(profile_key_value.clone()));
 	}
 
 	if services.globals.allow_local_presence() {
 		// Presence update
 		services
 			.presence
-			.ping_presence(&body.user_id, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)
+			.await?;
 	}
 
 	Ok(set_profile_key::unstable::Response {})
@@ -335,30 +348,33 @@ pub(crate) async fn delete_profile_key_route(
 			.rooms
 			.state_cache
 			.rooms_joined(&body.user_id)
-			.filter_map(Result::ok)
-			.collect();
+			.map(Into::into)
+			.collect()
+			.await;
 
-		update_displayname(&services, &body.user_id, None, all_joined_rooms).await?;
+		update_displayname(&services, &body.user_id, None, &all_joined_rooms).await?;
 	} else if body.key == "avatar_url" {
 		let all_joined_rooms: Vec<OwnedRoomId> = services
 			.rooms
 			.state_cache
 			.rooms_joined(&body.user_id)
-			.filter_map(Result::ok)
-			.collect();
+			.map(Into::into)
+			.collect()
+			.await;
 
-		update_avatar_url(&services, &body.user_id, None, None, all_joined_rooms).await?;
+		update_avatar_url(&services, &body.user_id, None, None, &all_joined_rooms).await?;
 	} else {
 		services
 			.users
-			.set_profile_key(&body.user_id, &body.key, None)?;
+			.set_profile_key(&body.user_id, &body.key, None);
 	}
 
 	if services.globals.allow_local_presence() {
 		// Presence update
 		services
 			.presence
-			.ping_presence(&body.user_id, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)
+			.await?;
 	}
 
 	Ok(delete_profile_key::unstable::Response {})
@@ -386,26 +402,25 @@ pub(crate) async fn get_timezone_key_route(
 			)
 			.await
 		{
-			if !services.users.exists(&body.user_id)? {
+			if !services.users.exists(&body.user_id).await {
 				services.users.create(&body.user_id, None)?;
 			}
 
 			services
 				.users
-				.set_displayname(&body.user_id, response.displayname.clone())
-				.await?;
+				.set_displayname(&body.user_id, response.displayname.clone());
+
 			services
 				.users
-				.set_avatar_url(&body.user_id, response.avatar_url.clone())
-				.await?;
+				.set_avatar_url(&body.user_id, response.avatar_url.clone());
+
 			services
 				.users
-				.set_blurhash(&body.user_id, response.blurhash.clone())
-				.await?;
+				.set_blurhash(&body.user_id, response.blurhash.clone());
+
 			services
 				.users
-				.set_timezone(&body.user_id, response.tz.clone())
-				.await?;
+				.set_timezone(&body.user_id, response.tz.clone());
 
 			return Ok(get_timezone_key::unstable::Response {
 				tz: response.tz,
@@ -413,14 +428,14 @@ pub(crate) async fn get_timezone_key_route(
 		}
 	}
 
-	if !services.users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id).await {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_timezone_key::unstable::Response {
-		tz: services.users.timezone(&body.user_id)?,
+		tz: services.users.timezone(&body.user_id).await.ok(),
 	})
 }
 
@@ -448,32 +463,31 @@ pub(crate) async fn get_profile_key_route(
 			)
 			.await
 		{
-			if !services.users.exists(&body.user_id)? {
+			if !services.users.exists(&body.user_id).await {
 				services.users.create(&body.user_id, None)?;
 			}
 
 			services
 				.users
-				.set_displayname(&body.user_id, response.displayname.clone())
-				.await?;
+				.set_displayname(&body.user_id, response.displayname.clone());
+
 			services
 				.users
-				.set_avatar_url(&body.user_id, response.avatar_url.clone())
-				.await?;
+				.set_avatar_url(&body.user_id, response.avatar_url.clone());
+
 			services
 				.users
-				.set_blurhash(&body.user_id, response.blurhash.clone())
-				.await?;
+				.set_blurhash(&body.user_id, response.blurhash.clone());
+
 			services
 				.users
-				.set_timezone(&body.user_id, response.tz.clone())
-				.await?;
+				.set_timezone(&body.user_id, response.tz.clone());
 
 			if let Some(value) = response.custom_profile_fields.get(&body.key) {
 				profile_key_value.insert(body.key.clone(), value.clone());
 				services
 					.users
-					.set_profile_key(&body.user_id, &body.key, Some(value.clone()))?;
+					.set_profile_key(&body.user_id, &body.key, Some(value.clone()));
 			} else {
 				return Err!(Request(NotFound("The requested profile key does not exist.")));
 			}
@@ -484,13 +498,13 @@ pub(crate) async fn get_profile_key_route(
 		}
 	}
 
-	if !services.users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id).await {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
+		return Err!(Request(NotFound("Profile was not found.")));
 	}
 
-	if let Some(value) = services.users.profile_key(&body.user_id, &body.key)? {
+	if let Ok(value) = services.users.profile_key(&body.user_id, &body.key).await {
 		profile_key_value.insert(body.key.clone(), value);
 	} else {
 		return Err!(Request(NotFound("The requested profile key does not exist.")));

@@ -5,7 +5,7 @@ use std::{
 };
 
 use conduit::{debug, defer, error, log, Server};
-use futures_util::future::{AbortHandle, Abortable};
+use futures::future::{AbortHandle, Abortable};
 use ruma::events::room::message::RoomMessageEventContent;
 use rustyline_async::{Readline, ReadlineError, ReadlineEvent};
 use termimad::MadSkin;

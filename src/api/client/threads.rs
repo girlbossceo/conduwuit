@@ -1,4 +1,6 @@
 use axum::extract::State;
+use conduit::PduEvent;
+use futures::StreamExt;
 use ruma::{
 	api::client::{error::ErrorKind, threads::get_threads},
 	uint,
@@ -27,20 +29,23 @@ pub(crate) async fn get_threads_route(
 		u64::MAX
 	};
 
-	let threads = services
+	let room_id = &body.room_id;
+	let threads: Vec<(u64, PduEvent)> = services
 		.rooms
 		.threads
-		.threads_until(sender_user, &body.room_id, from, &body.include)?
+		.threads_until(sender_user, &body.room_id, from, &body.include)
+		.await?
 		.take(limit)
-		.filter_map(Result::ok)
-		.filter(|(_, pdu)| {
+		.filter_map(|(count, pdu)| async move {
 			services
 				.rooms
 				.state_accessor
-				.user_can_see_event(sender_user, &body.room_id, &pdu.event_id)
-				.unwrap_or(false)
+				.user_can_see_event(sender_user, room_id, &pdu.event_id)
+				.await
+				.then_some((count, pdu))
 		})
-		.collect::<Vec<_>>();
+		.collect()
+		.await;
 
 	let next_batch = threads.last().map(|(count, _)| count.to_string());
 

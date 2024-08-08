@@ -29,7 +29,7 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 	match subcommand {
 		GlobalsCommand::DatabaseVersion => {
 			let timer = tokio::time::Instant::now();
-			let results = services.globals.db.database_version();
+			let results = services.globals.db.database_version().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -47,7 +47,7 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 		},
 		GlobalsCommand::LastCheckForUpdatesId => {
 			let timer = tokio::time::Instant::now();
-			let results = services.updates.last_check_for_updates_id();
+			let results = services.updates.last_check_for_updates_id().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -67,7 +67,7 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 			origin,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.globals.db.verify_keys_for(&origin);
+			let results = services.globals.db.verify_keys_for(&origin).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

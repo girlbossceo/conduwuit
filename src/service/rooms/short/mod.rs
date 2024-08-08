@@ -22,38 +22,40 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
-		self.db.get_or_create_shorteventid(event_id)
+	pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> u64 {
+		self.db.get_or_create_shorteventid(event_id).await
 	}
 
-	pub fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Result<Vec<u64>> {
-		self.db.multi_get_or_create_shorteventid(event_ids)
+	pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Vec<u64> {
+		self.db.multi_get_or_create_shorteventid(event_ids).await
 	}
 
-	pub fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<Option<u64>> {
-		self.db.get_shortstatekey(event_type, state_key)
+	pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
+		self.db.get_shortstatekey(event_type, state_key).await
 	}
 
-	pub fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
-		self.db.get_or_create_shortstatekey(event_type, state_key)
+	pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> u64 {
+		self.db
+			.get_or_create_shortstatekey(event_type, state_key)
+			.await
 	}
 
-	pub fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
-		self.db.get_eventid_from_short(shorteventid)
+	pub async fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
+		self.db.get_eventid_from_short(shorteventid).await
 	}
 
-	pub fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
-		self.db.get_statekey_from_short(shortstatekey)
+	pub async fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
+		self.db.get_statekey_from_short(shortstatekey).await
 	}
 
 	/// Returns (shortstatehash, already_existed)
-	pub fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> Result<(u64, bool)> {
-		self.db.get_or_create_shortstatehash(state_hash)
+	pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (u64, bool) {
+		self.db.get_or_create_shortstatehash(state_hash).await
 	}
 
-	pub fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>> { self.db.get_shortroomid(room_id) }
+	pub async fn get_shortroomid(&self, room_id: &RoomId) -> Result<u64> { self.db.get_shortroomid(room_id).await }
 
-	pub fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
-		self.db.get_or_create_shortroomid(room_id)
+	pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> u64 {
+		self.db.get_or_create_shortroomid(room_id).await
 	}
 }

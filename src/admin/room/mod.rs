@@ -6,6 +6,7 @@ mod moderation;
 
 use clap::Subcommand;
 use conduit::Result;
+use ruma::OwnedRoomId;
 
 use self::{
 	alias::RoomAliasCommand, directory::RoomDirectoryCommand, info::RoomInfoCommand, moderation::RoomModerationCommand,
@@ -49,4 +50,9 @@ pub(super) enum RoomCommand {
 	#[command(subcommand)]
 	/// - Manage the room directory
 	Directory(RoomDirectoryCommand),
+
+	/// - Check if we know about a room
+	Exists {
+		room_id: OwnedRoomId,
+	},
 }

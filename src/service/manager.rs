@@ -1,7 +1,7 @@
 use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use conduit::{debug, debug_warn, error, trace, utils::time, warn, Err, Error, Result, Server};
-use futures_util::FutureExt;
+use futures::FutureExt;
 use tokio::{
 	sync::{Mutex, MutexGuard},
 	task::{JoinHandle, JoinSet},

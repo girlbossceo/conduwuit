@@ -29,7 +29,9 @@ pub(super) async fn process(subcommand: AppserviceCommand, context: &Command<'_>
 			let results = services
 				.appservice
 				.db
-				.get_registration(appservice_id.as_ref());
+				.get_registration(appservice_id.as_ref())
+				.await;
+
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -38,7 +40,7 @@ pub(super) async fn process(subcommand: AppserviceCommand, context: &Command<'_>
 		},
 		AppserviceCommand::All => {
 			let timer = tokio::time::Instant::now();
-			let results = services.appservice.all();
+			let results = services.appservice.all().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use conduit::{
 	debug, debug_info, trace,
-	utils::{str_from_bytes, string_from_bytes},
+	utils::{str_from_bytes, stream::TryIgnore, string_from_bytes, ReadyExt},
 	Err, Error, Result,
 };
 use database::{Database, Map};
+use futures::StreamExt;
 use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 
 use super::{preview::UrlPreviewData, thumbnail::Dim};
@@ -59,7 +60,7 @@ impl Data {
 				.unwrap_or_default(),
 		);
 
-		self.mediaid_file.insert(&key, &[])?;
+		self.mediaid_file.insert(&key, &[]);
 
 		if let Some(user) = user {
 			let mut key: Vec<u8> = Vec::new();
@@ -68,13 +69,13 @@ impl Data {
 			key.extend_from_slice(b"/");
 			key.extend_from_slice(mxc.media_id.as_bytes());
 			let user = user.as_bytes().to_vec();
-			self.mediaid_user.insert(&key, &user)?;
+			self.mediaid_user.insert(&key, &user);
 		}
 
 		Ok(key)
 	}
 
-	pub(super) fn delete_file_mxc(&self, mxc: &Mxc<'_>) -> Result<()> {
+	pub(super) async fn delete_file_mxc(&self, mxc: &Mxc<'_>) {
 		debug!("MXC URI: {mxc}");
 
 		let mut prefix: Vec<u8> = Vec::new();
@@ -85,25 +86,31 @@ impl Data {
 		prefix.push(0xFF);
 
 		trace!("MXC db prefix: {prefix:?}");
-		for (key, _) in self.mediaid_file.scan_prefix(prefix.clone()) {
-			debug!("Deleting key: {:?}", key);
-			self.mediaid_file.remove(&key)?;
-		}
+		self.mediaid_file
+			.raw_keys_prefix(&prefix)
+			.ignore_err()
+			.ready_for_each(|key| {
+				debug!("Deleting key: {:?}", key);
+				self.mediaid_file.remove(key);
+			})
+			.await;
 
-		for (key, value) in self.mediaid_user.scan_prefix(prefix.clone()) {
-			if key.starts_with(&prefix) {
-				let user = str_from_bytes(&value).unwrap_or_default();
+		self.mediaid_user
+			.raw_stream_prefix(&prefix)
+			.ignore_err()
+			.ready_for_each(|(key, val)| {
+				if key.starts_with(&prefix) {
+					let user = str_from_bytes(val).unwrap_or_default();
+					debug_info!("Deleting key {key:?} which was uploaded by user {user}");
 
-				debug_info!("Deleting key \"{key:?}\" which was uploaded by user {user}");
-				self.mediaid_user.remove(&key)?;
-			}
-		}
-
-		Ok(())
+					self.mediaid_user.remove(key);
+				}
+			})
+			.await;
 	}
 
 	/// Searches for all files with the given MXC
-	pub(super) fn search_mxc_metadata_prefix(&self, mxc: &Mxc<'_>) -> Result<Vec<Vec<u8>>> {
+	pub(super) async fn search_mxc_metadata_prefix(&self, mxc: &Mxc<'_>) -> Result<Vec<Vec<u8>>> {
 		debug!("MXC URI: {mxc}");
 
 		let mut prefix: Vec<u8> = Vec::new();
@@ -115,9 +122,10 @@ impl Data {
 
 		let keys: Vec<Vec<u8>> = self
 			.mediaid_file
-			.scan_prefix(prefix)
-			.map(|(key, _)| key)
-			.collect();
+			.keys_prefix_raw(&prefix)
+			.ignore_err()
+			.collect()
+			.await;
 
 		if keys.is_empty() {
 			return Err!(Database("Failed to find any keys in database for `{mxc}`",));
@@ -128,7 +136,7 @@ impl Data {
 		Ok(keys)
 	}
 
-	pub(super) fn search_file_metadata(&self, mxc: &Mxc<'_>, dim: &Dim) -> Result<Metadata> {
+	pub(super) async fn search_file_metadata(&self, mxc: &Mxc<'_>, dim: &Dim) -> Result<Metadata> {
 		let mut prefix: Vec<u8> = Vec::new();
 		prefix.extend_from_slice(b"mxc://");
 		prefix.extend_from_slice(mxc.server_name.as_bytes());
@@ -139,10 +147,13 @@ impl Data {
 		prefix.extend_from_slice(&dim.height.to_be_bytes());
 		prefix.push(0xFF);
 
-		let (key, _) = self
+		let key = self
 			.mediaid_file
-			.scan_prefix(prefix)
+			.raw_keys_prefix(&prefix)
+			.ignore_err()
+			.map(ToOwned::to_owned)
 			.next()
+			.await
 			.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Media not found"))?;
 
 		let mut parts = key.rsplit(|&b| b == 0xFF);
@@ -177,28 +188,31 @@ impl Data {
 	}
 
 	/// Gets all the MXCs associated with a user
-	pub(super) fn get_all_user_mxcs(&self, user_id: &UserId) -> Vec<OwnedMxcUri> {
-		let user_id = user_id.as_bytes().to_vec();
-
+	pub(super) async fn get_all_user_mxcs(&self, user_id: &UserId) -> Vec<OwnedMxcUri> {
 		self.mediaid_user
-			.iter()
-			.filter_map(|(key, user)| {
-				if *user == user_id {
-					let mxc_s = string_from_bytes(&key).ok()?;
-					Some(OwnedMxcUri::from(mxc_s))
-				} else {
-					None
-				}
-			})
+			.stream()
+			.ignore_err()
+			.ready_filter_map(|(key, user): (&str, &UserId)| (user == user_id).then(|| key.into()))
 			.collect()
+			.await
 	}
 
 	/// Gets all the media keys in our database (this includes all the metadata
 	/// associated with it such as width, height, content-type, etc)
-	pub(crate) fn get_all_media_keys(&self) -> Vec<Vec<u8>> { self.mediaid_file.iter().map(|(key, _)| key).collect() }
+	pub(crate) async fn get_all_media_keys(&self) -> Vec<Vec<u8>> {
+		self.mediaid_file
+			.raw_keys()
+			.ignore_err()
+			.map(<[u8]>::to_vec)
+			.collect()
+			.await
+	}
 
 	#[inline]
-	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> { self.url_previews.remove(url.as_bytes()) }
+	pub(super) fn remove_url_preview(&self, url: &str) -> Result<()> {
+		self.url_previews.remove(url.as_bytes());
+		Ok(())
+	}
 
 	pub(super) fn set_url_preview(
 		&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration,
@@ -233,11 +247,13 @@ impl Data {
 		value.push(0xFF);
 		value.extend_from_slice(&data.image_height.unwrap_or(0).to_be_bytes());
 
-		self.url_previews.insert(url.as_bytes(), &value)
+		self.url_previews.insert(url.as_bytes(), &value);
+
+		Ok(())
 	}
 
-	pub(super) fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
-		let values = self.url_previews.get(url.as_bytes()).ok()??;
+	pub(super) async fn get_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
+		let values = self.url_previews.qry(url).await?;
 
 		let mut values = values.split(|&b| b == 0xFF);
 
@@ -291,7 +307,7 @@ impl Data {
 			x => x,
 		};
 
-		Some(UrlPreviewData {
+		Ok(UrlPreviewData {
 			title,
 			description,
 			image,

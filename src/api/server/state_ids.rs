@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use ruma::api::{client::error::ErrorKind, federation::event::get_room_state_ids};
+use conduit::{err, Err};
+use futures::StreamExt;
+use ruma::api::federation::event::get_room_state_ids;
 
-use crate::{Error, Result, Ruma};
+use crate::{Result, Ruma};
 
 /// # `GET /_matrix/federation/v1/state_ids/{roomId}`
 ///
@@ -17,31 +19,35 @@ pub(crate) async fn get_room_state_ids_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
 	if !services
 		.rooms
 		.state_accessor
-		.is_world_readable(&body.room_id)?
-		&& !services
-			.rooms
-			.state_cache
-			.server_in_room(origin, &body.room_id)?
+		.is_world_readable(&body.room_id)
+		.await && !services
+		.rooms
+		.state_cache
+		.server_in_room(origin, &body.room_id)
+		.await
 	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
+		return Err!(Request(Forbidden("Server is not in room.")));
 	}
 
 	let shortstatehash = services
 		.rooms
 		.state_accessor
-		.pdu_shortstatehash(&body.event_id)?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Pdu state not found."))?;
+		.pdu_shortstatehash(&body.event_id)
+		.await
+		.map_err(|_| err!(Request(NotFound("Pdu state not found."))))?;
 
 	let pdu_ids = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
-		.await?
+		.await
+		.map_err(|_| err!(Request(NotFound("State ids not found"))))?
 		.into_values()
 		.map(|id| (*id).to_owned())
 		.collect();
@@ -50,10 +56,13 @@ pub(crate) async fn get_room_state_ids_route(
 		.rooms
 		.auth_chain
 		.event_ids_iter(&body.room_id, vec![Arc::from(&*body.event_id)])
-		.await?;
+		.await?
+		.map(|id| (*id).to_owned())
+		.collect()
+		.await;
 
 	Ok(get_room_state_ids::v1::Response {
-		auth_chain_ids: auth_chain_ids.map(|id| (*id).to_owned()).collect(),
+		auth_chain_ids,
 		pdu_ids,
 	})
 }

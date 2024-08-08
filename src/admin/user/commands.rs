@@ -1,7 +1,9 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{full_user_deactivate, join_room_by_id_helper, leave_room};
-use conduit::{error, info, utils, warn, PduBuilder, Result};
+use conduit::{error, info, is_equal_to, utils, warn, PduBuilder, Result};
+use conduit_api::client::{leave_all_rooms, update_avatar_url, update_displayname};
+use futures::StreamExt;
 use ruma::{
 	events::{
 		room::{
@@ -25,16 +27,19 @@ const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
 
 #[admin_command]
 pub(super) async fn list_users(&self) -> Result<RoomMessageEventContent> {
-	match self.services.users.list_local_users() {
-		Ok(users) => {
-			let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
-			plain_msg += users.join("\n").as_str();
-			plain_msg += "\n```";
+	let users = self
+		.services
+		.users
+		.list_local_users()
+		.map(ToString::to_string)
+		.collect::<Vec<_>>()
+		.await;
 
-			Ok(RoomMessageEventContent::notice_markdown(plain_msg))
-		},
-		Err(e) => Ok(RoomMessageEventContent::text_plain(e.to_string())),
-	}
+	let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
+	plain_msg += users.join("\n").as_str();
+	plain_msg += "\n```";
+
+	Ok(RoomMessageEventContent::notice_markdown(plain_msg))
 }
 
 #[admin_command]
@@ -42,7 +47,7 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 	// Validate user id
 	let user_id = parse_local_user_id(self.services, &username)?;
 
-	if self.services.users.exists(&user_id)? {
+	if self.services.users.exists(&user_id).await {
 		return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
 	}
 
@@ -77,23 +82,25 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 
 	self.services
 		.users
-		.set_displayname(&user_id, Some(displayname))
-		.await?;
+		.set_displayname(&user_id, Some(displayname));
 
 	// Initial account data
-	self.services.account_data.update(
-		None,
-		&user_id,
-		ruma::events::GlobalAccountDataEventType::PushRules
-			.to_string()
-			.into(),
-		&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
-			content: ruma::events::push_rules::PushRulesEventContent {
-				global: ruma::push::Ruleset::server_default(&user_id),
-			},
-		})
-		.expect("to json value always works"),
-	)?;
+	self.services
+		.account_data
+		.update(
+			None,
+			&user_id,
+			ruma::events::GlobalAccountDataEventType::PushRules
+				.to_string()
+				.into(),
+			&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
+				content: ruma::events::push_rules::PushRulesEventContent {
+					global: ruma::push::Ruleset::server_default(&user_id),
+				},
+			})
+			.expect("to json value always works"),
+		)
+		.await?;
 
 	if !self.services.globals.config.auto_join_rooms.is_empty() {
 		for room in &self.services.globals.config.auto_join_rooms {
@@ -101,7 +108,8 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 				.services
 				.rooms
 				.state_cache
-				.server_in_room(self.services.globals.server_name(), room)?
+				.server_in_room(self.services.globals.server_name(), room)
+				.await
 			{
 				warn!("Skipping room {room} to automatically join as we have never joined before.");
 				continue;
@@ -135,13 +143,14 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 
 	// if this account creation is from the CLI / --execute, invite the first user
 	// to admin room
-	if let Some(admin_room) = self.services.admin.get_admin_room()? {
+	if let Ok(admin_room) = self.services.admin.get_admin_room().await {
 		if self
 			.services
 			.rooms
 			.state_cache
-			.room_joined_count(&admin_room)?
-			== Some(1)
+			.room_joined_count(&admin_room)
+			.await
+			.is_ok_and(is_equal_to!(1))
 		{
 			self.services.admin.make_user_admin(&user_id).await?;
 
@@ -167,7 +176,7 @@ pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> 
 		));
 	}
 
-	self.services.users.deactivate_account(&user_id)?;
+	self.services.users.deactivate_account(&user_id).await?;
 
 	if !no_leave_rooms {
 		self.services
@@ -175,17 +184,22 @@ pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> 
 			.send_message(RoomMessageEventContent::text_plain(format!(
 				"Making {user_id} leave all rooms after deactivation..."
 			)))
-			.await;
+			.await
+			.ok();
 
 		let all_joined_rooms: Vec<OwnedRoomId> = self
 			.services
 			.rooms
 			.state_cache
 			.rooms_joined(&user_id)
-			.filter_map(Result::ok)
-			.collect();
+			.map(Into::into)
+			.collect()
+			.await;
 
-		full_user_deactivate(self.services, &user_id, all_joined_rooms).await?;
+		full_user_deactivate(self.services, &user_id, &all_joined_rooms).await?;
+		update_displayname(self.services, &user_id, None, &all_joined_rooms).await?;
+		update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms).await?;
+		leave_all_rooms(self.services, &user_id).await;
 	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -238,15 +252,16 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 	let mut admins = Vec::new();
 
 	for username in usernames {
-		match parse_active_local_user_id(self.services, username) {
+		match parse_active_local_user_id(self.services, username).await {
 			Ok(user_id) => {
-				if self.services.users.is_admin(&user_id)? && !force {
+				if self.services.users.is_admin(&user_id).await && !force {
 					self.services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
 							"{username} is an admin and --force is not set, skipping over"
 						)))
-						.await;
+						.await
+						.ok();
 					admins.push(username);
 					continue;
 				}
@@ -258,7 +273,8 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 						.send_message(RoomMessageEventContent::text_plain(format!(
 							"{username} is the server service account, skipping over"
 						)))
-						.await;
+						.await
+						.ok();
 					continue;
 				}
 
@@ -270,7 +286,8 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 					.send_message(RoomMessageEventContent::text_plain(format!(
 						"{username} is not a valid username, skipping over: {e}"
 					)))
-					.await;
+					.await
+					.ok();
 				continue;
 			},
 		}
@@ -279,7 +296,7 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 	let mut deactivation_count: usize = 0;
 
 	for user_id in user_ids {
-		match self.services.users.deactivate_account(&user_id) {
+		match self.services.users.deactivate_account(&user_id).await {
 			Ok(()) => {
 				deactivation_count = deactivation_count.saturating_add(1);
 				if !no_leave_rooms {
@@ -289,16 +306,26 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 						.rooms
 						.state_cache
 						.rooms_joined(&user_id)
-						.filter_map(Result::ok)
-						.collect();
-					full_user_deactivate(self.services, &user_id, all_joined_rooms).await?;
+						.map(Into::into)
+						.collect()
+						.await;
+
+					full_user_deactivate(self.services, &user_id, &all_joined_rooms).await?;
+					update_displayname(self.services, &user_id, None, &all_joined_rooms)
+						.await
+						.ok();
+					update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms)
+						.await
+						.ok();
+					leave_all_rooms(self.services, &user_id).await;
 				}
 			},
 			Err(e) => {
 				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!("Failed deactivating user: {e}")))
-					.await;
+					.await
+					.ok();
 			},
 		}
 	}
@@ -326,9 +353,9 @@ pub(super) async fn list_joined_rooms(&self, user_id: String) -> Result<RoomMess
 		.rooms
 		.state_cache
 		.rooms_joined(&user_id)
-		.filter_map(Result::ok)
-		.map(|room_id| get_room_info(self.services, &room_id))
-		.collect();
+		.then(|room_id| get_room_info(self.services, room_id))
+		.collect()
+		.await;
 
 	if rooms.is_empty() {
 		return Ok(RoomMessageEventContent::text_plain("User is not in any rooms."));
@@ -404,10 +431,9 @@ pub(super) async fn force_demote(
 		.services
 		.rooms
 		.state_accessor
-		.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")?
-		.as_ref()
-		.and_then(|event| serde_json::from_str(event.content.get()).ok()?)
-		.and_then(|content: RoomPowerLevelsEventContent| content.into());
+		.room_state_get_content::<RoomPowerLevelsEventContent>(&room_id, &StateEventType::RoomPowerLevels, "")
+		.await
+		.ok();
 
 	let user_can_demote_self = room_power_levels
 		.as_ref()
@@ -417,9 +443,9 @@ pub(super) async fn force_demote(
 		.services
 		.rooms
 		.state_accessor
-		.room_state_get(&room_id, &StateEventType::RoomCreate, "")?
-		.as_ref()
-		.is_some_and(|event| event.sender == user_id);
+		.room_state_get(&room_id, &StateEventType::RoomCreate, "")
+		.await
+		.is_ok_and(|event| event.sender == user_id);
 
 	if !user_can_demote_self {
 		return Ok(RoomMessageEventContent::notice_markdown(
@@ -473,15 +499,16 @@ pub(super) async fn make_user_admin(&self, user_id: String) -> Result<RoomMessag
 pub(super) async fn put_room_tag(
 	&self, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(self.services, &user_id)?;
+	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
 	let event = self
 		.services
 		.account_data
-		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
+		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)
+		.await;
 
 	let mut tags_event = event.map_or_else(
-		|| TagEvent {
+		|_| TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
@@ -494,12 +521,15 @@ pub(super) async fn put_room_tag(
 		.tags
 		.insert(tag.clone().into(), TagInfo::new());
 
-	self.services.account_data.update(
-		Some(&room_id),
-		&user_id,
-		RoomAccountDataEventType::Tag,
-		&serde_json::to_value(tags_event).expect("to json value always works"),
-	)?;
+	self.services
+		.account_data
+		.update(
+			Some(&room_id),
+			&user_id,
+			RoomAccountDataEventType::Tag,
+			&serde_json::to_value(tags_event).expect("to json value always works"),
+		)
+		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Successfully updated room account data for {user_id} and room {room_id} with tag {tag}"
@@ -510,15 +540,16 @@ pub(super) async fn put_room_tag(
 pub(super) async fn delete_room_tag(
 	&self, user_id: String, room_id: Box<RoomId>, tag: String,
 ) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(self.services, &user_id)?;
+	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
 	let event = self
 		.services
 		.account_data
-		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
+		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)
+		.await;
 
 	let mut tags_event = event.map_or_else(
-		|| TagEvent {
+		|_| TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
@@ -528,12 +559,15 @@ pub(super) async fn delete_room_tag(
 
 	tags_event.content.tags.remove(&tag.clone().into());
 
-	self.services.account_data.update(
-		Some(&room_id),
-		&user_id,
-		RoomAccountDataEventType::Tag,
-		&serde_json::to_value(tags_event).expect("to json value always works"),
-	)?;
+	self.services
+		.account_data
+		.update(
+			Some(&room_id),
+			&user_id,
+			RoomAccountDataEventType::Tag,
+			&serde_json::to_value(tags_event).expect("to json value always works"),
+		)
+		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Successfully updated room account data for {user_id} and room {room_id}, deleting room tag {tag}"
@@ -542,15 +576,16 @@ pub(super) async fn delete_room_tag(
 
 #[admin_command]
 pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	let user_id = parse_active_local_user_id(self.services, &user_id)?;
+	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
 	let event = self
 		.services
 		.account_data
-		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)?;
+		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)
+		.await;
 
 	let tags_event = event.map_or_else(
-		|| TagEvent {
+		|_| TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
@@ -566,11 +601,12 @@ pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) 
 
 #[admin_command]
 pub(super) async fn redact_event(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
-	let Some(event) = self
+	let Ok(event) = self
 		.services
 		.rooms
 		.timeline
-		.get_non_outlier_pdu(&event_id)?
+		.get_non_outlier_pdu(&event_id)
+		.await
 	else {
 		return Ok(RoomMessageEventContent::text_plain("Event does not exist in our database."));
 	};

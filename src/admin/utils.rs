@@ -8,23 +8,21 @@ pub(crate) fn escape_html(s: &str) -> String {
 		.replace('>', "&gt;")
 }
 
-pub(crate) fn get_room_info(services: &Services, id: &RoomId) -> (OwnedRoomId, u64, String) {
+pub(crate) async fn get_room_info(services: &Services, room_id: &RoomId) -> (OwnedRoomId, u64, String) {
 	(
-		id.into(),
+		room_id.into(),
 		services
 			.rooms
 			.state_cache
-			.room_joined_count(id)
-			.ok()
-			.flatten()
+			.room_joined_count(room_id)
+			.await
 			.unwrap_or(0),
 		services
 			.rooms
 			.state_accessor
-			.get_name(id)
-			.ok()
-			.flatten()
-			.unwrap_or_else(|| id.to_string()),
+			.get_name(room_id)
+			.await
+			.unwrap_or_else(|_| room_id.to_string()),
 	)
 }
 
@@ -46,14 +44,14 @@ pub(crate) fn parse_local_user_id(services: &Services, user_id: &str) -> Result<
 }
 
 /// Parses user ID that is an active (not guest or deactivated) local user
-pub(crate) fn parse_active_local_user_id(services: &Services, user_id: &str) -> Result<OwnedUserId> {
+pub(crate) async fn parse_active_local_user_id(services: &Services, user_id: &str) -> Result<OwnedUserId> {
 	let user_id = parse_local_user_id(services, user_id)?;
 
-	if !services.users.exists(&user_id)? {
+	if !services.users.exists(&user_id).await {
 		return Err!("User {user_id:?} does not exist on this server.");
 	}
 
-	if services.users.is_deactivated(&user_id)? {
+	if services.users.is_deactivated(&user_id).await? {
 		return Err!("User {user_id:?} is deactivated.");
 	}
 

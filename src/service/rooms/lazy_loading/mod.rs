@@ -1,19 +1,24 @@
-mod data;
-
 use std::{
 	collections::{HashMap, HashSet},
 	fmt::Write,
 	sync::{Arc, Mutex},
 };
 
-use conduit::{PduCount, Result};
+use conduit::{
+	implement,
+	utils::{stream::TryIgnore, ReadyExt},
+	PduCount, Result,
+};
+use database::{Interfix, Map};
 use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 
-use self::data::Data;
-
 pub struct Service {
-	pub lazy_load_waiting: Mutex<LazyLoadWaiting>,
+	lazy_load_waiting: Mutex<LazyLoadWaiting>,
 	db: Data,
+}
+
+struct Data {
+	lazyloadedids: Arc<Map>,
 }
 
 type LazyLoadWaiting = HashMap<LazyLoadWaitingKey, LazyLoadWaitingVal>;
@@ -23,8 +28,10 @@ type LazyLoadWaitingVal = HashSet<OwnedUserId>;
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			lazy_load_waiting: Mutex::new(HashMap::new()),
-			db: Data::new(args.db),
+			lazy_load_waiting: LazyLoadWaiting::new().into(),
+			db: Data {
+				lazyloadedids: args.db["lazyloadedids"].clone(),
+			},
 		}))
 	}
 
@@ -40,47 +47,60 @@ impl crate::Service for Service {
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
-impl Service {
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn lazy_load_was_sent_before(
-		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
-	) -> Result<bool> {
-		self.db
-			.lazy_load_was_sent_before(user_id, device_id, room_id, ll_user)
-	}
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "debug")]
+#[inline]
+pub async fn lazy_load_was_sent_before(
+	&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
+) -> bool {
+	let key = (user_id, device_id, room_id, ll_user);
+	self.db.lazyloadedids.qry(&key).await.is_ok()
+}
 
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn lazy_load_mark_sent(
-		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, lazy_load: HashSet<OwnedUserId>,
-		count: PduCount,
-	) {
-		self.lazy_load_waiting
-			.lock()
-			.expect("locked")
-			.insert((user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), count), lazy_load);
-	}
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "debug")]
+pub fn lazy_load_mark_sent(
+	&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, lazy_load: HashSet<OwnedUserId>, count: PduCount,
+) {
+	let key = (user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), count);
 
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn lazy_load_confirm_delivery(
-		&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, since: PduCount,
-	) -> Result<()> {
-		if let Some(user_ids) = self.lazy_load_waiting.lock().expect("locked").remove(&(
-			user_id.to_owned(),
-			device_id.to_owned(),
-			room_id.to_owned(),
-			since,
-		)) {
-			self.db
-				.lazy_load_confirm_delivery(user_id, device_id, room_id, &mut user_ids.iter().map(|u| &**u))?;
-		} else {
-			// Ignore
-		}
+	self.lazy_load_waiting
+		.lock()
+		.expect("locked")
+		.insert(key, lazy_load);
+}
 
-		Ok(())
-	}
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "debug")]
+pub fn lazy_load_confirm_delivery(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, since: PduCount) {
+	let key = (user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), since);
 
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) -> Result<()> {
-		self.db.lazy_load_reset(user_id, device_id, room_id)
+	let Some(user_ids) = self.lazy_load_waiting.lock().expect("locked").remove(&key) else {
+		return;
+	};
+
+	let mut prefix = user_id.as_bytes().to_vec();
+	prefix.push(0xFF);
+	prefix.extend_from_slice(device_id.as_bytes());
+	prefix.push(0xFF);
+	prefix.extend_from_slice(room_id.as_bytes());
+	prefix.push(0xFF);
+
+	for ll_id in &user_ids {
+		let mut key = prefix.clone();
+		key.extend_from_slice(ll_id.as_bytes());
+		self.db.lazyloadedids.insert(&key, &[]);
 	}
+}
+
+#[implement(Service)]
+#[tracing::instrument(skip(self), level = "debug")]
+pub async fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) {
+	let prefix = (user_id, device_id, room_id, Interfix);
+	self.db
+		.lazyloadedids
+		.keys_raw_prefix(&prefix)
+		.ignore_err()
+		.ready_for_each(|key| self.db.lazyloadedids.remove(key))
+		.await;
 }

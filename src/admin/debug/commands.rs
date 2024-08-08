@@ -7,6 +7,7 @@ use std::{
 
 use api::client::validate_and_add_event_id;
 use conduit::{debug, debug_error, err, info, trace, utils, warn, Error, PduEvent, Result};
+use futures::StreamExt;
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
@@ -27,7 +28,7 @@ pub(super) async fn echo(&self, message: Vec<String>) -> Result<RoomMessageEvent
 #[admin_command]
 pub(super) async fn get_auth_chain(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
 	let event_id = Arc::<EventId>::from(event_id);
-	if let Some(event) = self.services.rooms.timeline.get_pdu_json(&event_id)? {
+	if let Ok(event) = self.services.rooms.timeline.get_pdu_json(&event_id).await {
 		let room_id_str = event
 			.get("room_id")
 			.and_then(|val| val.as_str())
@@ -43,7 +44,8 @@ pub(super) async fn get_auth_chain(&self, event_id: Box<EventId>) -> Result<Room
 			.auth_chain
 			.event_ids_iter(room_id, vec![event_id])
 			.await?
-			.count();
+			.count()
+			.await;
 
 		let elapsed = start.elapsed();
 		Ok(RoomMessageEventContent::text_plain(format!(
@@ -91,13 +93,16 @@ pub(super) async fn get_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessage
 		.services
 		.rooms
 		.timeline
-		.get_non_outlier_pdu_json(&event_id)?;
-	if pdu_json.is_none() {
+		.get_non_outlier_pdu_json(&event_id)
+		.await;
+
+	if pdu_json.is_err() {
 		outlier = true;
-		pdu_json = self.services.rooms.timeline.get_pdu_json(&event_id)?;
+		pdu_json = self.services.rooms.timeline.get_pdu_json(&event_id).await;
 	}
+
 	match pdu_json {
-		Some(json) => {
+		Ok(json) => {
 			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"{}\n```json\n{}\n```",
@@ -109,7 +114,7 @@ pub(super) async fn get_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessage
 				json_text
 			)))
 		},
-		None => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
+		Err(_) => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
 	}
 }
 
@@ -157,7 +162,8 @@ pub(super) async fn get_remote_pdu_list(
 					.send_message(RoomMessageEventContent::text_plain(format!(
 						"Failed to get remote PDU, ignoring error: {e}"
 					)))
-					.await;
+					.await
+					.ok();
 				warn!("Failed to get remote PDU, ignoring error: {e}");
 			} else {
 				success_count = success_count.saturating_add(1);
@@ -215,7 +221,9 @@ pub(super) async fn get_remote_pdu(
 					.services
 					.rooms
 					.event_handler
-					.parse_incoming_pdu(&response.pdu);
+					.parse_incoming_pdu(&response.pdu)
+					.await;
+
 				let (event_id, value, room_id) = match parsed_result {
 					Ok(t) => t,
 					Err(e) => {
@@ -333,9 +341,12 @@ pub(super) async fn ping(&self, server: Box<ServerName>) -> Result<RoomMessageEv
 #[admin_command]
 pub(super) async fn force_device_list_updates(&self) -> Result<RoomMessageEventContent> {
 	// Force E2EE device list updates for all users
-	for user_id in self.services.users.iter().filter_map(Result::ok) {
-		self.services.users.mark_device_key_update(&user_id)?;
-	}
+	self.services
+		.users
+		.stream()
+		.for_each(|user_id| self.services.users.mark_device_key_update(user_id))
+		.await;
+
 	Ok(RoomMessageEventContent::text_plain(
 		"Marked all devices for all users as having new keys to update",
 	))
@@ -470,7 +481,8 @@ pub(super) async fn first_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<Roo
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.globals.config.server_name, &room_id)?
+		.server_in_room(&self.services.globals.config.server_name, &room_id)
+		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"We are not participating in the room / we don't know about the room ID.",
@@ -481,8 +493,9 @@ pub(super) async fn first_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<Roo
 		.services
 		.rooms
 		.timeline
-		.first_pdu_in_room(&room_id)?
-		.ok_or_else(|| Error::bad_database("Failed to find the first PDU in database"))?;
+		.first_pdu_in_room(&room_id)
+		.await
+		.map_err(|_| Error::bad_database("Failed to find the first PDU in database"))?;
 
 	Ok(RoomMessageEventContent::text_plain(format!("{first_pdu:?}")))
 }
@@ -494,7 +507,8 @@ pub(super) async fn latest_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<Ro
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.globals.config.server_name, &room_id)?
+		.server_in_room(&self.services.globals.config.server_name, &room_id)
+		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"We are not participating in the room / we don't know about the room ID.",
@@ -505,8 +519,9 @@ pub(super) async fn latest_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<Ro
 		.services
 		.rooms
 		.timeline
-		.latest_pdu_in_room(&room_id)?
-		.ok_or_else(|| Error::bad_database("Failed to find the latest PDU in database"))?;
+		.latest_pdu_in_room(&room_id)
+		.await
+		.map_err(|_| Error::bad_database("Failed to find the latest PDU in database"))?;
 
 	Ok(RoomMessageEventContent::text_plain(format!("{latest_pdu:?}")))
 }
@@ -520,7 +535,8 @@ pub(super) async fn force_set_room_state_from_server(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.globals.config.server_name, &room_id)?
+		.server_in_room(&self.services.globals.config.server_name, &room_id)
+		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"We are not participating in the room / we don't know about the room ID.",
@@ -531,10 +547,11 @@ pub(super) async fn force_set_room_state_from_server(
 		.services
 		.rooms
 		.timeline
-		.latest_pdu_in_room(&room_id)?
-		.ok_or_else(|| Error::bad_database("Failed to find the latest PDU in database"))?;
+		.latest_pdu_in_room(&room_id)
+		.await
+		.map_err(|_| Error::bad_database("Failed to find the latest PDU in database"))?;
 
-	let room_version = self.services.rooms.state.get_room_version(&room_id)?;
+	let room_version = self.services.rooms.state.get_room_version(&room_id).await?;
 
 	let mut state: HashMap<u64, Arc<EventId>> = HashMap::new();
 	let pub_key_map = RwLock::new(BTreeMap::new());
@@ -554,13 +571,21 @@ pub(super) async fn force_set_room_state_from_server(
 	let mut events = Vec::with_capacity(remote_state_response.pdus.len());
 
 	for pdu in remote_state_response.pdus.clone() {
-		events.push(match self.services.rooms.event_handler.parse_incoming_pdu(&pdu) {
-			Ok(t) => t,
-			Err(e) => {
-				warn!("Could not parse PDU, ignoring: {e}");
-				continue;
+		events.push(
+			match self
+				.services
+				.rooms
+				.event_handler
+				.parse_incoming_pdu(&pdu)
+				.await
+			{
+				Ok(t) => t,
+				Err(e) => {
+					warn!("Could not parse PDU, ignoring: {e}");
+					continue;
+				},
 			},
-		});
+		);
 	}
 
 	info!("Fetching required signing keys for all the state events we got");
@@ -587,13 +612,16 @@ pub(super) async fn force_set_room_state_from_server(
 		self.services
 			.rooms
 			.outlier
-			.add_pdu_outlier(&event_id, &value)?;
+			.add_pdu_outlier(&event_id, &value);
+
 		if let Some(state_key) = &pdu.state_key {
 			let shortstatekey = self
 				.services
 				.rooms
 				.short
-				.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)?;
+				.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)
+				.await;
+
 			state.insert(shortstatekey, pdu.event_id.clone());
 		}
 	}
@@ -611,7 +639,7 @@ pub(super) async fn force_set_room_state_from_server(
 		self.services
 			.rooms
 			.outlier
-			.add_pdu_outlier(&event_id, &value)?;
+			.add_pdu_outlier(&event_id, &value);
 	}
 
 	let new_room_state = self
@@ -626,7 +654,8 @@ pub(super) async fn force_set_room_state_from_server(
 		.services
 		.rooms
 		.state_compressor
-		.save_state(room_id.clone().as_ref(), new_room_state)?;
+		.save_state(room_id.clone().as_ref(), new_room_state)
+		.await?;
 
 	let state_lock = self.services.rooms.state.mutex.lock(&room_id).await;
 	self.services
@@ -642,7 +671,8 @@ pub(super) async fn force_set_room_state_from_server(
 	self.services
 		.rooms
 		.state_cache
-		.update_joined_count(&room_id)?;
+		.update_joined_count(&room_id)
+		.await;
 
 	drop(state_lock);
 
@@ -656,7 +686,7 @@ pub(super) async fn get_signing_keys(
 	&self, server_name: Option<Box<ServerName>>, _cached: bool,
 ) -> Result<RoomMessageEventContent> {
 	let server_name = server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
-	let signing_keys = self.services.globals.signing_keys_for(&server_name)?;
+	let signing_keys = self.services.globals.signing_keys_for(&server_name).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"```rs\n{signing_keys:#?}\n```"
@@ -674,7 +704,7 @@ pub(super) async fn get_verify_keys(
 	if cached {
 		writeln!(out, "| Key ID | VerifyKey |")?;
 		writeln!(out, "| --- | --- |")?;
-		for (key_id, verify_key) in self.services.globals.verify_keys_for(&server_name)? {
+		for (key_id, verify_key) in self.services.globals.verify_keys_for(&server_name).await? {
 			writeln!(out, "| {key_id} | {verify_key:?} |")?;
 		}
 

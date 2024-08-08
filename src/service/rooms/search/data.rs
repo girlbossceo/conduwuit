@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use conduit::{utils, Result};
+use conduit::utils::{set, stream::TryIgnore, IterStream, ReadyExt};
 use database::Map;
+use futures::StreamExt;
 use ruma::RoomId;
 
 use crate::{rooms, Dep};
-
-type SearchPdusResult<'a> = Result<Option<(Box<dyn Iterator<Item = Vec<u8>> + 'a>, Vec<String>)>>;
 
 pub(super) struct Data {
 	tokenids: Arc<Map>,
@@ -28,7 +27,7 @@ impl Data {
 		}
 	}
 
-	pub(super) fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
+	pub(super) fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
 		let batch = tokenize(message_body)
 			.map(|word| {
 				let mut key = shortroomid.to_be_bytes().to_vec();
@@ -39,11 +38,10 @@ impl Data {
 			})
 			.collect::<Vec<_>>();
 
-		self.tokenids
-			.insert_batch(batch.iter().map(database::KeyVal::from))
+		self.tokenids.insert_batch(batch.iter());
 	}
 
-	pub(super) fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
+	pub(super) fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
 		let batch = tokenize(message_body).map(|word| {
 			let mut key = shortroomid.to_be_bytes().to_vec();
 			key.extend_from_slice(word.as_bytes());
@@ -53,46 +51,53 @@ impl Data {
 		});
 
 		for token in batch {
-			self.tokenids.remove(&token)?;
+			self.tokenids.remove(&token);
 		}
-
-		Ok(())
 	}
 
-	pub(super) fn search_pdus<'a>(&'a self, room_id: &RoomId, search_string: &str) -> SearchPdusResult<'a> {
+	pub(super) async fn search_pdus(
+		&self, room_id: &RoomId, search_string: &str,
+	) -> Option<(Vec<Vec<u8>>, Vec<String>)> {
 		let prefix = self
 			.services
 			.short
-			.get_shortroomid(room_id)?
-			.expect("room exists")
+			.get_shortroomid(room_id)
+			.await
+			.ok()?
 			.to_be_bytes()
 			.to_vec();
 
 		let words: Vec<_> = tokenize(search_string).collect();
 
-		let iterators = words.clone().into_iter().map(move |word| {
-			let mut prefix2 = prefix.clone();
-			prefix2.extend_from_slice(word.as_bytes());
-			prefix2.push(0xFF);
-			let prefix3 = prefix2.clone();
+		let bufs: Vec<_> = words
+			.clone()
+			.into_iter()
+			.stream()
+			.then(move |word| {
+				let mut prefix2 = prefix.clone();
+				prefix2.extend_from_slice(word.as_bytes());
+				prefix2.push(0xFF);
+				let prefix3 = prefix2.clone();
 
-			let mut last_possible_id = prefix2.clone();
-			last_possible_id.extend_from_slice(&u64::MAX.to_be_bytes());
+				let mut last_possible_id = prefix2.clone();
+				last_possible_id.extend_from_slice(&u64::MAX.to_be_bytes());
 
-			self.tokenids
-				.iter_from(&last_possible_id, true) // Newest pdus first
-				.take_while(move |(k, _)| k.starts_with(&prefix2))
-				.map(move |(key, _)| key[prefix3.len()..].to_vec())
-		});
+				self.tokenids
+				.rev_raw_keys_from(&last_possible_id) // Newest pdus first
+				.ignore_err()
+				.ready_take_while(move |key| key.starts_with(&prefix2))
+				.map(move |key| key[prefix3.len()..].to_vec())
+				.collect::<Vec<_>>()
+			})
+			.collect()
+			.await;
 
-		let Some(common_elements) = utils::common_elements(iterators, |a, b| {
-			// We compare b with a because we reversed the iterator earlier
-			b.cmp(a)
-		}) else {
-			return Ok(None);
-		};
-
-		Ok(Some((Box::new(common_elements), words)))
+		Some((
+			set::intersection(bufs.iter().map(|buf| buf.iter()))
+				.cloned()
+				.collect(),
+			words,
+		))
 	}
 }
 
@@ -100,7 +105,7 @@ impl Data {
 ///
 /// This may be used to tokenize both message bodies (for indexing) or search
 /// queries (for querying).
-fn tokenize(body: &str) -> impl Iterator<Item = String> + '_ {
+fn tokenize(body: &str) -> impl Iterator<Item = String> + Send + '_ {
 	body.split_terminator(|c: char| !c.is_alphanumeric())
 		.filter(|s| !s.is_empty())
 		.filter(|word| word.len() <= 50)

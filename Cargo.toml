@@ -210,9 +210,10 @@ features = [
 	"string",
 ]
 
-[workspace.dependencies.futures-util]
+[workspace.dependencies.futures]
 version = "0.3.30"
 default-features = false
+features = ["std"]
 
 [workspace.dependencies.tokio]
 version = "1.40.0"
@@ -314,7 +315,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "9900d0676564883cfade556d6e8da2a2c9061efd"
+rev = "e7db44989d68406393270d3a91815597385d3acb"
 features = [
     "compat",
     "rand",
@@ -462,7 +463,6 @@ version = "1.0.36"
 
 [workspace.dependencies.proc-macro2]
 version = "1.0.89"
-
 
 #
 # Patches
@@ -828,6 +828,7 @@ missing_panics_doc = { level = "allow", priority = 1 }
 module_name_repetitions = { level = "allow", priority = 1 }
 no_effect_underscore_binding = { level = "allow", priority = 1 }
 similar_names = { level = "allow", priority = 1 }
+single_match_else = { level = "allow", priority = 1 }
 struct_field_names = { level = "allow", priority = 1 }
 unnecessary_wraps = { level = "allow", priority = 1 }
 unused_async = { level = "allow", priority = 1 }

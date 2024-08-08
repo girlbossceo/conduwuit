@@ -4,8 +4,8 @@ use std::{
 };
 
 use axum::extract::State;
-use conduit::{utils, utils::math::continue_exponential_backoff_secs, Err, Error, Result};
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use conduit::{err, utils, utils::math::continue_exponential_backoff_secs, Err, Error, Result};
+use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{
 		client::{
@@ -21,7 +21,10 @@ use ruma::{
 use serde_json::json;
 
 use super::SESSION_ID_LENGTH;
-use crate::{service::Services, Ruma};
+use crate::{
+	service::{users::parse_master_key, Services},
+	Ruma,
+};
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///
@@ -39,7 +42,8 @@ pub(crate) async fn upload_keys_route(
 	for (key_key, key_value) in &body.one_time_keys {
 		services
 			.users
-			.add_one_time_key(sender_user, sender_device, key_key, key_value)?;
+			.add_one_time_key(sender_user, sender_device, key_key, key_value)
+			.await?;
 	}
 
 	if let Some(device_keys) = &body.device_keys {
@@ -47,19 +51,22 @@ pub(crate) async fn upload_keys_route(
 		// This check is needed to assure that signatures are kept
 		if services
 			.users
-			.get_device_keys(sender_user, sender_device)?
-			.is_none()
+			.get_device_keys(sender_user, sender_device)
+			.await
+			.is_err()
 		{
 			services
 				.users
-				.add_device_keys(sender_user, sender_device, device_keys)?;
+				.add_device_keys(sender_user, sender_device, device_keys)
+				.await;
 		}
 	}
 
 	Ok(upload_keys::v3::Response {
 		one_time_key_counts: services
 			.users
-			.count_one_time_keys(sender_user, sender_device)?,
+			.count_one_time_keys(sender_user, sender_device)
+			.await,
 	})
 }
 
@@ -120,7 +127,9 @@ pub(crate) async fn upload_signing_keys_route(
 	if let Some(auth) = &body.auth {
 		let (worked, uiaainfo) = services
 			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)
+			.await?;
+
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
@@ -129,20 +138,24 @@ pub(crate) async fn upload_signing_keys_route(
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
 			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json)?;
+			.create(sender_user, sender_device, &uiaainfo, &json);
+
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
 	if let Some(master_key) = &body.master_key {
-		services.users.add_cross_signing_keys(
-			sender_user,
-			master_key,
-			&body.self_signing_key,
-			&body.user_signing_key,
-			true, // notify so that other users see the new keys
-		)?;
+		services
+			.users
+			.add_cross_signing_keys(
+				sender_user,
+				master_key,
+				&body.self_signing_key,
+				&body.user_signing_key,
+				true, // notify so that other users see the new keys
+			)
+			.await?;
 	}
 
 	Ok(upload_signing_keys::v3::Response {})
@@ -179,9 +192,11 @@ pub(crate) async fn upload_signatures_route(
 						.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature value."))?
 						.to_owned(),
 				);
+
 				services
 					.users
-					.sign_key(user_id, key_id, signature, sender_user)?;
+					.sign_key(user_id, key_id, signature, sender_user)
+					.await?;
 			}
 		}
 	}
@@ -204,56 +219,51 @@ pub(crate) async fn get_key_changes_route(
 
 	let mut device_list_updates = HashSet::new();
 
+	let from = body
+		.from
+		.parse()
+		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?;
+
+	let to = body
+		.to
+		.parse()
+		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?;
+
 	device_list_updates.extend(
 		services
 			.users
-			.keys_changed(
-				sender_user.as_str(),
-				body.from
-					.parse()
-					.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
-				Some(
-					body.to
-						.parse()
-						.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?,
-				),
-			)
-			.filter_map(Result::ok),
+			.keys_changed(sender_user.as_str(), from, Some(to))
+			.map(ToOwned::to_owned)
+			.collect::<Vec<_>>()
+			.await,
 	);
 
-	for room_id in services
-		.rooms
-		.state_cache
-		.rooms_joined(sender_user)
-		.filter_map(Result::ok)
-	{
+	let mut rooms_joined = services.rooms.state_cache.rooms_joined(sender_user).boxed();
+
+	while let Some(room_id) = rooms_joined.next().await {
 		device_list_updates.extend(
 			services
 				.users
-				.keys_changed(
-					room_id.as_ref(),
-					body.from
-						.parse()
-						.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `from`."))?,
-					Some(
-						body.to
-							.parse()
-							.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `to`."))?,
-					),
-				)
-				.filter_map(Result::ok),
+				.keys_changed(room_id.as_ref(), from, Some(to))
+				.map(ToOwned::to_owned)
+				.collect::<Vec<_>>()
+				.await,
 		);
 	}
+
 	Ok(get_key_changes::v3::Response {
 		changed: device_list_updates.into_iter().collect(),
 		left: Vec::new(), // TODO
 	})
 }
 
-pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
+pub(crate) async fn get_keys_helper<F>(
 	services: &Services, sender_user: Option<&UserId>, device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>,
 	allowed_signatures: F, include_display_names: bool,
-) -> Result<get_keys::v3::Response> {
+) -> Result<get_keys::v3::Response>
+where
+	F: Fn(&UserId) -> bool + Send + Sync,
+{
 	let mut master_keys = BTreeMap::new();
 	let mut self_signing_keys = BTreeMap::new();
 	let mut user_signing_keys = BTreeMap::new();
@@ -274,56 +284,60 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 
 		if device_ids.is_empty() {
 			let mut container = BTreeMap::new();
-			for device_id in services.users.all_device_ids(user_id) {
-				let device_id = device_id?;
-				if let Some(mut keys) = services.users.get_device_keys(user_id, &device_id)? {
+			let mut devices = services.users.all_device_ids(user_id).boxed();
+
+			while let Some(device_id) = devices.next().await {
+				if let Ok(mut keys) = services.users.get_device_keys(user_id, device_id).await {
 					let metadata = services
 						.users
-						.get_device_metadata(user_id, &device_id)?
-						.ok_or_else(|| Error::bad_database("all_device_keys contained nonexistent device."))?;
+						.get_device_metadata(user_id, device_id)
+						.await
+						.map_err(|_| err!(Database("all_device_keys contained nonexistent device.")))?;
 
 					add_unsigned_device_display_name(&mut keys, metadata, include_display_names)
-						.map_err(|_| Error::bad_database("invalid device keys in database"))?;
+						.map_err(|_| err!(Database("invalid device keys in database")))?;
 
-					container.insert(device_id, keys);
+					container.insert(device_id.to_owned(), keys);
 				}
 			}
+
 			device_keys.insert(user_id.to_owned(), container);
 		} else {
 			for device_id in device_ids {
 				let mut container = BTreeMap::new();
-				if let Some(mut keys) = services.users.get_device_keys(user_id, device_id)? {
+				if let Ok(mut keys) = services.users.get_device_keys(user_id, device_id).await {
 					let metadata = services
 						.users
-						.get_device_metadata(user_id, device_id)?
-						.ok_or(Error::BadRequest(
-							ErrorKind::InvalidParam,
-							"Tried to get keys for nonexistent device.",
-						))?;
+						.get_device_metadata(user_id, device_id)
+						.await
+						.map_err(|_| err!(Request(InvalidParam("Tried to get keys for nonexistent device."))))?;
 
 					add_unsigned_device_display_name(&mut keys, metadata, include_display_names)
-						.map_err(|_| Error::bad_database("invalid device keys in database"))?;
+						.map_err(|_| err!(Database("invalid device keys in database")))?;
+
 					container.insert(device_id.to_owned(), keys);
 				}
+
 				device_keys.insert(user_id.to_owned(), container);
 			}
 		}
 
-		if let Some(master_key) = services
+		if let Ok(master_key) = services
 			.users
-			.get_master_key(sender_user, user_id, &allowed_signatures)?
+			.get_master_key(sender_user, user_id, &allowed_signatures)
+			.await
 		{
 			master_keys.insert(user_id.to_owned(), master_key);
 		}
-		if let Some(self_signing_key) =
-			services
-				.users
-				.get_self_signing_key(sender_user, user_id, &allowed_signatures)?
+		if let Ok(self_signing_key) = services
+			.users
+			.get_self_signing_key(sender_user, user_id, &allowed_signatures)
+			.await
 		{
 			self_signing_keys.insert(user_id.to_owned(), self_signing_key);
 		}
 		if Some(user_id) == sender_user {
-			if let Some(user_signing_key) = services.users.get_user_signing_key(user_id)? {
+			if let Ok(user_signing_key) = services.users.get_user_signing_key(user_id).await {
 				user_signing_keys.insert(user_id.to_owned(), user_signing_key);
 			}
 		}
@@ -386,23 +400,26 @@ pub(crate) async fn get_keys_helper<F: Fn(&UserId) -> bool + Send>(
 	while let Some((server, response)) = futures.next().await {
 		if let Ok(Ok(response)) = response {
 			for (user, masterkey) in response.master_keys {
-				let (master_key_id, mut master_key) = services.users.parse_master_key(&user, &masterkey)?;
+				let (master_key_id, mut master_key) = parse_master_key(&user, &masterkey)?;
 
-				if let Some(our_master_key) =
-					services
-						.users
-						.get_key(&master_key_id, sender_user, &user, &allowed_signatures)?
+				if let Ok(our_master_key) = services
+					.users
+					.get_key(&master_key_id, sender_user, &user, &allowed_signatures)
+					.await
 				{
-					let (_, our_master_key) = services.users.parse_master_key(&user, &our_master_key)?;
+					let (_, our_master_key) = parse_master_key(&user, &our_master_key)?;
 					master_key.signatures.extend(our_master_key.signatures);
 				}
 				let json = serde_json::to_value(master_key).expect("to_value always works");
 				let raw = serde_json::from_value(json).expect("Raw::from_value always works");
-				services.users.add_cross_signing_keys(
-					&user, &raw, &None, &None,
-					false, /* Dont notify. A notification would trigger another key request resulting in an
-					       * endless loop */
-				)?;
+				services
+					.users
+					.add_cross_signing_keys(
+						&user, &raw, &None, &None,
+						false, /* Dont notify. A notification would trigger another key request resulting in an
+						       * endless loop */
+					)
+					.await?;
 				master_keys.insert(user.clone(), raw);
 			}
 
@@ -465,9 +482,10 @@ pub(crate) async fn claim_keys_helper(
 
 		let mut container = BTreeMap::new();
 		for (device_id, key_algorithm) in map {
-			if let Some(one_time_keys) = services
+			if let Ok(one_time_keys) = services
 				.users
-				.take_one_time_key(user_id, device_id, key_algorithm)?
+				.take_one_time_key(user_id, device_id, key_algorithm)
+				.await
 			{
 				let mut c = BTreeMap::new();
 				c.insert(one_time_keys.0, one_time_keys.1);

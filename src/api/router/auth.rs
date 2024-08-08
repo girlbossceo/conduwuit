@@ -44,8 +44,8 @@ pub(super) async fn auth(
 	let token = if let Some(token) = token {
 		if let Some(reg_info) = services.appservice.find_from_token(token).await {
 			Token::Appservice(Box::new(reg_info))
-		} else if let Some((user_id, device_id)) = services.users.find_from_token(token)? {
-			Token::User((user_id, OwnedDeviceId::from(device_id)))
+		} else if let Ok((user_id, device_id)) = services.users.find_from_token(token).await {
+			Token::User((user_id, device_id))
 		} else {
 			Token::Invalid
 		}
@@ -98,7 +98,7 @@ pub(super) async fn auth(
 				))
 			}
 		},
-		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(services, request, info)?),
+		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(services, request, info).await?),
 		(AuthScheme::None | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken, Token::Appservice(info)) => {
 			Ok(Auth {
 				origin: None,
@@ -150,7 +150,7 @@ pub(super) async fn auth(
 	}
 }
 
-fn auth_appservice(services: &Services, request: &Request, info: Box<RegistrationInfo>) -> Result<Auth> {
+async fn auth_appservice(services: &Services, request: &Request, info: Box<RegistrationInfo>) -> Result<Auth> {
 	let user_id = request
 		.query
 		.user_id
@@ -170,7 +170,7 @@ fn auth_appservice(services: &Services, request: &Request, info: Box<Registratio
 		return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
 	}
 
-	if !services.users.exists(&user_id)? {
+	if !services.users.exists(&user_id).await {
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "User does not exist."));
 	}
 

@@ -1,24 +1,34 @@
-mod data;
 mod remote;
 
 use std::sync::Arc;
 
-use conduit::{err, Error, Result};
+use conduit::{
+	err,
+	utils::{stream::TryIgnore, ReadyExt},
+	Err, Error, Result,
+};
+use database::{Deserialized, Ignore, Interfix, Map};
+use futures::{Stream, StreamExt};
 use ruma::{
 	api::client::error::ErrorKind,
 	events::{
 		room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		StateEventType,
 	},
-	OwnedRoomAliasId, OwnedRoomId, OwnedServerName, RoomAliasId, RoomId, RoomOrAliasId, UserId,
+	OwnedRoomId, OwnedServerName, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId, UserId,
 };
 
-use self::data::Data;
 use crate::{admin, appservice, appservice::RegistrationInfo, globals, rooms, sending, Dep};
 
 pub struct Service {
 	db: Data,
 	services: Services,
+}
+
+struct Data {
+	alias_userid: Arc<Map>,
+	alias_roomid: Arc<Map>,
+	aliasid_alias: Arc<Map>,
 }
 
 struct Services {
@@ -32,7 +42,11 @@ struct Services {
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(&args),
+			db: Data {
+				alias_userid: args.db["alias_userid"].clone(),
+				alias_roomid: args.db["alias_roomid"].clone(),
+				aliasid_alias: args.db["aliasid_alias"].clone(),
+			},
 			services: Services {
 				admin: args.depend::<admin::Service>("admin"),
 				appservice: args.depend::<appservice::Service>("appservice"),
@@ -50,25 +64,52 @@ impl Service {
 	#[tracing::instrument(skip(self))]
 	pub fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
 		if alias == self.services.globals.admin_alias && user_id != self.services.globals.server_user {
-			Err(Error::BadRequest(
+			return Err(Error::BadRequest(
 				ErrorKind::forbidden(),
 				"Only the server user can set this alias",
-			))
-		} else {
-			self.db.set_alias(alias, room_id, user_id)
+			));
 		}
+
+		// Comes first as we don't want a stuck alias
+		self.db
+			.alias_userid
+			.insert(alias.alias().as_bytes(), user_id.as_bytes());
+
+		self.db
+			.alias_roomid
+			.insert(alias.alias().as_bytes(), room_id.as_bytes());
+
+		let mut aliasid = room_id.as_bytes().to_vec();
+		aliasid.push(0xFF);
+		aliasid.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
+		self.db.aliasid_alias.insert(&aliasid, alias.as_bytes());
+
+		Ok(())
 	}
 
 	#[tracing::instrument(skip(self))]
 	pub async fn remove_alias(&self, alias: &RoomAliasId, user_id: &UserId) -> Result<()> {
-		if self.user_can_remove_alias(alias, user_id).await? {
-			self.db.remove_alias(alias)
-		} else {
-			Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"User is not permitted to remove this alias.",
-			))
+		if !self.user_can_remove_alias(alias, user_id).await? {
+			return Err!(Request(Forbidden("User is not permitted to remove this alias.")));
 		}
+
+		let alias = alias.alias();
+		let Ok(room_id) = self.db.alias_roomid.qry(&alias).await else {
+			return Err!(Request(NotFound("Alias does not exist or is invalid.")));
+		};
+
+		let prefix = (&room_id, Interfix);
+		self.db
+			.aliasid_alias
+			.keys_prefix(&prefix)
+			.ignore_err()
+			.ready_for_each(|key: &[u8]| self.db.aliasid_alias.remove(&key))
+			.await;
+
+		self.db.alias_roomid.remove(alias.as_bytes());
+		self.db.alias_userid.remove(alias.as_bytes());
+
+		Ok(())
 	}
 
 	pub async fn resolve(&self, room: &RoomOrAliasId) -> Result<OwnedRoomId> {
@@ -97,9 +138,9 @@ impl Service {
 			return self.remote_resolve(room_alias, servers).await;
 		}
 
-		let room_id: Option<OwnedRoomId> = match self.resolve_local_alias(room_alias)? {
-			Some(r) => Some(r),
-			None => self.resolve_appservice_alias(room_alias).await?,
+		let room_id: Option<OwnedRoomId> = match self.resolve_local_alias(room_alias).await {
+			Ok(r) => Some(r),
+			Err(_) => self.resolve_appservice_alias(room_alias).await?,
 		};
 
 		room_id.map_or_else(
@@ -109,46 +150,54 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
-		self.db.resolve_local_alias(alias)
+	pub async fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<OwnedRoomId> {
+		self.db.alias_roomid.qry(alias.alias()).await.deserialized()
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn local_aliases_for_room<'a>(
-		&'a self, room_id: &RoomId,
-	) -> Box<dyn Iterator<Item = Result<OwnedRoomAliasId>> + 'a + Send> {
-		self.db.local_aliases_for_room(room_id)
+	pub fn local_aliases_for_room<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &RoomAliasId> + Send + 'a {
+		let prefix = (room_id, Interfix);
+		self.db
+			.aliasid_alias
+			.stream_prefix(&prefix)
+			.ignore_err()
+			.map(|((Ignore, Ignore), alias): ((Ignore, Ignore), &RoomAliasId)| alias)
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn all_local_aliases<'a>(&'a self) -> Box<dyn Iterator<Item = Result<(OwnedRoomId, String)>> + 'a> {
-		self.db.all_local_aliases()
+	pub fn all_local_aliases<'a>(&'a self) -> impl Stream<Item = (&RoomId, &str)> + Send + 'a {
+		self.db
+			.alias_roomid
+			.stream()
+			.ignore_err()
+			.map(|(alias_localpart, room_id): (&str, &RoomId)| (room_id, alias_localpart))
 	}
 
 	async fn user_can_remove_alias(&self, alias: &RoomAliasId, user_id: &UserId) -> Result<bool> {
-		let Some(room_id) = self.resolve_local_alias(alias)? else {
-			return Err(Error::BadRequest(ErrorKind::NotFound, "Alias not found."));
-		};
+		let room_id = self
+			.resolve_local_alias(alias)
+			.await
+			.map_err(|_| err!(Request(NotFound("Alias not found."))))?;
 
 		let server_user = &self.services.globals.server_user;
 
 		// The creator of an alias can remove it
 		if self
-            .db
-            .who_created_alias(alias)?
-            .is_some_and(|user| user == user_id)
+            .who_created_alias(alias).await
+            .is_ok_and(|user| user == user_id)
             // Server admins can remove any local alias
-            || self.services.admin.user_is_admin(user_id).await?
+            || self.services.admin.user_is_admin(user_id).await
             // Always allow the server service account to remove the alias, since there may not be an admin room
             || server_user == user_id
 		{
 			Ok(true)
 		// Checking whether the user is able to change canonical aliases of the
 		// room
-		} else if let Some(event) =
-			self.services
-				.state_accessor
-				.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")?
+		} else if let Ok(event) = self
+			.services
+			.state_accessor
+			.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")
+			.await
 		{
 			serde_json::from_str(event.content.get())
 				.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
@@ -157,15 +206,20 @@ impl Service {
 				})
 		// If there is no power levels event, only the room creator can change
 		// canonical aliases
-		} else if let Some(event) =
-			self.services
-				.state_accessor
-				.room_state_get(&room_id, &StateEventType::RoomCreate, "")?
+		} else if let Ok(event) = self
+			.services
+			.state_accessor
+			.room_state_get(&room_id, &StateEventType::RoomCreate, "")
+			.await
 		{
 			Ok(event.sender == user_id)
 		} else {
 			Err(Error::bad_database("Room has no m.room.create event"))
 		}
+	}
+
+	async fn who_created_alias(&self, alias: &RoomAliasId) -> Result<OwnedUserId> {
+		self.db.alias_userid.qry(alias.alias()).await.deserialized()
 	}
 
 	async fn resolve_appservice_alias(&self, room_alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
@@ -185,10 +239,11 @@ impl Service {
 						.await,
 					Ok(Some(_opt_result))
 				) {
-				return Ok(Some(
-					self.resolve_local_alias(room_alias)?
-						.ok_or_else(|| err!(Request(NotFound("Room does not exist."))))?,
-				));
+				return self
+					.resolve_local_alias(room_alias)
+					.await
+					.map_err(|_| err!(Request(NotFound("Room does not exist."))))
+					.map(Some);
 			}
 		}
 

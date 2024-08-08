@@ -23,10 +23,11 @@ pub(crate) async fn update_tag_route(
 
 	let event = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
+		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)
+		.await;
 
 	let mut tags_event = event.map_or_else(
-		|| {
+		|_| {
 			Ok(TagEvent {
 				content: TagEventContent {
 					tags: BTreeMap::new(),
@@ -41,12 +42,15 @@ pub(crate) async fn update_tag_route(
 		.tags
 		.insert(body.tag.clone().into(), body.tag_info.clone());
 
-	services.account_data.update(
-		Some(&body.room_id),
-		sender_user,
-		RoomAccountDataEventType::Tag,
-		&serde_json::to_value(tags_event).expect("to json value always works"),
-	)?;
+	services
+		.account_data
+		.update(
+			Some(&body.room_id),
+			sender_user,
+			RoomAccountDataEventType::Tag,
+			&serde_json::to_value(tags_event).expect("to json value always works"),
+		)
+		.await?;
 
 	Ok(create_tag::v3::Response {})
 }
@@ -63,10 +67,11 @@ pub(crate) async fn delete_tag_route(
 
 	let event = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
+		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)
+		.await;
 
 	let mut tags_event = event.map_or_else(
-		|| {
+		|_| {
 			Ok(TagEvent {
 				content: TagEventContent {
 					tags: BTreeMap::new(),
@@ -78,12 +83,15 @@ pub(crate) async fn delete_tag_route(
 
 	tags_event.content.tags.remove(&body.tag.clone().into());
 
-	services.account_data.update(
-		Some(&body.room_id),
-		sender_user,
-		RoomAccountDataEventType::Tag,
-		&serde_json::to_value(tags_event).expect("to json value always works"),
-	)?;
+	services
+		.account_data
+		.update(
+			Some(&body.room_id),
+			sender_user,
+			RoomAccountDataEventType::Tag,
+			&serde_json::to_value(tags_event).expect("to json value always works"),
+		)
+		.await?;
 
 	Ok(delete_tag::v3::Response {})
 }
@@ -100,10 +108,11 @@ pub(crate) async fn get_tags_route(
 
 	let event = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)?;
+		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)
+		.await;
 
 	let tags_event = event.map_or_else(
-		|| {
+		|_| {
 			Ok(TagEvent {
 				content: TagEventContent {
 					tags: BTreeMap::new(),

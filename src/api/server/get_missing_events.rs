@@ -18,16 +18,18 @@ pub(crate) async fn get_missing_events_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
 	if !services
 		.rooms
 		.state_accessor
-		.is_world_readable(&body.room_id)?
-		&& !services
-			.rooms
-			.state_cache
-			.server_in_room(origin, &body.room_id)?
+		.is_world_readable(&body.room_id)
+		.await && !services
+		.rooms
+		.state_cache
+		.server_in_room(origin, &body.room_id)
+		.await
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
 	}
@@ -43,7 +45,12 @@ pub(crate) async fn get_missing_events_route(
 
 	let mut i: usize = 0;
 	while i < queued_events.len() && events.len() < limit {
-		if let Some(pdu) = services.rooms.timeline.get_pdu_json(&queued_events[i])? {
+		if let Ok(pdu) = services
+			.rooms
+			.timeline
+			.get_pdu_json(&queued_events[i])
+			.await
+		{
 			let room_id_str = pdu
 				.get("room_id")
 				.and_then(|val| val.as_str())
@@ -64,7 +71,8 @@ pub(crate) async fn get_missing_events_route(
 			if !services
 				.rooms
 				.state_accessor
-				.server_can_see_event(origin, &body.room_id, &queued_events[i])?
+				.server_can_see_event(origin, &body.room_id, &queued_events[i])
+				.await?
 			{
 				i = i.saturating_add(1);
 				continue;
@@ -81,7 +89,12 @@ pub(crate) async fn get_missing_events_route(
 				)
 				.map_err(|_| Error::bad_database("Invalid prev_events in event in database."))?,
 			);
-			events.push(services.sending.convert_to_outgoing_federation_event(pdu));
+			events.push(
+				services
+					.sending
+					.convert_to_outgoing_federation_event(pdu)
+					.await,
+			);
 		}
 		i = i.saturating_add(1);
 	}

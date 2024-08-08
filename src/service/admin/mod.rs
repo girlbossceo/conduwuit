@@ -12,6 +12,7 @@ use std::{
 use async_trait::async_trait;
 use conduit::{debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server};
 pub use create::create_admin_room;
+use futures::{FutureExt, TryFutureExt};
 use loole::{Receiver, Sender};
 use ruma::{
 	events::{
@@ -142,17 +143,18 @@ impl Service {
 	/// admin room as the admin user.
 	pub async fn send_text(&self, body: &str) {
 		self.send_message(RoomMessageEventContent::text_markdown(body))
-			.await;
+			.await
+			.ok();
 	}
 
 	/// Sends a message to the admin room as the admin user (see send_text() for
 	/// convenience).
-	pub async fn send_message(&self, message_content: RoomMessageEventContent) {
-		if let Ok(Some(room_id)) = self.get_admin_room() {
-			let user_id = &self.services.globals.server_user;
-			self.respond_to_room(message_content, &room_id, user_id)
-				.await;
-		}
+	pub async fn send_message(&self, message_content: RoomMessageEventContent) -> Result<()> {
+		let user_id = &self.services.globals.server_user;
+		let room_id = self.get_admin_room().await?;
+		self.respond_to_room(message_content, &room_id, user_id)
+			.boxed()
+			.await
 	}
 
 	/// Posts a command to the command processor queue and returns. Processing
@@ -193,8 +195,12 @@ impl Service {
 
 	async fn handle_command(&self, command: CommandInput) {
 		match self.process_command(command).await {
-			Ok(Some(output)) | Err(output) => self.handle_response(output).await,
 			Ok(None) => debug!("Command successful with no response"),
+			Ok(Some(output)) | Err(output) => self
+				.handle_response(output)
+				.boxed()
+				.await
+				.unwrap_or_else(default_log),
 		}
 	}
 
@@ -218,71 +224,67 @@ impl Service {
 	}
 
 	/// Checks whether a given user is an admin of this server
-	pub async fn user_is_admin(&self, user_id: &UserId) -> Result<bool> {
-		if let Ok(Some(admin_room)) = self.get_admin_room() {
-			self.services.state_cache.is_joined(user_id, &admin_room)
-		} else {
-			Ok(false)
-		}
+	pub async fn user_is_admin(&self, user_id: &UserId) -> bool {
+		let Ok(admin_room) = self.get_admin_room().await else {
+			return false;
+		};
+
+		self.services
+			.state_cache
+			.is_joined(user_id, &admin_room)
+			.await
 	}
 
 	/// Gets the room ID of the admin room
 	///
 	/// Errors are propagated from the database, and will have None if there is
 	/// no admin room
-	pub fn get_admin_room(&self) -> Result<Option<OwnedRoomId>> {
-		if let Some(room_id) = self
+	pub async fn get_admin_room(&self) -> Result<OwnedRoomId> {
+		let room_id = self
 			.services
 			.alias
-			.resolve_local_alias(&self.services.globals.admin_alias)?
-		{
-			if self
-				.services
-				.state_cache
-				.is_joined(&self.services.globals.server_user, &room_id)?
-			{
-				return Ok(Some(room_id));
-			}
-		}
+			.resolve_local_alias(&self.services.globals.admin_alias)
+			.await?;
 
-		Ok(None)
+		self.services
+			.state_cache
+			.is_joined(&self.services.globals.server_user, &room_id)
+			.await
+			.then_some(room_id)
+			.ok_or_else(|| err!(Request(NotFound("Admin user not joined to admin room"))))
 	}
 
-	async fn handle_response(&self, content: RoomMessageEventContent) {
+	async fn handle_response(&self, content: RoomMessageEventContent) -> Result<()> {
 		let Some(Relation::Reply {
 			in_reply_to,
 		}) = content.relates_to.as_ref()
 		else {
-			return;
+			return Ok(());
 		};
 
-		let Ok(Some(pdu)) = self.services.timeline.get_pdu(&in_reply_to.event_id) else {
+		let Ok(pdu) = self.services.timeline.get_pdu(&in_reply_to.event_id).await else {
 			error!(
 				event_id = ?in_reply_to.event_id,
 				"Missing admin command in_reply_to event"
 			);
-			return;
+			return Ok(());
 		};
 
-		let response_sender = if self.is_admin_room(&pdu.room_id) {
+		let response_sender = if self.is_admin_room(&pdu.room_id).await {
 			&self.services.globals.server_user
 		} else {
 			&pdu.sender
 		};
 
 		self.respond_to_room(content, &pdu.room_id, response_sender)
-			.await;
+			.await
 	}
 
-	async fn respond_to_room(&self, content: RoomMessageEventContent, room_id: &RoomId, user_id: &UserId) {
-		assert!(
-			self.user_is_admin(user_id)
-				.await
-				.expect("checked user is admin"),
-			"sender is not admin"
-		);
+	async fn respond_to_room(
+		&self, content: RoomMessageEventContent, room_id: &RoomId, user_id: &UserId,
+	) -> Result<()> {
+		assert!(self.user_is_admin(user_id).await, "sender is not admin");
 
-		let state_lock = self.services.state.mutex.lock(room_id).await;
 		let response_pdu = PduBuilder {
 			event_type: TimelineEventType::RoomMessage,
 			content: to_raw_value(&content).expect("event is valid, we just created it"),
@@ -292,6 +294,7 @@ impl Service {
 			timestamp: None,
 		};
 
+		let state_lock = self.services.state.mutex.lock(room_id).await;
 		if let Err(e) = self
 			.services
 			.timeline
@@ -302,6 +305,8 @@ impl Service {
 				.await
 				.unwrap_or_else(default_log);
 		}
+
+		Ok(())
 	}
 
 	async fn handle_response_error(
@@ -355,12 +360,12 @@ impl Service {
 		}
 
 		// Prevent unescaped !admin from being used outside of the admin room
-		if is_public_prefix && !self.is_admin_room(&pdu.room_id) {
+		if is_public_prefix && !self.is_admin_room(&pdu.room_id).await {
 			return false;
 		}
 
 		// Only senders who are admin can proceed
-		if !self.user_is_admin(&pdu.sender).await.unwrap_or(false) {
+		if !self.user_is_admin(&pdu.sender).await {
 			return false;
 		}
 
@@ -368,7 +373,7 @@ impl Service {
 		// the administrator can execute commands as conduit
 		let emergency_password_set = self.services.globals.emergency_password().is_some();
 		let from_server = pdu.sender == *server_user && !emergency_password_set;
-		if from_server && self.is_admin_room(&pdu.room_id) {
+		if from_server && self.is_admin_room(&pdu.room_id).await {
 			return false;
 		}
 
@@ -377,12 +382,11 @@ impl Service {
 	}
 
 	#[must_use]
-	pub fn is_admin_room(&self, room_id: &RoomId) -> bool {
-		if let Ok(Some(admin_room_id)) = self.get_admin_room() {
-			admin_room_id == room_id
-		} else {
-			false
-		}
+	pub async fn is_admin_room(&self, room_id_: &RoomId) -> bool {
+		self.get_admin_room()
+			.map_ok(|room_id| room_id == room_id_)
+			.await
+			.unwrap_or(false)
 	}
 
 	/// Sets the self-reference to crate::Services which will provide context to

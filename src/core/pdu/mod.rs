@@ -3,8 +3,6 @@ mod count;
 
 use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
-pub use builder::PduBuilder;
-pub use count::PduCount;
 use ruma::{
 	canonical_json::redact_content_in_place,
 	events::{
@@ -23,7 +21,8 @@ use serde_json::{
 	value::{to_raw_value, RawValue as RawJsonValue},
 };
 
-use crate::{err, warn, Error};
+pub use self::{builder::PduBuilder, count::PduCount};
+use crate::{err, warn, Error, Result};
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {
@@ -65,11 +64,12 @@ pub struct PduEvent {
 
 impl PduEvent {
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> crate::Result<()> {
+	pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> Result<()> {
 		self.unsigned = None;
 
 		let mut content = serde_json::from_str(self.content.get())
 			.map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
+
 		redact_content_in_place(&mut content, &room_version_id, self.kind.to_string())
 			.map_err(|e| Error::Redaction(self.sender.server_name().to_owned(), e))?;
 
@@ -98,31 +98,38 @@ impl PduEvent {
 		unsigned.redacted_because.is_some()
 	}
 
-	pub fn remove_transaction_id(&mut self) -> crate::Result<()> {
-		if let Some(unsigned) = &self.unsigned {
-			let mut unsigned: BTreeMap<String, Box<RawJsonValue>> = serde_json::from_str(unsigned.get())
-				.map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
-			unsigned.remove("transaction_id");
-			self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));
-		}
+	pub fn remove_transaction_id(&mut self) -> Result<()> {
+		let Some(unsigned) = &self.unsigned else {
+			return Ok(());
+		};
+
+		let mut unsigned: BTreeMap<String, Box<RawJsonValue>> =
+			serde_json::from_str(unsigned.get()).map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?;
+
+		unsigned.remove("transaction_id");
+		self.unsigned = to_raw_value(&unsigned)
+			.map(Some)
+			.expect("unsigned is valid");
 
 		Ok(())
 	}
 
-	pub fn add_age(&mut self) -> crate::Result<()> {
+	pub fn add_age(&mut self) -> Result<()> {
 		let mut unsigned: BTreeMap<String, Box<RawJsonValue>> = self
 			.unsigned
 			.as_ref()
 			.map_or_else(|| Ok(BTreeMap::new()), |u| serde_json::from_str(u.get()))
-			.map_err(|_| Error::bad_database("Invalid unsigned in pdu event"))?;
+			.map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?;
 
 		// deliberately allowing for the possibility of negative age
 		let now: i128 = MilliSecondsSinceUnixEpoch::now().get().into();
 		let then: i128 = self.origin_server_ts.into();
 		let this_age = now.saturating_sub(then);
 
-		unsigned.insert("age".to_owned(), to_raw_value(&this_age).unwrap());
-		self.unsigned = Some(to_raw_value(&unsigned).expect("unsigned is valid"));
+		unsigned.insert("age".to_owned(), to_raw_value(&this_age).expect("age is valid"));
+		self.unsigned = to_raw_value(&unsigned)
+			.map(Some)
+			.expect("unsigned is valid");
 
 		Ok(())
 	}
@@ -369,9 +376,9 @@ impl state_res::Event for PduEvent {
 
 	fn state_key(&self) -> Option<&str> { self.state_key.as_deref() }
 
-	fn prev_events(&self) -> Box<dyn DoubleEndedIterator<Item = &Self::Id> + '_> { Box::new(self.prev_events.iter()) }
+	fn prev_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ { self.prev_events.iter() }
 
-	fn auth_events(&self) -> Box<dyn DoubleEndedIterator<Item = &Self::Id> + '_> { Box::new(self.auth_events.iter()) }
+	fn auth_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ { self.auth_events.iter() }
 
 	fn redacts(&self) -> Option<&Self::Id> { self.redacts.as_ref() }
 }
@@ -395,7 +402,7 @@ impl Ord for PduEvent {
 /// CanonicalJsonValue>`.
 pub fn gen_event_id_canonical_json(
 	pdu: &RawJsonValue, room_version_id: &RoomVersionId,
-) -> crate::Result<(OwnedEventId, CanonicalJsonObject)> {
+) -> Result<(OwnedEventId, CanonicalJsonObject)> {
 	let value: CanonicalJsonObject = serde_json::from_str(pdu.get())
 		.map_err(|e| err!(BadServerResponse(warn!("Error parsing incoming event: {e:?}"))))?;
 

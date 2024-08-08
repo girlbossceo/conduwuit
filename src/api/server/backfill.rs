@@ -1,9 +1,13 @@
+use std::cmp;
+
 use axum::extract::State;
-use conduit::{Error, Result};
-use ruma::{
-	api::{client::error::ErrorKind, federation::backfill::get_backfill},
-	uint, user_id, MilliSecondsSinceUnixEpoch,
+use conduit::{
+	is_equal_to,
+	utils::{IterStream, ReadyExt},
+	Err, PduCount, Result,
 };
+use futures::{FutureExt, StreamExt};
+use ruma::{api::federation::backfill::get_backfill, uint, user_id, MilliSecondsSinceUnixEpoch};
 
 use crate::Ruma;
 
@@ -19,27 +23,35 @@ pub(crate) async fn get_backfill_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
 	if !services
 		.rooms
 		.state_accessor
-		.is_world_readable(&body.room_id)?
-		&& !services
-			.rooms
-			.state_cache
-			.server_in_room(origin, &body.room_id)?
+		.is_world_readable(&body.room_id)
+		.await && !services
+		.rooms
+		.state_cache
+		.server_in_room(origin, &body.room_id)
+		.await
 	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
+		return Err!(Request(Forbidden("Server is not in room.")));
 	}
 
 	let until = body
 		.v
 		.iter()
-		.map(|event_id| services.rooms.timeline.get_pdu_count(event_id))
-		.filter_map(|r| r.ok().flatten())
-		.max()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event not found."))?;
+		.stream()
+		.filter_map(|event_id| {
+			services
+				.rooms
+				.timeline
+				.get_pdu_count(event_id)
+				.map(Result::ok)
+		})
+		.ready_fold(PduCount::Backfilled(0), cmp::max)
+		.await;
 
 	let limit = body
 		.limit
@@ -47,31 +59,37 @@ pub(crate) async fn get_backfill_route(
 		.try_into()
 		.expect("UInt could not be converted to usize");
 
-	let all_events = services
+	let pdus = services
 		.rooms
 		.timeline
-		.pdus_until(user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)?
-		.take(limit);
+		.pdus_until(user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)
+		.await?
+		.take(limit)
+		.filter_map(|(_, pdu)| async move {
+			if !services
+				.rooms
+				.state_accessor
+				.server_can_see_event(origin, &pdu.room_id, &pdu.event_id)
+				.await
+				.is_ok_and(is_equal_to!(true))
+			{
+				return None;
+			}
 
-	let events = all_events
-		.filter_map(Result::ok)
-		.filter(|(_, e)| {
-			matches!(
-				services
-					.rooms
-					.state_accessor
-					.server_can_see_event(origin, &e.room_id, &e.event_id,),
-				Ok(true),
-			)
+			services
+				.rooms
+				.timeline
+				.get_pdu_json(&pdu.event_id)
+				.await
+				.ok()
 		})
-		.map(|(_, pdu)| services.rooms.timeline.get_pdu_json(&pdu.event_id))
-		.filter_map(|r| r.ok().flatten())
-		.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-		.collect();
+		.then(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
+		.collect()
+		.await;
 
 	Ok(get_backfill::v1::Response {
 		origin: services.globals.server_name().to_owned(),
 		origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-		pdus: events,
+		pdus,
 	})
 }

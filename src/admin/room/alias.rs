@@ -2,7 +2,8 @@ use std::fmt::Write;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, RoomId};
+use futures::StreamExt;
+use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId};
 
 use crate::{escape_html, Command};
 
@@ -66,8 +67,8 @@ pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) ->
 					force,
 					room_id,
 					..
-				} => match (force, services.rooms.alias.resolve_local_alias(&room_alias)) {
-					(true, Ok(Some(id))) => match services
+				} => match (force, services.rooms.alias.resolve_local_alias(&room_alias).await) {
+					(true, Ok(id)) => match services
 						.rooms
 						.alias
 						.set_alias(&room_alias, &room_id, server_user)
@@ -77,10 +78,10 @@ pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) ->
 						))),
 						Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))),
 					},
-					(false, Ok(Some(id))) => Ok(RoomMessageEventContent::text_plain(format!(
+					(false, Ok(id)) => Ok(RoomMessageEventContent::text_plain(format!(
 						"Refusing to overwrite in use alias for {id}, use -f or --force to overwrite"
 					))),
-					(_, Ok(None)) => match services
+					(_, Err(_)) => match services
 						.rooms
 						.alias
 						.set_alias(&room_alias, &room_id, server_user)
@@ -88,12 +89,11 @@ pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) ->
 						Ok(()) => Ok(RoomMessageEventContent::text_plain("Successfully set alias")),
 						Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))),
 					},
-					(_, Err(err)) => Ok(RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {err}"))),
 				},
 				RoomAliasCommand::Remove {
 					..
-				} => match services.rooms.alias.resolve_local_alias(&room_alias) {
-					Ok(Some(id)) => match services
+				} => match services.rooms.alias.resolve_local_alias(&room_alias).await {
+					Ok(id) => match services
 						.rooms
 						.alias
 						.remove_alias(&room_alias, server_user)
@@ -102,15 +102,13 @@ pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) ->
 						Ok(()) => Ok(RoomMessageEventContent::text_plain(format!("Removed alias from {id}"))),
 						Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Failed to remove alias: {err}"))),
 					},
-					Ok(None) => Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
-					Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {err}"))),
+					Err(_) => Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
 				},
 				RoomAliasCommand::Which {
 					..
-				} => match services.rooms.alias.resolve_local_alias(&room_alias) {
-					Ok(Some(id)) => Ok(RoomMessageEventContent::text_plain(format!("Alias resolves to {id}"))),
-					Ok(None) => Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
-					Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to lookup alias: {err}"))),
+				} => match services.rooms.alias.resolve_local_alias(&room_alias).await {
+					Ok(id) => Ok(RoomMessageEventContent::text_plain(format!("Alias resolves to {id}"))),
+					Err(_) => Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
 				},
 				RoomAliasCommand::List {
 					..
@@ -125,63 +123,59 @@ pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) ->
 					.rooms
 					.alias
 					.local_aliases_for_room(&room_id)
-					.collect::<Result<Vec<_>, _>>();
-				match aliases {
-					Ok(aliases) => {
-						let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {
-							writeln!(output, "- {alias}").expect("should be able to write to string buffer");
-							output
-						});
+					.map(Into::into)
+					.collect::<Vec<OwnedRoomAliasId>>()
+					.await;
 
-						let html_list = aliases.iter().fold(String::new(), |mut output, alias| {
-							writeln!(output, "<li>{}</li>", escape_html(alias.as_ref()))
-								.expect("should be able to write to string buffer");
-							output
-						});
+				let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {
+					writeln!(output, "- {alias}").expect("should be able to write to string buffer");
+					output
+				});
 
-						let plain = format!("Aliases for {room_id}:\n{plain_list}");
-						let html = format!("Aliases for {room_id}:\n<ul>{html_list}</ul>");
-						Ok(RoomMessageEventContent::text_html(plain, html))
-					},
-					Err(err) => Ok(RoomMessageEventContent::text_plain(format!("Unable to list aliases: {err}"))),
-				}
+				let html_list = aliases.iter().fold(String::new(), |mut output, alias| {
+					writeln!(output, "<li>{}</li>", escape_html(alias.as_ref()))
+						.expect("should be able to write to string buffer");
+					output
+				});
+
+				let plain = format!("Aliases for {room_id}:\n{plain_list}");
+				let html = format!("Aliases for {room_id}:\n<ul>{html_list}</ul>");
+				Ok(RoomMessageEventContent::text_html(plain, html))
 			} else {
 				let aliases = services
 					.rooms
 					.alias
 					.all_local_aliases()
-					.collect::<Result<Vec<_>, _>>();
-				match aliases {
-					Ok(aliases) => {
-						let server_name = services.globals.server_name();
-						let plain_list = aliases
-							.iter()
-							.fold(String::new(), |mut output, (alias, id)| {
-								writeln!(output, "- `{alias}` -> #{id}:{server_name}")
-									.expect("should be able to write to string buffer");
-								output
-							});
+					.map(|(room_id, localpart)| (room_id.into(), localpart.into()))
+					.collect::<Vec<(OwnedRoomId, String)>>()
+					.await;
 
-						let html_list = aliases
-							.iter()
-							.fold(String::new(), |mut output, (alias, id)| {
-								writeln!(
-									output,
-									"<li><code>{}</code> -> #{}:{}</li>",
-									escape_html(alias.as_ref()),
-									escape_html(id.as_ref()),
-									server_name
-								)
-								.expect("should be able to write to string buffer");
-								output
-							});
+				let server_name = services.globals.server_name();
+				let plain_list = aliases
+					.iter()
+					.fold(String::new(), |mut output, (alias, id)| {
+						writeln!(output, "- `{alias}` -> #{id}:{server_name}")
+							.expect("should be able to write to string buffer");
+						output
+					});
 
-						let plain = format!("Aliases:\n{plain_list}");
-						let html = format!("Aliases:\n<ul>{html_list}</ul>");
-						Ok(RoomMessageEventContent::text_html(plain, html))
-					},
-					Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Unable to list room aliases: {e}"))),
-				}
+				let html_list = aliases
+					.iter()
+					.fold(String::new(), |mut output, (alias, id)| {
+						writeln!(
+							output,
+							"<li><code>{}</code> -> #{}:{}</li>",
+							escape_html(alias.as_ref()),
+							escape_html(id),
+							server_name
+						)
+						.expect("should be able to write to string buffer");
+						output
+					});
+
+				let plain = format!("Aliases:\n{plain_list}");
+				let html = format!("Aliases:\n<ul>{html_list}</ul>");
+				Ok(RoomMessageEventContent::text_html(plain, html))
 			}
 		},
 	}

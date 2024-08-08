@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use axum::extract::State;
+use conduit::{utils::ReadyExt, Err};
 use rand::Rng;
 use ruma::{
 	api::client::{error::ErrorKind, room::report_content},
@@ -34,11 +35,8 @@ pub(crate) async fn report_event_route(
 	delay_response().await;
 
 	// check if we know about the reported event ID or if it's invalid
-	let Some(pdu) = services.rooms.timeline.get_pdu(&body.event_id)? else {
-		return Err(Error::BadRequest(
-			ErrorKind::NotFound,
-			"Event ID is not known to us or Event ID is invalid",
-		));
+	let Ok(pdu) = services.rooms.timeline.get_pdu(&body.event_id).await else {
+		return Err!(Request(NotFound("Event ID is not known to us or Event ID is invalid")));
 	};
 
 	is_report_valid(
@@ -49,7 +47,8 @@ pub(crate) async fn report_event_route(
 		&body.reason,
 		body.score,
 		&pdu,
-	)?;
+	)
+	.await?;
 
 	// send admin room message that we received the report with an @room ping for
 	// urgency
@@ -81,7 +80,8 @@ pub(crate) async fn report_event_route(
 				HtmlEscape(body.reason.as_deref().unwrap_or(""))
 			),
 		))
-		.await;
+		.await
+		.ok();
 
 	Ok(report_content::v3::Response {})
 }
@@ -92,7 +92,7 @@ pub(crate) async fn report_event_route(
 /// check if score is in valid range
 /// check if report reasoning is less than or equal to 750 characters
 /// check if reporting user is in the reporting room
-fn is_report_valid(
+async fn is_report_valid(
 	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: &Option<String>,
 	score: Option<ruma::Int>, pdu: &std::sync::Arc<PduEvent>,
 ) -> Result<()> {
@@ -123,8 +123,8 @@ fn is_report_valid(
 		.rooms
 		.state_cache
 		.room_members(room_id)
-		.filter_map(Result::ok)
-		.any(|user_id| user_id == *sender_user)
+		.ready_any(|user_id| user_id == sender_user)
+		.await
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::NotFound,

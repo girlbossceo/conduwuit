@@ -54,9 +54,9 @@ impl super::Service {
 		// 0, 0 because that's the original file
 		let dim = dim.normalized();
 
-		if let Ok(metadata) = self.db.search_file_metadata(mxc, &dim) {
+		if let Ok(metadata) = self.db.search_file_metadata(mxc, &dim).await {
 			self.get_thumbnail_saved(metadata).await
-		} else if let Ok(metadata) = self.db.search_file_metadata(mxc, &Dim::default()) {
+		} else if let Ok(metadata) = self.db.search_file_metadata(mxc, &Dim::default()).await {
 			self.get_thumbnail_generate(mxc, &dim, metadata).await
 		} else {
 			Ok(None)

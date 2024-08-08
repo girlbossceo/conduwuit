@@ -6,8 +6,13 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{err, error, pdu::PduBuilder, utils::math::usize_from_f64, warn, Error, PduEvent, Result};
-use data::Data;
+use conduit::{
+	err, error,
+	pdu::PduBuilder,
+	utils::{math::usize_from_f64, ReadyExt},
+	Error, PduEvent, Result,
+};
+use futures::StreamExt;
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -31,8 +36,10 @@ use ruma::{
 	EventEncryptionAlgorithm, EventId, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName,
 	UserId,
 };
+use serde::Deserialize;
 use serde_json::value::to_raw_value;
 
+use self::data::Data;
 use crate::{rooms, rooms::state::RoomMutexGuard, Dep};
 
 pub struct Service {
@@ -99,54 +106,58 @@ impl Service {
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn state_get_id(
+	pub async fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<EventId>>> {
-		self.db.state_get_id(shortstatehash, event_type, state_key)
+	) -> Result<Arc<EventId>> {
+		self.db
+			.state_get_id(shortstatehash, event_type, state_key)
+			.await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[inline]
-	pub fn state_get(
+	pub async fn state_get(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<PduEvent>>> {
-		self.db.state_get(shortstatehash, event_type, state_key)
+	) -> Result<Arc<PduEvent>> {
+		self.db
+			.state_get(shortstatehash, event_type, state_key)
+			.await
 	}
 
 	/// Get membership for given user in state
-	fn user_membership(&self, shortstatehash: u64, user_id: &UserId) -> Result<MembershipState> {
-		self.state_get(shortstatehash, &StateEventType::RoomMember, user_id.as_str())?
-			.map_or(Ok(MembershipState::Leave), |s| {
+	async fn user_membership(&self, shortstatehash: u64, user_id: &UserId) -> MembershipState {
+		self.state_get(shortstatehash, &StateEventType::RoomMember, user_id.as_str())
+			.await
+			.map_or(MembershipState::Leave, |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomMemberEventContent| c.membership)
 					.map_err(|_| Error::bad_database("Invalid room membership event in database."))
+					.unwrap()
 			})
 	}
 
 	/// The user was a joined member at this state (potentially in the past)
 	#[inline]
-	fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
-		self.user_membership(shortstatehash, user_id)
-			.is_ok_and(|s| s == MembershipState::Join)
-		// Return sensible default, i.e.
-		// false
+	async fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
+		self.user_membership(shortstatehash, user_id).await == MembershipState::Join
 	}
 
 	/// The user was an invited or joined room member at this state (potentially
 	/// in the past)
 	#[inline]
-	fn user_was_invited(&self, shortstatehash: u64, user_id: &UserId) -> bool {
-		self.user_membership(shortstatehash, user_id)
-			.is_ok_and(|s| s == MembershipState::Join || s == MembershipState::Invite)
-		// Return sensible default, i.e. false
+	async fn user_was_invited(&self, shortstatehash: u64, user_id: &UserId) -> bool {
+		let s = self.user_membership(shortstatehash, user_id).await;
+		s == MembershipState::Join || s == MembershipState::Invite
 	}
 
 	/// Whether a server is allowed to see an event through federation, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, origin, room_id, event_id))]
-	pub fn server_can_see_event(&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
-		let Some(shortstatehash) = self.pdu_shortstatehash(event_id)? else {
+	pub async fn server_can_see_event(
+		&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId,
+	) -> Result<bool> {
+		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
 			return Ok(true);
 		};
 
@@ -160,8 +171,9 @@ impl Service {
 		}
 
 		let history_visibility = self
-			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?
-			.map_or(Ok(HistoryVisibility::Shared), |s| {
+			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")
+			.await
+			.map_or(HistoryVisibility::Shared, |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
 					.map_err(|e| {
@@ -171,25 +183,28 @@ impl Service {
 						);
 						Error::bad_database("Invalid history visibility event in database.")
 					})
-			})
-			.unwrap_or(HistoryVisibility::Shared);
+					.unwrap()
+			});
 
-		let mut current_server_members = self
+		let current_server_members = self
 			.services
 			.state_cache
 			.room_members(room_id)
-			.filter_map(Result::ok)
-			.filter(|member| member.server_name() == origin);
+			.ready_filter(|member| member.server_name() == origin);
 
 		let visibility = match history_visibility {
 			HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
 			HistoryVisibility::Invited => {
 				// Allow if any member on requesting server was AT LEAST invited, else deny
-				current_server_members.any(|member| self.user_was_invited(shortstatehash, &member))
+				current_server_members
+					.any(|member| self.user_was_invited(shortstatehash, member))
+					.await
 			},
 			HistoryVisibility::Joined => {
 				// Allow if any member on requested server was joined, else deny
-				current_server_members.any(|member| self.user_was_joined(shortstatehash, &member))
+				current_server_members
+					.any(|member| self.user_was_joined(shortstatehash, member))
+					.await
 			},
 			_ => {
 				error!("Unknown history visibility {history_visibility}");
@@ -208,9 +223,9 @@ impl Service {
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, user_id, room_id, event_id))]
-	pub fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
-		let Some(shortstatehash) = self.pdu_shortstatehash(event_id)? else {
-			return Ok(true);
+	pub async fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> bool {
+		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
+			return true;
 		};
 
 		if let Some(visibility) = self
@@ -219,14 +234,15 @@ impl Service {
 			.unwrap()
 			.get_mut(&(user_id.to_owned(), shortstatehash))
 		{
-			return Ok(*visibility);
+			return *visibility;
 		}
 
-		let currently_member = self.services.state_cache.is_joined(user_id, room_id)?;
+		let currently_member = self.services.state_cache.is_joined(user_id, room_id).await;
 
 		let history_visibility = self
-			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")?
-			.map_or(Ok(HistoryVisibility::Shared), |s| {
+			.state_get(shortstatehash, &StateEventType::RoomHistoryVisibility, "")
+			.await
+			.map_or(HistoryVisibility::Shared, |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
 					.map_err(|e| {
@@ -236,19 +252,19 @@ impl Service {
 						);
 						Error::bad_database("Invalid history visibility event in database.")
 					})
-			})
-			.unwrap_or(HistoryVisibility::Shared);
+					.unwrap()
+			});
 
 		let visibility = match history_visibility {
 			HistoryVisibility::WorldReadable => true,
 			HistoryVisibility::Shared => currently_member,
 			HistoryVisibility::Invited => {
 				// Allow if any member on requesting server was AT LEAST invited, else deny
-				self.user_was_invited(shortstatehash, user_id)
+				self.user_was_invited(shortstatehash, user_id).await
 			},
 			HistoryVisibility::Joined => {
 				// Allow if any member on requested server was joined, else deny
-				self.user_was_joined(shortstatehash, user_id)
+				self.user_was_joined(shortstatehash, user_id).await
 			},
 			_ => {
 				error!("Unknown history visibility {history_visibility}");
@@ -261,17 +277,18 @@ impl Service {
 			.unwrap()
 			.insert((user_id.to_owned(), shortstatehash), visibility);
 
-		Ok(visibility)
+		visibility
 	}
 
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, user_id, room_id))]
-	pub fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-		let currently_member = self.services.state_cache.is_joined(user_id, room_id)?;
+	pub async fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> bool {
+		let currently_member = self.services.state_cache.is_joined(user_id, room_id).await;
 
 		let history_visibility = self
-			.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
+			.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")
+			.await
 			.map_or(Ok(HistoryVisibility::Shared), |s| {
 				serde_json::from_str(s.content.get())
 					.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility)
@@ -285,11 +302,13 @@ impl Service {
 			})
 			.unwrap_or(HistoryVisibility::Shared);
 
-		Ok(currently_member || history_visibility == HistoryVisibility::WorldReadable)
+		currently_member || history_visibility == HistoryVisibility::WorldReadable
 	}
 
 	/// Returns the state hash for this pdu.
-	pub fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> { self.db.pdu_shortstatehash(event_id) }
+	pub async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<u64> {
+		self.db.pdu_shortstatehash(event_id).await
+	}
 
 	/// Returns the full room state.
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -300,47 +319,61 @@ impl Service {
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_state_get_id(
+	pub async fn room_state_get_id(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<EventId>>> {
-		self.db.room_state_get_id(room_id, event_type, state_key)
+	) -> Result<Arc<EventId>> {
+		self.db
+			.room_state_get_id(room_id, event_type, state_key)
+			.await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_state_get(
+	pub async fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<PduEvent>>> {
-		self.db.room_state_get(room_id, event_type, state_key)
+	) -> Result<Arc<PduEvent>> {
+		self.db.room_state_get(room_id, event_type, state_key).await
 	}
 
-	pub fn get_name(&self, room_id: &RoomId) -> Result<Option<String>> {
-		self.room_state_get(room_id, &StateEventType::RoomName, "")?
-			.map_or(Ok(None), |s| {
-				Ok(serde_json::from_str(s.content.get()).map_or_else(|_| None, |c: RoomNameEventContent| Some(c.name)))
-			})
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
+	pub async fn room_state_get_content<T>(
+		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
+	) -> Result<T>
+	where
+		T: for<'de> Deserialize<'de> + Send,
+	{
+		use serde_json::from_str;
+
+		self.room_state_get(room_id, event_type, state_key)
+			.await
+			.and_then(|event| from_str::<T>(event.content.get()).map_err(Into::into))
 	}
 
-	pub fn get_avatar(&self, room_id: &RoomId) -> Result<ruma::JsOption<RoomAvatarEventContent>> {
-		self.room_state_get(room_id, &StateEventType::RoomAvatar, "")?
-			.map_or(Ok(ruma::JsOption::Undefined), |s| {
+	pub async fn get_name(&self, room_id: &RoomId) -> Result<String> {
+		self.room_state_get_content(room_id, &StateEventType::RoomName, "")
+			.await
+			.map(|c: RoomNameEventContent| c.name)
+	}
+
+	pub async fn get_avatar(&self, room_id: &RoomId) -> ruma::JsOption<RoomAvatarEventContent> {
+		self.room_state_get(room_id, &StateEventType::RoomAvatar, "")
+			.await
+			.map_or(ruma::JsOption::Undefined, |s| {
 				serde_json::from_str(s.content.get())
 					.map_err(|_| Error::bad_database("Invalid room avatar event in database."))
+					.unwrap()
 			})
 	}
 
-	pub fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<RoomMemberEventContent>> {
-		self.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
-			.map_or(Ok(None), |s| {
-				serde_json::from_str(s.content.get())
-					.map_err(|_| Error::bad_database("Invalid room member event in database."))
-			})
+	pub async fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<RoomMemberEventContent> {
+		self.room_state_get_content(room_id, &StateEventType::RoomMember, user_id.as_str())
+			.await
 	}
 
-	pub fn user_can_invite(
+	pub async fn user_can_invite(
 		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &RoomMutexGuard,
-	) -> Result<bool> {
+	) -> bool {
 		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
 			.expect("Event content always serializes");
 
@@ -353,122 +386,101 @@ impl Service {
 			timestamp: None,
 		};
 
-		Ok(self
-			.services
+		self.services
 			.timeline
 			.create_hash_and_sign_event(new_event, sender, room_id, state_lock)
-			.is_ok())
+			.await
+			.is_ok()
 	}
 
 	/// Checks if guests are able to view room content without joining
-	pub fn is_world_readable(&self, room_id: &RoomId) -> Result<bool, Error> {
-		self.room_state_get(room_id, &StateEventType::RoomHistoryVisibility, "")?
-			.map_or(Ok(false), |s| {
-				serde_json::from_str(s.content.get())
-					.map(|c: RoomHistoryVisibilityEventContent| {
-						c.history_visibility == HistoryVisibility::WorldReadable
-					})
-					.map_err(|e| {
-						error!(
-							"Invalid room history visibility event in database for room {room_id}, assuming not world \
-							 readable: {e} "
-						);
-						Error::bad_database("Invalid room history visibility event in database.")
-					})
-			})
+	pub async fn is_world_readable(&self, room_id: &RoomId) -> bool {
+		self.room_state_get_content(room_id, &StateEventType::RoomHistoryVisibility, "")
+			.await
+			.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility == HistoryVisibility::WorldReadable)
+			.unwrap_or(false)
 	}
 
 	/// Checks if guests are able to join a given room
-	pub fn guest_can_join(&self, room_id: &RoomId) -> Result<bool, Error> {
-		self.room_state_get(room_id, &StateEventType::RoomGuestAccess, "")?
-			.map_or(Ok(false), |s| {
-				serde_json::from_str(s.content.get())
-					.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
-					.map_err(|_| Error::bad_database("Invalid room guest access event in database."))
-			})
+	pub async fn guest_can_join(&self, room_id: &RoomId) -> bool {
+		self.room_state_get_content(room_id, &StateEventType::RoomGuestAccess, "")
+			.await
+			.map(|c: RoomGuestAccessEventContent| c.guest_access == GuestAccess::CanJoin)
+			.unwrap_or(false)
 	}
 
 	/// Gets the primary alias from canonical alias event
-	pub fn get_canonical_alias(&self, room_id: &RoomId) -> Result<Option<OwnedRoomAliasId>, Error> {
-		self.room_state_get(room_id, &StateEventType::RoomCanonicalAlias, "")?
-			.map_or(Ok(None), |s| {
-				serde_json::from_str(s.content.get())
-					.map(|c: RoomCanonicalAliasEventContent| c.alias)
-					.map_err(|_| Error::bad_database("Invalid canonical alias event in database."))
+	pub async fn get_canonical_alias(&self, room_id: &RoomId) -> Result<OwnedRoomAliasId> {
+		self.room_state_get_content(room_id, &StateEventType::RoomCanonicalAlias, "")
+			.await
+			.and_then(|c: RoomCanonicalAliasEventContent| {
+				c.alias
+					.ok_or_else(|| err!(Request(NotFound("No alias found in event content."))))
 			})
 	}
 
 	/// Gets the room topic
-	pub fn get_room_topic(&self, room_id: &RoomId) -> Result<Option<String>, Error> {
-		self.room_state_get(room_id, &StateEventType::RoomTopic, "")?
-			.map_or(Ok(None), |s| {
-				serde_json::from_str(s.content.get())
-					.map(|c: RoomTopicEventContent| Some(c.topic))
-					.map_err(|e| {
-						error!("Invalid room topic event in database for room {room_id}: {e}");
-						Error::bad_database("Invalid room topic event in database.")
-					})
-			})
+	pub async fn get_room_topic(&self, room_id: &RoomId) -> Result<String> {
+		self.room_state_get_content(room_id, &StateEventType::RoomTopic, "")
+			.await
+			.map(|c: RoomTopicEventContent| c.topic)
 	}
 
 	/// Checks if a given user can redact a given event
 	///
 	/// If federation is true, it allows redaction events from any user of the
 	/// same server as the original event sender
-	pub fn user_can_redact(
+	pub async fn user_can_redact(
 		&self, redacts: &EventId, sender: &UserId, room_id: &RoomId, federation: bool,
 	) -> Result<bool> {
-		self.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
-			.map_or_else(
-				|| {
-					// Falling back on m.room.create to judge power level
-					if let Some(pdu) = self.room_state_get(room_id, &StateEventType::RoomCreate, "")? {
-						Ok(pdu.sender == sender
-							|| if let Ok(Some(pdu)) = self.services.timeline.get_pdu(redacts) {
-								pdu.sender == sender
-							} else {
-								false
-							})
+		if let Ok(event) = self
+			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")
+			.await
+		{
+			let Ok(event) = serde_json::from_str(event.content.get())
+				.map(|content: RoomPowerLevelsEventContent| content.into())
+				.map(|event: RoomPowerLevels| event)
+			else {
+				return Ok(false);
+			};
+
+			Ok(event.user_can_redact_event_of_other(sender)
+				|| event.user_can_redact_own_event(sender)
+					&& if let Ok(pdu) = self.services.timeline.get_pdu(redacts).await {
+						if federation {
+							pdu.sender.server_name() == sender.server_name()
+						} else {
+							pdu.sender == sender
+						}
 					} else {
-						Err(Error::bad_database(
-							"No m.room.power_levels or m.room.create events in database for room",
-						))
-					}
-				},
-				|event| {
-					serde_json::from_str(event.content.get())
-						.map(|content: RoomPowerLevelsEventContent| content.into())
-						.map(|event: RoomPowerLevels| {
-							event.user_can_redact_event_of_other(sender)
-								|| event.user_can_redact_own_event(sender)
-									&& if let Ok(Some(pdu)) = self.services.timeline.get_pdu(redacts) {
-										if federation {
-											pdu.sender.server_name() == sender.server_name()
-										} else {
-											pdu.sender == sender
-										}
-									} else {
-										false
-									}
-						})
-						.map_err(|_| Error::bad_database("Invalid m.room.power_levels event in database"))
-				},
-			)
+						false
+					})
+		} else {
+			// Falling back on m.room.create to judge power level
+			if let Ok(pdu) = self
+				.room_state_get(room_id, &StateEventType::RoomCreate, "")
+				.await
+			{
+				Ok(pdu.sender == sender
+					|| if let Ok(pdu) = self.services.timeline.get_pdu(redacts).await {
+						pdu.sender == sender
+					} else {
+						false
+					})
+			} else {
+				Err(Error::bad_database(
+					"No m.room.power_levels or m.room.create events in database for room",
+				))
+			}
+		}
 	}
 
 	/// Returns the join rule (`SpaceRoomJoinRule`) for a given room
-	pub fn get_join_rule(&self, room_id: &RoomId) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>), Error> {
-		Ok(self
-			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")?
-			.map(|s| {
-				serde_json::from_str(s.content.get())
-					.map(|c: RoomJoinRulesEventContent| {
-						(c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule))
-					})
-					.map_err(|e| err!(Database(error!("Invalid room join rule event in database: {e}"))))
-			})
-			.transpose()?
-			.unwrap_or((SpaceRoomJoinRule::Invite, vec![])))
+	pub async fn get_join_rule(&self, room_id: &RoomId) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>)> {
+		self.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
+			.await
+			.map(|c: RoomJoinRulesEventContent| (c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule)))
+			.or_else(|_| Ok((SpaceRoomJoinRule::Invite, vec![])))
 	}
 
 	/// Returns an empty vec if not a restricted room
@@ -487,25 +499,21 @@ impl Service {
 		room_ids
 	}
 
-	pub fn get_room_type(&self, room_id: &RoomId) -> Result<Option<RoomType>> {
-		Ok(self
-			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
-			.map(|s| {
-				serde_json::from_str::<RoomCreateEventContent>(s.content.get())
-					.map_err(|e| err!(Database(error!("Invalid room create event in database: {e}"))))
+	pub async fn get_room_type(&self, room_id: &RoomId) -> Result<RoomType> {
+		self.room_state_get_content(room_id, &StateEventType::RoomCreate, "")
+			.await
+			.and_then(|content: RoomCreateEventContent| {
+				content
+					.room_type
+					.ok_or_else(|| err!(Request(NotFound("No type found in event content"))))
 			})
-			.transpose()?
-			.and_then(|e| e.room_type))
 	}
 
 	/// Gets the room's encryption algorithm if `m.room.encryption` state event
 	/// is found
-	pub fn get_room_encryption(&self, room_id: &RoomId) -> Result<Option<EventEncryptionAlgorithm>> {
-		self.room_state_get(room_id, &StateEventType::RoomEncryption, "")?
-			.map_or(Ok(None), |s| {
-				serde_json::from_str::<RoomEncryptionEventContent>(s.content.get())
-					.map(|content| Some(content.algorithm))
-					.map_err(|e| err!(Database(error!("Invalid room encryption event in database: {e}"))))
-			})
+	pub async fn get_room_encryption(&self, room_id: &RoomId) -> Result<EventEncryptionAlgorithm> {
+		self.room_state_get_content(room_id, &StateEventType::RoomEncryption, "")
+			.await
+			.map(|content: RoomEncryptionEventContent| content.algorithm)
 	}
 }

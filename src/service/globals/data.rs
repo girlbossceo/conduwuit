@@ -4,8 +4,8 @@ use std::{
 };
 
 use conduit::{trace, utils, Error, Result, Server};
-use database::{Database, Map};
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use database::{Database, Deserialized, Map};
+use futures::{pin_mut, stream::FuturesUnordered, FutureExt, StreamExt};
 use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
 	signatures::Ed25519KeyPair,
@@ -83,7 +83,7 @@ impl Data {
 			.checked_add(1)
 			.expect("counter must not overflow u64");
 
-		self.global.insert(COUNTER, &counter.to_be_bytes())?;
+		self.global.insert(COUNTER, &counter.to_be_bytes());
 
 		Ok(*counter)
 	}
@@ -102,7 +102,7 @@ impl Data {
 
 	fn stored_count(global: &Arc<Map>) -> Result<u64> {
 		global
-			.get(COUNTER)?
+			.get(COUNTER)
 			.as_deref()
 			.map_or(Ok(0_u64), utils::u64_from_bytes)
 	}
@@ -133,35 +133,17 @@ impl Data {
 		futures.push(self.userroomid_highlightcount.watch_prefix(&userid_prefix));
 
 		// Events for rooms we are in
-		for room_id in self
-			.services
-			.state_cache
-			.rooms_joined(user_id)
-			.filter_map(Result::ok)
-		{
-			let short_roomid = self
-				.services
-				.short
-				.get_shortroomid(&room_id)
-				.ok()
-				.flatten()
-				.expect("room exists")
-				.to_be_bytes()
-				.to_vec();
+		let rooms_joined = self.services.state_cache.rooms_joined(user_id);
+
+		pin_mut!(rooms_joined);
+		while let Some(room_id) = rooms_joined.next().await {
+			let Ok(short_roomid) = self.services.short.get_shortroomid(room_id).await else {
+				continue;
+			};
 
 			let roomid_bytes = room_id.as_bytes().to_vec();
 			let mut roomid_prefix = roomid_bytes.clone();
 			roomid_prefix.push(0xFF);
-
-			// PDUs
-			futures.push(self.pduid_pdu.watch_prefix(&short_roomid));
-
-			// EDUs
-			futures.push(Box::pin(async move {
-				let _result = self.services.typing.wait_for_update(&room_id).await;
-			}));
-
-			futures.push(self.readreceiptid_readreceipt.watch_prefix(&roomid_prefix));
 
 			// Key changes
 			futures.push(self.keychangeid_userid.watch_prefix(&roomid_prefix));
@@ -174,6 +156,19 @@ impl Data {
 				self.roomusertype_roomuserdataid
 					.watch_prefix(&roomuser_prefix),
 			);
+
+			// PDUs
+			let short_roomid = short_roomid.to_be_bytes().to_vec();
+			futures.push(self.pduid_pdu.watch_prefix(&short_roomid));
+
+			// EDUs
+			let typing_room_id = room_id.to_owned();
+			let typing_wait_for_update = async move {
+				self.services.typing.wait_for_update(&typing_room_id).await;
+			};
+
+			futures.push(typing_wait_for_update.boxed());
+			futures.push(self.readreceiptid_readreceipt.watch_prefix(&roomid_prefix));
 		}
 
 		let mut globaluserdata_prefix = vec![0xFF];
@@ -190,12 +185,14 @@ impl Data {
 		// One time keys
 		futures.push(self.userid_lastonetimekeyupdate.watch_prefix(&userid_bytes));
 
-		futures.push(Box::pin(async move {
+		// Server shutdown
+		let server_shutdown = async move {
 			while self.services.server.running() {
-				let _result = self.services.server.signal.subscribe().recv().await;
+				self.services.server.signal.subscribe().recv().await.ok();
 			}
-		}));
+		};
 
+		futures.push(server_shutdown.boxed());
 		if !self.services.server.running() {
 			return Ok(());
 		}
@@ -209,10 +206,10 @@ impl Data {
 	}
 
 	pub fn load_keypair(&self) -> Result<Ed25519KeyPair> {
-		let keypair_bytes = self.global.get(b"keypair")?.map_or_else(
-			|| {
+		let keypair_bytes = self.global.get(b"keypair").map_or_else(
+			|_| {
 				let keypair = utils::generate_keypair();
-				self.global.insert(b"keypair", &keypair)?;
+				self.global.insert(b"keypair", &keypair);
 				Ok::<_, Error>(keypair)
 			},
 			|val| Ok(val.to_vec()),
@@ -241,7 +238,10 @@ impl Data {
 	}
 
 	#[inline]
-	pub fn remove_keypair(&self) -> Result<()> { self.global.remove(b"keypair") }
+	pub fn remove_keypair(&self) -> Result<()> {
+		self.global.remove(b"keypair");
+		Ok(())
+	}
 
 	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
 	/// in room version > 4
@@ -250,15 +250,15 @@ impl Data {
 	///
 	/// This doesn't actually check that the keys provided are newer than the
 	/// old set.
-	pub fn add_signing_key(
+	pub async fn add_signing_key(
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
-	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
+	) -> BTreeMap<OwnedServerSigningKeyId, VerifyKey> {
 		// Not atomic, but this is not critical
-		let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
+		let signingkeys = self.server_signingkeys.qry(origin).await;
 
 		let mut keys = signingkeys
-			.and_then(|keys| serde_json::from_slice(&keys).ok())
-			.unwrap_or_else(|| {
+			.and_then(|keys| serde_json::from_slice(&keys).map_err(Into::into))
+			.unwrap_or_else(|_| {
 				// Just insert "now", it doesn't matter
 				ServerSigningKeys::new(origin.to_owned(), MilliSecondsSinceUnixEpoch::now())
 			});
@@ -275,7 +275,7 @@ impl Data {
 		self.server_signingkeys.insert(
 			origin.as_bytes(),
 			&serde_json::to_vec(&keys).expect("serversigningkeys can be serialized"),
-		)?;
+		);
 
 		let mut tree = keys.verify_keys;
 		tree.extend(
@@ -284,45 +284,38 @@ impl Data {
 				.map(|old| (old.0, VerifyKey::new(old.1.key))),
 		);
 
-		Ok(tree)
+		tree
 	}
 
 	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	/// for the server.
-	pub fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-		let signingkeys = self
-			.signing_keys_for(origin)?
-			.map_or_else(BTreeMap::new, |keys: ServerSigningKeys| {
+	pub async fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
+		self.signing_keys_for(origin).await.map_or_else(
+			|_| Ok(BTreeMap::new()),
+			|keys: ServerSigningKeys| {
 				let mut tree = keys.verify_keys;
 				tree.extend(
 					keys.old_verify_keys
 						.into_iter()
 						.map(|old| (old.0, VerifyKey::new(old.1.key))),
 				);
-				tree
-			});
-
-		Ok(signingkeys)
+				Ok(tree)
+			},
+		)
 	}
 
-	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<Option<ServerSigningKeys>> {
-		let signingkeys = self
-			.server_signingkeys
-			.get(origin.as_bytes())?
-			.and_then(|bytes| serde_json::from_slice(&bytes).ok());
-
-		Ok(signingkeys)
+	pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSigningKeys> {
+		self.server_signingkeys
+			.qry(origin)
+			.await
+			.deserialized_json()
 	}
 
-	pub fn database_version(&self) -> Result<u64> {
-		self.global.get(b"version")?.map_or(Ok(0), |version| {
-			utils::u64_from_bytes(&version).map_err(|_| Error::bad_database("Database version id is invalid."))
-		})
-	}
+	pub async fn database_version(&self) -> u64 { self.global.qry("version").await.deserialized().unwrap_or(0) }
 
 	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
-		self.global.insert(b"version", &new_version.to_be_bytes())?;
+		self.global.insert(b"version", &new_version.to_be_bytes());
 		Ok(())
 	}
 

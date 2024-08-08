@@ -1,4 +1,5 @@
 use axum::extract::State;
+use futures::{pin_mut, StreamExt};
 use ruma::{
 	api::client::user_directory::search_users,
 	events::{
@@ -21,14 +22,12 @@ pub(crate) async fn search_users_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let limit = usize::try_from(body.limit).unwrap_or(10); // default limit is 10
 
-	let mut users = services.users.iter().filter_map(|user_id| {
+	let users = services.users.stream().filter_map(|user_id| async {
 		// Filter out buggy users (they should not exist, but you never know...)
-		let user_id = user_id.ok()?;
-
 		let user = search_users::v3::User {
-			user_id: user_id.clone(),
-			display_name: services.users.displayname(&user_id).ok()?,
-			avatar_url: services.users.avatar_url(&user_id).ok()?,
+			user_id: user_id.to_owned(),
+			display_name: services.users.displayname(user_id).await.ok(),
+			avatar_url: services.users.avatar_url(user_id).await.ok(),
 		};
 
 		let user_id_matches = user
@@ -56,20 +55,19 @@ pub(crate) async fn search_users_route(
 		let user_is_in_public_rooms = services
 			.rooms
 			.state_cache
-			.rooms_joined(&user_id)
-			.filter_map(Result::ok)
-			.any(|room| {
+			.rooms_joined(&user.user_id)
+			.any(|room| async move {
 				services
 					.rooms
 					.state_accessor
-					.room_state_get(&room, &StateEventType::RoomJoinRules, "")
+					.room_state_get(room, &StateEventType::RoomJoinRules, "")
+					.await
 					.map_or(false, |event| {
-						event.map_or(false, |event| {
-							serde_json::from_str(event.content.get())
-								.map_or(false, |r: RoomJoinRulesEventContent| r.join_rule == JoinRule::Public)
-						})
+						serde_json::from_str(event.content.get())
+							.map_or(false, |r: RoomJoinRulesEventContent| r.join_rule == JoinRule::Public)
 					})
-			});
+			})
+			.await;
 
 		if user_is_in_public_rooms {
 			user_visible = true;
@@ -77,25 +75,22 @@ pub(crate) async fn search_users_route(
 			let user_is_in_shared_rooms = services
 				.rooms
 				.user
-				.get_shared_rooms(vec![sender_user.clone(), user_id])
-				.ok()?
-				.next()
-				.is_some();
+				.has_shared_rooms(sender_user, &user.user_id)
+				.await;
 
 			if user_is_in_shared_rooms {
 				user_visible = true;
 			}
 		}
 
-		if !user_visible {
-			return None;
-		}
-
-		Some(user)
+		user_visible.then_some(user)
 	});
 
-	let results = users.by_ref().take(limit).collect();
-	let limited = users.next().is_some();
+	pin_mut!(users);
+
+	let limited = users.by_ref().next().await.is_some();
+
+	let results = users.take(limit).collect().await;
 
 	Ok(search_users::v3::Response {
 		results,
