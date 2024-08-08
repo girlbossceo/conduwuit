@@ -75,7 +75,7 @@ impl Data {
 		prefix.push(0xFF);
 
 		for (key, _) in self.roomid_pduleaves.scan_prefix(prefix.clone()) {
-			self.roomid_pduleaves.remove(&key)?;
+			self.roomid_pduleaves.remove(&key);
 		}
 
 		for event_id in event_ids {

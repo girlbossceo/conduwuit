@@ -55,7 +55,7 @@ impl Data {
 		});
 
 		for token in batch {
-			self.tokenids.remove(&token)?;
+			self.tokenids.remove(&token);
 		}
 
 		Ok(())

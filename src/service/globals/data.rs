@@ -241,7 +241,10 @@ impl Data {
 	}
 
 	#[inline]
-	pub fn remove_keypair(&self) -> Result<()> { self.global.remove(b"keypair") }
+	pub fn remove_keypair(&self) -> Result<()> {
+		self.global.remove(b"keypair");
+		Ok(())
+	}
 
 	/// TODO: the key valid until timestamp (`valid_until_ts`) is only honored
 	/// in room version > 4

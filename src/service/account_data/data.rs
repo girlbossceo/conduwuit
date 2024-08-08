@@ -75,7 +75,7 @@ impl Data {
 
 		// Remove old entry
 		if let Some(prev) = prev {
-			self.roomuserdataid_accountdata.remove(&prev)?;
+			self.roomuserdataid_accountdata.remove(&prev);
 		}
 
 		Ok(())

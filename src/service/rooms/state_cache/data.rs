@@ -86,12 +86,12 @@ impl Data {
 
 		self.userroomid_joined.insert(&userroom_id, &[]);
 		self.roomuserid_joined.insert(&roomuser_id, &[]);
-		self.userroomid_invitestate.remove(&userroom_id)?;
-		self.roomuserid_invitecount.remove(&roomuser_id)?;
-		self.userroomid_leftstate.remove(&userroom_id)?;
-		self.roomuserid_leftcount.remove(&roomuser_id)?;
+		self.userroomid_invitestate.remove(&userroom_id);
+		self.roomuserid_invitecount.remove(&roomuser_id);
+		self.userroomid_leftstate.remove(&userroom_id);
+		self.roomuserid_leftcount.remove(&roomuser_id);
 
-		self.roomid_inviteviaservers.remove(&roomid)?;
+		self.roomid_inviteviaservers.remove(&roomid);
 
 		Ok(())
 	}
@@ -114,10 +114,10 @@ impl Data {
 		);
 		self.roomuserid_invitecount
 			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes());
-		self.userroomid_joined.remove(&userroom_id)?;
-		self.roomuserid_joined.remove(&roomuser_id)?;
-		self.userroomid_leftstate.remove(&userroom_id)?;
-		self.roomuserid_leftcount.remove(&roomuser_id)?;
+		self.userroomid_joined.remove(&userroom_id);
+		self.roomuserid_joined.remove(&roomuser_id);
+		self.userroomid_leftstate.remove(&userroom_id);
+		self.roomuserid_leftcount.remove(&roomuser_id);
 
 		if let Some(servers) = invite_via {
 			let mut prev_servers = self
@@ -158,12 +158,12 @@ impl Data {
 		); // TODO
 		self.roomuserid_leftcount
 			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes());
-		self.userroomid_joined.remove(&userroom_id)?;
-		self.roomuserid_joined.remove(&roomuser_id)?;
-		self.userroomid_invitestate.remove(&userroom_id)?;
-		self.roomuserid_invitecount.remove(&roomuser_id)?;
+		self.userroomid_joined.remove(&userroom_id);
+		self.roomuserid_joined.remove(&roomuser_id);
+		self.userroomid_invitestate.remove(&userroom_id);
+		self.roomuserid_invitecount.remove(&roomuser_id);
 
-		self.roomid_inviteviaservers.remove(&roomid)?;
+		self.roomid_inviteviaservers.remove(&roomid);
 
 		Ok(())
 	}
@@ -199,8 +199,8 @@ impl Data {
 				serverroom_id.push(0xFF);
 				serverroom_id.extend_from_slice(room_id.as_bytes());
 
-				self.roomserverids.remove(&roomserver_id)?;
-				self.serverroomids.remove(&serverroom_id)?;
+				self.roomserverids.remove(&roomserver_id);
+				self.serverroomids.remove(&serverroom_id);
 			}
 		}
 
@@ -272,8 +272,8 @@ impl Data {
 		roomuser_id.push(0xFF);
 		roomuser_id.extend_from_slice(user_id.as_bytes());
 
-		self.userroomid_leftstate.remove(&userroom_id)?;
-		self.roomuserid_leftcount.remove(&roomuser_id)?;
+		self.userroomid_leftstate.remove(&userroom_id);
+		self.roomuserid_leftcount.remove(&roomuser_id);
 
 		Ok(())
 	}

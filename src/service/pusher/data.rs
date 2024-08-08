@@ -32,7 +32,8 @@ impl Data {
 				let mut key = sender.as_bytes().to_vec();
 				key.push(0xFF);
 				key.extend_from_slice(ids.pushkey.as_bytes());
-				self.senderkey_pusher.remove(&key).map_err(Into::into)
+				self.senderkey_pusher.remove(&key);
+				Ok(())
 			},
 		}
 	}

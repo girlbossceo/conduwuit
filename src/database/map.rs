@@ -105,19 +105,21 @@ impl Map {
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]
-	pub fn remove(&self, key: &Key) -> Result<()> {
+	pub fn remove(&self, key: &Key) {
 		let write_options = &self.write_options;
-		let res = self.db.db.delete_cf_opt(&self.cf(), key, write_options);
+		self.db
+			.db
+			.delete_cf_opt(&self.cf(), key, write_options)
+			.or_else(or_else)
+			.expect("database remove error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
-
-		result(res)
 	}
 
 	#[tracing::instrument(skip(self, iter), level = "trace")]
-	pub fn remove_batch<'a, I>(&'a self, iter: I) -> Result<()>
+	pub fn remove_batch<'a, I>(&'a self, iter: I)
 	where
 		I: Iterator<Item = &'a Key>,
 	{
@@ -127,13 +129,15 @@ impl Map {
 		}
 
 		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
+		self.db
+			.db
+			.write_opt(batch, write_options)
+			.or_else(or_else)
+			.expect("database remove batch error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
-
-		result(res)
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]

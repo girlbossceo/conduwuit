@@ -57,7 +57,7 @@ impl Data {
 		prefix.push(0xFF);
 
 		for (key, _) in self.lazyloadedids.scan_prefix(prefix) {
-			self.lazyloadedids.remove(&key)?;
+			self.lazyloadedids.remove(&key);
 		}
 
 		Ok(())

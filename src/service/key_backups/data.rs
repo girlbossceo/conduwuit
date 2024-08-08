@@ -58,13 +58,13 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
 
-		self.backupid_algorithm.remove(&key)?;
-		self.backupid_etag.remove(&key)?;
+		self.backupid_algorithm.remove(&key);
+		self.backupid_etag.remove(&key);
 
 		key.push(0xFF);
 
 		for (outdated_key, _) in self.backupkeyid_backup.scan_prefix(key) {
-			self.backupkeyid_backup.remove(&outdated_key)?;
+			self.backupkeyid_backup.remove(&outdated_key);
 		}
 
 		Ok(())
@@ -303,7 +303,7 @@ impl Data {
 		key.push(0xFF);
 
 		for (outdated_key, _) in self.backupkeyid_backup.scan_prefix(key) {
-			self.backupkeyid_backup.remove(&outdated_key)?;
+			self.backupkeyid_backup.remove(&outdated_key);
 		}
 
 		Ok(())
@@ -318,7 +318,7 @@ impl Data {
 		key.push(0xFF);
 
 		for (outdated_key, _) in self.backupkeyid_backup.scan_prefix(key) {
-			self.backupkeyid_backup.remove(&outdated_key)?;
+			self.backupkeyid_backup.remove(&outdated_key);
 		}
 
 		Ok(())
@@ -336,7 +336,7 @@ impl Data {
 		key.extend_from_slice(session_id.as_bytes());
 
 		for (outdated_key, _) in self.backupkeyid_backup.scan_prefix(key) {
-			self.backupkeyid_backup.remove(&outdated_key)?;
+			self.backupkeyid_backup.remove(&outdated_key);
 		}
 
 		Ok(())

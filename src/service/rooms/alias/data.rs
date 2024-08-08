@@ -52,12 +52,11 @@ impl Data {
 			prefix.push(0xFF);
 
 			for (key, _) in self.aliasid_alias.scan_prefix(prefix) {
-				self.aliasid_alias.remove(&key)?;
+				self.aliasid_alias.remove(&key);
 			}
 
-			self.alias_roomid.remove(alias.alias().as_bytes())?;
-
-			self.alias_userid.remove(alias.alias().as_bytes())?;
+			self.alias_roomid.remove(alias.alias().as_bytes());
+			self.alias_userid.remove(alias.alias().as_bytes());
 		} else {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist or is invalid."));
 		}

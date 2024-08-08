@@ -586,7 +586,7 @@ async fn db_lt_9(services: &Services) -> Result<()> {
 		.collect();
 
 	for key in batch2 {
-		tokenids.remove(&key)?;
+		tokenids.remove(&key);
 	}
 
 	services.globals.db.bump_database_version(9)?;
@@ -836,8 +836,8 @@ async fn handle_media_check(
 			"Media is missing at all paths. Removing from database..."
 		);
 
-		mediaid_file.remove(key)?;
-		mediaid_user.remove(key)?;
+		mediaid_file.remove(key);
+		mediaid_user.remove(key);
 	}
 
 	if config.media_compat_file_link && !old_exists && new_exists {
@@ -905,7 +905,7 @@ async fn fix_bad_double_separator_in_state_cache(services: &Services) -> Result<
 			== vec![0xFF, 0xFF]
 		{
 			debug_warn!("Found bad key: {key:?}");
-			roomuserid_joined.remove(&key)?;
+			roomuserid_joined.remove(&key);
 
 			key.remove(first_sep_index);
 			debug_warn!("Fixed key: {key:?}");

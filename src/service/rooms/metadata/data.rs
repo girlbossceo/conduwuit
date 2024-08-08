@@ -67,7 +67,7 @@ impl Data {
 		if disabled {
 			self.disabledroomids.insert(room_id.as_bytes(), &[]);
 		} else {
-			self.disabledroomids.remove(room_id.as_bytes())?;
+			self.disabledroomids.remove(room_id.as_bytes());
 		}
 
 		Ok(())
@@ -83,7 +83,7 @@ impl Data {
 		if banned {
 			self.bannedroomids.insert(room_id.as_bytes(), &[]);
 		} else {
-			self.bannedroomids.remove(room_id.as_bytes())?;
+			self.bannedroomids.remove(room_id.as_bytes());
 		}
 
 		Ok(())

@@ -56,7 +56,7 @@ impl Data {
 					== user_id.as_bytes()
 			}) {
 			// This is the old room_latest
-			self.readreceiptid_readreceipt.remove(&old)?;
+			self.readreceiptid_readreceipt.remove(&old);
 		}
 
 		let mut room_latest_id = prefix;

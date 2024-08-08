@@ -184,7 +184,7 @@ impl Data {
 			.insert(pdu.room_id.clone(), PduCount::Normal(count));
 
 		self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id);
-		self.eventid_outlierpdu.remove(pdu.event_id.as_bytes())?;
+		self.eventid_outlierpdu.remove(pdu.event_id.as_bytes());
 
 		Ok(())
 	}
@@ -198,7 +198,7 @@ impl Data {
 		);
 
 		self.eventid_pduid.insert(event_id.as_bytes(), pdu_id);
-		self.eventid_outlierpdu.remove(event_id.as_bytes())?;
+		self.eventid_outlierpdu.remove(event_id.as_bytes());
 
 		Ok(())
 	}

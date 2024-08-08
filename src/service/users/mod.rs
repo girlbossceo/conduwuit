@@ -241,7 +241,7 @@ impl Service {
 				.userid_displayname
 				.insert(user_id.as_bytes(), displayname.as_bytes());
 		} else {
-			self.db.userid_displayname.remove(user_id.as_bytes())?;
+			self.db.userid_displayname.remove(user_id.as_bytes());
 		}
 
 		Ok(())
@@ -268,7 +268,7 @@ impl Service {
 				.userid_avatarurl
 				.insert(user_id.as_bytes(), avatar_url.to_string().as_bytes());
 		} else {
-			self.db.userid_avatarurl.remove(user_id.as_bytes())?;
+			self.db.userid_avatarurl.remove(user_id.as_bytes());
 		}
 
 		Ok(())
@@ -292,7 +292,7 @@ impl Service {
 				.userid_blurhash
 				.insert(user_id.as_bytes(), blurhash.as_bytes());
 		} else {
-			self.db.userid_blurhash.remove(user_id.as_bytes())?;
+			self.db.userid_blurhash.remove(user_id.as_bytes());
 		}
 
 		Ok(())
@@ -340,8 +340,8 @@ impl Service {
 
 		// Remove tokens
 		if let Some(old_token) = self.db.userdeviceid_token.get(&userdeviceid) {
-			self.db.userdeviceid_token.remove(&userdeviceid)?;
-			self.db.token_userdeviceid.remove(&old_token)?;
+			self.db.userdeviceid_token.remove(&userdeviceid);
+			self.db.token_userdeviceid.remove(&old_token);
 		}
 
 		// Remove todevice events
@@ -349,14 +349,14 @@ impl Service {
 		prefix.push(0xFF);
 
 		for (key, _) in self.db.todeviceid_events.scan_prefix(prefix) {
-			self.db.todeviceid_events.remove(&key)?;
+			self.db.todeviceid_events.remove(&key);
 		}
 
 		// TODO: Remove onetimekeys
 
 		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
-		self.db.userdeviceid_metadata.remove(&userdeviceid)?;
+		self.db.userdeviceid_metadata.remove(&userdeviceid);
 
 		Ok(())
 	}
@@ -398,7 +398,7 @@ impl Service {
 
 		// Remove old token
 		if let Some(old_token) = self.db.userdeviceid_token.get(&userdeviceid) {
-			self.db.token_userdeviceid.remove(&old_token)?;
+			self.db.token_userdeviceid.remove(&old_token);
 			// It will be removed from userdeviceid_token by the insert later
 		}
 
@@ -481,7 +481,7 @@ impl Service {
 			.scan_prefix(prefix)
 			.next()
 			.map(|(key, value)| {
-				self.db.onetimekeyid_onetimekeys.remove(&key)?;
+				self.db.onetimekeyid_onetimekeys.remove(&key);
 
 				Ok((
 					serde_json::from_slice(
@@ -863,7 +863,7 @@ impl Service {
 			.filter_map(Result::ok)
 			.take_while(|&(_, count)| count <= until)
 		{
-			self.db.todeviceid_events.remove(&key)?;
+			self.db.todeviceid_events.remove(&key);
 		}
 
 		Ok(())
@@ -1002,9 +1002,7 @@ impl Service {
 
 		if expires_at < utils::millis_since_unix_epoch() {
 			debug_info!("OpenID token is expired, removing");
-			self.db
-				.openidtoken_expiresatuserid
-				.remove(token.as_bytes())?;
+			self.db.openidtoken_expiresatuserid.remove(token.as_bytes());
 
 			return Err(Error::BadRequest(ErrorKind::Unauthorized, "OpenID token is expired"));
 		}

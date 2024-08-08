@@ -63,7 +63,7 @@ impl Data {
 			);
 		} else {
 			self.userdevicesessionid_uiaainfo
-				.remove(&userdevicesessionid)?;
+				.remove(&userdevicesessionid);
 		}
 
 		Ok(())

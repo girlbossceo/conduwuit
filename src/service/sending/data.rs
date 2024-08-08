@@ -55,12 +55,15 @@ impl Data {
 		)
 	}
 
-	pub(super) fn delete_active_request(&self, key: &[u8]) -> Result<()> { self.servercurrentevent_data.remove(key) }
+	pub(super) fn delete_active_request(&self, key: &[u8]) -> Result<()> {
+		self.servercurrentevent_data.remove(key);
+		Ok(())
+	}
 
 	pub(super) fn delete_all_active_requests_for(&self, destination: &Destination) -> Result<()> {
 		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix) {
-			self.servercurrentevent_data.remove(&key)?;
+			self.servercurrentevent_data.remove(&key);
 		}
 
 		Ok(())
@@ -69,11 +72,11 @@ impl Data {
 	pub(super) fn delete_all_requests_for(&self, destination: &Destination) -> Result<()> {
 		let prefix = destination.get_prefix();
 		for (key, _) in self.servercurrentevent_data.scan_prefix(prefix.clone()) {
-			self.servercurrentevent_data.remove(&key).unwrap();
+			self.servercurrentevent_data.remove(&key);
 		}
 
 		for (key, _) in self.servernameevent_data.scan_prefix(prefix) {
-			self.servernameevent_data.remove(&key).unwrap();
+			self.servernameevent_data.remove(&key);
 		}
 
 		Ok(())
@@ -125,7 +128,7 @@ impl Data {
 				&[]
 			};
 			self.servercurrentevent_data.insert(key, value);
-			self.servernameevent_data.remove(key)?;
+			self.servernameevent_data.remove(key);
 		}
 
 		Ok(())

@@ -122,7 +122,7 @@ impl Data {
 
 		if let Some((last_count, _)) = last_presence {
 			let key = presenceid_key(last_count, user_id);
-			self.presenceid_presence.remove(&key)?;
+			self.presenceid_presence.remove(&key);
 		}
 
 		Ok(())
@@ -133,8 +133,8 @@ impl Data {
 			let count = utils::u64_from_bytes(&count_bytes)
 				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
 			let key = presenceid_key(count, user_id);
-			self.presenceid_presence.remove(&key)?;
-			self.userid_presenceid.remove(user_id.as_bytes())?;
+			self.presenceid_presence.remove(&key);
+			self.userid_presenceid.remove(user_id.as_bytes());
 		}
 
 		Ok(())
