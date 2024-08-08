@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use conduit::{debug_info, error, pdu::PduBuilder, Error, Result};
+use conduit::{err, error, pdu::PduBuilder, Err, Error, Result};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -84,12 +84,10 @@ pub(crate) async fn get_state_events_route(
 	if !services
 		.rooms
 		.state_accessor
-		.user_can_see_state_events(sender_user, &body.room_id)?
+		.user_can_see_state_events(sender_user, &body.room_id)
+		.await
 	{
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"You don't have permission to view the room state.",
-		));
+		return Err!(Request(Forbidden("You don't have permission to view the room state.")));
 	}
 
 	Ok(get_state_events::v3::Response {
@@ -120,22 +118,25 @@ pub(crate) async fn get_state_events_for_key_route(
 	if !services
 		.rooms
 		.state_accessor
-		.user_can_see_state_events(sender_user, &body.room_id)?
+		.user_can_see_state_events(sender_user, &body.room_id)
+		.await
 	{
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"You don't have permission to view the room state.",
-		));
+		return Err!(Request(Forbidden("You don't have permission to view the room state.")));
 	}
 
 	let event = services
 		.rooms
 		.state_accessor
-		.room_state_get(&body.room_id, &body.event_type, &body.state_key)?
-		.ok_or_else(|| {
-			debug_info!("State event {:?} not found in room {:?}", &body.event_type, &body.room_id);
-			Error::BadRequest(ErrorKind::NotFound, "State event not found.")
+		.room_state_get(&body.room_id, &body.event_type, &body.state_key)
+		.await
+		.map_err(|_| {
+			err!(Request(NotFound(error!(
+					room_id = ?body.room_id,
+					event_type = ?body.event_type,
+					"State event not found in room.",
+			))))
 		})?;
+
 	if body
 		.format
 		.as_ref()
@@ -204,7 +205,7 @@ async fn send_state_event_for_key_helper(
 
 async fn allowed_to_send_state_event(
 	services: &Services, room_id: &RoomId, event_type: &StateEventType, json: &Raw<AnyStateEventContent>,
-) -> Result<()> {
+) -> Result {
 	match event_type {
 		// Forbid m.room.encryption if encryption is disabled
 		StateEventType::RoomEncryption => {
@@ -214,7 +215,7 @@ async fn allowed_to_send_state_event(
 		},
 		// admin room is a sensitive room, it should not ever be made public
 		StateEventType::RoomJoinRules => {
-			if let Some(admin_room_id) = services.admin.get_admin_room()? {
+			if let Ok(admin_room_id) = services.admin.get_admin_room().await {
 				if admin_room_id == room_id {
 					if let Ok(join_rule) = serde_json::from_str::<RoomJoinRulesEventContent>(json.json().get()) {
 						if join_rule.join_rule == JoinRule::Public {
@@ -229,7 +230,7 @@ async fn allowed_to_send_state_event(
 		},
 		// admin room is a sensitive room, it should not ever be made world readable
 		StateEventType::RoomHistoryVisibility => {
-			if let Some(admin_room_id) = services.admin.get_admin_room()? {
+			if let Ok(admin_room_id) = services.admin.get_admin_room().await {
 				if admin_room_id == room_id {
 					if let Ok(visibility_content) =
 						serde_json::from_str::<RoomHistoryVisibilityEventContent>(json.json().get())
@@ -254,23 +255,27 @@ async fn allowed_to_send_state_event(
 				}
 
 				for alias in aliases {
-					if !services.globals.server_is_ours(alias.server_name())
-						|| services
-                           .rooms
-                           .alias
-                           .resolve_local_alias(&alias)?
-                           .filter(|room| room == room_id) // Make sure it's the right room
-                           .is_none()
+					if !services.globals.server_is_ours(alias.server_name()) {
+						return Err!(Request(Forbidden("canonical_alias must be for this server")));
+					}
+
+					if !services
+						.rooms
+						.alias
+						.resolve_local_alias(&alias)
+						.await
+						.is_ok_and(|room| room == room_id)
+					// Make sure it's the right room
 					{
-						return Err(Error::BadRequest(
-							ErrorKind::forbidden(),
-							"You are only allowed to send canonical_alias events when its aliases already exist",
-						));
+						return Err!(Request(Forbidden(
+							"You are only allowed to send canonical_alias events when its aliases already exist"
+						)));
 					}
 				}
 			}
 		},
 		_ => (),
 	}
+
 	Ok(())
 }

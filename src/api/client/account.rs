@@ -2,7 +2,8 @@ use std::fmt::Write;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug_info, error, info, utils, warn, Error, PduBuilder, Result};
+use conduit::{debug_info, error, info, is_equal_to, utils, utils::ReadyExt, warn, Error, PduBuilder, Result};
+use futures::{FutureExt, StreamExt};
 use register::RegistrationKind;
 use ruma::{
 	api::client::{
@@ -55,7 +56,7 @@ pub(crate) async fn get_register_available_route(
 		.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 	// Check if username is creative enough
-	if services.users.exists(&user_id)? {
+	if services.users.exists(&user_id).await {
 		return Err(Error::BadRequest(ErrorKind::UserInUse, "Desired user ID is already taken."));
 	}
 
@@ -125,7 +126,7 @@ pub(crate) async fn register_route(
 
 	// forbid guests from registering if there is not a real admin user yet. give
 	// generic user error.
-	if is_guest && services.users.count()? < 2 {
+	if is_guest && services.users.count().await < 2 {
 		warn!(
 			"Guest account attempted to register before a real admin user has been registered, rejecting \
 			 registration. Guest's initial device name: {:?}",
@@ -142,7 +143,7 @@ pub(crate) async fn register_route(
 					.filter(|user_id| !user_id.is_historical() && services.globals.user_is_local(user_id))
 					.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
-			if services.users.exists(&proposed_user_id)? {
+			if services.users.exists(&proposed_user_id).await {
 				return Err(Error::BadRequest(ErrorKind::UserInUse, "Desired user ID is already taken."));
 			}
 
@@ -162,7 +163,7 @@ pub(crate) async fn register_route(
 				services.globals.server_name(),
 			)
 			.unwrap();
-			if !services.users.exists(&proposed_user_id)? {
+			if !services.users.exists(&proposed_user_id).await {
 				break proposed_user_id;
 			}
 		},
@@ -210,12 +211,15 @@ pub(crate) async fn register_route(
 
 	if !skip_auth {
 		if let Some(auth) = &body.auth {
-			let (worked, uiaainfo) = services.uiaa.try_auth(
-				&UserId::parse_with_server_name("", services.globals.server_name()).expect("we know this is valid"),
-				"".into(),
-				auth,
-				&uiaainfo,
-			)?;
+			let (worked, uiaainfo) = services
+				.uiaa
+				.try_auth(
+					&UserId::parse_with_server_name("", services.globals.server_name()).expect("we know this is valid"),
+					"".into(),
+					auth,
+					&uiaainfo,
+				)
+				.await?;
 			if !worked {
 				return Err(Error::Uiaa(uiaainfo));
 			}
@@ -227,7 +231,7 @@ pub(crate) async fn register_route(
 				"".into(),
 				&uiaainfo,
 				&json,
-			)?;
+			);
 			return Err(Error::Uiaa(uiaainfo));
 		} else {
 			return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
@@ -255,21 +259,23 @@ pub(crate) async fn register_route(
 
 	services
 		.users
-		.set_displayname(&user_id, Some(displayname.clone()))
-		.await?;
+		.set_displayname(&user_id, Some(displayname.clone()));
 
 	// Initial account data
-	services.account_data.update(
-		None,
-		&user_id,
-		GlobalAccountDataEventType::PushRules.to_string().into(),
-		&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
-			content: ruma::events::push_rules::PushRulesEventContent {
-				global: push::Ruleset::server_default(&user_id),
-			},
-		})
-		.expect("to json always works"),
-	)?;
+	services
+		.account_data
+		.update(
+			None,
+			&user_id,
+			GlobalAccountDataEventType::PushRules.to_string().into(),
+			&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
+				content: ruma::events::push_rules::PushRulesEventContent {
+					global: push::Ruleset::server_default(&user_id),
+				},
+			})
+			.expect("to json always works"),
+		)
+		.await?;
 
 	// Inhibit login does not work for guests
 	if !is_guest && body.inhibit_login {
@@ -294,13 +300,16 @@ pub(crate) async fn register_route(
 	let token = utils::random_string(TOKEN_LENGTH);
 
 	// Create device for this account
-	services.users.create_device(
-		&user_id,
-		&device_id,
-		&token,
-		body.initial_device_display_name.clone(),
-		Some(client.to_string()),
-	)?;
+	services
+		.users
+		.create_device(
+			&user_id,
+			&device_id,
+			&token,
+			body.initial_device_display_name.clone(),
+			Some(client.to_string()),
+		)
+		.await?;
 
 	debug_info!(%user_id, %device_id, "User account was created");
 
@@ -316,7 +325,8 @@ pub(crate) async fn register_route(
 					"New user \"{user_id}\" registered on this server from IP {client} and device display name \
 					 \"{device_display_name}\""
 				)))
-				.await;
+				.await
+				.ok();
 		} else {
 			info!("New user \"{user_id}\" registered on this server.");
 			services
@@ -324,7 +334,8 @@ pub(crate) async fn register_route(
 				.send_message(RoomMessageEventContent::notice_plain(format!(
 					"New user \"{user_id}\" registered on this server from IP {client}"
 				)))
-				.await;
+				.await
+				.ok();
 		}
 	}
 
@@ -339,24 +350,31 @@ pub(crate) async fn register_route(
 					"Guest user \"{user_id}\" with device display name \"{device_display_name}\" registered on this \
 					 server from IP {client}"
 				)))
-				.await;
+				.await
+				.ok();
 		} else {
 			services
 				.admin
 				.send_message(RoomMessageEventContent::notice_plain(format!(
 					"Guest user \"{user_id}\" with no device display name registered on this server from IP {client}",
 				)))
-				.await;
+				.await
+				.ok();
 		}
 	}
 
 	// If this is the first real user, grant them admin privileges except for guest
 	// users Note: the server user, @conduit:servername, is generated first
 	if !is_guest {
-		if let Some(admin_room) = services.admin.get_admin_room()? {
-			if services.rooms.state_cache.room_joined_count(&admin_room)? == Some(1) {
+		if let Ok(admin_room) = services.admin.get_admin_room().await {
+			if services
+				.rooms
+				.state_cache
+				.room_joined_count(&admin_room)
+				.await
+				.is_ok_and(is_equal_to!(1))
+			{
 				services.admin.make_user_admin(&user_id).await?;
-
 				warn!("Granting {user_id} admin privileges as the first user");
 			}
 		}
@@ -370,7 +388,8 @@ pub(crate) async fn register_route(
 			if !services
 				.rooms
 				.state_cache
-				.server_in_room(services.globals.server_name(), room)?
+				.server_in_room(services.globals.server_name(), room)
+				.await
 			{
 				warn!("Skipping room {room} to automatically join as we have never joined before.");
 				continue;
@@ -386,6 +405,7 @@ pub(crate) async fn register_route(
 					None,
 					&body.appservice_info,
 				)
+				.boxed()
 				.await
 				{
 					// don't return this error so we don't fail registrations
@@ -449,16 +469,20 @@ pub(crate) async fn change_password_route(
 	if let Some(auth) = &body.auth {
 		let (worked, uiaainfo) = services
 			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)
+			.await?;
+
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
-	// Success!
+
+		// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
 			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json)?;
+			.create(sender_user, sender_device, &uiaainfo, &json);
+
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
@@ -470,14 +494,12 @@ pub(crate) async fn change_password_route(
 
 	if body.logout_devices {
 		// Logout all devices except the current one
-		for id in services
+		services
 			.users
 			.all_device_ids(sender_user)
-			.filter_map(Result::ok)
-			.filter(|id| id != sender_device)
-		{
-			services.users.remove_device(sender_user, &id)?;
-		}
+			.ready_filter(|id| id != sender_device)
+			.for_each(|id| services.users.remove_device(sender_user, id))
+			.await;
 	}
 
 	info!("User {sender_user} changed their password.");
@@ -486,7 +508,8 @@ pub(crate) async fn change_password_route(
 		.send_message(RoomMessageEventContent::notice_plain(format!(
 			"User {sender_user} changed their password."
 		)))
-		.await;
+		.await
+		.ok();
 
 	Ok(change_password::v3::Response {})
 }
@@ -505,7 +528,7 @@ pub(crate) async fn whoami_route(
 	Ok(whoami::v3::Response {
 		user_id: sender_user.clone(),
 		device_id,
-		is_guest: services.users.is_deactivated(sender_user)? && body.appservice_info.is_none(),
+		is_guest: services.users.is_deactivated(sender_user).await? && body.appservice_info.is_none(),
 	})
 }
 
@@ -546,7 +569,9 @@ pub(crate) async fn deactivate_route(
 	if let Some(auth) = &body.auth {
 		let (worked, uiaainfo) = services
 			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)
+			.await?;
+
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
@@ -555,7 +580,8 @@ pub(crate) async fn deactivate_route(
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
 			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json)?;
+			.create(sender_user, sender_device, &uiaainfo, &json);
+
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
@@ -566,10 +592,14 @@ pub(crate) async fn deactivate_route(
 		.rooms
 		.state_cache
 		.rooms_joined(sender_user)
-		.filter_map(Result::ok)
-		.collect();
+		.map(Into::into)
+		.collect()
+		.await;
 
-	full_user_deactivate(&services, sender_user, all_joined_rooms).await?;
+	super::update_displayname(&services, sender_user, None, &all_joined_rooms).await?;
+	super::update_avatar_url(&services, sender_user, None, None, &all_joined_rooms).await?;
+
+	full_user_deactivate(&services, sender_user, &all_joined_rooms).await?;
 
 	info!("User {sender_user} deactivated their account.");
 	services
@@ -577,7 +607,8 @@ pub(crate) async fn deactivate_route(
 		.send_message(RoomMessageEventContent::notice_plain(format!(
 			"User {sender_user} deactivated their account."
 		)))
-		.await;
+		.await
+		.ok();
 
 	Ok(deactivate::v3::Response {
 		id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,
@@ -656,34 +687,27 @@ pub(crate) async fn check_registration_token_validity(
 /// - Removing all profile data
 /// - Leaving all rooms (and forgets all of them)
 pub async fn full_user_deactivate(
-	services: &Services, user_id: &UserId, all_joined_rooms: Vec<OwnedRoomId>,
+	services: &Services, user_id: &UserId, all_joined_rooms: &[OwnedRoomId],
 ) -> Result<()> {
-	services.users.deactivate_account(user_id)?;
+	services.users.deactivate_account(user_id).await?;
+	super::update_displayname(services, user_id, None, all_joined_rooms).await?;
+	super::update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
 
-	super::update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
-	super::update_avatar_url(services, user_id, None, None, all_joined_rooms.clone()).await?;
-
-	let all_profile_keys = services
+	services
 		.users
 		.all_profile_keys(user_id)
-		.filter_map(Result::ok);
-
-	for (profile_key, _profile_value) in all_profile_keys {
-		if let Err(e) = services.users.set_profile_key(user_id, &profile_key, None) {
-			warn!("Failed removing {user_id} profile key {profile_key}: {e}");
-		}
-	}
+		.ready_for_each(|(profile_key, _)| services.users.set_profile_key(user_id, &profile_key, None))
+		.await;
 
 	for room_id in all_joined_rooms {
-		let state_lock = services.rooms.state.mutex.lock(&room_id).await;
+		let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
 		let room_power_levels = services
 			.rooms
 			.state_accessor
-			.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")?
-			.as_ref()
-			.and_then(|event| serde_json::from_str(event.content.get()).ok()?)
-			.and_then(|content: RoomPowerLevelsEventContent| content.into());
+			.room_state_get_content::<RoomPowerLevelsEventContent>(room_id, &StateEventType::RoomPowerLevels, "")
+			.await
+			.ok();
 
 		let user_can_demote_self = room_power_levels
 			.as_ref()
@@ -692,9 +716,9 @@ pub async fn full_user_deactivate(
 			}) || services
 			.rooms
 			.state_accessor
-			.room_state_get(&room_id, &StateEventType::RoomCreate, "")?
-			.as_ref()
-			.is_some_and(|event| event.sender == user_id);
+			.room_state_get(room_id, &StateEventType::RoomCreate, "")
+			.await
+			.is_ok_and(|event| event.sender == user_id);
 
 		if user_can_demote_self {
 			let mut power_levels_content = room_power_levels.unwrap_or_default();
@@ -714,7 +738,7 @@ pub async fn full_user_deactivate(
 						timestamp: None,
 					},
 					user_id,
-					&room_id,
+					room_id,
 					&state_lock,
 				)
 				.await

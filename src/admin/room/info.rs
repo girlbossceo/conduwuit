@@ -1,5 +1,6 @@
 use clap::Subcommand;
-use conduit::Result;
+use conduit::{utils::ReadyExt, Result};
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId};
 
 use crate::{admin_command, admin_command_dispatch};
@@ -32,46 +33,42 @@ async fn list_joined_members(&self, room_id: Box<RoomId>, local_only: bool) -> R
 		.rooms
 		.state_accessor
 		.get_name(&room_id)
-		.ok()
-		.flatten()
-		.unwrap_or_else(|| room_id.to_string());
+		.await
+		.unwrap_or_else(|_| room_id.to_string());
 
-	let members = self
+	let member_info: Vec<_> = self
 		.services
 		.rooms
 		.state_cache
 		.room_members(&room_id)
-		.filter_map(|member| {
+		.ready_filter(|user_id| {
 			if local_only {
-				member
-					.ok()
-					.filter(|user| self.services.globals.user_is_local(user))
+				self.services.globals.user_is_local(user_id)
 			} else {
-				member.ok()
+				true
 			}
-		});
-
-	let member_info = members
-		.into_iter()
-		.map(|user_id| {
-			(
-				user_id.clone(),
+		})
+		.filter_map(|user_id| async move {
+			let user_id = user_id.to_owned();
+			Some((
 				self.services
 					.users
 					.displayname(&user_id)
-					.unwrap_or(None)
-					.unwrap_or_else(|| user_id.to_string()),
-			)
+					.await
+					.unwrap_or_else(|_| user_id.to_string()),
+				user_id,
+			))
 		})
-		.collect::<Vec<_>>();
+		.collect()
+		.await;
 
 	let output_plain = format!(
 		"{} Members in Room \"{}\":\n```\n{}\n```",
 		member_info.len(),
 		room_name,
 		member_info
-			.iter()
-			.map(|(mxid, displayname)| format!("{mxid} | {displayname}"))
+			.into_iter()
+			.map(|(displayname, mxid)| format!("{mxid} | {displayname}"))
 			.collect::<Vec<_>>()
 			.join("\n")
 	);
@@ -81,11 +78,12 @@ async fn list_joined_members(&self, room_id: Box<RoomId>, local_only: bool) -> R
 
 #[admin_command]
 async fn view_room_topic(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
-	let Some(room_topic) = self
+	let Ok(room_topic) = self
 		.services
 		.rooms
 		.state_accessor
-		.get_room_topic(&room_id)?
+		.get_room_topic(&room_id)
+		.await
 	else {
 		return Ok(RoomMessageEventContent::text_plain("Room does not have a room topic set."));
 	};

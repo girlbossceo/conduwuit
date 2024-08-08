@@ -1,19 +1,20 @@
 mod data;
 
 use std::{
+	cmp,
 	collections::{BTreeMap, HashSet},
 	fmt::Write,
 	sync::Arc,
 };
 
 use conduit::{
-	debug, error, info,
+	debug, err, error, info,
 	pdu::{EventHash, PduBuilder, PduCount, PduEvent},
 	utils,
-	utils::{MutexMap, MutexMapGuard},
-	validated, warn, Error, Result, Server,
+	utils::{stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
+	validated, warn, Err, Error, Result, Server,
 };
-use itertools::Itertools;
+use futures::{future, future::ready, Future, Stream, StreamExt, TryStreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation},
 	canonical_json::to_canonical_value,
@@ -39,6 +40,7 @@ use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use tokio::sync::RwLock;
 
 use self::data::Data;
+pub use self::data::PdusIterItem;
 use crate::{
 	account_data, admin, appservice, appservice::NamespaceRegex, globals, pusher, rooms,
 	rooms::state_compressor::CompressedStateEvent, sending, server_keys, Dep,
@@ -129,6 +131,7 @@ impl crate::Service for Service {
 	}
 
 	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+		/*
 		let lasttimelinecount_cache = self
 			.db
 			.lasttimelinecount_cache
@@ -136,6 +139,7 @@ impl crate::Service for Service {
 			.expect("locked")
 			.len();
 		writeln!(out, "lasttimelinecount_cache: {lasttimelinecount_cache}")?;
+		*/
 
 		let mutex_insert = self.mutex_insert.len();
 		writeln!(out, "insert_mutex: {mutex_insert}")?;
@@ -144,11 +148,13 @@ impl crate::Service for Service {
 	}
 
 	fn clear_cache(&self) {
+		/*
 		self.db
 			.lasttimelinecount_cache
 			.lock()
 			.expect("locked")
 			.clear();
+		*/
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
@@ -156,28 +162,32 @@ impl crate::Service for Service {
 
 impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
-		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
+	pub async fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
+		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
+			.await?
 			.next()
-			.map(|o| o.map(|(_, p)| Arc::new(p)))
-			.transpose()
+			.await
+			.map(|(_, p)| Arc::new(p))
+			.ok_or_else(|| err!(Request(NotFound("No PDU found in room"))))
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Option<Arc<PduEvent>>> {
-		self.all_pdus(user_id!("@placeholder:conduwuit.placeholder"), room_id)?
-			.last()
-			.map(|o| o.map(|(_, p)| Arc::new(p)))
-			.transpose()
+	pub async fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
+		self.pdus_until(user_id!("@placeholder:conduwuit.placeholder"), room_id, PduCount::max())
+			.await?
+			.next()
+			.await
+			.map(|(_, p)| Arc::new(p))
+			.ok_or_else(|| err!(Request(NotFound("No PDU found in room"))))
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
-		self.db.last_timeline_count(sender_user, room_id)
+	pub async fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
+		self.db.last_timeline_count(sender_user, room_id).await
 	}
 
 	/// Returns the `count` of this pdu's id.
-	pub fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>> { self.db.get_pdu_count(event_id) }
+	pub async fn get_pdu_count(&self, event_id: &EventId) -> Result<PduCount> { self.db.get_pdu_count(event_id).await }
 
 	// TODO Is this the same as the function above?
 	/*
@@ -203,49 +213,56 @@ impl Service {
 	*/
 
 	/// Returns the json of a pdu.
-	pub fn get_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
-		self.db.get_pdu_json(event_id)
+	pub async fn get_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
+		self.db.get_pdu_json(event_id).await
 	}
 
 	/// Returns the json of a pdu.
 	#[inline]
-	pub fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
-		self.db.get_non_outlier_pdu_json(event_id)
+	pub async fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
+		self.db.get_non_outlier_pdu_json(event_id).await
 	}
 
 	/// Returns the pdu's id.
 	#[inline]
-	pub fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<database::Handle<'_>>> {
-		self.db.get_pdu_id(event_id)
+	pub async fn get_pdu_id(&self, event_id: &EventId) -> Result<database::Handle<'_>> {
+		self.db.get_pdu_id(event_id).await
 	}
 
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
 	#[inline]
-	pub fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
-		self.db.get_non_outlier_pdu(event_id)
+	pub async fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
+		self.db.get_non_outlier_pdu(event_id).await
 	}
 
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	pub fn get_pdu(&self, event_id: &EventId) -> Result<Option<Arc<PduEvent>>> { self.db.get_pdu(event_id) }
+	pub async fn get_pdu(&self, event_id: &EventId) -> Result<Arc<PduEvent>> { self.db.get_pdu(event_id).await }
+
+	/// Checks if pdu exists
+	///
+	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+	pub fn pdu_exists<'a>(&'a self, event_id: &'a EventId) -> impl Future<Output = bool> + Send + 'a {
+		self.db.pdu_exists(event_id)
+	}
 
 	/// Returns the pdu.
 	///
 	/// This does __NOT__ check the outliers `Tree`.
-	pub fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> { self.db.get_pdu_from_id(pdu_id) }
+	pub async fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<PduEvent> { self.db.get_pdu_from_id(pdu_id).await }
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
-	pub fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
-		self.db.get_pdu_json_from_id(pdu_id)
+	pub async fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<CanonicalJsonObject> {
+		self.db.get_pdu_json_from_id(pdu_id).await
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
-		self.db.replace_pdu(pdu_id, pdu_json, pdu)
+	pub async fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
+		self.db.replace_pdu(pdu_id, pdu_json, pdu).await
 	}
 
 	/// Creates a new persisted data unit and adds it to a room.
@@ -268,8 +285,9 @@ impl Service {
 		let shortroomid = self
 			.services
 			.short
-			.get_shortroomid(&pdu.room_id)?
-			.expect("room exists");
+			.get_shortroomid(&pdu.room_id)
+			.await
+			.map_err(|_| err!(Database("Room does not exist")))?;
 
 		// Make unsigned fields correct. This is not properly documented in the spec,
 		// but state events need to have previous content in the unsigned field, so
@@ -279,17 +297,17 @@ impl Service {
 				.entry("unsigned".to_owned())
 				.or_insert_with(|| CanonicalJsonValue::Object(BTreeMap::default()))
 			{
-				if let Some(shortstatehash) = self
+				if let Ok(shortstatehash) = self
 					.services
 					.state_accessor
 					.pdu_shortstatehash(&pdu.event_id)
-					.unwrap()
+					.await
 				{
-					if let Some(prev_state) = self
+					if let Ok(prev_state) = self
 						.services
 						.state_accessor
 						.state_get(shortstatehash, &pdu.kind.to_string().into(), state_key)
-						.unwrap()
+						.await
 					{
 						unsigned.insert(
 							"prev_content".to_owned(),
@@ -318,10 +336,12 @@ impl Service {
 		// We must keep track of all events that have been referenced.
 		self.services
 			.pdu_metadata
-			.mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
+			.mark_as_referenced(&pdu.room_id, &pdu.prev_events);
+
 		self.services
 			.state
-			.set_forward_extremities(&pdu.room_id, leaves, state_lock)?;
+			.set_forward_extremities(&pdu.room_id, leaves, state_lock)
+			.await;
 
 		let insert_lock = self.mutex_insert.lock(&pdu.room_id).await;
 
@@ -330,17 +350,17 @@ impl Service {
 		// appending fails
 		self.services
 			.read_receipt
-			.private_read_set(&pdu.room_id, &pdu.sender, count1)?;
+			.private_read_set(&pdu.room_id, &pdu.sender, count1);
 		self.services
 			.user
-			.reset_notification_counts(&pdu.sender, &pdu.room_id)?;
+			.reset_notification_counts(&pdu.sender, &pdu.room_id);
 
-		let count2 = self.services.globals.next_count()?;
+		let count2 = self.services.globals.next_count().unwrap();
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
 		pdu_id.extend_from_slice(&count2.to_be_bytes());
 
 		// Insert pdu
-		self.db.append_pdu(&pdu_id, pdu, &pdu_json, count2)?;
+		self.db.append_pdu(&pdu_id, pdu, &pdu_json, count2).await;
 
 		drop(insert_lock);
 
@@ -348,12 +368,9 @@ impl Service {
 		let power_levels: RoomPowerLevelsEventContent = self
 			.services
 			.state_accessor
-			.room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")?
-			.map(|ev| {
-				serde_json::from_str(ev.content.get())
-					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
-			})
-			.transpose()?
+			.room_state_get_content(&pdu.room_id, &StateEventType::RoomPowerLevels, "")
+			.await
+			.map_err(|_| err!(Database("invalid m.room.power_levels event")))
 			.unwrap_or_default();
 
 		let sync_pdu = pdu.to_sync_room_event();
@@ -365,7 +382,9 @@ impl Service {
 			.services
 			.state_cache
 			.active_local_users_in_room(&pdu.room_id)
-			.collect_vec();
+			.map(ToOwned::to_owned)
+			.collect::<Vec<_>>()
+			.await;
 
 		if pdu.kind == TimelineEventType::RoomMember {
 			if let Some(state_key) = &pdu.state_key {
@@ -386,23 +405,20 @@ impl Service {
 			let rules_for_user = self
 				.services
 				.account_data
-				.get(None, user, GlobalAccountDataEventType::PushRules.to_string().into())?
-				.map(|event| {
-					serde_json::from_str::<PushRulesEvent>(event.get()).map_err(|e| {
-						warn!("Invalid push rules event in db for user ID {user}: {e}");
-						Error::bad_database("Invalid push rules event in db.")
-					})
-				})
-				.transpose()?
-				.map_or_else(|| Ruleset::server_default(user), |ev: PushRulesEvent| ev.content.global);
+				.get(None, user, GlobalAccountDataEventType::PushRules.to_string().into())
+				.await
+				.and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).map_err(Into::into))
+				.map_err(|e| err!(Database(warn!(?user, ?e, "Invalid push rules event in db for user"))))
+				.map_or_else(|_| Ruleset::server_default(user), |ev: PushRulesEvent| ev.content.global);
 
 			let mut highlight = false;
 			let mut notify = false;
 
-			for action in
-				self.services
-					.pusher
-					.get_actions(user, &rules_for_user, &power_levels, &sync_pdu, &pdu.room_id)?
+			for action in self
+				.services
+				.pusher
+				.get_actions(user, &rules_for_user, &power_levels, &sync_pdu, &pdu.room_id)
+				.await?
 			{
 				match action {
 					Action::Notify => notify = true,
@@ -421,31 +437,36 @@ impl Service {
 				highlights.push(user.clone());
 			}
 
-			for push_key in self.services.pusher.get_pushkeys(user) {
-				self.services
-					.sending
-					.send_pdu_push(&pdu_id, user, push_key?)?;
-			}
+			self.services
+				.pusher
+				.get_pushkeys(user)
+				.ready_for_each(|push_key| {
+					self.services
+						.sending
+						.send_pdu_push(&pdu_id, user, push_key.to_owned())
+						.expect("TODO: replace with future");
+				})
+				.await;
 		}
 
 		self.db
-			.increment_notification_counts(&pdu.room_id, notifies, highlights)?;
+			.increment_notification_counts(&pdu.room_id, notifies, highlights);
 
 		match pdu.kind {
 			TimelineEventType::RoomRedaction => {
 				use RoomVersionId::*;
 
-				let room_version_id = self.services.state.get_room_version(&pdu.room_id)?;
+				let room_version_id = self.services.state.get_room_version(&pdu.room_id).await?;
 				match room_version_id {
 					V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 						if let Some(redact_id) = &pdu.redacts {
-							if self.services.state_accessor.user_can_redact(
-								redact_id,
-								&pdu.sender,
-								&pdu.room_id,
-								false,
-							)? {
-								self.redact_pdu(redact_id, pdu, shortroomid)?;
+							if self
+								.services
+								.state_accessor
+								.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)
+								.await?
+							{
+								self.redact_pdu(redact_id, pdu, shortroomid).await?;
 							}
 						}
 					},
@@ -457,13 +478,13 @@ impl Service {
 							})?;
 
 						if let Some(redact_id) = &content.redacts {
-							if self.services.state_accessor.user_can_redact(
-								redact_id,
-								&pdu.sender,
-								&pdu.room_id,
-								false,
-							)? {
-								self.redact_pdu(redact_id, pdu, shortroomid)?;
+							if self
+								.services
+								.state_accessor
+								.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)
+								.await?
+							{
+								self.redact_pdu(redact_id, pdu, shortroomid).await?;
 							}
 						}
 					},
@@ -492,7 +513,7 @@ impl Service {
 
 					let invite_state = match content.membership {
 						MembershipState::Invite => {
-							let state = self.services.state.calculate_invite_state(pdu)?;
+							let state = self.services.state.calculate_invite_state(pdu).await?;
 							Some(state)
 						},
 						_ => None,
@@ -500,15 +521,18 @@ impl Service {
 
 					// Update our membership info, we do this here incase a user is invited
 					// and immediately leaves we need the DB to record the invite event for auth
-					self.services.state_cache.update_membership(
-						&pdu.room_id,
-						&target_user_id,
-						content,
-						&pdu.sender,
-						invite_state,
-						None,
-						true,
-					)?;
+					self.services
+						.state_cache
+						.update_membership(
+							&pdu.room_id,
+							&target_user_id,
+							content,
+							&pdu.sender,
+							invite_state,
+							None,
+							true,
+						)
+						.await?;
 				}
 			},
 			TimelineEventType::RoomMessage => {
@@ -516,9 +540,7 @@ impl Service {
 					.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
 
 				if let Some(body) = content.body {
-					self.services
-						.search
-						.index_pdu(shortroomid, &pdu_id, &body)?;
+					self.services.search.index_pdu(shortroomid, &pdu_id, &body);
 
 					if self.services.admin.is_admin_command(pdu, &body).await {
 						self.services
@@ -531,10 +553,10 @@ impl Service {
 		}
 
 		if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {
-			if let Some(related_pducount) = self.get_pdu_count(&content.relates_to.event_id)? {
+			if let Ok(related_pducount) = self.get_pdu_count(&content.relates_to.event_id).await {
 				self.services
 					.pdu_metadata
-					.add_relation(PduCount::Normal(count2), related_pducount)?;
+					.add_relation(PduCount::Normal(count2), related_pducount);
 			}
 		}
 
@@ -545,14 +567,17 @@ impl Service {
 				} => {
 					// We need to do it again here, because replies don't have
 					// event_id as a top level field
-					if let Some(related_pducount) = self.get_pdu_count(&in_reply_to.event_id)? {
+					if let Ok(related_pducount) = self.get_pdu_count(&in_reply_to.event_id).await {
 						self.services
 							.pdu_metadata
-							.add_relation(PduCount::Normal(count2), related_pducount)?;
+							.add_relation(PduCount::Normal(count2), related_pducount);
 					}
 				},
 				Relation::Thread(thread) => {
-					self.services.threads.add_to_thread(&thread.event_id, pdu)?;
+					self.services
+						.threads
+						.add_to_thread(&thread.event_id, pdu)
+						.await?;
 				},
 				_ => {}, // TODO: Aggregate other types
 			}
@@ -562,7 +587,8 @@ impl Service {
 			if self
 				.services
 				.state_cache
-				.appservice_in_room(&pdu.room_id, appservice)?
+				.appservice_in_room(&pdu.room_id, appservice)
+				.await
 			{
 				self.services
 					.sending
@@ -596,15 +622,14 @@ impl Service {
 							.as_ref()
 							.map_or(false, |state_key| users.is_match(state_key))
 			};
-			let matching_aliases = |aliases: &NamespaceRegex| {
+			let matching_aliases = |aliases: NamespaceRegex| {
 				self.services
 					.alias
 					.local_aliases_for_room(&pdu.room_id)
-					.filter_map(Result::ok)
-					.any(|room_alias| aliases.is_match(room_alias.as_str()))
+					.ready_any(move |room_alias| aliases.is_match(room_alias.as_str()))
 			};
 
-			if matching_aliases(&appservice.aliases)
+			if matching_aliases(appservice.aliases.clone()).await
 				|| appservice.rooms.is_match(pdu.room_id.as_str())
 				|| matching_users(&appservice.users)
 			{
@@ -617,7 +642,7 @@ impl Service {
 		Ok(pdu_id)
 	}
 
-	pub fn create_hash_and_sign_event(
+	pub async fn create_hash_and_sign_event(
 		&self,
 		pdu_builder: PduBuilder,
 		sender: &UserId,
@@ -636,47 +661,59 @@ impl Service {
 		let prev_events: Vec<_> = self
 			.services
 			.state
-			.get_forward_extremities(room_id)?
-			.into_iter()
+			.get_forward_extremities(room_id)
 			.take(20)
-			.collect();
+			.map(Arc::from)
+			.collect()
+			.await;
 
 		// If there was no create event yet, assume we are creating a room
-		let room_version_id = self.services.state.get_room_version(room_id).or_else(|_| {
-			if event_type == TimelineEventType::RoomCreate {
-				let content = serde_json::from_str::<RoomCreateEventContent>(content.get())
-					.expect("Invalid content in RoomCreate pdu.");
-				Ok(content.room_version)
-			} else {
-				Err(Error::InconsistentRoomState(
-					"non-create event for room of unknown version",
-					room_id.to_owned(),
-				))
-			}
-		})?;
+		let room_version_id = self
+			.services
+			.state
+			.get_room_version(room_id)
+			.await
+			.or_else(|_| {
+				if event_type == TimelineEventType::RoomCreate {
+					let content = serde_json::from_str::<RoomCreateEventContent>(content.get())
+						.expect("Invalid content in RoomCreate pdu.");
+					Ok(content.room_version)
+				} else {
+					Err(Error::InconsistentRoomState(
+						"non-create event for room of unknown version",
+						room_id.to_owned(),
+					))
+				}
+			})?;
 
 		let room_version = RoomVersion::new(&room_version_id).expect("room version is supported");
 
-		let auth_events =
-			self.services
-				.state
-				.get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)?;
+		let auth_events = self
+			.services
+			.state
+			.get_auth_events(room_id, &event_type, sender, state_key.as_deref(), &content)
+			.await?;
 
 		// Our depth is the maximum depth of prev_events + 1
 		let depth = prev_events
 			.iter()
-			.filter_map(|event_id| Some(self.get_pdu(event_id).ok()??.depth))
-			.max()
-			.unwrap_or_else(|| uint!(0))
+			.stream()
+			.map(Ok)
+			.and_then(|event_id| self.get_pdu(event_id))
+			.and_then(|pdu| future::ok(pdu.depth))
+			.ignore_err()
+			.ready_fold(uint!(0), cmp::max)
+			.await
 			.saturating_add(uint!(1));
 
 		let mut unsigned = unsigned.unwrap_or_default();
 
 		if let Some(state_key) = &state_key {
-			if let Some(prev_pdu) =
-				self.services
-					.state_accessor
-					.room_state_get(room_id, &event_type.to_string().into(), state_key)?
+			if let Ok(prev_pdu) = self
+				.services
+				.state_accessor
+				.room_state_get(room_id, &event_type.to_string().into(), state_key)
+				.await
 			{
 				unsigned.insert(
 					"prev_content".to_owned(),
@@ -727,19 +764,22 @@ impl Service {
 			signatures: None,
 		};
 
+		let auth_fetch = |k: &StateEventType, s: &str| {
+			let key = (k.clone(), s.to_owned());
+			ready(auth_events.get(&key))
+		};
+
 		let auth_check = state_res::auth_check(
 			&room_version,
 			&pdu,
-			None::<PduEvent>, // TODO: third_party_invite
-			|k, s| auth_events.get(&(k.clone(), s.to_owned())),
+			None, // TODO: third_party_invite
+			auth_fetch,
 		)
-		.map_err(|e| {
-			error!("Auth check failed: {:?}", e);
-			Error::BadRequest(ErrorKind::forbidden(), "Auth check failed.")
-		})?;
+		.await
+		.map_err(|e| err!(Request(Forbidden(warn!("Auth check failed: {e:?}")))))?;
 
 		if !auth_check {
-			return Err(Error::BadRequest(ErrorKind::forbidden(), "Event is not authorized."));
+			return Err!(Request(Forbidden("Event is not authorized.")));
 		}
 
 		// Hash and sign
@@ -795,7 +835,8 @@ impl Service {
 		let _shorteventid = self
 			.services
 			.short
-			.get_or_create_shorteventid(&pdu.event_id)?;
+			.get_or_create_shorteventid(&pdu.event_id)
+			.await;
 
 		Ok((pdu, pdu_json))
 	}
@@ -811,108 +852,117 @@ impl Service {
 		room_id: &RoomId,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<Arc<EventId>> {
-		let (pdu, pdu_json) = self.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)?;
-		if let Some(admin_room) = self.services.admin.get_admin_room()? {
-			if admin_room == room_id {
-				match pdu.event_type() {
-					TimelineEventType::RoomEncryption => {
-						warn!("Encryption is not allowed in the admins room");
-						return Err(Error::BadRequest(
-							ErrorKind::forbidden(),
-							"Encryption is not allowed in the admins room",
-						));
-					},
-					TimelineEventType::RoomMember => {
-						let target = pdu
-							.state_key()
-							.filter(|v| v.starts_with('@'))
-							.unwrap_or(sender.as_str());
-						let server_user = &self.services.globals.server_user.to_string();
+		let (pdu, pdu_json) = self
+			.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)
+			.await?;
 
-						let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
-							.map_err(|_| Error::bad_database("Invalid content in pdu"))?;
+		if self.services.admin.is_admin_room(&pdu.room_id).await {
+			match pdu.event_type() {
+				TimelineEventType::RoomEncryption => {
+					warn!("Encryption is not allowed in the admins room");
+					return Err(Error::BadRequest(
+						ErrorKind::forbidden(),
+						"Encryption is not allowed in the admins room",
+					));
+				},
+				TimelineEventType::RoomMember => {
+					let target = pdu
+						.state_key()
+						.filter(|v| v.starts_with('@'))
+						.unwrap_or(sender.as_str());
+					let server_user = &self.services.globals.server_user.to_string();
 
-						if content.membership == MembershipState::Leave {
-							if target == server_user {
-								warn!("Server user cannot leave from admins room");
-								return Err(Error::BadRequest(
-									ErrorKind::forbidden(),
-									"Server user cannot leave from admins room.",
-								));
-							}
+					let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
+						.map_err(|_| Error::bad_database("Invalid content in pdu"))?;
 
-							let count = self
-								.services
-								.state_cache
-								.room_members(room_id)
-								.filter_map(Result::ok)
-								.filter(|m| self.services.globals.server_is_ours(m.server_name()) && m != target)
-								.count();
-							if count < 2 {
-								warn!("Last admin cannot leave from admins room");
-								return Err(Error::BadRequest(
-									ErrorKind::forbidden(),
-									"Last admin cannot leave from admins room.",
-								));
-							}
+					if content.membership == MembershipState::Leave {
+						if target == server_user {
+							warn!("Server user cannot leave from admins room");
+							return Err(Error::BadRequest(
+								ErrorKind::forbidden(),
+								"Server user cannot leave from admins room.",
+							));
 						}
 
-						if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
-							if target == server_user {
-								warn!("Server user cannot be banned in admins room");
-								return Err(Error::BadRequest(
-									ErrorKind::forbidden(),
-									"Server user cannot be banned in admins room.",
-								));
-							}
+						let count = self
+							.services
+							.state_cache
+							.room_members(&pdu.room_id)
+							.ready_filter(|user| self.services.globals.user_is_local(user))
+							.ready_filter(|user| *user != target)
+							.boxed()
+							.count()
+							.await;
 
-							let count = self
-								.services
-								.state_cache
-								.room_members(room_id)
-								.filter_map(Result::ok)
-								.filter(|m| self.services.globals.server_is_ours(m.server_name()) && m != target)
-								.count();
-							if count < 2 {
-								warn!("Last admin cannot be banned in admins room");
-								return Err(Error::BadRequest(
-									ErrorKind::forbidden(),
-									"Last admin cannot be banned in admins room.",
-								));
-							}
+						if count < 2 {
+							warn!("Last admin cannot leave from admins room");
+							return Err(Error::BadRequest(
+								ErrorKind::forbidden(),
+								"Last admin cannot leave from admins room.",
+							));
 						}
-					},
-					_ => {},
-				}
+					}
+
+					if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
+						if target == server_user {
+							warn!("Server user cannot be banned in admins room");
+							return Err(Error::BadRequest(
+								ErrorKind::forbidden(),
+								"Server user cannot be banned in admins room.",
+							));
+						}
+
+						let count = self
+							.services
+							.state_cache
+							.room_members(&pdu.room_id)
+							.ready_filter(|user| self.services.globals.user_is_local(user))
+							.ready_filter(|user| *user != target)
+							.boxed()
+							.count()
+							.await;
+
+						if count < 2 {
+							warn!("Last admin cannot be banned in admins room");
+							return Err(Error::BadRequest(
+								ErrorKind::forbidden(),
+								"Last admin cannot be banned in admins room.",
+							));
+						}
+					}
+				},
+				_ => {},
 			}
 		}
 
 		// If redaction event is not authorized, do not append it to the timeline
 		if pdu.kind == TimelineEventType::RoomRedaction {
 			use RoomVersionId::*;
-			match self.services.state.get_room_version(&pdu.room_id)? {
+			match self.services.state.get_room_version(&pdu.room_id).await? {
 				V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 					if let Some(redact_id) = &pdu.redacts {
 						if !self
 							.services
 							.state_accessor
-							.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)?
+							.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)
+							.await?
 						{
-							return Err(Error::BadRequest(ErrorKind::forbidden(), "User cannot redact this event."));
+							return Err!(Request(Forbidden("User cannot redact this event.")));
 						}
 					};
 				},
 				_ => {
 					let content = serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get())
-						.map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
+						.map_err(|e| err!(Database("Invalid content in redaction pdu: {e:?}")))?;
 
 					if let Some(redact_id) = &content.redacts {
 						if !self
 							.services
 							.state_accessor
-							.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)?
+							.user_can_redact(redact_id, &pdu.sender, &pdu.room_id, false)
+							.await?
 						{
-							return Err(Error::BadRequest(ErrorKind::forbidden(), "User cannot redact this event."));
+							return Err!(Request(Forbidden("User cannot redact this event.")));
 						}
 					}
 				},
@@ -922,7 +972,7 @@ impl Service {
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't
 		// fail.
-		let statehashid = self.services.state.append_to_state(&pdu)?;
+		let statehashid = self.services.state.append_to_state(&pdu).await?;
 
 		let pdu_id = self
 			.append_pdu(
@@ -939,14 +989,15 @@ impl Service {
 		// in time where events in the current room state do not exist
 		self.services
 			.state
-			.set_room_state(room_id, statehashid, state_lock)?;
+			.set_room_state(&pdu.room_id, statehashid, state_lock);
 
 		let mut servers: HashSet<OwnedServerName> = self
 			.services
 			.state_cache
-			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.collect();
+			.room_servers(&pdu.room_id)
+			.map(ToOwned::to_owned)
+			.collect()
+			.await;
 
 		// In case we are kicking or banning a user, we need to inform their server of
 		// the change
@@ -966,7 +1017,8 @@ impl Service {
 
 		self.services
 			.sending
-			.send_pdu_servers(servers.into_iter(), &pdu_id)?;
+			.send_pdu_servers(servers.iter().map(AsRef::as_ref).stream(), &pdu_id)
+			.await?;
 
 		Ok(pdu.event_id)
 	}
@@ -988,15 +1040,19 @@ impl Service {
 		// fail.
 		self.services
 			.state
-			.set_event_state(&pdu.event_id, &pdu.room_id, state_ids_compressed)?;
+			.set_event_state(&pdu.event_id, &pdu.room_id, state_ids_compressed)
+			.await?;
 
 		if soft_fail {
 			self.services
 				.pdu_metadata
-				.mark_as_referenced(&pdu.room_id, &pdu.prev_events)?;
+				.mark_as_referenced(&pdu.room_id, &pdu.prev_events);
+
 			self.services
 				.state
-				.set_forward_extremities(&pdu.room_id, new_room_leaves, state_lock)?;
+				.set_forward_extremities(&pdu.room_id, new_room_leaves, state_lock)
+				.await;
+
 			return Ok(None);
 		}
 
@@ -1009,71 +1065,71 @@ impl Service {
 
 	/// Returns an iterator over all PDUs in a room.
 	#[inline]
-	pub fn all_pdus<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId,
-	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
-		self.pdus_after(user_id, room_id, PduCount::min())
+	pub async fn all_pdus<'a>(
+		&'a self, user_id: &'a UserId, room_id: &'a RoomId,
+	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
+		self.pdus_after(user_id, room_id, PduCount::min()).await
 	}
 
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn pdus_until<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId, until: PduCount,
-	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
-		self.db.pdus_until(user_id, room_id, until)
+	pub async fn pdus_until<'a>(
+		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount,
+	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
+		self.db.pdus_until(user_id, room_id, until).await
 	}
 
 	/// Returns an iterator over all events and their token in a room that
 	/// happened after the event with id `from` in chronological order.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn pdus_after<'a>(
-		&'a self, user_id: &UserId, room_id: &RoomId, from: PduCount,
-	) -> Result<impl Iterator<Item = Result<(PduCount, PduEvent)>> + 'a> {
-		self.db.pdus_after(user_id, room_id, from)
+	pub async fn pdus_after<'a>(
+		&'a self, user_id: &'a UserId, room_id: &'a RoomId, from: PduCount,
+	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
+		self.db.pdus_after(user_id, room_id, from).await
 	}
 
 	/// Replace a PDU with the redacted form.
 	#[tracing::instrument(skip(self, reason))]
-	pub fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent, shortroomid: u64) -> Result<()> {
+	pub async fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent, shortroomid: u64) -> Result<()> {
 		// TODO: Don't reserialize, keep original json
-		if let Some(pdu_id) = self.get_pdu_id(event_id)? {
-			let mut pdu = self
-				.get_pdu_from_id(&pdu_id)?
-				.ok_or_else(|| Error::bad_database("PDU ID points to invalid PDU."))?;
+		let Ok(pdu_id) = self.get_pdu_id(event_id).await else {
+			// If event does not exist, just noop
+			return Ok(());
+		};
 
-			if let Ok(content) = serde_json::from_str::<ExtractBody>(pdu.content.get()) {
-				if let Some(body) = content.body {
-					self.services
-						.search
-						.deindex_pdu(shortroomid, &pdu_id, &body)?;
-				}
+		let mut pdu = self
+			.get_pdu_from_id(&pdu_id)
+			.await
+			.map_err(|e| err!(Database(error!(?pdu_id, ?event_id, ?e, "PDU ID points to invalid PDU."))))?;
+
+		if let Ok(content) = serde_json::from_str::<ExtractBody>(pdu.content.get()) {
+			if let Some(body) = content.body {
+				self.services
+					.search
+					.deindex_pdu(shortroomid, &pdu_id, &body);
 			}
-
-			let room_version_id = self.services.state.get_room_version(&pdu.room_id)?;
-
-			pdu.redact(room_version_id, reason)?;
-
-			self.replace_pdu(
-				&pdu_id,
-				&utils::to_canonical_object(&pdu).map_err(|e| {
-					error!("Failed to convert PDU to canonical JSON: {}", e);
-					Error::bad_database("Failed to convert PDU to canonical JSON.")
-				})?,
-				&pdu,
-			)?;
 		}
-		// If event does not exist, just noop
-		Ok(())
+
+		let room_version_id = self.services.state.get_room_version(&pdu.room_id).await?;
+
+		pdu.redact(room_version_id, reason)?;
+
+		let obj = utils::to_canonical_object(&pdu)
+			.map_err(|e| err!(Database(error!(?event_id, ?e, "Failed to convert PDU to canonical JSON"))))?;
+
+		self.replace_pdu(&pdu_id, &obj, &pdu).await
 	}
 
 	#[tracing::instrument(skip(self))]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
 		let first_pdu = self
-			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)?
+			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
+			.await?
 			.next()
-			.expect("Room is not empty")?;
+			.await
+			.expect("Room is not empty");
 
 		if first_pdu.0 < from {
 			// No backfill required, there are still events between them
@@ -1083,17 +1139,18 @@ impl Service {
 		let power_levels: RoomPowerLevelsEventContent = self
 			.services
 			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")
+			.await
 			.map(|ev| {
 				serde_json::from_str(ev.content.get())
 					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
+					.unwrap()
 			})
-			.transpose()?
 			.unwrap_or_default();
 
 		let room_mods = power_levels.users.iter().filter_map(|(user_id, level)| {
 			if level > &power_levels.users_default && !self.services.globals.user_is_local(user_id) {
-				Some(user_id.server_name().to_owned())
+				Some(user_id.server_name())
 			} else {
 				None
 			}
@@ -1103,34 +1160,43 @@ impl Service {
 			.services
 			.alias
 			.local_aliases_for_room(room_id)
-			.filter_map(|alias| {
-				alias
-					.ok()
-					.filter(|alias| !self.services.globals.server_is_ours(alias.server_name()))
-					.map(|alias| alias.server_name().to_owned())
+			.ready_filter_map(|alias| {
+				self.services
+					.globals
+					.server_is_ours(alias.server_name())
+					.then_some(alias.server_name())
 			});
 
-		let servers = room_mods
+		let mut servers = room_mods
+			.stream()
 			.chain(room_alias_servers)
-			.chain(self.services.server.config.trusted_servers.clone())
-			.filter(|server_name| {
-				if self.services.globals.server_is_ours(server_name) {
-					return false;
-				}
-
+			.map(ToOwned::to_owned)
+			.chain(
+				self.services
+					.server
+					.config
+					.trusted_servers
+					.iter()
+					.map(ToOwned::to_owned)
+					.stream(),
+			)
+			.ready_filter(|server_name| !self.services.globals.server_is_ours(server_name))
+			.filter_map(|server_name| async move {
 				self.services
 					.state_cache
-					.server_in_room(server_name, room_id)
-					.unwrap_or(false)
-			});
+					.server_in_room(&server_name, room_id)
+					.await
+					.then_some(server_name)
+			})
+			.boxed();
 
-		for backfill_server in servers {
+		while let Some(ref backfill_server) = servers.next().await {
 			info!("Asking {backfill_server} for backfill");
 			let response = self
 				.services
 				.sending
 				.send_federation_request(
-					&backfill_server,
+					backfill_server,
 					federation::backfill::get_backfill::v1::Request {
 						room_id: room_id.to_owned(),
 						v: vec![first_pdu.1.event_id.as_ref().to_owned()],
@@ -1142,7 +1208,7 @@ impl Service {
 				Ok(response) => {
 					let pub_key_map = RwLock::new(BTreeMap::new());
 					for pdu in response.pdus {
-						if let Err(e) = self.backfill_pdu(&backfill_server, pdu, &pub_key_map).await {
+						if let Err(e) = self.backfill_pdu(backfill_server, pdu, &pub_key_map).await {
 							warn!("Failed to add backfilled pdu in room {room_id}: {e}");
 						}
 					}
@@ -1163,7 +1229,7 @@ impl Service {
 		&self, origin: &ServerName, pdu: Box<RawJsonValue>,
 		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 	) -> Result<()> {
-		let (event_id, value, room_id) = self.services.event_handler.parse_incoming_pdu(&pdu)?;
+		let (event_id, value, room_id) = self.services.event_handler.parse_incoming_pdu(&pdu).await?;
 
 		// Lock so we cannot backfill the same pdu twice at the same time
 		let mutex_lock = self
@@ -1174,7 +1240,7 @@ impl Service {
 			.await;
 
 		// Skip the PDU if we already have it as a timeline event
-		if let Some(pdu_id) = self.get_pdu_id(&event_id)? {
+		if let Ok(pdu_id) = self.get_pdu_id(&event_id).await {
 			let pdu_id = pdu_id.to_vec();
 			debug!("We already know {event_id} at {pdu_id:?}");
 			return Ok(());
@@ -1190,36 +1256,38 @@ impl Service {
 			.handle_incoming_pdu(origin, &room_id, &event_id, value, false, pub_key_map)
 			.await?;
 
-		let value = self.get_pdu_json(&event_id)?.expect("We just created it");
-		let pdu = self.get_pdu(&event_id)?.expect("We just created it");
+		let value = self
+			.get_pdu_json(&event_id)
+			.await
+			.expect("We just created it");
+		let pdu = self.get_pdu(&event_id).await.expect("We just created it");
 
 		let shortroomid = self
 			.services
 			.short
-			.get_shortroomid(&room_id)?
+			.get_shortroomid(&room_id)
+			.await
 			.expect("room exists");
 
 		let insert_lock = self.mutex_insert.lock(&room_id).await;
 
 		let max = u64::MAX;
-		let count = self.services.globals.next_count()?;
+		let count = self.services.globals.next_count().unwrap();
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
 		pdu_id.extend_from_slice(&0_u64.to_be_bytes());
 		pdu_id.extend_from_slice(&(validated!(max - count)).to_be_bytes());
 
 		// Insert pdu
-		self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value)?;
+		self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value);
 
 		drop(insert_lock);
 
 		if pdu.kind == TimelineEventType::RoomMessage {
 			let content = serde_json::from_str::<ExtractBody>(pdu.content.get())
-				.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
+				.map_err(|e| err!(Database("Invalid content in pdu: {e:?}")))?;
 
 			if let Some(body) = content.body {
-				self.services
-					.search
-					.index_pdu(shortroomid, &pdu_id, &body)?;
+				self.services.search.index_pdu(shortroomid, &pdu_id, &body);
 			}
 		}
 		drop(mutex_lock);

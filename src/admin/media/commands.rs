@@ -35,7 +35,7 @@ pub(super) async fn delete(
 		let mut mxc_deletion_count: usize = 0;
 
 		// parsing the PDU for any MXC URLs begins here
-		if let Some(event_json) = self.services.rooms.timeline.get_pdu_json(&event_id)? {
+		if let Ok(event_json) = self.services.rooms.timeline.get_pdu_json(&event_id).await {
 			if let Some(content_key) = event_json.get("content") {
 				debug!("Event ID has \"content\".");
 				let content_obj = content_key.as_object();
@@ -267,7 +267,7 @@ pub(super) async fn delete_all_from_server(
 #[admin_command]
 pub(super) async fn get_file_info(&self, mxc: OwnedMxcUri) -> Result<RoomMessageEventContent> {
 	let mxc: Mxc<'_> = mxc.as_str().try_into()?;
-	let metadata = self.services.media.get_metadata(&mxc);
+	let metadata = self.services.media.get_metadata(&mxc).await;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!("```\n{metadata:#?}\n```")))
 }

@@ -274,8 +274,8 @@ impl Service {
 
 	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	/// for the server.
-	pub fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-		let mut keys = self.db.verify_keys_for(origin)?;
+	pub async fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
+		let mut keys = self.db.verify_keys_for(origin).await?;
 		if origin == self.server_name() {
 			keys.insert(
 				format!("ed25519:{}", self.keypair().version())
@@ -290,8 +290,8 @@ impl Service {
 		Ok(keys)
 	}
 
-	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<Option<ServerSigningKeys>> {
-		self.db.signing_keys_for(origin)
+	pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSigningKeys> {
+		self.db.signing_keys_for(origin).await
 	}
 
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }

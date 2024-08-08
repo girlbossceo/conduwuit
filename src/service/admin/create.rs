@@ -30,7 +30,7 @@ use crate::Services;
 pub async fn create_admin_room(services: &Services) -> Result<()> {
 	let room_id = RoomId::new(services.globals.server_name());
 
-	let _short_id = services.rooms.short.get_or_create_shortroomid(&room_id)?;
+	let _short_id = services.rooms.short.get_or_create_shortroomid(&room_id);
 
 	let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 

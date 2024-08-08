@@ -24,7 +24,8 @@ pub(crate) async fn create_invite_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
 	if !services
 		.globals
@@ -98,7 +99,8 @@ pub(crate) async fn create_invite_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(invited_user.server_name(), &body.room_id)?;
+		.acl_check(invited_user.server_name(), &body.room_id)
+		.await?;
 
 	ruma::signatures::hash_and_sign_event(
 		services.globals.server_name().as_str(),
@@ -128,14 +130,14 @@ pub(crate) async fn create_invite_route(
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user ID."))?;
 
-	if services.rooms.metadata.is_banned(&body.room_id)? && !services.users.is_admin(&invited_user)? {
+	if services.rooms.metadata.is_banned(&body.room_id).await && !services.users.is_admin(&invited_user).await {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"This room is banned on this homeserver.",
 		));
 	}
 
-	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user)? {
+	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user).await {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"This server does not allow room invites.",
@@ -159,22 +161,28 @@ pub(crate) async fn create_invite_route(
 	if !services
 		.rooms
 		.state_cache
-		.server_in_room(services.globals.server_name(), &body.room_id)?
+		.server_in_room(services.globals.server_name(), &body.room_id)
+		.await
 	{
-		services.rooms.state_cache.update_membership(
-			&body.room_id,
-			&invited_user,
-			RoomMemberEventContent::new(MembershipState::Invite),
-			&sender,
-			Some(invite_state),
-			body.via.clone(),
-			true,
-		)?;
+		services
+			.rooms
+			.state_cache
+			.update_membership(
+				&body.room_id,
+				&invited_user,
+				RoomMemberEventContent::new(MembershipState::Invite),
+				&sender,
+				Some(invite_state),
+				body.via.clone(),
+				true,
+			)
+			.await?;
 	}
 
 	Ok(create_invite::v2::Response {
 		event: services
 			.sending
-			.convert_to_outgoing_federation_event(signed_event),
+			.convert_to_outgoing_federation_event(signed_event)
+			.await,
 	})
 }

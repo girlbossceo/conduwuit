@@ -3,7 +3,8 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{pdu::gen_event_id_canonical_json, warn, Error, Result};
+use conduit::{err, pdu::gen_event_id_canonical_json, utils::IterStream, warn, Error, Result};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
 	events::{
@@ -22,27 +23,32 @@ use crate::Ruma;
 async fn create_join_event(
 	services: &Services, origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
-	if !services.rooms.metadata.exists(room_id)? {
+	if !services.rooms.metadata.exists(room_id).await {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
 	// ACL check origin server
-	services.rooms.event_handler.acl_check(origin, room_id)?;
+	services
+		.rooms
+		.event_handler
+		.acl_check(origin, room_id)
+		.await?;
 
 	// We need to return the state prior to joining, let's keep a reference to that
 	// here
 	let shortstatehash = services
 		.rooms
 		.state
-		.get_room_shortstatehash(room_id)?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Event state not found."))?;
+		.get_room_shortstatehash(room_id)
+		.await
+		.map_err(|_| err!(Request(NotFound("Event state not found."))))?;
 
 	let pub_key_map = RwLock::new(BTreeMap::new());
 	// let mut auth_cache = EventMap::new();
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
-	let room_version_id = services.rooms.state.get_room_version(room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(room_id).await?;
 
 	let Ok((event_id, mut value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
@@ -97,7 +103,8 @@ async fn create_join_event(
 	services
 		.rooms
 		.event_handler
-		.acl_check(sender.server_name(), room_id)?;
+		.acl_check(sender.server_name(), room_id)
+		.await?;
 
 	// check if origin server is trying to send for another server
 	if sender.server_name() != origin {
@@ -126,7 +133,9 @@ async fn create_join_event(
 	if content
 		.join_authorized_via_users_server
 		.is_some_and(|user| services.globals.user_is_local(&user))
-		&& super::user_can_perform_restricted_join(services, &sender, room_id, &room_version_id).unwrap_or_default()
+		&& super::user_can_perform_restricted_join(services, &sender, room_id, &room_version_id)
+			.await
+			.unwrap_or_default()
 	{
 		ruma::signatures::hash_and_sign_event(
 			services.globals.server_name().as_str(),
@@ -158,12 +167,14 @@ async fn create_join_event(
 		.mutex_federation
 		.lock(room_id)
 		.await;
+
 	let pdu_id: Vec<u8> = services
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true, &pub_key_map)
 		.await?
 		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
+
 	drop(mutex_lock);
 
 	let state_ids = services
@@ -171,29 +182,43 @@ async fn create_join_event(
 		.state_accessor
 		.state_full_ids(shortstatehash)
 		.await?;
-	let auth_chain_ids = services
+
+	let state = state_ids
+		.iter()
+		.try_stream()
+		.and_then(|(_, event_id)| services.rooms.timeline.get_pdu_json(event_id))
+		.and_then(|pdu| {
+			services
+				.sending
+				.convert_to_outgoing_federation_event(pdu)
+				.map(Ok)
+		})
+		.try_collect()
+		.await?;
+
+	let auth_chain = services
 		.rooms
 		.auth_chain
 		.event_ids_iter(room_id, state_ids.values().cloned().collect())
+		.await?
+		.map(Ok)
+		.and_then(|event_id| async move { services.rooms.timeline.get_pdu_json(&event_id).await })
+		.and_then(|pdu| {
+			services
+				.sending
+				.convert_to_outgoing_federation_event(pdu)
+				.map(Ok)
+		})
+		.try_collect()
 		.await?;
 
-	services.sending.send_pdu_room(room_id, &pdu_id)?;
+	services.sending.send_pdu_room(room_id, &pdu_id).await?;
 
 	Ok(create_join_event::v1::RoomState {
-		auth_chain: auth_chain_ids
-			.filter_map(|id| services.rooms.timeline.get_pdu_json(&id).ok().flatten())
-			.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-			.collect(),
-		state: state_ids
-			.iter()
-			.filter_map(|(_, id)| services.rooms.timeline.get_pdu_json(id).ok().flatten())
-			.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-			.collect(),
+		auth_chain,
+		state,
 		// Event field is required if the room version supports restricted join rules.
-		event: Some(
-			to_raw_value(&CanonicalJsonValue::Object(value))
-				.expect("To raw json should not fail since only change was adding signature"),
-		),
+		event: to_raw_value(&CanonicalJsonValue::Object(value)).ok(),
 	})
 }
 

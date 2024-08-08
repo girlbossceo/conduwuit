@@ -1,7 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
-use conduit::{utils, Error, PduEvent, Result};
-use database::Map;
+use conduit::{err, PduEvent, Result};
+use database::{Deserialized, Map};
+use futures::TryFutureExt;
 use ruma::{events::StateEventType, EventId, RoomId};
 
 use crate::{rooms, Dep};
@@ -39,17 +40,22 @@ impl Data {
 		let full_state = self
 			.services
 			.state_compressor
-			.load_shortstatehash_info(shortstatehash)?
+			.load_shortstatehash_info(shortstatehash)
+			.await
+			.map_err(|e| err!(Database("Missing state IDs: {e}")))?
 			.pop()
 			.expect("there is always one layer")
 			.1;
+
 		let mut result = HashMap::new();
 		let mut i: u8 = 0;
 		for compressed in full_state.iter() {
 			let parsed = self
 				.services
 				.state_compressor
-				.parse_compressed_state_event(compressed)?;
+				.parse_compressed_state_event(compressed)
+				.await?;
+
 			result.insert(parsed.0, parsed.1);
 
 			i = i.wrapping_add(1);
@@ -57,6 +63,7 @@ impl Data {
 				tokio::task::yield_now().await;
 			}
 		}
+
 		Ok(result)
 	}
 
@@ -67,7 +74,8 @@ impl Data {
 		let full_state = self
 			.services
 			.state_compressor
-			.load_shortstatehash_info(shortstatehash)?
+			.load_shortstatehash_info(shortstatehash)
+			.await?
 			.pop()
 			.expect("there is always one layer")
 			.1;
@@ -78,18 +86,13 @@ impl Data {
 			let (_, eventid) = self
 				.services
 				.state_compressor
-				.parse_compressed_state_event(compressed)?;
-			if let Some(pdu) = self.services.timeline.get_pdu(&eventid)? {
-				result.insert(
-					(
-						pdu.kind.to_string().into(),
-						pdu.state_key
-							.as_ref()
-							.ok_or_else(|| Error::bad_database("State event has no state key."))?
-							.clone(),
-					),
-					pdu,
-				);
+				.parse_compressed_state_event(compressed)
+				.await?;
+
+			if let Ok(pdu) = self.services.timeline.get_pdu(&eventid).await {
+				if let Some(state_key) = pdu.state_key.as_ref() {
+					result.insert((pdu.kind.to_string().into(), state_key.clone()), pdu);
+				}
 			}
 
 			i = i.wrapping_add(1);
@@ -101,61 +104,63 @@ impl Data {
 		Ok(result)
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
-	/// `state_key`).
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	#[allow(clippy::unused_self)]
-	pub(super) fn state_get_id(
+	pub(super) async fn state_get_id(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<EventId>>> {
-		let Some(shortstatekey) = self
+	) -> Result<Arc<EventId>> {
+		let shortstatekey = self
 			.services
 			.short
-			.get_shortstatekey(event_type, state_key)?
-		else {
-			return Ok(None);
-		};
+			.get_shortstatekey(event_type, state_key)
+			.await?;
+
 		let full_state = self
 			.services
 			.state_compressor
-			.load_shortstatehash_info(shortstatehash)?
+			.load_shortstatehash_info(shortstatehash)
+			.await
+			.map_err(|e| err!(Database(error!(?event_type, ?state_key, "Missing state: {e:?}"))))?
 			.pop()
 			.expect("there is always one layer")
 			.1;
-		Ok(full_state
+
+		let compressed = full_state
 			.iter()
 			.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
-			.and_then(|compressed| {
-				self.services
-					.state_compressor
-					.parse_compressed_state_event(compressed)
-					.ok()
-					.map(|(_, id)| id)
-			}))
+			.ok_or(err!(Database("No shortstatekey in compressed state")))?;
+
+		self.services
+			.state_compressor
+			.parse_compressed_state_event(compressed)
+			.map_ok(|(_, id)| id)
+			.map_err(|e| {
+				err!(Database(error!(
+					?event_type,
+					?state_key,
+					?shortstatekey,
+					"Failed to parse compressed: {e:?}"
+				)))
+			})
+			.await
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
-	/// `state_key`).
-	pub(super) fn state_get(
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
+	pub(super) async fn state_get(
 		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<PduEvent>>> {
-		self.state_get_id(shortstatehash, event_type, state_key)?
-			.map_or(Ok(None), |event_id| self.services.timeline.get_pdu(&event_id))
+	) -> Result<Arc<PduEvent>> {
+		self.state_get_id(shortstatehash, event_type, state_key)
+			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
+			.await
 	}
 
 	/// Returns the state hash for this pdu.
-	pub(super) fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<Option<u64>> {
+	pub(super) async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<u64> {
 		self.eventid_shorteventid
-			.get(event_id.as_bytes())?
-			.map_or(Ok(None), |shorteventid| {
-				self.shorteventid_shortstatehash
-					.get(&shorteventid)?
-					.map(|bytes| {
-						utils::u64_from_bytes(&bytes).map_err(|_| {
-							Error::bad_database("Invalid shortstatehash bytes in shorteventid_shortstatehash")
-						})
-					})
-					.transpose()
-			})
+			.qry(event_id)
+			.and_then(|shorteventid| self.shorteventid_shortstatehash.qry(&shorteventid))
+			.await
+			.deserialized()
 	}
 
 	/// Returns the full room state.
@@ -163,34 +168,33 @@ impl Data {
 	pub(super) async fn room_state_full(
 		&self, room_id: &RoomId,
 	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
-		if let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? {
-			self.state_full(current_shortstatehash).await
-		} else {
-			Ok(HashMap::new())
-		}
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.and_then(|shortstatehash| self.state_full(shortstatehash))
+			.map_err(|e| err!(Database("Missing state for {room_id:?}: {e:?}")))
+			.await
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
-	/// `state_key`).
-	pub(super) fn room_state_get_id(
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
+	pub(super) async fn room_state_get_id(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<EventId>>> {
-		if let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? {
-			self.state_get_id(current_shortstatehash, event_type, state_key)
-		} else {
-			Ok(None)
-		}
+	) -> Result<Arc<EventId>> {
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.and_then(|shortstatehash| self.state_get_id(shortstatehash, event_type, state_key))
+			.await
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
-	/// `state_key`).
-	pub(super) fn room_state_get(
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
+	pub(super) async fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Option<Arc<PduEvent>>> {
-		if let Some(current_shortstatehash) = self.services.state.get_room_shortstatehash(room_id)? {
-			self.state_get(current_shortstatehash, event_type, state_key)
-		} else {
-			Ok(None)
-		}
+	) -> Result<Arc<PduEvent>> {
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.and_then(|shortstatehash| self.state_get(shortstatehash, event_type, state_key))
+			.await
 	}
 }

@@ -2,9 +2,10 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use async_trait::async_trait;
 use conduit::{err, Result};
 use data::Data;
-use futures_util::Future;
+use futures::{Future, StreamExt, TryStreamExt};
 use regex::RegexSet;
 use ruma::{
 	api::appservice::{Namespace, Registration},
@@ -126,13 +127,22 @@ struct Services {
 	sending: Dep<sending::Service>,
 }
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let mut registration_info = BTreeMap::new();
-		let db = Data::new(args.db);
+		Ok(Arc::new(Self {
+			db: Data::new(args.db),
+			services: Services {
+				sending: args.depend::<sending::Service>("sending"),
+			},
+			registration_info: RwLock::new(BTreeMap::new()),
+		}))
+	}
+
+	async fn worker(self: Arc<Self>) -> Result<()> {
 		// Inserting registrations into cache
-		for appservice in iter_ids(&db)? {
-			registration_info.insert(
+		for appservice in iter_ids(&self.db).await? {
+			self.registration_info.write().await.insert(
 				appservice.0,
 				appservice
 					.1
@@ -141,13 +151,7 @@ impl crate::Service for Service {
 			);
 		}
 
-		Ok(Arc::new(Self {
-			db,
-			services: Services {
-				sending: args.depend::<sending::Service>("sending"),
-			},
-			registration_info: RwLock::new(registration_info),
-		}))
+		Ok(())
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
@@ -155,7 +159,7 @@ impl crate::Service for Service {
 
 impl Service {
 	#[inline]
-	pub fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db) }
+	pub async fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db).await }
 
 	/// Registers an appservice and returns the ID to the caller
 	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
@@ -188,7 +192,8 @@ impl Service {
 		// sending to the URL
 		self.services
 			.sending
-			.cleanup_events(service_name.to_owned())?;
+			.cleanup_events(service_name.to_owned())
+			.await;
 
 		Ok(())
 	}
@@ -251,15 +256,9 @@ impl Service {
 	}
 }
 
-fn iter_ids(db: &Data) -> Result<Vec<(String, Registration)>> {
-	db.iter_ids()?
-		.filter_map(Result::ok)
-		.map(move |id| {
-			Ok((
-				id.clone(),
-				db.get_registration(&id)?
-					.expect("iter_ids only returns appservices that exist"),
-			))
-		})
-		.collect()
+async fn iter_ids(db: &Data) -> Result<Vec<(String, Registration)>> {
+	db.iter_ids()
+		.then(|id| async move { Ok((id.clone(), db.get_registration(&id).await?)) })
+		.try_collect()
+		.await
 }

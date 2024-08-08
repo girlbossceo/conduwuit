@@ -5,7 +5,8 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, error, trace, validated, warn, Err, Result};
+use conduit::{debug, debug_error, trace, utils::IterStream, validated, warn, Err, Result};
+use futures::{FutureExt, Stream, StreamExt};
 use ruma::{EventId, RoomId};
 
 use self::data::Data;
@@ -38,7 +39,7 @@ impl crate::Service for Service {
 impl Service {
 	pub async fn event_ids_iter<'a>(
 		&'a self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
-	) -> Result<impl Iterator<Item = Arc<EventId>> + 'a> {
+	) -> Result<impl Stream<Item = Arc<EventId>> + Send + 'a> {
 		let mut starting_events: Vec<&EventId> = Vec::with_capacity(starting_events_.len());
 		for starting_event in &starting_events_ {
 			starting_events.push(starting_event);
@@ -48,7 +49,13 @@ impl Service {
 			.get_auth_chain(room_id, &starting_events)
 			.await?
 			.into_iter()
-			.filter_map(move |sid| self.services.short.get_eventid_from_short(sid).ok()))
+			.stream()
+			.filter_map(|sid| {
+				self.services
+					.short
+					.get_eventid_from_short(sid)
+					.map(Result::ok)
+			}))
 	}
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
@@ -61,7 +68,8 @@ impl Service {
 		for (i, &short) in self
 			.services
 			.short
-			.multi_get_or_create_shorteventid(starting_events)?
+			.multi_get_or_create_shorteventid(starting_events)
+			.await
 			.iter()
 			.enumerate()
 		{
@@ -85,7 +93,7 @@ impl Service {
 			}
 
 			let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
-			if let Some(cached) = self.get_cached_eventid_authchain(&chunk_key)? {
+			if let Some(cached) = self.get_cached_eventid_authchain(&chunk_key).await? {
 				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
 				hits = hits.saturating_add(1);
@@ -96,12 +104,12 @@ impl Service {
 			let mut misses2: usize = 0;
 			let mut chunk_cache = Vec::with_capacity(chunk.len());
 			for (sevent_id, event_id) in chunk {
-				if let Some(cached) = self.get_cached_eventid_authchain(&[sevent_id])? {
+				if let Some(cached) = self.get_cached_eventid_authchain(&[sevent_id]).await? {
 					trace!(?event_id, "Found cache entry for event");
 					chunk_cache.extend(cached.iter().copied());
 					hits2 = hits2.saturating_add(1);
 				} else {
-					let auth_chain = self.get_auth_chain_inner(room_id, event_id)?;
+					let auth_chain = self.get_auth_chain_inner(room_id, event_id).await?;
 					self.cache_auth_chain(vec![sevent_id], &auth_chain)?;
 					chunk_cache.extend(auth_chain.iter());
 					misses2 = misses2.saturating_add(1);
@@ -143,15 +151,16 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
-	fn get_auth_chain_inner(&self, room_id: &RoomId, event_id: &EventId) -> Result<HashSet<u64>> {
+	async fn get_auth_chain_inner(&self, room_id: &RoomId, event_id: &EventId) -> Result<HashSet<u64>> {
 		let mut todo = vec![Arc::from(event_id)];
 		let mut found = HashSet::new();
 
 		while let Some(event_id) = todo.pop() {
 			trace!(?event_id, "processing auth event");
 
-			match self.services.timeline.get_pdu(&event_id) {
-				Ok(Some(pdu)) => {
+			match self.services.timeline.get_pdu(&event_id).await {
+				Err(e) => debug_error!(?event_id, ?e, "Could not find pdu mentioned in auth events"),
+				Ok(pdu) => {
 					if pdu.room_id != room_id {
 						return Err!(Request(Forbidden(
 							"auth event {event_id:?} for incorrect room {} which is not {}",
@@ -160,7 +169,11 @@ impl Service {
 						)));
 					}
 					for auth_event in &pdu.auth_events {
-						let sauthevent = self.services.short.get_or_create_shorteventid(auth_event)?;
+						let sauthevent = self
+							.services
+							.short
+							.get_or_create_shorteventid(auth_event)
+							.await;
 
 						if found.insert(sauthevent) {
 							trace!(?event_id, ?auth_event, "adding auth event to processing queue");
@@ -168,20 +181,14 @@ impl Service {
 						}
 					}
 				},
-				Ok(None) => {
-					warn!(?event_id, "Could not find pdu mentioned in auth events");
-				},
-				Err(error) => {
-					error!(?event_id, ?error, "Could not load event in auth chain");
-				},
 			}
 		}
 
 		Ok(found)
 	}
 
-	pub fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
-		self.db.get_cached_eventid_authchain(key)
+	pub async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+		self.db.get_cached_eventid_authchain(key).await
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]

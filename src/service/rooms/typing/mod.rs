@@ -46,7 +46,7 @@ impl Service {
 	/// Sets a user as typing until the timeout timestamp is reached or
 	/// roomtyping_remove is called.
 	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
-		debug_info!("typing started {:?} in {:?} timeout:{:?}", user_id, room_id, timeout);
+		debug_info!("typing started {user_id:?} in {room_id:?} timeout:{timeout:?}");
 		// update clients
 		self.typing
 			.write()
@@ -54,17 +54,19 @@ impl Service {
 			.entry(room_id.to_owned())
 			.or_default()
 			.insert(user_id.to_owned(), timeout);
+
 		self.last_typing_update
 			.write()
 			.await
 			.insert(room_id.to_owned(), self.services.globals.next_count()?);
+
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
 		// update federation
 		if self.services.globals.user_is_local(user_id) {
-			self.federation_send(room_id, user_id, true)?;
+			self.federation_send(room_id, user_id, true).await?;
 		}
 
 		Ok(())
@@ -72,7 +74,7 @@ impl Service {
 
 	/// Removes a user from typing before the timeout is reached.
 	pub async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		debug_info!("typing stopped {:?} in {:?}", user_id, room_id);
+		debug_info!("typing stopped {user_id:?} in {room_id:?}");
 		// update clients
 		self.typing
 			.write()
@@ -80,31 +82,31 @@ impl Service {
 			.entry(room_id.to_owned())
 			.or_default()
 			.remove(user_id);
+
 		self.last_typing_update
 			.write()
 			.await
 			.insert(room_id.to_owned(), self.services.globals.next_count()?);
+
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
 		// update federation
 		if self.services.globals.user_is_local(user_id) {
-			self.federation_send(room_id, user_id, false)?;
+			self.federation_send(room_id, user_id, false).await?;
 		}
 
 		Ok(())
 	}
 
-	pub async fn wait_for_update(&self, room_id: &RoomId) -> Result<()> {
+	pub async fn wait_for_update(&self, room_id: &RoomId) {
 		let mut receiver = self.typing_update_sender.subscribe();
 		while let Ok(next) = receiver.recv().await {
 			if next == room_id {
 				break;
 			}
 		}
-
-		Ok(())
 	}
 
 	/// Makes sure that typing events with old timestamps get removed.
@@ -123,30 +125,30 @@ impl Service {
 					removable.push(user.clone());
 				}
 			}
-
-			drop(typing);
 		};
 
 		if !removable.is_empty() {
 			let typing = &mut self.typing.write().await;
 			let room = typing.entry(room_id.to_owned()).or_default();
 			for user in &removable {
-				debug_info!("typing timeout {:?} in {:?}", &user, room_id);
+				debug_info!("typing timeout {user:?} in {room_id:?}");
 				room.remove(user);
 			}
+
 			// update clients
 			self.last_typing_update
 				.write()
 				.await
 				.insert(room_id.to_owned(), self.services.globals.next_count()?);
+
 			if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 				trace!("receiver found what it was looking for and is no longer interested");
 			}
 
 			// update federation
-			for user in removable {
-				if self.services.globals.user_is_local(&user) {
-					self.federation_send(room_id, &user, false)?;
+			for user in &removable {
+				if self.services.globals.user_is_local(user) {
+					self.federation_send(room_id, user, false).await?;
 				}
 			}
 		}
@@ -183,7 +185,7 @@ impl Service {
 		})
 	}
 
-	fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
+	async fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
 		debug_assert!(
 			self.services.globals.user_is_local(user_id),
 			"tried to broadcast typing status of remote user",
@@ -197,7 +199,8 @@ impl Service {
 
 		self.services
 			.sending
-			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))?;
+			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))
+			.await?;
 
 		Ok(())
 	}

@@ -97,7 +97,7 @@ impl Service {
 
 	/// Deletes a file in the database and from the media directory via an MXC
 	pub async fn delete(&self, mxc: &Mxc<'_>) -> Result<()> {
-		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc) {
+		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc).await {
 			for key in keys {
 				trace!(?mxc, ?key, "Deleting from filesystem");
 				if let Err(e) = self.remove_media_file(&key).await {
@@ -105,9 +105,7 @@ impl Service {
 				}
 
 				trace!(?mxc, ?key, "Deleting from database");
-				if let Err(e) = self.db.delete_file_mxc(mxc) {
-					error!(?mxc, ?key, "Failed to remove media from database: {e}");
-				}
+				self.db.delete_file_mxc(mxc).await;
 			}
 
 			Ok(())
@@ -122,7 +120,7 @@ impl Service {
 	///
 	/// currently, this is only practical for local users
 	pub async fn delete_from_user(&self, user: &UserId, force: bool) -> Result<usize> {
-		let mxcs = self.db.get_all_user_mxcs(user);
+		let mxcs = self.db.get_all_user_mxcs(user).await;
 		let mut deletion_count: usize = 0;
 
 		for mxc in mxcs {
@@ -149,7 +147,7 @@ impl Service {
 			content_disposition,
 			content_type,
 			key,
-		}) = self.db.search_file_metadata(mxc, &Dim::default())
+		}) = self.db.search_file_metadata(mxc, &Dim::default()).await
 		{
 			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
@@ -169,7 +167,7 @@ impl Service {
 
 	/// Gets all the MXC URIs in our media database
 	pub async fn get_all_mxcs(&self) -> Result<Vec<OwnedMxcUri>> {
-		let all_keys = self.db.get_all_media_keys();
+		let all_keys = self.db.get_all_media_keys().await;
 
 		let mut mxcs = Vec::with_capacity(all_keys.len());
 
@@ -204,7 +202,7 @@ impl Service {
 	/// Deletes all remote only media files in the given at or after
 	/// time/duration. Returns a u32 with the amount of media files deleted.
 	pub async fn delete_all_remote_media_at_after_time(&self, time: SystemTime, force: bool) -> Result<usize> {
-		let all_keys = self.db.get_all_media_keys();
+		let all_keys = self.db.get_all_media_keys().await;
 
 		let mut remote_mxcs = Vec::with_capacity(all_keys.len());
 
@@ -349,9 +347,10 @@ impl Service {
 	}
 
 	#[inline]
-	pub fn get_metadata(&self, mxc: &Mxc<'_>) -> Option<FileMeta> {
+	pub async fn get_metadata(&self, mxc: &Mxc<'_>) -> Option<FileMeta> {
 		self.db
 			.search_file_metadata(mxc, &Dim::default())
+			.await
 			.map(|metadata| FileMeta {
 				content_disposition: metadata.content_disposition,
 				content_type: metadata.content_type,

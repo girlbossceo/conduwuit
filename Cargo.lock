@@ -626,10 +626,11 @@ dependencies = [
  "clap",
  "conduit_api",
  "conduit_core",
+ "conduit_database",
  "conduit_macros",
  "conduit_service",
  "const-str",
- "futures-util",
+ "futures",
  "log",
  "ruma",
  "serde_json",
@@ -652,7 +653,7 @@ dependencies = [
  "conduit_database",
  "conduit_service",
  "const-str",
- "futures-util",
+ "futures",
  "hmac",
  "http",
  "http-body-util",
@@ -689,6 +690,7 @@ dependencies = [
  "cyborgtime",
  "either",
  "figment",
+ "futures",
  "hardened_malloc-rs",
  "http",
  "http-body-util",
@@ -727,8 +729,11 @@ version = "0.4.7"
 dependencies = [
  "conduit_core",
  "const-str",
+ "futures",
  "log",
  "rust-rocksdb-uwu",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]
@@ -785,7 +790,7 @@ dependencies = [
  "conduit_core",
  "conduit_database",
  "const-str",
- "futures-util",
+ "futures",
  "hickory-resolver",
  "http",
  "image",
@@ -1285,6 +1290,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "645c6916888f6cb6350d2550b80fb63e734897a8498abe35cfb732b6487804b0"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1346,6 +1365,7 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
+ "futures-channel",
  "futures-core",
  "futures-io",
  "futures-macro",
@@ -2954,7 +2974,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.10.1"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "assign",
  "js_int",
@@ -2976,7 +2996,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -2988,7 +3008,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.18.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "as_variant",
  "assign",
@@ -3011,7 +3031,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "as_variant",
  "base64 0.22.1",
@@ -3041,7 +3061,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.28.1"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "as_variant",
  "indexmap 2.6.0",
@@ -3065,7 +3085,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "bytes",
  "http",
@@ -3083,7 +3103,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.5"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "js_int",
  "thiserror",
@@ -3092,7 +3112,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3102,7 +3122,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -3118,7 +3138,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3130,7 +3150,7 @@ dependencies = [
 [[package]]
 name = "ruma-server-util"
 version = "0.3.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "headers",
  "http",
@@ -3143,7 +3163,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.15.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -3159,8 +3179,9 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.11.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad#b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=e7db44989d68406393270d3a91815597385d3acb#e7db44989d68406393270d3a91815597385d3acb"
 dependencies = [
+ "futures-util",
  "itertools 0.12.1",
  "js_int",
  "ruma-common",

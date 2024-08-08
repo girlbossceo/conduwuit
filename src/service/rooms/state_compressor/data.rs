@@ -1,6 +1,6 @@
 use std::{collections::HashSet, mem::size_of, sync::Arc};
 
-use conduit::{checked, utils, Error, Result};
+use conduit::{err, expected, utils, Result};
 use database::{Database, Map};
 
 use super::CompressedStateEvent;
@@ -22,11 +22,13 @@ impl Data {
 		}
 	}
 
-	pub(super) fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
+	pub(super) async fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
 		let value = self
 			.shortstatehash_statediff
-			.get(&shortstatehash.to_be_bytes())?
-			.ok_or_else(|| Error::bad_database("State hash does not exist"))?;
+			.qry(&shortstatehash)
+			.await
+			.map_err(|e| err!(Database("Failed to find StateDiff from short {shortstatehash:?}: {e}")))?;
+
 		let parent = utils::u64_from_bytes(&value[0..size_of::<u64>()]).expect("bytes have right length");
 		let parent = if parent != 0 {
 			Some(parent)
@@ -40,10 +42,10 @@ impl Data {
 
 		let stride = size_of::<u64>();
 		let mut i = stride;
-		while let Some(v) = value.get(i..checked!(i + 2 * stride)?) {
+		while let Some(v) = value.get(i..expected!(i + 2 * stride)) {
 			if add_mode && v.starts_with(&0_u64.to_be_bytes()) {
 				add_mode = false;
-				i = checked!(i + stride)?;
+				i = expected!(i + stride);
 				continue;
 			}
 			if add_mode {
@@ -51,7 +53,7 @@ impl Data {
 			} else {
 				removed.insert(v.try_into().expect("we checked the size above"));
 			}
-			i = checked!(i + 2 * stride)?;
+			i = expected!(i + 2 * stride);
 		}
 
 		Ok(StateDiff {
@@ -61,7 +63,7 @@ impl Data {
 		})
 	}
 
-	pub(super) fn save_statediff(&self, shortstatehash: u64, diff: &StateDiff) -> Result<()> {
+	pub(super) fn save_statediff(&self, shortstatehash: u64, diff: &StateDiff) {
 		let mut value = diff.parent.unwrap_or(0).to_be_bytes().to_vec();
 		for new in diff.added.iter() {
 			value.extend_from_slice(&new[..]);
@@ -75,6 +77,6 @@ impl Data {
 		}
 
 		self.shortstatehash_statediff
-			.insert(&shortstatehash.to_be_bytes(), &value)
+			.insert(&shortstatehash.to_be_bytes(), &value);
 	}
 }

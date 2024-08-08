@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{Error, Result};
+use conduit::{err, Error, Result};
+use futures::StreamExt;
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;
 use ruma::{
@@ -23,15 +24,17 @@ pub(crate) async fn get_room_information_route(
 	let room_id = services
 		.rooms
 		.alias
-		.resolve_local_alias(&body.room_alias)?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Room alias not found."))?;
+		.resolve_local_alias(&body.room_alias)
+		.await
+		.map_err(|_| err!(Request(NotFound("Room alias not found."))))?;
 
 	let mut servers: Vec<OwnedServerName> = services
 		.rooms
 		.state_cache
 		.room_servers(&room_id)
-		.filter_map(Result::ok)
-		.collect();
+		.map(ToOwned::to_owned)
+		.collect()
+		.await;
 
 	servers.sort_unstable();
 	servers.dedup();
@@ -82,30 +85,31 @@ pub(crate) async fn get_profile_information_route(
 
 	match &body.field {
 		Some(ProfileField::DisplayName) => {
-			displayname = services.users.displayname(&body.user_id)?;
+			displayname = services.users.displayname(&body.user_id).await.ok();
 		},
 		Some(ProfileField::AvatarUrl) => {
-			avatar_url = services.users.avatar_url(&body.user_id)?;
-			blurhash = services.users.blurhash(&body.user_id)?;
+			avatar_url = services.users.avatar_url(&body.user_id).await.ok();
+			blurhash = services.users.blurhash(&body.user_id).await.ok();
 		},
 		Some(custom_field) => {
-			if let Some(value) = services
+			if let Ok(value) = services
 				.users
-				.profile_key(&body.user_id, custom_field.as_str())?
+				.profile_key(&body.user_id, custom_field.as_str())
+				.await
 			{
 				custom_profile_fields.insert(custom_field.to_string(), value);
 			}
 		},
 		None => {
-			displayname = services.users.displayname(&body.user_id)?;
-			avatar_url = services.users.avatar_url(&body.user_id)?;
-			blurhash = services.users.blurhash(&body.user_id)?;
-			tz = services.users.timezone(&body.user_id)?;
+			displayname = services.users.displayname(&body.user_id).await.ok();
+			avatar_url = services.users.avatar_url(&body.user_id).await.ok();
+			blurhash = services.users.blurhash(&body.user_id).await.ok();
+			tz = services.users.timezone(&body.user_id).await.ok();
 			custom_profile_fields = services
 				.users
 				.all_profile_keys(&body.user_id)
-				.filter_map(Result::ok)
-				.collect();
+				.collect()
+				.await;
 		},
 	}
 

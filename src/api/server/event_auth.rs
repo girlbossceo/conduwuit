@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use conduit::{Error, Result};
+use futures::StreamExt;
 use ruma::{
 	api::{client::error::ErrorKind, federation::authorization::get_event_authorization},
 	RoomId,
@@ -22,16 +23,18 @@ pub(crate) async fn get_event_authorization_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
 	if !services
 		.rooms
 		.state_accessor
-		.is_world_readable(&body.room_id)?
-		&& !services
-			.rooms
-			.state_cache
-			.server_in_room(origin, &body.room_id)?
+		.is_world_readable(&body.room_id)
+		.await && !services
+		.rooms
+		.state_cache
+		.server_in_room(origin, &body.room_id)
+		.await
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
 	}
@@ -39,8 +42,9 @@ pub(crate) async fn get_event_authorization_route(
 	let event = services
 		.rooms
 		.timeline
-		.get_pdu_json(&body.event_id)?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
+		.get_pdu_json(&body.event_id)
+		.await
+		.map_err(|_| Error::BadRequest(ErrorKind::NotFound, "Event not found."))?;
 
 	let room_id_str = event
 		.get("room_id")
@@ -50,16 +54,17 @@ pub(crate) async fn get_event_authorization_route(
 	let room_id =
 		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
-	let auth_chain_ids = services
+	let auth_chain = services
 		.rooms
 		.auth_chain
 		.event_ids_iter(room_id, vec![Arc::from(&*body.event_id)])
-		.await?;
+		.await?
+		.filter_map(|id| async move { services.rooms.timeline.get_pdu_json(&id).await.ok() })
+		.then(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
+		.collect()
+		.await;
 
 	Ok(get_event_authorization::v1::Response {
-		auth_chain: auth_chain_ids
-			.filter_map(|id| services.rooms.timeline.get_pdu_json(&id).ok()?)
-			.map(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-			.collect(),
+		auth_chain,
 	})
 }

@@ -44,7 +44,8 @@ pub(super) async fn process(subcommand: AccountDataCommand, context: &Command<'_
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.account_data
-				.changes_since(room_id.as_deref(), &user_id, since)?;
+				.changes_since(room_id.as_deref(), &user_id, since)
+				.await?;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -59,7 +60,8 @@ pub(super) async fn process(subcommand: AccountDataCommand, context: &Command<'_
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.account_data
-				.get(room_id.as_deref(), &user_id, kind)?;
+				.get(room_id.as_deref(), &user_id, kind)
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
