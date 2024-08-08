@@ -24,7 +24,7 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(txn_id.as_bytes());
 
-		self.userdevicetxnid_response.insert(&key, data)?;
+		self.userdevicetxnid_response.insert(&key, data);
 
 		Ok(())
 	}

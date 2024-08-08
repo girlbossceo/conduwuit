@@ -42,9 +42,9 @@ impl Data {
 		} else {
 			let shorteventid = self.services.globals.next_count()?;
 			self.eventid_shorteventid
-				.insert(event_id.as_bytes(), &shorteventid.to_be_bytes())?;
+				.insert(event_id.as_bytes(), &shorteventid.to_be_bytes());
 			self.shorteventid_eventid
-				.insert(&shorteventid.to_be_bytes(), event_id.as_bytes())?;
+				.insert(&shorteventid.to_be_bytes(), event_id.as_bytes());
 			shorteventid
 		};
 
@@ -70,9 +70,9 @@ impl Data {
 				None => {
 					let short = self.services.globals.next_count()?;
 					self.eventid_shorteventid
-						.insert(keys[i], &short.to_be_bytes())?;
+						.insert(keys[i], &short.to_be_bytes());
 					self.shorteventid_eventid
-						.insert(&short.to_be_bytes(), keys[i])?;
+						.insert(&short.to_be_bytes(), keys[i]);
 
 					debug_assert!(ret.len() == i, "position of result must match input");
 					ret.push(short);
@@ -109,9 +109,9 @@ impl Data {
 		} else {
 			let shortstatekey = self.services.globals.next_count()?;
 			self.statekey_shortstatekey
-				.insert(&statekey_vec, &shortstatekey.to_be_bytes())?;
+				.insert(&statekey_vec, &shortstatekey.to_be_bytes());
 			self.shortstatekey_statekey
-				.insert(&shortstatekey.to_be_bytes(), &statekey_vec)?;
+				.insert(&shortstatekey.to_be_bytes(), &statekey_vec);
 			shortstatekey
 		};
 
@@ -169,7 +169,7 @@ impl Data {
 		} else {
 			let shortstatehash = self.services.globals.next_count()?;
 			self.statehash_shortstatehash
-				.insert(state_hash, &shortstatehash.to_be_bytes())?;
+				.insert(state_hash, &shortstatehash.to_be_bytes());
 			(shortstatehash, false)
 		})
 	}
@@ -187,7 +187,7 @@ impl Data {
 		} else {
 			let short = self.services.globals.next_count()?;
 			self.roomid_shortroomid
-				.insert(room_id.as_bytes(), &short.to_be_bytes())?;
+				.insert(room_id.as_bytes(), &short.to_be_bytes());
 			short
 		})
 	}

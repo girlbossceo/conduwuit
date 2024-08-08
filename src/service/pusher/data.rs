@@ -25,7 +25,7 @@ impl Data {
 				key.push(0xFF);
 				key.extend_from_slice(data.pusher.ids.pushkey.as_bytes());
 				self.senderkey_pusher
-					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"))?;
+					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"));
 				Ok(())
 			},
 			set_pusher::v3::PusherAction::Delete(ids) => {

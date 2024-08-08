@@ -16,7 +16,8 @@ impl Data {
 	}
 
 	pub(super) fn set_public(&self, room_id: &RoomId) -> Result<()> {
-		self.publicroomids.insert(room_id.as_bytes(), &[])
+		self.publicroomids.insert(room_id.as_bytes(), &[]);
+		Ok(())
 	}
 
 	pub(super) fn set_not_public(&self, room_id: &RoomId) -> Result<()> {

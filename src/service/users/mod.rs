@@ -206,7 +206,7 @@ impl Service {
 			if let Ok(hash) = utils::hash::password(password) {
 				self.db
 					.userid_password
-					.insert(user_id.as_bytes(), hash.as_bytes())?;
+					.insert(user_id.as_bytes(), hash.as_bytes());
 				Ok(())
 			} else {
 				Err(Error::BadRequest(
@@ -215,7 +215,7 @@ impl Service {
 				))
 			}
 		} else {
-			self.db.userid_password.insert(user_id.as_bytes(), b"")?;
+			self.db.userid_password.insert(user_id.as_bytes(), b"");
 			Ok(())
 		}
 	}
@@ -239,7 +239,7 @@ impl Service {
 		if let Some(displayname) = displayname {
 			self.db
 				.userid_displayname
-				.insert(user_id.as_bytes(), displayname.as_bytes())?;
+				.insert(user_id.as_bytes(), displayname.as_bytes());
 		} else {
 			self.db.userid_displayname.remove(user_id.as_bytes())?;
 		}
@@ -266,7 +266,7 @@ impl Service {
 		if let Some(avatar_url) = avatar_url {
 			self.db
 				.userid_avatarurl
-				.insert(user_id.as_bytes(), avatar_url.to_string().as_bytes())?;
+				.insert(user_id.as_bytes(), avatar_url.to_string().as_bytes());
 		} else {
 			self.db.userid_avatarurl.remove(user_id.as_bytes())?;
 		}
@@ -290,7 +290,7 @@ impl Service {
 		if let Some(blurhash) = blurhash {
 			self.db
 				.userid_blurhash
-				.insert(user_id.as_bytes(), blurhash.as_bytes())?;
+				.insert(user_id.as_bytes(), blurhash.as_bytes());
 		} else {
 			self.db.userid_blurhash.remove(user_id.as_bytes())?;
 		}
@@ -314,7 +314,7 @@ impl Service {
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
 
-		increment(&self.db.userid_devicelistversion, user_id.as_bytes())?;
+		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		self.db.userdeviceid_metadata.insert(
 			&userdeviceid,
@@ -325,7 +325,7 @@ impl Service {
 				last_seen_ts: Some(MilliSecondsSinceUnixEpoch::now()),
 			})
 			.expect("Device::to_string never fails."),
-		)?;
+		);
 
 		self.set_token(user_id, device_id, token)?;
 
@@ -354,7 +354,7 @@ impl Service {
 
 		// TODO: Remove onetimekeys
 
-		increment(&self.db.userid_devicelistversion, user_id.as_bytes())?;
+		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		self.db.userdeviceid_metadata.remove(&userdeviceid)?;
 
@@ -405,10 +405,10 @@ impl Service {
 		// Assign token to user device combination
 		self.db
 			.userdeviceid_token
-			.insert(&userdeviceid, token.as_bytes())?;
+			.insert(&userdeviceid, token.as_bytes());
 		self.db
 			.token_userdeviceid
-			.insert(token.as_bytes(), &userdeviceid)?;
+			.insert(token.as_bytes(), &userdeviceid);
 
 		Ok(())
 	}
@@ -442,11 +442,11 @@ impl Service {
 		self.db.onetimekeyid_onetimekeys.insert(
 			&key,
 			&serde_json::to_vec(&one_time_key_value).expect("OneTimeKey::to_vec always works"),
-		)?;
+		);
 
 		self.db
 			.userid_lastonetimekeyupdate
-			.insert(user_id.as_bytes(), &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(user_id.as_bytes(), &self.services.globals.next_count()?.to_be_bytes());
 
 		Ok(())
 	}
@@ -474,7 +474,7 @@ impl Service {
 
 		self.db
 			.userid_lastonetimekeyupdate
-			.insert(user_id.as_bytes(), &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(user_id.as_bytes(), &self.services.globals.next_count()?.to_be_bytes());
 
 		self.db
 			.onetimekeyid_onetimekeys
@@ -536,7 +536,7 @@ impl Service {
 		self.db.keyid_key.insert(
 			&userdeviceid,
 			&serde_json::to_vec(&device_keys).expect("DeviceKeys::to_vec always works"),
-		)?;
+		);
 
 		self.mark_device_key_update(user_id)?;
 
@@ -555,11 +555,11 @@ impl Service {
 
 		self.db
 			.keyid_key
-			.insert(&master_key_key, master_key.json().get().as_bytes())?;
+			.insert(&master_key_key, master_key.json().get().as_bytes());
 
 		self.db
 			.userid_masterkeyid
-			.insert(user_id.as_bytes(), &master_key_key)?;
+			.insert(user_id.as_bytes(), &master_key_key);
 
 		// Self-signing key
 		if let Some(self_signing_key) = self_signing_key {
@@ -585,11 +585,11 @@ impl Service {
 
 			self.db
 				.keyid_key
-				.insert(&self_signing_key_key, self_signing_key.json().get().as_bytes())?;
+				.insert(&self_signing_key_key, self_signing_key.json().get().as_bytes());
 
 			self.db
 				.userid_selfsigningkeyid
-				.insert(user_id.as_bytes(), &self_signing_key_key)?;
+				.insert(user_id.as_bytes(), &self_signing_key_key);
 		}
 
 		// User-signing key
@@ -616,11 +616,11 @@ impl Service {
 
 			self.db
 				.keyid_key
-				.insert(&user_signing_key_key, user_signing_key.json().get().as_bytes())?;
+				.insert(&user_signing_key_key, user_signing_key.json().get().as_bytes());
 
 			self.db
 				.userid_usersigningkeyid
-				.insert(user_id.as_bytes(), &user_signing_key_key)?;
+				.insert(user_id.as_bytes(), &user_signing_key_key);
 		}
 
 		if notify {
@@ -662,7 +662,7 @@ impl Service {
 		self.db.keyid_key.insert(
 			&key,
 			&serde_json::to_vec(&cross_signing_key).expect("CrossSigningKey::to_vec always works"),
-		)?;
+		);
 
 		self.mark_device_key_update(target_id)?;
 
@@ -731,17 +731,13 @@ impl Service {
 			key.push(0xFF);
 			key.extend_from_slice(&count);
 
-			self.db
-				.keychangeid_userid
-				.insert(&key, user_id.as_bytes())?;
+			self.db.keychangeid_userid.insert(&key, user_id.as_bytes());
 		}
 
 		let mut key = user_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(&count);
-		self.db
-			.keychangeid_userid
-			.insert(&key, user_id.as_bytes())?;
+		self.db.keychangeid_userid.insert(&key, user_id.as_bytes());
 
 		Ok(())
 	}
@@ -821,7 +817,7 @@ impl Service {
 
 		let value = serde_json::to_vec(&json).expect("Map::to_vec always works");
 
-		self.db.todeviceid_events.insert(&key, &value)?;
+		self.db.todeviceid_events.insert(&key, &value);
 
 		Ok(())
 	}
@@ -891,12 +887,12 @@ impl Service {
 			));
 		}
 
-		increment(&self.db.userid_devicelistversion, user_id.as_bytes())?;
+		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		self.db.userdeviceid_metadata.insert(
 			&userdeviceid,
 			&serde_json::to_vec(device).expect("Device::to_string always works"),
-		)?;
+		);
 
 		Ok(())
 	}
@@ -953,7 +949,7 @@ impl Service {
 
 		self.db
 			.userfilterid_filter
-			.insert(&key, &serde_json::to_vec(&filter).expect("filter is valid json"))?;
+			.insert(&key, &serde_json::to_vec(&filter).expect("filter is valid json"));
 
 		Ok(filter_id)
 	}
@@ -985,7 +981,7 @@ impl Service {
 
 		self.db
 			.openidtoken_expiresatuserid
-			.insert(token.as_bytes(), value.as_slice())?;
+			.insert(token.as_bytes(), value.as_slice());
 
 		Ok(expires_in)
 	}
@@ -1086,9 +1082,8 @@ fn clean_signatures<F: Fn(&UserId) -> bool>(
 }
 
 //TODO: this is an ABA
-fn increment(db: &Arc<Map>, key: &[u8]) -> Result<()> {
+fn increment(db: &Arc<Map>, key: &[u8]) {
 	let old = db.get(key);
 	let new = utils::increment(old.as_deref());
-	db.insert(key, &new)?;
-	Ok(())
+	db.insert(key, &new);
 }

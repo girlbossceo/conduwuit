@@ -47,9 +47,9 @@ impl Data {
 		self.backupid_algorithm.insert(
 			&key,
 			&serde_json::to_vec(backup_metadata).expect("BackupAlgorithm::to_vec always works"),
-		)?;
+		);
 		self.backupid_etag
-			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
 		Ok(version)
 	}
 
@@ -82,9 +82,9 @@ impl Data {
 		}
 
 		self.backupid_algorithm
-			.insert(&key, backup_metadata.json().get().as_bytes())?;
+			.insert(&key, backup_metadata.json().get().as_bytes());
 		self.backupid_etag
-			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
 		Ok(version.to_owned())
 	}
 
@@ -159,7 +159,7 @@ impl Data {
 		}
 
 		self.backupid_etag
-			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
 
 		key.push(0xFF);
 		key.extend_from_slice(room_id.as_bytes());
@@ -167,7 +167,7 @@ impl Data {
 		key.extend_from_slice(session_id.as_bytes());
 
 		self.backupkeyid_backup
-			.insert(&key, key_data.json().get().as_bytes())?;
+			.insert(&key, key_data.json().get().as_bytes());
 
 		Ok(())
 	}

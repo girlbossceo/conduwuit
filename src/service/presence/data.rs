@@ -115,10 +115,10 @@ impl Data {
 		let key = presenceid_key(count, user_id);
 
 		self.presenceid_presence
-			.insert(&key, &presence.to_json_bytes()?)?;
+			.insert(&key, &presence.to_json_bytes()?);
 
 		self.userid_presenceid
-			.insert(user_id.as_bytes(), &count.to_be_bytes())?;
+			.insert(user_id.as_bytes(), &count.to_be_bytes());
 
 		if let Some((last_count, _)) = last_presence {
 			let key = presenceid_key(last_count, user_id);

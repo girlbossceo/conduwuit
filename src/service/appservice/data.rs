@@ -19,7 +19,7 @@ impl Data {
 	pub(super) fn register_appservice(&self, yaml: &Registration) -> Result<String> {
 		let id = yaml.id.as_str();
 		self.id_appserviceregistrations
-			.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes())?;
+			.insert(id.as_bytes(), serde_yaml::to_string(&yaml).unwrap().as_bytes());
 
 		Ok(id.to_owned())
 	}

@@ -33,15 +33,15 @@ impl Data {
 	pub(super) fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
 		// Comes first as we don't want a stuck alias
 		self.alias_userid
-			.insert(alias.alias().as_bytes(), user_id.as_bytes())?;
+			.insert(alias.alias().as_bytes(), user_id.as_bytes());
 
 		self.alias_roomid
-			.insert(alias.alias().as_bytes(), room_id.as_bytes())?;
+			.insert(alias.alias().as_bytes(), room_id.as_bytes());
 
 		let mut aliasid = room_id.as_bytes().to_vec();
 		aliasid.push(0xFF);
 		aliasid.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
-		self.aliasid_alias.insert(&aliasid, alias.as_bytes())?;
+		self.aliasid_alias.insert(&aliasid, alias.as_bytes());
 
 		Ok(())
 	}

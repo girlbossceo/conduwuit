@@ -67,7 +67,7 @@ impl Data {
 		self.readreceiptid_readreceipt.insert(
 			&room_latest_id,
 			&serde_json::to_vec(event).expect("EduEvent::to_string always works"),
-		)?;
+		);
 
 		Ok(())
 	}
@@ -114,10 +114,12 @@ impl Data {
 		key.extend_from_slice(user_id.as_bytes());
 
 		self.roomuserid_privateread
-			.insert(&key, &count.to_be_bytes())?;
+			.insert(&key, &count.to_be_bytes());
 
 		self.roomuserid_lastprivatereadupdate
-			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())
+			.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
+
+		Ok(())
 	}
 
 	pub(super) fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {

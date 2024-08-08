@@ -66,12 +66,12 @@ impl Data {
 		self.roomuserdataid_accountdata.insert(
 			&roomuserdataid,
 			&serde_json::to_vec(&data).expect("to_vec always works on json values"),
-		)?;
+		);
 
 		let prev = self.roomusertype_roomuserdataid.get(&key);
 
 		self.roomusertype_roomuserdataid
-			.insert(&key, &roomuserdataid)?;
+			.insert(&key, &roomuserdataid);
 
 		// Remove old entry
 		if let Some(prev) = prev {

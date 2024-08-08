@@ -83,7 +83,7 @@ impl Data {
 			.checked_add(1)
 			.expect("counter must not overflow u64");
 
-		self.global.insert(COUNTER, &counter.to_be_bytes())?;
+		self.global.insert(COUNTER, &counter.to_be_bytes());
 
 		Ok(*counter)
 	}
@@ -212,7 +212,7 @@ impl Data {
 		let keypair_bytes = self.global.get(b"keypair").map_or_else(
 			|| {
 				let keypair = utils::generate_keypair();
-				self.global.insert(b"keypair", &keypair)?;
+				self.global.insert(b"keypair", &keypair);
 				Ok::<_, Error>(keypair)
 			},
 			|val| Ok(val.to_vec()),
@@ -275,7 +275,7 @@ impl Data {
 		self.server_signingkeys.insert(
 			origin.as_bytes(),
 			&serde_json::to_vec(&keys).expect("serversigningkeys can be serialized"),
-		)?;
+		);
 
 		let mut tree = keys.verify_keys;
 		tree.extend(
@@ -322,7 +322,7 @@ impl Data {
 
 	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
-		self.global.insert(b"version", &new_version.to_be_bytes())?;
+		self.global.insert(b"version", &new_version.to_be_bytes());
 		Ok(())
 	}
 

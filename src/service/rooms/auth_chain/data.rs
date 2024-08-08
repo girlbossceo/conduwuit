@@ -66,7 +66,7 @@ impl Data {
 					.iter()
 					.flat_map(|s| s.to_be_bytes().to_vec())
 					.collect::<Vec<u8>>(),
-			)?;
+			);
 		}
 
 		// Cache in RAM

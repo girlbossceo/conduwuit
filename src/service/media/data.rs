@@ -51,12 +51,12 @@ impl Data {
 				.unwrap_or_default(),
 		);
 
-		self.mediaid_file.insert(&key, &[])?;
+		self.mediaid_file.insert(&key, &[]);
 
 		if let Some(user) = sender_user {
 			let key = mxc.as_bytes().to_vec();
 			let user = user.as_bytes().to_vec();
-			self.mediaid_user.insert(&key, &user)?;
+			self.mediaid_user.insert(&key, &user);
 		}
 
 		Ok(key)
@@ -194,7 +194,9 @@ impl Data {
 		value.push(0xFF);
 		value.extend_from_slice(&data.image_height.unwrap_or(0).to_be_bytes());
 
-		self.url_previews.insert(url.as_bytes(), &value)
+		self.url_previews.insert(url.as_bytes(), &value);
+
+		Ok(())
 	}
 
 	pub(super) fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {

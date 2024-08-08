@@ -40,7 +40,9 @@ impl Data {
 			.collect::<Vec<_>>();
 
 		self.tokenids
-			.insert_batch(batch.iter().map(database::KeyVal::from))
+			.insert_batch(batch.iter().map(database::KeyVal::from));
+
+		Ok(())
 	}
 
 	pub(super) fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {

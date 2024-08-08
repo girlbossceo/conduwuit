@@ -67,24 +67,23 @@ impl Map {
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]
-	pub fn insert(&self, key: &Key, value: &Val) -> Result<()> {
+	pub fn insert(&self, key: &Key, value: &Val) {
 		let write_options = &self.write_options;
 		self.db
 			.db
 			.put_cf_opt(&self.cf(), key, value, write_options)
-			.or_else(or_else)?;
+			.or_else(or_else)
+			.expect("database insert error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
 
 		self.watchers.wake(key);
-
-		Ok(())
 	}
 
 	#[tracing::instrument(skip(self, iter), level = "trace")]
-	pub fn insert_batch<'a, I>(&'a self, iter: I) -> Result<()>
+	pub fn insert_batch<'a, I>(&'a self, iter: I)
 	where
 		I: Iterator<Item = KeyVal<'a>>,
 	{
@@ -94,13 +93,15 @@ impl Map {
 		}
 
 		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
+		self.db
+			.db
+			.write_opt(batch, write_options)
+			.or_else(or_else)
+			.expect("database insert batch error");
 
 		if !self.db.corked() {
-			self.db.flush()?;
+			self.db.flush().expect("database flush error");
 		}
-
-		result(res)
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]

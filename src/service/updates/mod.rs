@@ -106,7 +106,7 @@ impl Service {
 	#[inline]
 	pub fn update_check_for_updates_id(&self, id: u64) -> Result<()> {
 		self.db
-			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes())?;
+			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes());
 
 		Ok(())
 	}

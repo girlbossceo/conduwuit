@@ -37,6 +37,8 @@ impl Data {
 		self.eventid_outlierpdu.insert(
 			event_id.as_bytes(),
 			&serde_json::to_vec(&pdu).expect("CanonicalJsonObject is valid"),
-		)
+		);
+
+		Ok(())
 	}
 }

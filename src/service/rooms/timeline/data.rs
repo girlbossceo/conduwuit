@@ -176,14 +176,14 @@ impl Data {
 		self.pduid_pdu.insert(
 			pdu_id,
 			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
-		)?;
+		);
 
 		self.lasttimelinecount_cache
 			.lock()
 			.expect("locked")
 			.insert(pdu.room_id.clone(), PduCount::Normal(count));
 
-		self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id)?;
+		self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id);
 		self.eventid_outlierpdu.remove(pdu.event_id.as_bytes())?;
 
 		Ok(())
@@ -195,9 +195,9 @@ impl Data {
 		self.pduid_pdu.insert(
 			pdu_id,
 			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
-		)?;
+		);
 
-		self.eventid_pduid.insert(event_id.as_bytes(), pdu_id)?;
+		self.eventid_pduid.insert(event_id.as_bytes(), pdu_id);
 		self.eventid_outlierpdu.remove(event_id.as_bytes())?;
 
 		Ok(())
@@ -209,7 +209,7 @@ impl Data {
 			self.pduid_pdu.insert(
 				pdu_id,
 				&serde_json::to_vec(pdu_json).expect("CanonicalJsonObject is always a valid"),
-			)?;
+			);
 		} else {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "PDU does not exist."));
 		}
@@ -273,14 +273,14 @@ impl Data {
 			let mut userroom_id = user.as_bytes().to_vec();
 			userroom_id.push(0xFF);
 			userroom_id.extend_from_slice(room_id.as_bytes());
-			increment(&self.userroomid_notificationcount, &userroom_id)?;
+			increment(&self.userroomid_notificationcount, &userroom_id);
 		}
 
 		for user in highlights {
 			let mut userroom_id = user.as_bytes().to_vec();
 			userroom_id.push(0xFF);
 			userroom_id.extend_from_slice(room_id.as_bytes());
-			increment(&self.userroomid_highlightcount, &userroom_id)?;
+			increment(&self.userroomid_highlightcount, &userroom_id);
 		}
 
 		Ok(())
@@ -339,9 +339,8 @@ pub(super) fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 }
 
 //TODO: this is an ABA
-fn increment(db: &Arc<Map>, key: &[u8]) -> Result<()> {
+fn increment(db: &Arc<Map>, key: &[u8]) {
 	let old = db.get(key);
 	let new = utils::increment(old.as_deref());
-	db.insert(key, &new)?;
-	Ok(())
+	db.insert(key, &new);
 }

@@ -68,7 +68,9 @@ impl Data {
 		let mut userroom_id = user_id.as_bytes().to_vec();
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
-		self.roomuseroncejoinedids.insert(&userroom_id, &[])
+		self.roomuseroncejoinedids.insert(&userroom_id, &[]);
+
+		Ok(())
 	}
 
 	pub(super) fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
@@ -82,8 +84,8 @@ impl Data {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		self.userroomid_joined.insert(&userroom_id, &[])?;
-		self.roomuserid_joined.insert(&roomuser_id, &[])?;
+		self.userroomid_joined.insert(&userroom_id, &[]);
+		self.roomuserid_joined.insert(&roomuser_id, &[]);
 		self.userroomid_invitestate.remove(&userroom_id)?;
 		self.roomuserid_invitecount.remove(&roomuser_id)?;
 		self.userroomid_leftstate.remove(&userroom_id)?;
@@ -109,9 +111,9 @@ impl Data {
 		self.userroomid_invitestate.insert(
 			&userroom_id,
 			&serde_json::to_vec(&last_state.unwrap_or_default()).expect("state to bytes always works"),
-		)?;
+		);
 		self.roomuserid_invitecount
-			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes());
 		self.userroomid_joined.remove(&userroom_id)?;
 		self.roomuserid_joined.remove(&roomuser_id)?;
 		self.userroomid_leftstate.remove(&userroom_id)?;
@@ -133,7 +135,7 @@ impl Data {
 				.join(&[0xFF][..]);
 
 			self.roomid_inviteviaservers
-				.insert(room_id.as_bytes(), &servers)?;
+				.insert(room_id.as_bytes(), &servers);
 		}
 
 		Ok(())
@@ -153,9 +155,9 @@ impl Data {
 		self.userroomid_leftstate.insert(
 			&userroom_id,
 			&serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
-		)?; // TODO
+		); // TODO
 		self.roomuserid_leftcount
-			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes())?;
+			.insert(&roomuser_id, &self.services.globals.next_count()?.to_be_bytes());
 		self.userroomid_joined.remove(&userroom_id)?;
 		self.roomuserid_joined.remove(&roomuser_id)?;
 		self.userroomid_invitestate.remove(&userroom_id)?;
@@ -181,10 +183,10 @@ impl Data {
 		}
 
 		self.roomid_joinedcount
-			.insert(room_id.as_bytes(), &joinedcount.to_be_bytes())?;
+			.insert(room_id.as_bytes(), &joinedcount.to_be_bytes());
 
 		self.roomid_invitedcount
-			.insert(room_id.as_bytes(), &invitedcount.to_be_bytes())?;
+			.insert(room_id.as_bytes(), &invitedcount.to_be_bytes());
 
 		for old_joined_server in self.room_servers(room_id).filter_map(Result::ok) {
 			if !joined_servers.remove(&old_joined_server) {
@@ -212,8 +214,8 @@ impl Data {
 			serverroom_id.push(0xFF);
 			serverroom_id.extend_from_slice(room_id.as_bytes());
 
-			self.roomserverids.insert(&roomserver_id, &[])?;
-			self.serverroomids.insert(&serverroom_id, &[])?;
+			self.roomserverids.insert(&roomserver_id, &[]);
+			self.serverroomids.insert(&serverroom_id, &[]);
 		}
 
 		self.appservice_in_room_cache
@@ -659,7 +661,7 @@ impl Data {
 			.join(&[0xFF][..]);
 
 		self.roomid_inviteviaservers
-			.insert(room_id.as_bytes(), &servers)?;
+			.insert(room_id.as_bytes(), &servers);
 
 		Ok(())
 	}

@@ -60,7 +60,7 @@ impl Data {
 			self.userdevicesessionid_uiaainfo.insert(
 				&userdevicesessionid,
 				&serde_json::to_vec(&uiaainfo).expect("UiaaInfo::to_vec always works"),
-			)?;
+			);
 		} else {
 			self.userdevicesessionid_uiaainfo
 				.remove(&userdevicesessionid)?;

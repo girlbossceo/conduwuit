@@ -75,6 +75,8 @@ impl Data {
 		}
 
 		self.shortstatehash_statediff
-			.insert(&shortstatehash.to_be_bytes(), &value)
+			.insert(&shortstatehash.to_be_bytes(), &value);
+
+		Ok(())
 	}
 }

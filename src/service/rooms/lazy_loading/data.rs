@@ -42,7 +42,7 @@ impl Data {
 		for ll_id in confirmed_user_ids {
 			let mut key = prefix.clone();
 			key.extend_from_slice(ll_id.as_bytes());
-			self.lazyloadedids.insert(&key, &[])?;
+			self.lazyloadedids.insert(&key, &[]);
 		}
 
 		Ok(())

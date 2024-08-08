@@ -71,7 +71,7 @@ impl Data {
 			.collect::<Vec<_>>()
 			.join(&[0xFF][..]);
 
-		self.threadid_userids.insert(root_id, &users)?;
+		self.threadid_userids.insert(root_id, &users);
 
 		Ok(())
 	}
