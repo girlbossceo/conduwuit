@@ -25,7 +25,7 @@ impl Data {
 		key.extend_from_slice(room_id.as_bytes());
 		key.push(0xFF);
 		key.extend_from_slice(ll_user.as_bytes());
-		Ok(self.lazyloadedids.get(&key)?.is_some())
+		Ok(self.lazyloadedids.get(&key).is_some())
 	}
 
 	pub(super) fn lazy_load_confirm_delivery(

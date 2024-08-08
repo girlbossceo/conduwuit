@@ -37,7 +37,7 @@ impl Data {
 
 	pub fn get_registration(&self, id: &str) -> Result<Option<Registration>> {
 		self.id_appserviceregistrations
-			.get(id.as_bytes())?
+			.get(id.as_bytes())
 			.map(|bytes| {
 				serde_yaml::from_slice(&bytes)
 					.map_err(|_| Error::bad_database("Invalid registration bytes in id_appserviceregistrations."))

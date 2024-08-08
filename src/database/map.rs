@@ -1,4 +1,4 @@
-use std::{ffi::CStr, future::Future, mem::size_of, pin::Pin, sync::Arc};
+use std::{ffi::CStr, future::Future, pin::Pin, sync::Arc};
 
 use conduit::Result;
 use rocksdb::{
@@ -36,15 +36,15 @@ impl Map {
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]
-	pub fn get(&self, key: &Key) -> Result<Option<Handle<'_>>> {
+	pub fn get(&self, key: &Key) -> Option<Handle<'_>> {
 		let read_options = &self.read_options;
 		let res = self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options);
 
-		Ok(result(res)?.map(Handle::from))
+		result(res).expect("database query error").map(Handle::from)
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]
-	pub fn multi_get(&self, keys: &[&Key]) -> Result<Vec<Option<OwnedVal>>> {
+	pub fn multi_get(&self, keys: &[&Key]) -> Vec<Option<OwnedVal>> {
 		// Optimization can be `true` if key vector is pre-sorted **by the column
 		// comparator**.
 		const SORTED: bool = false;
@@ -59,11 +59,11 @@ impl Map {
 			match res {
 				Ok(Some(res)) => ret.push(Some((*res).to_vec())),
 				Ok(None) => ret.push(None),
-				Err(e) => return or_else(e),
+				Err(e) => or_else(e).expect("database multiget error"),
 			}
 		}
 
-		Ok(ret)
+		ret
 	}
 
 	#[tracing::instrument(skip(self), level = "trace")]

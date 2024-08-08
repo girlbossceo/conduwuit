@@ -59,7 +59,7 @@ impl Data {
 
 	#[inline]
 	pub(super) fn is_disabled(&self, room_id: &RoomId) -> Result<bool> {
-		Ok(self.disabledroomids.get(room_id.as_bytes())?.is_some())
+		Ok(self.disabledroomids.get(room_id.as_bytes()).is_some())
 	}
 
 	#[inline]
@@ -75,7 +75,7 @@ impl Data {
 
 	#[inline]
 	pub(super) fn is_banned(&self, room_id: &RoomId) -> Result<bool> {
-		Ok(self.bannedroomids.get(room_id.as_bytes())?.is_some())
+		Ok(self.bannedroomids.get(room_id.as_bytes()).is_some())
 	}
 
 	#[inline]

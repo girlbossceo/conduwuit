@@ -32,13 +32,13 @@ impl Data {
 	}
 
 	pub fn get_presence(&self, user_id: &UserId) -> Result<Option<(u64, PresenceEvent)>> {
-		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes())? {
+		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes()) {
 			let count = utils::u64_from_bytes(&count_bytes)
 				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
 
 			let key = presenceid_key(count, user_id);
 			self.presenceid_presence
-				.get(&key)?
+				.get(&key)
 				.map(|presence_bytes| -> Result<(u64, PresenceEvent)> {
 					Ok((
 						count,
@@ -129,7 +129,7 @@ impl Data {
 	}
 
 	pub(super) fn remove_presence(&self, user_id: &UserId) -> Result<()> {
-		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes())? {
+		if let Some(count_bytes) = self.userid_presenceid.get(user_id.as_bytes()) {
 			let count = utils::u64_from_bytes(&count_bytes)
 				.map_err(|_e| Error::bad_database("No 'count' bytes in presence key"))?;
 			let key = presenceid_key(count, user_id);

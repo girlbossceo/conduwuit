@@ -125,13 +125,11 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
 
-		self.roomuserid_privateread
-			.get(&key)?
-			.map_or(Ok(None), |v| {
-				Ok(Some(
-					utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
-				))
-			})
+		self.roomuserid_privateread.get(&key).map_or(Ok(None), |v| {
+			Ok(Some(
+				utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
+			))
+		})
 	}
 
 	pub(super) fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
@@ -141,7 +139,7 @@ impl Data {
 
 		Ok(self
 			.roomuserid_lastprivatereadupdate
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid."))

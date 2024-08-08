@@ -47,7 +47,7 @@ impl Data {
 	}
 
 	pub(super) fn remove_alias(&self, alias: &RoomAliasId) -> Result<()> {
-		if let Some(room_id) = self.alias_roomid.get(alias.alias().as_bytes())? {
+		if let Some(room_id) = self.alias_roomid.get(alias.alias().as_bytes()) {
 			let mut prefix = room_id.to_vec();
 			prefix.push(0xFF);
 
@@ -67,7 +67,7 @@ impl Data {
 
 	pub(super) fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
 		self.alias_roomid
-			.get(alias.alias().as_bytes())?
+			.get(alias.alias().as_bytes())
 			.map(|bytes| {
 				RoomId::parse(
 					utils::string_from_bytes(&bytes)
@@ -80,7 +80,7 @@ impl Data {
 
 	pub(super) fn who_created_alias(&self, alias: &RoomAliasId) -> Result<Option<OwnedUserId>> {
 		self.alias_userid
-			.get(alias.alias().as_bytes())?
+			.get(alias.alias().as_bytes())
 			.map(|bytes| {
 				UserId::parse(
 					utils::string_from_bytes(&bytes)

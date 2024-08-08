@@ -61,7 +61,7 @@ impl Data {
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
 		self.userroomid_notificationcount
-			.get(&userroom_id)?
+			.get(&userroom_id)
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid notification count in db."))
 			})
@@ -73,7 +73,7 @@ impl Data {
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
 		self.userroomid_highlightcount
-			.get(&userroom_id)?
+			.get(&userroom_id)
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid highlight count in db."))
 			})
@@ -86,7 +86,7 @@ impl Data {
 
 		Ok(self
 			.roomuserid_lastnotificationread
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid."))
@@ -122,7 +122,7 @@ impl Data {
 		key.extend_from_slice(&token.to_be_bytes());
 
 		self.roomsynctoken_shortstatehash
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("Invalid shortstatehash in roomsynctoken_shortstatehash"))

@@ -102,7 +102,7 @@ impl Data {
 
 	fn stored_count(global: &Arc<Map>) -> Result<u64> {
 		global
-			.get(COUNTER)?
+			.get(COUNTER)
 			.as_deref()
 			.map_or(Ok(0_u64), utils::u64_from_bytes)
 	}
@@ -209,7 +209,7 @@ impl Data {
 	}
 
 	pub fn load_keypair(&self) -> Result<Ed25519KeyPair> {
-		let keypair_bytes = self.global.get(b"keypair")?.map_or_else(
+		let keypair_bytes = self.global.get(b"keypair").map_or_else(
 			|| {
 				let keypair = utils::generate_keypair();
 				self.global.insert(b"keypair", &keypair)?;
@@ -254,7 +254,7 @@ impl Data {
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
 	) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
 		// Not atomic, but this is not critical
-		let signingkeys = self.server_signingkeys.get(origin.as_bytes())?;
+		let signingkeys = self.server_signingkeys.get(origin.as_bytes());
 
 		let mut keys = signingkeys
 			.and_then(|keys| serde_json::from_slice(&keys).ok())
@@ -308,14 +308,14 @@ impl Data {
 	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<Option<ServerSigningKeys>> {
 		let signingkeys = self
 			.server_signingkeys
-			.get(origin.as_bytes())?
+			.get(origin.as_bytes())
 			.and_then(|bytes| serde_json::from_slice(&bytes).ok());
 
 		Ok(signingkeys)
 	}
 
 	pub fn database_version(&self) -> Result<u64> {
-		self.global.get(b"version")?.map_or(Ok(0), |version| {
+		self.global.get(b"version").map_or(Ok(0), |version| {
 			utils::u64_from_bytes(&version).map_err(|_| Error::bad_database("Database version id is invalid."))
 		})
 	}

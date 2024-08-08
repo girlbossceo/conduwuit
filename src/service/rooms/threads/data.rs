@@ -77,7 +77,7 @@ impl Data {
 	}
 
 	pub(super) fn get_participants(&self, root_id: &[u8]) -> Result<Option<Vec<OwnedUserId>>> {
-		if let Some(users) = self.threadid_userids.get(root_id)? {
+		if let Some(users) = self.threadid_userids.get(root_id) {
 			Ok(Some(
 				users
 					.split(|b| *b == 0xFF)

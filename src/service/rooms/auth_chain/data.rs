@@ -35,7 +35,7 @@ impl Data {
 			// Check DB cache
 			let chain = self
 				.shorteventid_authchain
-				.get(&key[0].to_be_bytes())?
+				.get(&key[0].to_be_bytes())
 				.map(|chain| {
 					chain
 						.chunks_exact(size_of::<u64>())

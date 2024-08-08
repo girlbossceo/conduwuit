@@ -92,7 +92,7 @@ impl Data {
 	pub(super) fn is_event_referenced(&self, room_id: &RoomId, event_id: &EventId) -> Result<bool> {
 		let mut key = room_id.as_bytes().to_vec();
 		key.extend_from_slice(event_id.as_bytes());
-		Ok(self.referencedevents.get(&key)?.is_some())
+		Ok(self.referencedevents.get(&key).is_some())
 	}
 
 	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) -> Result<()> {
@@ -100,8 +100,6 @@ impl Data {
 	}
 
 	pub(super) fn is_event_soft_failed(&self, event_id: &EventId) -> Result<bool> {
-		self.softfailedeventids
-			.get(event_id.as_bytes())
-			.map(|o| o.is_some())
+		Ok(self.softfailedeventids.get(event_id.as_bytes()).is_some())
 	}
 }

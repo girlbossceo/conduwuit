@@ -75,7 +75,7 @@ impl Data {
 	/// Returns the `count` of this pdu's id.
 	pub(super) fn get_pdu_count(&self, event_id: &EventId) -> Result<Option<PduCount>> {
 		self.eventid_pduid
-			.get(event_id.as_bytes())?
+			.get(event_id.as_bytes())
 			.map(|pdu_id| pdu_count(&pdu_id))
 			.transpose()
 	}
@@ -85,7 +85,7 @@ impl Data {
 		self.get_non_outlier_pdu_json(event_id)?.map_or_else(
 			|| {
 				self.eventid_outlierpdu
-					.get(event_id.as_bytes())?
+					.get(event_id.as_bytes())
 					.map(|pdu| serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db.")))
 					.transpose()
 			},
@@ -96,10 +96,10 @@ impl Data {
 	/// Returns the json of a pdu.
 	pub(super) fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<Option<CanonicalJsonObject>> {
 		self.eventid_pduid
-			.get(event_id.as_bytes())?
+			.get(event_id.as_bytes())
 			.map(|pduid| {
 				self.pduid_pdu
-					.get(&pduid)?
+					.get(&pduid)
 					.ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
 			})
 			.transpose()?
@@ -110,16 +110,16 @@ impl Data {
 	/// Returns the pdu's id.
 	#[inline]
 	pub(super) fn get_pdu_id(&self, event_id: &EventId) -> Result<Option<database::Handle<'_>>> {
-		self.eventid_pduid.get(event_id.as_bytes())
+		Ok(self.eventid_pduid.get(event_id.as_bytes()))
 	}
 
 	/// Returns the pdu.
 	pub(super) fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.eventid_pduid
-			.get(event_id.as_bytes())?
+			.get(event_id.as_bytes())
 			.map(|pduid| {
 				self.pduid_pdu
-					.get(&pduid)?
+					.get(&pduid)
 					.ok_or_else(|| Error::bad_database("Invalid pduid in eventid_pduid."))
 			})
 			.transpose()?
@@ -136,7 +136,7 @@ impl Data {
 			.map_or_else(
 				|| {
 					self.eventid_outlierpdu
-						.get(event_id.as_bytes())?
+						.get(event_id.as_bytes())
 						.map(|pdu| serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db.")))
 						.transpose()
 				},
@@ -154,7 +154,7 @@ impl Data {
 	///
 	/// This does __NOT__ check the outliers `Tree`.
 	pub(super) fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<Option<PduEvent>> {
-		self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
+		self.pduid_pdu.get(pdu_id).map_or(Ok(None), |pdu| {
 			Ok(Some(
 				serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))?,
 			))
@@ -163,7 +163,7 @@ impl Data {
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
 	pub(super) fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<Option<CanonicalJsonObject>> {
-		self.pduid_pdu.get(pdu_id)?.map_or(Ok(None), |pdu| {
+		self.pduid_pdu.get(pdu_id).map_or(Ok(None), |pdu| {
 			Ok(Some(
 				serde_json::from_slice(&pdu).map_err(|_| Error::bad_database("Invalid PDU in db."))?,
 			))
@@ -205,7 +205,7 @@ impl Data {
 
 	/// Removes a pdu and creates a new one with the same id.
 	pub(super) fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent) -> Result<()> {
-		if self.pduid_pdu.get(pdu_id)?.is_some() {
+		if self.pduid_pdu.get(pdu_id).is_some() {
 			self.pduid_pdu.insert(
 				pdu_id,
 				&serde_json::to_vec(pdu_json).expect("CanonicalJsonObject is always a valid"),
@@ -340,7 +340,7 @@ pub(super) fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 
 //TODO: this is an ABA
 fn increment(db: &Arc<Map>, key: &[u8]) -> Result<()> {
-	let old = db.get(key)?;
+	let old = db.get(key);
 	let new = utils::increment(old.as_deref());
 	db.insert(key, &new)?;
 	Ok(())

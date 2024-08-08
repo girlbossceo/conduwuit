@@ -43,7 +43,7 @@ impl Data {
 		senderkey.extend_from_slice(pushkey.as_bytes());
 
 		self.senderkey_pusher
-			.get(&senderkey)?
+			.get(&senderkey)
 			.map(|push| serde_json::from_slice(&push).map_err(|_| Error::bad_database("Invalid Pusher in db.")))
 			.transpose()
 	}

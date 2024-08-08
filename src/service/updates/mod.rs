@@ -113,7 +113,7 @@ impl Service {
 
 	pub fn last_check_for_updates_id(&self) -> Result<u64> {
 		self.db
-			.get(LAST_CHECK_FOR_UPDATES_COUNT)?
+			.get(LAST_CHECK_FOR_UPDATES_COUNT)
 			.map_or(Ok(0_u64), |bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|_| Error::bad_database("last check for updates count has invalid bytes."))

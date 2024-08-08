@@ -37,7 +37,7 @@ impl Data {
 	}
 
 	pub(super) fn get_or_create_shorteventid(&self, event_id: &EventId) -> Result<u64> {
-		let short = if let Some(shorteventid) = self.eventid_shorteventid.get(event_id.as_bytes())? {
+		let short = if let Some(shorteventid) = self.eventid_shorteventid.get(event_id.as_bytes()) {
 			utils::u64_from_bytes(&shorteventid).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?
 		} else {
 			let shorteventid = self.services.globals.next_count()?;
@@ -59,7 +59,7 @@ impl Data {
 			.collect::<Vec<&[u8]>>();
 		for (i, short) in self
 			.eventid_shorteventid
-			.multi_get(&keys)?
+			.multi_get(&keys)
 			.iter()
 			.enumerate()
 		{
@@ -90,7 +90,7 @@ impl Data {
 
 		let short = self
 			.statekey_shortstatekey
-			.get(&statekey_vec)?
+			.get(&statekey_vec)
 			.map(|shortstatekey| {
 				utils::u64_from_bytes(&shortstatekey).map_err(|_| Error::bad_database("Invalid shortstatekey in db."))
 			})
@@ -104,7 +104,7 @@ impl Data {
 		statekey_vec.push(0xFF);
 		statekey_vec.extend_from_slice(state_key.as_bytes());
 
-		let short = if let Some(shortstatekey) = self.statekey_shortstatekey.get(&statekey_vec)? {
+		let short = if let Some(shortstatekey) = self.statekey_shortstatekey.get(&statekey_vec) {
 			utils::u64_from_bytes(&shortstatekey).map_err(|_| Error::bad_database("Invalid shortstatekey in db."))?
 		} else {
 			let shortstatekey = self.services.globals.next_count()?;
@@ -121,7 +121,7 @@ impl Data {
 	pub(super) fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
 		let bytes = self
 			.shorteventid_eventid
-			.get(&shorteventid.to_be_bytes())?
+			.get(&shorteventid.to_be_bytes())
 			.ok_or_else(|| Error::bad_database("Shorteventid does not exist"))?;
 
 		let event_id = EventId::parse_arc(
@@ -136,7 +136,7 @@ impl Data {
 	pub(super) fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
 		let bytes = self
 			.shortstatekey_statekey
-			.get(&shortstatekey.to_be_bytes())?
+			.get(&shortstatekey.to_be_bytes())
 			.ok_or_else(|| Error::bad_database("Shortstatekey does not exist"))?;
 
 		let mut parts = bytes.splitn(2, |&b| b == 0xFF);
@@ -160,7 +160,7 @@ impl Data {
 
 	/// Returns (shortstatehash, already_existed)
 	pub(super) fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> Result<(u64, bool)> {
-		Ok(if let Some(shortstatehash) = self.statehash_shortstatehash.get(state_hash)? {
+		Ok(if let Some(shortstatehash) = self.statehash_shortstatehash.get(state_hash) {
 			(
 				utils::u64_from_bytes(&shortstatehash)
 					.map_err(|_| Error::bad_database("Invalid shortstatehash in db."))?,
@@ -176,13 +176,13 @@ impl Data {
 
 	pub(super) fn get_shortroomid(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_shortroomid
-			.get(room_id.as_bytes())?
+			.get(room_id.as_bytes())
 			.map(|bytes| utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid shortroomid in db.")))
 			.transpose()
 	}
 
 	pub(super) fn get_or_create_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
-		Ok(if let Some(short) = self.roomid_shortroomid.get(room_id.as_bytes())? {
+		Ok(if let Some(short) = self.roomid_shortroomid.get(room_id.as_bytes()) {
 			utils::u64_from_bytes(&short).map_err(|_| Error::bad_database("Invalid shortroomid in db."))?
 		} else {
 			let short = self.services.globals.next_count()?;

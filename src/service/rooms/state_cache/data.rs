@@ -303,7 +303,7 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(room_id.as_bytes());
 
-		self.serverroomids.get(&key).map(|o| o.is_some())
+		Ok(self.serverroomids.get(&key).is_some())
 	}
 
 	/// Returns an iterator of all rooms a server participates in (as far as we
@@ -375,7 +375,7 @@ impl Data {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_joined_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_joinedcount
-			.get(room_id.as_bytes())?
+			.get(room_id.as_bytes())
 			.map(|b| utils::u64_from_bytes(&b).map_err(|_| Error::bad_database("Invalid joinedcount in db.")))
 			.transpose()
 	}
@@ -384,7 +384,7 @@ impl Data {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn room_invited_count(&self, room_id: &RoomId) -> Result<Option<u64>> {
 		self.roomid_invitedcount
-			.get(room_id.as_bytes())?
+			.get(room_id.as_bytes())
 			.map(|b| utils::u64_from_bytes(&b).map_err(|_| Error::bad_database("Invalid joinedcount in db.")))
 			.transpose()
 	}
@@ -446,7 +446,7 @@ impl Data {
 		key.extend_from_slice(user_id.as_bytes());
 
 		self.roomuserid_invitecount
-			.get(&key)?
+			.get(&key)
 			.map_or(Ok(None), |bytes| {
 				Ok(Some(
 					utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid invitecount in db."))?,
@@ -461,7 +461,7 @@ impl Data {
 		key.extend_from_slice(user_id.as_bytes());
 
 		self.roomuserid_leftcount
-			.get(&key)?
+			.get(&key)
 			.map(|bytes| utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid leftcount in db.")))
 			.transpose()
 	}
@@ -523,7 +523,7 @@ impl Data {
 		key.extend_from_slice(room_id.as_bytes());
 
 		self.userroomid_invitestate
-			.get(&key)?
+			.get(&key)
 			.map(|state| {
 				let state = serde_json::from_slice(&state)
 					.map_err(|_| Error::bad_database("Invalid state in userroomid_invitestate."))?;
@@ -542,7 +542,7 @@ impl Data {
 		key.extend_from_slice(room_id.as_bytes());
 
 		self.userroomid_leftstate
-			.get(&key)?
+			.get(&key)
 			.map(|state| {
 				let state = serde_json::from_slice(&state)
 					.map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))?;
@@ -586,7 +586,7 @@ impl Data {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		Ok(self.roomuseroncejoinedids.get(&userroom_id)?.is_some())
+		Ok(self.roomuseroncejoinedids.get(&userroom_id).is_some())
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -595,7 +595,7 @@ impl Data {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		Ok(self.userroomid_joined.get(&userroom_id)?.is_some())
+		Ok(self.userroomid_joined.get(&userroom_id).is_some())
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -604,7 +604,7 @@ impl Data {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		Ok(self.userroomid_invitestate.get(&userroom_id)?.is_some())
+		Ok(self.userroomid_invitestate.get(&userroom_id).is_some())
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -613,7 +613,7 @@ impl Data {
 		userroom_id.push(0xFF);
 		userroom_id.extend_from_slice(room_id.as_bytes());
 
-		Ok(self.userroomid_leftstate.get(&userroom_id)?.is_some())
+		Ok(self.userroomid_leftstate.get(&userroom_id).is_some())
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]

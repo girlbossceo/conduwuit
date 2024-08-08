@@ -130,21 +130,21 @@ async fn migrate(services: &Services) -> Result<()> {
 		db_lt_13(services).await?;
 	}
 
-	if db["global"].get(b"feat_sha256_media")?.is_none() {
+	if db["global"].get(b"feat_sha256_media").is_none() {
 		migrate_sha256_media(services).await?;
 	} else if config.media_startup_check {
 		checkup_sha256_media(services).await?;
 	}
 
 	if db["global"]
-		.get(b"fix_bad_double_separator_in_state_cache")?
+		.get(b"fix_bad_double_separator_in_state_cache")
 		.is_none()
 	{
 		fix_bad_double_separator_in_state_cache(services).await?;
 	}
 
 	if db["global"]
-		.get(b"retroactively_fix_bad_data_from_roomuserid_joined")?
+		.get(b"retroactively_fix_bad_data_from_roomuserid_joined")
 		.is_none()
 	{
 		retroactively_fix_bad_data_from_roomuserid_joined(services).await?;
@@ -441,7 +441,7 @@ async fn db_lt_7(services: &Services) -> Result<()> {
 			current_state = HashSet::new();
 			current_sstatehash = Some(sstatehash);
 
-			let event_id = shorteventid_eventid.get(&seventid).unwrap().unwrap();
+			let event_id = shorteventid_eventid.get(&seventid).unwrap();
 			let string = utils::string_from_bytes(&event_id).unwrap();
 			let event_id = <&EventId>::try_from(string.as_str()).unwrap();
 			let pdu = services.rooms.timeline.get_pdu(event_id).unwrap().unwrap();
@@ -497,7 +497,6 @@ async fn db_lt_8(services: &Services) -> Result<()> {
 
 			let short_room_id = roomid_shortroomid
 				.get(room_id)
-				.unwrap()
 				.expect("shortroomid should exist");
 
 			let mut new_key = short_room_id.to_vec();
@@ -521,7 +520,6 @@ async fn db_lt_8(services: &Services) -> Result<()> {
 
 			let short_room_id = roomid_shortroomid
 				.get(room_id)
-				.unwrap()
 				.expect("shortroomid should exist");
 
 			let mut new_value = short_room_id.to_vec();
@@ -559,7 +557,6 @@ async fn db_lt_9(services: &Services) -> Result<()> {
 
 			let short_room_id = roomid_shortroomid
 				.get(room_id)
-				.unwrap()
 				.expect("shortroomid should exist");
 			let mut new_key = short_room_id.to_vec();
 			new_key.extend_from_slice(word);

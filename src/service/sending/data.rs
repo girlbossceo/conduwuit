@@ -138,7 +138,7 @@ impl Data {
 
 	pub fn get_latest_educount(&self, server_name: &ServerName) -> Result<u64> {
 		self.servername_educount
-			.get(server_name.as_bytes())?
+			.get(server_name.as_bytes())
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes).map_err(|_| Error::bad_database("Invalid u64 in servername_educount."))
 			})

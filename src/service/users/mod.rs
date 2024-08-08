@@ -119,7 +119,7 @@ impl Service {
 	/// Check if a user has an account on this homeserver.
 	#[inline]
 	pub fn exists(&self, user_id: &UserId) -> Result<bool> {
-		Ok(self.db.userid_password.get(user_id.as_bytes())?.is_some())
+		Ok(self.db.userid_password.get(user_id.as_bytes()).is_some())
 	}
 
 	/// Check if account is deactivated
@@ -127,7 +127,7 @@ impl Service {
 		Ok(self
 			.db
 			.userid_password
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "User does not exist."))?
 			.is_empty())
 	}
@@ -140,7 +140,7 @@ impl Service {
 	pub fn find_from_token(&self, token: &str) -> Result<Option<(OwnedUserId, String)>> {
 		self.db
 			.token_userdeviceid
-			.get(token.as_bytes())?
+			.get(token.as_bytes())
 			.map_or(Ok(None), |bytes| {
 				let mut parts = bytes.split(|&b| b == 0xFF);
 				let user_bytes = parts
@@ -192,7 +192,7 @@ impl Service {
 	pub fn password_hash(&self, user_id: &UserId) -> Result<Option<String>> {
 		self.db
 			.userid_password
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(None), |bytes| {
 				Ok(Some(utils::string_from_bytes(&bytes).map_err(|_| {
 					Error::bad_database("Password hash in db is not valid string.")
@@ -224,7 +224,7 @@ impl Service {
 	pub fn displayname(&self, user_id: &UserId) -> Result<Option<String>> {
 		self.db
 			.userid_displayname
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(None), |bytes| {
 				Ok(Some(
 					utils::string_from_bytes(&bytes)
@@ -251,7 +251,7 @@ impl Service {
 	pub fn avatar_url(&self, user_id: &UserId) -> Result<Option<OwnedMxcUri>> {
 		self.db
 			.userid_avatarurl
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map(|bytes| {
 				let s_bytes = utils::string_from_bytes(&bytes)
 					.map_err(|e| err!(Database(warn!("Avatar URL in db is invalid: {e}"))))?;
@@ -278,7 +278,7 @@ impl Service {
 	pub fn blurhash(&self, user_id: &UserId) -> Result<Option<String>> {
 		self.db
 			.userid_blurhash
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map(|bytes| {
 				utils::string_from_bytes(&bytes).map_err(|e| err!(Database("Avatar URL in db is invalid. {e}")))
 			})
@@ -339,7 +339,7 @@ impl Service {
 		userdeviceid.extend_from_slice(device_id.as_bytes());
 
 		// Remove tokens
-		if let Some(old_token) = self.db.userdeviceid_token.get(&userdeviceid)? {
+		if let Some(old_token) = self.db.userdeviceid_token.get(&userdeviceid) {
 			self.db.userdeviceid_token.remove(&userdeviceid)?;
 			self.db.token_userdeviceid.remove(&old_token)?;
 		}
@@ -390,14 +390,14 @@ impl Service {
 		userdeviceid.extend_from_slice(device_id.as_bytes());
 
 		// should not be None, but we shouldn't assert either lol...
-		if self.db.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
+		if self.db.userdeviceid_metadata.get(&userdeviceid).is_none() {
 			return Err!(Database(error!(
 				"User {user_id:?} does not exist or device ID {device_id:?} has no metadata."
 			)));
 		}
 
 		// Remove old token
-		if let Some(old_token) = self.db.userdeviceid_token.get(&userdeviceid)? {
+		if let Some(old_token) = self.db.userdeviceid_token.get(&userdeviceid) {
 			self.db.token_userdeviceid.remove(&old_token)?;
 			// It will be removed from userdeviceid_token by the insert later
 		}
@@ -424,7 +424,7 @@ impl Service {
 		// All devices have metadata
 		// Only existing devices should be able to call this, but we shouldn't assert
 		// either...
-		if self.db.userdeviceid_metadata.get(&key)?.is_none() {
+		if self.db.userdeviceid_metadata.get(&key).is_none() {
 			return Err!(Database(error!(
 				"User {user_id:?} does not exist or device ID {device_id:?} has no metadata."
 			)));
@@ -454,7 +454,7 @@ impl Service {
 	pub fn last_one_time_keys_update(&self, user_id: &UserId) -> Result<u64> {
 		self.db
 			.userid_lastonetimekeyupdate
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(0), |bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|e| err!(Database("Count in roomid_lastroomactiveupdate is invalid. {e}")))
@@ -641,7 +641,7 @@ impl Service {
 			&self
 				.db
 				.keyid_key
-				.get(&key)?
+				.get(&key)
 				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Tried to sign nonexistent key."))?,
 		)
 		.map_err(|e| err!(Database("key in keyid_key is invalid. {e}")))?;
@@ -751,7 +751,7 @@ impl Service {
 		key.push(0xFF);
 		key.extend_from_slice(device_id.as_bytes());
 
-		self.db.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
+		self.db.keyid_key.get(&key).map_or(Ok(None), |bytes| {
 			Ok(Some(
 				serde_json::from_slice(&bytes).map_err(|e| err!(Database("DeviceKeys in db are invalid. {e}")))?,
 			))
@@ -761,7 +761,7 @@ impl Service {
 	pub fn get_key(
 		&self, key: &[u8], sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &dyn Fn(&UserId) -> bool,
 	) -> Result<Option<Raw<CrossSigningKey>>> {
-		self.db.keyid_key.get(key)?.map_or(Ok(None), |bytes| {
+		self.db.keyid_key.get(key).map_or(Ok(None), |bytes| {
 			let mut cross_signing_key = serde_json::from_slice::<serde_json::Value>(&bytes)
 				.map_err(|e| err!(Database("CrossSigningKey in db is invalid. {e}")))?;
 			clean_signatures(&mut cross_signing_key, sender_user, user_id, allowed_signatures)?;
@@ -777,7 +777,7 @@ impl Service {
 	) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.db
 			.userid_masterkeyid
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(None), |key| self.get_key(&key, sender_user, user_id, allowed_signatures))
 	}
 
@@ -786,16 +786,16 @@ impl Service {
 	) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.db
 			.userid_selfsigningkeyid
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(None), |key| self.get_key(&key, sender_user, user_id, allowed_signatures))
 	}
 
 	pub fn get_user_signing_key(&self, user_id: &UserId) -> Result<Option<Raw<CrossSigningKey>>> {
 		self.db
 			.userid_usersigningkeyid
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(None), |key| {
-				self.db.keyid_key.get(&key)?.map_or(Ok(None), |bytes| {
+				self.db.keyid_key.get(&key).map_or(Ok(None), |bytes| {
 					Ok(Some(
 						serde_json::from_slice(&bytes)
 							.map_err(|e| err!(Database("CrossSigningKey in db is invalid. {e}")))?,
@@ -880,7 +880,7 @@ impl Service {
 
 		// Only existing devices should be able to call this, but we shouldn't assert
 		// either...
-		if self.db.userdeviceid_metadata.get(&userdeviceid)?.is_none() {
+		if self.db.userdeviceid_metadata.get(&userdeviceid).is_none() {
 			warn!(
 				"Called update_device_metadata for a non-existent user \"{}\" and/or device ID \"{}\" with no \
 				 metadata in database",
@@ -909,7 +909,7 @@ impl Service {
 
 		self.db
 			.userdeviceid_metadata
-			.get(&userdeviceid)?
+			.get(&userdeviceid)
 			.map_or(Ok(None), |bytes| {
 				Ok(Some(serde_json::from_slice(&bytes).map_err(|_| {
 					Error::bad_database("Metadata in userdeviceid_metadata is invalid.")
@@ -920,7 +920,7 @@ impl Service {
 	pub fn get_devicelist_version(&self, user_id: &UserId) -> Result<Option<u64>> {
 		self.db
 			.userid_devicelistversion
-			.get(user_id.as_bytes())?
+			.get(user_id.as_bytes())
 			.map_or(Ok(None), |bytes| {
 				utils::u64_from_bytes(&bytes)
 					.map_err(|e| err!(Database("Invalid devicelistversion in db. {e}")))
@@ -963,7 +963,7 @@ impl Service {
 		key.push(0xFF);
 		key.extend_from_slice(filter_id.as_bytes());
 
-		let raw = self.db.userfilterid_filter.get(&key)?;
+		let raw = self.db.userfilterid_filter.get(&key);
 
 		if let Some(raw) = raw {
 			serde_json::from_slice(&raw).map_err(|e| err!(Database("Invalid filter event in db. {e}")))
@@ -992,7 +992,7 @@ impl Service {
 
 	/// Find out which user an OpenID access token belongs to.
 	pub fn find_from_openid_token(&self, token: &str) -> Result<OwnedUserId> {
-		let Some(value) = self.db.openidtoken_expiresatuserid.get(token.as_bytes())? else {
+		let Some(value) = self.db.openidtoken_expiresatuserid.get(token.as_bytes()) else {
 			return Err(Error::BadRequest(ErrorKind::Unauthorized, "OpenID token is unrecognised"));
 		};
 
@@ -1087,7 +1087,7 @@ fn clean_signatures<F: Fn(&UserId) -> bool>(
 
 //TODO: this is an ABA
 fn increment(db: &Arc<Map>, key: &[u8]) -> Result<()> {
-	let old = db.get(key)?;
+	let old = db.get(key);
 	let new = utils::increment(old.as_deref());
 	db.insert(key, &new)?;
 	Ok(())

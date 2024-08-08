@@ -198,7 +198,7 @@ impl Data {
 	}
 
 	pub(super) fn get_url_preview(&self, url: &str) -> Option<UrlPreviewData> {
-		let values = self.url_previews.get(url.as_bytes()).ok()??;
+		let values = self.url_previews.get(url.as_bytes())?;
 
 		let mut values = values.split(|&b| b == 0xFF);
 

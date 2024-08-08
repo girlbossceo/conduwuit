@@ -77,7 +77,7 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
 
-		if self.backupid_algorithm.get(&key)?.is_none() {
+		if self.backupid_algorithm.get(&key).is_none() {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Tried to update nonexistent backup."));
 		}
 
@@ -141,12 +141,10 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
 
-		self.backupid_algorithm
-			.get(&key)?
-			.map_or(Ok(None), |bytes| {
-				serde_json::from_slice(&bytes)
-					.map_err(|_| Error::bad_database("Algorithm in backupid_algorithm is invalid."))
-			})
+		self.backupid_algorithm.get(&key).map_or(Ok(None), |bytes| {
+			serde_json::from_slice(&bytes)
+				.map_err(|_| Error::bad_database("Algorithm in backupid_algorithm is invalid."))
+		})
 	}
 
 	pub(super) fn add_key(
@@ -156,7 +154,7 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(version.as_bytes());
 
-		if self.backupid_algorithm.get(&key)?.is_none() {
+		if self.backupid_algorithm.get(&key).is_none() {
 			return Err(Error::BadRequest(ErrorKind::NotFound, "Tried to update nonexistent backup."));
 		}
 
@@ -190,7 +188,7 @@ impl Data {
 		Ok(utils::u64_from_bytes(
 			&self
 				.backupid_etag
-				.get(&key)?
+				.get(&key)
 				.ok_or_else(|| Error::bad_database("Backup has no etag."))?,
 		)
 		.map_err(|_| Error::bad_database("etag in backupid_etag invalid."))?
@@ -290,7 +288,7 @@ impl Data {
 		key.extend_from_slice(session_id.as_bytes());
 
 		self.backupkeyid_backup
-			.get(&key)?
+			.get(&key)
 			.map(|value| {
 				serde_json::from_slice(&value)
 					.map_err(|_| Error::bad_database("KeyBackupData in backupkeyid_backup is invalid."))
