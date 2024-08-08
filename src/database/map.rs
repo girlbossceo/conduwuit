@@ -1,13 +1,13 @@
 use std::{ffi::CStr, future::Future, mem::size_of, pin::Pin, sync::Arc};
 
-use conduit::{utils, Result};
+use conduit::Result;
 use rocksdb::{
 	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
 };
 
 use crate::{
 	or_else, result,
-	slice::{Byte, Key, KeyVal, OwnedKey, OwnedKeyValPair, OwnedVal, Val},
+	slice::{Key, KeyVal, OwnedKey, OwnedKeyValPair, OwnedVal, Val},
 	watchers::Watchers,
 	Engine, Handle, Iter,
 };
@@ -159,41 +159,6 @@ impl Map {
 		let mode = IteratorMode::From(&prefix, Direction::Forward);
 		let read_options = read_options_default();
 		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
-	}
-
-	#[tracing::instrument(skip(self), level = "trace")]
-	pub fn increment(&self, key: &Key) -> Result<[Byte; size_of::<u64>()]> {
-		let old = self.get(key)?;
-		let new = utils::increment(old.as_deref());
-		self.insert(key, &new)?;
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		Ok(new)
-	}
-
-	#[tracing::instrument(skip(self, iter), level = "trace")]
-	pub fn increment_batch<'a, I>(&'a self, iter: I) -> Result<()>
-	where
-		I: Iterator<Item = &'a Key>,
-	{
-		let mut batch = WriteBatchWithTransaction::<false>::default();
-		for key in iter {
-			let old = self.get(key)?;
-			let new = utils::increment(old.as_deref());
-			batch.put_cf(&self.cf(), key, new);
-		}
-
-		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		result(res)
 	}
 
 	pub fn watch_prefix<'a>(&'a self, prefix: &Key) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {

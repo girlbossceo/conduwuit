@@ -267,25 +267,22 @@ impl Data {
 	pub(super) fn increment_notification_counts(
 		&self, room_id: &RoomId, notifies: Vec<OwnedUserId>, highlights: Vec<OwnedUserId>,
 	) -> Result<()> {
-		let mut notifies_batch = Vec::new();
-		let mut highlights_batch = Vec::new();
+		let _cork = self.db.cork();
+
 		for user in notifies {
 			let mut userroom_id = user.as_bytes().to_vec();
 			userroom_id.push(0xFF);
 			userroom_id.extend_from_slice(room_id.as_bytes());
-			notifies_batch.push(userroom_id);
+			increment(&self.userroomid_notificationcount, &userroom_id)?;
 		}
+
 		for user in highlights {
 			let mut userroom_id = user.as_bytes().to_vec();
 			userroom_id.push(0xFF);
 			userroom_id.extend_from_slice(room_id.as_bytes());
-			highlights_batch.push(userroom_id);
+			increment(&self.userroomid_highlightcount, &userroom_id)?;
 		}
 
-		self.userroomid_notificationcount
-			.increment_batch(notifies_batch.iter().map(Vec::as_slice))?;
-		self.userroomid_highlightcount
-			.increment_batch(highlights_batch.iter().map(Vec::as_slice))?;
 		Ok(())
 	}
 
@@ -339,4 +336,12 @@ pub(super) fn pdu_count(pdu_id: &[u8]) -> Result<PduCount> {
 	} else {
 		Ok(PduCount::Normal(last_u64))
 	}
+}
+
+//TODO: this is an ABA
+fn increment(db: &Arc<Map>, key: &[u8]) -> Result<()> {
+	let old = db.get(key)?;
+	let new = utils::increment(old.as_deref());
+	db.insert(key, &new)?;
+	Ok(())
 }

@@ -314,9 +314,7 @@ impl Service {
 		userdeviceid.push(0xFF);
 		userdeviceid.extend_from_slice(device_id.as_bytes());
 
-		self.db
-			.userid_devicelistversion
-			.increment(user_id.as_bytes())?;
+		increment(&self.db.userid_devicelistversion, user_id.as_bytes())?;
 
 		self.db.userdeviceid_metadata.insert(
 			&userdeviceid,
@@ -356,9 +354,7 @@ impl Service {
 
 		// TODO: Remove onetimekeys
 
-		self.db
-			.userid_devicelistversion
-			.increment(user_id.as_bytes())?;
+		increment(&self.db.userid_devicelistversion, user_id.as_bytes())?;
 
 		self.db.userdeviceid_metadata.remove(&userdeviceid)?;
 
@@ -895,9 +891,7 @@ impl Service {
 			));
 		}
 
-		self.db
-			.userid_devicelistversion
-			.increment(user_id.as_bytes())?;
+		increment(&self.db.userid_devicelistversion, user_id.as_bytes())?;
 
 		self.db.userdeviceid_metadata.insert(
 			&userdeviceid,
@@ -1088,5 +1082,13 @@ fn clean_signatures<F: Fn(&UserId) -> bool>(
 		}
 	}
 
+	Ok(())
+}
+
+//TODO: this is an ABA
+fn increment(db: &Arc<Map>, key: &[u8]) -> Result<()> {
+	let old = db.get(key)?;
+	let new = utils::increment(old.as_deref());
+	db.insert(key, &new)?;
 	Ok(())
 }
