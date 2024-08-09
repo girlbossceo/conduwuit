@@ -13,4 +13,10 @@ macro_rules! defer {
 			closure: || $body,
 		};
 	};
+
+	($body:expr) => {
+		$crate::defer! {{
+			$body
+		}}
+	};
 }
