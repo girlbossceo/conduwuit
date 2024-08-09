@@ -257,6 +257,12 @@ pub(crate) async fn get_profile_route(
 pub async fn update_displayname(
 	services: &Services, user_id: OwnedUserId, displayname: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
+	let current_display_name = services.users.displayname(&user_id).unwrap_or_default();
+
+	if displayname == current_display_name {
+		return Ok(());
+	}
+
 	services
 		.users
 		.set_displayname(&user_id, displayname.clone())
@@ -305,6 +311,13 @@ pub async fn update_avatar_url(
 	services: &Services, user_id: OwnedUserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>,
 	all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
+	let current_avatar_url = services.users.avatar_url(&user_id).unwrap_or_default();
+	let current_blurhash = services.users.blurhash(&user_id).unwrap_or_default();
+
+	if current_avatar_url == avatar_url && current_blurhash == blurhash {
+		return Ok(());
+	}
+
 	services
 		.users
 		.set_avatar_url(&user_id, avatar_url.clone())
