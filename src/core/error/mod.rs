@@ -52,6 +52,8 @@ pub enum Error {
 	#[error("Join error: {0}")]
 	JoinError(#[from] tokio::task::JoinError),
 	#[error(transparent)]
+	Json(#[from] serde_json::Error),
+	#[error(transparent)]
 	Path(#[from] axum::extract::rejection::PathRejection),
 	#[error("Regex error: {0}")]
 	Regex(#[from] regex::Error),
