@@ -662,6 +662,12 @@ pub async fn join_room_by_id_helper(
 ) -> Result<join_room_by_id::v3::Response> {
 	let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
+	let user_is_guest = services.users.is_deactivated(sender_user).unwrap_or(false);
+
+	if matches!(services.rooms.state_accessor.guest_can_join(room_id), Ok(false)) && user_is_guest {
+		return Err!(Request(Forbidden("Guests are not allowed to join this room")));
+	}
+
 	if matches!(services.rooms.state_cache.is_joined(sender_user, room_id), Ok(true)) {
 		debug_warn!("{sender_user} is already joined in {room_id}");
 		return Ok(join_room_by_id::v3::Response {
