@@ -49,7 +49,12 @@ impl Engine {
 
 		let mut db_env = Env::new().or_else(or_else)?;
 		let row_cache = Cache::new_lru_cache(row_cache_capacity_bytes);
-		let db_opts = db_options(config, &mut db_env, &row_cache, col_cache.get("primary").expect("cache"))?;
+		let db_opts = db_options(
+			config,
+			&mut db_env,
+			&row_cache,
+			col_cache.get("primary").expect("primary cache exists"),
+		)?;
 
 		let load_time = std::time::Instant::now();
 		if config.rocksdb_repair {
@@ -178,7 +183,7 @@ impl Engine {
 			return Ok(());
 		}
 
-		let options = BackupEngineOptions::new(path.unwrap())?;
+		let options = BackupEngineOptions::new(path.expect("valid database backup path"))?;
 		let mut engine = BackupEngine::open(&options, &self.env)?;
 		if config.database_backups_to_keep > 0 {
 			if let Err(e) = engine.create_new_backup_flush(&self.db, true) {
@@ -186,7 +191,7 @@ impl Engine {
 			}
 
 			let engine_info = engine.get_backup_info();
-			let info = &engine_info.last().unwrap();
+			let info = &engine_info.last().expect("backup engine info is not empty");
 			info!(
 				"Created database backup #{} using {} bytes in {} files",
 				info.backup_id, info.size, info.num_files,
@@ -196,7 +201,7 @@ impl Engine {
 		if config.database_backups_to_keep >= 0 {
 			let keep = u32::try_from(config.database_backups_to_keep)?;
 			if let Err(e) = engine.purge_old_backups(keep.try_into()?) {
-				error!("Failed to purge old backup: {:?}", e.to_string());
+				error!("Failed to purge old backup: {e:?}");
 			}
 		}
 
@@ -213,7 +218,7 @@ impl Engine {
 		}
 
 		let mut res = String::new();
-		let options = BackupEngineOptions::new(path.expect("valid path")).or_else(or_else)?;
+		let options = BackupEngineOptions::new(path.expect("valid database backup path")).or_else(or_else)?;
 		let engine = BackupEngine::open(&options, &self.env).or_else(or_else)?;
 		for info in engine.get_backup_info() {
 			writeln!(

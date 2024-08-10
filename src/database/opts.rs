@@ -1,6 +1,6 @@
 use std::{cmp, collections::HashMap, convert::TryFrom};
 
-use conduit::{utils, Config, Result};
+use conduit::{err, utils, Config, Result};
 use rocksdb::{
 	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env,
 	LogLevel, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
@@ -125,7 +125,7 @@ pub(crate) fn cf_options(
 			cfg,
 			cache,
 			name,
-			cache_size(cfg, cfg.shorteventid_cache_capacity, 64),
+			cache_size(cfg, cfg.shorteventid_cache_capacity, 64)?,
 		),
 
 		"eventid_shorteventid" => set_table_with_new_cache(
@@ -133,11 +133,17 @@ pub(crate) fn cf_options(
 			cfg,
 			cache,
 			name,
-			cache_size(cfg, cfg.eventidshort_cache_capacity, 64),
+			cache_size(cfg, cfg.eventidshort_cache_capacity, 64)?,
 		),
 
 		"shorteventid_authchain" => {
-			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.auth_chain_cache_capacity, 192));
+			set_table_with_new_cache(
+				&mut opts,
+				cfg,
+				cache,
+				name,
+				cache_size(cfg, cfg.auth_chain_cache_capacity, 192)?,
+			);
 		},
 
 		"shortstatekey_statekey" => set_table_with_new_cache(
@@ -145,7 +151,7 @@ pub(crate) fn cf_options(
 			cfg,
 			cache,
 			name,
-			cache_size(cfg, cfg.shortstatekey_cache_capacity, 1024),
+			cache_size(cfg, cfg.shortstatekey_cache_capacity, 1024)?,
 		),
 
 		"statekey_shortstatekey" => set_table_with_new_cache(
@@ -153,11 +159,11 @@ pub(crate) fn cf_options(
 			cfg,
 			cache,
 			name,
-			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024),
+			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024)?,
 		),
 
 		"eventid_outlierpdu" => {
-			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.pdu_cache_capacity, 1536));
+			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.pdu_cache_capacity, 1536)?);
 		},
 
 		"pduid_pdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "eventid_outlierpdu"),
@@ -321,13 +327,13 @@ fn set_table_with_shared_cache(
 	opts.set_block_based_table_factory(&table);
 }
 
-fn cache_size(config: &Config, base_size: u32, entity_size: usize) -> usize {
+fn cache_size(config: &Config, base_size: u32, entity_size: usize) -> Result<usize> {
 	let ents = f64::from(base_size) * config.cache_capacity_modifier;
 
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	(ents as usize)
 		.checked_mul(entity_size)
-		.expect("cache capacity size is too large")
+		.ok_or_else(|| err!(Config("cache_capacity_modifier", "Cache size is too large.")))
 }
 
 fn table_options(_config: &Config) -> BlockBasedOptions {
