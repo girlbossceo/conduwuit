@@ -54,6 +54,10 @@ pub enum Error {
 	#[error(transparent)]
 	Json(#[from] serde_json::Error),
 	#[error(transparent)]
+	JsParseInt(#[from] ruma::JsParseIntError), // js_int re-export
+	#[error(transparent)]
+	JsTryFromInt(#[from] ruma::JsTryFromIntError), // js_int re-export
+	#[error(transparent)]
 	Path(#[from] axum::extract::rejection::PathRejection),
 	#[error("Regex error: {0}")]
 	Regex(#[from] regex::Error),
