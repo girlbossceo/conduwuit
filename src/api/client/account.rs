@@ -240,7 +240,7 @@ pub(crate) async fn register_route(
 
 	// If `new_user_displayname_suffix` is set, registration will push whatever
 	// content is set to the user's display name with a space before it
-	if !services.globals.new_user_displayname_suffix().is_empty() {
+	if !services.globals.new_user_displayname_suffix().is_empty() && body.appservice_info.is_none() {
 		write!(displayname, " {}", services.globals.config.new_user_displayname_suffix)
 			.expect("should be able to write to string buffer");
 	}
