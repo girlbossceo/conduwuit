@@ -194,6 +194,12 @@ impl Console {
 	}
 }
 
+/// Standalone/static markdown printer.
+pub fn print(markdown: &str) {
+	let output = configure_output(MadSkin::default_dark());
+	output.print_text(markdown);
+}
+
 fn configure_output(mut output: MadSkin) -> MadSkin {
 	use termimad::{crossterm::style::Color, Alignment, CompoundStyle, LineStyle};
 

@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{debug, error, error::default_log, pdu::PduBuilder, Err, Error, PduEvent, Result, Server};
+use conduit::{debug, error, error::default_log, info, pdu::PduBuilder, Err, Error, PduEvent, Result, Server};
 pub use create::create_admin_room;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -20,7 +20,10 @@ use ruma::{
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::sync::{Mutex, RwLock};
+use tokio::{
+	sync::{Mutex, RwLock},
+	time::{sleep, Duration},
+};
 
 use crate::{globals, rooms, rooms::state::RoomMutexGuard, Dep};
 
@@ -84,6 +87,8 @@ impl crate::Service for Service {
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		let receiver = self.receiver.lock().await;
 		let mut signals = self.services.server.signal.subscribe();
+
+		self.startup_execute().await;
 		self.console_auto_start().await;
 
 		loop {
@@ -354,6 +359,37 @@ impl Service {
 		} else {
 			false
 		}
+	}
+
+	/// Execute admin commands after startup
+	async fn startup_execute(&self) {
+		sleep(Duration::from_millis(500)).await; //TODO: remove this after run-states are broadcast
+		for (i, command) in self.services.server.config.admin_execute.iter().enumerate() {
+			self.startup_execute_command(i, command.clone()).await;
+			tokio::task::yield_now().await;
+		}
+	}
+
+	/// Execute one admin command after startup
+	async fn startup_execute_command(&self, i: usize, command: String) {
+		debug!("Startup command #{i}: executing {command:?}");
+
+		match self.command_in_place(command, None).await {
+			Err(e) => error!("Startup command #{i} failed: {e:?}"),
+			Ok(None) => info!("Startup command #{i} completed (no output)."),
+			Ok(Some(output)) => Self::startup_command_output(i, &output),
+		}
+	}
+
+	#[cfg(feature = "console")]
+	fn startup_command_output(i: usize, content: &RoomMessageEventContent) {
+		info!("Startup command #{i} completed:");
+		console::print(content.body());
+	}
+
+	#[cfg(not(feature = "console"))]
+	fn startup_command_output(i: usize, content: &RoomMessageEventContent) {
+		info!("Startup command #{i} completed:\n{:#?}", content.body());
 	}
 
 	/// Possibly spawn the terminal console at startup if configured.
