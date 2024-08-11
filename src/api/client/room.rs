@@ -1,7 +1,7 @@
 use std::{cmp::max, collections::BTreeMap};
 
 use axum::extract::State;
-use conduit::{debug_info, debug_warn};
+use conduit::{debug_info, debug_warn, err};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -475,10 +475,7 @@ pub(crate) async fn get_room_event_route(
 		.rooms
 		.timeline
 		.get_pdu(&body.event_id)?
-		.ok_or_else(|| {
-			warn!("Event not found, event ID: {:?}", &body.event_id);
-			Error::BadRequest(ErrorKind::NotFound, "Event not found.")
-		})?;
+		.ok_or_else(|| err!(Request(NotFound("Event {} not found.", &body.event_id))))?;
 
 	if !services
 		.rooms
