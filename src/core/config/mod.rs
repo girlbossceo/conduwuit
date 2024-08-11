@@ -334,6 +334,8 @@ pub struct Config {
 	pub admin_escape_commands: bool,
 	#[serde(default)]
 	pub admin_console_automatic: bool,
+	#[serde(default)]
+	pub admin_execute: Vec<String>,
 
 	#[serde(default)]
 	pub sentry: bool,
@@ -592,6 +594,7 @@ impl fmt::Display for Config {
 			"Activate admin console after startup",
 			&self.admin_console_automatic.to_string(),
 		);
+		line("Execute admin commands after startup", &self.admin_execute.join(", "));
 		line("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string());
 		line("Allow incoming federated typing", &self.allow_incoming_typing.to_string());
 		line(
