@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use conduit::{debug, debug_info, utils::string_from_bytes, Error, Result};
 use database::{Database, Map};
-use ruma::api::client::error::ErrorKind;
+use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition};
 
 use super::preview::UrlPreviewData;
 
@@ -14,7 +14,7 @@ pub(crate) struct Data {
 
 #[derive(Debug)]
 pub(super) struct Metadata {
-	pub(super) content_disposition: Option<String>,
+	pub(super) content_disposition: Option<ContentDisposition>,
 	pub(super) content_type: Option<String>,
 	pub(super) key: Vec<u8>,
 }
@@ -29,8 +29,8 @@ impl Data {
 	}
 
 	pub(super) fn create_file_metadata(
-		&self, sender_user: Option<&str>, mxc: &str, width: u32, height: u32, content_disposition: Option<&str>,
-		content_type: Option<&str>,
+		&self, sender_user: Option<&str>, mxc: &str, width: u32, height: u32,
+		content_disposition: Option<&ContentDisposition>, content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
 		let mut key = mxc.as_bytes().to_vec();
 		key.push(0xFF);
@@ -39,9 +39,9 @@ impl Data {
 		key.push(0xFF);
 		key.extend_from_slice(
 			content_disposition
-				.as_ref()
-				.map(|f| f.as_bytes())
-				.unwrap_or_default(),
+				.map(ToString::to_string)
+				.unwrap_or_default()
+				.as_bytes(),
 		);
 		key.push(0xFF);
 		key.extend_from_slice(
@@ -143,7 +143,8 @@ impl Data {
 		} else {
 			Some(
 				string_from_bytes(content_disposition_bytes)
-					.map_err(|_| Error::bad_database("Content Disposition in mediaid_file is invalid unicode."))?,
+					.map_err(|_| Error::bad_database("Content Disposition in mediaid_file is invalid unicode."))?
+					.parse()?,
 			)
 		};
 

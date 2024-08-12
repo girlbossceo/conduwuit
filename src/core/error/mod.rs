@@ -87,6 +87,8 @@ pub enum Error {
 	Config(&'static str, Cow<'static, str>),
 	#[error("{0}")]
 	Conflict(&'static str), // This is only needed for when a room alias already exists
+	#[error(transparent)]
+	ContentDisposition(#[from] ruma::http_headers::ContentDispositionParseError),
 	#[error("{0}")]
 	Database(Cow<'static, str>),
 	#[error("Remote server {0} responded with: {1}")]
