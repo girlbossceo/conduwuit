@@ -1,4 +1,5 @@
 use std::{
+	fmt::Write,
 	panic::AssertUnwindSafe,
 	sync::{Arc, Mutex},
 	time::SystemTime,
@@ -109,10 +110,21 @@ async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) 
 		"command processed"
 	);
 
+	let mut output = String::new();
+
+	// Prepend the logs only if any were captured
 	let logs = logs.lock().expect("locked");
-	let output = match result {
-		Err(error) => format!("{logs}\nEncountered an error while handling the command:\n```\n{error:#?}\n```"),
-		Ok(reply) => format!("{logs}\n{}", reply.body()), //TODO: content is recreated to add logs
+	if logs.lines().count() > 2 {
+		writeln!(&mut output, "{logs}").expect("failed to format logs to command output");
+	}
+	drop(logs);
+
+	match result {
+		Ok(content) => {
+			write!(&mut output, "{}", content.body()).expect("failed to format command result to output");
+		},
+		Err(error) => write!(&mut output, "Command failed with error:\n```\n{error:#?}\n```")
+			.expect("failed to format error to command output"),
 	};
 
 	Some(RoomMessageEventContent::notice_markdown(output))
