@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, debug_error, err, error, trace, utils, utils::MutexMap, Err, Result, Server};
 use data::{Data, Metadata};
-use ruma::{OwnedMxcUri, OwnedUserId};
+use ruma::{http_headers::ContentDisposition, OwnedMxcUri, OwnedUserId};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
@@ -21,7 +21,7 @@ use crate::{client, globals, Dep};
 pub struct FileMeta {
 	pub content: Option<Vec<u8>>,
 	pub content_type: Option<String>,
-	pub content_disposition: Option<String>,
+	pub content_disposition: Option<ContentDisposition>,
 }
 
 pub struct Service {
@@ -65,7 +65,7 @@ impl crate::Service for Service {
 impl Service {
 	/// Uploads a file.
 	pub async fn create(
-		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,
+		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&ContentDisposition>,
 		content_type: Option<&str>, file: &[u8],
 	) -> Result<()> {
 		// Width, Height = 0 if it's not a thumbnail

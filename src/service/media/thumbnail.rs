@@ -2,7 +2,7 @@ use std::{cmp, io::Cursor, num::Saturating as Sat};
 
 use conduit::{checked, Result};
 use image::{imageops::FilterType, DynamicImage};
-use ruma::OwnedUserId;
+use ruma::{http_headers::ContentDisposition, OwnedUserId};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt},
@@ -14,7 +14,7 @@ impl super::Service {
 	/// Uploads or replaces a file thumbnail.
 	#[allow(clippy::too_many_arguments)]
 	pub async fn upload_thumbnail(
-		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&str>,
+		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&ContentDisposition>,
 		content_type: Option<&str>, width: u32, height: u32, file: &[u8],
 	) -> Result<()> {
 		let key = if let Some(user) = sender_user {
@@ -104,7 +104,7 @@ impl super::Service {
 			mxc,
 			width,
 			height,
-			data.content_disposition.as_deref(),
+			data.content_disposition.as_ref(),
 			data.content_type.as_deref(),
 		)?;
 
