@@ -19,7 +19,7 @@ license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.80.0"
+rust-version = "1.80.1"
 version = "0.4.6"
 
 [workspace.metadata.crane]
