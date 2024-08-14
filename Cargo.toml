@@ -69,7 +69,7 @@ version = "0.8.5"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 [workspace.dependencies.bytes]
-version = "1.6.1"
+version = "1.7.1"
 
 [workspace.dependencies.http-body-util]
 version = "0.1.1"
@@ -78,7 +78,7 @@ version = "0.1.1"
 version = "1.1.0"
 
 [workspace.dependencies.regex]
-version = "1.10.4"
+version = "1.10.6"
 
 [workspace.dependencies.axum]
 version = "0.7.5"
@@ -99,7 +99,7 @@ default-features = false
 features = ["typed-header", "tracing"]
 
 [workspace.dependencies.axum-server]
-version = "0.6.0"
+version = "0.7.1"
 default-features = false
 features = ["tls-rustls"]
 
@@ -107,7 +107,7 @@ features = ["tls-rustls"]
 version = "0.6.0"
 
 [workspace.dependencies.tower]
-version = "0.4.13"
+version = "0.5.0"
 default-features = false
 features = ["util"]
 
@@ -140,7 +140,7 @@ default-features = false
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
-version = "1.0.121"
+version = "1.0.124"
 default-features = false
 features = ["raw_value"]
 
@@ -193,7 +193,7 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.9"
+version = "4.5.15"
 default-features = false
 features = [
 	"std",
@@ -307,7 +307,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "c76e2873c1593a3308d4ba3e0e4a1db65acf8536"
+rev = "11cbd52af1039f3d4a0b96333acd1d1687ba01aa"
 features = [
     "compat",
     "rand",
@@ -431,11 +431,11 @@ features = [
 ]
 
 [workspace.dependencies.rustyline-async]
-version = "0.4.2"
+version = "0.4.3"
 default-features = false
 
 [workspace.dependencies.termimad]
-version = "0.29.4"
+version = "0.30.0"
 default-features = false
 
 [workspace.dependencies.checked_ops]
@@ -473,17 +473,11 @@ rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 git = "https://github.com/girlbossceo/tracing"
 rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 
-# fixes hyper graceful shutdowns [https://github.com/programatik29/axum-server/issues/114]
-# https://github.com/girlbossceo/axum-server/commit/8e3368d899079818934e61cc9c839abcbbcada8a
-[patch.crates-io.axum-server]
-git = "https://github.com/girlbossceo/axum-server"
-rev = "8e3368d899079818934e61cc9c839abcbbcada8a"
-
 # adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
 # adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
 [patch.crates-io.rustyline-async]
 git = "https://github.com/girlbossceo/rustyline-async"
-rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
+rev = "9654cc84e19241f6e19021eb8e677892656f5071"
 
 #
 # Our crates
