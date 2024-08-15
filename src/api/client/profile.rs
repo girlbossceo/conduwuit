@@ -295,6 +295,7 @@ pub async fn update_displayname(
 					unsigned: None,
 					state_key: Some(user_id.to_string()),
 					redacts: None,
+					timestamp: None,
 				},
 				room_id,
 			))
@@ -355,6 +356,7 @@ pub async fn update_avatar_url(
 					unsigned: None,
 					state_key: Some(user_id.to_string()),
 					redacts: None,
+					timestamp: None,
 				},
 				room_id,
 			))

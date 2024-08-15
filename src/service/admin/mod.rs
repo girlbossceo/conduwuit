@@ -260,6 +260,7 @@ impl Service {
 			unsigned: None,
 			state_key: None,
 			redacts: None,
+			timestamp: None,
 		};
 
 		if let Err(e) = self
@@ -289,6 +290,7 @@ impl Service {
 			unsigned: None,
 			state_key: None,
 			redacts: None,
+			timestamp: None,
 		};
 
 		self.services

@@ -34,6 +34,7 @@ pub(crate) async fn redact_event_route(
 				unsigned: None,
 				state_key: None,
 				redacts: Some(body.event_id.into()),
+				timestamp: None,
 			},
 			sender_user,
 			&body.room_id,
