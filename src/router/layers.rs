@@ -16,9 +16,9 @@ use tower::ServiceBuilder;
 use tower_http::{
 	catch_panic::CatchPanicLayer,
 	cors::{self, CorsLayer},
+	sensitive_headers::SetSensitiveHeadersLayer,
 	set_header::SetResponseHeaderLayer,
 	trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
-	ServiceBuilderExt as _,
 };
 use tracing::Level;
 
@@ -47,7 +47,7 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 	let layers = layers.layer(compression_layer(server));
 
 	let layers = layers
-		.sensitive_headers([header::AUTHORIZATION])
+		.layer(SetSensitiveHeadersLayer::new([header::AUTHORIZATION]))
 		.layer(axum::middleware::from_fn_with_state(Arc::clone(services), request::spawn))
 		.layer(
 			TraceLayer::new_for_http()

@@ -41,13 +41,9 @@ brotli_compression = [
 systemd = [
 	"dep:sd-notify",
 ]
-axum_dual_protocol = [
-	"dep:axum-server-dual-protocol"
-]
 
 [dependencies]
 axum-client-ip.workspace = true
-axum-server-dual-protocol.optional = true
 axum-server-dual-protocol.workspace = true
 axum-server.workspace = true
 axum.workspace = true

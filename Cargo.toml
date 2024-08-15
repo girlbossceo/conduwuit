@@ -103,6 +103,10 @@ version = "0.7.1"
 default-features = false
 features = ["tls-rustls"]
 
+# to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
+[workspace.dependencies.axum-server-dual-protocol]
+version = "0.7"
+
 [workspace.dependencies.axum-client-ip]
 version = "0.6.0"
 
@@ -307,7 +311,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "40bf9965ac30118d2f85547f2ce6b7463025841a"
+rev = "d23a8412bd8f875cf81bbd7e20cefa03263fcd0e"
 features = [
     "compat",
     "rand",
@@ -346,10 +350,6 @@ features = [
 	"zlib",
 	"bzip2",
 ]
-
-# to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
-[workspace.dependencies.axum-server-dual-protocol]
-version = "0.6"
 
 # optional SHA256 media keys feature
 [workspace.dependencies.sha2]
