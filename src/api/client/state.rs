@@ -43,6 +43,11 @@ pub(crate) async fn send_state_event_for_key_route(
 			&body.event_type,
 			&body.body.body,
 			body.state_key.clone(),
+			if body.appservice_info.is_some() {
+				body.timestamp
+			} else {
+				None
+			},
 		)
 		.await?
 		.into(),
@@ -172,7 +177,7 @@ pub(crate) async fn get_state_events_for_empty_key_route(
 
 async fn send_state_event_for_key_helper(
 	services: &Services, sender: &UserId, room_id: &RoomId, event_type: &StateEventType,
-	json: &Raw<AnyStateEventContent>, state_key: String,
+	json: &Raw<AnyStateEventContent>, state_key: String, timestamp: Option<ruma::MilliSecondsSinceUnixEpoch>,
 ) -> Result<Arc<EventId>> {
 	allowed_to_send_state_event(services, room_id, event_type, json).await?;
 	let state_lock = services.rooms.state.mutex.lock(room_id).await;
@@ -186,6 +191,7 @@ async fn send_state_event_for_key_helper(
 				unsigned: None,
 				state_key: Some(state_key),
 				redacts: None,
+				timestamp,
 			},
 			sender,
 			room_id,
