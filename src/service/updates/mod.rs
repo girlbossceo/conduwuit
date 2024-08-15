@@ -1,13 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduit::{err, info, utils, warn, Error, Result};
+use conduit::{debug, err, info, utils, warn, Error, Result};
 use database::Map;
 use ruma::events::room::message::RoomMessageEventContent;
 use serde::Deserialize;
 use tokio::{sync::Notify, time::interval};
 
-use crate::{admin, client, Dep};
+use crate::{admin, client, globals, Dep};
 
 pub struct Service {
 	services: Services,
@@ -19,6 +19,7 @@ pub struct Service {
 struct Services {
 	admin: Dep<admin::Service>,
 	client: Dep<client::Service>,
+	globals: Dep<globals::Service>,
 }
 
 #[derive(Deserialize)]
@@ -42,6 +43,7 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
 			services: Services {
+				globals: args.depend::<globals::Service>("globals"),
 				admin: args.depend::<admin::Service>("admin"),
 				client: args.depend::<client::Service>("client"),
 			},
@@ -52,6 +54,10 @@ impl crate::Service for Service {
 	}
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
+		if !self.services.globals.allow_check_for_updates() {
+			debug!("Disabling update check");
+			return Ok(());
+		}
 		let mut i = interval(self.interval);
 		loop {
 			tokio::select! {
