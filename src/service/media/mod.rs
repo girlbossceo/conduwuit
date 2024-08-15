@@ -1,5 +1,6 @@
 mod data;
 mod preview;
+mod remote;
 mod tests;
 mod thumbnail;
 
@@ -15,7 +16,7 @@ use tokio::{
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
 };
 
-use crate::{client, globals, Dep};
+use crate::{client, globals, sending, Dep};
 
 #[derive(Debug)]
 pub struct FileMeta {
@@ -34,6 +35,7 @@ struct Services {
 	server: Arc<Server>,
 	client: Dep<client::Service>,
 	globals: Dep<globals::Service>,
+	sending: Dep<sending::Service>,
 }
 
 /// generated MXC ID (`media-id`) length
@@ -49,6 +51,7 @@ impl crate::Service for Service {
 				server: args.server.clone(),
 				client: args.depend::<client::Service>("client"),
 				globals: args.depend::<globals::Service>("globals"),
+				sending: args.depend::<sending::Service>("sending"),
 			},
 		}))
 	}

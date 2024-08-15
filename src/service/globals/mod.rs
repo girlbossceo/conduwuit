@@ -248,8 +248,6 @@ impl Service {
 
 	pub fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
 
-	pub fn prevent_media_downloads_from(&self) -> &[OwnedServerName] { &self.config.prevent_media_downloads_from }
-
 	pub fn forbidden_remote_room_directory_server_names(&self) -> &[OwnedServerName] {
 		&self.config.forbidden_remote_room_directory_server_names
 	}
