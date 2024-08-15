@@ -48,9 +48,6 @@ default = [
 	"zstd_compression",
 ]
 
-axum_dual_protocol = [
-	"conduit-router/axum_dual_protocol",
-]
 brotli_compression = [
 	"conduit-api/brotli_compression",
 	"conduit-core/brotli_compression",

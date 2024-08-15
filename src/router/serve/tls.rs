@@ -1,9 +1,11 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::Router;
-use axum_server::{bind_rustls, tls_rustls::RustlsConfig, Handle as ServerHandle};
-#[cfg(feature = "axum_dual_protocol")]
-use axum_server_dual_protocol::ServerExt;
+use axum_server::Handle as ServerHandle;
+use axum_server_dual_protocol::{
+	axum_server::{bind_rustls, tls_rustls::RustlsConfig},
+	ServerExt,
+};
 use conduit::{Result, Server};
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
@@ -13,27 +15,18 @@ pub(super) async fn serve(
 ) -> Result<()> {
 	let config = &server.config;
 	let tls = config.tls.as_ref().expect("TLS configuration");
+	let certs = &tls.certs;
+	let key = &tls.key;
 
-	debug!(
-		"Using direct TLS. Certificate path {} and certificate private key path {}",
-		&tls.certs, &tls.key
-	);
+	debug!("Using direct TLS. Certificate path {certs} and certificate private key path {key}",);
 	info!(
 		"Note: It is strongly recommended that you use a reverse proxy instead of running conduwuit directly with TLS."
 	);
-	let conf = RustlsConfig::from_pem_file(&tls.certs, &tls.key).await?;
-
-	if cfg!(feature = "axum_dual_protocol") {
-		info!(
-			"conduwuit was built with axum_dual_protocol feature to listen on both HTTP and HTTPS. This will only \
-			 take effect if `dual_protocol` is enabled in `[global.tls]`"
-		);
-	}
+	let conf = RustlsConfig::from_pem_file(certs, key).await?;
 
 	let mut join_set = JoinSet::new();
 	let app = app.into_make_service_with_connect_info::<SocketAddr>();
-	if cfg!(feature = "axum_dual_protocol") && tls.dual_protocol {
-		#[cfg(feature = "axum_dual_protocol")]
+	if tls.dual_protocol {
 		for addr in &addrs {
 			join_set.spawn_on(
 				axum_server_dual_protocol::bind_dual_protocol(*addr, conf.clone())
@@ -54,13 +47,13 @@ pub(super) async fn serve(
 		}
 	}
 
-	if cfg!(feature = "axum_dual_protocol") && tls.dual_protocol {
+	if tls.dual_protocol {
 		warn!(
-			"Listening on {:?} with TLS certificate {} and supporting plain text (HTTP) connections too (insecure!)",
-			addrs, &tls.certs
+			"Listening on {addrs:?} with TLS certificate {certs} and supporting plain text (HTTP) connections too \
+			 (insecure!)",
 		);
 	} else {
-		info!("Listening on {:?} with TLS certificate {}", addrs, &tls.certs);
+		info!("Listening on {addrs:?} with TLS certificate {certs}");
 	}
 
 	while join_set.join_next().await.is_some() {}

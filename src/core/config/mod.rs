@@ -368,8 +368,6 @@ pub struct TlsConfig {
 	pub key: String,
 	#[serde(default)]
 	/// Whether to listen and allow for HTTP and HTTPS connections (insecure!)
-	/// Only works / does something if the `axum_dual_protocol` feature flag was
-	/// built
 	pub dual_protocol: bool,
 }
 
