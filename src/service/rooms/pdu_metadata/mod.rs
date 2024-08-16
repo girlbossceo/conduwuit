@@ -85,8 +85,6 @@ impl Service {
 			.unwrap_or(10)
 			.min(100);
 
-		let next_token;
-
 		// Spec (v1.10) recommends depth of at least 3
 		let depth: u8 = if recurse {
 			3
@@ -94,10 +92,8 @@ impl Service {
 			1
 		};
 
-		match dir {
-			Direction::Forward => {
-				let relations_until = &self.relations_until(sender_user, room_id, target, from, depth)?;
-				let events_after: Vec<_> = relations_until // TODO: should be relations_after
+		let relations_until = &self.relations_until(sender_user, room_id, target, from, depth)?;
+		let events: Vec<_> = relations_until // TODO: should be relations_after
                     .iter()
                     .filter(|(_, pdu)| {
 							filter_event_type.as_ref().map_or(true, |t| &pdu.kind == t)
@@ -121,70 +117,30 @@ impl Service {
                     .take_while(|(k, _)| Some(k) != to.as_ref()) // Stop at `to`
 					.collect();
 
-				next_token = events_after.last().map(|(count, _)| count).copied();
+		let next_token = events.last().map(|(count, _)| count).copied();
 
-				let events_after: Vec<_> = events_after
+		let events_chunk: Vec<_> = match dir {
+			Direction::Forward => events
+				.into_iter()
+				.map(|(_, pdu)| pdu.to_message_like_event())
+				.collect(),
+			Direction::Backward => events
 					.into_iter()
 					.rev() // relations are always most recent first
 					.map(|(_, pdu)| pdu.to_message_like_event())
-					.collect();
+				.collect(),
+		};
 
-				Ok(get_relating_events::v1::Response {
-					chunk: events_after,
-					next_batch: next_token.map(|t| t.stringify()),
-					prev_batch: Some(from.stringify()),
-					recursion_depth: if recurse {
-						Some(depth.into())
-					} else {
-						None
-					},
-				})
+		Ok(get_relating_events::v1::Response {
+			chunk: events_chunk,
+			next_batch: next_token.map(|t| t.stringify()),
+			prev_batch: Some(from.stringify()),
+			recursion_depth: if recurse {
+				Some(depth.into())
+			} else {
+				None
 			},
-			Direction::Backward => {
-				let relations_until = &self.relations_until(sender_user, room_id, target, from, depth)?;
-				let events_before: Vec<_> = relations_until
-                    .iter()
-                    .filter(|(_, pdu)| {
-							filter_event_type.as_ref().map_or(true, |t| &pdu.kind == t)
-								&& if let Ok(content) =
-                                serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get())
-								{
-									filter_rel_type
-										.as_ref()
-										.map_or(true, |r| &content.relates_to.rel_type == r)
-								} else {
-									false
-								}
-						})
-					.take(limit)
-					.filter(|(_, pdu)| {
-						self.services
-							.state_accessor
-							.user_can_see_event(sender_user, room_id, &pdu.event_id)
-							.unwrap_or(false)
-					})
-                    .take_while(|&(k, _)| Some(k) != to.as_ref()) // Stop at `to`
-					.collect();
-
-				next_token = events_before.last().map(|(count, _)| count).copied();
-
-				let events_before: Vec<_> = events_before
-					.into_iter()
-					.map(|(_, pdu)| pdu.to_message_like_event())
-					.collect();
-
-				Ok(get_relating_events::v1::Response {
-					chunk: events_before,
-					next_batch: next_token.map(|t| t.stringify()),
-					prev_batch: Some(from.stringify()),
-					recursion_depth: if recurse {
-						Some(depth.into())
-					} else {
-						None
-					},
-				})
-			},
-		}
+		})
 	}
 
 	pub fn relations_until<'a>(
