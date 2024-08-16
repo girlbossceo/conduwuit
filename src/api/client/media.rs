@@ -7,8 +7,12 @@ use conduit::{
 	utils::{self, content_disposition::make_content_disposition, math::ruma_from_usize},
 	Err, Result,
 };
-use ruma::api::client::media::{
-	create_content, get_content, get_content_as_filename, get_content_thumbnail, get_media_config, get_media_preview,
+use ruma::{
+	api::client::media::{
+		create_content, get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
+		get_media_preview,
+	},
+	Mxc,
 };
 use service::media::{FileMeta, MXC_LENGTH};
 
@@ -106,16 +110,17 @@ pub(crate) async fn create_content_route(
 	body: Ruma<create_content::v3::Request>,
 ) -> Result<create_content::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	let mxc = format!("mxc://{}/{}", services.globals.server_name(), utils::random_string(MXC_LENGTH));
-
 	let content_disposition = make_content_disposition(None, body.content_type.as_deref(), body.filename.as_deref());
+	let mxc = Mxc {
+		server_name: services.globals.server_name(),
+		media_id: &utils::random_string(MXC_LENGTH),
+	};
 
 	services
 		.media
 		.create(
-			Some(sender_user.clone()),
 			&mxc,
+			Some(sender_user),
 			Some(&content_disposition),
 			body.content_type.as_deref(),
 			&body.file,
@@ -123,7 +128,7 @@ pub(crate) async fn create_content_route(
 		.await?;
 
 	Ok(create_content::v3::Response {
-		content_uri: mxc.into(),
+		content_uri: mxc.to_string().into(),
 		blurhash: None,
 	})
 }
@@ -161,7 +166,10 @@ pub(crate) async fn get_content_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content::v3::Request>,
 ) -> Result<get_content::v3::Response> {
-	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+	let mxc = Mxc {
+		server_name: &body.server_name,
+		media_id: &body.media_id,
+	};
 
 	if let Some(FileMeta {
 		content,
@@ -181,13 +189,7 @@ pub(crate) async fn get_content_route(
 	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
 		let response = services
 			.media
-			.fetch_remote_content(
-				&mxc,
-				&body.server_name,
-				body.media_id.clone(),
-				body.allow_redirect,
-				body.timeout_ms,
-			)
+			.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
 			.await
 			.map_err(|e| err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}")))))?;
 
@@ -241,7 +243,10 @@ pub(crate) async fn get_content_as_filename_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<get_content_as_filename::v3::Response> {
-	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+	let mxc = Mxc {
+		server_name: &body.server_name,
+		media_id: &body.media_id,
+	};
 
 	if let Some(FileMeta {
 		content,
@@ -262,13 +267,7 @@ pub(crate) async fn get_content_as_filename_route(
 	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
 		let response = services
 			.media
-			.fetch_remote_content(
-				&mxc,
-				&body.server_name,
-				body.media_id.clone(),
-				body.allow_redirect,
-				body.timeout_ms,
-			)
+			.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
 			.await
 			.map_err(|e| err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}")))))?;
 
@@ -322,7 +321,10 @@ pub(crate) async fn get_content_thumbnail_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<get_content_thumbnail::v3::Response> {
-	let mxc = format!("mxc://{}/{}", body.server_name, body.media_id);
+	let mxc = Mxc {
+		server_name: &body.server_name,
+		media_id: &body.media_id,
+	};
 
 	if let Some(FileMeta {
 		content,
@@ -353,7 +355,7 @@ pub(crate) async fn get_content_thumbnail_route(
 	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
 		let response = services
 			.media
-			.fetch_remote_thumbnail(&mxc, &body)
+			.fetch_remote_thumbnail_legacy(&body)
 			.await
 			.map_err(|e| err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}")))))?;
 

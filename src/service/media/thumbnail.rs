@@ -2,7 +2,7 @@ use std::{cmp, io::Cursor, num::Saturating as Sat};
 
 use conduit::{checked, Result};
 use image::{imageops::FilterType, DynamicImage};
-use ruma::{http_headers::ContentDisposition, OwnedUserId};
+use ruma::{http_headers::ContentDisposition, Mxc, UserId};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt},
@@ -14,16 +14,12 @@ impl super::Service {
 	/// Uploads or replaces a file thumbnail.
 	#[allow(clippy::too_many_arguments)]
 	pub async fn upload_thumbnail(
-		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&ContentDisposition>,
+		&self, mxc: &Mxc<'_>, user: Option<&UserId>, content_disposition: Option<&ContentDisposition>,
 		content_type: Option<&str>, width: u32, height: u32, file: &[u8],
 	) -> Result<()> {
-		let key = if let Some(user) = sender_user {
-			self.db
-				.create_file_metadata(Some(user.as_str()), mxc, width, height, content_disposition, content_type)?
-		} else {
-			self.db
-				.create_file_metadata(None, mxc, width, height, content_disposition, content_type)?
-		};
+		let key = self
+			.db
+			.create_file_metadata(mxc, user, width, height, content_disposition, content_type)?;
 
 		//TODO: Dangling metadata in database if creation fails
 		let mut f = self.create_media_file(&key).await?;
@@ -46,7 +42,7 @@ impl super::Service {
 	/// For width,height <= 96 the server uses another thumbnailing algorithm
 	/// which crops the image afterwards.
 	#[tracing::instrument(skip(self), name = "thumbnail", level = "debug")]
-	pub async fn get_thumbnail(&self, mxc: &str, width: u32, height: u32) -> Result<Option<FileMeta>> {
+	pub async fn get_thumbnail(&self, mxc: &Mxc<'_>, width: u32, height: u32) -> Result<Option<FileMeta>> {
 		// 0, 0 because that's the original file
 		let (width, height, crop) = thumbnail_properties(width, height).unwrap_or((0, 0, false));
 
@@ -76,7 +72,7 @@ impl super::Service {
 	/// Generate a thumbnail
 	#[tracing::instrument(skip(self), name = "generate", level = "debug")]
 	async fn get_thumbnail_generate(
-		&self, mxc: &str, width: u32, height: u32, crop: bool, data: Metadata,
+		&self, mxc: &Mxc<'_>, width: u32, height: u32, crop: bool, data: Metadata,
 	) -> Result<Option<FileMeta>> {
 		let mut content = Vec::new();
 		let path = self.get_media_file(&data.key);
@@ -100,8 +96,8 @@ impl super::Service {
 
 		// Save thumbnail in database so we don't have to generate it again next time
 		let thumbnail_key = self.db.create_file_metadata(
-			None,
 			mxc,
+			None,
 			width,
 			height,
 			data.content_disposition.as_ref(),

@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
-use conduit::{debug, debug_info, utils::string_from_bytes, Error, Result};
+use conduit::{
+	debug, debug_info, trace,
+	utils::{str_from_bytes, string_from_bytes},
+	Err, Error, Result,
+};
 use database::{Database, Map};
-use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition};
+use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition, Mxc, UserId};
 
 use super::preview::UrlPreviewData;
 
@@ -29,10 +33,12 @@ impl Data {
 	}
 
 	pub(super) fn create_file_metadata(
-		&self, sender_user: Option<&str>, mxc: &str, width: u32, height: u32,
+		&self, mxc: &Mxc<'_>, user: Option<&UserId>, width: u32, height: u32,
 		content_disposition: Option<&ContentDisposition>, content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
-		let mut key = mxc.as_bytes().to_vec();
+		let mut key: Vec<u8> = Vec::new();
+		key.extend_from_slice(mxc.server_name.as_bytes());
+		key.extend_from_slice(mxc.media_id.as_bytes());
 		key.push(0xFF);
 		key.extend_from_slice(&width.to_be_bytes());
 		key.extend_from_slice(&height.to_be_bytes());
@@ -53,8 +59,10 @@ impl Data {
 
 		self.mediaid_file.insert(&key, &[])?;
 
-		if let Some(user) = sender_user {
-			let key = mxc.as_bytes().to_vec();
+		if let Some(user) = user {
+			let mut key: Vec<u8> = Vec::new();
+			key.extend_from_slice(mxc.server_name.as_bytes());
+			key.extend_from_slice(mxc.media_id.as_bytes());
 			let user = user.as_bytes().to_vec();
 			self.mediaid_user.insert(&key, &user)?;
 		}
@@ -62,22 +70,23 @@ impl Data {
 		Ok(key)
 	}
 
-	pub(super) fn delete_file_mxc(&self, mxc: &str) -> Result<()> {
-		debug!("MXC URI: {:?}", mxc);
+	pub(super) fn delete_file_mxc(&self, mxc: &Mxc<'_>) -> Result<()> {
+		debug!("MXC URI: {mxc}");
 
-		let mut prefix = mxc.as_bytes().to_vec();
+		let mut prefix: Vec<u8> = Vec::new();
+		prefix.extend_from_slice(mxc.server_name.as_bytes());
+		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
 
-		debug!("MXC db prefix: {prefix:?}");
-
-		for (key, _) in self.mediaid_file.scan_prefix(prefix) {
+		trace!("MXC db prefix: {prefix:?}");
+		for (key, _) in self.mediaid_file.scan_prefix(prefix.clone()) {
 			debug!("Deleting key: {:?}", key);
 			self.mediaid_file.remove(&key)?;
 		}
 
-		for (key, value) in self.mediaid_user.scan_prefix(mxc.as_bytes().to_vec()) {
-			if key == mxc.as_bytes().to_vec() {
-				let user = string_from_bytes(&value).unwrap_or_default();
+		for (key, value) in self.mediaid_user.scan_prefix(prefix.clone()) {
+			if key.starts_with(&prefix) {
+				let user = str_from_bytes(&value).unwrap_or_default();
 
 				debug_info!("Deleting key \"{key:?}\" which was uploaded by user {user}");
 				self.mediaid_user.remove(&key)?;
@@ -88,10 +97,12 @@ impl Data {
 	}
 
 	/// Searches for all files with the given MXC
-	pub(super) fn search_mxc_metadata_prefix(&self, mxc: &str) -> Result<Vec<Vec<u8>>> {
-		debug!("MXC URI: {:?}", mxc);
+	pub(super) fn search_mxc_metadata_prefix(&self, mxc: &Mxc<'_>) -> Result<Vec<Vec<u8>>> {
+		debug!("MXC URI: {mxc}");
 
-		let mut prefix = mxc.as_bytes().to_vec();
+		let mut prefix: Vec<u8> = Vec::new();
+		prefix.extend_from_slice(mxc.server_name.as_bytes());
+		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
 
 		let keys: Vec<Vec<u8>> = self
@@ -101,18 +112,18 @@ impl Data {
 			.collect();
 
 		if keys.is_empty() {
-			return Err(Error::bad_database(
-				"Failed to find any keys in database with the provided MXC.",
-			));
+			return Err!(Database("Failed to find any keys in database for `{mxc}`",));
 		}
 
-		debug!("Got the following keys: {:?}", keys);
+		debug!("Got the following keys: {keys:?}");
 
 		Ok(keys)
 	}
 
-	pub(super) fn search_file_metadata(&self, mxc: &str, width: u32, height: u32) -> Result<Metadata> {
-		let mut prefix = mxc.as_bytes().to_vec();
+	pub(super) fn search_file_metadata(&self, mxc: &Mxc<'_>, width: u32, height: u32) -> Result<Metadata> {
+		let mut prefix: Vec<u8> = Vec::new();
+		prefix.extend_from_slice(mxc.server_name.as_bytes());
+		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
 		prefix.extend_from_slice(&width.to_be_bytes());
 		prefix.extend_from_slice(&height.to_be_bytes());
