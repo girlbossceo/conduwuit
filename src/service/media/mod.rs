@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{debug, debug_error, err, error, trace, utils, utils::MutexMap, Err, Result, Server};
 use data::{Data, Metadata};
-use ruma::{http_headers::ContentDisposition, OwnedMxcUri, OwnedUserId};
+use ruma::{http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
@@ -68,17 +68,13 @@ impl crate::Service for Service {
 impl Service {
 	/// Uploads a file.
 	pub async fn create(
-		&self, sender_user: Option<OwnedUserId>, mxc: &str, content_disposition: Option<&ContentDisposition>,
+		&self, mxc: &Mxc<'_>, user: Option<&UserId>, content_disposition: Option<&ContentDisposition>,
 		content_type: Option<&str>, file: &[u8],
 	) -> Result<()> {
 		// Width, Height = 0 if it's not a thumbnail
-		let key = if let Some(user) = sender_user {
-			self.db
-				.create_file_metadata(Some(user.as_str()), mxc, 0, 0, content_disposition, content_type)?
-		} else {
-			self.db
-				.create_file_metadata(None, mxc, 0, 0, content_disposition, content_type)?
-		};
+		let key = self
+			.db
+			.create_file_metadata(mxc, user, 0, 0, content_disposition, content_type)?;
 
 		//TODO: Dangling metadata in database if creation fails
 		let mut f = self.create_media_file(&key).await?;
@@ -88,7 +84,7 @@ impl Service {
 	}
 
 	/// Deletes a file in the database and from the media directory via an MXC
-	pub async fn delete(&self, mxc: &str) -> Result<()> {
+	pub async fn delete(&self, mxc: &Mxc<'_>) -> Result<()> {
 		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc) {
 			for key in keys {
 				trace!(?mxc, ?key, "Deleting from filesystem");
@@ -111,7 +107,7 @@ impl Service {
 	}
 
 	/// Downloads a file.
-	pub async fn get(&self, mxc: &str) -> Result<Option<FileMeta>> {
+	pub async fn get(&self, mxc: &Mxc<'_>) -> Result<Option<FileMeta>> {
 		if let Ok(Metadata {
 			content_disposition,
 			content_type,
@@ -213,6 +209,7 @@ impl Service {
 		debug!("Deleting media now in the past {user_duration:?}.");
 		let mut deletion_count: usize = 0;
 		for mxc in remote_mxcs {
+			let mxc: Mxc<'_> = mxc.as_str().try_into()?;
 			debug!("Deleting MXC {mxc} from database and filesystem");
 			self.delete(&mxc).await?;
 			deletion_count = deletion_count.saturating_add(1);

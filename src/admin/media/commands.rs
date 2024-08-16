@@ -15,7 +15,10 @@ pub(super) async fn delete(
 
 	if let Some(mxc) = mxc {
 		debug!("Got MXC URL: {mxc}");
-		self.services.media.delete(mxc.as_ref()).await?;
+		self.services
+			.media
+			.delete(&mxc.as_str().try_into()?)
+			.await?;
 
 		return Ok(RoomMessageEventContent::text_plain(
 			"Deleted the MXC from our database and on our filesystem.",
@@ -123,7 +126,10 @@ pub(super) async fn delete(
 		}
 
 		for mxc_url in mxc_urls {
-			self.services.media.delete(&mxc_url).await?;
+			self.services
+				.media
+				.delete(&mxc_url.as_str().try_into()?)
+				.await?;
 			mxc_deletion_count = mxc_deletion_count.saturating_add(1);
 		}
 
@@ -157,7 +163,7 @@ pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
 
 	for mxc in mxc_list {
 		debug!("Deleting MXC {mxc} in bulk");
-		self.services.media.delete(mxc).await?;
+		self.services.media.delete(&mxc.try_into()?).await?;
 		mxc_deletion_count = mxc_deletion_count
 			.checked_add(1)
 			.expect("mxc_deletion_count should not get this high");

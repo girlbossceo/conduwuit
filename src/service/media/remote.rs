@@ -1,25 +1,25 @@
 use std::time::Duration;
 
 use conduit::{debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error, Result};
-use ruma::{
-	api::client::media::{get_content, get_content_thumbnail},
-	ServerName,
-};
+use ruma::{api::client::media, Mxc};
 
 #[implement(super::Service)]
 #[allow(deprecated)]
-pub async fn fetch_remote_thumbnail(
-	&self, mxc: &str, body: &get_content_thumbnail::v3::Request,
-) -> Result<get_content_thumbnail::v3::Response> {
-	let server_name = &body.server_name;
-	self.check_fetch_authorized(mxc, server_name)?;
+pub async fn fetch_remote_thumbnail_legacy(
+	&self, body: &media::get_content_thumbnail::v3::Request,
+) -> Result<media::get_content_thumbnail::v3::Response> {
+	let mxc = Mxc {
+		server_name: &body.server_name,
+		media_id: &body.media_id,
+	};
 
+	self.check_fetch_authorized(&mxc)?;
 	let reponse = self
 		.services
 		.sending
 		.send_federation_request(
-			server_name,
-			get_content_thumbnail::v3::Request {
+			mxc.server_name,
+			media::get_content_thumbnail::v3::Request {
 				allow_remote: body.allow_remote,
 				height: body.height,
 				width: body.width,
@@ -34,8 +34,8 @@ pub async fn fetch_remote_thumbnail(
 		.await?;
 
 	self.upload_thumbnail(
+		&mxc,
 		None,
-		mxc,
 		None,
 		reponse.content_type.as_deref(),
 		body.width
@@ -53,20 +53,19 @@ pub async fn fetch_remote_thumbnail(
 
 #[implement(super::Service)]
 #[allow(deprecated)]
-pub async fn fetch_remote_content(
-	&self, mxc: &str, server_name: &ServerName, media_id: String, allow_redirect: bool, timeout_ms: Duration,
-) -> Result<get_content::v3::Response, Error> {
-	self.check_fetch_authorized(mxc, server_name)?;
-
+pub async fn fetch_remote_content_legacy(
+	&self, mxc: &Mxc<'_>, allow_redirect: bool, timeout_ms: Duration,
+) -> Result<media::get_content::v3::Response, Error> {
+	self.check_fetch_authorized(mxc)?;
 	let response = self
 		.services
 		.sending
 		.send_federation_request(
-			server_name,
-			get_content::v3::Request {
+			mxc.server_name,
+			media::get_content::v3::Request {
 				allow_remote: true,
-				server_name: server_name.to_owned(),
-				media_id,
+				server_name: mxc.server_name.into(),
+				media_id: mxc.media_id.into(),
 				timeout_ms,
 				allow_redirect,
 			},
@@ -77,8 +76,8 @@ pub async fn fetch_remote_content(
 		make_content_disposition(response.content_disposition.as_ref(), response.content_type.as_deref(), None);
 
 	self.create(
-		None,
 		mxc,
+		None,
 		Some(&content_disposition),
 		response.content_type.as_deref(),
 		&response.file,
@@ -89,14 +88,14 @@ pub async fn fetch_remote_content(
 }
 
 #[implement(super::Service)]
-fn check_fetch_authorized(&self, mxc: &str, server_name: &ServerName) -> Result<()> {
+fn check_fetch_authorized(&self, mxc: &Mxc<'_>) -> Result<()> {
 	if self
 		.services
 		.server
 		.config
 		.prevent_media_downloads_from
 		.iter()
-		.any(|entry| entry == server_name)
+		.any(|entry| entry == mxc.server_name)
 	{
 		// we'll lie to the client and say the blocked server's media was not found and
 		// log. the client has no way of telling anyways so this is a security bonus.

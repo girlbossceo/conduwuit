@@ -4,6 +4,7 @@ use conduit::{debug, utils, warn, Err, Result};
 use conduit_core::implement;
 use image::ImageReader as ImgReader;
 use ipaddress::IPAddress;
+use ruma::Mxc;
 use serde::Serialize;
 use url::Url;
 use webpage::HTML;
@@ -44,13 +45,12 @@ pub async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<
 pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
 	let client = &self.services.client.url_preview;
 	let image = client.get(url).send().await?.bytes().await?;
-	let mxc = format!(
-		"mxc://{}/{}",
-		self.services.globals.server_name(),
-		utils::random_string(MXC_LENGTH)
-	);
+	let mxc = Mxc {
+		server_name: self.services.globals.server_name(),
+		media_id: &utils::random_string(MXC_LENGTH),
+	};
 
-	self.create(None, &mxc, None, None, &image).await?;
+	self.create(&mxc, None, None, None, &image).await?;
 
 	let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {
 		Err(_) => (None, None),
@@ -61,7 +61,7 @@ pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
 	};
 
 	Ok(UrlPreviewData {
-		image: Some(mxc),
+		image: Some(mxc.to_string()),
 		image_size: Some(image.len()),
 		image_width: width,
 		image_height: height,

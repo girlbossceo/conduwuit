@@ -98,6 +98,8 @@ pub enum Error {
 	#[error(transparent)]
 	IntoHttp(#[from] ruma::api::error::IntoHttpError),
 	#[error(transparent)]
+	Mxc(#[from] ruma::MxcUriError),
+	#[error(transparent)]
 	Mxid(#[from] ruma::IdParseError),
 	#[error("from {0}: {1}")]
 	Redaction(ruma::OwnedServerName, ruma::canonical_json::RedactionError),
