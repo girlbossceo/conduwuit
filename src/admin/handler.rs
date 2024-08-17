@@ -30,6 +30,7 @@ use service::{
 	Services,
 };
 use tracing::Level;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 use crate::{admin, admin::AdminCommand, Command};
 
@@ -87,17 +88,7 @@ fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -
 
 // Parse and process a message from the admin room
 async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) -> CommandOutput {
-	let filter: &capture::Filter =
-		&|data| data.level() <= Level::DEBUG && data.our_modules() && data.scope.contains(&"admin");
-	let logs = Arc::new(Mutex::new(
-		collect_stream(|s| markdown_table_head(s)).expect("markdown table header"),
-	));
-
-	let capture = Capture::new(
-		&context.services.server.log.capture,
-		Some(filter),
-		capture::fmt(markdown_table, logs.clone()),
-	);
+	let (capture, logs) = capture_create(context);
 
 	let capture_scope = capture.start();
 	let result = Box::pin(admin::process(command, context)).await;
@@ -128,6 +119,30 @@ async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) 
 	};
 
 	Some(RoomMessageEventContent::notice_markdown(output))
+}
+
+fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {
+	let env_config = &context.services.server.config.admin_log_capture;
+	let env_filter = EnvFilter::try_new(env_config).unwrap_or_else(|_| "debug".into());
+	let log_level = env_filter
+		.max_level_hint()
+		.and_then(LevelFilter::into_level)
+		.unwrap_or(Level::DEBUG);
+
+	let filter =
+		move |data: capture::Data<'_>| data.level() <= log_level && data.our_modules() && data.scope.contains(&"admin");
+
+	let logs = Arc::new(Mutex::new(
+		collect_stream(|s| markdown_table_head(s)).expect("markdown table header"),
+	));
+
+	let capture = Capture::new(
+		&context.services.server.log.capture,
+		Some(filter),
+		capture::fmt(markdown_table, logs.clone()),
+	);
+
+	(capture, logs)
 }
 
 // Parse chat messages from the admin room into an AdminCommand object

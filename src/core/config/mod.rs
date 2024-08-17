@@ -338,6 +338,8 @@ pub struct Config {
 	pub admin_console_automatic: bool,
 	#[serde(default)]
 	pub admin_execute: Vec<String>,
+	#[serde(default = "default_admin_log_capture")]
+	pub admin_log_capture: String,
 
 	#[serde(default)]
 	pub sentry: bool,
@@ -596,6 +598,7 @@ impl fmt::Display for Config {
 			&self.admin_console_automatic.to_string(),
 		);
 		line("Execute admin commands after startup", &self.admin_execute.join(", "));
+		line("Filter for admin command log capture", &self.admin_log_capture);
 		line("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string());
 		line("Allow incoming federated typing", &self.allow_incoming_typing.to_string());
 		line(
@@ -1054,3 +1057,5 @@ fn default_sentry_traces_sample_rate() -> f32 { 0.15 }
 fn default_sentry_filter() -> String { "info".to_owned() }
 
 fn default_startup_netburst_keep() -> i64 { 50 }
+
+fn default_admin_log_capture() -> String { "debug".to_owned() }
