@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
-use conduit::{pdu::PduBuilder, warn, Error, Result};
+use conduit::{pdu::PduBuilder, Result};
 use ruma::{
-	api::client::error::ErrorKind,
 	events::{
 		room::{
 			canonical_alias::RoomCanonicalAliasEventContent,
@@ -45,14 +44,7 @@ pub async fn create_admin_room(services: &Services) -> Result<()> {
 		use RoomVersionId::*;
 		match room_version {
 			V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => RoomCreateEventContent::new_v1(server_user.clone()),
-			V11 => RoomCreateEventContent::new_v11(),
-			_ => {
-				warn!("Unexpected or unsupported room version {}", room_version);
-				return Err(Error::BadRequest(
-					ErrorKind::BadJson,
-					"Unexpected or unsupported room version found",
-				));
-			},
+			_ => RoomCreateEventContent::new_v11(),
 		}
 	};
 

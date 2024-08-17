@@ -222,15 +222,8 @@ pub(crate) fn maybe_strip_event_id(pdu_json: &mut CanonicalJsonObject, room_vers
 
 	match room_version_id {
 		V1 | V2 => {},
-		V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 => {
-			pdu_json.remove("event_id");
-		},
 		_ => {
-			warn!("Unexpected or unsupported room version {room_version_id}");
-			return Err(Error::BadRequest(
-				ErrorKind::BadJson,
-				"Unexpected or unsupported room version found",
-			));
+			pdu_json.remove("event_id");
 		},
 	};
 

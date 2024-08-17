@@ -819,7 +819,7 @@ async fn join_room_by_id_helper_remote(
 			},
 			// only room versions 8 and above using `join_authorized_via_users_server` (restricted joins) need to
 			// validate and send signatures
-			V8 | V9 | V10 | V11 => {
+			_ => {
 				if let Some(signed_raw) = &send_join_response.room_state.event {
 					info!(
 						"There is a signed event. This room is probably using restricted joins. Adding signature to \
@@ -867,16 +867,6 @@ async fn join_room_by_id_helper_remote(
 						},
 					}
 				}
-			},
-			_ => {
-				warn!(
-					"Unexpected or unsupported room version {} for room {}",
-					&room_version_id, room_id
-				);
-				return Err(Error::BadRequest(
-					ErrorKind::BadJson,
-					"Unexpected or unsupported room version found",
-				));
 			},
 		}
 	}

@@ -449,7 +449,7 @@ impl Service {
 							}
 						}
 					},
-					V11 => {
+					_ => {
 						let content =
 							serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get()).map_err(|e| {
 								warn!("Invalid content in redaction pdu: {e}");
@@ -466,13 +466,6 @@ impl Service {
 								self.redact_pdu(redact_id, pdu, shortroomid)?;
 							}
 						}
-					},
-					_ => {
-						warn!("Unexpected or unsupported room version {room_version_id}");
-						return Err(Error::BadRequest(
-							ErrorKind::BadJson,
-							"Unexpected or unsupported room version found",
-						));
 					},
 				};
 			},
