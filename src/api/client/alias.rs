@@ -69,15 +69,6 @@ pub(crate) async fn delete_alias_route(
 		.appservice_checks(&body.room_alias, &body.appservice_info)
 		.await?;
 
-	if services
-		.rooms
-		.alias
-		.resolve_local_alias(&body.room_alias)?
-		.is_none()
-	{
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Alias does not exist."));
-	}
-
 	services
 		.rooms
 		.alias
