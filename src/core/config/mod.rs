@@ -144,6 +144,8 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub allow_federation: bool,
 	#[serde(default)]
+	pub federation_loopback: bool,
+	#[serde(default)]
 	pub allow_public_room_directory_over_federation: bool,
 	#[serde(default)]
 	pub allow_public_room_directory_without_auth: bool,
@@ -563,6 +565,7 @@ impl fmt::Display for Config {
 		line("New user display name suffix", &self.new_user_displayname_suffix);
 		line("Allow encryption", &self.allow_encryption.to_string());
 		line("Allow federation", &self.allow_federation.to_string());
+		line("Federation loopback", &self.federation_loopback.to_string());
 		line(
 			"Allow incoming federated presence requests (updates)",
 			&self.allow_incoming_presence.to_string(),

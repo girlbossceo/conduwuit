@@ -312,7 +312,8 @@ impl super::Service {
 	}
 
 	fn validate_dest(&self, dest: &ServerName) -> Result<()> {
-		if dest == self.services.server.config.server_name {
+		let config = &self.services.server.config;
+		if dest == config.server_name && !config.federation_loopback {
 			return Err!("Won't send federation request to ourselves");
 		}
 
