@@ -759,6 +759,11 @@ pub(crate) async fn upgrade_room_route(
 		services
 			.rooms
 			.alias
+			.remove_alias(&alias, sender_user)
+			.await?;
+		services
+			.rooms
+			.alias
 			.set_alias(&alias, &replacement_room, sender_user)?;
 	}
 
