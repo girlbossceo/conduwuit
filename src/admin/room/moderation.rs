@@ -208,6 +208,25 @@ async fn ban_room(
 		}
 	}
 
+	// remove any local aliases, ignore errors
+	for ref local_alias in self
+		.services
+		.rooms
+		.alias
+		.local_aliases_for_room(&room_id)
+		.filter_map(Result::ok)
+	{
+		_ = self
+			.services
+			.rooms
+			.alias
+			.remove_alias(local_alias, &self.services.globals.server_user)
+			.await;
+	}
+
+	// unpublish from room directory, ignore errors
+	_ = self.services.rooms.directory.set_not_public(&room_id);
+
 	if disable_federation {
 		self.services.rooms.metadata.disable_room(&room_id, true)?;
 		return Ok(RoomMessageEventContent::text_plain(
@@ -427,6 +446,25 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 				}
 			}
 		}
+
+		// remove any local aliases, ignore errors
+		for ref local_alias in self
+			.services
+			.rooms
+			.alias
+			.local_aliases_for_room(&room_id)
+			.filter_map(Result::ok)
+		{
+			_ = self
+				.services
+				.rooms
+				.alias
+				.remove_alias(local_alias, &self.services.globals.server_user)
+				.await;
+		}
+
+		// unpublish from room directory, ignore errors
+		_ = self.services.rooms.directory.set_not_public(&room_id);
 
 		if disable_federation {
 			self.services.rooms.metadata.disable_room(&room_id, true)?;
