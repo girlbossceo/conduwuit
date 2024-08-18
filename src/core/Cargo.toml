@@ -32,6 +32,11 @@ jemalloc = [
 jemalloc_prof = [
 	"tikv-jemalloc-sys/profiling",
 ]
+jemalloc_stats = [
+    "tikv-jemalloc-sys/stats",
+    "tikv-jemalloc-ctl/stats",
+    "tikv-jemallocator/stats",
+]
 hardened_malloc = [
 	"dep:hardened_malloc-rs"
 ]
