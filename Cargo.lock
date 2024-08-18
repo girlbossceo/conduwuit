@@ -3176,8 +3176,8 @@ dependencies = [
 
 [[package]]
 name = "rust-librocksdb-sys"
-version = "0.24.0+9.4.0"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=4056a3b0f823013fec49f6d0b3e5698856e6476a#4056a3b0f823013fec49f6d0b3e5698856e6476a"
+version = "0.25.0+uwu"
+source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=4fcec9354a018bb9667b01d306c103177bcfa790#4fcec9354a018bb9667b01d306c103177bcfa790"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -3193,8 +3193,8 @@ dependencies = [
 
 [[package]]
 name = "rust-rocksdb"
-version = "0.28.0"
-source = "git+https://github.com/zaidoon1/rust-rocksdb?rev=4056a3b0f823013fec49f6d0b3e5698856e6476a#4056a3b0f823013fec49f6d0b3e5698856e6476a"
+version = "0.29.0"
+source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=4fcec9354a018bb9667b01d306c103177bcfa790#4fcec9354a018bb9667b01d306c103177bcfa790"
 dependencies = [
  "libc",
  "rust-librocksdb-sys",
@@ -3964,9 +3964,8 @@ dependencies = [
 
 [[package]]
 name = "tikv-jemalloc-ctl"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "619bfed27d807b54f7f776b9430d4f8060e66ee138a28632ca898584d462c31c"
+version = "0.6.0"
+source = "git+https://github.com/girlbossceo/jemallocator?rev=c32af15f3b440ae5e46c3404f78b19093bbd5294#c32af15f3b440ae5e46c3404f78b19093bbd5294"
 dependencies = [
  "libc",
  "paste",
@@ -3975,9 +3974,8 @@ dependencies = [
 
 [[package]]
 name = "tikv-jemalloc-sys"
-version = "0.5.4+5.3.0-patched"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9402443cb8fd499b6f327e40565234ff34dbda27460c5b47db0db77443dd85d1"
+version = "0.6.0+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7"
+source = "git+https://github.com/girlbossceo/jemallocator?rev=c32af15f3b440ae5e46c3404f78b19093bbd5294#c32af15f3b440ae5e46c3404f78b19093bbd5294"
 dependencies = [
  "cc",
  "libc",
@@ -3985,9 +3983,8 @@ dependencies = [
 
 [[package]]
 name = "tikv-jemallocator"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "965fe0c26be5c56c94e38ba547249074803efd52adfb66de62107d95aab3eaca"
+version = "0.6.0"
+source = "git+https://github.com/girlbossceo/jemallocator?rev=c32af15f3b440ae5e46c3404f78b19093bbd5294#c32af15f3b440ae5e46c3404f78b19093bbd5294"
 dependencies = [
  "libc",
  "tikv-jemalloc-sys",
