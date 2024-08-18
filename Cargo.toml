@@ -396,19 +396,21 @@ version = "0.34.0"
 version = "0.34.0"
 
 # jemalloc usage
-# locked to 0.5.4 due to static binary linking breakage
 [workspace.dependencies.tikv-jemalloc-sys]
-version = "=0.5.4"
+git = "https://github.com/girlbossceo/jemallocator"
+rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
 default-features = false
 features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
-version = "=0.5.4"
+git = "https://github.com/girlbossceo/jemallocator"
+rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
 default-features = false
 features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
-version = "=0.5.4"
+git = "https://github.com/girlbossceo/jemallocator"
+rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
 default-features = false
-features = ["use_std"]
+features = ["stats", "use_std"]
 
 [workspace.dependencies.console-subscriber]
 version = "0.4"
