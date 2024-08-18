@@ -400,17 +400,17 @@ version = "0.34.0"
 git = "https://github.com/girlbossceo/jemallocator"
 rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
 default-features = false
-features = ["stats", "unprefixed_malloc_on_supported_platforms"]
+features = ["unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
 git = "https://github.com/girlbossceo/jemallocator"
 rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
 default-features = false
-features = ["stats", "unprefixed_malloc_on_supported_platforms"]
+features = ["unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
 git = "https://github.com/girlbossceo/jemallocator"
 rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
 default-features = false
-features = ["stats", "use_std"]
+features = ["use_std"]
 
 [workspace.dependencies.console-subscriber]
 version = "0.4"

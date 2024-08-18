@@ -2,7 +2,6 @@
 
 use std::ffi::{c_char, c_void};
 
-use tikv_jemalloc_ctl as mallctl;
 use tikv_jemalloc_sys as ffi;
 use tikv_jemallocator as jemalloc;
 
@@ -10,8 +9,10 @@ use tikv_jemallocator as jemalloc;
 static JEMALLOC: jemalloc::Jemalloc = jemalloc::Jemalloc;
 
 #[must_use]
+#[cfg(feature = "jemalloc_stats")]
 pub fn memory_usage() -> Option<String> {
 	use mallctl::stats;
+	use tikv_jemalloc_ctl as mallctl;
 
 	let mibs = |input: Result<usize, mallctl::Error>| {
 		let input = input.unwrap_or_default();
@@ -32,6 +33,10 @@ pub fn memory_usage() -> Option<String> {
 		 MiB\nresident: {resident:.2} MiB\nretained: {retained:.2} MiB\n"
 	))
 }
+
+#[must_use]
+#[cfg(not(feature = "jemalloc_stats"))]
+pub fn memory_usage() -> Option<String> { None }
 
 #[must_use]
 pub fn memory_stats() -> Option<String> {

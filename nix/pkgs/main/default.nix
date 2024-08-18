@@ -57,7 +57,9 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
     # we dont need cxx/C++ integration
     [ "--disable-cxx" ] ++
     # tikv-jemalloc-sys/profiling feature
-    lib.optional (featureEnabled "jemalloc_prof") "--enable-prof";
+    lib.optional (featureEnabled "jemalloc_prof") "--enable-prof" ++
+    # tikv-jemalloc-sys/stats feature
+    (if (featureEnabled "jemalloc_stats") then [ "--enable-stats" ] else [ "--disable-stats" ]);
 });
 
 buildDepsOnlyEnv =

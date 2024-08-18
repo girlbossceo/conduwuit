@@ -87,6 +87,9 @@ jemalloc = [
 jemalloc_prof = [
 	"conduit-core/jemalloc_prof",
 ]
+jemalloc_stats = [
+	"conduit-core/jemalloc_stats",
+]
 perf_measurements = [
 	"dep:opentelemetry",
 	"dep:tracing-flame",
