@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::err;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -7,9 +8,14 @@ use ruma::{
 			set_pusher, set_pushrule, set_pushrule_actions, set_pushrule_enabled, RuleScope,
 		},
 	},
-	events::{push_rules::PushRulesEvent, GlobalAccountDataEventType},
+	events::{
+		push_rules::{PushRulesEvent, PushRulesEventContent},
+		GlobalAccountDataEventType,
+	},
 	push::{InsertPushRuleError, RemovePushRuleError, Ruleset},
+	CanonicalJsonObject,
 };
+use service::Services;
 
 use crate::{Error, Result, Ruma};
 
@@ -21,36 +27,46 @@ pub(crate) async fn get_pushrules_all_route(
 ) -> Result<get_pushrules_all::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event =
+	let global_ruleset: Ruleset;
+
+	let Ok(event) =
 		services
 			.account_data
-			.get(None, sender_user, GlobalAccountDataEventType::PushRules.to_string().into())?;
+			.get(None, sender_user, GlobalAccountDataEventType::PushRules.to_string().into())
+	else {
+		// push rules event doesn't exist, create it and return default
+		return recreate_push_rules_and_return(&services, sender_user);
+	};
 
 	if let Some(event) = event {
-		let account_data = serde_json::from_str::<PushRulesEvent>(event.get())
-			.map_err(|_| Error::bad_database("Invalid account data event in db."))?
-			.content;
+		let value = serde_json::from_str::<CanonicalJsonObject>(event.get())
+			.map_err(|e| err!(Database(warn!("Invalid push rules account data event in database: {e}"))))?;
 
-		Ok(get_pushrules_all::v3::Response {
-			global: account_data.global,
-		})
+		let Some(content_value) = value.get("content") else {
+			// user somehow has a push rule event with no content key, recreate it and
+			// return server default silently
+			return recreate_push_rules_and_return(&services, sender_user);
+		};
+
+		if content_value.to_string().is_empty() {
+			// user somehow has a push rule event with empty content, recreate it and return
+			// server default silently
+			return recreate_push_rules_and_return(&services, sender_user);
+		}
+
+		let account_data_content = serde_json::from_value::<PushRulesEventContent>(content_value.clone().into())
+			.map_err(|e| err!(Database(warn!("Invalid push rules account data event in database: {e}"))))?;
+
+		global_ruleset = account_data_content.global;
 	} else {
-		services.account_data.update(
-			None,
-			sender_user,
-			GlobalAccountDataEventType::PushRules.to_string().into(),
-			&serde_json::to_value(PushRulesEvent {
-				content: ruma::events::push_rules::PushRulesEventContent {
-					global: Ruleset::server_default(sender_user),
-				},
-			})
-			.expect("to json always works"),
-		)?;
-
-		Ok(get_pushrules_all::v3::Response {
-			global: Ruleset::server_default(sender_user),
-		})
+		// user somehow has non-existent push rule event. recreate it and return server
+		// default silently
+		return recreate_push_rules_and_return(&services, sender_user);
 	}
+
+	Ok(get_pushrules_all::v3::Response {
+		global: global_ruleset,
+	})
 }
 
 /// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
@@ -377,4 +393,26 @@ pub(crate) async fn set_pushers_route(
 	services.pusher.set_pusher(sender_user, &body.action)?;
 
 	Ok(set_pusher::v3::Response::default())
+}
+
+/// user somehow has bad push rules, these must always exist per spec.
+/// so recreate it and return server default silently
+fn recreate_push_rules_and_return(
+	services: &Services, sender_user: &ruma::UserId,
+) -> Result<get_pushrules_all::v3::Response> {
+	services.account_data.update(
+		None,
+		sender_user,
+		GlobalAccountDataEventType::PushRules.to_string().into(),
+		&serde_json::to_value(PushRulesEvent {
+			content: PushRulesEventContent {
+				global: Ruleset::server_default(sender_user),
+			},
+		})
+		.expect("to json always works"),
+	)?;
+
+	Ok(get_pushrules_all::v3::Response {
+		global: Ruleset::server_default(sender_user),
+	})
 }
