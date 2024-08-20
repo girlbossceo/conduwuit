@@ -129,6 +129,7 @@ tokio_console = [
 	"tokio/tracing",
 ]
 zstd_compression = [
+    "conduit-api/zstd_compression",
 	"conduit-core/zstd_compression",
 	"conduit-database/zstd_compression",
 	"conduit-router/zstd_compression",

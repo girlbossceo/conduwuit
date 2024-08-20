@@ -29,6 +29,9 @@ element_hacks = []
 gzip_compression = [
 	"reqwest/gzip",
 ]
+zstd_compression = [
+    "reqwest/zstd",
+]
 release_max_log_level = [
 	"tracing/max_level_trace",
 	"tracing/release_max_level_info",
