@@ -46,7 +46,9 @@ gzip_compression = [
 brotli_compression = [
 	"reqwest/brotli",
 ]
-zstd_compression =[]
+zstd_compression = [
+    "reqwest/zstd",
+]
 perf_measurements = []
 sentry_telemetry = []
 

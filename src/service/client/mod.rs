@@ -123,6 +123,15 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 		};
 	};
 
+	#[cfg(feature = "zstd_compression")]
+	{
+		builder = if config.zstd_compression {
+			builder.zstd(true)
+		} else {
+			builder.zstd(false).no_brotli()
+		};
+	};
+
 	#[cfg(not(feature = "gzip_compression"))]
 	{
 		builder = builder.no_gzip();
@@ -131,6 +140,11 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 	#[cfg(not(feature = "brotli_compression"))]
 	{
 		builder = builder.no_brotli();
+	};
+
+	#[cfg(not(feature = "zstd_compression"))]
+	{
+		builder = builder.no_zstd();
 	};
 
 	if let Some(proxy) = config.proxy.to_proxy()? {

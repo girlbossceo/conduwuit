@@ -25,6 +25,9 @@ release_max_log_level = [
 	"log/max_level_trace",
 	"log/release_max_level_info",
 ]
+zstd_compression = [
+    "reqwest/zstd",
+]
 gzip_compression = [
 	"reqwest/gzip",
 ]
