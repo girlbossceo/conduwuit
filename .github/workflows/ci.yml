@@ -53,6 +53,8 @@ env:
       show-trace = true
       extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
       extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+    # complement uses libolm
+    NIXPKGS_ALLOW_INSECURE: 1
 
 permissions:
     packages: write
@@ -130,9 +132,9 @@ jobs:
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
-                  nix develop .#all-features --command true
+                  nix develop .#all-features --command true --impure
 
             - name: Cache CI dependencies
               run: |
@@ -283,9 +285,9 @@ jobs:
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
-                  nix develop .#all-features --command true
+                  nix develop .#all-features --command true --impure
 
             # use sccache for Rust
             - name: Run sccache-cache
