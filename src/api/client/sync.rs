@@ -20,7 +20,7 @@ use ruma::{
 				Ephemeral, Filter, GlobalAccountData, InviteState, InvitedRoom, JoinedRoom, LeftRoom, Presence,
 				RoomAccountData, RoomSummary, Rooms, State as RoomState, Timeline, ToDevice,
 			},
-			v4::SlidingOp,
+			v4::{SlidingOp, SlidingSyncRoomHero},
 			DeviceLists, UnreadNotificationsCount,
 		},
 		uiaa::UiaaResponse,
@@ -1466,13 +1466,10 @@ pub(crate) async fn sync_events_v4_route(
 						.rooms
 						.state_accessor
 						.get_member(room_id, &member)?
-						.map(|memberevent| {
-							(
-								memberevent
-									.displayname
-									.unwrap_or_else(|| member.to_string()),
-								memberevent.avatar_url,
-							)
+						.map(|memberevent| SlidingSyncRoomHero {
+							user_id: member,
+							name: memberevent.displayname,
+							avatar: memberevent.avatar_url,
 						}),
 				)
 			})
@@ -1484,18 +1481,26 @@ pub(crate) async fn sync_events_v4_route(
 			Ordering::Greater => {
 				let firsts = heroes[1..]
 					.iter()
-					.map(|h| h.0.clone())
+					.map(|h| h.name.clone().unwrap_or_else(|| h.user_id.to_string()))
 					.collect::<Vec<_>>()
 					.join(", ");
-				let last = heroes[0].0.clone();
+				let last = heroes[0]
+					.name
+					.clone()
+					.unwrap_or_else(|| heroes[0].user_id.to_string());
 				Some(format!("{firsts} and {last}"))
 			},
-			Ordering::Equal => Some(heroes[0].0.clone()),
+			Ordering::Equal => Some(
+				heroes[0]
+					.name
+					.clone()
+					.unwrap_or_else(|| heroes[0].user_id.to_string()),
+			),
 			Ordering::Less => None,
 		};
 
 		let heroes_avatar = if heroes.len() == 1 {
-			heroes[0].1.clone()
+			heroes[0].avatar.clone()
 		} else {
 			None
 		};
@@ -1558,7 +1563,7 @@ pub(crate) async fn sync_events_v4_route(
 				),
 				num_live: None, // Count events in timeline greater than global sync counter
 				timestamp: None,
-				heroes: None,
+				heroes: Some(heroes),
 			},
 		);
 	}
