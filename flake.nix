@@ -9,7 +9,7 @@
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.4.0"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.5.2"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 
