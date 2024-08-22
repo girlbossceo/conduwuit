@@ -16,7 +16,10 @@
   outputs = inputs:
     inputs.flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgsHost = inputs.nixpkgs.legacyPackages.${system};
+      pkgsHost = import inputs.nixpkgs{
+        inherit system;
+        config.permittedInsecurePackages = [ "olm-3.2.16" ];
+      };
       pkgsHostStatic = pkgsHost.pkgsStatic;
 
       # The Rust toolchain to use
