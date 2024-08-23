@@ -18,6 +18,10 @@ pub(super) async fn serve(
 	let certs = &tls.certs;
 	let key = &tls.key;
 
+	// we use ring for ruma and hashing state, but aws-lc-rs is the new default.
+	// without this, TLS mode will panic.
+	_ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
 	debug!("Using direct TLS. Certificate path {certs} and certificate private key path {key}",);
 	info!(
 		"Note: It is strongly recommended that you use a reverse proxy instead of running conduwuit directly with TLS."

@@ -62,6 +62,7 @@ http.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 ruma.workspace = true
+rustls.workspace = true
 sentry.optional = true
 sentry-tower.optional = true
 sentry-tower.workspace = true
