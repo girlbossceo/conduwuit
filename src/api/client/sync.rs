@@ -1309,7 +1309,11 @@ pub(crate) async fn sync_events_v4_route(
 							r.0,
 							UInt::try_from(all_joined_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
 						);
-						let room_ids = all_joined_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec();
+						let room_ids = if !all_joined_rooms.is_empty() {
+							 all_joined_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec()
+						} else {
+							Vec::new()
+						};
 						new_known_rooms.extend(room_ids.iter().cloned());
 						for room_id in &room_ids {
 							let todo_room = todo_rooms
