@@ -7,9 +7,7 @@ use std::{
 
 use axum::extract::State;
 use conduit::{
-	error,
-	utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
-	Err, PduCount,
+	error, utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated}, warn, Err, PduCount
 };
 use ruma::{
 	api::client::{
@@ -29,9 +27,7 @@ use ruma::{
 		presence::PresenceEvent,
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType, TimelineEventType,
-	},
-	serde::Raw,
-	uint, DeviceId, EventId, OwnedUserId, RoomId, UInt, UserId,
+	}, room::RoomType, serde::Raw, uint, DeviceId, EventId, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId
 };
 use tracing::{Instrument as _, Span};
 
@@ -323,7 +319,7 @@ pub(crate) async fn sync_events_route(
 #[tracing::instrument(skip_all, fields(user_id = %sender_user, room_id = %room_id), name = "left_room")]
 async fn handle_left_room(
 	services: &Services, since: u64, room_id: &RoomId, sender_user: &UserId,
-	left_rooms: &mut BTreeMap<ruma::OwnedRoomId, LeftRoom>, next_batch_string: &str, full_state: bool,
+	left_rooms: &mut BTreeMap<OwnedRoomId, LeftRoom>, next_batch_string: &str, full_state: bool,
 	lazy_load_enabled: bool,
 ) -> Result<()> {
 	// Get and drop the lock to wait for remaining operations to finish
@@ -1114,6 +1110,20 @@ pub(crate) async fn sync_events_v4_route(
 		.filter_map(Result::ok)
 		.collect::<Vec<_>>();
 
+	let all_invited_rooms = services
+		.rooms
+		.state_cache
+		.rooms_invited(&sender_user)
+		.filter_map(Result::ok)
+		.map(|r| r.0)
+		.collect::<Vec<_>>();
+
+	let all_rooms = all_joined_rooms
+		.iter()
+		.cloned()
+		.chain(all_invited_rooms.iter().cloned())
+		.collect();
+
 	if body.extensions.to_device.enabled.unwrap_or(false) {
 		services
 			.users
@@ -1288,9 +1298,23 @@ pub(crate) async fn sync_events_v4_route(
 	let mut todo_rooms = BTreeMap::new(); // and required state
 
 	for (list_id, list) in body.lists {
-		if list.filters.and_then(|f| f.is_invite).unwrap_or(false) {
-			continue;
-		}
+		let active_rooms = match list.filters.clone().and_then(|f| f.is_invite) {
+			Some(true) => &all_invited_rooms,
+			Some(false) => &all_joined_rooms,
+			None => &all_rooms,
+		};
+
+		let active_rooms = match list.filters.clone().map(|f| f.not_room_types) {
+			Some(filter) if filter.is_empty() => active_rooms.clone(),
+			Some(value) => filter_rooms(active_rooms, State(services), &value, true),
+			None => active_rooms.clone(),
+		};
+
+		let active_rooms = match list.filters.clone().map(|f| f.room_types) {
+			Some(filter) if filter.is_empty() => active_rooms.clone(),
+			Some(value) => filter_rooms(&active_rooms, State(services), &value, false),
+			None => active_rooms,
+		};
 
 		let mut new_known_rooms = BTreeSet::new();
 
@@ -1303,14 +1327,12 @@ pub(crate) async fn sync_events_v4_route(
 					.map(|mut r| {
 						r.0 = r.0.clamp(
 							uint!(0),
-							UInt::try_from(all_joined_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
+							UInt::try_from(active_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
 						);
-						r.1 = r.1.clamp(
-							r.0,
-							UInt::try_from(all_joined_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
-						);
-						let room_ids = if !all_joined_rooms.is_empty() {
-							 all_joined_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec()
+						r.1 =
+							r.1.clamp(r.0, UInt::try_from(active_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX));
+						let room_ids = if !active_rooms.is_empty() {
+							active_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec()
 						} else {
 							Vec::new()
 						};
@@ -1637,4 +1659,36 @@ pub(crate) async fn sync_events_v4_route(
 		},
 		delta_token: None,
 	})
+}
+
+fn filter_rooms(
+	rooms: &[OwnedRoomId], State(services): State<crate::State>, filter: &[Option<RoomType>], negate: bool,
+) -> Vec<OwnedRoomId> {
+	return rooms
+		.iter()
+		.filter(|r| {
+			match services.rooms.state_accessor.get_room_type(r) {
+				Err(e) => {
+					warn!("Requested room type for {}, but could not retrieve with error {}", r, e);
+					false
+				},
+				Ok(None) => {
+					// For rooms which do not have a room type, use 'null' to include them
+					if negate {
+						!filter.contains(&None)
+					} else {
+						filter.contains(&None)
+					}
+				},
+				Ok(Some(room_type)) => {
+					if negate {
+						!filter.contains(&Some(room_type))
+					} else {
+						filter.is_empty() || filter.contains(&Some(room_type))
+					}
+				},
+			}
+		})
+		.cloned()
+		.collect();
 }
