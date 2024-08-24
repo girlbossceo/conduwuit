@@ -68,6 +68,13 @@ impl Service {
 	#[inline]
 	pub fn exists(&self, user_id: &UserId) -> Result<bool> { self.db.exists(user_id) }
 
+	pub fn remembered(&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String) -> bool {
+		self.connections
+			.lock()
+			.unwrap()
+			.contains_key(&(user_id, device_id, conn_id))
+	}
+
 	pub fn forget_sync_request_connection(&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String) {
 		self.connections
 			.lock()

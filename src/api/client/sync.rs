@@ -7,12 +7,13 @@ use std::{
 
 use axum::extract::State;
 use conduit::{
-	error,
+	debug, error,
 	utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
 	warn, Err, PduCount,
 };
 use ruma::{
 	api::client::{
+		error::ErrorKind,
 		filter::{FilterDefinition, LazyLoadOptions},
 		sync::sync_events::{
 			self,
@@ -1081,7 +1082,7 @@ fn share_encrypted_room(
 /// Sliding Sync endpoint (future endpoint: `/_matrix/client/v4/sync`)
 pub(crate) async fn sync_events_v4_route(
 	State(services): State<crate::State>, body: Ruma<sync_events::v4::Request>,
-) -> Result<sync_events::v4::Response, RumaResponse<UiaaResponse>> {
+) -> Result<sync_events::v4::Response> {
 	let sender_user = body.sender_user.expect("user is authenticated");
 	let sender_device = body.sender_device.expect("user is authenticated");
 	let mut body = body.body;
@@ -1100,6 +1101,19 @@ pub(crate) async fn sync_events_v4_route(
 		.as_ref()
 		.and_then(|string| string.parse().ok())
 		.unwrap_or(0);
+
+	if globalsince != 0
+		&& !services
+			.users
+			.remembered(sender_user.clone(), sender_device.clone(), conn_id.clone())
+	{
+		debug!("Restarting sync stream because it was gone from the database");
+		return Err(Error::Request(
+			ErrorKind::UnknownPos,
+			"Connection data lost since last time".into(),
+			http::StatusCode::BAD_REQUEST,
+		));
+	}
 
 	if globalsince == 0 {
 		services
