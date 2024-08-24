@@ -7,7 +7,9 @@ use std::{
 
 use axum::extract::State;
 use conduit::{
-	error, utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated}, warn, Err, PduCount
+	error,
+	utils::math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
+	warn, Err, PduCount,
 };
 use ruma::{
 	api::client::{
@@ -27,7 +29,10 @@ use ruma::{
 		presence::PresenceEvent,
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType, TimelineEventType,
-	}, room::RoomType, serde::Raw, uint, DeviceId, EventId, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId
+	},
+	room::RoomType,
+	serde::Raw,
+	uint, DeviceId, EventId, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId,
 };
 use tracing::{Instrument as _, Span};
 
@@ -35,6 +40,8 @@ use crate::{
 	service::{pdu::EventHash, Services},
 	utils, Error, PduEvent, Result, Ruma, RumaResponse,
 };
+
+const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
 
 /// # `GET /_matrix/client/r0/sync`
 ///
@@ -1083,6 +1090,11 @@ pub(crate) async fn sync_events_v4_route(
 
 	let next_batch = services.globals.next_count()?;
 
+	let conn_id = body
+		.conn_id
+		.clone()
+		.unwrap_or_else(|| SINGLE_CONNECTION_SYNC.to_owned());
+
 	let globalsince = body
 		.pos
 		.as_ref()
@@ -1090,11 +1102,9 @@ pub(crate) async fn sync_events_v4_route(
 		.unwrap_or(0);
 
 	if globalsince == 0 {
-		if let Some(conn_id) = &body.conn_id {
-			services
-				.users
-				.forget_sync_request_connection(sender_user.clone(), sender_device.clone(), conn_id.clone());
-		}
+		services
+			.users
+			.forget_sync_request_connection(sender_user.clone(), sender_device.clone(), conn_id.clone());
 	}
 
 	// Get sticky parameters from cache
