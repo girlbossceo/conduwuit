@@ -60,7 +60,12 @@ pub(crate) enum RoomModerationCommand {
 	},
 
 	/// - List of all rooms we have banned
-	ListBannedRooms,
+	ListBannedRooms {
+		#[arg(long)]
+		/// Whether to only output room IDs without supplementary room
+		/// information
+		no_details: bool,
+	},
 }
 
 #[admin_command]
@@ -563,7 +568,7 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 }
 
 #[admin_command]
-async fn list_banned_rooms(&self) -> Result<RoomMessageEventContent> {
+async fn list_banned_rooms(&self, no_details: bool) -> Result<RoomMessageEventContent> {
 	let rooms = self
 		.services
 		.rooms
@@ -589,7 +594,11 @@ async fn list_banned_rooms(&self) -> Result<RoomMessageEventContent> {
 				rooms.len(),
 				rooms
 					.iter()
-					.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+					.map(|(id, members, name)| if no_details {
+						format!("{id}")
+					} else {
+						format!("{id}\tMembers: {members}\tName: {name}")
+					})
 					.collect::<Vec<_>>()
 					.join("\n")
 			);
@@ -597,7 +606,7 @@ async fn list_banned_rooms(&self) -> Result<RoomMessageEventContent> {
 			Ok(RoomMessageEventContent::notice_markdown(output_plain))
 		},
 		Err(e) => {
-			error!("Failed to list banned rooms: {}", e);
+			error!("Failed to list banned rooms: {e}");
 			Ok(RoomMessageEventContent::text_plain(format!("Unable to list banned rooms: {e}")))
 		},
 	}
