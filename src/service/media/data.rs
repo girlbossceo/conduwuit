@@ -37,7 +37,9 @@ impl Data {
 		content_disposition: Option<&ContentDisposition>, content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
 		let mut key: Vec<u8> = Vec::new();
+		key.extend_from_slice(b"mxc://");
 		key.extend_from_slice(mxc.server_name.as_bytes());
+		key.extend_from_slice(b"/");
 		key.extend_from_slice(mxc.media_id.as_bytes());
 		key.push(0xFF);
 		key.extend_from_slice(&width.to_be_bytes());
@@ -61,7 +63,9 @@ impl Data {
 
 		if let Some(user) = user {
 			let mut key: Vec<u8> = Vec::new();
+			key.extend_from_slice(b"mxc://");
 			key.extend_from_slice(mxc.server_name.as_bytes());
+			key.extend_from_slice(b"/");
 			key.extend_from_slice(mxc.media_id.as_bytes());
 			let user = user.as_bytes().to_vec();
 			self.mediaid_user.insert(&key, &user)?;
@@ -74,7 +78,9 @@ impl Data {
 		debug!("MXC URI: {mxc}");
 
 		let mut prefix: Vec<u8> = Vec::new();
+		prefix.extend_from_slice(b"mxc://");
 		prefix.extend_from_slice(mxc.server_name.as_bytes());
+		prefix.extend_from_slice(b"/");
 		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
 
@@ -101,7 +107,9 @@ impl Data {
 		debug!("MXC URI: {mxc}");
 
 		let mut prefix: Vec<u8> = Vec::new();
+		prefix.extend_from_slice(b"mxc://");
 		prefix.extend_from_slice(mxc.server_name.as_bytes());
+		prefix.extend_from_slice(b"/");
 		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
 
@@ -122,7 +130,9 @@ impl Data {
 
 	pub(super) fn search_file_metadata(&self, mxc: &Mxc<'_>, width: u32, height: u32) -> Result<Metadata> {
 		let mut prefix: Vec<u8> = Vec::new();
+		prefix.extend_from_slice(b"mxc://");
 		prefix.extend_from_slice(mxc.server_name.as_bytes());
+		prefix.extend_from_slice(b"/");
 		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
 		prefix.extend_from_slice(&width.to_be_bytes());
