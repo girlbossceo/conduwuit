@@ -25,15 +25,9 @@ use ruma::{
 			DeviceLists, UnreadNotificationsCount,
 		},
 		uiaa::UiaaResponse,
-	},
-	events::{
-		presence::PresenceEvent,
-		room::member::{MembershipState, RoomMemberEventContent},
-		StateEventType, TimelineEventType,
-	},
-	room::RoomType,
-	serde::Raw,
-	uint, DeviceId, EventId, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId,
+	}, events::{
+		presence::PresenceEvent, room::member::{MembershipState, RoomMemberEventContent}, StateEventType, TimelineEventType
+	}, room::RoomType, serde::Raw, state_res::Event, uint, DeviceId, EventId, MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId
 };
 use tracing::{Instrument as _, Span};
 
@@ -43,6 +37,14 @@ use crate::{
 };
 
 const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
+const DEFAULT_BUMP_TYPES: &[TimelineEventType] = &[
+	TimelineEventType::Message,
+	TimelineEventType::Encrypted,
+	TimelineEventType::Sticker,
+	TimelineEventType::CallInvite,
+	TimelineEventType::PollStart,
+	TimelineEventType::Beacon,
+];
 
 /// # `GET /_matrix/client/r0/sync`
 ///
@@ -1500,6 +1502,14 @@ pub(crate) async fn sync_events_v4_route(
 			None
 		};
 
+		let mut timestamp: Option<_> = None;
+		for (_, pdu) in timeline_pdus {
+		    timestamp = Some(MilliSecondsSinceUnixEpoch(pdu.origin_server_ts));
+			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) {
+				break;
+			}
+		}
+
 		let required_state = required_state_request
 			.iter()
 			.map(|state| {
@@ -1622,7 +1632,7 @@ pub(crate) async fn sync_events_v4_route(
 						.unwrap_or_else(|_| uint!(0)),
 				),
 				num_live: None, // Count events in timeline greater than global sync counter
-				timestamp: None,
+				timestamp,
 				heroes: Some(heroes),
 			},
 		);

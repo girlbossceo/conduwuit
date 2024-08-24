@@ -336,6 +336,8 @@ features = [
     "unstable-msc3026",
     "unstable-msc3061",
     "unstable-msc3266",
+    "unstable-msc3381", # polls
+    "unstable-msc3489", # beacon / live location
     "unstable-msc3575",
     "unstable-msc4121",
     "unstable-msc4125",
