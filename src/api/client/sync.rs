@@ -1145,7 +1145,7 @@ pub(crate) async fn sync_events_v4_route(
 	let all_rooms = all_joined_rooms
 		.iter()
 		.cloned()
-		.chain(all_invited_rooms.iter().cloned())
+		.chain(all_invited_rooms.clone())
 		.collect();
 
 	if body.extensions.to_device.enabled.unwrap_or(false) {
@@ -1490,6 +1490,16 @@ pub(crate) async fn sync_events_v4_route(
 			.map(|(_, pdu)| pdu.to_sync_room_event())
 			.collect();
 
+		let invite_state = if all_invited_rooms.contains(room_id) {
+			services
+				.rooms
+				.state_cache
+				.invite_state(&sender_user, room_id)
+				.unwrap_or(None)
+		} else {
+			None
+		};
+
 		let required_state = required_state_request
 			.iter()
 			.map(|state| {
@@ -1570,7 +1580,7 @@ pub(crate) async fn sync_events_v4_route(
 				},
 				initial: Some(roomsince == &0),
 				is_dm: None,
-				invite_state: None,
+				invite_state,
 				unread_notifications: UnreadNotificationsCount {
 					highlight_count: Some(
 						services
