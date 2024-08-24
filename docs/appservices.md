@@ -2,13 +2,15 @@
 
 ## Getting help
 
-If you run into any problems while setting up an Appservice: ask us in [#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay) or [open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new).
+If you run into any problems while setting up an Appservice: ask us in
+[#conduwuit:puppygock.gay](https://matrix.to/#/#conduwuit:puppygock.gay) or
+[open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new).
 
 ## Set up the appservice - general instructions
 
 Follow whatever instructions are given by the appservice. This usually includes
-downloading, changing its config (setting domain, homeserver url, port etc.)
-and later starting it.
+downloading, changing its config (setting domain, homeserver url, port etc.) and
+later starting it.
 
 At some point the appservice guide should ask you to add a registration yaml
 file to the homeserver. In Synapse you would do this by adding the path to the

@@ -9,31 +9,29 @@ conduwuit can be acquired by [Lix][lix] from various places:
 A binary cache for conduwuit that the CI/CD publishes to is available at the
 following places (both are the same just different names):
 
-```
-https://attic.kennel.juneis.dog/conduit
+``` https://attic.kennel.juneis.dog/conduit
 conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk=
 
 https://attic.kennel.juneis.dog/conduwuit
-conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE=
-```
+conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= ```
 
-The binary caches have been recreated recently due to attic issues. The old public keys were:
+The binary caches have been recreated recently due to attic issues. The old
+public keys were:
 
-```
-conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+``` conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
 
-conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
-```
+conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw= ```
 
-If specifying a URL in your flake, please use the GitHub remote: `github:girlbossceo/conduwuit`
+If specifying a URL in your flake, please use the GitHub remote:
+`github:girlbossceo/conduwuit`
 
 The `flake.nix` and `default.nix` do not (currently) provide a NixOS module, so
 (for now) [`services.matrix-conduit`][module] from Nixpkgs should be used to
 configure conduwuit.
 
-If you want to run the latest code, you should get conduwuit from the `flake.nix`
-or `default.nix` and set [`services.matrix-conduit.package`][package]
-appropriately.
+If you want to run the latest code, you should get conduwuit from the
+`flake.nix` or `default.nix` and set
+[`services.matrix-conduit.package`][package] appropriately.
 
 [lix]: https://lix.systems/
 [module]: https://search.nixos.org/options?channel=unstable&query=services.matrix-conduit
