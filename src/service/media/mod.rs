@@ -203,7 +203,20 @@ impl Service {
 			let path = self.get_media_file(&key);
 			debug!("MXC path: {path:?}");
 
-			let file_metadata = fs::metadata(path.clone()).await?;
+			let file_metadata = match fs::metadata(path.clone()).await {
+				Ok(file_metadata) => file_metadata,
+				Err(e) => {
+					if force {
+						error!("Failed to obtain file metadata for MXC {mxc} at file path \"{path:?}\", skipping: {e}");
+						continue;
+					}
+
+					return Err!(Database(
+						"Failed to obtain file metadata for MXC {mxc} at file path \"{path:?}\": {e}"
+					));
+				},
+			};
+
 			debug!("File metadata: {file_metadata:?}");
 
 			let file_created_at = match file_metadata.created() {
@@ -214,9 +227,10 @@ impl Service {
 				},
 				Err(err) => {
 					if force {
-						error!("Could not delete MXC path {path:?}: {err:?}. Skipping...");
+						error!("Could not delete MXC {mxc} at path {path:?}: {err:?}. Skipping...");
 						continue;
 					}
+
 					return Err(err.into());
 				},
 			};
@@ -240,8 +254,20 @@ impl Service {
 		for mxc in remote_mxcs {
 			let mxc: Mxc<'_> = mxc.as_str().try_into()?;
 			debug_info!("Deleting MXC {mxc} from database and filesystem");
-			self.delete(&mxc).await?;
-			deletion_count = deletion_count.saturating_add(1);
+
+			match self.delete(&mxc).await {
+				Ok(()) => {
+					deletion_count = deletion_count.saturating_add(1);
+				},
+				Err(e) => {
+					if force {
+						warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
+						continue;
+					}
+
+					return Err!(Database(warn!("Failed to delete MXC {mxc}: {e}")));
+				},
+			}
 		}
 
 		Ok(deletion_count)
