@@ -166,7 +166,7 @@ impl Service {
 		let mut mxcs = Vec::with_capacity(all_keys.len());
 
 		for key in all_keys {
-			debug!("Full MXC key from database: {key:?}");
+			trace!("Full MXC key from database: {key:?}");
 
 			// we need to get the MXC URL from the first part of the key (the first 0xff /
 			// 255 push). this is all necessary because of conduit using magic keys for
@@ -184,7 +184,7 @@ impl Service {
 				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
 			};
 
-			debug_info!("Parsed MXC key to URL: {mxc_s}");
+			trace!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
 
 			mxcs.push(mxc);
@@ -208,7 +208,7 @@ impl Service {
 		let mut remote_mxcs = Vec::with_capacity(all_keys.len());
 
 		for key in all_keys {
-			debug!("Full MXC key from database: {key:?}");
+			trace!("Full MXC key from database: {key:?}");
 
 			// we need to get the MXC URL from the first part of the key (the first 0xff /
 			// 255 push). this is all necessary because of conduit using magic keys for
@@ -226,7 +226,7 @@ impl Service {
 				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
 			};
 
-			debug_info!("Parsed MXC key to URL: {mxc_s}");
+			trace!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
 			if mxc.server_name() == Ok(self.services.globals.server_name()) {
 				debug!("Ignoring local media MXC: {mxc}");
