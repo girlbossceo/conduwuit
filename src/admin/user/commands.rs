@@ -1,15 +1,16 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{join_room_by_id_helper, leave_all_rooms, update_avatar_url, update_displayname};
-use conduit::{error, info, utils, warn, Result};
+use conduit::{error, info, utils, warn, PduBuilder, Result};
 use ruma::{
 	events::{
-		room::message::RoomMessageEventContent,
+		room::{message::RoomMessageEventContent, redaction::RoomRedactionEventContent},
 		tag::{TagEvent, TagEventContent, TagInfo},
-		RoomAccountDataEventType,
+		RoomAccountDataEventType, TimelineEventType,
 	},
-	OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
+	EventId, OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
 };
+use serde_json::value::to_raw_value;
 
 use crate::{
 	admin_command, escape_html, get_room_info,
@@ -483,5 +484,64 @@ pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"```\n{:#?}\n```",
 		tags_event.content.tags
+	)))
+}
+
+#[admin_command]
+pub(super) async fn redact_event(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+	let Some(event) = self
+		.services
+		.rooms
+		.timeline
+		.get_non_outlier_pdu(&event_id)?
+	else {
+		return Ok(RoomMessageEventContent::text_plain("Event does not exist in our database."));
+	};
+
+	if event.is_redacted() {
+		return Ok(RoomMessageEventContent::text_plain("Event is already redacted."));
+	}
+
+	let room_id = event.room_id;
+	let sender_user = event.sender;
+
+	if !self.services.globals.user_is_local(&sender_user) {
+		return Ok(RoomMessageEventContent::text_plain("This command only works on local users."));
+	}
+
+	let reason = format!(
+		"The administrator(s) of {} has redacted this user's message.",
+		self.services.globals.server_name()
+	);
+
+	let state_lock = self.services.rooms.state.mutex.lock(&room_id).await;
+
+	let redaction_event_id = self
+		.services
+		.rooms
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder {
+				event_type: TimelineEventType::RoomRedaction,
+				content: to_raw_value(&RoomRedactionEventContent {
+					redacts: Some(event.event_id.clone().into()),
+					reason: Some(reason),
+				})
+				.expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: None,
+				redacts: Some(event.event_id),
+				timestamp: None,
+			},
+			&sender_user,
+			&room_id,
+			&state_lock,
+		)
+		.await?;
+
+	drop(state_lock);
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Successfully redacted event. Redaction event ID: {redaction_event_id}"
 	)))
 }

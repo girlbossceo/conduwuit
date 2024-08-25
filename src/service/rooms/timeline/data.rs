@@ -113,7 +113,7 @@ impl Data {
 		self.eventid_pduid.get(event_id.as_bytes())
 	}
 
-	/// Returns the pdu.
+	/// Returns the pdu directly from `eventid_pduid` only.
 	pub(super) fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<Option<PduEvent>> {
 		self.eventid_pduid
 			.get(event_id.as_bytes())?

@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{OwnedRoomOrAliasId, RoomId};
+use ruma::{EventId, OwnedRoomOrAliasId, RoomId};
 
 use crate::admin_command_dispatch;
 
@@ -102,5 +102,13 @@ pub(super) enum UserCommand {
 	GetRoomTags {
 		user_id: String,
 		room_id: Box<RoomId>,
+	},
+
+	/// - Attempts to forcefully redact the specified event ID from the sender
+	///   user
+	///
+	/// This is only valid for local users
+	RedactEvent {
+		event_id: Box<EventId>,
 	},
 }
