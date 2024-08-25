@@ -67,7 +67,7 @@ impl super::Service {
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
-		const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_5];
+		const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_11];
 		const SATIR: SendAccessToken<'_> = SendAccessToken::IfRequired(EMPTY);
 
 		trace!("Preparing request");
