@@ -32,7 +32,17 @@ pub(super) enum MediaCommand {
 		/// - The duration (at or after), e.g. "5m" to delete all media in the
 		///   past 5 minutes
 		duration: String,
+
 		/// Continues deleting remote media if an undeletable object is found
+		#[arg(short, long)]
+		force: bool,
+	},
+
+	/// - Deletes all the local media from a local user on our server
+	DeleteAllFromUser {
+		username: String,
+
+		/// Continues deleting media if an undeletable object is found
 		#[arg(short, long)]
 		force: bool,
 	},

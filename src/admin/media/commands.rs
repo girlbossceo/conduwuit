@@ -1,7 +1,7 @@
 use conduit::{debug, info, Result};
 use ruma::{events::room::message::RoomMessageEventContent, EventId, MxcUri};
 
-use crate::admin_command;
+use crate::{admin_command, utils::parse_local_user_id};
 
 #[admin_command]
 pub(super) async fn delete(
@@ -180,6 +180,21 @@ pub(super) async fn delete_past_remote_media(&self, duration: String, force: boo
 		.services
 		.media
 		.delete_all_remote_media_at_after_time(duration, force)
+		.await?;
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Deleted {deleted_count} total files.",
+	)))
+}
+
+#[admin_command]
+pub(super) async fn delete_all_from_user(&self, username: String, force: bool) -> Result<RoomMessageEventContent> {
+	let user_id = parse_local_user_id(self.services, &username)?;
+
+	let deleted_count = self
+		.services
+		.media
+		.delete_from_user(&user_id, force)
 		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
