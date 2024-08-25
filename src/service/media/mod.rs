@@ -8,7 +8,11 @@ use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{debug, debug_error, err, error, trace, utils, utils::MutexMap, Err, Result, Server};
+use conduit::{
+	debug, debug_error, debug_info, err, error, trace,
+	utils::{self, MutexMap},
+	warn, Err, Result, Server,
+};
 use data::{Data, Metadata};
 use ruma::{http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 use tokio::{
@@ -106,6 +110,31 @@ impl Service {
 		}
 	}
 
+	/// Deletes all media by the specified user
+	///
+	/// currently, this is only practical for local users
+	pub async fn delete_from_user(&self, user: &UserId, force: bool) -> Result<usize> {
+		let mxcs = self.db.get_all_user_mxcs(user);
+		let mut deletion_count: usize = 0;
+
+		for mxc in mxcs {
+			let mxc: Mxc<'_> = mxc.as_str().try_into()?;
+			debug_info!("Deleting MXC {mxc} by user {user} from database and filesystem");
+			if force {
+				_ = self
+					.delete(&mxc)
+					.await
+					.inspect_err(|e| warn!("Failed to delete {mxc} from user {user}, ignoring error: {e}"));
+			} else {
+				self.delete(&mxc).await?;
+			}
+
+			deletion_count = deletion_count.saturating_add(1);
+		}
+
+		Ok(deletion_count)
+	}
+
 	/// Downloads a file.
 	pub async fn get(&self, mxc: &Mxc<'_>) -> Result<Option<FileMeta>> {
 		if let Ok(Metadata {
@@ -163,7 +192,7 @@ impl Service {
 				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
 			};
 
-			debug!("Parsed MXC key to URL: {mxc_s}");
+			debug_info!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
 			if mxc.server_name() == Ok(self.services.globals.server_name()) {
 				debug!("Ignoring local media MXC: {mxc}");
@@ -206,11 +235,11 @@ impl Service {
 			return Err!(Database("Did not found any eligible MXCs to delete."));
 		}
 
-		debug!("Deleting media now in the past {user_duration:?}.");
+		debug_info!("Deleting media now in the past {user_duration:?}.");
 		let mut deletion_count: usize = 0;
 		for mxc in remote_mxcs {
 			let mxc: Mxc<'_> = mxc.as_str().try_into()?;
-			debug!("Deleting MXC {mxc} from database and filesystem");
+			debug_info!("Deleting MXC {mxc} from database and filesystem");
 			self.delete(&mxc).await?;
 			deletion_count = deletion_count.saturating_add(1);
 		}

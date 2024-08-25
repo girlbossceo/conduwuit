@@ -6,7 +6,7 @@ use conduit::{
 	Err, Error, Result,
 };
 use database::{Database, Map};
-use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition, Mxc, UserId};
+use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 
 use super::preview::UrlPreviewData;
 
@@ -174,6 +174,23 @@ impl Data {
 			content_type,
 			key,
 		})
+	}
+
+	/// Gets all the MXCs associated with a user
+	pub(super) fn get_all_user_mxcs(&self, user_id: &UserId) -> Vec<OwnedMxcUri> {
+		let user_id = user_id.as_bytes().to_vec();
+
+		self.mediaid_user
+			.iter()
+			.filter_map(|(key, user)| {
+				if *user == user_id {
+					let mxc_s = string_from_bytes(&key).ok()?;
+					Some(OwnedMxcUri::from(mxc_s))
+				} else {
+					None
+				}
+			})
+			.collect()
 	}
 
 	/// Gets all the media keys in our database (this includes all the metadata
