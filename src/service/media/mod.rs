@@ -159,11 +159,43 @@ impl Service {
 		}
 	}
 
+	/// Gets all the MXC URIs in our media database
+	pub async fn get_all_mxcs(&self) -> Result<Vec<OwnedMxcUri>> {
+		let all_keys = self.db.get_all_media_keys();
+
+		let mut mxcs = Vec::with_capacity(all_keys.len());
+
+		for key in all_keys {
+			debug!("Full MXC key from database: {key:?}");
+
+			// we need to get the MXC URL from the first part of the key (the first 0xff /
+			// 255 push). this is all necessary because of conduit using magic keys for
+			// media
+			let mut parts = key.split(|&b| b == 0xFF);
+			let mxc = parts
+				.next()
+				.map(|bytes| {
+					utils::string_from_bytes(bytes)
+						.map_err(|e| err!(Database(error!("Failed to parse MXC unicode bytes from our database: {e}"))))
+				})
+				.transpose()?;
+
+			let Some(mxc_s) = mxc else {
+				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
+			};
+
+			debug_info!("Parsed MXC key to URL: {mxc_s}");
+			let mxc = OwnedMxcUri::from(mxc_s);
+
+			mxcs.push(mxc);
+		}
+
+		Ok(mxcs)
+	}
+
 	/// Deletes all remote only media files in the given at or after
 	/// time/duration. Returns a u32 with the amount of media files deleted.
 	pub async fn delete_all_remote_media_at_after_time(&self, time: String, force: bool) -> Result<usize> {
-		let all_keys = self.db.get_all_media_keys();
-
 		let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
 			Err(e) => return Err!(Database(error!("Failed to parse specified time duration: {e}"))),
 			Ok(duration) => SystemTime::now()
@@ -171,7 +203,9 @@ impl Service {
 				.ok_or(err!(Arithmetic("Duration {duration:?} is too large")))?,
 		};
 
-		let mut remote_mxcs: Vec<String> = vec![];
+		let all_keys = self.db.get_all_media_keys();
+
+		let mut remote_mxcs = Vec::with_capacity(all_keys.len());
 
 		for key in all_keys {
 			debug!("Full MXC key from database: {key:?}");

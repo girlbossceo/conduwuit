@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{EventId, MxcUri};
+use ruma::{EventId, MxcUri, ServerName};
 
 use crate::admin_command_dispatch;
 
@@ -41,6 +41,15 @@ pub(super) enum MediaCommand {
 	/// - Deletes all the local media from a local user on our server
 	DeleteAllFromUser {
 		username: String,
+
+		/// Continues deleting media if an undeletable object is found
+		#[arg(short, long)]
+		force: bool,
+	},
+
+	/// - Deletes all remote media from the specified remote server
+	DeleteAllFromServer {
+		server_name: Box<ServerName>,
 
 		/// Continues deleting media if an undeletable object is found
 		#[arg(short, long)]

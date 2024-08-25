@@ -1,5 +1,5 @@
-use conduit::{debug, info, Result};
-use ruma::{events::room::message::RoomMessageEventContent, EventId, MxcUri};
+use conduit::{debug, info, trace, warn, Result};
+use ruma::{events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, ServerName};
 
 use crate::{admin_command, utils::parse_local_user_id};
 
@@ -196,6 +196,62 @@ pub(super) async fn delete_all_from_user(&self, username: String, force: bool) -
 		.media
 		.delete_from_user(&user_id, force)
 		.await?;
+
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Deleted {deleted_count} total files.",
+	)))
+}
+
+#[admin_command]
+pub(super) async fn delete_all_from_server(
+	&self, server_name: Box<ServerName>, force: bool,
+) -> Result<RoomMessageEventContent> {
+	if server_name == self.services.globals.server_name() {
+		return Ok(RoomMessageEventContent::text_plain("This command only works for remote media."));
+	}
+
+	let Ok(all_mxcs) = self.services.media.get_all_mxcs().await else {
+		return Ok(RoomMessageEventContent::text_plain("Failed to get MXC URIs from our database"));
+	};
+
+	let mut deleted_count: usize = 0;
+
+	for mxc in all_mxcs {
+		let mxc_server_name = match mxc.server_name() {
+			Ok(server_name) => server_name,
+			Err(e) => {
+				if force {
+					warn!("Failed to parse MXC {mxc} server name from database, ignoring error and skipping: {e}");
+					continue;
+				}
+
+				return Ok(RoomMessageEventContent::text_plain(format!(
+					"Failed to parse MXC {mxc} server name from database: {e}",
+				)));
+			},
+		};
+
+		if mxc_server_name != server_name || self.services.globals.server_is_ours(mxc_server_name) {
+			trace!("skipping MXC URI {mxc}");
+			continue;
+		}
+
+		let mxc: Mxc<'_> = mxc.as_str().try_into()?;
+
+		match self.services.media.delete(&mxc).await {
+			Ok(()) => {
+				deleted_count = deleted_count.saturating_add(1);
+			},
+			Err(e) => {
+				if force {
+					warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
+					continue;
+				}
+
+				return Ok(RoomMessageEventContent::text_plain(format!("Failed to delete MXC {mxc}: {e}")));
+			},
+		}
+	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Deleted {deleted_count} total files.",
