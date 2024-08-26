@@ -1,7 +1,4 @@
-
-use conduit::{
-	debug, error, implement, info,
-};
+use conduit::{debug, debug_info, error, implement, info};
 use ruma::events::room::message::RoomMessageEventContent;
 use tokio::time::{sleep, Duration};
 
@@ -32,6 +29,16 @@ pub(super) async fn startup_execute(&self) {
 	for (i, command) in self.services.server.config.admin_execute.iter().enumerate() {
 		self.startup_execute_command(i, command.clone()).await;
 		tokio::task::yield_now().await;
+	}
+
+	// The smoketest functionality is placed here for now and simply initiates
+	// shutdown after all commands have executed.
+	if self.services.server.config.test.contains("smoke") {
+		debug_info!("Smoketest mode. All commands complete. Shutting down now...");
+		self.services
+			.server
+			.shutdown()
+			.unwrap_or_else(error::default_log);
 	}
 }
 
