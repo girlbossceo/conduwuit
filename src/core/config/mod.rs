@@ -1,5 +1,5 @@
 use std::{
-	collections::BTreeMap,
+	collections::{BTreeMap, BTreeSet},
 	fmt,
 	net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 	path::PathBuf,
@@ -360,6 +360,9 @@ pub struct Config {
 
 	#[serde(default)]
 	pub tokio_console: bool,
+
+	#[serde(default)]
+	pub test: BTreeSet<String>,
 
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
