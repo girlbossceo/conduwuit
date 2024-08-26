@@ -1,6 +1,7 @@
 pub mod console;
 mod create;
 mod grant;
+mod startup;
 
 use std::{
 	future::Future,
@@ -9,7 +10,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{debug, error, error::default_log, info, pdu::PduBuilder, Err, Error, PduEvent, Result, Server};
+use conduit::{debug, error, error::default_log, pdu::PduBuilder, Err, Error, PduEvent, Result, Server};
 pub use create::create_admin_room;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -20,10 +21,7 @@ use ruma::{
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tokio::{
-	sync::{Mutex, RwLock},
-	time::{sleep, Duration},
-};
+use tokio::sync::{Mutex, RwLock};
 
 use crate::{globals, rooms, rooms::state::RoomMutexGuard, Dep};
 
@@ -359,53 +357,6 @@ impl Service {
 		} else {
 			false
 		}
-	}
-
-	/// Execute admin commands after startup
-	async fn startup_execute(&self) {
-		sleep(Duration::from_millis(500)).await; //TODO: remove this after run-states are broadcast
-		for (i, command) in self.services.server.config.admin_execute.iter().enumerate() {
-			self.startup_execute_command(i, command.clone()).await;
-			tokio::task::yield_now().await;
-		}
-	}
-
-	/// Execute one admin command after startup
-	async fn startup_execute_command(&self, i: usize, command: String) {
-		debug!("Startup command #{i}: executing {command:?}");
-
-		match self.command_in_place(command, None).await {
-			Err(e) => error!("Startup command #{i} failed: {e:?}"),
-			Ok(None) => info!("Startup command #{i} completed (no output)."),
-			Ok(Some(output)) => Self::startup_command_output(i, &output),
-		}
-	}
-
-	#[cfg(feature = "console")]
-	fn startup_command_output(i: usize, content: &RoomMessageEventContent) {
-		info!("Startup command #{i} completed:");
-		console::print(content.body());
-	}
-
-	#[cfg(not(feature = "console"))]
-	fn startup_command_output(i: usize, content: &RoomMessageEventContent) {
-		info!("Startup command #{i} completed:\n{:#?}", content.body());
-	}
-
-	/// Possibly spawn the terminal console at startup if configured.
-	async fn console_auto_start(&self) {
-		#[cfg(feature = "console")]
-		if self.services.server.config.admin_console_automatic {
-			// Allow more of the startup sequence to execute before spawning
-			tokio::task::yield_now().await;
-			self.console.start().await;
-		}
-	}
-
-	/// Shutdown the console when the admin worker terminates.
-	async fn console_auto_stop(&self) {
-		#[cfg(feature = "console")]
-		self.console.close().await;
 	}
 
 	/// Sets the self-reference to crate::Services which will provide context to
