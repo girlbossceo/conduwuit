@@ -257,3 +257,11 @@ pub(super) async fn delete_all_from_server(
 		"Deleted {deleted_count} total files.",
 	)))
 }
+
+#[admin_command]
+pub(super) async fn get_file_info(&self, mxc: OwnedMxcUri) -> Result<RoomMessageEventContent> {
+	let mxc: Mxc<'_> = mxc.as_str().try_into()?;
+	let metadata = self.services.media.get_metadata(&mxc);
+
+	Ok(RoomMessageEventContent::notice_markdown(format!("```\n{metadata:#?}\n```")))
+}

@@ -31,7 +31,7 @@ pub struct FileMeta {
 
 pub struct Service {
 	url_preview_mutex: MutexMap<String, ()>,
-	pub(crate) db: Data,
+	pub(super) db: Data,
 	services: Services,
 }
 
@@ -345,6 +345,18 @@ impl Service {
 		}
 
 		Ok(file)
+	}
+
+	#[inline]
+	pub fn get_metadata(&self, mxc: &Mxc<'_>) -> Option<FileMeta> {
+		self.db
+			.search_file_metadata(mxc, 0, 0)
+			.map(|metadata| FileMeta {
+				content_disposition: metadata.content_disposition,
+				content_type: metadata.content_type,
+				content: None,
+			})
+			.ok()
 	}
 
 	#[inline]

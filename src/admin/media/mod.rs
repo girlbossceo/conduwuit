@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{EventId, MxcUri, ServerName};
+use ruma::{EventId, MxcUri, OwnedMxcUri, ServerName};
 
 use crate::admin_command_dispatch;
 
@@ -54,5 +54,10 @@ pub(super) enum MediaCommand {
 		/// Continues deleting media if an undeletable object is found
 		#[arg(short, long)]
 		force: bool,
+	},
+
+	GetFileInfo {
+		/// The MXC URL to lookup info for.
+		mxc: OwnedMxcUri,
 	},
 }
