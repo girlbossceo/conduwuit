@@ -2,7 +2,7 @@ mod commands;
 
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{EventId, MxcUri, OwnedMxcUri, ServerName};
+use ruma::{EventId, MxcUri, OwnedMxcUri, OwnedServerName, ServerName};
 
 use crate::admin_command_dispatch;
 
@@ -59,5 +59,33 @@ pub(super) enum MediaCommand {
 	GetFileInfo {
 		/// The MXC URL to lookup info for.
 		mxc: OwnedMxcUri,
+	},
+
+	GetRemoteFile {
+		/// The MXC URL to fetch
+		mxc: OwnedMxcUri,
+
+		#[arg(short, long)]
+		server: Option<OwnedServerName>,
+
+		#[arg(short, long, default_value("10000"))]
+		timeout: u32,
+	},
+
+	GetRemoteThumbnail {
+		/// The MXC URL to fetch
+		mxc: OwnedMxcUri,
+
+		#[arg(short, long)]
+		server: Option<OwnedServerName>,
+
+		#[arg(short, long, default_value("10000"))]
+		timeout: u32,
+
+		#[arg(short, long)]
+		width: u32,
+
+		#[arg(short, long)]
+		height: u32,
 	},
 }

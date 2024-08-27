@@ -1,5 +1,10 @@
-use conduit::{debug, info, trace, warn, Result};
-use ruma::{events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, ServerName};
+use std::time::Duration;
+
+use conduit::{debug, info, trace, utils::time::parse_timepoint_ago, warn, Result};
+use conduit_service::media::Dim;
+use ruma::{
+	events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, OwnedMxcUri, OwnedServerName, ServerName,
+};
 
 use crate::{admin_command, utils::parse_local_user_id};
 
@@ -265,4 +270,45 @@ pub(super) async fn get_file_info(&self, mxc: OwnedMxcUri) -> Result<RoomMessage
 	let metadata = self.services.media.get_metadata(&mxc);
 
 	Ok(RoomMessageEventContent::notice_markdown(format!("```\n{metadata:#?}\n```")))
+}
+
+#[admin_command]
+pub(super) async fn get_remote_file(
+	&self, mxc: OwnedMxcUri, server: Option<OwnedServerName>, timeout: u32,
+) -> Result<RoomMessageEventContent> {
+	let mxc: Mxc<'_> = mxc.as_str().try_into()?;
+	let timeout = Duration::from_millis(timeout.into());
+	let mut result = self
+		.services
+		.media
+		.fetch_remote_content(&mxc, None, server.as_deref(), timeout)
+		.await?;
+
+	// Grab the length of the content before clearing it to not flood the output
+	let len = result.content.as_ref().expect("content").len();
+	result.content.as_mut().expect("content").clear();
+
+	let out = format!("```\n{result:#?}\nreceived {len} bytes for file content.\n```");
+	Ok(RoomMessageEventContent::notice_markdown(out))
+}
+
+#[admin_command]
+pub(super) async fn get_remote_thumbnail(
+	&self, mxc: OwnedMxcUri, server: Option<OwnedServerName>, timeout: u32, width: u32, height: u32,
+) -> Result<RoomMessageEventContent> {
+	let mxc: Mxc<'_> = mxc.as_str().try_into()?;
+	let timeout = Duration::from_millis(timeout.into());
+	let dim = Dim::new(width, height, None);
+	let mut result = self
+		.services
+		.media
+		.fetch_remote_thumbnail(&mxc, None, server.as_deref(), timeout, &dim)
+		.await?;
+
+	// Grab the length of the content before clearing it to not flood the output
+	let len = result.content.as_ref().expect("content").len();
+	result.content.as_mut().expect("content").clear();
+
+	let out = format!("```\n{result:#?}\nreceived {len} bytes for file content.\n```");
+	Ok(RoomMessageEventContent::notice_markdown(out))
 }

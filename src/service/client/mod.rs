@@ -8,6 +8,7 @@ use crate::{resolver, service};
 pub struct Service {
 	pub default: reqwest::Client,
 	pub url_preview: reqwest::Client,
+	pub extern_media: reqwest::Client,
 	pub well_known: reqwest::Client,
 	pub federation: reqwest::Client,
 	pub sender: reqwest::Client,
@@ -26,6 +27,11 @@ impl crate::Service for Service {
 				.build()?,
 
 			url_preview: base(config)?
+				.dns_resolver(resolver.resolver.clone())
+				.redirect(redirect::Policy::limited(3))
+				.build()?,
+
+			extern_media: base(config)?
 				.dns_resolver(resolver.resolver.clone())
 				.redirect(redirect::Policy::limited(3))
 				.build()?,
