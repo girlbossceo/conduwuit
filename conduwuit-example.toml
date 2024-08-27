@@ -398,6 +398,14 @@ allow_profile_lookup_federation_requests = true
 # Disabled by default.
 #media_compat_file_link = false
 
+# Prunes missing media from the database as part of the media startup checks. This means if you
+# delete files from the media directory the corresponding entries will be removed from the
+# database. This is disabled by default because if the media directory is accidentally moved or
+# inaccessible the metadata entries in the database will be lost with sadness.
+#
+# Disabled by default.
+#prune_missing_media = false
+
 # Checks consistency of the media directory at startup:
 # 1. When `media_compat_file_link` is enbled, this check will upgrade media when switching back
 #    and forth between Conduit and Conduwuit. Both options must be enabled to handle this.

@@ -833,7 +833,7 @@ async fn handle_media_check(
 			.map_or(false, |md| md.is_symlink())
 	};
 
-	if !old_exists && !new_exists {
+	if config.prune_missing_media && !old_exists && !new_exists {
 		error!(
 			media_id = ?encode_key(key), ?new_path, ?old_path,
 			"Media is missing at all paths. Removing from database..."

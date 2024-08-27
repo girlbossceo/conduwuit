@@ -293,6 +293,8 @@ pub struct Config {
 	pub media_startup_check: bool,
 	#[serde(default)]
 	pub media_compat_file_link: bool,
+	#[serde(default)]
+	pub prune_missing_media: bool,
 	#[serde(default = "Vec::new")]
 	pub prevent_media_downloads_from: Vec<OwnedServerName>,
 
@@ -742,6 +744,7 @@ impl fmt::Display for Config {
 		line("RocksDB Statistics level", &self.rocksdb_stats_level.to_string());
 		line("Media integrity checks on startup", &self.media_startup_check.to_string());
 		line("Media compatibility filesystem links", &self.media_compat_file_link.to_string());
+		line("Prune missing media from database", &self.prune_missing_media.to_string());
 		line("Prevent Media Downloads From", {
 			let mut lst = vec![];
 			for domain in &self.prevent_media_downloads_from {
