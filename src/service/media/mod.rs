@@ -1,4 +1,5 @@
 mod data;
+pub(super) mod migrations;
 mod preview;
 mod remote;
 mod tests;
