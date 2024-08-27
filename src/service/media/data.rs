@@ -8,7 +8,7 @@ use conduit::{
 use database::{Database, Map};
 use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 
-use super::preview::UrlPreviewData;
+use super::{preview::UrlPreviewData, thumbnail::Dim};
 
 pub(crate) struct Data {
 	mediaid_file: Arc<Map>,
@@ -33,8 +33,8 @@ impl Data {
 	}
 
 	pub(super) fn create_file_metadata(
-		&self, mxc: &Mxc<'_>, user: Option<&UserId>, width: u32, height: u32,
-		content_disposition: Option<&ContentDisposition>, content_type: Option<&str>,
+		&self, mxc: &Mxc<'_>, user: Option<&UserId>, dim: &Dim, content_disposition: Option<&ContentDisposition>,
+		content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
 		let mut key: Vec<u8> = Vec::new();
 		key.extend_from_slice(b"mxc://");
@@ -42,8 +42,8 @@ impl Data {
 		key.extend_from_slice(b"/");
 		key.extend_from_slice(mxc.media_id.as_bytes());
 		key.push(0xFF);
-		key.extend_from_slice(&width.to_be_bytes());
-		key.extend_from_slice(&height.to_be_bytes());
+		key.extend_from_slice(&dim.width.to_be_bytes());
+		key.extend_from_slice(&dim.height.to_be_bytes());
 		key.push(0xFF);
 		key.extend_from_slice(
 			content_disposition
@@ -128,15 +128,15 @@ impl Data {
 		Ok(keys)
 	}
 
-	pub(super) fn search_file_metadata(&self, mxc: &Mxc<'_>, width: u32, height: u32) -> Result<Metadata> {
+	pub(super) fn search_file_metadata(&self, mxc: &Mxc<'_>, dim: &Dim) -> Result<Metadata> {
 		let mut prefix: Vec<u8> = Vec::new();
 		prefix.extend_from_slice(b"mxc://");
 		prefix.extend_from_slice(mxc.server_name.as_bytes());
 		prefix.extend_from_slice(b"/");
 		prefix.extend_from_slice(mxc.media_id.as_bytes());
 		prefix.push(0xFF);
-		prefix.extend_from_slice(&width.to_be_bytes());
-		prefix.extend_from_slice(&height.to_be_bytes());
+		prefix.extend_from_slice(&dim.width.to_be_bytes());
+		prefix.extend_from_slice(&dim.height.to_be_bytes());
 		prefix.push(0xFF);
 
 		let (key, _) = self

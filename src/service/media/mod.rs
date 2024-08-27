@@ -13,13 +13,14 @@ use conduit::{
 	utils::{self, MutexMap},
 	warn, Err, Result, Server,
 };
-use data::{Data, Metadata};
 use ruma::{http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
 };
 
+use self::data::{Data, Metadata};
+pub use self::thumbnail::Dim;
 use crate::{client, globals, sending, Dep};
 
 #[derive(Debug)]
@@ -78,7 +79,7 @@ impl Service {
 		// Width, Height = 0 if it's not a thumbnail
 		let key = self
 			.db
-			.create_file_metadata(mxc, user, 0, 0, content_disposition, content_type)?;
+			.create_file_metadata(mxc, user, &Dim::default(), content_disposition, content_type)?;
 
 		//TODO: Dangling metadata in database if creation fails
 		let mut f = self.create_media_file(&key).await?;
@@ -141,7 +142,7 @@ impl Service {
 			content_disposition,
 			content_type,
 			key,
-		}) = self.db.search_file_metadata(mxc, 0, 0)
+		}) = self.db.search_file_metadata(mxc, &Dim::default())
 		{
 			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
@@ -350,7 +351,7 @@ impl Service {
 	#[inline]
 	pub fn get_metadata(&self, mxc: &Mxc<'_>) -> Option<FileMeta> {
 		self.db
-			.search_file_metadata(mxc, 0, 0)
+			.search_file_metadata(mxc, &Dim::default())
 			.map(|metadata| FileMeta {
 				content_disposition: metadata.content_disposition,
 				content_type: metadata.content_type,

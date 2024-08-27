@@ -14,7 +14,7 @@ use ruma::{
 	},
 	Mxc,
 };
-use service::media::{FileMeta, MXC_LENGTH};
+use service::media::{Dim, FileMeta, MXC_LENGTH};
 
 use crate::{Ruma, RumaResponse};
 
@@ -326,22 +326,12 @@ pub(crate) async fn get_content_thumbnail_route(
 		media_id: &body.media_id,
 	};
 
+	let dim = Dim::from_ruma(body.width, body.height, body.method.clone())?;
 	if let Some(FileMeta {
 		content,
 		content_type,
 		content_disposition,
-	}) = services
-		.media
-		.get_thumbnail(
-			&mxc,
-			body.width
-				.try_into()
-				.map_err(|e| err!(Request(InvalidParam("Width is invalid: {e:?}"))))?,
-			body.height
-				.try_into()
-				.map_err(|e| err!(Request(InvalidParam("Height is invalid: {e:?}"))))?,
-		)
-		.await?
+	}) = services.media.get_thumbnail(&mxc, &dim).await?
 	{
 		let content_disposition = make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
 

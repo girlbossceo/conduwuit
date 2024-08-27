@@ -3,6 +3,8 @@ use std::time::Duration;
 use conduit::{debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error, Result};
 use ruma::{api::client::media, Mxc};
 
+use super::Dim;
+
 #[implement(super::Service)]
 #[allow(deprecated)]
 pub async fn fetch_remote_thumbnail_legacy(
@@ -33,20 +35,9 @@ pub async fn fetch_remote_thumbnail_legacy(
 		)
 		.await?;
 
-	self.upload_thumbnail(
-		&mxc,
-		None,
-		None,
-		reponse.content_type.as_deref(),
-		body.width
-			.try_into()
-			.map_err(|e| err!(Request(InvalidParam("Width is invalid: {e:?}"))))?,
-		body.height
-			.try_into()
-			.map_err(|e| err!(Request(InvalidParam("Height is invalid: {e:?}"))))?,
-		&reponse.file,
-	)
-	.await?;
+	let dim = Dim::from_ruma(body.width, body.height, body.method.clone())?;
+	self.upload_thumbnail(&mxc, None, None, reponse.content_type.as_deref(), &dim, &reponse.file)
+		.await?;
 
 	Ok(reponse)
 }
