@@ -139,6 +139,11 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		.ruma_route(client::turn_server_route)
 		.ruma_route(client::send_event_to_device_route)
 		.ruma_route(client::create_content_route)
+		.ruma_route(client::get_content_thumbnail_route)
+		.ruma_route(client::get_content_route)
+		.ruma_route(client::get_content_as_filename_route)
+		.ruma_route(client::get_media_preview_route)
+		.ruma_route(client::get_media_config_route)
 		.ruma_route(client::get_devices_route)
 		.ruma_route(client::get_device_route)
 		.ruma_route(client::update_device_route)
@@ -247,8 +252,6 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 	err!(Request(GuestAccessForbidden("Guest access not implemented")))
 }
 
-async fn federation_disabled() -> impl IntoResponse { err!(Config("allow_federation", "Federation is disabled.")) }
+async fn legacy_media_disabled() -> impl IntoResponse { err!(Request(Forbidden("Unauthenticated media is disabled."))) }
 
-async fn legacy_media_disabled() -> impl IntoResponse {
-	err!(Config("allow_legacy_media", "Unauthenticated media is disabled."))
-}
+async fn federation_disabled() -> impl IntoResponse { err!(Request(Forbidden("Federation is disabled."))) }
