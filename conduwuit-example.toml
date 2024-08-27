@@ -390,10 +390,13 @@ allow_profile_lookup_federation_requests = true
 
 # Enable backward-compatibility with Conduit's media directory by creating symlinks of media. This
 # option is only necessary if you plan on using Conduit again. Otherwise setting this to false
-# reduces filesystem clutter and overhead for managing these symlinks in the directory.
+# reduces filesystem clutter and overhead for managing these symlinks in the directory. This is now
+# disabled by default. You may still return to upstream Conduit but you have to run Conduwuit at
+# least once with this set to true and allow the media_startup_check to take place before shutting
+# down to return to Conduit.
 #
-# Enabled by default.
-#media_compat_file_link = true
+# Disabled by default.
+#media_compat_file_link = false
 
 # Checks consistency of the media directory at startup:
 # 1. When `media_compat_file_link` is enbled, this check will upgrade media when switching back
