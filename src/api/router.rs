@@ -19,7 +19,7 @@ use crate::{client, server};
 
 pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 	let config = &server.config;
-	let router = router
+	let mut router = router
 		.ruma_route(client::get_supported_versions_route)
 		.ruma_route(client::get_register_available_route)
 		.ruma_route(client::register_route)
@@ -138,37 +138,7 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		.ruma_route(client::search_events_route)
 		.ruma_route(client::turn_server_route)
 		.ruma_route(client::send_event_to_device_route)
-		.ruma_route(client::get_media_config_route)
-		.ruma_route(client::get_media_preview_route)
 		.ruma_route(client::create_content_route)
-		// legacy v1 media routes
-		.route(
-			"/_matrix/media/v1/preview_url",
-			get(client::get_media_preview_v1_route)
-		)
-		.route(
-			"/_matrix/media/v1/config",
-			get(client::get_media_config_v1_route)
-		)
-		.route(
-			"/_matrix/media/v1/upload",
-			post(client::create_content_v1_route)
-		)
-		.route(
-			"/_matrix/media/v1/download/:server_name/:media_id",
-			get(client::get_content_v1_route)
-		)
-		.route(
-			"/_matrix/media/v1/download/:server_name/:media_id/:file_name",
-			get(client::get_content_as_filename_v1_route)
-		)
-		.route(
-			"/_matrix/media/v1/thumbnail/:server_name/:media_id",
-			get(client::get_content_thumbnail_v1_route)
-		)
-		.ruma_route(client::get_content_route)
-		.ruma_route(client::get_content_as_filename_route)
-		.ruma_route(client::get_content_thumbnail_route)
 		.ruma_route(client::get_devices_route)
 		.ruma_route(client::get_device_route)
 		.ruma_route(client::update_device_route)
@@ -202,7 +172,7 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		.route("/client/server.json", get(client::syncv3_client_server_json));
 
 	if config.allow_federation {
-		router
+		router = router
 			.ruma_route(server::get_server_version_route)
 			.route("/_matrix/key/v2/server", get(server::get_server_keys_route))
 			.route("/_matrix/key/v2/server/:key_id", get(server::get_server_keys_deprecated_route))
@@ -232,14 +202,45 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 			.ruma_route(server::well_known_server)
 			.ruma_route(server::get_content_route)
 			.ruma_route(server::get_content_thumbnail_route)
-			.route("/_conduwuit/local_user_count", get(client::conduwuit_local_user_count))
+			.route("/_conduwuit/local_user_count", get(client::conduwuit_local_user_count));
 	} else {
-		router
+		router = router
 			.route("/_matrix/federation/*path", any(federation_disabled))
 			.route("/.well-known/matrix/server", any(federation_disabled))
 			.route("/_matrix/key/*path", any(federation_disabled))
-			.route("/_conduwuit/local_user_count", any(federation_disabled))
+			.route("/_conduwuit/local_user_count", any(federation_disabled));
 	}
+
+	if config.allow_legacy_media {
+		router = router
+			.ruma_route(client::get_media_config_legacy_route)
+			.ruma_route(client::get_media_preview_legacy_route)
+			.ruma_route(client::get_content_legacy_route)
+			.ruma_route(client::get_content_as_filename_legacy_route)
+			.ruma_route(client::get_content_thumbnail_legacy_route)
+			.route("/_matrix/media/v1/config", get(client::get_media_config_legacy_legacy_route))
+			.route("/_matrix/media/v1/upload", post(client::create_content_legacy_route))
+			.route(
+				"/_matrix/media/v1/preview_url",
+				get(client::get_media_preview_legacy_legacy_route),
+			)
+			.route(
+				"/_matrix/media/v1/download/:server_name/:media_id",
+				get(client::get_content_legacy_legacy_route),
+			)
+			.route(
+				"/_matrix/media/v1/download/:server_name/:media_id/:file_name",
+				get(client::get_content_as_filename_legacy_legacy_route),
+			)
+			.route(
+				"/_matrix/media/v1/thumbnail/:server_name/:media_id",
+				get(client::get_content_thumbnail_legacy_legacy_route),
+			);
+	} else {
+		router = router.route("/_matrix/media/*path", any(legacy_media_disabled));
+	}
+
+	router
 }
 
 async fn initial_sync(_uri: Uri) -> impl IntoResponse {
@@ -247,3 +248,7 @@ async fn initial_sync(_uri: Uri) -> impl IntoResponse {
 }
 
 async fn federation_disabled() -> impl IntoResponse { err!(Config("allow_federation", "Federation is disabled.")) }
+
+async fn legacy_media_disabled() -> impl IntoResponse {
+	err!(Config("allow_legacy_media", "Unauthenticated media is disabled."))
+}

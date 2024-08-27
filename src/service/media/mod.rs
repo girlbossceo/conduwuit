@@ -47,6 +47,12 @@ struct Services {
 /// generated MXC ID (`media-id`) length
 pub const MXC_LENGTH: usize = 32;
 
+/// Cache control for immutable objects.
+pub const CACHE_CONTROL_IMMUTABLE: &str = "public,max-age=31536000,immutable";
+
+/// Default cross-origin resource policy.
+pub const CORP_CROSS_ORIGIN: &str = "cross-origin";
+
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
