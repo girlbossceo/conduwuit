@@ -176,6 +176,7 @@ pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
 
 #[admin_command]
 pub(super) async fn delete_past_remote_media(&self, duration: String, force: bool) -> Result<RoomMessageEventContent> {
+	let duration = parse_timepoint_ago(&duration)?;
 	let deleted_count = self
 		.services
 		.media

@@ -68,6 +68,7 @@ clap.workspace = true
 conduit-macros.workspace = true
 const-str.workspace = true
 ctor.workspace = true
+cyborgtime.workspace = true
 either.workspace = true
 figment.workspace = true
 http-body-util.workspace = true

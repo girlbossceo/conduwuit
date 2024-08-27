@@ -196,14 +196,7 @@ impl Service {
 
 	/// Deletes all remote only media files in the given at or after
 	/// time/duration. Returns a u32 with the amount of media files deleted.
-	pub async fn delete_all_remote_media_at_after_time(&self, time: String, force: bool) -> Result<usize> {
-		let user_duration: SystemTime = match cyborgtime::parse_duration(&time) {
-			Err(e) => return Err!(Database(error!("Failed to parse specified time duration: {e}"))),
-			Ok(duration) => SystemTime::now()
-				.checked_sub(duration)
-				.ok_or(err!(Arithmetic("Duration {duration:?} is too large")))?,
-		};
-
+	pub async fn delete_all_remote_media_at_after_time(&self, time: SystemTime, force: bool) -> Result<usize> {
 		let all_keys = self.db.get_all_media_keys();
 
 		let mut remote_mxcs = Vec::with_capacity(all_keys.len());
@@ -271,7 +264,7 @@ impl Service {
 			};
 
 			debug!("File created at: {file_created_at:?}");
-			if file_created_at <= user_duration {
+			if file_created_at <= time {
 				debug!("File is within user duration, pushing to list of file paths and keys to delete.");
 				remote_mxcs.push(mxc.to_string());
 			}
@@ -284,7 +277,7 @@ impl Service {
 			return Err!(Database("Did not found any eligible MXCs to delete."));
 		}
 
-		debug_info!("Deleting media now in the past {user_duration:?}.");
+		debug_info!("Deleting media now in the past {time:?}.");
 		let mut deletion_count: usize = 0;
 		for mxc in remote_mxcs {
 			let mxc: Mxc<'_> = mxc.as_str().try_into()?;

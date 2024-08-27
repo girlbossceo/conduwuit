@@ -1,5 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::{err, Result};
+
 #[inline]
 #[must_use]
 #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
@@ -8,6 +10,22 @@ pub fn now_millis() -> u64 {
 		.elapsed()
 		.expect("positive duration after epoch")
 		.as_millis() as u64
+}
+
+#[inline]
+pub fn parse_timepoint_ago(ago: &str) -> Result<SystemTime> { timepoint_ago(parse_duration(ago)?) }
+
+#[inline]
+pub fn timepoint_ago(duration: Duration) -> Result<SystemTime> {
+	SystemTime::now()
+		.checked_sub(duration)
+		.ok_or_else(|| err!(Arithmetic("Duration {duration:?} is too large")))
+}
+
+#[inline]
+pub fn parse_duration(duration: &str) -> Result<Duration> {
+	cyborgtime::parse_duration(duration)
+		.map_err(|error| err!("'{duration:?}' is not a valid duration string: {error:?}"))
 }
 
 #[must_use]
