@@ -26,7 +26,7 @@ use ruma::{
 	OwnedEventId,
 };
 use service::{
-	admin::{CommandInput, CommandOutput, HandlerFuture, HandlerResult},
+	admin::{CommandInput, CommandOutput, ProcessorFuture, ProcessorResult},
 	Services,
 };
 use tracing::Level;
@@ -38,12 +38,12 @@ use crate::{admin, admin::AdminCommand, Command};
 pub(super) fn complete(line: &str) -> String { complete_command(AdminCommand::command(), line) }
 
 #[must_use]
-pub(super) fn handle(services: Arc<Services>, command: CommandInput) -> HandlerFuture {
+pub(super) fn dispatch(services: Arc<Services>, command: CommandInput) -> ProcessorFuture {
 	Box::pin(handle_command(services, command))
 }
 
 #[tracing::instrument(skip_all, name = "admin")]
-async fn handle_command(services: Arc<Services>, command: CommandInput) -> HandlerResult {
+async fn handle_command(services: Arc<Services>, command: CommandInput) -> ProcessorResult {
 	AssertUnwindSafe(Box::pin(process_command(services, &command)))
 		.catch_unwind()
 		.await
@@ -68,7 +68,7 @@ async fn process_command(services: Arc<Services>, input: &CommandInput) -> Comma
 		.and_then(|content| reply(content, input.reply_id.clone()))
 }
 
-fn handle_panic(error: &Error, command: CommandInput) -> HandlerResult {
+fn handle_panic(error: &Error, command: CommandInput) -> ProcessorResult {
 	let link = "Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
 	let msg = format!("Panic occurred while processing command:\n```\n{error:#?}\n```\n{link}");
 	let content = RoomMessageEventContent::notice_markdown(msg);

@@ -4,7 +4,7 @@
 
 pub(crate) mod admin;
 pub(crate) mod command;
-pub(crate) mod handler;
+pub(crate) mod processor;
 mod tests;
 pub(crate) mod utils;
 
@@ -36,14 +36,18 @@ conduit::mod_ctor! {}
 conduit::mod_dtor! {}
 conduit::rustc_flags_capture! {}
 
-/// Install the admin command handler
+/// Install the admin command processor
 pub async fn init(admin_service: &service::admin::Service) {
 	_ = admin_service
 		.complete
 		.write()
 		.expect("locked for writing")
-		.insert(handler::complete);
-	_ = admin_service.handle.write().await.insert(handler::handle);
+		.insert(processor::complete);
+	_ = admin_service
+		.handle
+		.write()
+		.await
+		.insert(processor::dispatch);
 }
 
 /// Uninstall the admin command handler

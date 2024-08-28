@@ -29,7 +29,7 @@ pub struct Service {
 	services: Services,
 	sender: Sender<CommandInput>,
 	receiver: Mutex<Receiver<CommandInput>>,
-	pub handle: RwLock<Option<Handler>>,
+	pub handle: RwLock<Option<Processor>>,
 	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
 	pub console: Arc<console::Console>,
@@ -52,9 +52,9 @@ pub struct CommandInput {
 }
 
 pub type Completer = fn(&str) -> String;
-pub type Handler = fn(Arc<crate::Services>, CommandInput) -> HandlerFuture;
-pub type HandlerFuture = Pin<Box<dyn Future<Output = HandlerResult> + Send>>;
-pub type HandlerResult = Result<CommandOutput>;
+pub type Processor = fn(Arc<crate::Services>, CommandInput) -> ProcessorFuture;
+pub type ProcessorFuture = Pin<Box<dyn Future<Output = ProcessorResult> + Send>>;
+pub type ProcessorResult = Result<CommandOutput>;
 pub type CommandOutput = Option<RoomMessageEventContent>;
 
 const COMMAND_QUEUE_LIMIT: usize = 512;
@@ -141,9 +141,7 @@ impl Service {
 		.await;
 	}
 
-	pub async fn command_in_place(
-		&self, command: String, reply_id: Option<OwnedEventId>,
-	) -> Result<Option<RoomMessageEventContent>> {
+	pub async fn command_in_place(&self, command: String, reply_id: Option<OwnedEventId>) -> ProcessorResult {
 		self.process_command(CommandInput {
 			command,
 			reply_id,
@@ -176,7 +174,7 @@ impl Service {
 		}
 	}
 
-	async fn process_command(&self, command: CommandInput) -> HandlerResult {
+	async fn process_command(&self, command: CommandInput) -> ProcessorResult {
 		let Some(services) = self
 			.services
 			.services
