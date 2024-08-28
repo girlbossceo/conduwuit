@@ -310,6 +310,7 @@ pub async fn fetch_remote_thumbnail_legacy(
 		media_id: &body.media_id,
 	};
 
+	self.check_legacy_freeze()?;
 	self.check_fetch_authorized(&mxc)?;
 	let reponse = self
 		.services
@@ -342,6 +343,7 @@ pub async fn fetch_remote_thumbnail_legacy(
 pub async fn fetch_remote_content_legacy(
 	&self, mxc: &Mxc<'_>, allow_redirect: bool, timeout_ms: Duration,
 ) -> Result<media::get_content::v3::Response, Error> {
+	self.check_legacy_freeze()?;
 	self.check_fetch_authorized(mxc)?;
 	let response = self
 		.services
@@ -390,4 +392,14 @@ fn check_fetch_authorized(&self, mxc: &Mxc<'_>) -> Result<()> {
 	}
 
 	Ok(())
+}
+
+#[implement(super::Service)]
+fn check_legacy_freeze(&self) -> Result<()> {
+	self.services
+		.server
+		.config
+		.freeze_legacy_media
+		.then_some(())
+		.ok_or(err!(Request(NotFound("Remote media is frozen."))))
 }

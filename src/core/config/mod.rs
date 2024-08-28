@@ -292,6 +292,8 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub allow_legacy_media: bool,
 	#[serde(default = "true_fn")]
+	pub freeze_legacy_media: bool,
+	#[serde(default = "true_fn")]
 	pub media_startup_check: bool,
 	#[serde(default)]
 	pub media_compat_file_link: bool,
@@ -748,6 +750,7 @@ impl fmt::Display for Config {
 		line("Media compatibility filesystem links", &self.media_compat_file_link.to_string());
 		line("Prune missing media from database", &self.prune_missing_media.to_string());
 		line("Allow legacy (unauthenticated) media", &self.allow_legacy_media.to_string());
+		line("Freeze legacy (unauthenticated) media", &self.freeze_legacy_media.to_string());
 		line("Prevent Media Downloads From", {
 			let mut lst = vec![];
 			for domain in &self.prevent_media_downloads_from {
