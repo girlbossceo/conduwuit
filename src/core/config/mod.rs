@@ -342,6 +342,8 @@ pub struct Config {
 	pub admin_execute_errors_ignore: bool,
 	#[serde(default = "default_admin_log_capture")]
 	pub admin_log_capture: String,
+	#[serde(default = "default_admin_room_tag")]
+	pub admin_room_tag: String,
 
 	#[serde(default)]
 	pub sentry: bool,
@@ -608,6 +610,7 @@ impl fmt::Display for Config {
 			&self.admin_execute_errors_ignore.to_string(),
 		);
 		line("Filter for admin command log capture", &self.admin_log_capture);
+		line("Admin room tag", &self.admin_room_tag);
 		line("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string());
 		line("Allow incoming federated typing", &self.allow_incoming_typing.to_string());
 		line(
@@ -1068,3 +1071,5 @@ fn default_sentry_filter() -> String { "info".to_owned() }
 fn default_startup_netburst_keep() -> i64 { 50 }
 
 fn default_admin_log_capture() -> String { "debug".to_owned() }
+
+fn default_admin_room_tag() -> String { "m.server_notice".to_owned() }

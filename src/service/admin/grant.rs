@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use conduit::Result;
+use conduit::{error, implement, Result};
 use ruma::{
 	events::{
 		room::{
@@ -8,9 +8,10 @@ use ruma::{
 			message::RoomMessageEventContent,
 			power_levels::RoomPowerLevelsEventContent,
 		},
-		TimelineEventType,
+		tag::{TagEvent, TagEventContent, TagInfo},
+		RoomAccountDataEventType, TimelineEventType,
 	},
-	UserId,
+	RoomId, UserId,
 };
 use serde_json::value::to_raw_value;
 
@@ -110,6 +111,14 @@ impl super::Service {
 			)
 			.await?;
 
+		// Set room tag
+		let room_tag = &self.services.server.config.admin_room_tag;
+		if !room_tag.is_empty() {
+			if let Err(e) = self.set_room_tag(&room_id, user_id, room_tag) {
+				error!(?room_id, ?user_id, ?room_tag, ?e, "Failed to set tag for admin grant");
+			}
+		}
+
 		// Send welcome message
 		self.services.timeline.build_and_append_pdu(
   			PduBuilder {
@@ -131,4 +140,33 @@ impl super::Service {
 
 		Ok(())
 	}
+}
+
+#[implement(super::Service)]
+fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result<()> {
+	let mut event = self
+		.services
+		.account_data
+		.get(Some(room_id), user_id, RoomAccountDataEventType::Tag)?
+		.map(|event| serde_json::from_str(event.get()))
+		.and_then(Result::ok)
+		.unwrap_or_else(|| TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		});
+
+	event
+		.content
+		.tags
+		.insert(tag.to_owned().into(), TagInfo::new());
+
+	self.services.account_data.update(
+		Some(room_id),
+		user_id,
+		RoomAccountDataEventType::Tag,
+		&serde_json::to_value(event)?,
+	)?;
+
+	Ok(())
 }

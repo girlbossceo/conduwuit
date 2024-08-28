@@ -23,7 +23,7 @@ use ruma::{
 use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::{globals, rooms, rooms::state::RoomMutexGuard, Dep};
+use crate::{account_data, globals, rooms, rooms::state::RoomMutexGuard, Dep};
 
 pub struct Service {
 	services: Services,
@@ -42,6 +42,7 @@ struct Services {
 	timeline: Dep<rooms::timeline::Service>,
 	state: Dep<rooms::state::Service>,
 	state_cache: Dep<rooms::state_cache::Service>,
+	account_data: Dep<account_data::Service>,
 	services: StdRwLock<Option<Weak<crate::Services>>>,
 }
 
@@ -87,6 +88,7 @@ impl crate::Service for Service {
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 				state: args.depend::<rooms::state::Service>("rooms::state"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				account_data: args.depend::<account_data::Service>("account_data"),
 				services: None.into(),
 			},
 			sender,
