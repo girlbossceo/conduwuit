@@ -402,7 +402,7 @@ version = "=0.5.4"
 default-features = false
 features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
-version = "=0.5.4"
+version = "=0.6.0"
 default-features = false
 features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
