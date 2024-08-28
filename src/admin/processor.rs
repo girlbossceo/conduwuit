@@ -23,7 +23,7 @@ use ruma::{
 		relation::InReplyTo,
 		room::message::{Relation::Reply, RoomMessageEventContent},
 	},
-	OwnedEventId,
+	EventId,
 };
 use service::{
 	admin::{CommandInput, CommandOutput, ProcessorFuture, ProcessorResult},
@@ -48,12 +48,12 @@ async fn handle_command(services: Arc<Services>, command: CommandInput) -> Proce
 		.catch_unwind()
 		.await
 		.map_err(Error::from_panic)
-		.or_else(|error| handle_panic(&error, command))
+		.unwrap_or_else(|error| handle_panic(&error, &command))
 }
 
-async fn process_command(services: Arc<Services>, input: &CommandInput) -> CommandOutput {
+async fn process_command(services: Arc<Services>, input: &CommandInput) -> ProcessorResult {
 	let (command, args, body) = match parse(&services, input) {
-		Err(error) => return error,
+		Err(error) => return Err(error),
 		Ok(parsed) => parsed,
 	};
 
@@ -61,33 +61,22 @@ async fn process_command(services: Arc<Services>, input: &CommandInput) -> Comma
 		services: &services,
 		body: &body,
 		timer: SystemTime::now(),
+		reply_id: input.reply_id.as_deref(),
 	};
 
-	process(&context, command, &args)
-		.await
-		.and_then(|content| reply(content, input.reply_id.clone()))
+	process(&context, command, &args).await
 }
 
-fn handle_panic(error: &Error, command: CommandInput) -> ProcessorResult {
+fn handle_panic(error: &Error, command: &CommandInput) -> ProcessorResult {
 	let link = "Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
 	let msg = format!("Panic occurred while processing command:\n```\n{error:#?}\n```\n{link}");
 	let content = RoomMessageEventContent::notice_markdown(msg);
 	error!("Panic while processing command: {error:?}");
-	Ok(reply(content, command.reply_id))
-}
-
-fn reply(mut content: RoomMessageEventContent, reply_id: Option<OwnedEventId>) -> Option<RoomMessageEventContent> {
-	content.relates_to = reply_id.map(|event_id| Reply {
-		in_reply_to: InReplyTo {
-			event_id,
-		},
-	});
-
-	Some(content)
+	Err(reply(content, command.reply_id.as_deref()))
 }
 
 // Parse and process a message from the admin room
-async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) -> CommandOutput {
+async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) -> ProcessorResult {
 	let (capture, logs) = capture_create(context);
 
 	let capture_scope = capture.start();
@@ -112,13 +101,15 @@ async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) 
 
 	match result {
 		Ok(content) => {
-			write!(&mut output, "{}", content.body()).expect("failed to format command result to output");
+			write!(&mut output, "{0}", content.body()).expect("failed to format command result to output buffer");
+			Ok(Some(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id)))
 		},
-		Err(error) => write!(&mut output, "Command failed with error:\n```\n{error:#?}\n```")
-			.expect("failed to format error to command output"),
-	};
-
-	Some(RoomMessageEventContent::notice_markdown(output))
+		Err(error) => {
+			write!(&mut output, "Command failed with error:\n```\n{error:#?}\n```")
+				.expect("failed to format command result to output");
+			Err(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id))
+		},
+	}
 }
 
 fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {
@@ -158,7 +149,10 @@ fn parse<'a>(
 			let message = error
 				.to_string()
 				.replace("server.name", services.globals.server_name().as_str());
-			Err(Some(RoomMessageEventContent::notice_markdown(message)))
+			Err(reply(
+				RoomMessageEventContent::notice_markdown(message),
+				input.reply_id.as_deref(),
+			))
 		},
 	}
 }
@@ -254,4 +248,14 @@ fn parse_line(command_line: &str) -> Vec<String> {
 
 	trace!(?command_line, ?argv, "parse");
 	argv
+}
+
+fn reply(mut content: RoomMessageEventContent, reply_id: Option<&EventId>) -> RoomMessageEventContent {
+	content.relates_to = reply_id.map(|event_id| Reply {
+		in_reply_to: InReplyTo {
+			event_id: event_id.to_owned(),
+		},
+	});
+
+	content
 }

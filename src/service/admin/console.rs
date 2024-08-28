@@ -158,13 +158,18 @@ impl Console {
 
 	async fn process(self: Arc<Self>, line: String) {
 		match self.admin.command_in_place(line, None).await {
-			Ok(Some(content)) => self.output(content).await,
-			Err(e) => error!("processing command: {e}"),
-			_ => (),
+			Ok(Some(ref content)) => self.output(content),
+			Err(ref content) => self.output_err(content),
+			_ => unreachable!(),
 		}
 	}
 
-	async fn output(self: Arc<Self>, output_content: RoomMessageEventContent) {
+	fn output_err(self: Arc<Self>, output_content: &RoomMessageEventContent) {
+		let output = configure_output_err(self.output.clone());
+		output.print_text(output_content.body());
+	}
+
+	fn output(self: Arc<Self>, output_content: &RoomMessageEventContent) {
 		self.output.print_text(output_content.body());
 	}
 
@@ -194,10 +199,30 @@ impl Console {
 	}
 }
 
+/// Standalone/static markdown printer for errors.
+pub fn print_err(markdown: &str) {
+	let output = configure_output_err(MadSkin::default_dark());
+	output.print_text(markdown);
+}
 /// Standalone/static markdown printer.
 pub fn print(markdown: &str) {
 	let output = configure_output(MadSkin::default_dark());
 	output.print_text(markdown);
+}
+
+fn configure_output_err(mut output: MadSkin) -> MadSkin {
+	use termimad::{crossterm::style::Color, Alignment, CompoundStyle, LineStyle};
+
+	let code_style = CompoundStyle::with_fgbg(Color::AnsiValue(196), Color::AnsiValue(234));
+	output.inline_code = code_style.clone();
+	output.code_block = LineStyle {
+		left_margin: 0,
+		right_margin: 0,
+		align: Alignment::Left,
+		compound_style: code_style,
+	};
+
+	output
 }
 
 fn configure_output(mut output: MadSkin) -> MadSkin {

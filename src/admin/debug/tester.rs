@@ -1,3 +1,4 @@
+use conduit::Err;
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{admin_command, admin_command_dispatch, Result};
@@ -5,13 +6,28 @@ use crate::{admin_command, admin_command_dispatch, Result};
 #[admin_command_dispatch]
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum TesterCommand {
+	Panic,
+	Failure,
 	Tester,
 	Timer,
 }
 
+#[rustfmt::skip]
+#[admin_command]
+async fn panic(&self) -> Result<RoomMessageEventContent> {
+
+	panic!("panicked")
+}
+
+#[rustfmt::skip]
+#[admin_command]
+async fn failure(&self) -> Result<RoomMessageEventContent> {
+
+	Err!("failed")
+}
+
 #[inline(never)]
 #[rustfmt::skip]
-#[allow(unused_variables)]
 #[admin_command]
 async fn tester(&self) -> Result<RoomMessageEventContent> {
 

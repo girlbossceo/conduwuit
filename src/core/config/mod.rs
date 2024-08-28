@@ -338,6 +338,8 @@ pub struct Config {
 	pub admin_console_automatic: bool,
 	#[serde(default)]
 	pub admin_execute: Vec<String>,
+	#[serde(default)]
+	pub admin_execute_errors_ignore: bool,
 	#[serde(default = "default_admin_log_capture")]
 	pub admin_log_capture: String,
 
@@ -601,6 +603,10 @@ impl fmt::Display for Config {
 			&self.admin_console_automatic.to_string(),
 		);
 		line("Execute admin commands after startup", &self.admin_execute.join(", "));
+		line(
+			"Continue startup even if some commands fail",
+			&self.admin_execute_errors_ignore.to_string(),
+		);
 		line("Filter for admin command log capture", &self.admin_log_capture);
 		line("Allow outgoing federated typing", &self.allow_outgoing_typing.to_string());
 		line("Allow incoming federated typing", &self.allow_incoming_typing.to_string());

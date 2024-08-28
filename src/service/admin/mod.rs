@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{debug, error, error::default_log, pdu::PduBuilder, Err, Error, PduEvent, Result, Server};
+use conduit::{debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server};
 pub use create::create_admin_room;
 use loole::{Receiver, Sender};
 use ruma::{
@@ -45,18 +45,34 @@ struct Services {
 	services: StdRwLock<Option<Weak<crate::Services>>>,
 }
 
+/// Inputs to a command are a multi-line string and optional reply_id.
 #[derive(Debug)]
 pub struct CommandInput {
 	pub command: String,
 	pub reply_id: Option<OwnedEventId>,
 }
 
+/// Prototype of the tab-completer. The input is buffered text when tab
+/// asserted; the output will fully replace the input buffer.
 pub type Completer = fn(&str) -> String;
-pub type Processor = fn(Arc<crate::Services>, CommandInput) -> ProcessorFuture;
-pub type ProcessorFuture = Pin<Box<dyn Future<Output = ProcessorResult> + Send>>;
-pub type ProcessorResult = Result<CommandOutput>;
-pub type CommandOutput = Option<RoomMessageEventContent>;
 
+/// Prototype of the command processor. This is a callback supplied by the
+/// reloadable admin module.
+pub type Processor = fn(Arc<crate::Services>, CommandInput) -> ProcessorFuture;
+
+/// Return type of the processor
+pub type ProcessorFuture = Pin<Box<dyn Future<Output = ProcessorResult> + Send>>;
+
+/// Result wrapping of a command's handling. Both variants are complete message
+/// events which have digested any prior errors. The wrapping preserves whether
+/// the command failed without interpreting the text. Ok(None) outputs are
+/// dropped to produce no response.
+pub type ProcessorResult = Result<Option<CommandOutput>, CommandOutput>;
+
+/// Alias for the output structure.
+pub type CommandOutput = RoomMessageEventContent;
+
+/// Maximum number of commands which can be queued for dispatch.
 const COMMAND_QUEUE_LIMIT: usize = 512;
 
 #[async_trait]
@@ -86,7 +102,7 @@ impl crate::Service for Service {
 		let receiver = self.receiver.lock().await;
 		let mut signals = self.services.server.signal.subscribe();
 
-		self.startup_execute().await;
+		self.startup_execute().await?;
 		self.console_auto_start().await;
 
 		loop {
@@ -120,11 +136,15 @@ impl crate::Service for Service {
 }
 
 impl Service {
+	/// Sends markdown message (not an m.notice for notification reasons) to the
+	/// admin room as the admin user.
 	pub async fn send_text(&self, body: &str) {
 		self.send_message(RoomMessageEventContent::text_markdown(body))
 			.await;
 	}
 
+	/// Sends a message to the admin room as the admin user (see send_text() for
+	/// convenience).
 	pub async fn send_message(&self, message_content: RoomMessageEventContent) {
 		if let Ok(Some(room_id)) = self.get_admin_room() {
 			let user_id = &self.services.globals.server_user;
@@ -133,14 +153,20 @@ impl Service {
 		}
 	}
 
-	pub async fn command(&self, command: String, reply_id: Option<OwnedEventId>) {
-		self.send(CommandInput {
-			command,
-			reply_id,
-		})
-		.await;
+	/// Posts a command to the command processor queue and returns. Processing
+	/// will take place on the service worker's task asynchronously. Errors if
+	/// the queue is full.
+	pub fn command(&self, command: String, reply_id: Option<OwnedEventId>) -> Result<()> {
+		self.sender
+			.send(CommandInput {
+				command,
+				reply_id,
+			})
+			.map_err(|e| err!("Failed to enqueue admin command: {e:?}"))
 	}
 
+	/// Dispatches a comamnd to the processor on the current task and waits for
+	/// completion.
 	pub async fn command_in_place(&self, command: String, reply_id: Option<OwnedEventId>) -> ProcessorResult {
 		self.process_command(CommandInput {
 			command,
@@ -149,16 +175,13 @@ impl Service {
 		.await
 	}
 
+	/// Invokes the tab-completer to complete the command. When unavailable,
+	/// None is returned.
 	pub fn complete_command(&self, command: &str) -> Option<String> {
 		self.complete
 			.read()
 			.expect("locked for reading")
 			.map(|complete| complete(command))
-	}
-
-	async fn send(&self, message: CommandInput) {
-		debug_assert!(!self.sender.is_closed(), "channel closed");
-		self.sender.send_async(message).await.expect("message sent");
 	}
 
 	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {
@@ -168,29 +191,28 @@ impl Service {
 
 	async fn handle_command(&self, command: CommandInput) {
 		match self.process_command(command).await {
-			Ok(Some(output)) => self.handle_response(output).await,
+			Ok(Some(output)) | Err(output) => self.handle_response(output).await,
 			Ok(None) => debug!("Command successful with no response"),
-			Err(e) => error!("Command processing error: {e}"),
 		}
 	}
 
 	async fn process_command(&self, command: CommandInput) -> ProcessorResult {
-		let Some(services) = self
+		let handle = &self
+			.handle
+			.read()
+			.await
+			.expect("Admin module is not loaded");
+
+		let services = self
 			.services
 			.services
 			.read()
 			.expect("locked")
 			.as_ref()
 			.and_then(Weak::upgrade)
-		else {
-			return Err!("Services self-reference not initialized.");
-		};
+			.expect("Services self-reference not initialized.");
 
-		if let Some(handle) = self.handle.read().await.as_ref() {
-			handle(services, command).await
-		} else {
-			Err!("Admin module is not loaded.")
-		}
+		handle(services, command).await
 	}
 
 	/// Checks whether a given user is an admin of this server
@@ -233,6 +255,10 @@ impl Service {
 		};
 
 		let Ok(Some(pdu)) = self.services.timeline.get_pdu(&in_reply_to.event_id) else {
+			error!(
+				event_id = ?in_reply_to.event_id,
+				"Missing admin command in_reply_to event"
+			);
 			return;
 		};
 

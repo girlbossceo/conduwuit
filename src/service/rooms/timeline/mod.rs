@@ -523,8 +523,7 @@ impl Service {
 					if self.services.admin.is_admin_command(pdu, &body).await {
 						self.services
 							.admin
-							.command(body, Some((*pdu.event_id).into()))
-							.await;
+							.command(body, Some((*pdu.event_id).into()))?;
 					}
 				}
 			},
