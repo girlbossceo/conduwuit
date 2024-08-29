@@ -7,9 +7,8 @@ This space is dedicated to fostering a positive, supportive, and inclusive envir
 Conduct applies to all conduwuit spaces, including any further community rooms that reference this CoC. Here are our
 guidelines to help maintain the welcoming atmosphere that sets conduwuit apart.
 
-For the foundational rules, please refer to the [Matrix.org Code of Conduct](https://matrix.org/legal/code-of-conduct/)
-and the [Contributor's Covenant](https://github.com/girlbossceo/conduwuit/blob/main/CODE_OF_CONDUCT.md). Below are
-additional guidelines specific to the conduwuit community.
+For the general foundational rules, please refer to the [Contributor's Covenant](https://github.com/girlbossceo/conduwuit/blob/main/CODE_OF_CONDUCT.md).
+Below are additional guidelines specific to the conduwuit community.
 
 ## Our Values and Guidelines
 
