@@ -34,7 +34,7 @@
         inherit pkgs;
         book = self.callPackage ./nix/pkgs/book {};
         complement = self.callPackage ./nix/pkgs/complement {};
-        craneLib = ((inputs.crane.mkLib pkgs).overrideToolchain toolchain);
+        craneLib = ((inputs.crane.mkLib pkgs).overrideToolchain (_: toolchain));
         inherit inputs;
         main = self.callPackage ./nix/pkgs/main {};
         oci-image = self.callPackage ./nix/pkgs/oci-image {};
