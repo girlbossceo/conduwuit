@@ -12,5 +12,15 @@
   "nix": {
     "enabled": true
   },
-  "labels": ["dependencies", "github_actions"]
+  "labels": [
+    "dependencies",
+    "github_actions"
+  ],
+  "ignoreDeps": [
+    "tikv-jemllocator",
+    "tikv-jemalloc-sys",
+    "tikv-jemalloc-ctl",
+    "opentelemetry-rust",
+    "tracing-opentelemetry"
+  ]
 }
