@@ -92,12 +92,12 @@ fn startup_command_error(i: usize, content: &RoomMessageEventContent) -> Result<
 #[cfg(not(feature = "console"))]
 #[implement(super::Service)]
 fn startup_command_output(i: usize, content: &RoomMessageEventContent) -> Result<()> {
-	info!("Startup command #{i} completed:\n{:#?}", content.body());
+	info!("Startup command #{i} completed:\n{:#}", content.body());
 	Ok(())
 }
 
 #[cfg(not(feature = "console"))]
 #[implement(super::Service)]
 fn startup_command_error(i: usize, content: &RoomMessageEventContent) -> Result<()> {
-	Err!(error!("Startup command #{i} failed:\n{:#?}", content.body()))
+	Err!(error!("Startup command #{i} failed:\n{:#}", content.body()))
 }
