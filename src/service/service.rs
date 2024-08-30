@@ -51,7 +51,7 @@ pub(crate) struct Args<'a> {
 
 /// Dep is a reference to a service used within another service.
 /// Circular-dependencies between services require this indirection.
-pub(crate) struct Dep<T> {
+pub(crate) struct Dep<T: Service> {
 	dep: OnceLock<Arc<T>>,
 	service: Weak<Map>,
 	name: &'static str,
@@ -62,7 +62,7 @@ pub(crate) type MapType = BTreeMap<MapKey, MapVal>;
 pub(crate) type MapVal = (Weak<dyn Service>, Weak<dyn Any + Send + Sync>);
 pub(crate) type MapKey = String;
 
-impl<T: Send + Sync + 'static> Deref for Dep<T> {
+impl<T: Service> Deref for Dep<T> {
 	type Target = Arc<T>;
 
 	/// Dereference a dependency. The dependency must be ready or panics.
@@ -80,7 +80,7 @@ impl<T: Send + Sync + 'static> Deref for Dep<T> {
 
 impl<'a> Args<'a> {
 	/// Create a lazy-reference to a service when constructing another Service.
-	pub(crate) fn depend<T: Send + Sync + 'a + 'static>(&'a self, name: &'static str) -> Dep<T> {
+	pub(crate) fn depend<T: Service>(&'a self, name: &'static str) -> Dep<T> {
 		Dep::<T> {
 			dep: OnceLock::new(),
 			service: Arc::downgrade(self.service),
@@ -90,17 +90,12 @@ impl<'a> Args<'a> {
 
 	/// Create a reference immediately to a service when constructing another
 	/// Service. The other service must be constructed.
-	pub(crate) fn require<T: Send + Sync + 'a + 'static>(&'a self, name: &'static str) -> Arc<T> {
-		require::<T>(self.service, name)
-	}
+	pub(crate) fn require<T: Service>(&'a self, name: &str) -> Arc<T> { require::<T>(self.service, name) }
 }
 
 /// Reference a Service by name. Panics if the Service does not exist or was
 /// incorrectly cast.
-pub(crate) fn require<'a, 'b, T>(map: &'b Map, name: &'a str) -> Arc<T>
-where
-	T: Send + Sync + 'a + 'b + 'static,
-{
+pub(crate) fn require<T: Service>(map: &Map, name: &str) -> Arc<T> {
 	try_get::<T>(map, name)
 		.inspect_err(inspect_log)
 		.expect("Failure to reference service required by another service.")
@@ -112,9 +107,9 @@ where
 /// # Panics
 /// Incorrect type is not a silent failure (None) as the type never has a reason
 /// to be incorrect.
-pub(crate) fn get<'a, 'b, T>(map: &'b Map, name: &'a str) -> Option<Arc<T>>
+pub(crate) fn get<T>(map: &Map, name: &str) -> Option<Arc<T>>
 where
-	T: Send + Sync + 'a + 'b + 'static,
+	T: Any + Send + Sync + Sized,
 {
 	map.read()
 		.expect("locked for reading")
@@ -129,9 +124,9 @@ where
 
 /// Reference a Service by name. Returns Err if the Service does not exist or
 /// was incorrectly cast.
-pub(crate) fn try_get<'a, 'b, T>(map: &'b Map, name: &'a str) -> Result<Arc<T>>
+pub(crate) fn try_get<T>(map: &Map, name: &str) -> Result<Arc<T>>
 where
-	T: Send + Sync + 'a + 'b + 'static,
+	T: Any + Send + Sync + Sized,
 {
 	map.read()
 		.expect("locked for reading")
