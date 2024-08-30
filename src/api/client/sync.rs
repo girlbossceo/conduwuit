@@ -45,8 +45,8 @@ use crate::{
 
 const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
 const DEFAULT_BUMP_TYPES: &[TimelineEventType] = &[
-	TimelineEventType::Message,
-	TimelineEventType::Encrypted,
+	TimelineEventType::RoomMessage,
+	TimelineEventType::RoomEncrypted,
 	TimelineEventType::Sticker,
 	TimelineEventType::CallInvite,
 	TimelineEventType::PollStart,
@@ -1549,8 +1549,8 @@ pub(crate) async fn sync_events_v4_route(
 
 		let mut timestamp: Option<_> = None;
 		for (_, pdu) in timeline_pdus {
-			timestamp = Some(MilliSecondsSinceUnixEpoch(pdu.origin_server_ts));
 			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) {
+				timestamp = Some(MilliSecondsSinceUnixEpoch(pdu.origin_server_ts));
 				break;
 			}
 		}
