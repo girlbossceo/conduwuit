@@ -20,7 +20,8 @@ use ruma::{
 			error::ErrorKind,
 			membership::{
 				ban_user, forget_room, get_member_events, invite_user, join_room_by_id, join_room_by_id_or_alias,
-				joined_members, joined_rooms, kick_user, leave_room, unban_user, ThirdPartySigned,
+				joined_members::{self, v3::RoomMember},
+				joined_rooms, kick_user, leave_room, unban_user, ThirdPartySigned,
 			},
 		},
 		federation::{self, membership::create_invite},
@@ -635,24 +636,22 @@ pub(crate) async fn joined_members_route(
 		));
 	}
 
-	let mut joined = BTreeMap::new();
-	for user_id in services
+	let joined: BTreeMap<OwnedUserId, RoomMember> = services
 		.rooms
 		.state_cache
 		.room_members(&body.room_id)
-		.filter_map(Result::ok)
-	{
-		let display_name = services.users.displayname(&user_id)?;
-		let avatar_url = services.users.avatar_url(&user_id)?;
+		.filter_map(|user| {
+			let user = user.ok()?;
 
-		joined.insert(
-			user_id,
-			joined_members::v3::RoomMember {
-				display_name,
-				avatar_url,
-			},
-		);
-	}
+			Some((
+				user.clone(),
+				RoomMember {
+					display_name: services.users.displayname(&user).unwrap_or_default(),
+					avatar_url: services.users.avatar_url(&user).unwrap_or_default(),
+				},
+			))
+		})
+		.collect();
 
 	Ok(joined_members::v3::Response {
 		joined,
