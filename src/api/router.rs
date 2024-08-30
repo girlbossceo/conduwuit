@@ -249,7 +249,11 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 			.route("/_matrix/media/v3/config", any(legacy_media_disabled))
 			.route("/_matrix/media/v3/download/*path", any(legacy_media_disabled))
 			.route("/_matrix/media/v3/thumbnail/*path", any(legacy_media_disabled))
-			.route("/_matrix/media/v3/preview_url", any(redirect_legacy_preview));
+			.route("/_matrix/media/v3/preview_url", any(redirect_legacy_preview))
+			.route("/_matrix/media/r0/config", any(legacy_media_disabled))
+			.route("/_matrix/media/r0/download/*path", any(legacy_media_disabled))
+			.route("/_matrix/media/r0/thumbnail/*path", any(legacy_media_disabled))
+			.route("/_matrix/media/r0/preview_url", any(redirect_legacy_preview));
 	}
 
 	router
