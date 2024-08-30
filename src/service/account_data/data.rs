@@ -1,10 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use conduit::{utils, warn, Error, Result};
+use conduit::{Error, Result};
 use database::Map;
 use ruma::{
 	api::client::error::ErrorKind,
-	events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
+	events::{AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent, RoomAccountDataEventType},
 	serde::Raw,
 	RoomId, UserId,
 };
@@ -110,7 +110,7 @@ impl Data {
 	/// Returns all changes to the account data that happened after `since`.
 	pub(super) fn changes_since(
 		&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
-	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {
+	) -> Result<Vec<AnyRawAccountDataEvent>> {
 		let mut userdata = HashMap::new();
 
 		let mut prefix = room_id
@@ -132,25 +132,21 @@ impl Data {
 			.take_while(move |(k, _)| k.starts_with(&prefix))
 			.map(|(k, v)| {
 				Ok::<_, Error>((
-					RoomAccountDataEventType::from(
-						utils::string_from_bytes(
-							k.rsplit(|&b| b == 0xFF)
-								.next()
-								.ok_or_else(|| Error::bad_database("RoomUserData ID in db is invalid."))?,
-						)
-						.map_err(|e| {
-							warn!("RoomUserData ID in database is invalid: {}", e);
-							Error::bad_database("RoomUserData ID in db is invalid.")
-						})?,
-					),
-					serde_json::from_slice::<Raw<AnyEphemeralRoomEvent>>(&v)
-						.map_err(|_| Error::bad_database("Database contains invalid account data."))?,
+					k,
+					match room_id {
+						None => serde_json::from_slice::<Raw<AnyGlobalAccountDataEvent>>(&v)
+							.map(AnyRawAccountDataEvent::Global)
+							.map_err(|_| Error::bad_database("Database contains invalid account data."))?,
+						Some(_) => serde_json::from_slice::<Raw<AnyRoomAccountDataEvent>>(&v)
+							.map(AnyRawAccountDataEvent::Room)
+							.map_err(|_| Error::bad_database("Database contains invalid account data."))?,
+					},
 				))
 			}) {
 			let (kind, data) = r?;
 			userdata.insert(kind, data);
 		}
 
-		Ok(userdata)
+		Ok(userdata.into_values().collect())
 	}
 }

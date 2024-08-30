@@ -1,12 +1,11 @@
 mod data;
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use conduit::Result;
 use data::Data;
 use ruma::{
-	events::{AnyEphemeralRoomEvent, RoomAccountDataEventType},
-	serde::Raw,
+	events::{AnyRawAccountDataEvent, RoomAccountDataEventType},
 	RoomId, UserId,
 };
 
@@ -47,7 +46,7 @@ impl Service {
 	#[tracing::instrument(skip_all, name = "since", level = "debug")]
 	pub fn changes_since(
 		&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
-	) -> Result<HashMap<RoomAccountDataEventType, Raw<AnyEphemeralRoomEvent>>> {
+	) -> Result<Vec<AnyRawAccountDataEvent>> {
 		self.db.changes_since(room_id, user_id, since)
 	}
 }
