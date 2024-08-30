@@ -120,7 +120,7 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 		builder = if config.zstd_compression {
 			builder.zstd(true)
 		} else {
-			builder.zstd(false).no_brotli()
+			builder.zstd(false).no_zstd()
 		};
 	};
 
