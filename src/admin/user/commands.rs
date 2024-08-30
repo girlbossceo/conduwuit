@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
-use api::client::{join_room_by_id_helper, leave_all_rooms, update_avatar_url, update_displayname};
+use api::client::{join_room_by_id_helper, leave_all_rooms, leave_room, update_avatar_url, update_displayname};
 use conduit::{error, info, utils, warn, PduBuilder, Result};
 use ruma::{
 	events::{
@@ -366,6 +366,24 @@ pub(super) async fn force_join_room(
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been joined to {room_id}.",
+	)))
+}
+
+#[admin_command]
+pub(super) async fn force_leave_room(
+	&self, user_id: String, room_id: OwnedRoomOrAliasId,
+) -> Result<RoomMessageEventContent> {
+	let user_id = parse_local_user_id(self.services, &user_id)?;
+	let room_id = self.services.rooms.alias.resolve(&room_id).await?;
+
+	assert!(
+		self.services.globals.user_is_local(&user_id),
+		"Parsed user_id must be a local user"
+	);
+	leave_room(self.services, &user_id, &room_id, None).await?;
+
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"{user_id} has left {room_id}.",
 	)))
 }
 

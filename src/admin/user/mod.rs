@@ -73,6 +73,12 @@ pub(super) enum UserCommand {
 		room_id: OwnedRoomOrAliasId,
 	},
 
+	/// - Manually leave a local user from a room.
+	ForceLeaveRoom {
+		user_id: String,
+		room_id: OwnedRoomOrAliasId,
+	},
+
 	/// - Grant server-admin privileges to a user.
 	MakeUserAdmin {
 		user_id: String,
