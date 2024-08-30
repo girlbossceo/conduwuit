@@ -5,13 +5,15 @@ mod request;
 mod response;
 pub mod state;
 
+use std::str::FromStr;
+
 use axum::{
-	response::IntoResponse,
+	response::{IntoResponse, Redirect},
 	routing::{any, get, post},
 	Router,
 };
 use conduit::{err, Server};
-use http::Uri;
+use http::{uri, Uri};
 
 use self::handler::RouterExt;
 pub(super) use self::{args::Args as Ruma, response::RumaResponse, state::State};
@@ -243,9 +245,27 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 			);
 	} else {
 		router = router.route("/_matrix/media/*path", any(legacy_media_disabled));
+		router = router.route("/_matrix/media/v3/preview_url", any(redirect_legacy_preview));
 	}
 
 	router
+}
+
+async fn redirect_legacy_preview(uri: Uri) -> impl IntoResponse {
+	let path = "/_matrix/client/v1/media/preview_url";
+	let query = uri.query().unwrap_or_default();
+
+	let path_and_query = format!("{path}?{query}");
+	let path_and_query = uri::PathAndQuery::from_str(&path_and_query)
+		.expect("Failed to build PathAndQuery for media preview redirect URI");
+
+	let uri = uri::Builder::new()
+		.path_and_query(path_and_query)
+		.build()
+		.expect("Failed to build URI for redirect")
+		.to_string();
+
+	Redirect::temporary(&uri)
 }
 
 async fn initial_sync(_uri: Uri) -> impl IntoResponse {
