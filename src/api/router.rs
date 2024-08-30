@@ -244,8 +244,12 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 				get(client::get_content_thumbnail_legacy_legacy_route),
 			);
 	} else {
-		router = router.route("/_matrix/media/*path", any(legacy_media_disabled));
-		router = router.route("/_matrix/media/v3/preview_url", any(redirect_legacy_preview));
+		router = router
+			.route("/_matrix/media/v1/*path", any(legacy_media_disabled))
+			.route("/_matrix/media/v3/config", any(legacy_media_disabled))
+			.route("/_matrix/media/v3/download/*path", any(legacy_media_disabled))
+			.route("/_matrix/media/v3/thumbnail/*path", any(legacy_media_disabled))
+			.route("/_matrix/media/v3/preview_url", any(redirect_legacy_preview));
 	}
 
 	router
