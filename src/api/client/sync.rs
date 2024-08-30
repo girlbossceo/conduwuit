@@ -36,6 +36,7 @@ use ruma::{
 	state_res::Event,
 	uint, DeviceId, EventId, MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId,
 };
+use service::rooms::read_receipt::pack_receipts;
 use tracing::{Instrument as _, Span};
 
 use crate::{
@@ -1168,6 +1169,10 @@ pub(crate) async fn sync_events_v4_route(
 	let mut device_list_changes = HashSet::new();
 	let mut device_list_left = HashSet::new();
 
+	let mut receipts = sync_events::v4::Receipts {
+		rooms: BTreeMap::new(),
+	};
+
 	let mut account_data = sync_events::v4::AccountData {
 		global: Vec::new(),
 		rooms: BTreeMap::new(),
@@ -1509,7 +1514,21 @@ pub(crate) async fn sync_events_v4_route(
 				.collect(),
 		);
 
-		if roomsince != &0 && timeline_pdus.is_empty() && account_data.rooms.get(room_id).is_some_and(Vec::is_empty) {
+		let room_receipts = services
+			.rooms
+			.read_receipt
+			.readreceipts_since(room_id, *roomsince);
+		let vector: Vec<_> = room_receipts.into_iter().collect();
+		let receipt_size = vector.len();
+		receipts
+			.rooms
+			.insert(room_id.clone(), pack_receipts(Box::new(vector.into_iter())));
+
+		if roomsince != &0
+			&& timeline_pdus.is_empty()
+			&& account_data.rooms.get(room_id).is_some_and(Vec::is_empty)
+			&& receipt_size == 0
+		{
 			continue;
 		}
 
@@ -1723,9 +1742,7 @@ pub(crate) async fn sync_events_v4_route(
 				device_unused_fallback_key_types: None,
 			},
 			account_data,
-			receipts: sync_events::v4::Receipts {
-				rooms: BTreeMap::new(),
-			},
+			receipts,
 			typing: sync_events::v4::Typing {
 				rooms: BTreeMap::new(),
 			},

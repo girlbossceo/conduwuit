@@ -2,16 +2,10 @@ use std::{mem::size_of, sync::Arc};
 
 use conduit::{utils, Error, Result};
 use database::Map;
-use ruma::{
-	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
-	serde::Raw,
-	CanonicalJsonObject, OwnedUserId, RoomId, UserId,
-};
+use ruma::{events::receipt::ReceiptEvent, serde::Raw, CanonicalJsonObject, RoomId, UserId};
 
+use super::AnySyncEphemeralRoomEventIter;
 use crate::{globals, Dep};
-
-type AnySyncEphemeralRoomEventIter<'a> =
-	Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
 
 pub(super) struct Data {
 	roomuserid_privateread: Arc<Map>,
