@@ -1394,7 +1394,7 @@ pub(crate) async fn sync_events_v4_route(
 						}
 					})
 					.collect(),
-				count: ruma_from_usize(all_joined_rooms.len()),
+				count: ruma_from_usize(active_rooms.len()),
 			},
 		);
 
