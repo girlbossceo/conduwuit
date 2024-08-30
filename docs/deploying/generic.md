@@ -34,12 +34,14 @@ are correctly set up.
 In Debian or Fedora/RHEL, you can use this command to create a conduwuit user:
 
 ```bash
-sudo adduser --system conduwuit --group --disabled-login --no-create-home 
+sudo adduser --system conduwuit --group --disabled-login --no-create-home
 ```
 
 For distros without `adduser`:
 
-```bash sudo useradd -r --shell /usr/bin/nologin --no-create-home conduwuit ```
+```bash
+sudo useradd -r --shell /usr/bin/nologin --no-create-home conduwuit
+```
 
 ## Forwarding ports in the firewall or the router
 
@@ -60,8 +62,9 @@ change the `ExecStart=` path to where you placed the conduwuit binary.
 
 Now we need to create the conduwuit's config file in
 `/etc/conduwuit/conduwuit.toml`. The example config can be found at
-[conduwuit-example.toml](../configuration/examples.md).**Please take a moment to
-read it. You need to change at least the server name.**
+[conduwuit-example.toml](../configuration/examples.md).
+
+**Please take a moment to read the config. You need to change at least the server name.**
 
 RocksDB is the only supported database backend.
 
@@ -76,9 +79,9 @@ sudo chown -R root:root /etc/conduwuit sudo chmod -R 755 /etc/conduwuit
 
 If you use the default database path you also need to run this:
 
-```bash 
-sudo mkdir -p /var/lib/conduwuit/ sudo chown -R conduwuit:conduwuit
-/var/lib/conduwuit/ sudo chmod 700 /var/lib/conduwuit/ 
+```bash
+sudo mkdir -p /var/lib/conduwuit/ sudo chown -R conduwuit:conduwuit /var/lib/conduwuit/
+sudo chmod 700 /var/lib/conduwuit/
 ```
 
 ## Setting up the Reverse Proxy
@@ -97,27 +100,34 @@ header, making federation non-functional. If using Apache, you need to use
 Create `/etc/caddy/conf.d/conduwuit_caddyfile` and enter this (substitute for
 your server name).
 
-```caddy
-your.server.name, your.server.name:8448 { # TCP reverse_proxy
+```caddyfile
+your.server.name, your.server.name:8448 {
+    # TCP reverse_proxy
     127.0.0.1:6167
-    # UNIX socket 
-    #reverse_proxy unix//run/conduwuit/conduwuit.sock 
+    # UNIX socket
+    #reverse_proxy unix//run/conduwuit/conduwuit.sock
 }
 ```
 
 That's it! Just start and enable the service and you're set.
 
-```bash sudo systemctl enable --now caddy ```
+```bash
+sudo systemctl enable --now caddy
+```
 
 ## You're done
 
 Now you can start conduwuit with:
 
-```bash sudo systemctl start conduwuit ```
+```bash
+sudo systemctl start conduwuit
+```
 
 Set it to start automatically when your system boots with:
 
-```bash sudo systemctl enable conduwuit ```
+```bash
+sudo systemctl enable conduwuit
+```
 
 ## How do I know it works?
 
@@ -127,10 +137,12 @@ homeserver and try to register.
 You can also use these commands as a quick health check (replace
 `your.server.name`).
 
-```bash $ curl https://your.server.name/_conduwuit/server_version
+```bash
+curl https://your.server.name/_conduwuit/server_version
 
-# If using port 8448 $ curl
-https://your.server.name:8448/_conduwuit/server_version ```
+# If using port 8448
+curl https://your.server.name:8448/_conduwuit/server_version
+```
 
 - To check if your server can talk with other homeservers, you can use the
 [Matrix Federation Tester](https://federationtester.matrix.org/). If you can

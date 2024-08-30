@@ -38,9 +38,11 @@ disable the default `release_max_log_level` feature, and set the `--cfg
 tokio_unstable` flag to enable experimental tokio APIs. A build might look like
 this:
 
-```bash RUSTFLAGS="--cfg tokio_unstable" cargo build \ --release \
---no-default-features \
---features=systemd,element_hacks,gzip_compression,brotli_compression,zstd_compression,tokio_console
+```bash
+RUSTFLAGS="--cfg tokio_unstable" cargo build \
+    --release \
+    --no-default-features \
+    --features=systemd,element_hacks,gzip_compression,brotli_compression,zstd_compression,tokio_console
 ```
 
 [1]: https://github.com/ruma/ruma/

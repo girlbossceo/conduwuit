@@ -9,22 +9,14 @@ from a registry.
 
 OCI images for conduwuit are available in the registries listed below.
 
-| Registry        | Image
-| Size                          | Notes                  | | --------------- |
---------------------------------------------------------------- |
------------------------------ | ---------------------- | | GitHub Registry |
-[ghcr.io/girlbossceo/conduwuit:latest][gh] | ![Image Size][shield-latest]  |
-Stable tagged image.          | | GitLab Registry |
-[registry.gitlab.com/conduwuit/conduwuit:latest][gl] | ![Image
-Size][shield-latest]  | Stable tagged image.          | | Docker Hub      |
-[docker.io/girlbossceo/conduwuit:latest][dh]             | ![Image
-Size][shield-latest]  | Stable tagged image.          | | GitHub Registry |
-[ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    |
-Stable main branch.   | | GitLab Registry |
-[registry.gitlab.com/conduwuit/conduwuit:main][gl]   | ![Image
-Size][shield-main]    | Stable main branch.   | | Docker Hub      |
-[docker.io/girlbossceo/conduwuit:main][dh]               | ![Image
-Size][shield-main]    | Stable main branch.   |
+| Registry        | Image                                                           | Size                          | Notes                  |
+| --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:latest][gh] | ![Image Size][shield-latest]  | Stable tagged image.          |
+| GitLab Registry | [registry.gitlab.com/conduwuit/conduwuit:latest][gl] | ![Image Size][shield-latest]  | Stable tagged image.          |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:latest][dh]             | ![Image Size][shield-latest]  | Stable tagged image.          |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    | Stable main branch.   |
+| GitLab Registry | [registry.gitlab.com/conduwuit/conduwuit:main][gl]   | ![Image Size][shield-main]    | Stable main branch.   |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:main][dh]               | ![Image Size][shield-main]    | Stable main branch.   |
 
 [dh]: https://hub.docker.com/r/girlbossceo/conduwuit
 [gh]: https://github.com/girlbossceo/conduwuit/pkgs/container/conduwuit
@@ -34,7 +26,9 @@ Size][shield-main]    | Stable main branch.   |
 
 Use
 
-```bash docker image pull <link> ```
+```bash
+docker image pull $LINK
+```
 
 to pull it to your machine.
 
@@ -42,13 +36,13 @@ to pull it to your machine.
 
 When you have the image you can simply run it with
 
-```bash 
-docker run -d -p 8448:6167 \ 
-    -v db:/var/lib/conduwuit/ \ 
-    -e CONDUWUIT_SERVER_NAME="your.server.name" \ 
-    -e CONDUWUIT_DATABASE_BACKEND="rocksdb" \ 
+```bash
+docker run -d -p 8448:6167 \
+    -v db:/var/lib/conduwuit/ \
+    -e CONDUWUIT_SERVER_NAME="your.server.name" \
+    -e CONDUWUIT_DATABASE_BACKEND="rocksdb" \
     -e CONDUWUIT_ALLOW_REGISTRATION=false \
-    --name conduit <link> 
+    --name conduit $LINK
 ```
 
 or you can use [docker compose](#docker-compose).
@@ -88,7 +82,9 @@ server.
 When picking the `caddy-docker-proxy` compose file, it's important to first
 create the `caddy` network before spinning up the containers:
 
-```bash docker network create caddy ```
+```bash
+docker network create caddy
+```
 
 After that, you can rename it so it matches `docker-compose.yml` and spin up the
 containers!
@@ -101,7 +97,7 @@ To build the conduwuit image with docker-compose, you first need to open and
 modify the `docker-compose.yml` file. There you need to comment the `image:`
 option and uncomment the `build:` option. Then call docker compose with:
 
-```bash 
+```bash
 docker compose up
 ```
 

@@ -1,6 +1,6 @@
 # conduwuit
 
-`main` / stable: [![CI and
+`main`: [![CI and
 Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
 
 <!-- ANCHOR: catchphrase --> ### a very cool, featureful fork of

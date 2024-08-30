@@ -9,18 +9,21 @@ conduwuit can be acquired by [Lix][lix] from various places:
 A binary cache for conduwuit that the CI/CD publishes to is available at the
 following places (both are the same just different names):
 
-``` https://attic.kennel.juneis.dog/conduit
+```
+https://attic.kennel.juneis.dog/conduit
 conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk=
 
 https://attic.kennel.juneis.dog/conduwuit
-conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= ```
+conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE=
+```
 
 The binary caches have been recreated recently due to attic issues. The old
 public keys were:
 
-``` conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
-
-conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw= ```
+```
+conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
+conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
+```
 
 If specifying a URL in your flake, please use the GitHub remote:
 `github:girlbossceo/conduwuit`
