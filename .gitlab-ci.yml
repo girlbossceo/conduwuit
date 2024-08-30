@@ -58,7 +58,7 @@ before_script:
 
 ci:
   stage: ci
-  image: nixos/nix:2.23.3
+  image: nixos/nix:2.24.4
   script:
     # Cache CI dependencies
     - ./bin/nix-build-and-cache ci
@@ -83,7 +83,7 @@ ci:
 
 artifacts:
   stage: artifacts
-  image: nixos/nix:2.23.3
+  image: nixos/nix:2.24.4
   script:
     - ./bin/nix-build-and-cache just .#static-x86_64-unknown-linux-musl
     - cp result/bin/conduit x86_64-unknown-linux-musl
