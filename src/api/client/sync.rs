@@ -1549,9 +1549,9 @@ pub(crate) async fn sync_events_v4_route(
 
 		let mut timestamp: Option<_> = None;
 		for (_, pdu) in timeline_pdus {
-			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) {
-				timestamp = Some(MilliSecondsSinceUnixEpoch(pdu.origin_server_ts));
-				break;
+			let ts = MilliSecondsSinceUnixEpoch(pdu.origin_server_ts);
+			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) && !timestamp.is_some_and(|time| time > ts) {
+				timestamp = Some(ts);
 			}
 		}
 
