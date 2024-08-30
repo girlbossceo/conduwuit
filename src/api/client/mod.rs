@@ -1,5 +1,6 @@
 pub(super) mod account;
 pub(super) mod alias;
+pub(super) mod appservice;
 pub(super) mod backup;
 pub(super) mod capabilities;
 pub(super) mod config;
@@ -38,6 +39,7 @@ pub(super) mod voip;
 
 pub(super) use account::*;
 pub(super) use alias::*;
+pub(super) use appservice::*;
 pub(super) use backup::*;
 pub(super) use capabilities::*;
 pub(super) use config::*;
