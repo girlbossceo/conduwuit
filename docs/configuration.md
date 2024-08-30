@@ -31,6 +31,22 @@ string. This does not apply to options that take booleans or numbers:
 - `--option log=\"debug\"` works ✅
 - `--option server_name='"example.com'"` works ✅
 
+## Execute commandline flag
+
+conduwuit supports running admin commands on startup using the commandline
+argument `--execute`. The most notable use for this is to create an admin user
+on first startup.
+
+The syntax of this is a standard admin command without the prefix such as
+`./conduwuit --execute "users create_user june"`
+
+An example output of a success is:
+```
+INFO conduit_service::admin::startup: Startup command #0 completed:
+Created user with user_id: @june:girlboss.ceo and password: `<redacted>`
+```
+
+This commandline argument can be paired with the `--option` flag.
 
 ## Environment variables
 
