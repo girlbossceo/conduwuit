@@ -1,40 +1,44 @@
 # conduwuit - Behind Traefik Reverse Proxy
 
 services:
-    homeserver:
-        ### If you already built the conduduwit image with 'docker build' or want to use the Docker Hub image,
-        ### then you are ready to go.
-        image: girlbossceo/conduwuit:latest
-        restart: unless-stopped
-        volumes:
-            - db:/var/lib/conduwuit
-            #- ./conduwuit.toml:/etc/conduwuit.toml
-        networks:
-            - proxy
-        environment:
-            CONDUWUIT_SERVER_NAME: your.server.name # EDIT THIS
-            CONDUWUIT_DATABASE_PATH: /var/lib/conduwuit
-            CONDUWUIT_DATABASE_BACKEND: rocksdb
-            CONDUWUIT_PORT: 6167
-            CONDUWUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB
-            CONDUWUIT_ALLOW_REGISTRATION: 'true'
-            CONDUWUIT_ALLOW_FEDERATION: 'true'
-            CONDUWUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
-            CONDUWUIT_TRUSTED_SERVERS: '["matrix.org"]'
-            #CONDUWUIT_LOG: warn,state_res=warn
-            CONDUWUIT_ADDRESS: 0.0.0.0
-            #CONDUWUIT_CONFIG: '/etc/conduwuit.toml' # Uncomment if you mapped config toml above
-        #cpuset: "0-4" # Uncomment to limit to specific CPU cores
+  homeserver:
+    ### If you already built the conduduwit image with 'docker build' or want to use the Docker Hub image,
+    ### then you are ready to go.
+    image: girlbossceo/conduwuit:latest
+    restart: unless-stopped
+    volumes:
+      - db:/var/lib/conduwuit
+      #- ./conduwuit.toml:/etc/conduwuit.toml
+    networks:
+      - proxy
+    environment:
+      CONDUWUIT_SERVER_NAME: your.server.name.example # EDIT THIS
+      CONDUWUIT_DATABASE_PATH: /var/lib/conduwuit
+      CONDUWUIT_DATABASE_BACKEND: rocksdb
+      CONDUWUIT_PORT: 6167 # should match the loadbalancer traefik label
+      CONDUWUIT_MAX_REQUEST_SIZE: 20_000_000 # in bytes, ~20 MB
+      CONDUWUIT_ALLOW_REGISTRATION: 'true'
+      CONDUWUIT_ALLOW_FEDERATION: 'true'
+      CONDUWUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
+      CONDUWUIT_TRUSTED_SERVERS: '["matrix.org"]'
+      #CONDUWUIT_LOG: warn,state_res=warn
+      CONDUWUIT_ADDRESS: 0.0.0.0
+      #CONDUWUIT_CONFIG: '/etc/conduwuit.toml' # Uncomment if you mapped config toml above
 
-    # We need some way to server the client and server .well-known json. The simplest way is to use a nginx container
-    # to serve those two as static files. If you want to use a different way, delete or comment the below service, here
-    # and in the docker compose override file.
-    well-known:
-        image: nginx:latest
-        restart: unless-stopped
-        volumes:
-            - ./nginx/matrix.conf:/etc/nginx/conf.d/matrix.conf # the config to serve the .well-known/matrix files
-            - ./nginx/www:/var/www/ # location of the client and server .well-known-files
+      # We need some way to serve the client and server .well-known json. The simplest way is via the CONDUWUIT_WELL_KNOWN
+      # variable / config option, there are multiple ways to do this, e.g. in the conduwuit.toml file, and in a seperate
+      # see the override file for more information about delegation
+      CONDUWUIT_WELL_KNOWN: |
+        {
+        client=https://your.server.name.example,
+        server=your.server.name.example:443
+        }
+    #cpuset: "0-4" # Uncomment to limit to specific CPU cores
+    ulimits: # conduwuit uses quite a few file descriptors, and on some systems it defaults to 1024, so you can tell docker to increase it
+      nofile:
+        soft: 1048567
+        hard: 1048567
+
     ### Uncomment if you want to use your own Element-Web App.
     ### Note: You need to provide a config.json for Element and you also need a second
     ###       Domain or Subdomain for the communication between Element and conduwuit
@@ -50,10 +54,12 @@ services:
     #         - homeserver
 
 volumes:
-    db:
+  db:
 
 networks:
-    # This is the network Traefik listens to, if your network has a different
-    # name, don't forget to change it here and in the docker-compose.override.yml
-    proxy:
-        external: true
+  # This is the network Traefik listens to, if your network has a different
+  # name, don't forget to change it here and in the docker-compose.override.yml
+  proxy:
+    external: true
+
+# vim: ts=2:sw=2:expandtab
