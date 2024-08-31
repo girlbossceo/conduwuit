@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{err, error::inspect_log, utils::string::split_once_infallible, Err, Result, Server};
+use conduit::{err, error::inspect_log, utils::string::SplitInfallible, Err, Result, Server};
 use database::Database;
 
 /// Abstract interface for a Service
@@ -147,4 +147,4 @@ where
 
 /// Utility for service implementations; see Service::name() in the trait.
 #[inline]
-pub(crate) fn make_name(module_path: &str) -> &str { split_once_infallible(module_path, "::").1 }
+pub(crate) fn make_name(module_path: &str) -> &str { module_path.split_once_infallible("::").1 }
