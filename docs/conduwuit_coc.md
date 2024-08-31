@@ -9,7 +9,7 @@ environment for everyone. This Code of Conduct applies to all conduwuit spaces,
 including any further community rooms that reference this CoC. Here are our
 guidelines to help maintain the welcoming atmosphere that sets conduwuit apart.
 
-For the general foundational rules, please refer to the [Contributor's 
+For the general foundational rules, please refer to the [Contributor's
 Covenant](https://github.com/girlbossceo/conduwuit/blob/main/CODE_OF_CONDUCT.md).
 Below are additional guidelines specific to the conduwuit community.
 
@@ -90,4 +90,4 @@ comfortable doing that, then please send a DM to one of the moderators directly.
 
 Together, let’s build a community where everyone feels valued and respected.
 
-- The conduwuit Moderation Team
+— The conduwuit Moderation Team

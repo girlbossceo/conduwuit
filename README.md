@@ -3,8 +3,11 @@
 `main`: [![CI and
 Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml)
 
-<!-- ANCHOR: catchphrase --> ### a very cool, featureful fork of
-[Conduit](https://conduit.rs/) <!-- ANCHOR_END: catchphrase -->
+<!-- ANCHOR: catchphrase -->
+
+### a very cool, featureful fork of [Conduit](https://conduit.rs/)
+
+<!-- ANCHOR_END: catchphrase -->
 
 Visit the [Conduwuit documentation](https://conduwuit.puppyirl.gay/) for more
 information.
@@ -43,7 +46,9 @@ might run into bugs from time to time.
 
 <!-- ANCHOR_END: body -->
 
-<!-- ANCHOR: footer --> #### Contact
+<!-- ANCHOR: footer -->
+
+#### Contact
 
 If you run into any question, feel free to
 
@@ -73,5 +78,6 @@ Both, but I prefer conduwuit.
 - git.girlcock.ceo: <https://git.girlcock.ceo/strawberry/conduwuit>
 - git.gay: <https://git.gay/june/conduwuit>
 - Codeberg: <https://codeberg.org/girlbossceo/conduwuit>
-- sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit> <!-- ANCHOR_END: footer
--->
+- sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
+
+<!-- ANCHOR_END: footer -->
