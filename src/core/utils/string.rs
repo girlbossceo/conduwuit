@@ -1,3 +1,10 @@
+mod between;
+mod split;
+mod tests;
+mod unquote;
+mod unquoted;
+
+pub use self::{between::Between, split::SplitInfallible, unquote::Unquote, unquoted::Unquoted};
 use crate::{utils::exchange, Result};
 
 pub const EMPTY: &str = "";
@@ -93,12 +100,6 @@ pub fn common_prefix<'a>(choice: &'a [&str]) -> &'a str {
 				.count()]
 		})
 	})
-}
-
-#[inline]
-#[must_use]
-pub fn split_once_infallible<'a>(input: &'a str, delim: &'_ str) -> (&'a str, &'a str) {
-	input.split_once(delim).unwrap_or((input, EMPTY))
 }
 
 /// Parses the bytes into a string.

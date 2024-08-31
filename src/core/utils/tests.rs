@@ -37,33 +37,6 @@ fn increment_wrap() {
 }
 
 #[test]
-fn common_prefix() {
-	use utils::string;
-
-	let input = ["conduwuit", "conduit", "construct"];
-	let output = string::common_prefix(&input);
-	assert_eq!(output, "con");
-}
-
-#[test]
-fn common_prefix_empty() {
-	use utils::string;
-
-	let input = ["abcdefg", "hijklmn", "opqrstu"];
-	let output = string::common_prefix(&input);
-	assert_eq!(output, "");
-}
-
-#[test]
-fn common_prefix_none() {
-	use utils::string;
-
-	let input = [];
-	let output = string::common_prefix(&input);
-	assert_eq!(output, "");
-}
-
-#[test]
 fn checked_add() {
 	use crate::checked;
 
@@ -133,20 +106,4 @@ async fn mutex_map_contend() {
 
 	tokio::try_join!(join_b, join_a).expect("joined");
 	assert!(map.is_empty(), "Must be empty");
-}
-
-#[test]
-fn camel_to_snake_case_0() {
-	use utils::string::camel_to_snake_string;
-
-	let res = camel_to_snake_string("CamelToSnakeCase");
-	assert_eq!(res, "camel_to_snake_case");
-}
-
-#[test]
-fn camel_to_snake_case_1() {
-	use utils::string::camel_to_snake_string;
-
-	let res = camel_to_snake_string("CAmelTOSnakeCase");
-	assert_eq!(res, "camel_tosnake_case");
 }
