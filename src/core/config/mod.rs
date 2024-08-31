@@ -1079,6 +1079,11 @@ fn default_sentry_filter() -> String { "info".to_owned() }
 
 fn default_startup_netburst_keep() -> i64 { 50 }
 
-fn default_admin_log_capture() -> String { "debug".to_owned() }
+fn default_admin_log_capture() -> String {
+	cfg!(debug_assertions)
+		.then_some("debug")
+		.unwrap_or("info")
+		.to_owned()
+}
 
 fn default_admin_room_tag() -> String { "m.server_notice".to_owned() }

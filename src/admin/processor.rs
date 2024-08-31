@@ -15,7 +15,7 @@ use conduit::{
 	},
 	trace,
 	utils::string::{collect_stream, common_prefix},
-	Error, Result,
+	warn, Error, Result,
 };
 use futures_util::future::FutureExt;
 use ruma::{
@@ -114,7 +114,15 @@ async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) 
 
 fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {
 	let env_config = &context.services.server.config.admin_log_capture;
-	let env_filter = EnvFilter::try_new(env_config).unwrap_or_else(|_| "debug".into());
+	let env_filter = EnvFilter::try_new(env_config).unwrap_or_else(|e| {
+		warn!("admin_log_capture filter invalid: {e:?}");
+		cfg!(debug_assertions)
+			.then_some("debug")
+			.or(Some("info"))
+			.map(Into::into)
+			.expect("default capture EnvFilter")
+	});
+
 	let log_level = env_filter
 		.max_level_hint()
 		.and_then(LevelFilter::into_level)
