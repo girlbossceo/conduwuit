@@ -139,6 +139,14 @@ pub(crate) async fn set_room_visibility_route(
 					 \"lockdown_public_room_directory\" is enabled",
 					body.room_id
 				);
+				services
+					.admin
+					.send_text(&format!(
+						"Non-admin user {sender_user} tried to publish {0} to the room directory while \
+						 \"lockdown_public_room_directory\" is enabled",
+						body.room_id
+					))
+					.await;
 
 				return Err(Error::BadRequest(
 					ErrorKind::forbidden(),
@@ -147,7 +155,11 @@ pub(crate) async fn set_room_visibility_route(
 			}
 
 			services.rooms.directory.set_public(&body.room_id)?;
-			info!("{sender_user} made {0} public", body.room_id);
+			services
+				.admin
+				.send_text(&format!("{sender_user} made {} public to the room directory", body.room_id))
+				.await;
+			info!("{sender_user} made {0} public to the room directory", body.room_id);
 		},
 		room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id)?,
 		_ => {
