@@ -15,7 +15,7 @@ pub(crate) async fn send_request<T>(
 where
 	T: OutgoingRequest + Debug + Send,
 {
-	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_0];
+	const VERSIONS: [MatrixVersion; 1] = [MatrixVersion::V1_7];
 
 	let Some(dest) = registration.url else {
 		return Ok(None);
