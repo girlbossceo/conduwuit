@@ -31,6 +31,8 @@ pub(crate) async fn report_event_route(
 		body.room_id, body.event_id
 	);
 
+	delay_response().await;
+
 	// check if we know about the reported event ID or if it's invalid
 	let Some(pdu) = services.rooms.timeline.get_pdu(&body.event_id)? else {
 		return Err(Error::BadRequest(
@@ -81,21 +83,19 @@ pub(crate) async fn report_event_route(
 		))
 		.await;
 
-	delay_response().await?;
-
 	Ok(report_content::v3::Response {})
 }
 
 /// in the following order:
 ///
 /// check if the room ID from the URI matches the PDU's room ID
-/// check if reporting user is in the reporting room
 /// check if score is in valid range
 /// check if report reasoning is less than or equal to 750 characters
+/// check if reporting user is in the reporting room
 fn is_report_valid(
 	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: &Option<String>,
 	score: Option<ruma::Int>, pdu: &std::sync::Arc<PduEvent>,
-) -> Result<bool> {
+) -> Result<()> {
 	debug_info!("Checking if report from user {sender_user} for event {event_id} in room {room_id} is valid");
 
 	if room_id != pdu.room_id {
@@ -105,10 +105,24 @@ fn is_report_valid(
 		));
 	}
 
+	if score.is_some_and(|s| s > int!(0) || s < int!(-100)) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Invalid score, must be within 0 to -100",
+		));
+	};
+
+	if reason.as_ref().is_some_and(|s| s.len() > 750) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Reason too long, should be 750 characters or fewer",
+		));
+	};
+
 	if !services
 		.rooms
 		.state_cache
-		.room_members(&pdu.room_id)
+		.room_members(room_id)
 		.filter_map(Result::ok)
 		.any(|user_id| user_id == *sender_user)
 	{
@@ -118,30 +132,14 @@ fn is_report_valid(
 		));
 	}
 
-	if score.map(|s| s > int!(0) || s < int!(-100)) == Some(true) {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Invalid score, must be within 0 to -100",
-		));
-	};
-
-	if reason.clone().map(|s| s.len() >= 750) == Some(true) {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Reason too long, should be 750 characters or fewer",
-		));
-	};
-
-	Ok(true)
+	Ok(())
 }
 
 /// even though this is kinda security by obscurity, let's still make a small
-/// random delay sending a successful response per spec suggestion regarding
+/// random delay sending a response per spec suggestion regarding
 /// enumerating for potential events existing in our server.
-async fn delay_response() -> Result<()> {
-	let time_to_wait = rand::thread_rng().gen_range(8..21);
+async fn delay_response() {
+	let time_to_wait = rand::thread_rng().gen_range(3..10);
 	debug_info!("Got successful /report request, waiting {time_to_wait} seconds before sending successful response.");
 	sleep(Duration::from_secs(time_to_wait)).await;
-
-	Ok(())
 }
