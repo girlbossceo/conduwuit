@@ -1,6 +1,5 @@
 use std::{
-	cmp,
-	cmp::Ordering,
+	cmp::{self, Ordering},
 	collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
 	time::Duration,
 };
@@ -1501,8 +1500,28 @@ pub(crate) async fn sync_events_v4_route(
 	for (room_id, (required_state_request, timeline_limit, roomsince)) in &todo_rooms {
 		let roomsincecount = PduCount::Normal(*roomsince);
 
-		let (timeline_pdus, limited) =
-			load_timeline(&services, &sender_user, room_id, roomsincecount, *timeline_limit)?;
+		let mut timestamp: Option<_> = None;
+		let mut invite_state = None;
+		let (timeline_pdus, limited);
+		if all_invited_rooms.contains(room_id) {
+			// TODO: figure out a timestamp we can use for remote invites
+			invite_state = services
+				.rooms
+				.state_cache
+				.invite_state(&sender_user, room_id)
+				.unwrap_or(None);
+
+			(timeline_pdus, limited) = (Vec::new(), true);
+		} else {
+			(timeline_pdus, limited) =
+				match load_timeline(&services, &sender_user, room_id, roomsincecount, *timeline_limit) {
+					Ok(value) => value,
+					Err(err) => {
+						warn!("Encountered missing timeline in {}, error {}", room_id, err);
+						continue;
+					},
+				};
+		}
 
 		account_data.rooms.insert(
 			room_id.clone(),
@@ -1556,17 +1575,6 @@ pub(crate) async fn sync_events_v4_route(
 			.map(|(_, pdu)| pdu.to_sync_room_event())
 			.collect();
 
-		let invite_state = if all_invited_rooms.contains(room_id) {
-			services
-				.rooms
-				.state_cache
-				.invite_state(&sender_user, room_id)
-				.unwrap_or(None)
-		} else {
-			None
-		};
-
-		let mut timestamp: Option<_> = None;
 		for (_, pdu) in timeline_pdus {
 			let ts = MilliSecondsSinceUnixEpoch(pdu.origin_server_ts);
 			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) && !timestamp.is_some_and(|time| time > ts) {
