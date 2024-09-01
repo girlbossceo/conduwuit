@@ -160,6 +160,19 @@ ip_range_denylist = [
 
 ### Moderation / Privacy / Security
 
+# Config option to control whether the legacy unauthenticated Matrix media repository endpoints will be enabled.
+# These endpoints consist of:
+# - /_matrix/media/*/config
+# - /_matrix/media/*/upload
+# - /_matrix/media/*/preview_url
+# - /_matrix/media/*/download/*
+# - /_matrix/media/*/thumbnail/*
+#
+# The authenticated equivalent endpoints are always enabled.
+#
+# Defaults to true for now, but this is highly subject to change, likely in the next release.
+#allow_legacy_media = true
+
 # Set to true to allow user type "guest" registrations. Element attempts to register guest users automatically.
 # Defaults to false
 allow_guest_registration = false
