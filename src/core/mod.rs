@@ -7,6 +7,7 @@ pub mod log;
 pub mod metrics;
 pub mod mods;
 pub mod pdu;
+pub mod result;
 pub mod server;
 pub mod utils;
 
@@ -15,12 +16,11 @@ pub use config::Config;
 pub use error::Error;
 pub use info::{rustc_flags_capture, version, version::version};
 pub use pdu::{PduBuilder, PduCount, PduEvent};
+pub use result::Result;
 pub use server::Server;
 pub use utils::{ctor, dtor, implement};
 
 pub use crate as conduit_core;
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 rustc_flags_capture! {}
 
