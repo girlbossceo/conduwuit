@@ -12,7 +12,9 @@ Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/bad
 Visit the [Conduwuit documentation](https://conduwuit.puppyirl.gay/) for more
 information.
 
-<!-- ANCHOR: body --> #### What is Matrix?
+<!-- ANCHOR: body -->
+
+#### What is Matrix?
 
 [Matrix](https://matrix.org) is an open network for secure and decentralized
 communication. Users from every Matrix homeserver can chat with users from all
