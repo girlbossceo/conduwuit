@@ -8,7 +8,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{error, trace, Config, Result};
+use conduit::{err, error, trace, Config, Result};
 use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
@@ -79,12 +79,10 @@ impl crate::Service for Service {
 		let cidr_range_denylist: Vec<_> = config
 			.ip_range_denylist
 			.iter()
-			.map(|cidr| {
-				let cidr = IPAddress::parse(cidr).expect("valid cidr range");
-				trace!("Denied CIDR range: {:?}", cidr);
-				cidr
-			})
-			.collect();
+			.map(IPAddress::parse)
+			.inspect(|cidr| trace!("Denied CIDR range: {cidr:?}"))
+			.collect::<Result<_, String>>()
+			.map_err(|e| err!(Config("ip_range_denylist", e)))?;
 
 		let mut s = Self {
 			db,
