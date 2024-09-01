@@ -13,6 +13,17 @@
 > If there are things like Compose file issues or Dockerhub image issues, those
 > can still be mentioned as long as they're something we can fix.
 
+## conduwuit and Matrix issues
+
+#### Lost access to admin room
+
+You can reinvite yourself to the admin room through the following methods:
+- Use the `--execute "users make_user_admin <username>"` conduwuit binary
+argument once to invite yourslf to the admin room on startup
+- Use the conduwuit console/CLI to run the `users make_user_admin` command
+- Or specify the `emergency_password` config option to allow you to temporarily
+log into the server account (`@conduit`) from a web client
+
 ## General potential issues
 
 #### Potential DNS issues when using Docker
@@ -30,7 +41,7 @@ workarounds for this are:
 - Don't use Docker's default DNS setup and instead allow the container to use
 and communicate with your host's DNS servers (host's `/etc/resolv.conf`)
 
-## Rocksdb / database issues
+## RocksDB / database issues
 
 #### Direct IO
 
