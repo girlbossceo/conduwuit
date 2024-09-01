@@ -27,6 +27,11 @@ pub(super) enum RoomCommand {
 		/// Excludes rooms that we have banned
 		#[arg(long)]
 		exclude_banned: bool,
+
+		#[arg(long)]
+		/// Whether to only output room IDs without supplementary room
+		/// information
+		no_details: bool,
 	},
 
 	#[command(subcommand)]

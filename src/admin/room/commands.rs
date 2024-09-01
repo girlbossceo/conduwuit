@@ -5,7 +5,7 @@ use crate::{admin_command, get_room_info, PAGE_SIZE};
 
 #[admin_command]
 pub(super) async fn list_rooms(
-	&self, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool,
+	&self, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool, no_details: bool,
 ) -> Result<RoomMessageEventContent> {
 	// TODO: i know there's a way to do this with clap, but i can't seem to find it
 	let page = page.unwrap_or(1);
@@ -63,7 +63,11 @@ pub(super) async fn list_rooms(
 		rooms.len(),
 		rooms
 			.iter()
-			.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+			.map(|(id, members, name)| if no_details {
+				format!("{id}")
+			} else {
+				format!("{id}\tMembers: {members}\tName: {name}")
+			})
 			.collect::<Vec<_>>()
 			.join("\n")
 	);
