@@ -13,7 +13,7 @@ use ruma::{
 use serde_json::value::to_raw_value;
 
 use crate::{
-	admin_command, escape_html, get_room_info,
+	admin_command, get_room_info,
 	utils::{parse_active_local_user_id, parse_local_user_id},
 };
 
@@ -320,7 +320,7 @@ pub(super) async fn list_joined_rooms(&self, user_id: String) -> Result<RoomMess
 	rooms.reverse();
 
 	let output_plain = format!(
-		"Rooms {user_id} Joined ({}):\n{}",
+		"Rooms {user_id} Joined ({}):\n```\n{}\n```",
 		rooms.len(),
 		rooms
 			.iter()
@@ -329,26 +329,7 @@ pub(super) async fn list_joined_rooms(&self, user_id: String) -> Result<RoomMess
 			.join("\n")
 	);
 
-	let output_html = format!(
-		"<table><caption>Rooms {user_id} Joined \
-		 ({})</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-		rooms.len(),
-		rooms
-			.iter()
-			.fold(String::new(), |mut output, (id, members, name)| {
-				writeln!(
-					output,
-					"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-					escape_html(id.as_ref()),
-					members,
-					escape_html(name)
-				)
-				.unwrap();
-				output
-			})
-	);
-
-	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+	Ok(RoomMessageEventContent::notice_markdown(output_plain))
 }
 
 #[admin_command]

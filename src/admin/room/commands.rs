@@ -1,9 +1,7 @@
-use std::fmt::Write;
-
 use conduit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::{admin_command, escape_html, get_room_info, PAGE_SIZE};
+use crate::{admin_command, get_room_info, PAGE_SIZE};
 
 #[admin_command]
 pub(super) async fn list_rooms(
@@ -61,29 +59,14 @@ pub(super) async fn list_rooms(
 	};
 
 	let output_plain = format!(
-		"Rooms:\n{}",
+		"Rooms ({}):\n```\n{}\n```",
+		rooms.len(),
 		rooms
 			.iter()
 			.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
 			.collect::<Vec<_>>()
 			.join("\n")
 	);
-	let output_html = format!(
-		"<table><caption>Room list - page \
-		 {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-		rooms
-			.iter()
-			.fold(String::new(), |mut output, (id, members, name)| {
-				writeln!(
-					output,
-					"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-					escape_html(id.as_ref()),
-					members,
-					escape_html(name)
-				)
-				.expect("should be able to write to string buffer");
-				output
-			})
-	);
-	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+
+	Ok(RoomMessageEventContent::notice_markdown(output_plain))
 }
