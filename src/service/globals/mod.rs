@@ -76,12 +76,15 @@ impl crate::Service for Service {
 		// Experimental, partially supported room versions
 		let unstable_room_versions = vec![RoomVersionId::V2, RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
-		let mut cidr_range_denylist = Vec::new();
-		for cidr in config.ip_range_denylist.clone() {
-			let cidr = IPAddress::parse(cidr).expect("valid cidr range");
-			trace!("Denied CIDR range: {:?}", cidr);
-			cidr_range_denylist.push(cidr);
-		}
+		let cidr_range_denylist: Vec<_> = config
+			.ip_range_denylist
+			.iter()
+			.map(|cidr| {
+				let cidr = IPAddress::parse(cidr).expect("valid cidr range");
+				trace!("Denied CIDR range: {:?}", cidr);
+				cidr
+			})
+			.collect();
 
 		let mut s = Self {
 			db,
