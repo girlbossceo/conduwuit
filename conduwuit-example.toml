@@ -68,6 +68,10 @@
 # only effective in release-mode; forced to false in debug-mode.
 #sentry_send_error = true
 
+# Controls the tracing log level for Sentry to send things like breadcrumbs and transactions
+# Defaults to "info"
+#sentry_filter = "info"
+
 
 ### Database configuration
 
@@ -220,11 +224,6 @@ registration_token = "change this token for something specific to your server"
 # defaults to false
 # block_non_admin_invites = false
 
-# Allows admins to enter commands in rooms other than #admins by prefixing with \!admin. The reply
-# will be publicly visible to the room, originating from the sender.
-# defaults to true
-#admin_escape_commands = true
-
 # List of forbidden username patterns/strings. Values in this list are matched as *contains*.
 # This is checked upon username availability check, registration, and startup as warnings if any local users in your database
 # have a forbidden username.
@@ -316,6 +315,41 @@ allow_profile_lookup_federation_requests = true
 #
 # Defaults to false as rooms can be banned for non-moderation-related reasons
 #auto_deactivate_banned_room_attempts = false
+
+
+### Admin Room and Console
+
+# Controls whether the conduwuit admin room console / CLI will immediately activate on startup.
+# This option can also be enabled with `--console` conduwuit argument
+#
+# Defaults to false
+#admin_console_automatic = false
+
+# Controls what admin commands will be executed on startup. This is a vector list of strings of admin commands to run.
+#
+# An example of this can be: `admin_execute = ["debug ping puppygock.gay", "debug echo hi"]`
+#
+# This option can also be configured with the `--execute` conduwuit argument and can take standard shell commands and environment variables
+#
+# Such example could be: `./conduwuit --execute "server admin-notice conduwuit has started up at $(date)"`
+#
+# Defaults to nothing.
+#admin_execute = [""]
+
+# Controls whether conduwuit should error and fail to start if an admin execute command (`--execute` / `admin_execute`) fails
+#
+# Defaults to false
+#admin_execute_errors_ignore = false
+
+# Controls the max log level for admin command log captures (logs generated from running admin commands)
+#
+# Defaults to "info" on release builds, else "debug" on debug builds
+#admin_log_capture = info
+
+# Allows admins to enter commands in rooms other than #admins by prefixing with \!admin. The reply
+# will be publicly visible to the room, originating from the sender.
+# defaults to true
+#admin_escape_commands = true
 
 
 ### Misc
