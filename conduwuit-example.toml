@@ -481,6 +481,7 @@ allow_profile_lookup_federation_requests = true
 ### Generic database options
 
 # Set this to any float value to multiply conduwuit's in-memory LRU caches with.
+# By default, the caches scale automatically with cpu-core-count.
 # May be useful if you have significant memory to spare to increase performance.
 #
 # This was previously called `conduit_cache_capacity_modifier`
@@ -490,7 +491,7 @@ allow_profile_lookup_federation_requests = true
 
 # Set this to any float value in megabytes for conduwuit to tell the database engine that this much memory is available for database-related caches.
 # May be useful if you have significant memory to spare to increase performance.
-# Defaults to 256.0
+# Defaults to 128.0 + (64.0 * CPU core count).
 #db_cache_capacity_mb = 256.0
 
 
