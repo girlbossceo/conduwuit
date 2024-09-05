@@ -19,14 +19,11 @@ license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.80.1"
+rust-version = "1.80.0"
 version = "0.4.6"
 
 [workspace.metadata.crane]
 name = "conduit"
-
-[workspace.dependencies.arrayvec]
-version = "0.7.4"
 
 [workspace.dependencies.const-str]
 version = "0.5.7"
@@ -69,7 +66,7 @@ version = "0.8.5"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 [workspace.dependencies.bytes]
-version = "1.7.1"
+version = "1.6.1"
 
 [workspace.dependencies.http-body-util]
 version = "0.1.1"
@@ -78,7 +75,7 @@ version = "0.1.1"
 version = "1.1.0"
 
 [workspace.dependencies.regex]
-version = "1.10.6"
+version = "1.10.4"
 
 [workspace.dependencies.axum]
 version = "0.7.5"
@@ -99,19 +96,15 @@ default-features = false
 features = ["typed-header", "tracing"]
 
 [workspace.dependencies.axum-server]
-version = "0.7.1"
+version = "0.6.0"
 default-features = false
 features = ["tls-rustls"]
-
-# to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
-[workspace.dependencies.axum-server-dual-protocol]
-version = "0.7"
 
 [workspace.dependencies.axum-client-ip]
 version = "0.6.0"
 
 [workspace.dependencies.tower]
-version = "0.5.0"
+version = "0.4.13"
 default-features = false
 features = ["util"]
 
@@ -128,11 +121,8 @@ features = [
     "catch-panic",
 ]
 
-[workspace.dependencies.rustls]
-version = "0.23.12"
-
 [workspace.dependencies.reqwest]
-version = "0.12.7"
+version = "0.12.4"
 default-features = false
 features = [
 	"rustls-tls-native-roots",
@@ -142,12 +132,12 @@ features = [
 ]
 
 [workspace.dependencies.serde]
-version = "1.0.209"
+version = "1.0.204"
 default-features = false
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
-version = "1.0.124"
+version = "1.0.121"
 default-features = false
 features = ["raw_value"]
 
@@ -200,7 +190,7 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.15"
+version = "4.5.9"
 default-features = false
 features = [
 	"std",
@@ -216,7 +206,7 @@ version = "0.3.30"
 default-features = false
 
 [workspace.dependencies.tokio]
-version = "1.40.0"
+version = "1.39.2"
 default-features = false
 features = [
 	"fs",
@@ -314,7 +304,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "d7ddcd036f81edb257ab9371f9cadd46444e8a90"
+rev = "c76e2873c1593a3308d4ba3e0e4a1db65acf8536"
 features = [
     "compat",
     "rand",
@@ -336,8 +326,6 @@ features = [
     "unstable-msc3026",
     "unstable-msc3061",
     "unstable-msc3266",
-    "unstable-msc3381", # polls
-    "unstable-msc3489", # beacon / live location
     "unstable-msc3575",
     "unstable-msc4121",
     "unstable-msc4125",
@@ -355,6 +343,10 @@ features = [
 	"zlib",
 	"bzip2",
 ]
+
+# to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
+[workspace.dependencies.axum-server-dual-protocol]
+version = "0.6"
 
 # optional SHA256 media keys feature
 [workspace.dependencies.sha2]
@@ -401,19 +393,17 @@ version = "0.34.0"
 version = "0.34.0"
 
 # jemalloc usage
+# locked to 0.5.4 due to static binary linking breakage
 [workspace.dependencies.tikv-jemalloc-sys]
-git = "https://github.com/girlbossceo/jemallocator"
-rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
+version = "=0.5.4"
 default-features = false
-features = ["unprefixed_malloc_on_supported_platforms"]
+features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
-git = "https://github.com/girlbossceo/jemallocator"
-rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
+version = "=0.5.4"
 default-features = false
-features = ["unprefixed_malloc_on_supported_platforms"]
+features = ["stats", "unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
-git = "https://github.com/girlbossceo/jemallocator"
-rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
+version = "=0.5.4"
 default-features = false
 features = ["use_std"]
 
@@ -438,18 +428,18 @@ features = [
 ]
 
 [workspace.dependencies.rustyline-async]
-version = "0.4.3"
+version = "0.4.2"
 default-features = false
 
 [workspace.dependencies.termimad]
-version = "0.30.0"
+version = "0.29.4"
 default-features = false
 
 [workspace.dependencies.checked_ops]
 version = "0.1"
 
 [workspace.dependencies.syn]
-version = "2.0.76"
+version = "2.0.72"
 default-features = false
 features = ["full", "extra-traits"]
 
@@ -480,11 +470,17 @@ rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 git = "https://github.com/girlbossceo/tracing"
 rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 
+# fixes hyper graceful shutdowns [https://github.com/programatik29/axum-server/issues/114]
+# https://github.com/girlbossceo/axum-server/commit/8e3368d899079818934e61cc9c839abcbbcada8a
+[patch.crates-io.axum-server]
+git = "https://github.com/girlbossceo/axum-server"
+rev = "8e3368d899079818934e61cc9c839abcbbcada8a"
+
 # adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
 # adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
 [patch.crates-io.rustyline-async]
 git = "https://github.com/girlbossceo/rustyline-async"
-rev = "9654cc84e19241f6e19021eb8e677892656f5071"
+rev = "de26100b0db03e419a3d8e1dd26895d170d1fe50"
 
 #
 # Our crates
