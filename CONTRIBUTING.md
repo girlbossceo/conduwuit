@@ -1,7 +1,7 @@
 # Contributing guide
 
 This page is for about contributing to conduwuit. The
-[development](development.md) page may be of interest for you as well.
+[development](./development.md) page may be of interest for you as well.
 
 If you would like to work on an [issue][issues] that is not assigned, preferably
 ask in the Matrix room first at [#conduwuit:puppygock.gay][conduwuit-matrix],
@@ -67,7 +67,7 @@ failing from your changes, please review the logs (they are uploaded as
 artifacts) and determine if they're intended or not.
 
 If you'd like to run Complement locally using Nix, see the
-[testing](docs/development/testing.md) page.
+[testing](development/testing.md) page.
 
 [Sytest][sytest] support will come soon.
 
@@ -128,7 +128,10 @@ Direct all PRs/MRs to the `main` branch.
 
 By sending a pull request or patch, you are agreeing that your changes are
 allowed to be licenced under the Apache-2.0 licence and all of your conduct is
-in line with the Contributor's Covenant.
+in line with the Contributor's Covenant, and conduwuit's Code of Conduct.
+
+Contribution by users who violate either of these code of conducts will not have
+their contributions accepted.
 
 [issues]: https://github.com/girlbossceo/conduwuit/issues
 [conduwuit-matrix]: https://matrix.to/#/#conduwuit:puppygock.gay
