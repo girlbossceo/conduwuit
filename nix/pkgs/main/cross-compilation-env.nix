@@ -18,7 +18,7 @@ lib.optionalAttrs stdenv.hostPlatform.isStatic {
           [ "-C" "target-cpu=x86-64-v2" ]
         ++ lib.optionals
           stdenv.targetPlatform.isAarch64
-          [ "-C" "target-cpu=cortex-a55" ] # cortex-a55 == ARMv8.2-a
+          [ "-C" "target-cpu=cortex-a53" ] # cortex-a53 == ARMv8-A
         # This disables PIE for static builds, which isn't great in terms
         # of security. Unfortunately, my hand is forced because nixpkgs'
         # `libstdc++.a` is built without `-fPIE`, which precludes us from

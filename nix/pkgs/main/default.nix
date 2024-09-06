@@ -97,7 +97,7 @@ buildDepsOnlyEnv =
         else if stdenv.targetPlatform.isAarch64
         then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
         ++ lib.optionals stdenv.targetPlatform.isAarch64 [
-          # cortex-a73 == ARMv8-A
+          # cortex-a53 == ARMv8-A
           "-DPORTABLE=armv8-a"
         ]
         else old.cmakeFlags;
@@ -131,7 +131,7 @@ buildPackageEnv = {
     + lib.optionalString stdenv.targetPlatform.isx86_64
       " -Ctarget-cpu=x86-64-v2"
     + lib.optionalString stdenv.targetPlatform.isAarch64
-      " -Ctarget-cpu=cortex-a73"; # cortex-a73 == ARMv8-A
+      " -Ctarget-cpu=cortex-a53"; # cortex-a53 == ARMv8-A
 };
 
 
