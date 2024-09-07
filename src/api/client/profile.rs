@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{pdu::PduBuilder, warn, Error, Result};
+use conduit::{pdu::PduBuilder, warn, Err, Error, Result};
 use ruma::{
 	api::{
 		client::{
@@ -26,20 +26,25 @@ pub(crate) async fn set_displayname_route(
 	State(services): State<crate::State>, body: Ruma<set_display_name::v3::Request>,
 ) -> Result<set_display_name::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	if *sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot update the profile of another user")));
+	}
+
 	let all_joined_rooms: Vec<OwnedRoomId> = services
 		.rooms
 		.state_cache
-		.rooms_joined(sender_user)
+		.rooms_joined(&body.user_id)
 		.filter_map(Result::ok)
 		.collect();
 
-	update_displayname(&services, sender_user.clone(), body.displayname.clone(), all_joined_rooms).await?;
+	update_displayname(&services, body.user_id.clone(), body.displayname.clone(), all_joined_rooms).await?;
 
 	if services.globals.allow_local_presence() {
 		// Presence update
 		services
 			.presence
-			.ping_presence(sender_user, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)?;
 	}
 
 	Ok(set_display_name::v3::Response {})
@@ -110,16 +115,21 @@ pub(crate) async fn set_avatar_url_route(
 	State(services): State<crate::State>, body: Ruma<set_avatar_url::v3::Request>,
 ) -> Result<set_avatar_url::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	if *sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot update the profile of another user")));
+	}
+
 	let all_joined_rooms: Vec<OwnedRoomId> = services
 		.rooms
 		.state_cache
-		.rooms_joined(sender_user)
+		.rooms_joined(&body.user_id)
 		.filter_map(Result::ok)
 		.collect();
 
 	update_avatar_url(
 		&services,
-		sender_user.clone(),
+		body.user_id.clone(),
 		body.avatar_url.clone(),
 		body.blurhash.clone(),
 		all_joined_rooms,
@@ -130,7 +140,7 @@ pub(crate) async fn set_avatar_url_route(
 		// Presence update
 		services
 			.presence
-			.ping_presence(sender_user, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)?;
 	}
 
 	Ok(set_avatar_url::v3::Response {})
@@ -196,7 +206,7 @@ pub(crate) async fn get_avatar_url_route(
 
 /// # `GET /_matrix/client/v3/profile/{userId}`
 ///
-/// Returns the displayname, avatar_url and blurhash of the user.
+/// Returns the displayname, avatar_url, blurhash, and tz of the user.
 ///
 /// - If user is on another server and we do not have a local copy already,
 ///   fetch profile over federation.
@@ -232,11 +242,16 @@ pub(crate) async fn get_profile_route(
 				.users
 				.set_blurhash(&body.user_id, response.blurhash.clone())
 				.await?;
+			services
+				.users
+				.set_timezone(&body.user_id, response.tz.clone())
+				.await?;
 
 			return Ok(get_profile::v3::Response {
 				displayname: response.displayname,
 				avatar_url: response.avatar_url,
 				blurhash: response.blurhash,
+				tz: response.tz,
 			});
 		}
 	}
@@ -251,6 +266,7 @@ pub(crate) async fn get_profile_route(
 		avatar_url: services.users.avatar_url(&body.user_id)?,
 		blurhash: services.users.blurhash(&body.user_id)?,
 		displayname: services.users.displayname(&body.user_id)?,
+		tz: services.users.timezone(&body.user_id)?,
 	})
 }
 

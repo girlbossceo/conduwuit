@@ -75,6 +75,7 @@ pub(crate) async fn get_profile_information_route(
 	let mut displayname = None;
 	let mut avatar_url = None;
 	let mut blurhash = None;
+	let mut tz = None;
 
 	match &body.field {
 		Some(ProfileField::DisplayName) => {
@@ -90,6 +91,7 @@ pub(crate) async fn get_profile_information_route(
 			displayname = services.users.displayname(&body.user_id)?;
 			avatar_url = services.users.avatar_url(&body.user_id)?;
 			blurhash = services.users.blurhash(&body.user_id)?;
+			tz = services.users.timezone(&body.user_id)?;
 		},
 	}
 
@@ -97,5 +99,6 @@ pub(crate) async fn get_profile_information_route(
 		displayname,
 		avatar_url,
 		blurhash,
+		tz,
 	})
 }

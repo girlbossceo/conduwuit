@@ -1,9 +1,18 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::warn;
+use conduit::{warn, Err};
 use ruma::{
-	api::client::{error::ErrorKind, membership::mutual_rooms, room::get_summary},
+	api::{
+		client::{
+			error::ErrorKind,
+			membership::mutual_rooms,
+			profile::{delete_timezone_key, get_timezone_key, set_timezone_key},
+			room::get_summary,
+		},
+		federation,
+	},
 	events::room::member::MembershipState,
+	presence::PresenceState,
 	OwnedRoomId,
 };
 
@@ -159,5 +168,120 @@ pub(crate) async fn get_room_summary(
 			.state_accessor
 			.get_room_encryption(&room_id)
 			.unwrap_or_else(|_e| None),
+	})
+}
+
+/// # `DELETE /_matrix/client/unstable/uk.tcpip.msc4133/profile/:user_id/us.cloke.msc4175.tz`
+///
+/// Deletes the `tz` (timezone) of a user, as per MSC4133 and MSC4175.
+///
+/// - Also makes sure other users receive the update using presence EDUs
+pub(crate) async fn delete_timezone_key_route(
+	State(services): State<crate::State>, body: Ruma<delete_timezone_key::unstable::Request>,
+) -> Result<delete_timezone_key::unstable::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	if *sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot update the profile of another user")));
+	}
+
+	services.users.set_timezone(&body.user_id, None).await?;
+
+	if services.globals.allow_local_presence() {
+		// Presence update
+		services
+			.presence
+			.ping_presence(&body.user_id, &PresenceState::Online)?;
+	}
+
+	Ok(delete_timezone_key::unstable::Response {})
+}
+
+/// # `PUT /_matrix/client/unstable/uk.tcpip.msc4133/profile/:user_id/us.cloke.msc4175.tz`
+///
+/// Updates the `tz` (timezone) of a user, as per MSC4133 and MSC4175.
+///
+/// - Also makes sure other users receive the update using presence EDUs
+pub(crate) async fn set_timezone_key_route(
+	State(services): State<crate::State>, body: Ruma<set_timezone_key::unstable::Request>,
+) -> Result<set_timezone_key::unstable::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	if *sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot update the profile of another user")));
+	}
+
+	services
+		.users
+		.set_timezone(&body.user_id, body.tz.clone())
+		.await?;
+
+	if services.globals.allow_local_presence() {
+		// Presence update
+		services
+			.presence
+			.ping_presence(&body.user_id, &PresenceState::Online)?;
+	}
+
+	Ok(set_timezone_key::unstable::Response {})
+}
+
+/// # `GET /_matrix/client/unstable/uk.tcpip.msc4133/profile/:user_id/us.cloke.msc4175.tz`
+///
+/// Returns the `timezone` of the user as per MSC4133 and MSC4175.
+///
+/// - If user is on another server and we do not have a local copy already fetch
+///   `timezone` over federation
+pub(crate) async fn get_timezone_key_route(
+	State(services): State<crate::State>, body: Ruma<get_timezone_key::unstable::Request>,
+) -> Result<get_timezone_key::unstable::Response> {
+	if !services.globals.user_is_local(&body.user_id) {
+		// Create and update our local copy of the user
+		if let Ok(response) = services
+			.sending
+			.send_federation_request(
+				body.user_id.server_name(),
+				federation::query::get_profile_information::v1::Request {
+					user_id: body.user_id.clone(),
+					field: None, // we want the full user's profile to update locally as well
+				},
+			)
+			.await
+		{
+			if !services.users.exists(&body.user_id)? {
+				services.users.create(&body.user_id, None)?;
+			}
+
+			services
+				.users
+				.set_displayname(&body.user_id, response.displayname.clone())
+				.await?;
+			services
+				.users
+				.set_avatar_url(&body.user_id, response.avatar_url.clone())
+				.await?;
+			services
+				.users
+				.set_blurhash(&body.user_id, response.blurhash.clone())
+				.await?;
+			services
+				.users
+				.set_timezone(&body.user_id, response.tz.clone())
+				.await?;
+
+			return Ok(get_timezone_key::unstable::Response {
+				tz: response.tz,
+			});
+		}
+	}
+
+	if !services.users.exists(&body.user_id)? {
+		// Return 404 if this user doesn't exist and we couldn't fetch it over
+		// federation
+		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
+	}
+
+	Ok(get_timezone_key::unstable::Response {
+		tz: services.users.timezone(&body.user_id)?,
 	})
 }

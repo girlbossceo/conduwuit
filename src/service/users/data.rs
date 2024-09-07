@@ -32,6 +32,7 @@ pub struct Data {
 	userid_password: Arc<Map>,
 	userid_selfsigningkeyid: Arc<Map>,
 	userid_usersigningkeyid: Arc<Map>,
+	useridprofilekey_value: Arc<Map>,
 	services: Services,
 }
 
@@ -64,6 +65,7 @@ impl Data {
 			userid_password: db["userid_password"].clone(),
 			userid_selfsigningkeyid: db["userid_selfsigningkeyid"].clone(),
 			userid_usersigningkeyid: db["userid_usersigningkeyid"].clone(),
+			useridprofilekey_value: db["useridprofilekey_value"].clone(),
 			services: Services {
 				server: args.server.clone(),
 				globals: args.depend::<globals::Service>("globals"),
@@ -229,6 +231,57 @@ impl Data {
 				utils::string_from_bytes(&bytes).map_err(|e| err!(Database("Avatar URL in db is invalid. {e}")))
 			})
 			.transpose()
+	}
+
+	/// Get the timezone of a user.
+	pub(super) fn timezone(&self, user_id: &UserId) -> Result<Option<String>> {
+		// first check the unstable prefix
+		let mut key = user_id.as_bytes().to_vec();
+		key.push(0xFF);
+		key.extend_from_slice(b"us.cloke.msc4175.tz");
+
+		let value = self
+			.useridprofilekey_value
+			.get(&key)?
+			.map(|bytes| utils::string_from_bytes(&bytes).map_err(|e| err!(Database("Timezone in db is invalid. {e}"))))
+			.transpose()
+			.unwrap();
+
+		// TODO: transparently migrate unstable key usage to the stable key once MSC4133
+		// and MSC4175 are stable, likely a remove/insert in this block
+		if value.is_none() || value.as_ref().is_some_and(String::is_empty) {
+			// check the stable prefix
+			let mut key = user_id.as_bytes().to_vec();
+			key.push(0xFF);
+			key.extend_from_slice(b"m.tz");
+
+			return self
+				.useridprofilekey_value
+				.get(&key)?
+				.map(|bytes| {
+					utils::string_from_bytes(&bytes).map_err(|e| err!(Database("Timezone in db is invalid. {e}")))
+				})
+				.transpose();
+		}
+
+		Ok(value)
+	}
+
+	/// Sets a new timezone or removes it if timezone is None.
+	pub(super) fn set_timezone(&self, user_id: &UserId, timezone: Option<String>) -> Result<()> {
+		let mut key = user_id.as_bytes().to_vec();
+		key.push(0xFF);
+		key.extend_from_slice(b"us.cloke.msc4175.tz");
+
+		// TODO: insert to the stable MSC4175 key when it's stable
+		if let Some(timezone) = timezone {
+			self.useridprofilekey_value
+				.insert(&key, timezone.as_bytes())?;
+		} else {
+			self.useridprofilekey_value.remove(&key)?;
+		}
+
+		Ok(())
 	}
 
 	/// Sets a new avatar_url or removes it if avatar_url is None.

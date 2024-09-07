@@ -327,6 +327,13 @@ impl Service {
 	/// Get the blurhash of a user.
 	pub fn blurhash(&self, user_id: &UserId) -> Result<Option<String>> { self.db.blurhash(user_id) }
 
+	pub fn timezone(&self, user_id: &UserId) -> Result<Option<String>> { self.db.timezone(user_id) }
+
+	/// Sets a new tz or removes it if tz is None.
+	pub async fn set_timezone(&self, user_id: &UserId, tz: Option<String>) -> Result<()> {
+		self.db.set_timezone(user_id, tz)
+	}
+
 	/// Sets a new blurhash or removes it if blurhash is None.
 	pub async fn set_blurhash(&self, user_id: &UserId, blurhash: Option<String>) -> Result<()> {
 		self.db.set_blurhash(user_id, blurhash)
