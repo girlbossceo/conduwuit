@@ -25,12 +25,12 @@ use ruma::{
 		},
 		uiaa::UiaaResponse,
 	},
+	directory::RoomTypeFilter,
 	events::{
 		presence::PresenceEvent,
 		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, StateEventType, TimelineEventType,
 	},
-	room::RoomType,
 	serde::Raw,
 	state_res::Event,
 	uint, DeviceId, EventId, MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId,
@@ -1760,32 +1760,23 @@ pub(crate) async fn sync_events_v4_route(
 }
 
 fn filter_rooms(
-	rooms: &[OwnedRoomId], State(services): State<crate::State>, filter: &[Option<RoomType>], negate: bool,
+	rooms: &[OwnedRoomId], State(services): State<crate::State>, filter: &[RoomTypeFilter], negate: bool,
 ) -> Vec<OwnedRoomId> {
 	return rooms
 		.iter()
-		.filter(|r| {
-			match services.rooms.state_accessor.get_room_type(r) {
-				Err(e) => {
-					warn!("Requested room type for {}, but could not retrieve with error {}", r, e);
-					false
-				},
-				Ok(None) => {
-					// For rooms which do not have a room type, use 'null' to include them
-					if negate {
-						!filter.contains(&None)
-					} else {
-						filter.contains(&None)
-					}
-				},
-				Ok(Some(room_type)) => {
-					if negate {
-						!filter.contains(&Some(room_type))
-					} else {
-						filter.is_empty() || filter.contains(&Some(room_type))
-					}
-				},
-			}
+		.filter(|r| match services.rooms.state_accessor.get_room_type(r) {
+			Err(e) => {
+				warn!("Requested room type for {}, but could not retrieve with error {}", r, e);
+				false
+			},
+			Ok(result) => {
+				let result = RoomTypeFilter::from(result);
+				if negate {
+					!filter.contains(&result)
+				} else {
+					filter.is_empty() || filter.contains(&result)
+				}
+			},
 		})
 		.cloned()
 		.collect();

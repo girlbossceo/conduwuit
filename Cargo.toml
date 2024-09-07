@@ -314,7 +314,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "83a9bf73668aa459ffcf5ca6f95639835c0bac79"
+rev = "11155e576a1382783c0bcf5ad4458708777ec36e"
 features = [
     "compat",
     "rand",
@@ -608,7 +608,7 @@ inherits = "release"
 # and can be raised if build times are tolerable.
 
 [profile.dev]
-debug = 1
+debug = "full"
 opt-level = 0
 panic = "unwind"
 debug-assertions = true
