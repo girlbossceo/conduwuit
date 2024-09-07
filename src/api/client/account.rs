@@ -296,48 +296,47 @@ pub(crate) async fn register_route(
 
 	debug_info!(%user_id, %device_id, "User account was created");
 
+	let device_display_name = body.initial_device_display_name.clone().unwrap_or_default();
+
 	// log in conduit admin channel if a non-guest user registered
 	if body.appservice_info.is_none() && !is_guest {
-		info!("New user \"{user_id}\" registered on this server.");
-		services
-			.admin
-			.send_message(RoomMessageEventContent::notice_plain(format!(
-				"New user \"{user_id}\" registered on this server from IP {client}."
-			)))
-			.await;
+		if !device_display_name.is_empty() {
+			info!("New user \"{user_id}\" registered on this server with device display name: {device_display_name}");
+			services
+				.admin
+				.send_message(RoomMessageEventContent::notice_plain(format!(
+					"New user \"{user_id}\" registered on this server from IP {client} and device display name \
+					 \"{device_display_name}\""
+				)))
+				.await;
+		} else {
+			info!("New user \"{user_id}\" registered on this server.");
+			services
+				.admin
+				.send_message(RoomMessageEventContent::notice_plain(format!(
+					"New user \"{user_id}\" registered on this server from IP {client}"
+				)))
+				.await;
+		}
 	}
 
 	// log in conduit admin channel if a guest registered
 	if body.appservice_info.is_none() && is_guest && services.globals.log_guest_registrations() {
 		info!("New guest user \"{user_id}\" registered on this server.");
 
-		if let Some(device_display_name) = &body.initial_device_display_name {
-			if body
-				.initial_device_display_name
-				.as_ref()
-				.is_some_and(|device_display_name| !device_display_name.is_empty())
-			{
-				services
-					.admin
-					.send_message(RoomMessageEventContent::notice_plain(format!(
-						"Guest user \"{user_id}\" with device display name `{device_display_name}` registered on this \
-						 server from IP {client}."
-					)))
-					.await;
-			} else {
-				services
-					.admin
-					.send_message(RoomMessageEventContent::notice_plain(format!(
-						"Guest user \"{user_id}\" with no device display name registered on this server from IP \
-						 {client}.",
-					)))
-					.await;
-			}
+		if !device_display_name.is_empty() {
+			services
+				.admin
+				.send_message(RoomMessageEventContent::notice_plain(format!(
+					"Guest user \"{user_id}\" with device display name \"{device_display_name}\" registered on this \
+					 server from IP {client}"
+				)))
+				.await;
 		} else {
 			services
 				.admin
 				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"Guest user \"{user_id}\" with no device display name registered on this server from IP {client}.",
+					"Guest user \"{user_id}\" with no device display name registered on this server from IP {client}",
 				)))
 				.await;
 		}
