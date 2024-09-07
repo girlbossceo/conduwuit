@@ -1205,7 +1205,7 @@ impl Service {
 		let count = self.services.globals.next_count()?;
 		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
 		pdu_id.extend_from_slice(&0_u64.to_be_bytes());
-		pdu_id.extend_from_slice(&(validated!(max - count)?).to_be_bytes());
+		pdu_id.extend_from_slice(&(validated!(max - count)).to_be_bytes());
 
 		// Insert pdu
 		self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value)?;

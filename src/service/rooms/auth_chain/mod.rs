@@ -66,7 +66,7 @@ impl Service {
 			.enumerate()
 		{
 			let bucket: usize = short.try_into()?;
-			let bucket: usize = validated!(bucket % NUM_BUCKETS)?;
+			let bucket: usize = validated!(bucket % NUM_BUCKETS);
 			buckets[bucket].insert((short, starting_events[i]));
 		}
 
