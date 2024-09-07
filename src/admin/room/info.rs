@@ -10,6 +10,10 @@ pub(crate) enum RoomInfoCommand {
 	/// - List joined members in a room
 	ListJoinedMembers {
 		room_id: Box<RoomId>,
+
+		/// Lists only our local users in the specified room
+		#[arg(long)]
+		local_only: bool,
 	},
 
 	/// - Displays room topic
@@ -22,7 +26,7 @@ pub(crate) enum RoomInfoCommand {
 }
 
 #[admin_command]
-async fn list_joined_members(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+async fn list_joined_members(&self, room_id: Box<RoomId>, local_only: bool) -> Result<RoomMessageEventContent> {
 	let room_name = self
 		.services
 		.rooms
@@ -37,7 +41,15 @@ async fn list_joined_members(&self, room_id: Box<RoomId>) -> Result<RoomMessageE
 		.rooms
 		.state_cache
 		.room_members(&room_id)
-		.filter_map(Result::ok);
+		.filter_map(|member| {
+			if local_only {
+				member
+					.ok()
+					.filter(|user| self.services.globals.user_is_local(user))
+			} else {
+				member.ok()
+			}
+		});
 
 	let member_info = members
 		.into_iter()
