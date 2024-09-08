@@ -680,16 +680,16 @@
     "rocksdb": {
       "flake": false,
       "locked": {
-        "lastModified": 1724285323,
-        "narHash": "sha256-k60kreKQ0v+bQ16yBd2SfLYpuNjMw2qoRmZL/S3k6CU=",
+        "lastModified": 1725811807,
+        "narHash": "sha256-k6aubvLSJwW7CtIxBRSlM6Z8UiJDCdFUgDWPYLV47Qk=",
         "owner": "girlbossceo",
         "repo": "rocksdb",
-        "rev": "5a67ad7ce46328578ee5587fb0c23faa03d14e67",
+        "rev": "347d50e212b24d98b5ad9841404ff80c1bb873f0",
         "type": "github"
       },
       "original": {
         "owner": "girlbossceo",
-        "ref": "v9.5.2",
+        "ref": "v9.6.1",
         "repo": "rocksdb",
         "type": "github"
       }

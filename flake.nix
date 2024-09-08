@@ -9,7 +9,7 @@
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.5.2"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.6.1"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 
@@ -119,6 +119,9 @@
           engage
           cargo-audit
           liburing
+
+          # Required by hardened-malloc.rs dep
+          binutils
 
           # Needed for producing Debian packages
           cargo-deb
