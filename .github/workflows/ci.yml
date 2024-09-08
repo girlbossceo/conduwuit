@@ -138,24 +138,7 @@ jobs:
 
             - name: Cache CI dependencies
               run: |
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  set +e # Don't exit on errors
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache ci
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
+                  bin/nix-build-and-cache ci
 
             # use sccache for Rust
             - name: Run sccache-cache
@@ -305,24 +288,7 @@ jobs:
                   CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  set +e # Don't exit on errors
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
+                  bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features
 
                   mkdir -v -p target/release/
                   mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
@@ -346,24 +312,7 @@ jobs:
                   CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  set +e # Don't exit on errors
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features-debug
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
+                  bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features-debug
 
                   # > warning: dev profile is not supported and will be a hard error in the future. cargo-deb is for making releases, and it doesn't make sense to use it with dev profiles.
                   # so we need to coerce cargo-deb into thinking this is a release binary
@@ -426,47 +375,13 @@ jobs:
 
             - name: Build OCI image ${{ matrix.target }}
               run: |
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  set +e # Don't exit on errors
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
+                  bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features
 
                   cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
             - name: Build debug OCI image ${{ matrix.target }}
               run: |
-                  # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
-                  set +e # Don't exit on errors
-                  ATTEMPTS=3
-                  SUCCESS=false
-                  while (( ATTEMPTS-- > 0 ))
-                  do
-                    bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features-debug
-                    if [[ $? == 0 ]]; then
-                      SUCCESS=true
-                      break
-                    else
-                      sleep 3
-                    fi
-                  done
-
-                  if [[ $SUCCESS == "false" ]]; then
-                    exit 1
-                  fi
+                  bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features-debug
 
                   cp -v -f result oci-image-${{ matrix.target }}-debug.tar.gz
 

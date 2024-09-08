@@ -34,6 +34,9 @@ just() {
         )
     done
 
+    withattic() {
+        nix shell --inputs-from "$toplevel" attic --command xargs attic push "$@" <<< "${cache[*]}"
+    }
     # Upload them to Attic (conduit store)
     #
     # Use `xargs` and a here-string because something would probably explode if
@@ -41,8 +44,7 @@ just() {
     # store paths include a newline in them.
     (
         IFS=$'\n'
-        nix shell --inputs-from "$toplevel" attic -c xargs \
-            attic push conduit <<< "${cache[*]}"
+        withattic conduit || withattic conduit || withattic conduit || true
     )
 
     # main "conduwuit" store
@@ -59,8 +61,7 @@ just() {
     # store paths include a newline in them.
     (
         IFS=$'\n'
-        nix shell --inputs-from "$toplevel" attic -c xargs \
-            attic push conduwuit <<< "${cache[*]}"
+        withattic conduwuit || withattic conduwuit || withattic conduwuit || true
 
         # push to cachix if available
         if [ "$CACHIX_AUTH_TOKEN" ]; then
