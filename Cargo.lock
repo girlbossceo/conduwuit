@@ -598,7 +598,7 @@ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
 name = "conduit"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "clap",
  "conduit_admin",
@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_admin"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "clap",
  "conduit_api",
@@ -647,7 +647,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_api"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "axum",
  "axum-client-ip",
@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_core"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "argon2",
  "arrayvec",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_database"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "conduit_core",
  "const-str",
@@ -741,7 +741,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_macros"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -751,7 +751,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_router"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "axum",
  "axum-client-ip",
@@ -783,7 +783,7 @@ dependencies = [
 
 [[package]]
 name = "conduit_service"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
