@@ -5,6 +5,7 @@ use std::{
 	path::PathBuf,
 };
 
+use conduit_macros::config_example_generator;
 use either::{
 	Either,
 	Either::{Left, Right},
@@ -27,6 +28,7 @@ pub mod check;
 pub mod proxy;
 
 /// all the config options for conduwuit
+#[config_example_generator]
 #[derive(Clone, Debug, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Config {
