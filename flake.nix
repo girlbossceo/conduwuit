@@ -3,12 +3,12 @@
     attic.url = "github:zhaofengli/attic?ref=main";
     cachix.url = "github:cachix/cachix?ref=master";
     complement = { url = "github:matrix-org/complement?ref=main"; flake = false; };
-    crane = { url = "github:ipetkov/crane?ref=master"; inputs.nixpkgs.follows = "nixpkgs"; };
+    crane = { url = "github:ipetkov/crane?ref=master"; };
     fenix = { url = "github:nix-community/fenix?ref=main"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-compat = { url = "github:edolstra/flake-compat?ref=master"; flake = false; };
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
     rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.5.2"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
@@ -38,7 +38,15 @@
         inherit inputs;
         main = self.callPackage ./nix/pkgs/main {};
         oci-image = self.callPackage ./nix/pkgs/oci-image {};
-        rocksdb = pkgs.rocksdb.overrideAttrs (old: {
+        liburing = pkgs.liburing.overrideAttrs {
+          # Tests weren't building
+          outputs = [ "out" "dev" "man" ];
+          buildFlags = [ "library"];
+          src = inputs.liburing;
+        };
+        rocksdb = (pkgs.rocksdb.override {
+          liburing = self.liburing;
+        }).overrideAttrs (old: {
           src = inputs.rocksdb;
           version = pkgs.lib.removePrefix
             "v"
@@ -75,14 +83,6 @@
 
           # preInstall hooks has stuff for messing with ldb/sst_dump which we dont need or use
           preInstall = "";
-        });
-        # TODO: remove once https://github.com/NixOS/nixpkgs/pull/314945 is available
-        liburing = pkgs.liburing.overrideAttrs (old: {
-          # the configure script doesn't support these, and unconditionally
-          # builds both static and dynamic libraries.
-          configureFlags = pkgs.lib.subtractLists
-            [ "--enable-static" "--disable-shared" ]
-            old.configureFlags;
         });
       });
 
