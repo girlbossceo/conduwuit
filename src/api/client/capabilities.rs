@@ -7,6 +7,7 @@ use ruma::{
 	},
 	RoomVersionId,
 };
+use serde_json::json;
 
 use crate::{Result, Ruma};
 
@@ -41,6 +42,11 @@ pub(crate) async fn get_capabilities_route(
 	capabilities.thirdparty_id_changes = ThirdPartyIdChangesCapability {
 		enabled: false,
 	};
+
+	// MSC4133 capability
+	capabilities
+		.set("uk.tcpip.msc4133.profile_fields", json!({"enabled": true}))
+		.expect("this is valid JSON we created");
 
 	Ok(get_capabilities::v3::Response {
 		capabilities,
