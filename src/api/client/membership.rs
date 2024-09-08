@@ -93,8 +93,9 @@ async fn banned_room_check(
 						.filter_map(Result::ok)
 						.collect();
 
-					update_displayname(services, user_id.into(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(services, user_id.into(), None, None, all_joined_rooms).await?;
+					update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
+					update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
+					services.users.set_timezone(user_id, None).await?;
 					leave_all_rooms(services, user_id).await;
 				}
 
@@ -136,8 +137,9 @@ async fn banned_room_check(
 						.filter_map(Result::ok)
 						.collect();
 
-					update_displayname(services, user_id.into(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(services, user_id.into(), None, None, all_joined_rooms).await?;
+					update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
+					update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
+					services.users.set_timezone(user_id, None).await?;
 					leave_all_rooms(services, user_id).await;
 				}
 

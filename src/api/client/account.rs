@@ -568,8 +568,9 @@ pub(crate) async fn deactivate_route(
 		.rooms_joined(sender_user)
 		.filter_map(Result::ok)
 		.collect();
-	super::update_displayname(&services, sender_user.clone(), None, all_joined_rooms.clone()).await?;
-	super::update_avatar_url(&services, sender_user.clone(), None, None, all_joined_rooms).await?;
+	super::update_displayname(&services, sender_user, None, all_joined_rooms.clone()).await?;
+	super::update_avatar_url(&services, sender_user, None, None, all_joined_rooms).await?;
+	services.users.set_timezone(sender_user, None).await?;
 
 	// Make the user leave all rooms before deactivation
 	super::leave_all_rooms(&services, sender_user).await;

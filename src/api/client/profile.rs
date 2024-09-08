@@ -10,7 +10,7 @@ use ruma::{
 	},
 	events::{room::member::RoomMemberEventContent, StateEventType, TimelineEventType},
 	presence::PresenceState,
-	OwnedMxcUri, OwnedRoomId, OwnedUserId,
+	OwnedMxcUri, OwnedRoomId, UserId,
 };
 use serde_json::value::to_raw_value;
 use service::Services;
@@ -38,7 +38,7 @@ pub(crate) async fn set_displayname_route(
 		.filter_map(Result::ok)
 		.collect();
 
-	update_displayname(&services, body.user_id.clone(), body.displayname.clone(), all_joined_rooms).await?;
+	update_displayname(&services, &body.user_id, body.displayname.clone(), all_joined_rooms).await?;
 
 	if services.globals.allow_local_presence() {
 		// Presence update
@@ -129,7 +129,7 @@ pub(crate) async fn set_avatar_url_route(
 
 	update_avatar_url(
 		&services,
-		body.user_id.clone(),
+		&body.user_id,
 		body.avatar_url.clone(),
 		body.blurhash.clone(),
 		all_joined_rooms,
@@ -271,9 +271,9 @@ pub(crate) async fn get_profile_route(
 }
 
 pub async fn update_displayname(
-	services: &Services, user_id: OwnedUserId, displayname: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
+	services: &Services, user_id: &UserId, displayname: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
-	let current_display_name = services.users.displayname(&user_id).unwrap_or_default();
+	let current_display_name = services.users.displayname(user_id).unwrap_or_default();
 
 	if displayname == current_display_name {
 		return Ok(());
@@ -281,7 +281,7 @@ pub async fn update_displayname(
 
 	services
 		.users
-		.set_displayname(&user_id, displayname.clone())
+		.set_displayname(user_id, displayname.clone())
 		.await?;
 
 	// Send a new join membership event into all joined rooms
@@ -325,11 +325,11 @@ pub async fn update_displayname(
 }
 
 pub async fn update_avatar_url(
-	services: &Services, user_id: OwnedUserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>,
+	services: &Services, user_id: &UserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>,
 	all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
-	let current_avatar_url = services.users.avatar_url(&user_id).unwrap_or_default();
-	let current_blurhash = services.users.blurhash(&user_id).unwrap_or_default();
+	let current_avatar_url = services.users.avatar_url(user_id).unwrap_or_default();
+	let current_blurhash = services.users.blurhash(user_id).unwrap_or_default();
 
 	if current_avatar_url == avatar_url && current_blurhash == blurhash {
 		return Ok(());
@@ -337,11 +337,11 @@ pub async fn update_avatar_url(
 
 	services
 		.users
-		.set_avatar_url(&user_id, avatar_url.clone())
+		.set_avatar_url(user_id, avatar_url.clone())
 		.await?;
 	services
 		.users
-		.set_blurhash(&user_id, blurhash.clone())
+		.set_blurhash(user_id, blurhash.clone())
 		.await?;
 
 	// Send a new join membership event into all joined rooms
@@ -386,14 +386,14 @@ pub async fn update_avatar_url(
 }
 
 pub async fn update_all_rooms(
-	services: &Services, all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: OwnedUserId,
+	services: &Services, all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: &UserId,
 ) {
 	for (pdu_builder, room_id) in all_joined_rooms {
 		let state_lock = services.rooms.state.mutex.lock(room_id).await;
 		if let Err(e) = services
 			.rooms
 			.timeline
-			.build_and_append_pdu(pdu_builder, &user_id, room_id, &state_lock)
+			.build_and_append_pdu(pdu_builder, user_id, room_id, &state_lock)
 			.await
 		{
 			warn!(%user_id, %room_id, %e, "Failed to update/send new profile join membership update in room");

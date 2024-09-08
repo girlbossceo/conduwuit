@@ -163,8 +163,8 @@ pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> 
 			.rooms_joined(&user_id)
 			.filter_map(Result::ok)
 			.collect();
-		update_displayname(self.services, user_id.clone(), None, all_joined_rooms.clone()).await?;
-		update_avatar_url(self.services, user_id.clone(), None, None, all_joined_rooms).await?;
+		update_displayname(self.services, &user_id, None, all_joined_rooms.clone()).await?;
+		update_avatar_url(self.services, &user_id, None, None, all_joined_rooms).await?;
 		self.services.users.set_timezone(&user_id, None).await?;
 		leave_all_rooms(self.services, &user_id).await;
 	}
@@ -272,8 +272,9 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 						.rooms_joined(&user_id)
 						.filter_map(Result::ok)
 						.collect();
-					update_displayname(self.services, user_id.clone(), None, all_joined_rooms.clone()).await?;
-					update_avatar_url(self.services, user_id.clone(), None, None, all_joined_rooms).await?;
+					update_displayname(self.services, &user_id, None, all_joined_rooms.clone()).await?;
+					update_avatar_url(self.services, &user_id, None, None, all_joined_rooms).await?;
+					self.services.users.set_timezone(&user_id, None).await?;
 					leave_all_rooms(self.services, &user_id).await;
 				}
 			},
