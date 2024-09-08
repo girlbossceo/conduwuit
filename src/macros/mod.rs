@@ -1,5 +1,6 @@
 mod admin;
 mod cargo;
+mod config;
 mod debug;
 mod implement;
 mod refutable;
@@ -9,7 +10,7 @@ mod utils;
 use proc_macro::TokenStream;
 use syn::{
 	parse::{Parse, Parser},
-	parse_macro_input, Error, Item, ItemConst, ItemEnum, ItemFn, Meta,
+	parse_macro_input, Error, Item, ItemConst, ItemEnum, ItemFn, ItemStruct, Meta,
 };
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
@@ -45,6 +46,11 @@ pub fn refutable(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn implement(args: TokenStream, input: TokenStream) -> TokenStream {
 	attribute_macro::<ItemFn, _>(args, input, implement::implement)
+}
+
+#[proc_macro_attribute]
+pub fn config_example_generator(args: TokenStream, input: TokenStream) -> TokenStream {
+	attribute_macro::<ItemStruct, _>(args, input, config::example_generator)
 }
 
 fn attribute_macro<I, F>(args: TokenStream, input: TokenStream, func: F) -> TokenStream
