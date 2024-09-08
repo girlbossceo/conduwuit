@@ -558,6 +558,9 @@ pub(crate) async fn deactivate_route(
 	// Remove devices and mark account as deactivated
 	services.users.deactivate_account(sender_user)?;
 
+	// Remove timezone profile field
+	services.users.set_timezone(sender_user, None).await?;
+
 	// Remove profile pictures and display name
 	let all_joined_rooms: Vec<OwnedRoomId> = services
 		.rooms

@@ -165,6 +165,7 @@ pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> 
 			.collect();
 		update_displayname(self.services, user_id.clone(), None, all_joined_rooms.clone()).await?;
 		update_avatar_url(self.services, user_id.clone(), None, None, all_joined_rooms).await?;
+		self.services.users.set_timezone(&user_id, None).await?;
 		leave_all_rooms(self.services, &user_id).await;
 	}
 
