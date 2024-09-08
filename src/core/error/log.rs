@@ -1,7 +1,8 @@
 use std::{convert::Infallible, fmt};
 
+use tracing::Level;
+
 use super::Error;
-use crate::{debug_error, error};
 
 #[inline]
 pub fn else_log<T, E>(error: E) -> Result<T, Infallible>
@@ -64,11 +65,33 @@ where
 }
 
 #[inline]
-pub fn inspect_log<E: fmt::Display>(error: &E) {
-	error!("{error}");
+pub fn inspect_log<E: fmt::Display>(error: &E) { inspect_log_level(error, Level::ERROR); }
+
+#[inline]
+pub fn inspect_debug_log<E: fmt::Debug>(error: &E) { inspect_debug_log_level(error, Level::ERROR); }
+
+#[inline]
+pub fn inspect_log_level<E: fmt::Display>(error: &E, level: Level) {
+	use crate::{debug, error, info, trace, warn};
+
+	match level {
+		Level::ERROR => error!("{error}"),
+		Level::WARN => warn!("{error}"),
+		Level::INFO => info!("{error}"),
+		Level::DEBUG => debug!("{error}"),
+		Level::TRACE => trace!("{error}"),
+	}
 }
 
 #[inline]
-pub fn inspect_debug_log<E: fmt::Debug>(error: &E) {
-	debug_error!("{error:?}");
+pub fn inspect_debug_log_level<E: fmt::Debug>(error: &E, level: Level) {
+	use crate::{debug, debug_error, debug_info, debug_warn, trace};
+
+	match level {
+		Level::ERROR => debug_error!("{error:?}"),
+		Level::WARN => debug_warn!("{error:?}"),
+		Level::INFO => debug_info!("{error:?}"),
+		Level::DEBUG => debug!("{error:?}"),
+		Level::TRACE => trace!("{error:?}"),
+	}
 }
