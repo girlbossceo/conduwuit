@@ -14,8 +14,10 @@ stdenv.mkDerivation {
     include = [
       "book.toml"
       "conduwuit-example.toml"
+      "CODE_OF_CONDUCT.md"
       "CONTRIBUTING.md"
       "README.md"
+      "development.md"
       "debian/conduwuit.service"
       "debian/README.md"
       "arch/conduwuit.service"

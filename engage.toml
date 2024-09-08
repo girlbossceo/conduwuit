@@ -152,7 +152,7 @@ cargo clippy \
 [[task]]
 name = "lychee"
 group = "lints"
-script = "lychee --verbose --offline docs *.md --exclude development.md"
+script = "lychee --verbose --offline docs *.md --exclude development.md --exclude contributing.md --exclude testing.md"
 
 [[task]]
 name = "markdownlint"

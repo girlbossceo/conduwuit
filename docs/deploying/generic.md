@@ -18,7 +18,7 @@ These binaries have jemalloc and io_uring statically linked and included with
 them.
 
 Alternatively, you may compile the binary yourself. We recommend using
-[Lix](https://lix.systems) to build conduwuit as this has the most guaranteed
+Nix (or [Lix](https://lix.systems) to build conduwuit as this has the most guaranteed
 reproducibiltiy and easiest to get a build environment and output going.
 
 Otherwise, follow standard Rust project build guides (installing git and cloning
