@@ -118,6 +118,7 @@
         ++ (with pkgsHost.pkgs; [
           engage
           cargo-audit
+          liburing
 
           # Needed for producing Debian packages
           cargo-deb
