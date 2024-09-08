@@ -139,6 +139,7 @@ jobs:
             - name: Cache CI dependencies
               run: |
                   # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+                  set +e # Don't exit on errors
                   ATTEMPTS=3
                   SUCCESS=false
                   while (( ATTEMPTS-- > 0 ))
@@ -305,6 +306,7 @@ jobs:
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
                   # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+                  set +e # Don't exit on errors
                   ATTEMPTS=3
                   SUCCESS=false
                   while (( ATTEMPTS-- > 0 ))
@@ -345,6 +347,7 @@ jobs:
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
                   # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+                  set +e # Don't exit on errors
                   ATTEMPTS=3
                   SUCCESS=false
                   while (( ATTEMPTS-- > 0 ))
@@ -424,6 +427,7 @@ jobs:
             - name: Build OCI image ${{ matrix.target }}
               run: |
                   # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+                  set +e # Don't exit on errors
                   ATTEMPTS=3
                   SUCCESS=false
                   while (( ATTEMPTS-- > 0 ))
@@ -446,6 +450,7 @@ jobs:
             - name: Build debug OCI image ${{ matrix.target }}
               run: |
                   # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+                  set +e # Don't exit on errors
                   ATTEMPTS=3
                   SUCCESS=false
                   while (( ATTEMPTS-- > 0 ))

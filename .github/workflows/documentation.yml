@@ -111,6 +111,7 @@ jobs:
       - name: Cache CI dependencies
         run: |
             # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+            set +e # Don't exit on errors
             ATTEMPTS=3
             SUCCESS=false
             while (( ATTEMPTS-- > 0 ))
@@ -136,6 +137,7 @@ jobs:
       - name: Build documentation (book)
         run: |
             # attic nix binary cache server is very, very terribly flakey. nothing i can do to fix it other than retry multiple times here
+            set +e # Don't exit on errors
             ATTEMPTS=3
             SUCCESS=false
             while (( ATTEMPTS-- > 0 ))
