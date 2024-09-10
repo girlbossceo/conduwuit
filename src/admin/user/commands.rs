@@ -128,6 +128,22 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 
 	// we dont add a device since we're not the user, just the creator
 
+	// if this account creation is from the CLI / --execute, invite the first user
+	// to admin room
+	if let Some(admin_room) = self.services.admin.get_admin_room()? {
+		if self
+			.services
+			.rooms
+			.state_cache
+			.room_joined_count(&admin_room)?
+			== Some(1)
+		{
+			self.services.admin.make_user_admin(&user_id).await?;
+
+			warn!("Granting {user_id} admin privileges as the first user");
+		}
+	}
+
 	// Inhibit login does not work for guests
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Created user with user_id: {user_id} and password: `{password}`"
