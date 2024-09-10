@@ -230,8 +230,7 @@ pub(crate) async fn create_room_route(
 		_ => RoomPreset::PrivateChat, // Room visibility should not be custom
 	});
 
-	let mut users = BTreeMap::new();
-	users.insert(sender_user.clone(), int!(100));
+	let mut users = BTreeMap::from_iter([(sender_user.clone(), int!(100))]);
 
 	if preset == RoomPreset::TrustedPrivateChat {
 		for invite_ in &body.invite {

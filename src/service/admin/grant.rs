@@ -86,9 +86,7 @@ impl super::Service {
 			.await?;
 
 		// Set power level
-		let mut users = BTreeMap::new();
-		users.insert(server_user.clone(), 100.into());
-		users.insert(user_id.to_owned(), 100.into());
+		let users = BTreeMap::from_iter([(server_user.clone(), 100.into()), (user_id.to_owned(), 100.into())]);
 
 		self.services
 			.timeline

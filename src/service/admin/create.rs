@@ -101,8 +101,7 @@ pub async fn create_admin_room(services: &Services) -> Result<()> {
 		.await?;
 
 	// 3. Power levels
-	let mut users = BTreeMap::new();
-	users.insert(server_user.clone(), 100.into());
+	let users = BTreeMap::from_iter([(server_user.clone(), 100.into())]);
 
 	services
 		.rooms
