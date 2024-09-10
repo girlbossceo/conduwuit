@@ -21,7 +21,7 @@ impl super::Service {
 	/// Invite the user to the conduit admin room.
 	///
 	/// In conduit, this is equivalent to granting admin privileges.
-	pub async fn make_user_admin(&self, user_id: &UserId, displayname: String) -> Result<()> {
+	pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 		let Some(room_id) = self.get_admin_room()? else {
 			return Ok(());
 		};
@@ -65,7 +65,7 @@ impl super::Service {
 					event_type: TimelineEventType::RoomMember,
 					content: to_raw_value(&RoomMemberEventContent {
 						membership: MembershipState::Join,
-						displayname: Some(displayname),
+						displayname: None,
 						avatar_url: None,
 						is_direct: None,
 						third_party_invite: None,

@@ -373,20 +373,12 @@ pub(super) async fn force_leave_room(
 #[admin_command]
 pub(super) async fn make_user_admin(&self, user_id: String) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &user_id)?;
-	let displayname = self
-		.services
-		.users
-		.displayname(&user_id)?
-		.unwrap_or_else(|| user_id.to_string());
 
 	assert!(
 		self.services.globals.user_is_local(&user_id),
 		"Parsed user_id must be a local user"
 	);
-	self.services
-		.admin
-		.make_user_admin(&user_id, displayname)
-		.await?;
+	self.services.admin.make_user_admin(&user_id).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been granted admin privileges.",

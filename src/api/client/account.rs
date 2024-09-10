@@ -347,10 +347,7 @@ pub(crate) async fn register_route(
 	if !is_guest {
 		if let Some(admin_room) = services.admin.get_admin_room()? {
 			if services.rooms.state_cache.room_joined_count(&admin_room)? == Some(1) {
-				services
-					.admin
-					.make_user_admin(&user_id, displayname)
-					.await?;
+				services.admin.make_user_admin(&user_id).await?;
 
 				warn!("Granting {user_id} admin privileges as the first user");
 			}
