@@ -11,7 +11,10 @@ pub mod result;
 pub mod server;
 pub mod utils;
 
+pub use ::http;
+pub use ::ruma;
 pub use ::toml;
+pub use ::tracing;
 pub use config::Config;
 pub use error::Error;
 pub use info::{rustc_flags_capture, version, version::version};

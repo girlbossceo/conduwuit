@@ -44,34 +44,34 @@ macro_rules! err {
 	(Request(Forbidden($level:ident!($($args:tt)+)))) => {{
 		let mut buf = String::new();
 		$crate::error::Error::Request(
-			::ruma::api::client::error::ErrorKind::forbidden(),
+			$crate::ruma::api::client::error::ErrorKind::forbidden(),
 			$crate::err_log!(buf, $level, $($args)+),
-			::http::StatusCode::BAD_REQUEST
+			$crate::http::StatusCode::BAD_REQUEST
 		)
 	}};
 
 	(Request(Forbidden($($args:tt)+))) => {
 		$crate::error::Error::Request(
-			::ruma::api::client::error::ErrorKind::forbidden(),
+			$crate::ruma::api::client::error::ErrorKind::forbidden(),
 			$crate::format_maybe!($($args)+),
-			::http::StatusCode::BAD_REQUEST
+			$crate::http::StatusCode::BAD_REQUEST
 		)
 	};
 
 	(Request($variant:ident($level:ident!($($args:tt)+)))) => {{
 		let mut buf = String::new();
 		$crate::error::Error::Request(
-			::ruma::api::client::error::ErrorKind::$variant,
+			$crate::ruma::api::client::error::ErrorKind::$variant,
 			$crate::err_log!(buf, $level, $($args)+),
-			::http::StatusCode::BAD_REQUEST
+			$crate::http::StatusCode::BAD_REQUEST
 		)
 	}};
 
 	(Request($variant:ident($($args:tt)+))) => {
 		$crate::error::Error::Request(
-			::ruma::api::client::error::ErrorKind::$variant,
+			$crate::ruma::api::client::error::ErrorKind::$variant,
 			$crate::format_maybe!($($args)+),
-			::http::StatusCode::BAD_REQUEST
+			$crate::http::StatusCode::BAD_REQUEST
 		)
 	};
 
@@ -113,7 +113,7 @@ macro_rules! err_log {
 	($out:ident, $level:ident, $($fields:tt)+) => {{
 		use std::{fmt, fmt::Write};
 
-		use ::tracing::{
+		use $crate::tracing::{
 			callsite, callsite2, level_enabled, metadata, valueset, Callsite, Event, __macro_support,
 			__tracing_log,
 			field::{Field, ValueSet, Visit},
@@ -169,25 +169,25 @@ macro_rules! err_log {
 macro_rules! err_lev {
 	(debug_warn) => {
 		if $crate::debug::logging() {
-			::tracing::Level::WARN
+			$crate::tracing::Level::WARN
 		} else {
-			::tracing::Level::DEBUG
+			$crate::tracing::Level::DEBUG
 		}
 	};
 
 	(debug_error) => {
 		if $crate::debug::logging() {
-			::tracing::Level::ERROR
+			$crate::tracing::Level::ERROR
 		} else {
-			::tracing::Level::DEBUG
+			$crate::tracing::Level::DEBUG
 		}
 	};
 
 	(warn) => {
-		::tracing::Level::WARN
+		$crate::tracing::Level::WARN
 	};
 
 	(error) => {
-		::tracing::Level::ERROR
+		$crate::tracing::Level::ERROR
 	};
 }
