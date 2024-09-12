@@ -141,19 +141,22 @@ impl Error {
 		use ruma::api::client::error::ErrorKind::Unknown;
 
 		match self {
-			Self::Federation(_, error) => response::ruma_error_kind(error).clone(),
+			Self::Federation(_, error) | Self::Ruma(error) => response::ruma_error_kind(error).clone(),
 			Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
 			_ => Unknown,
 		}
 	}
 
 	pub fn status_code(&self) -> http::StatusCode {
+		use http::StatusCode;
+
 		match self {
-			Self::Federation(_, ref error) | Self::Ruma(ref error) => error.status_code,
-			Self::Request(ref kind, _, code) => response::status_code(kind, *code),
-			Self::BadRequest(ref kind, ..) => response::bad_request_code(kind),
-			Self::Conflict(_) => http::StatusCode::CONFLICT,
-			_ => http::StatusCode::INTERNAL_SERVER_ERROR,
+			Self::Federation(_, error) | Self::Ruma(error) => error.status_code,
+			Self::Request(kind, _, code) => response::status_code(kind, *code),
+			Self::BadRequest(kind, ..) => response::bad_request_code(kind),
+			Self::Reqwest(error) => error.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+			Self::Conflict(_) => StatusCode::CONFLICT,
+			_ => StatusCode::INTERNAL_SERVER_ERROR,
 		}
 	}
 }
@@ -176,3 +179,7 @@ impl From<Infallible> for Error {
 pub fn infallible(_e: &Infallible) {
 	panic!("infallible error should never exist");
 }
+
+#[inline]
+#[must_use]
+pub fn is_not_found(e: &Error) -> bool { e.status_code() == http::StatusCode::NOT_FOUND }
