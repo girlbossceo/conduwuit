@@ -53,6 +53,38 @@ macro_rules! validated {
 	($($input:tt)+) => { $crate::expected!($($input)+) }
 }
 
+/// Functor for equality to zero
+#[macro_export]
+macro_rules! is_zero {
+	() => {
+		$crate::is_matching!(0)
+	};
+}
+
+/// Functor for equality i.e. .is_some_and(is_equal!(2))
+#[macro_export]
+macro_rules! is_equal_to {
+	($val:expr) => {
+		|x| (x == $val)
+	};
+}
+
+/// Functor for less i.e. .is_some_and(is_less_than!(2))
+#[macro_export]
+macro_rules! is_less_than {
+	($val:expr) => {
+		|x| (x < $val)
+	};
+}
+
+/// Functor for matches! i.e. .is_some_and(is_matching!('A'..='Z'))
+#[macro_export]
+macro_rules! is_matching {
+	($val:expr) => {
+		|x| matches!(x, $val)
+	};
+}
+
 /// Returns false if the exponential backoff has expired based on the inputs
 #[inline]
 #[must_use]
@@ -118,3 +150,6 @@ fn try_into_err<Dst: TryFrom<Src>, Src>(e: <Dst as TryFrom<Src>>::Error) -> Erro
 		type_name::<Dst>()
 	))
 }
+
+#[inline]
+pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }
