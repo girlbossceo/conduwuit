@@ -85,6 +85,10 @@ macro_rules! err {
 		$crate::error::Error::$variant($crate::err_log!(buf, $level, $($args)+))
 	}};
 
+	($variant:ident($($args:ident),+)) => {
+		$crate::error::Error::$variant($($args),+)
+	};
+
 	($variant:ident($($args:tt)+)) => {
 		$crate::error::Error::$variant($crate::format_maybe!($($args)+))
 	};
