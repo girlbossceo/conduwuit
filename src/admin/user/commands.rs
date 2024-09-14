@@ -111,6 +111,7 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 					Some("Automatically joining this room upon registration".to_owned()),
 					&[room_id_server_name.to_owned(), self.services.globals.server_name().to_owned()],
 					None,
+					&None,
 				)
 				.await
 				{
@@ -361,7 +362,7 @@ pub(super) async fn force_join_room(
 		self.services.globals.user_is_local(&user_id),
 		"Parsed user_id must be a local user"
 	);
-	join_room_by_id_helper(self.services, &user_id, &room_id, None, &[], None).await?;
+	join_room_by_id_helper(self.services, &user_id, &room_id, None, &[], None, &None).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been joined to {room_id}.",

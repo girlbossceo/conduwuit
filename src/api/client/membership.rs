@@ -40,7 +40,7 @@ use ruma::{
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use service::{rooms::state::RoomMutexGuard, Services};
+use service::{appservice::RegistrationInfo, rooms::state::RoomMutexGuard, Services};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -211,6 +211,7 @@ pub(crate) async fn join_room_by_id_route(
 		body.reason.clone(),
 		&servers,
 		body.third_party_signed.as_ref(),
+		&body.appservice_info,
 	)
 	.await
 }
@@ -230,6 +231,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 	body: Ruma<join_room_by_id_or_alias::v3::Request>,
 ) -> Result<join_room_by_id_or_alias::v3::Response> {
 	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
+	let appservice_info = &body.appservice_info;
 	let body = body.body;
 
 	let (servers, room_id) = match OwnedRoomId::try_from(body.room_id_or_alias) {
@@ -312,6 +314,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 		body.reason.clone(),
 		&servers,
 		body.third_party_signed.as_ref(),
+		appservice_info,
 	)
 	.await?;
 
@@ -662,11 +665,11 @@ pub(crate) async fn joined_members_route(
 
 pub async fn join_room_by_id_helper(
 	services: &Services, sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
-	third_party_signed: Option<&ThirdPartySigned>,
+	third_party_signed: Option<&ThirdPartySigned>, appservice_info: &Option<RegistrationInfo>,
 ) -> Result<join_room_by_id::v3::Response> {
 	let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
-	let user_is_guest = services.users.is_deactivated(sender_user).unwrap_or(false);
+	let user_is_guest = services.users.is_deactivated(sender_user).unwrap_or(false) && appservice_info.is_none();
 
 	if matches!(services.rooms.state_accessor.guest_can_join(room_id), Ok(false)) && user_is_guest {
 		return Err!(Request(Forbidden("Guests are not allowed to join this room")));
