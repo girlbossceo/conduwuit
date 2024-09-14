@@ -23,6 +23,9 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 	let config = &server.config;
 	let mut router = router
         .ruma_route(client::get_timezone_key_route)
+        .ruma_route(client::get_profile_key_route)
+        .ruma_route(client::set_profile_key_route)
+        .ruma_route(client::delete_profile_key_route)
         .ruma_route(client::set_timezone_key_route)
         .ruma_route(client::delete_timezone_key_route)
         .ruma_route(client::appservice_ping)

@@ -236,7 +236,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 		Ok(room_id) => {
 			banned_room_check(&services, sender_user, Some(&room_id), room_id.server_name(), client).await?;
 
-			let mut servers = body.server_name.clone();
+			let mut servers = body.via.clone();
 			servers.extend(
 				services
 					.rooms
@@ -269,13 +269,13 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 			let response = services
 				.rooms
 				.alias
-				.resolve_alias(&room_alias, Some(&body.server_name.clone()))
+				.resolve_alias(&room_alias, Some(&body.via.clone()))
 				.await?;
 			let (room_id, mut pre_servers) = response;
 
 			banned_room_check(&services, sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
 
-			let mut servers = body.server_name;
+			let mut servers = body.via;
 			if let Some(pre_servers) = &mut pre_servers {
 				servers.append(pre_servers);
 			}

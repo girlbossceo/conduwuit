@@ -247,11 +247,18 @@ pub(crate) async fn get_profile_route(
 				.set_timezone(&body.user_id, response.tz.clone())
 				.await?;
 
+			for (profile_key, profile_key_value) in &response.custom_profile_fields {
+				services
+					.users
+					.set_profile_key(&body.user_id, profile_key, Some(profile_key_value.clone()))?;
+			}
+
 			return Ok(get_profile::v3::Response {
 				displayname: response.displayname,
 				avatar_url: response.avatar_url,
 				blurhash: response.blurhash,
 				tz: response.tz,
+				custom_profile_fields: response.custom_profile_fields,
 			});
 		}
 	}
@@ -267,6 +274,11 @@ pub(crate) async fn get_profile_route(
 		blurhash: services.users.blurhash(&body.user_id)?,
 		displayname: services.users.displayname(&body.user_id)?,
 		tz: services.users.timezone(&body.user_id)?,
+		custom_profile_fields: services
+			.users
+			.all_profile_keys(&body.user_id)
+			.filter_map(Result::ok)
+			.collect(),
 	})
 }
 

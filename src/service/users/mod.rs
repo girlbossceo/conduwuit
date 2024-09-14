@@ -329,6 +329,26 @@ impl Service {
 
 	pub fn timezone(&self, user_id: &UserId) -> Result<Option<String>> { self.db.timezone(user_id) }
 
+	/// Gets a specific user profile key
+	pub fn profile_key(&self, user_id: &UserId, profile_key: &str) -> Result<Option<serde_json::Value>> {
+		self.db.profile_key(user_id, profile_key)
+	}
+
+	/// Gets all the user's profile keys and values in an iterator
+	pub fn all_profile_keys<'a>(
+		&'a self, user_id: &UserId,
+	) -> Box<dyn Iterator<Item = Result<(String, serde_json::Value)>> + 'a + Send> {
+		self.db.all_profile_keys(user_id)
+	}
+
+	/// Sets a new profile key value, removes the key if value is None
+	pub fn set_profile_key(
+		&self, user_id: &UserId, profile_key: &str, profile_key_value: Option<serde_json::Value>,
+	) -> Result<()> {
+		self.db
+			.set_profile_key(user_id, profile_key, profile_key_value)
+	}
+
 	/// Sets a new tz or removes it if tz is None.
 	pub async fn set_timezone(&self, user_id: &UserId, tz: Option<String>) -> Result<()> {
 		self.db.set_timezone(user_id, tz)

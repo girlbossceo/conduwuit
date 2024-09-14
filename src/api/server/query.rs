@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use axum::extract::State;
 use conduit::{Error, Result};
 use get_profile_information::v1::ProfileField;
@@ -76,6 +78,7 @@ pub(crate) async fn get_profile_information_route(
 	let mut avatar_url = None;
 	let mut blurhash = None;
 	let mut tz = None;
+	let mut custom_profile_fields = BTreeMap::new();
 
 	match &body.field {
 		Some(ProfileField::DisplayName) => {
@@ -85,13 +88,24 @@ pub(crate) async fn get_profile_information_route(
 			avatar_url = services.users.avatar_url(&body.user_id)?;
 			blurhash = services.users.blurhash(&body.user_id)?;
 		},
-		// TODO: what to do with custom
-		Some(_) => {},
+		Some(custom_field) => {
+			if let Some(value) = services
+				.users
+				.profile_key(&body.user_id, custom_field.as_str())?
+			{
+				custom_profile_fields.insert(custom_field.to_string(), value);
+			}
+		},
 		None => {
 			displayname = services.users.displayname(&body.user_id)?;
 			avatar_url = services.users.avatar_url(&body.user_id)?;
 			blurhash = services.users.blurhash(&body.user_id)?;
 			tz = services.users.timezone(&body.user_id)?;
+			custom_profile_fields = services
+				.users
+				.all_profile_keys(&body.user_id)
+				.filter_map(Result::ok)
+				.collect();
 		},
 	}
 
@@ -100,5 +114,6 @@ pub(crate) async fn get_profile_information_route(
 		avatar_url,
 		blurhash,
 		tz,
+		custom_profile_fields,
 	})
 }

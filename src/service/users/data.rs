@@ -233,6 +233,60 @@ impl Data {
 			.transpose()
 	}
 
+	/// Gets a specific user profile key
+	pub(super) fn profile_key(&self, user_id: &UserId, profile_key: &str) -> Result<Option<serde_json::Value>> {
+		let mut key = user_id.as_bytes().to_vec();
+		key.push(0xFF);
+		key.extend_from_slice(profile_key.as_bytes());
+
+		self.useridprofilekey_value
+			.get(&key)?
+			.map_or(Ok(None), |bytes| Ok(Some(serde_json::from_slice(&bytes).unwrap())))
+	}
+
+	/// Gets all the user's profile keys and values in an iterator
+	pub(super) fn all_profile_keys<'a>(
+		&'a self, user_id: &UserId,
+	) -> Box<dyn Iterator<Item = Result<(String, serde_json::Value)>> + 'a + Send> {
+		let prefix = user_id.as_bytes().to_vec();
+
+		Box::new(
+			self.useridprofilekey_value
+				.scan_prefix(prefix)
+				.map(|(key, value)| {
+					let profile_key_name = utils::string_from_bytes(
+						key.rsplit(|&b| b == 0xFF)
+							.next()
+							.ok_or_else(|| err!(Database("Profile key in db is invalid")))?,
+					)
+					.map_err(|e| err!(Database("Profile key in db is invalid. {e}")))?;
+
+					let profile_key_value = serde_json::from_slice(&value)
+						.map_err(|e| err!(Database("Profile key in db is invalid. {e}")))?;
+
+					Ok((profile_key_name, profile_key_value))
+				}),
+		)
+	}
+
+	/// Sets a new profile key value, removes the key if value is None
+	pub(super) fn set_profile_key(
+		&self, user_id: &UserId, profile_key: &str, profile_key_value: Option<serde_json::Value>,
+	) -> Result<()> {
+		let mut key = user_id.as_bytes().to_vec();
+		key.push(0xFF);
+		key.extend_from_slice(profile_key.as_bytes());
+
+		// TODO: insert to the stable MSC4175 key when it's stable
+		if let Some(value) = profile_key_value {
+			let value = serde_json::to_vec(&value).unwrap();
+
+			self.useridprofilekey_value.insert(&key, &value)
+		} else {
+			self.useridprofilekey_value.remove(&key)
+		}
+	}
+
 	/// Get the timezone of a user.
 	pub(super) fn timezone(&self, user_id: &UserId) -> Result<Option<String>> {
 		// first check the unstable prefix
