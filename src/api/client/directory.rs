@@ -1,6 +1,6 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{err, info, warn, Error, Result};
+use conduit::{err, info, warn, Err, Error, Result};
 use ruma::{
 	api::{
 		client::{
@@ -122,6 +122,10 @@ pub(crate) async fn set_room_visibility_route(
 	if !services.rooms.metadata.exists(&body.room_id)? {
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
+	}
+
+	if services.users.is_deactivated(sender_user).unwrap_or(false) && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("Guests cannot publish to room directories")));
 	}
 
 	if !user_can_publish_room(&services, sender_user, &body.room_id)? {
