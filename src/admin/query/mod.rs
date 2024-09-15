@@ -2,6 +2,7 @@ mod account_data;
 mod appservice;
 mod globals;
 mod presence;
+mod pusher;
 mod resolver;
 mod room_alias;
 mod room_state_cache;
@@ -13,7 +14,7 @@ use conduit::Result;
 
 use self::{
 	account_data::AccountDataCommand, appservice::AppserviceCommand, globals::GlobalsCommand,
-	presence::PresenceCommand, resolver::ResolverCommand, room_alias::RoomAliasCommand,
+	presence::PresenceCommand, pusher::PusherCommand, resolver::ResolverCommand, room_alias::RoomAliasCommand,
 	room_state_cache::RoomStateCacheCommand, sending::SendingCommand, users::UsersCommand,
 };
 use crate::admin_command_dispatch;
@@ -57,4 +58,8 @@ pub(super) enum QueryCommand {
 	/// - resolver service
 	#[command(subcommand)]
 	Resolver(ResolverCommand),
+
+	/// - pusher service
+	#[command(subcommand)]
+	Pusher(PusherCommand),
 }
