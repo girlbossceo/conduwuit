@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
-use api::client::{join_room_by_id_helper, leave_all_rooms, leave_room, update_avatar_url, update_displayname};
+use api::client::{full_user_deactivate, join_room_by_id_helper, leave_room};
 use conduit::{error, info, utils, warn, PduBuilder, Result};
 use ruma::{
 	events::{
@@ -184,10 +184,8 @@ pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> 
 			.rooms_joined(&user_id)
 			.filter_map(Result::ok)
 			.collect();
-		update_displayname(self.services, &user_id, None, all_joined_rooms.clone()).await?;
-		update_avatar_url(self.services, &user_id, None, None, all_joined_rooms).await?;
-		self.services.users.set_timezone(&user_id, None).await?;
-		leave_all_rooms(self.services, &user_id).await;
+
+		full_user_deactivate(self.services, &user_id, all_joined_rooms).await?;
 	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -293,10 +291,7 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 						.rooms_joined(&user_id)
 						.filter_map(Result::ok)
 						.collect();
-					update_displayname(self.services, &user_id, None, all_joined_rooms.clone()).await?;
-					update_avatar_url(self.services, &user_id, None, None, all_joined_rooms).await?;
-					self.services.users.set_timezone(&user_id, None).await?;
-					leave_all_rooms(self.services, &user_id).await;
+					full_user_deactivate(self.services, &user_id, all_joined_rooms).await?;
 				}
 			},
 			Err(e) => {

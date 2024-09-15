@@ -18,6 +18,7 @@ use ruma::{
 	events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
 	push, OwnedRoomId, UserId,
 };
+use service::Services;
 
 use super::{join_room_by_id_helper, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
 use crate::Ruma;
@@ -553,12 +554,6 @@ pub(crate) async fn deactivate_route(
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
-	// Remove devices and mark account as deactivated
-	services.users.deactivate_account(sender_user)?;
-
-	// Remove timezone profile field
-	services.users.set_timezone(sender_user, None).await?;
-
 	// Remove profile pictures and display name
 	let all_joined_rooms: Vec<OwnedRoomId> = services
 		.rooms
@@ -566,12 +561,8 @@ pub(crate) async fn deactivate_route(
 		.rooms_joined(sender_user)
 		.filter_map(Result::ok)
 		.collect();
-	super::update_displayname(&services, sender_user, None, all_joined_rooms.clone()).await?;
-	super::update_avatar_url(&services, sender_user, None, None, all_joined_rooms).await?;
-	services.users.set_timezone(sender_user, None).await?;
 
-	// Make the user leave all rooms before deactivation
-	super::leave_all_rooms(&services, sender_user).await;
+	full_user_deactivate(&services, sender_user, all_joined_rooms).await?;
 
 	info!("User {sender_user} deactivated their account.");
 	services
@@ -648,4 +639,34 @@ pub(crate) async fn check_registration_token_validity(
 	Ok(check_registration_token_validity::v1::Response {
 		valid: reg_token == body.token,
 	})
+}
+
+/// Runs through all the deactivation steps:
+///
+/// - Mark as deactivated
+/// - Removing display name
+/// - Removing avatar URL and blurhash
+/// - Removing all profile data
+/// - Leaving all rooms
+pub async fn full_user_deactivate(
+	services: &Services, user_id: &UserId, all_joined_rooms: Vec<OwnedRoomId>,
+) -> Result<()> {
+	services.users.deactivate_account(user_id)?;
+
+	super::update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
+	super::update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
+	super::leave_all_rooms(services, user_id).await;
+
+	let all_profile_keys = services
+		.users
+		.all_profile_keys(user_id)
+		.filter_map(Result::ok);
+
+	for (profile_key, _profile_value) in all_profile_keys {
+		services
+			.users
+			.set_profile_key(user_id, &profile_key, None)?;
+	}
+
+	Ok(())
 }

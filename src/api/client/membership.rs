@@ -43,10 +43,7 @@ use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::{appservice::RegistrationInfo, rooms::state::RoomMutexGuard, Services};
 use tokio::sync::RwLock;
 
-use crate::{
-	client::{update_avatar_url, update_displayname},
-	Ruma,
-};
+use crate::{client::full_user_deactivate, Ruma};
 
 /// Checks if the room is banned in any way possible and the sender user is not
 /// an admin.
@@ -82,10 +79,6 @@ async fn banned_room_check(
 						)))
 						.await;
 
-					if let Err(e) = services.users.deactivate_account(user_id) {
-						warn!(%user_id, %e, "Failed to deactivate account");
-					}
-
 					let all_joined_rooms: Vec<OwnedRoomId> = services
 						.rooms
 						.state_cache
@@ -93,10 +86,7 @@ async fn banned_room_check(
 						.filter_map(Result::ok)
 						.collect();
 
-					update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
-					update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
-					services.users.set_timezone(user_id, None).await?;
-					leave_all_rooms(services, user_id).await;
+					full_user_deactivate(services, user_id, all_joined_rooms).await?;
 				}
 
 				return Err(Error::BadRequest(
@@ -126,10 +116,6 @@ async fn banned_room_check(
 						)))
 						.await;
 
-					if let Err(e) = services.users.deactivate_account(user_id) {
-						warn!(%user_id, %e, "Failed to deactivate account");
-					}
-
 					let all_joined_rooms: Vec<OwnedRoomId> = services
 						.rooms
 						.state_cache
@@ -137,10 +123,7 @@ async fn banned_room_check(
 						.filter_map(Result::ok)
 						.collect();
 
-					update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
-					update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
-					services.users.set_timezone(user_id, None).await?;
-					leave_all_rooms(services, user_id).await;
+					full_user_deactivate(services, user_id, all_joined_rooms).await?;
 				}
 
 				return Err(Error::BadRequest(

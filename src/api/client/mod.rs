@@ -37,6 +37,7 @@ pub(super) mod unversioned;
 pub(super) mod user_directory;
 pub(super) mod voip;
 
+pub use account::full_user_deactivate;
 pub(super) use account::*;
 pub(super) use alias::*;
 pub(super) use appservice::*;
