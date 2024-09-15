@@ -4,9 +4,13 @@ use api::client::{join_room_by_id_helper, leave_all_rooms, leave_room, update_av
 use conduit::{error, info, utils, warn, PduBuilder, Result};
 use ruma::{
 	events::{
-		room::{message::RoomMessageEventContent, redaction::RoomRedactionEventContent},
+		room::{
+			message::RoomMessageEventContent,
+			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
+			redaction::RoomRedactionEventContent,
+		},
 		tag::{TagEvent, TagEventContent, TagInfo},
-		RoomAccountDataEventType, TimelineEventType,
+		RoomAccountDataEventType, StateEventType, TimelineEventType,
 	},
 	EventId, OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
 };
@@ -384,6 +388,74 @@ pub(super) async fn force_leave_room(
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has left {room_id}.",
+	)))
+}
+
+#[admin_command]
+pub(super) async fn force_demote(
+	&self, user_id: String, room_id: OwnedRoomOrAliasId,
+) -> Result<RoomMessageEventContent> {
+	let user_id = parse_local_user_id(self.services, &user_id)?;
+	let room_id = self.services.rooms.alias.resolve(&room_id).await?;
+
+	assert!(
+		self.services.globals.user_is_local(&user_id),
+		"Parsed user_id must be a local user"
+	);
+
+	let state_lock = self.services.rooms.state.mutex.lock(&room_id).await;
+
+	let room_power_levels = self
+		.services
+		.rooms
+		.state_accessor
+		.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")?
+		.as_ref()
+		.and_then(|event| serde_json::from_str(event.content.get()).ok()?)
+		.and_then(|content: RoomPowerLevelsEventContent| content.into());
+
+	let user_can_demote_self = room_power_levels
+		.as_ref()
+		.is_some_and(|power_levels_content| {
+			RoomPowerLevels::from(power_levels_content.clone()).user_can_change_user_power_level(&user_id, &user_id)
+		}) || self
+		.services
+		.rooms
+		.state_accessor
+		.room_state_get(&room_id, &StateEventType::RoomCreate, "")?
+		.as_ref()
+		.is_some_and(|event| event.sender == user_id);
+
+	if !user_can_demote_self {
+		return Ok(RoomMessageEventContent::notice_markdown(
+			"User is not allowed to modify their own power levels in the room.",
+		));
+	}
+
+	let mut power_levels_content = room_power_levels.unwrap_or_default();
+	power_levels_content.users.remove(&user_id);
+
+	let event_id = self
+		.services
+		.rooms
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder {
+				event_type: TimelineEventType::RoomPowerLevels,
+				content: to_raw_value(&power_levels_content).expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: Some(String::new()),
+				redacts: None,
+				timestamp: None,
+			},
+			&user_id,
+			&room_id,
+			&state_lock,
+		)
+		.await?;
+
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"User {user_id} demoted themselves to the room default power level in {room_id} - {event_id}"
 	)))
 }
 
