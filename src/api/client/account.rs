@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug_info, error, info, utils, warn, Error, Result};
+use conduit::{debug_info, error, info, utils, warn, Error, PduBuilder, Result};
 use register::RegistrationKind;
 use ruma::{
 	api::client::{
@@ -15,9 +15,16 @@ use ruma::{
 		error::ErrorKind,
 		uiaa::{AuthFlow, AuthType, UiaaInfo},
 	},
-	events::{room::message::RoomMessageEventContent, GlobalAccountDataEventType},
+	events::{
+		room::{
+			message::RoomMessageEventContent,
+			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
+		},
+		GlobalAccountDataEventType, StateEventType, TimelineEventType,
+	},
 	push, OwnedRoomId, UserId,
 };
+use serde_json::value::to_raw_value;
 use service::Services;
 
 use super::{join_room_by_id_helper, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
@@ -647,15 +654,14 @@ pub(crate) async fn check_registration_token_validity(
 /// - Removing display name
 /// - Removing avatar URL and blurhash
 /// - Removing all profile data
-/// - Leaving all rooms
+/// - Leaving all rooms (and forgets all of them)
 pub async fn full_user_deactivate(
 	services: &Services, user_id: &UserId, all_joined_rooms: Vec<OwnedRoomId>,
 ) -> Result<()> {
 	services.users.deactivate_account(user_id)?;
 
 	super::update_displayname(services, user_id, None, all_joined_rooms.clone()).await?;
-	super::update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
-	super::leave_all_rooms(services, user_id).await;
+	super::update_avatar_url(services, user_id, None, None, all_joined_rooms.clone()).await?;
 
 	let all_profile_keys = services
 		.users
@@ -663,10 +669,64 @@ pub async fn full_user_deactivate(
 		.filter_map(Result::ok);
 
 	for (profile_key, _profile_value) in all_profile_keys {
-		services
-			.users
-			.set_profile_key(user_id, &profile_key, None)?;
+		if let Err(e) = services.users.set_profile_key(user_id, &profile_key, None) {
+			warn!("Failed removing {user_id} profile key {profile_key}: {e}");
+		}
 	}
+
+	for room_id in all_joined_rooms {
+		let state_lock = services.rooms.state.mutex.lock(&room_id).await;
+
+		let room_power_levels = services
+			.rooms
+			.state_accessor
+			.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")?
+			.as_ref()
+			.and_then(|event| serde_json::from_str(event.content.get()).ok()?)
+			.and_then(|content: RoomPowerLevelsEventContent| content.into());
+
+		let user_can_demote_self = room_power_levels
+			.as_ref()
+			.is_some_and(|power_levels_content| {
+				RoomPowerLevels::from(power_levels_content.clone()).user_can_change_user_power_level(user_id, user_id)
+			}) || services
+			.rooms
+			.state_accessor
+			.room_state_get(&room_id, &StateEventType::RoomCreate, "")?
+			.as_ref()
+			.is_some_and(|event| event.sender == user_id);
+
+		if user_can_demote_self {
+			let mut power_levels_content = room_power_levels.unwrap_or_default();
+			power_levels_content.users.remove(user_id);
+
+			// ignore errors so deactivation doesn't fail
+			if let Err(e) = services
+				.rooms
+				.timeline
+				.build_and_append_pdu(
+					PduBuilder {
+						event_type: TimelineEventType::RoomPowerLevels,
+						content: to_raw_value(&power_levels_content).expect("event is valid, we just created it"),
+						unsigned: None,
+						state_key: Some(String::new()),
+						redacts: None,
+						timestamp: None,
+					},
+					user_id,
+					&room_id,
+					&state_lock,
+				)
+				.await
+			{
+				warn!(%room_id, %user_id, "Failed to demote user's own power level: {e}");
+			} else {
+				info!("Demoted {user_id} in {room_id} as part of account deactivation");
+			}
+		}
+	}
+
+	super::leave_all_rooms(services, user_id).await;
 
 	Ok(())
 }
