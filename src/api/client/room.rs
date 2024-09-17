@@ -844,6 +844,12 @@ fn default_power_levels_content(
 	power_levels_content["events"]["m.room.history_visibility"] =
 		serde_json::to_value(100).expect("100 is valid Value");
 
+	// always allow users to respond (not post new) to polls. this is primarily
+	// useful in read-only announcement rooms that post a public poll.
+	power_levels_content["events"]["org.matrix.msc3381.poll.response"] =
+		serde_json::to_value(0).expect("0 is valid Value");
+	power_levels_content["events"]["m.poll.response"] = serde_json::to_value(0).expect("0 is valid Value");
+
 	// synapse does this too. clients do not expose these permissions. it prevents
 	// default users from calling public rooms, for obvious reasons.
 	if *visibility == room::Visibility::Public {
