@@ -13,17 +13,37 @@ what you need.
 
 Prebuilt fully static musl binaries can be downloaded from the latest tagged
 release [here](https://github.com/girlbossceo/conduwuit/releases/latest) or
-`main` CI branch workflow artifact output. These also include Debian packages.
+`main` CI branch workflow artifact output. These also include Debian/Ubuntu packages.
+
 These binaries have jemalloc and io_uring statically linked and included with
-them.
+them, so no additional dynamic dependencies need to be installed.
 
 Alternatively, you may compile the binary yourself. We recommend using
-Nix (or [Lix](https://lix.systems) to build conduwuit as this has the most guaranteed
-reproducibiltiy and easiest to get a build environment and output going.
+Nix (or [Lix](https://lix.systems)) to build conduwuit as this has the most guaranteed
+reproducibiltiy and easiest to get a build environment and output going. This also
+allows easy cross-compilation.
+
+You can run the `nix build -L .#static-x86_64-unknown-linux-musl-all-features` or
+`nix build -L .#static-aarch64-unknown-linux-musl-all-features` commands based
+on architecture to cross-compile the necessary static binary located at
+`result/bin/conduit`. This is reproducible with the static binaries produced in our CI.
 
 Otherwise, follow standard Rust project build guides (installing git and cloning
 the repo, getting the Rust toolchain via rustup, installing LLVM toolchain +
 libclang for RocksDB, installing liburing for io_uring and RocksDB, etc).
+
+## Migrating from Conduit
+
+As mentioned in the README, there is little to no steps needed to migrate
+from Conduit. As long as you are using the RocksDB database backend, just
+replace the binary / container image / etc.
+
+**Note**: If you are relying on Conduit's "automatic delegation" feature,
+this will **NOT** work on conduwuit and you must configure delegation manually.
+This is not a mistake and no support for this feature will be added.
+
+See the `[global.well_known]` config section, or configure your web server
+appropriately to send the delegation responses.
 
 ## Adding a conduwuit user
 
@@ -91,13 +111,32 @@ sudo chmod 700 /var/lib/conduwuit/
 ## Setting up the Reverse Proxy
 
 Refer to the documentation or various guides online of your chosen reverse proxy
-software. A [Caddy](https://caddyserver.com/) example will be provided as this
+software. There are many examples of basic Apache/Nginx reverse proxy setups
+out there.
+
+A [Caddy](https://caddyserver.com/) example will be provided as this
 is the recommended reverse proxy for new users and is very trivial to use
 (handles TLS, reverse proxy headers, etc transparently with proper defaults).
 
 Lighttpd is not supported as it seems to mess with the `X-Matrix` Authorization
 header, making federation non-functional. If using Apache, you need to use
-`nocanon` to prevent this.
+`nocanon` in your `ProxyPass` directive to prevent this (note that Apache
+isn't very good as a general reverse proxy).
+
+Nginx users may need to set `proxy_buffering off;` if there are issues with
+uploading media like images.
+
+You will need to reverse proxy everything under following routes:
+- `/_matrix/` - core Matrix C-S and S-S APIs
+- `/_conduwuit/` - ad-hoc conduwuit routes such as `/local_user_count` and
+`/server_version`
+
+You can optionally reverse proxy the following individual routes:
+- `/.well-known/matrix/client` and `/.well-known/matrix/server` if using
+conduwuit to perform delegation
+- `/.well-known/matrix/support` if using conduwuit to send the homeserver admin
+contact and support page (formerly known as MSC1929)
+- `/` if you would like to see `hewwo from conduwuit woof!` at the root
 
 ### Caddy
 
@@ -146,6 +185,9 @@ curl https://your.server.name/_conduwuit/server_version
 
 # If using port 8448
 curl https://your.server.name:8448/_conduwuit/server_version
+
+# If federation is enabled
+curl https://your.server.name:8448/_matrix/federation/v1/version
 ```
 
 - To check if your server can talk with other homeservers, you can use the

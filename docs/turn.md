@@ -21,6 +21,22 @@ These same values need to be set in conduwuit. See the [example
 config](configuration/examples.md) in the TURN section for configuring these and
 restart conduwuit after.
 
+`turn_secret` must be set to your coturn `static-auth-secret`, or use
+`turn_username` and `turn_password` if using legacy username:password
+TURN authentication (not preferred).
+
+`turn_uris` must be the list of TURN URIs you would like to send to the client.
+Typically you will just replace the example domain `example.turn.uri` with the
+`realm` you set from the example config.
+
+If you are using TURN over TLS, you can replace `turn:` with `turns:` in the
+`turn_uris` config option to instruct clients to attempt to connect to
+TURN over TLS. This is highly recommended.
+
+If you need unauthenticated access to the TURN URIs, or some clients may be
+having trouble, you can enable `turn_guest_access` in conduwuit which disables
+authentication for the TURN URI endpoint `/_matrix/client/v3/voip/turnServer`
+
 ### Run
 
 Run the [Coturn](https://hub.docker.com/r/coturn/coturn) image using
