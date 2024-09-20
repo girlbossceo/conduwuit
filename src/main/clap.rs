@@ -14,7 +14,7 @@ use conduit::{
 pub(crate) struct Args {
 	#[arg(short, long)]
 	/// Path to the config TOML file (optional)
-	pub(crate) config: Option<PathBuf>,
+	pub(crate) config: Option<Vec<PathBuf>>,
 
 	/// Override a configuration variable using TOML 'key=value' syntax
 	#[arg(long, short('O'))]
