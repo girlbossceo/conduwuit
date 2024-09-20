@@ -428,29 +428,26 @@ const DEPRECATED_KEYS: &[&str; 9] = &[
 
 impl Config {
 	/// Pre-initialize config
-	pub fn load(path: &Option<PathBuf>) -> Result<Figment> {
+	pub fn load(paths: &Option<Vec<PathBuf>>) -> Result<Figment> {
 		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
-			Figment::new()
-				.merge(Toml::file(config_file_env).nested())
-				.merge(Env::prefixed("CONDUIT_").global().split("__"))
-				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
+			Figment::new().merge(Toml::file(config_file_env).nested())
 		} else if let Some(config_file_arg) = Env::var("CONDUWUIT_CONFIG") {
-			Figment::new()
-				.merge(Toml::file(config_file_arg).nested())
-				.merge(Env::prefixed("CONDUIT_").global().split("__"))
-				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
-		} else if let Some(config_file_arg) = path {
-			Figment::new()
-				.merge(Toml::file(config_file_arg).nested())
-				.merge(Env::prefixed("CONDUIT_").global().split("__"))
-				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
+			Figment::new().merge(Toml::file(config_file_arg).nested())
+		} else if let Some(config_file_args) = paths {
+			let mut figment = Figment::new();
+
+			for config in config_file_args {
+				figment = figment.merge(Toml::file(config).nested());
+			}
+
+			figment
 		} else {
 			Figment::new()
-				.merge(Env::prefixed("CONDUIT_").global().split("__"))
-				.merge(Env::prefixed("CONDUWUIT_").global().split("__"))
 		};
 
-		Ok(raw_config)
+		Ok(raw_config
+			.merge(Env::prefixed("CONDUIT_").global().split("__"))
+			.merge(Env::prefixed("CONDUWUIT_").global().split("__")))
 	}
 
 	/// Finalize config
