@@ -466,7 +466,11 @@ impl Config {
 
 	#[must_use]
 	pub fn get_bind_addrs(&self) -> Vec<SocketAddr> {
-		let mut addrs = Vec::new();
+		let mut addrs = Vec::with_capacity(
+			self.get_bind_hosts()
+				.len()
+				.saturating_add(self.get_bind_ports().len()),
+		);
 		for host in &self.get_bind_hosts() {
 			for port in &self.get_bind_ports() {
 				addrs.push(SocketAddr::new(*host, *port));
@@ -697,7 +701,7 @@ impl fmt::Display for Config {
 		});
 		line("Turn TTL", &self.turn_ttl.to_string());
 		line("Turn URIs", {
-			let mut lst = vec![];
+			let mut lst = Vec::with_capacity(self.turn_uris.len());
 			for item in self.turn_uris.iter().cloned().enumerate() {
 				let (_, uri): (usize, String) = item;
 				lst.push(uri);
@@ -705,7 +709,7 @@ impl fmt::Display for Config {
 			&lst.join(", ")
 		});
 		line("Auto Join Rooms", {
-			let mut lst = vec![];
+			let mut lst = Vec::with_capacity(self.auto_join_rooms.len());
 			for room in &self.auto_join_rooms {
 				lst.push(room);
 			}
@@ -758,28 +762,28 @@ impl fmt::Display for Config {
 		line("Allow legacy (unauthenticated) media", &self.allow_legacy_media.to_string());
 		line("Freeze legacy (unauthenticated) media", &self.freeze_legacy_media.to_string());
 		line("Prevent Media Downloads From", {
-			let mut lst = vec![];
+			let mut lst = Vec::with_capacity(self.prevent_media_downloads_from.len());
 			for domain in &self.prevent_media_downloads_from {
 				lst.push(domain.host());
 			}
 			&lst.join(", ")
 		});
 		line("Forbidden Remote Server Names (\"Global\" ACLs)", {
-			let mut lst = vec![];
+			let mut lst = Vec::with_capacity(self.forbidden_remote_server_names.len());
 			for domain in &self.forbidden_remote_server_names {
 				lst.push(domain.host());
 			}
 			&lst.join(", ")
 		});
 		line("Forbidden Remote Room Directory Server Names", {
-			let mut lst = vec![];
+			let mut lst = Vec::with_capacity(self.forbidden_remote_room_directory_server_names.len());
 			for domain in &self.forbidden_remote_room_directory_server_names {
 				lst.push(domain.host());
 			}
 			&lst.join(", ")
 		});
-		line("Outbound Request IP Range Denylist", {
-			let mut lst = vec![];
+		line("Outbound Request IP Range (CIDR) Denylist", {
+			let mut lst = Vec::with_capacity(self.ip_range_denylist.len());
 			for item in self.ip_range_denylist.iter().cloned().enumerate() {
 				let (_, ip): (usize, String) = item;
 				lst.push(ip);
