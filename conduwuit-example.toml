@@ -845,8 +845,19 @@ allow_profile_lookup_federation_requests = true
 
 # vector list of TURN URIs/servers to use
 #
+# replace "example.turn.uri" with your TURN domain, such as the coturn "realm".
+# if using TURN over TLS, replace "turn:" with "turns:"
+#
 # No default
 #turn_uris = ["turn:example.turn.uri?transport=udp", "turn:example.turn.uri?transport=tcp"]
+
+# TURN secret to use that's read from the file path specified
+#
+# this takes priority over "turn_secret" first, and falls back to "turn_secret" if invalid or
+# failed to open.
+#
+# no default
+#turn_secret_file = "/path/to/secret.txt"
 
 # TURN secret to use for generating the HMAC-SHA1 hash apart of username and password generation
 #

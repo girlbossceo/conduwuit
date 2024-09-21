@@ -40,6 +40,7 @@ pub struct Service {
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
+	pub turn_secret: String,
 }
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
@@ -84,6 +85,17 @@ impl crate::Service for Service {
 			.collect::<Result<_, String>>()
 			.map_err(|e| err!(Config("ip_range_denylist", e)))?;
 
+		let turn_secret = config
+			.turn_secret_file
+			.as_ref()
+			.map_or(config.turn_secret.clone(), |path| {
+				std::fs::read_to_string(path).unwrap_or_else(|e| {
+					error!("Failed to read the TURN secret file: {e}");
+
+					config.turn_secret.clone()
+				})
+			});
+
 		let mut s = Self {
 			db,
 			config: config.clone(),
@@ -99,6 +111,7 @@ impl crate::Service for Service {
 				.expect("#admins:server_name is valid alias name"),
 			server_user: UserId::parse_with_server_name(String::from("conduit"), &config.server_name)
 				.expect("@conduit:server_name is valid"),
+			turn_secret,
 		};
 
 		if !s
@@ -206,8 +219,6 @@ impl Service {
 	pub fn turn_uris(&self) -> &[String] { &self.config.turn_uris }
 
 	pub fn turn_username(&self) -> &String { &self.config.turn_username }
-
-	pub fn turn_secret(&self) -> &String { &self.config.turn_secret }
 
 	pub fn allow_profile_lookup_federation_requests(&self) -> bool {
 		self.config.allow_profile_lookup_federation_requests

@@ -194,6 +194,7 @@ pub struct Config {
 	pub turn_uris: Vec<String>,
 	#[serde(default)]
 	pub turn_secret: String,
+	pub turn_secret_file: Option<PathBuf>,
 	#[serde(default = "default_turn_ttl")]
 	pub turn_ttl: u64,
 
@@ -683,11 +684,16 @@ impl fmt::Display for Config {
 			}
 		});
 		line("TURN secret", {
-			if self.turn_secret.is_empty() {
+			if self.turn_secret.is_empty() && self.turn_secret_file.is_none() {
 				"not set"
 			} else {
 				"set"
 			}
+		});
+		line("TURN secret file path", {
+			self.turn_secret_file
+				.as_ref()
+				.map_or("", |path| path.to_str().unwrap_or_default())
 		});
 		line("Turn TTL", &self.turn_ttl.to_string());
 		line("Turn URIs", {

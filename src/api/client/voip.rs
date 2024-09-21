@@ -24,7 +24,7 @@ pub(crate) async fn turn_server_route(
 		return Err!(Request(NotFound("Not Found")));
 	}
 
-	let turn_secret = services.globals.turn_secret().clone();
+	let turn_secret = services.globals.turn_secret.clone();
 
 	let (username, password) = if !turn_secret.is_empty() {
 		let expiry = SecondsSinceUnixEpoch::from_system_time(

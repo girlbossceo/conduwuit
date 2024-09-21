@@ -21,9 +21,9 @@ These same values need to be set in conduwuit. See the [example
 config](configuration/examples.md) in the TURN section for configuring these and
 restart conduwuit after.
 
-`turn_secret` must be set to your coturn `static-auth-secret`, or use
-`turn_username` and `turn_password` if using legacy username:password
-TURN authentication (not preferred).
+`turn_secret` or a path to `turn_secret_file` must have a value of your
+coturn `static-auth-secret`, or use `turn_username` and `turn_password`
+if using legacy username:password TURN authentication (not preferred).
 
 `turn_uris` must be the list of TURN URIs you would like to send to the client.
 Typically you will just replace the example domain `example.turn.uri` with the
