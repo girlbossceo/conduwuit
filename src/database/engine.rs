@@ -10,7 +10,7 @@ use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, 
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
-	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env,
+	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env, LogLevel,
 	MultiThreaded, Options,
 };
 
@@ -277,6 +277,21 @@ pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
 	}
 
 	Ok(())
+}
+
+#[tracing::instrument(skip_all, name = "rocksdb")]
+pub(crate) fn handle_log(level: LogLevel, msg: &str) {
+	let msg = msg.trim();
+	if msg.starts_with("Options") {
+		return;
+	}
+
+	match level {
+		LogLevel::Header | LogLevel::Debug => debug!("{msg}"),
+		LogLevel::Error | LogLevel::Fatal => error!("{msg}"),
+		LogLevel::Info => debug!("{msg}"),
+		LogLevel::Warn => warn!("{msg}"),
+	};
 }
 
 impl Drop for Engine {
