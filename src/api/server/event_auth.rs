@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::borrow::Borrow;
 
 use axum::extract::State;
 use conduit::{Error, Result};
@@ -57,7 +57,7 @@ pub(crate) async fn get_event_authorization_route(
 	let auth_chain = services
 		.rooms
 		.auth_chain
-		.event_ids_iter(room_id, vec![Arc::from(&*body.event_id)])
+		.event_ids_iter(room_id, &[body.event_id.borrow()])
 		.await?
 		.filter_map(|id| async move { services.rooms.timeline.get_pdu_json(&id).await.ok() })
 		.then(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))

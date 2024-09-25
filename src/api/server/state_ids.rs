@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::borrow::Borrow;
 
 use axum::extract::State;
 use conduit::{err, Err};
@@ -55,7 +55,7 @@ pub(crate) async fn get_room_state_ids_route(
 	let auth_chain_ids = services
 		.rooms
 		.auth_chain
-		.event_ids_iter(&body.room_id, vec![Arc::from(&*body.event_id)])
+		.event_ids_iter(&body.room_id, &[body.event_id.borrow()])
 		.await?
 		.map(|id| (*id).to_owned())
 		.collect()

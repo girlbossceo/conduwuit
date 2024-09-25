@@ -37,25 +37,18 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub async fn event_ids_iter<'a>(
-		&'a self, room_id: &RoomId, starting_events_: Vec<Arc<EventId>>,
-	) -> Result<impl Stream<Item = Arc<EventId>> + Send + 'a> {
-		let mut starting_events: Vec<&EventId> = Vec::with_capacity(starting_events_.len());
-		for starting_event in &starting_events_ {
-			starting_events.push(starting_event);
-		}
+	pub async fn event_ids_iter(
+		&self, room_id: &RoomId, starting_events: &[&EventId],
+	) -> Result<impl Stream<Item = Arc<EventId>> + Send + '_> {
+		let chain = self.get_auth_chain(room_id, starting_events).await?;
+		let iter = chain.into_iter().stream().filter_map(|sid| {
+			self.services
+				.short
+				.get_eventid_from_short(sid)
+				.map(Result::ok)
+		});
 
-		Ok(self
-			.get_auth_chain(room_id, &starting_events)
-			.await?
-			.into_iter()
-			.stream()
-			.filter_map(|sid| {
-				self.services
-					.short
-					.get_eventid_from_short(sid)
-					.map(Result::ok)
-			}))
+		Ok(iter)
 	}
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
@@ -93,7 +86,7 @@ impl Service {
 			}
 
 			let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
-			if let Some(cached) = self.get_cached_eventid_authchain(&chunk_key).await? {
+			if let Ok(cached) = self.get_cached_eventid_authchain(&chunk_key).await {
 				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
 				hits = hits.saturating_add(1);
@@ -104,13 +97,13 @@ impl Service {
 			let mut misses2: usize = 0;
 			let mut chunk_cache = Vec::with_capacity(chunk.len());
 			for (sevent_id, event_id) in chunk {
-				if let Some(cached) = self.get_cached_eventid_authchain(&[sevent_id]).await? {
+				if let Ok(cached) = self.get_cached_eventid_authchain(&[sevent_id]).await {
 					trace!(?event_id, "Found cache entry for event");
 					chunk_cache.extend(cached.iter().copied());
 					hits2 = hits2.saturating_add(1);
 				} else {
 					let auth_chain = self.get_auth_chain_inner(room_id, event_id).await?;
-					self.cache_auth_chain(vec![sevent_id], &auth_chain)?;
+					self.cache_auth_chain(vec![sevent_id], &auth_chain);
 					chunk_cache.extend(auth_chain.iter());
 					misses2 = misses2.saturating_add(1);
 					debug!(
@@ -125,7 +118,7 @@ impl Service {
 
 			chunk_cache.sort_unstable();
 			chunk_cache.dedup();
-			self.cache_auth_chain_vec(chunk_key, &chunk_cache)?;
+			self.cache_auth_chain_vec(chunk_key, &chunk_cache);
 			full_auth_chain.extend(chunk_cache.iter());
 			misses = misses.saturating_add(1);
 			debug!(
@@ -163,11 +156,11 @@ impl Service {
 				Ok(pdu) => {
 					if pdu.room_id != room_id {
 						return Err!(Request(Forbidden(
-							"auth event {event_id:?} for incorrect room {} which is not {}",
+							"auth event {event_id:?} for incorrect room {} which is not {room_id}",
 							pdu.room_id,
-							room_id
 						)));
 					}
+
 					for auth_event in &pdu.auth_events {
 						let sauthevent = self
 							.services
@@ -187,20 +180,21 @@ impl Service {
 		Ok(found)
 	}
 
-	pub async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+	#[inline]
+	pub async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[u64]>> {
 		self.db.get_cached_eventid_authchain(key).await
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) -> Result<()> {
-		self.db
-			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
+	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) {
+		let val = auth_chain.iter().copied().collect::<Arc<[u64]>>();
+		self.db.cache_auth_chain(key, val);
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) -> Result<()> {
-		self.db
-			.cache_auth_chain(key, auth_chain.iter().copied().collect::<Arc<[u64]>>())
+	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) {
+		let val = auth_chain.iter().copied().collect::<Arc<[u64]>>();
+		self.db.cache_auth_chain(key, val);
 	}
 
 	pub fn get_cache_usage(&self) -> (usize, usize) {

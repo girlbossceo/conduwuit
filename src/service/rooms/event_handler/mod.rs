@@ -1,6 +1,7 @@
 mod parse_incoming_pdu;
 
 use std::{
+	borrow::Borrow,
 	collections::{hash_map, BTreeMap, HashMap, HashSet},
 	fmt::Write,
 	sync::{Arc, RwLock as StdRwLock},
@@ -773,6 +774,7 @@ impl Service {
 		Ok(pdu_id)
 	}
 
+	#[tracing::instrument(skip_all, name = "resolve")]
 	pub async fn resolve_state(
 		&self, room_id: &RoomId, room_version_id: &RoomVersionId, incoming_state: HashMap<u64, Arc<EventId>>,
 	) -> Result<Arc<HashSet<CompressedStateEvent>>> {
@@ -793,14 +795,17 @@ impl Service {
 		let fork_states = [current_state_ids, incoming_state];
 		let mut auth_chain_sets = Vec::with_capacity(fork_states.len());
 		for state in &fork_states {
-			auth_chain_sets.push(
-				self.services
-					.auth_chain
-					.event_ids_iter(room_id, state.iter().map(|(_, id)| id.clone()).collect())
-					.await?
-					.collect::<HashSet<Arc<EventId>>>()
-					.await,
-			);
+			let starting_events: Vec<&EventId> = state.values().map(Borrow::borrow).collect();
+
+			let auth_chain = self
+				.services
+				.auth_chain
+				.event_ids_iter(room_id, &starting_events)
+				.await?
+				.collect::<HashSet<Arc<EventId>>>()
+				.await;
+
+			auth_chain_sets.push(auth_chain);
 		}
 
 		debug!("Loading fork states");
@@ -962,12 +967,11 @@ impl Service {
 
 			let mut state = StateMap::with_capacity(leaf_state.len());
 			let mut starting_events = Vec::with_capacity(leaf_state.len());
-
-			for (k, id) in leaf_state {
+			for (k, id) in &leaf_state {
 				if let Ok((ty, st_key)) = self
 					.services
 					.short
-					.get_statekey_from_short(k)
+					.get_statekey_from_short(*k)
 					.await
 					.log_err()
 				{
@@ -976,18 +980,18 @@ impl Service {
 					state.insert((ty.to_string().into(), st_key), id.clone());
 				}
 
-				starting_events.push(id);
+				starting_events.push(id.borrow());
 			}
 
-			auth_chain_sets.push(
-				self.services
-					.auth_chain
-					.event_ids_iter(room_id, starting_events)
-					.await?
-					.collect()
-					.await,
-			);
+			let auth_chain = self
+				.services
+				.auth_chain
+				.event_ids_iter(room_id, &starting_events)
+				.await?
+				.collect()
+				.await;
 
+			auth_chain_sets.push(auth_chain);
 			fork_states.push(state);
 		}
 

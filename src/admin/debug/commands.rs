@@ -27,33 +27,32 @@ pub(super) async fn echo(&self, message: Vec<String>) -> Result<RoomMessageEvent
 
 #[admin_command]
 pub(super) async fn get_auth_chain(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
-	let event_id = Arc::<EventId>::from(event_id);
-	if let Ok(event) = self.services.rooms.timeline.get_pdu_json(&event_id).await {
-		let room_id_str = event
-			.get("room_id")
-			.and_then(|val| val.as_str())
-			.ok_or_else(|| Error::bad_database("Invalid event in database"))?;
+	let Ok(event) = self.services.rooms.timeline.get_pdu_json(&event_id).await else {
+		return Ok(RoomMessageEventContent::notice_plain("Event not found."));
+	};
 
-		let room_id = <&RoomId>::try_from(room_id_str)
-			.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
+	let room_id_str = event
+		.get("room_id")
+		.and_then(|val| val.as_str())
+		.ok_or_else(|| Error::bad_database("Invalid event in database"))?;
 
-		let start = Instant::now();
-		let count = self
-			.services
-			.rooms
-			.auth_chain
-			.event_ids_iter(room_id, vec![event_id])
-			.await?
-			.count()
-			.await;
+	let room_id = <&RoomId>::try_from(room_id_str)
+		.map_err(|_| Error::bad_database("Invalid room id field in event in database"))?;
 
-		let elapsed = start.elapsed();
-		Ok(RoomMessageEventContent::text_plain(format!(
-			"Loaded auth chain with length {count} in {elapsed:?}"
-		)))
-	} else {
-		Ok(RoomMessageEventContent::text_plain("Event not found."))
-	}
+	let start = Instant::now();
+	let count = self
+		.services
+		.rooms
+		.auth_chain
+		.event_ids_iter(room_id, &[&event_id])
+		.await?
+		.count()
+		.await;
+
+	let elapsed = start.elapsed();
+	Ok(RoomMessageEventContent::text_plain(format!(
+		"Loaded auth chain with length {count} in {elapsed:?}"
+	)))
 }
 
 #[admin_command]
