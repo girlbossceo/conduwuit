@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use std::collections::BTreeMap;
+use std::{borrow::Borrow, collections::BTreeMap};
 
 use axum::extract::State;
 use conduit::{err, pdu::gen_event_id_canonical_json, utils::IterStream, warn, Error, Result};
@@ -11,7 +11,7 @@ use ruma::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
+	CanonicalJsonValue, EventId, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::Services;
@@ -196,10 +196,11 @@ async fn create_join_event(
 		.try_collect()
 		.await?;
 
+	let starting_events: Vec<&EventId> = state_ids.values().map(Borrow::borrow).collect();
 	let auth_chain = services
 		.rooms
 		.auth_chain
-		.event_ids_iter(room_id, state_ids.values().cloned().collect())
+		.event_ids_iter(room_id, &starting_events)
 		.await?
 		.map(Ok)
 		.and_then(|event_id| async move { services.rooms.timeline.get_pdu_json(&event_id).await })

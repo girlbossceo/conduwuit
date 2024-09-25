@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{utils, utils::math::usize_from_f64, Result};
+use conduit::{err, utils, utils::math::usize_from_f64, Err, Result};
 use database::Map;
 use lru_cache::LruCache;
 
@@ -24,54 +24,63 @@ impl Data {
 		}
 	}
 
-	pub(super) async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Option<Arc<[u64]>>> {
+	pub(super) async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[u64]>> {
+		debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
+
 		// Check RAM cache
-		if let Some(result) = self.auth_chain_cache.lock().unwrap().get_mut(key) {
-			return Ok(Some(Arc::clone(result)));
+		if let Some(result) = self
+			.auth_chain_cache
+			.lock()
+			.expect("cache locked")
+			.get_mut(key)
+		{
+			return Ok(Arc::clone(result));
 		}
 
 		// We only save auth chains for single events in the db
-		if key.len() == 1 {
-			// Check DB cache
-			let chain = self.shorteventid_authchain.qry(&key[0]).await.map(|chain| {
-				chain
-					.chunks_exact(size_of::<u64>())
-					.map(utils::u64_from_u8)
-					.collect::<Arc<[u64]>>()
-			});
-
-			if let Ok(chain) = chain {
-				// Cache in RAM
-				self.auth_chain_cache
-					.lock()
-					.expect("locked")
-					.insert(vec![key[0]], Arc::clone(&chain));
-
-				return Ok(Some(chain));
-			}
+		if key.len() != 1 {
+			return Err!(Request(NotFound("auth_chain not cached")));
 		}
 
-		Ok(None)
+		// Check database
+		let chain = self
+			.shorteventid_authchain
+			.qry(&key[0])
+			.await
+			.map_err(|_| err!(Request(NotFound("auth_chain not found"))))?;
+
+		let chain = chain
+			.chunks_exact(size_of::<u64>())
+			.map(utils::u64_from_u8)
+			.collect::<Arc<[u64]>>();
+
+		// Cache in RAM
+		self.auth_chain_cache
+			.lock()
+			.expect("cache locked")
+			.insert(vec![key[0]], Arc::clone(&chain));
+
+		Ok(chain)
 	}
 
-	pub(super) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[u64]>) -> Result<()> {
+	pub(super) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[u64]>) {
+		debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
+
 		// Only persist single events in db
 		if key.len() == 1 {
-			self.shorteventid_authchain.insert(
-				&key[0].to_be_bytes(),
-				&auth_chain
-					.iter()
-					.flat_map(|s| s.to_be_bytes().to_vec())
-					.collect::<Vec<u8>>(),
-			);
+			let key = key[0].to_be_bytes();
+			let val = auth_chain
+				.iter()
+				.flat_map(|s| s.to_be_bytes().to_vec())
+				.collect::<Vec<u8>>();
+
+			self.shorteventid_authchain.insert(&key, &val);
 		}
 
 		// Cache in RAM
 		self.auth_chain_cache
 			.lock()
-			.expect("locked")
+			.expect("cache locked")
 			.insert(key, auth_chain);
-
-		Ok(())
 	}
 }
