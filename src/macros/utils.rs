@@ -2,6 +2,16 @@ use syn::{parse_str, Expr, Generics, Lit, Meta};
 
 use crate::Result;
 
+pub(crate) fn is_cargo_build() -> bool {
+	std::env::args()
+		.find(|flag| flag.starts_with("--emit"))
+		.as_ref()
+		.and_then(|flag| flag.split_once('='))
+		.map(|val| val.1.split(','))
+		.and_then(|mut vals| vals.find(|elem| *elem == "link"))
+		.is_some()
+}
+
 pub(crate) fn get_named_generics(args: &[Meta], name: &str) -> Result<Generics> {
 	const DEFAULT: &str = "<>";
 
