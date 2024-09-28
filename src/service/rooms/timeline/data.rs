@@ -90,17 +90,14 @@ impl Data {
 			return Ok(pdu);
 		}
 
-		self.eventid_outlierpdu
-			.qry(event_id)
-			.await
-			.deserialized_json()
+		self.eventid_outlierpdu.qry(event_id).await.deserialized()
 	}
 
 	/// Returns the json of a pdu.
 	pub(super) async fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.qry(&pduid).await.deserialized_json()
+		self.pduid_pdu.qry(&pduid).await.deserialized()
 	}
 
 	/// Returns the pdu's id.
@@ -113,7 +110,7 @@ impl Data {
 	pub(super) async fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.qry(&pduid).await.deserialized_json()
+		self.pduid_pdu.qry(&pduid).await.deserialized()
 	}
 
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and
@@ -137,7 +134,7 @@ impl Data {
 		self.eventid_outlierpdu
 			.qry(event_id)
 			.await
-			.deserialized_json()
+			.deserialized()
 			.map(Arc::new)
 	}
 
@@ -162,12 +159,12 @@ impl Data {
 	///
 	/// This does __NOT__ check the outliers `Tree`.
 	pub(super) async fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<PduEvent> {
-		self.pduid_pdu.qry(pdu_id).await.deserialized_json()
+		self.pduid_pdu.qry(pdu_id).await.deserialized()
 	}
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
 	pub(super) async fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<CanonicalJsonObject> {
-		self.pduid_pdu.qry(pdu_id).await.deserialized_json()
+		self.pduid_pdu.qry(pdu_id).await.deserialized()
 	}
 
 	pub(super) async fn append_pdu(&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64) {

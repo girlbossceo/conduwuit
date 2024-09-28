@@ -238,6 +238,6 @@ async fn get_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session
 		.userdevicesessionid_uiaainfo
 		.qry(&key)
 		.await
-		.deserialized_json()
+		.deserialized()
 		.map_err(|_| err!(Request(Forbidden("UIAA session does not exist."))))
 }

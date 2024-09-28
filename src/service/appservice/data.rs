@@ -40,7 +40,7 @@ impl Data {
 		self.id_appserviceregistrations
 			.qry(id)
 			.await
-			.deserialized_json()
+			.deserialized()
 			.map_err(|e| err!(Database("Invalid appservice {id:?} registration: {e:?}")))
 	}
 

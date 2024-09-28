@@ -166,11 +166,7 @@ pub async fn get_latest_backup(&self, user_id: &UserId) -> Result<(String, Raw<B
 #[implement(Service)]
 pub async fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Raw<BackupAlgorithm>> {
 	let key = (user_id, version);
-	self.db
-		.backupid_algorithm
-		.qry(&key)
-		.await
-		.deserialized_json()
+	self.db.backupid_algorithm.qry(&key).await.deserialized()
 }
 
 #[implement(Service)]
@@ -278,11 +274,7 @@ pub async fn get_session(
 ) -> Result<Raw<KeyBackupData>> {
 	let key = (user_id, version, room_id, session_id);
 
-	self.db
-		.backupkeyid_backup
-		.qry(&key)
-		.await
-		.deserialized_json()
+	self.db.backupkeyid_backup.qry(&key).await.deserialized()
 }
 
 #[implement(Service)]

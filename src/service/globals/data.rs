@@ -305,10 +305,7 @@ impl Data {
 	}
 
 	pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSigningKeys> {
-		self.server_signingkeys
-			.qry(origin)
-			.await
-			.deserialized_json()
+		self.server_signingkeys.qry(origin).await.deserialized()
 	}
 
 	pub async fn database_version(&self) -> u64 { self.global.qry("version").await.deserialized().unwrap_or(0) }

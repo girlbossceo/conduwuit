@@ -108,7 +108,7 @@ pub async fn get(
 		.qry(&key)
 		.and_then(|roomuserdataid| self.db.roomuserdataid_accountdata.qry(&roomuserdataid))
 		.await
-		.deserialized_json()
+		.deserialized()
 }
 
 /// Returns all changes to the account data that happened after `since`.

@@ -577,7 +577,7 @@ impl Service {
 			.qry(&key)
 			.await
 			.map_err(|_| err!(Request(InvalidParam("Tried to sign nonexistent key."))))?
-			.deserialized_json()
+			.deserialized()
 			.map_err(|e| err!(Database("key in keyid_key is invalid. {e:?}")))?;
 
 		let signatures = cross_signing_key
@@ -652,7 +652,7 @@ impl Service {
 
 	pub async fn get_device_keys<'a>(&'a self, user_id: &'a UserId, device_id: &DeviceId) -> Result<Raw<DeviceKeys>> {
 		let key_id = (user_id, device_id);
-		self.db.keyid_key.qry(&key_id).await.deserialized_json()
+		self.db.keyid_key.qry(&key_id).await.deserialized()
 	}
 
 	pub async fn get_key<F>(
@@ -666,7 +666,7 @@ impl Service {
 			.keyid_key
 			.qry(key_id)
 			.await
-			.deserialized_json::<serde_json::Value>()?;
+			.deserialized::<serde_json::Value>()?;
 
 		let cleaned = clean_signatures(key, sender_user, user_id, allowed_signatures)?;
 		let raw_value = serde_json::value::to_raw_value(&cleaned)?;
@@ -700,7 +700,7 @@ impl Service {
 	pub async fn get_user_signing_key(&self, user_id: &UserId) -> Result<Raw<CrossSigningKey>> {
 		let key_id = self.db.userid_usersigningkeyid.qry(user_id).await?;
 
-		self.db.keyid_key.qry(&*key_id).await.deserialized_json()
+		self.db.keyid_key.qry(&*key_id).await.deserialized()
 	}
 
 	pub async fn add_to_device_event(
@@ -791,7 +791,7 @@ impl Service {
 			.userdeviceid_metadata
 			.qry(&(user_id, device_id))
 			.await
-			.deserialized_json()
+			.deserialized()
 	}
 
 	pub async fn get_devicelist_version(&self, user_id: &UserId) -> Result<u64> {
@@ -830,7 +830,7 @@ impl Service {
 			.userfilterid_filter
 			.qry(&(user_id, filter_id))
 			.await
-			.deserialized_json()
+			.deserialized()
 	}
 
 	/// Creates an OpenID token, which can be used to prove that a user has
