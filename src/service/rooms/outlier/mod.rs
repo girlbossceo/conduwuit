@@ -33,7 +33,7 @@ pub async fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<Canonical
 		.eventid_outlierpdu
 		.qry(event_id)
 		.await
-		.deserialized_json()
+		.deserialized()
 }
 
 /// Returns the pdu from the outlier tree.
@@ -43,7 +43,7 @@ pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
 		.eventid_outlierpdu
 		.qry(event_id)
 		.await
-		.deserialized_json()
+		.deserialized()
 }
 
 /// Append the PDU as an outlier.

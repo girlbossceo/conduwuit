@@ -58,10 +58,15 @@ impl<'de> Deserializer<'de> {
 	}
 
 	#[inline]
-	fn record_trail(&mut self) -> &'de [u8] {
-		let record = &self.buf[self.pos..];
-		self.inc_pos(record.len());
-		record
+	fn record_next_peek_byte(&self) -> Option<u8> {
+		let started = self.pos != 0;
+		let buf = &self.buf[self.pos..];
+		debug_assert!(
+			!started || buf[0] == Self::SEP,
+			"Missing expected record separator at current position"
+		);
+
+		buf.get::<usize>(started.into()).copied()
 	}
 
 	#[inline]
@@ -76,6 +81,13 @@ impl<'de> Deserializer<'de> {
 	}
 
 	#[inline]
+	fn record_trail(&mut self) -> &'de [u8] {
+		let record = &self.buf[self.pos..];
+		self.inc_pos(record.len());
+		record
+	}
+
+	#[inline]
 	fn inc_pos(&mut self, n: usize) {
 		self.pos = self.pos.saturating_add(n);
 		debug_assert!(self.pos <= self.buf.len(), "pos out of range");
@@ -84,13 +96,6 @@ impl<'de> Deserializer<'de> {
 
 impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	type Error = Error;
-
-	fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value>
-	where
-		V: Visitor<'de>,
-	{
-		unimplemented!("deserialize Map not implemented")
-	}
 
 	fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value>
 	where
@@ -113,13 +118,23 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_seq(self)
 	}
 
-	fn deserialize_struct<V>(
-		self, _name: &'static str, _fields: &'static [&'static str], _visitor: V,
-	) -> Result<V::Value>
+	fn deserialize_map<V>(self, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
 	{
-		unimplemented!("deserialize Struct not implemented")
+		let input = self.record_next();
+		let mut d = serde_json::Deserializer::from_slice(input);
+		d.deserialize_map(visitor).map_err(Into::into)
+	}
+
+	fn deserialize_struct<V>(self, name: &'static str, fields: &'static [&'static str], visitor: V) -> Result<V::Value>
+	where
+		V: Visitor<'de>,
+	{
+		let input = self.record_next();
+		let mut d = serde_json::Deserializer::from_slice(input);
+		d.deserialize_struct(name, fields, visitor)
+			.map_err(Into::into)
 	}
 
 	fn deserialize_unit_struct<V>(self, name: &'static str, visitor: V) -> Result<V::Value>
@@ -134,11 +149,14 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_unit()
 	}
 
-	fn deserialize_newtype_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value>
+	fn deserialize_newtype_struct<V>(self, name: &'static str, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
 	{
-		unimplemented!("deserialize Newtype Struct not implemented")
+		match name {
+			"$serde_json::private::RawValue" => visitor.visit_map(self),
+			_ => visitor.visit_newtype_struct(self),
+		}
 	}
 
 	fn deserialize_enum<V>(
@@ -228,19 +246,31 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize Unit Struct not implemented")
+		unimplemented!("deserialize Unit not implemented")
 	}
 
-	fn deserialize_identifier<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize Identifier not implemented")
+	// this only used for $serde_json::private::RawValue at this time; see MapAccess
+	fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+		let input = "$serde_json::private::RawValue";
+		visitor.visit_borrowed_str(input)
 	}
 
 	fn deserialize_ignored_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unimplemented!("deserialize Ignored Any not implemented")
 	}
 
-	fn deserialize_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize any not implemented")
+	fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+		debug_assert_eq!(
+			conduit::debug::type_name::<V>(),
+			"serde_json::value::de::<impl serde::de::Deserialize for \
+			 serde_json::value::Value>::deserialize::ValueVisitor",
+			"deserialize_any: type not expected"
+		);
+
+		match self.record_next_peek_byte() {
+			Some(b'{') => self.deserialize_map(visitor),
+			_ => self.deserialize_str(visitor),
+		}
 	}
 }
 
@@ -257,5 +287,25 @@ impl<'a, 'de: 'a> de::SeqAccess<'de> for &'a mut Deserializer<'de> {
 
 		self.record_start();
 		seed.deserialize(&mut **self).map(Some)
+	}
+}
+
+// this only used for $serde_json::private::RawValue at this time. our db
+// schema doesn't have its own map format; we use json for that anyway
+impl<'a, 'de: 'a> de::MapAccess<'de> for &'a mut Deserializer<'de> {
+	type Error = Error;
+
+	fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
+	where
+		K: DeserializeSeed<'de>,
+	{
+		seed.deserialize(&mut **self).map(Some)
+	}
+
+	fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
+	where
+		V: DeserializeSeed<'de>,
+	{
+		seed.deserialize(&mut **self)
 	}
 }

@@ -156,10 +156,7 @@ impl Data {
 		&self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let key = (user_id, room_id);
-		self.userroomid_invitestate
-			.qry(&key)
-			.await
-			.deserialized_json()
+		self.userroomid_invitestate.qry(&key).await.deserialized()
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -167,10 +164,7 @@ impl Data {
 		&self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let key = (user_id, room_id);
-		self.userroomid_leftstate
-			.qry(&key)
-			.await
-			.deserialized_json()
+		self.userroomid_leftstate.qry(&key).await.deserialized()
 	}
 
 	/// Returns an iterator over all rooms a user left.

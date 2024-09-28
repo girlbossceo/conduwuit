@@ -49,15 +49,6 @@ impl AsRef<Slice> for Handle<'_> {
 
 impl Deserialized for Result<Handle<'_>> {
 	#[inline]
-	fn map_json<T, U, F>(self, f: F) -> Result<U>
-	where
-		F: FnOnce(T) -> U,
-		T: for<'de> Deserialize<'de>,
-	{
-		self?.map_json(f)
-	}
-
-	#[inline]
 	fn map_de<T, U, F>(self, f: F) -> Result<U>
 	where
 		F: FnOnce(T) -> U,
@@ -69,15 +60,6 @@ impl Deserialized for Result<Handle<'_>> {
 
 impl<'a> Deserialized for Result<&'a Handle<'a>> {
 	#[inline]
-	fn map_json<T, U, F>(self, f: F) -> Result<U>
-	where
-		F: FnOnce(T) -> U,
-		T: for<'de> Deserialize<'de>,
-	{
-		self.and_then(|handle| handle.map_json(f))
-	}
-
-	#[inline]
 	fn map_de<T, U, F>(self, f: F) -> Result<U>
 	where
 		F: FnOnce(T) -> U,
@@ -88,16 +70,6 @@ impl<'a> Deserialized for Result<&'a Handle<'a>> {
 }
 
 impl<'a> Deserialized for &'a Handle<'a> {
-	fn map_json<T, U, F>(self, f: F) -> Result<U>
-	where
-		F: FnOnce(T) -> U,
-		T: for<'de> Deserialize<'de>,
-	{
-		serde_json::from_slice::<T>(self.as_ref())
-			.map_err(Into::into)
-			.map(f)
-	}
-
 	fn map_de<T, U, F>(self, f: F) -> Result<U>
 	where
 		F: FnOnce(T) -> U,

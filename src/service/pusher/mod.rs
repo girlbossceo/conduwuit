@@ -90,7 +90,7 @@ impl Service {
 			.senderkey_pusher
 			.qry(&senderkey)
 			.await
-			.deserialized_json()
+			.deserialized()
 	}
 
 	pub async fn get_pushers(&self, sender: &UserId) -> Vec<Pusher> {
