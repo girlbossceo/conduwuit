@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use axum::extract::State;
 use ruma::{
 	api::client::discovery::get_capabilities::{
-		self, Capabilities, RoomVersionStability, RoomVersionsCapability, ThirdPartyIdChangesCapability,
+		self, Capabilities, GetLoginTokenCapability, RoomVersionStability, RoomVersionsCapability,
+		ThirdPartyIdChangesCapability,
 	},
 	RoomVersionId,
 };
@@ -40,6 +41,11 @@ pub(crate) async fn get_capabilities_route(
 
 	// we do not implement 3PID stuff
 	capabilities.thirdparty_id_changes = ThirdPartyIdChangesCapability {
+		enabled: false,
+	};
+
+	// we dont support generating tokens yet
+	capabilities.get_login_token = GetLoginTokenCapability {
 		enabled: false,
 	};
 
