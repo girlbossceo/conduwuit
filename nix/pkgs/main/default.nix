@@ -83,24 +83,6 @@ buildDepsOnlyEnv =
       meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
 
       enableLiburing = enableLiburing;
-
-      sse42Support = stdenv.targetPlatform.isx86_64;
-
-      cmakeFlags = if stdenv.targetPlatform.isx86_64
-        then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
-        ++ lib.optionals stdenv.targetPlatform.isx86_64 [
-          "-DPORTABLE=x86-64-v2"
-          "-DUSE_SSE=1"
-          "-DHAVE_SSE=1"
-          "-DHAVE_SSE42=1"
-        ]
-        else if stdenv.targetPlatform.isAarch64
-        then lib.subtractLists [ "-DPORTABLE=1" ] old.cmakeFlags
-        ++ lib.optionals stdenv.targetPlatform.isAarch64 [
-          # cortex-a53 == ARMv8-A
-          "-DPORTABLE=armv8-a"
-        ]
-        else old.cmakeFlags;
     });
   in
   {
@@ -127,11 +109,7 @@ buildPackageEnv = {
   # Only needed in static stdenv because these are transitive dependencies of rocksdb
   CARGO_BUILD_RUSTFLAGS = buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
     + lib.optionalString (enableLiburing && stdenv.hostPlatform.isStatic)
-      " -L${lib.getLib liburing}/lib -luring"
-    + lib.optionalString stdenv.targetPlatform.isx86_64
-      " -Ctarget-cpu=x86-64-v2"
-    + lib.optionalString stdenv.targetPlatform.isAarch64
-      " -Ctarget-cpu=cortex-a53"; # cortex-a53 == ARMv8-A
+      " -L${lib.getLib liburing}/lib -luring";
 };
 
 
