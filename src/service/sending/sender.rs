@@ -13,9 +13,14 @@ use conduit::{
 };
 use futures::{future::BoxFuture, pin_mut, stream::FuturesUnordered, FutureExt, StreamExt};
 use ruma::{
-	api::federation::transactions::{
-		edu::{DeviceListUpdateContent, Edu, PresenceContent, PresenceUpdate, ReceiptContent, ReceiptData, ReceiptMap},
-		send_transaction_message,
+	api::{
+		appservice::event::push_events::v1::Edu as RumaEdu,
+		federation::transactions::{
+			edu::{
+				DeviceListUpdateContent, Edu, PresenceContent, PresenceUpdate, ReceiptContent, ReceiptData, ReceiptMap,
+			},
+			send_transaction_message,
+		},
 	},
 	device_id,
 	events::{push_rules::PushRulesEvent, receipt::ReceiptType, AnySyncEphemeralRoomEvent, GlobalAccountDataEventType},
@@ -441,7 +446,18 @@ impl Service {
 			return Err((dest.clone(), err!(Database(warn!(?id, "Missing appservice registration")))));
 		};
 
-		let mut pdu_jsons = Vec::new();
+		let mut pdu_jsons = Vec::with_capacity(
+			events
+				.iter()
+				.filter(|event| matches!(event, SendingEvent::Pdu(_)))
+				.count(),
+		);
+		let mut edu_jsons: Vec<RumaEdu> = Vec::with_capacity(
+			events
+				.iter()
+				.filter(|event| matches!(event, SendingEvent::Edu(_)))
+				.count(),
+		);
 		for event in &events {
 			match event {
 				SendingEvent::Pdu(pdu_id) => {
@@ -449,10 +465,12 @@ impl Service {
 						pdu_jsons.push(pdu.to_room_event());
 					}
 				},
-				SendingEvent::Edu(_) | SendingEvent::Flush => {
-					// Appservices don't need EDUs (?) and flush only;
-					// no new content
+				SendingEvent::Edu(edu) => {
+					if let Ok(edu) = serde_json::from_slice(edu) {
+						edu_jsons.push(edu);
+					}
 				},
+				SendingEvent::Flush => {}, // flush only; no new content
 			}
 		}
 
@@ -466,7 +484,8 @@ impl Service {
 				.collect::<Vec<_>>(),
 		));
 
-		//debug_assert!(!pdu_jsons.is_empty(), "sending empty transaction");
+		//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
+		// transaction");
 		let client = &self.services.client.appservice;
 		match appservice::send_request(
 			client,
@@ -474,6 +493,8 @@ impl Service {
 			ruma::api::appservice::event::push_events::v1::Request {
 				events: pdu_jsons,
 				txn_id: txn_id.into(),
+				ephemeral: edu_jsons,
+				to_device: Vec::new(), // TODO
 			},
 		)
 		.await

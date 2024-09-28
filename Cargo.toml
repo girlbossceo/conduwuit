@@ -331,6 +331,7 @@ features = [
     "ring-compat",
     "identifiers-validation",
     "unstable-unspecified",
+    "unstable-msc2409",
     "unstable-msc2448",
     "unstable-msc2666",
     "unstable-msc2867",
