@@ -111,7 +111,7 @@ pub(crate) async fn register_route(
 
 	if is_guest
 		&& (!services.globals.allow_guest_registration()
-			|| (services.globals.allow_registration() && services.globals.config.registration_token.is_some()))
+			|| (services.globals.allow_registration() && services.globals.registration_token.is_some()))
 	{
 		info!(
 			"Guest registration disabled / registration enabled with token configured, rejecting guest registration \
@@ -183,7 +183,7 @@ pub(crate) async fn register_route(
 
 	// UIAA
 	let mut uiaainfo;
-	let skip_auth = if services.globals.config.registration_token.is_some() {
+	let skip_auth = if services.globals.registration_token.is_some() {
 		// Registration token required
 		uiaainfo = UiaaInfo {
 			flows: vec![AuthFlow {
@@ -667,7 +667,7 @@ pub(crate) async fn request_3pid_management_token_via_msisdn_route(
 pub(crate) async fn check_registration_token_validity(
 	State(services): State<crate::State>, body: Ruma<check_registration_token_validity::v1::Request>,
 ) -> Result<check_registration_token_validity::v1::Response> {
-	let Some(reg_token) = services.globals.config.registration_token.clone() else {
+	let Some(reg_token) = services.globals.registration_token.clone() else {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"Server does not allow token registration.",

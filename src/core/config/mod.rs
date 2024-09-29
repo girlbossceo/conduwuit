@@ -139,6 +139,7 @@ pub struct Config {
 	#[serde(default)]
 	pub yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse: bool,
 	pub registration_token: Option<String>,
+	pub registration_token_file: Option<PathBuf>,
 	#[serde(default = "true_fn")]
 	pub allow_encryption: bool,
 	#[serde(default = "true_fn")]
@@ -563,11 +564,19 @@ impl fmt::Display for Config {
 		line("Allow registration", &self.allow_registration.to_string());
 		line(
 			"Registration token",
-			if self.registration_token.is_some() {
-				"set"
+			if self.registration_token.is_none() && self.registration_token_file.is_none() && self.allow_registration {
+				"not set (⚠️ open registration!)"
+			} else if self.registration_token.is_none() && self.registration_token_file.is_none() {
+				"not set"
 			} else {
-				"not set (open registration!)"
+				"set"
 			},
+		);
+		line(
+			"Registration token file path",
+			self.registration_token_file
+				.as_ref()
+				.map_or("", |path| path.to_str().unwrap_or_default()),
 		);
 		line(
 			"Allow guest registration (inherently false if allow registration is false)",

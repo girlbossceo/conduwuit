@@ -94,6 +94,22 @@ pub fn check(config: &Config) -> Result<()> {
 		));
 	}
 
+	// check if we can read the token file path, and check if the file is empty
+	if config.registration_token_file.as_ref().is_some_and(|path| {
+		let Ok(token) = std::fs::read_to_string(path).inspect_err(|e| {
+			error!("Failed to read the registration token file: {e}");
+		}) else {
+			return true;
+		};
+
+		token == String::new()
+	}) {
+		return Err!(Config(
+			"registration_token_file",
+			"Registration token file was specified but is empty or failed to be read"
+		));
+	}
+
 	if config.max_request_size < 5_120_000 {
 		return Err!(Config(
 			"max_request_size",
@@ -111,12 +127,13 @@ pub fn check(config: &Config) -> Result<()> {
 	if config.allow_registration
 		&& !config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
 		&& config.registration_token.is_none()
+		&& config.registration_token_file.is_none()
 	{
 		return Err!(Config(
 			"registration_token",
 			"!! You have `allow_registration` enabled without a token configured in your config which means you are \
 			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
-If this is not the intended behaviour, please set a registration token with the `registration_token` config option.\n
+If this is not the intended behaviour, please set a registration token.\n
 For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour you \
 			 want, please set the following config option to true:
 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`"
@@ -126,6 +143,7 @@ For security and safety reasons, conduwuit will shut down. If you are extra sure
 	if config.allow_registration
 		&& config.yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse
 		&& config.registration_token.is_none()
+		&& config.registration_token_file.is_none()
 	{
 		warn!(
 			"Open registration is enabled via setting \

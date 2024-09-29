@@ -6,7 +6,7 @@ use std::{
 use conduit::{
 	err, error, implement, utils,
 	utils::{hash, string::EMPTY},
-	Error, Result, Server,
+	Error, Result,
 };
 use database::{Deserialized, Map};
 use ruma::{
@@ -26,7 +26,6 @@ pub struct Service {
 }
 
 struct Services {
-	server: Arc<Server>,
 	globals: Dep<globals::Service>,
 	users: Dep<users::Service>,
 }
@@ -48,7 +47,6 @@ impl crate::Service for Service {
 				userdevicesessionid_uiaainfo: args.db["userdevicesessionid_uiaainfo"].clone(),
 			},
 			services: Services {
-				server: args.server.clone(),
 				globals: args.depend::<globals::Service>("globals"),
 				users: args.depend::<users::Service>("users"),
 			},
@@ -135,7 +133,13 @@ pub async fn try_auth(
 			uiaainfo.completed.push(AuthType::Password);
 		},
 		AuthData::RegistrationToken(t) => {
-			if Some(t.token.trim()) == self.services.server.config.registration_token.as_deref() {
+			if self
+				.services
+				.globals
+				.registration_token
+				.as_ref()
+				.is_some_and(|reg_token| t.token.trim() == reg_token)
+			{
 				uiaainfo.completed.push(AuthType::RegistrationToken);
 			} else {
 				uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {
