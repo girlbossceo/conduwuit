@@ -185,6 +185,8 @@ pub struct Config {
 	pub query_trusted_key_servers_first: bool,
 	#[serde(default = "default_log")]
 	pub log: String,
+	#[serde(default = "true_fn", alias = "log_colours")]
+	pub log_colors: bool,
 	#[serde(default = "default_openid_token_ttl")]
 	pub openid_token_ttl: u64,
 	#[serde(default)]

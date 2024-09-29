@@ -373,6 +373,11 @@ allow_profile_lookup_federation_requests = true
 # Defaults to "info"
 #log = "info"
 
+# controls whether logs will be outputted with ANSI colours
+#
+# defaults to true
+#log_colors = true
+
 # controls whether encrypted rooms and events are allowed (default true)
 #allow_encryption = false
 
