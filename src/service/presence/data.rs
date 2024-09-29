@@ -39,12 +39,12 @@ impl Data {
 	pub async fn get_presence(&self, user_id: &UserId) -> Result<(u64, PresenceEvent)> {
 		let count = self
 			.userid_presenceid
-			.qry(user_id)
+			.get(user_id)
 			.await
 			.deserialized::<u64>()?;
 
 		let key = presenceid_key(count, user_id);
-		let bytes = self.presenceid_presence.qry(&key).await?;
+		let bytes = self.presenceid_presence.get(&key).await?;
 		let event = Presence::from_json_bytes(&bytes)?
 			.to_presence_event(user_id, &self.services.users)
 			.await;
@@ -127,7 +127,7 @@ impl Data {
 	pub(super) async fn remove_presence(&self, user_id: &UserId) {
 		let Ok(count) = self
 			.userid_presenceid
-			.qry(user_id)
+			.get(user_id)
 			.await
 			.deserialized::<u64>()
 		else {

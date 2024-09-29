@@ -38,7 +38,7 @@ impl Data {
 
 	pub async fn get_registration(&self, id: &str) -> Result<Registration> {
 		self.id_appserviceregistrations
-			.qry(id)
+			.get(id)
 			.await
 			.deserialized()
 			.map_err(|e| err!(Database("Invalid appservice {id:?} registration: {e:?}")))

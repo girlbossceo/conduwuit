@@ -25,7 +25,7 @@ impl Data {
 	}
 
 	pub(super) async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<u64> {
-		self.roomid_shortstatehash.qry(room_id).await.deserialized()
+		self.roomid_shortstatehash.get(room_id).await.deserialized()
 	}
 
 	#[inline]

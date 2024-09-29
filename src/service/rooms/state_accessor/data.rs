@@ -157,8 +157,8 @@ impl Data {
 	/// Returns the state hash for this pdu.
 	pub(super) async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<u64> {
 		self.eventid_shorteventid
-			.qry(event_id)
-			.and_then(|shorteventid| self.shorteventid_shortstatehash.qry(&shorteventid))
+			.get(event_id)
+			.and_then(|shorteventid| self.shorteventid_shortstatehash.get(&shorteventid))
 			.await
 			.deserialized()
 	}

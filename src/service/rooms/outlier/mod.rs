@@ -31,7 +31,7 @@ impl crate::Service for Service {
 pub async fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
 	self.db
 		.eventid_outlierpdu
-		.qry(event_id)
+		.get(event_id)
 		.await
 		.deserialized()
 }
@@ -41,7 +41,7 @@ pub async fn get_outlier_pdu_json(&self, event_id: &EventId) -> Result<Canonical
 pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
 	self.db
 		.eventid_outlierpdu
-		.qry(event_id)
+		.get(event_id)
 		.await
 		.deserialized()
 }

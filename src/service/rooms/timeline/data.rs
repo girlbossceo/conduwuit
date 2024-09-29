@@ -79,7 +79,7 @@ impl Data {
 	/// Returns the `count` of this pdu's id.
 	pub(super) async fn get_pdu_count(&self, event_id: &EventId) -> Result<PduCount> {
 		self.eventid_pduid
-			.qry(event_id)
+			.get(event_id)
 			.await
 			.map(|pdu_id| pdu_count(&pdu_id))
 	}
@@ -90,27 +90,27 @@ impl Data {
 			return Ok(pdu);
 		}
 
-		self.eventid_outlierpdu.qry(event_id).await.deserialized()
+		self.eventid_outlierpdu.get(event_id).await.deserialized()
 	}
 
 	/// Returns the json of a pdu.
 	pub(super) async fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.qry(&pduid).await.deserialized()
+		self.pduid_pdu.get(&pduid).await.deserialized()
 	}
 
 	/// Returns the pdu's id.
 	#[inline]
 	pub(super) async fn get_pdu_id(&self, event_id: &EventId) -> Result<database::Handle<'_>> {
-		self.eventid_pduid.qry(event_id).await
+		self.eventid_pduid.get(event_id).await
 	}
 
 	/// Returns the pdu directly from `eventid_pduid` only.
 	pub(super) async fn get_non_outlier_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.qry(&pduid).await.deserialized()
+		self.pduid_pdu.get(&pduid).await.deserialized()
 	}
 
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and
@@ -118,7 +118,7 @@ impl Data {
 	pub(super) async fn non_outlier_pdu_exists(&self, event_id: &EventId) -> Result<()> {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.qry(&pduid).await?;
+		self.pduid_pdu.get(&pduid).await?;
 
 		Ok(())
 	}
@@ -132,7 +132,7 @@ impl Data {
 		}
 
 		self.eventid_outlierpdu
-			.qry(event_id)
+			.get(event_id)
 			.await
 			.deserialized()
 			.map(Arc::new)
@@ -141,7 +141,7 @@ impl Data {
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and
 	/// parsing the PduEvent
 	pub(super) async fn outlier_pdu_exists(&self, event_id: &EventId) -> Result<()> {
-		self.eventid_outlierpdu.qry(event_id).await?;
+		self.eventid_outlierpdu.get(event_id).await?;
 
 		Ok(())
 	}
@@ -159,12 +159,12 @@ impl Data {
 	///
 	/// This does __NOT__ check the outliers `Tree`.
 	pub(super) async fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<PduEvent> {
-		self.pduid_pdu.qry(pdu_id).await.deserialized()
+		self.pduid_pdu.get(pdu_id).await.deserialized()
 	}
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
 	pub(super) async fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<CanonicalJsonObject> {
-		self.pduid_pdu.qry(pdu_id).await.deserialized()
+		self.pduid_pdu.get(pdu_id).await.deserialized()
 	}
 
 	pub(super) async fn append_pdu(&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64) {
@@ -196,7 +196,7 @@ impl Data {
 	pub(super) async fn replace_pdu(
 		&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent,
 	) -> Result<()> {
-		if self.pduid_pdu.qry(pdu_id).await.is_not_found() {
+		if self.pduid_pdu.get(pdu_id).await.is_not_found() {
 			return Err!(Request(NotFound("PDU does not exist.")));
 		}
 

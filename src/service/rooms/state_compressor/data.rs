@@ -23,9 +23,11 @@ impl Data {
 	}
 
 	pub(super) async fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
+		const BUFSIZE: usize = size_of::<u64>();
+
 		let value = self
 			.shortstatehash_statediff
-			.qry(&shortstatehash)
+			.aqry::<BUFSIZE, _>(&shortstatehash)
 			.await
 			.map_err(|e| err!(Database("Failed to find StateDiff from short {shortstatehash:?}: {e}")))?;
 

@@ -253,7 +253,7 @@ impl Data {
 	}
 
 	pub(super) async fn get_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
-		let values = self.url_previews.qry(url).await?;
+		let values = self.url_previews.get(url).await?;
 
 		let mut values = values.split(|&b| b == 0xFF);
 
