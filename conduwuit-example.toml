@@ -195,11 +195,14 @@ allow_guests_auto_join_rooms = false
 
 # Enables registration. If set to false, no users can register on this
 # server.
+#
 # If set to true without a token configured, users can register with no form of 2nd-
 # step only if you set
 # `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` to
-# true in your config. If you would like
-# registration only via token reg, please configure the `registration_token` key.
+# true in your config.
+#
+# If you would like registration only via token reg, please configure
+# `registration_token` or `registration_token_file`.
 allow_registration = false
 # Please note that an open registration homeserver with no second-step verification
 # is highly prone to abuse and potential defederation by homeservers, including
@@ -208,7 +211,14 @@ allow_registration = false
 # A static registration token that new users will have to provide when creating
 # an account. If unset and `allow_registration` is true, registration is open
 # without any condition. YOU NEED TO EDIT THIS.
-registration_token = "change this token for something specific to your server"
+registration_token = "change this token/string here or set registration_token_file"
+
+# Path to a file on the system that gets read for the registration token
+#
+# conduwuit must be able to access the file, and it must not be empty
+#
+# no default
+#registration_token_file = "/etc/conduwuit/.reg_token"
 
 # controls whether federation is allowed or not
 # defaults to true
@@ -344,7 +354,7 @@ allow_profile_lookup_federation_requests = true
 # Controls the max log level for admin command log captures (logs generated from running admin commands)
 #
 # Defaults to "info" on release builds, else "debug" on debug builds
-#admin_log_capture = info
+#admin_log_capture = "info"
 
 # Allows admins to enter commands in rooms other than #admins by prefixing with \!admin. The reply
 # will be publicly visible to the room, originating from the sender.
