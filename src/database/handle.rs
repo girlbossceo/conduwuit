@@ -35,18 +35,6 @@ impl Serialize for Handle<'_> {
 	}
 }
 
-impl Deref for Handle<'_> {
-	type Target = Slice;
-
-	#[inline]
-	fn deref(&self) -> &Self::Target { &self.val }
-}
-
-impl AsRef<Slice> for Handle<'_> {
-	#[inline]
-	fn as_ref(&self) -> &Slice { &self.val }
-}
-
 impl Deserialized for Result<Handle<'_>> {
 	#[inline]
 	fn map_de<T, U, F>(self, f: F) -> Result<U>
@@ -77,4 +65,20 @@ impl<'a> Deserialized for &'a Handle<'a> {
 	{
 		deserialize_val(self.as_ref()).map(f)
 	}
+}
+
+impl From<Handle<'_>> for Vec<u8> {
+	fn from(handle: Handle<'_>) -> Self { handle.deref().to_vec() }
+}
+
+impl Deref for Handle<'_> {
+	type Target = Slice;
+
+	#[inline]
+	fn deref(&self) -> &Self::Target { &self.val }
+}
+
+impl AsRef<Slice> for Handle<'_> {
+	#[inline]
+	fn as_ref(&self) -> &Slice { &self.val }
 }

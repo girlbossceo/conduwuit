@@ -35,6 +35,7 @@ zstd_compression = [
 ]
 
 [dependencies]
+arrayvec.workspace = true
 conduit-core.workspace = true
 const-str.workspace = true
 futures.workspace = true
