@@ -1,5 +1,6 @@
 use std::{convert::AsRef, fmt::Debug, future::Future, io::Write};
 
+use arrayvec::ArrayVec;
 use conduit::{err, implement, Result};
 use futures::future::ready;
 use serde::Serialize;
@@ -11,6 +12,9 @@ use crate::{
 	Handle,
 };
 
+/// Fetch a value from the database into cache, returning a reference-handle
+/// asynchronously. The key is serialized into an allocated buffer to perform
+/// the query.
 #[implement(super::Map)]
 pub fn qry<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
@@ -20,6 +24,20 @@ where
 	self.bqry(key, &mut buf)
 }
 
+/// Fetch a value from the database into cache, returning a reference-handle
+/// asynchronously. The key is serialized into a fixed-sized buffer to perform
+/// the query. The maximum size is supplied as const generic parameter.
+#[implement(super::Map)]
+pub fn aqry<const MAX: usize, K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
+where
+	K: Serialize + ?Sized + Debug,
+{
+	let mut buf = ArrayVec::<u8, MAX>::new();
+	self.bqry(key, &mut buf)
+}
+
+/// Fetch a value from the database into cache, returning a reference-handle
+/// asynchronously. The key is serialized into a user-supplied Writer.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, buf), fields(%self), level = "trace")]
 pub fn bqry<K, B>(&self, key: &K, buf: &mut B) -> impl Future<Output = Result<Handle<'_>>> + Send
@@ -31,6 +49,8 @@ where
 	self.get(key)
 }
 
+/// Fetch a value from the database into cache, returning a reference-handle
+/// asynchronously. The key is referenced directly to perform the query.
 #[implement(super::Map)]
 pub fn get<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
@@ -39,6 +59,9 @@ where
 	ready(self.get_blocking(key))
 }
 
+/// Fetch a value from the database into cache, returning a reference-handle.
+/// The key is referenced directly to perform the query. This is a thread-
+/// blocking call.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
 pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>

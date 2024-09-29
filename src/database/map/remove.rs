@@ -1,5 +1,6 @@
 use std::{convert::AsRef, fmt::Debug, io::Write};
 
+use arrayvec::ArrayVec;
 use conduit::implement;
 use serde::Serialize;
 
@@ -11,6 +12,15 @@ where
 	K: Serialize + ?Sized + Debug,
 {
 	let mut buf = Vec::<u8>::with_capacity(64);
+	self.bdel(key, &mut buf);
+}
+
+#[implement(super::Map)]
+pub fn adel<const MAX: usize, K>(&self, key: &K)
+where
+	K: Serialize + ?Sized + Debug,
+{
+	let mut buf = ArrayVec::<u8, MAX>::new();
 	self.bdel(key, &mut buf);
 }
 

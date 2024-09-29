@@ -727,6 +727,7 @@ dependencies = [
 name = "conduit_database"
 version = "0.4.7"
 dependencies = [
+ "arrayvec",
  "conduit_core",
  "const-str",
  "futures",

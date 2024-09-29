@@ -195,7 +195,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_u8<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize u8 not implemented")
+		unimplemented!("deserialize u8 not implemented; try dereferencing the Handle for [u8] access instead")
 	}
 
 	fn deserialize_u16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
