@@ -39,3 +39,10 @@ pub use self::{
 
 #[inline]
 pub fn exchange<T>(state: &mut T, source: T) -> T { std::mem::replace(state, source) }
+
+#[macro_export]
+macro_rules! at {
+	($idx:tt) => {
+		|t| t.$idx
+	};
+}
