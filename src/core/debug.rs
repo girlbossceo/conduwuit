@@ -86,11 +86,11 @@ pub fn panic_str(p: &Box<dyn Any + Send>) -> &'static str { p.downcast_ref::<&st
 
 #[inline(always)]
 #[must_use]
-pub fn rttype_name<T>(_: &T) -> &'static str { type_name::<T>() }
+pub fn rttype_name<T: ?Sized>(_: &T) -> &'static str { type_name::<T>() }
 
 #[inline(always)]
 #[must_use]
-pub fn type_name<T>() -> &'static str { std::any::type_name::<T>() }
+pub fn type_name<T: ?Sized>() -> &'static str { std::any::type_name::<T>() }
 
 #[must_use]
 #[inline]
