@@ -1,7 +1,7 @@
 use std::{cmp::max, collections::BTreeMap};
 
 use axum::extract::State;
-use conduit::{debug_info, debug_warn, err};
+use conduit::{debug_info, debug_warn, err, Err};
 use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::client::{
@@ -240,8 +240,16 @@ pub(crate) async fn create_room_route(
 	let mut users = BTreeMap::from_iter([(sender_user.clone(), int!(100))]);
 
 	if preset == RoomPreset::TrustedPrivateChat {
-		for invite_ in &body.invite {
-			users.insert(invite_.clone(), int!(100));
+		for invite in &body.invite {
+			if services.users.user_is_ignored(sender_user, invite).await {
+				return Err!(Request(Forbidden("You cannot invite users you have ignored to rooms.")));
+			} else if services.users.user_is_ignored(invite, sender_user).await {
+				// silently drop the invite to the recipient if they've been ignored by the
+				// sender, pretend it worked
+				continue;
+			}
+
+			users.insert(invite.clone(), int!(100));
 		}
 	}
 
@@ -449,6 +457,14 @@ pub(crate) async fn create_room_route(
 	// 8. Events implied by invite (and TODO: invite_3pid)
 	drop(state_lock);
 	for user_id in &body.invite {
+		if services.users.user_is_ignored(sender_user, user_id).await {
+			return Err!(Request(Forbidden("You cannot invite users you have ignored to rooms.")));
+		} else if services.users.user_is_ignored(user_id, sender_user).await {
+			// silently drop the invite to the recipient if they've been ignored by the
+			// sender, pretend it worked
+			continue;
+		}
+
 		if let Err(e) = invite_helper(&services, sender_user, user_id, &room_id, None, body.is_direct)
 			.boxed()
 			.await

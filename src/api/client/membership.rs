@@ -358,6 +358,14 @@ pub(crate) async fn invite_user_route(
 		user_id,
 	} = &body.recipient
 	{
+		if services.users.user_is_ignored(sender_user, user_id).await {
+			return Err!(Request(Forbidden("You cannot invite users you have ignored to rooms.")));
+		} else if services.users.user_is_ignored(user_id, sender_user).await {
+			// silently drop the invite to the recipient if they've been ignored by the
+			// sender, pretend it worked
+			return Ok(invite_user::v3::Response {});
+		}
+
 		invite_helper(&services, sender_user, user_id, &body.room_id, body.reason.clone(), false).await?;
 		Ok(invite_user::v3::Response {})
 	} else {
