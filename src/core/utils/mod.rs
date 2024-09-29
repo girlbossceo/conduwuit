@@ -35,13 +35,3 @@ pub use self::{
 
 #[inline]
 pub fn exchange<T>(state: &mut T, source: T) -> T { std::mem::replace(state, source) }
-
-#[must_use]
-pub fn generate_keypair() -> Vec<u8> {
-	let mut value = rand::string(8).as_bytes().to_vec();
-	value.push(0xFF);
-	value.extend_from_slice(
-		&ruma::signatures::Ed25519KeyPair::generate().expect("Ed25519KeyPair generation always works (?)"),
-	);
-	value
-}

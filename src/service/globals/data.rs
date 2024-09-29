@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use conduit::{trace, utils, Error, Result, Server};
+use conduit::{trace, utils, utils::rand, Error, Result, Server};
 use database::{Database, Deserialized, Map};
 use futures::{pin_mut, stream::FuturesUnordered, FutureExt, StreamExt};
 use ruma::{
@@ -102,7 +102,7 @@ impl Data {
 
 	fn stored_count(global: &Arc<Map>) -> Result<u64> {
 		global
-			.get(COUNTER)
+			.get_blocking(COUNTER)
 			.as_deref()
 			.map_or(Ok(0_u64), utils::u64_from_bytes)
 	}
@@ -206,17 +206,23 @@ impl Data {
 	}
 
 	pub fn load_keypair(&self) -> Result<Ed25519KeyPair> {
-		let keypair_bytes = self.global.get(b"keypair").map_or_else(
-			|_| {
-				let keypair = utils::generate_keypair();
-				self.global.insert(b"keypair", &keypair);
-				Ok::<_, Error>(keypair)
-			},
-			|val| Ok(val.to_vec()),
-		)?;
+		let generate = |_| {
+			let keypair = Ed25519KeyPair::generate().expect("Ed25519KeyPair generation always works (?)");
+
+			let mut value = rand::string(8).as_bytes().to_vec();
+			value.push(0xFF);
+			value.extend_from_slice(&keypair);
+
+			self.global.insert(b"keypair", &value);
+			value
+		};
+
+		let keypair_bytes: Vec<u8> = self
+			.global
+			.get_blocking(b"keypair")
+			.map_or_else(generate, Into::into);
 
 		let mut parts = keypair_bytes.splitn(2, |&b| b == 0xFF);
-
 		utils::string_from_bytes(
 			// 1. version
 			parts

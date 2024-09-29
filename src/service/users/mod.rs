@@ -1000,7 +1000,7 @@ where
 
 //TODO: this is an ABA
 fn increment(db: &Arc<Map>, key: &[u8]) {
-	let old = db.get(key);
+	let old = db.get_blocking(key);
 	let new = utils::increment(old.ok().as_deref());
 	db.insert(key, &new);
 }
