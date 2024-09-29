@@ -16,6 +16,7 @@ url_preview_domain_contains_allowlist = ["*"]
 media_compat_file_link = false
 media_startup_check = false
 rocksdb_direct_io = false
+log_colors = false
 
 [global.tls]
 certs = "/certificate.crt"
