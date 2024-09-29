@@ -435,10 +435,10 @@ impl Service {
 
 	/// Returns an iterator over all rooms this user joined.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn rooms_joined(&self, user_id: &UserId) -> impl Stream<Item = &RoomId> + Send {
+	pub fn rooms_joined<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = &RoomId> + Send + 'a {
 		self.db
 			.userroomid_joined
-			.keys_prefix(user_id)
+			.keys_prefix_raw(user_id)
 			.ignore_err()
 			.map(|(_, room_id): (Ignore, &RoomId)| room_id)
 	}
@@ -494,10 +494,10 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn servers_invite_via<'a>(&'a self, room_id: &RoomId) -> impl Stream<Item = &ServerName> + Send + 'a {
+	pub fn servers_invite_via<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &ServerName> + Send + 'a {
 		self.db
 			.roomid_inviteviaservers
-			.stream_prefix(room_id)
+			.stream_prefix_raw(room_id)
 			.ignore_err()
 			.map(|(_, servers): (Ignore, Vec<&ServerName>)| &**(servers.last().expect("at least one servername")))
 	}

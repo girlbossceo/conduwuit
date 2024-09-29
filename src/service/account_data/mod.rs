@@ -106,7 +106,7 @@ pub async fn get(
 	self.db
 		.roomusertype_roomuserdataid
 		.qry(&key)
-		.and_then(|roomuserdataid| self.db.roomuserdataid_accountdata.qry(&roomuserdataid))
+		.and_then(|roomuserdataid| self.db.roomuserdataid_accountdata.get(&roomuserdataid))
 		.await
 		.deserialized()
 }

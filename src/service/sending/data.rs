@@ -98,7 +98,7 @@ impl Data {
 	}
 
 	#[inline]
-	pub fn active_requests_for<'a>(&'a self, destination: &Destination) -> impl Stream<Item = SendingItem> + Send + 'a {
+	pub fn active_requests_for(&self, destination: &Destination) -> impl Stream<Item = SendingItem> + Send + '_ {
 		let prefix = destination.get_prefix();
 		self.servercurrentevent_data
 			.stream_raw_prefix(&prefix)
@@ -133,7 +133,7 @@ impl Data {
 		keys
 	}
 
-	pub fn queued_requests<'a>(&'a self, destination: &Destination) -> impl Stream<Item = QueueItem> + Send + 'a {
+	pub fn queued_requests(&self, destination: &Destination) -> impl Stream<Item = QueueItem> + Send + '_ {
 		let prefix = destination.get_prefix();
 		self.servernameevent_data
 			.stream_raw_prefix(&prefix)
@@ -152,7 +152,7 @@ impl Data {
 
 	pub async fn get_latest_educount(&self, server_name: &ServerName) -> u64 {
 		self.servername_educount
-			.qry(server_name)
+			.get(server_name)
 			.await
 			.deserialized()
 			.unwrap_or(0)

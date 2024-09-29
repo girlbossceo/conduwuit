@@ -260,7 +260,7 @@ impl Data {
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
 	) -> BTreeMap<OwnedServerSigningKeyId, VerifyKey> {
 		// Not atomic, but this is not critical
-		let signingkeys = self.server_signingkeys.qry(origin).await;
+		let signingkeys = self.server_signingkeys.get(origin).await;
 
 		let mut keys = signingkeys
 			.and_then(|keys| serde_json::from_slice(&keys).map_err(Into::into))
@@ -311,10 +311,16 @@ impl Data {
 	}
 
 	pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSigningKeys> {
-		self.server_signingkeys.qry(origin).await.deserialized()
+		self.server_signingkeys.get(origin).await.deserialized()
 	}
 
-	pub async fn database_version(&self) -> u64 { self.global.qry("version").await.deserialized().unwrap_or(0) }
+	pub async fn database_version(&self) -> u64 {
+		self.global
+			.get(b"version")
+			.await
+			.deserialized()
+			.unwrap_or(0)
+	}
 
 	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {

@@ -90,14 +90,14 @@ async fn migrate(services: &Services) -> Result<()> {
 		db_lt_13(services).await?;
 	}
 
-	if db["global"].qry("feat_sha256_media").await.is_not_found() {
+	if db["global"].get(b"feat_sha256_media").await.is_not_found() {
 		media::migrations::migrate_sha256_media(services).await?;
 	} else if config.media_startup_check {
 		media::migrations::checkup_sha256_media(services).await?;
 	}
 
 	if db["global"]
-		.qry("fix_bad_double_separator_in_state_cache")
+		.get(b"fix_bad_double_separator_in_state_cache")
 		.await
 		.is_not_found()
 	{
@@ -105,7 +105,7 @@ async fn migrate(services: &Services) -> Result<()> {
 	}
 
 	if db["global"]
-		.qry("retroactively_fix_bad_data_from_roomuserid_joined")
+		.get(b"retroactively_fix_bad_data_from_roomuserid_joined")
 		.await
 		.is_not_found()
 	{

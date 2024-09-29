@@ -94,7 +94,7 @@ impl Service {
 		}
 
 		let alias = alias.alias();
-		let Ok(room_id) = self.db.alias_roomid.qry(&alias).await else {
+		let Ok(room_id) = self.db.alias_roomid.get(&alias).await else {
 			return Err!(Request(NotFound("Alias does not exist or is invalid.")));
 		};
 
@@ -151,7 +151,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn resolve_local_alias(&self, alias: &RoomAliasId) -> Result<OwnedRoomId> {
-		self.db.alias_roomid.qry(alias.alias()).await.deserialized()
+		self.db.alias_roomid.get(alias.alias()).await.deserialized()
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -219,7 +219,7 @@ impl Service {
 	}
 
 	async fn who_created_alias(&self, alias: &RoomAliasId) -> Result<OwnedUserId> {
-		self.db.alias_userid.qry(alias.alias()).await.deserialized()
+		self.db.alias_userid.get(alias.alias()).await.deserialized()
 	}
 
 	async fn resolve_appservice_alias(&self, room_alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
