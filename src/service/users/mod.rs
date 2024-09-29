@@ -10,13 +10,13 @@ use futures::{pin_mut, FutureExt, Stream, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
-	events::{AnyToDeviceEvent, StateEventType},
+	events::{ignored_user_list::IgnoredUserListEvent, AnyToDeviceEvent, GlobalAccountDataEventType, StateEventType},
 	serde::Raw,
 	DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedDeviceKeyId,
 	OwnedMxcUri, OwnedUserId, UInt, UserId,
 };
 
-use crate::{admin, globals, rooms, Dep};
+use crate::{account_data, admin, globals, rooms, Dep};
 
 pub struct Service {
 	services: Services,
@@ -25,6 +25,7 @@ pub struct Service {
 
 struct Services {
 	server: Arc<Server>,
+	account_data: Dep<account_data::Service>,
 	admin: Dep<admin::Service>,
 	globals: Dep<globals::Service>,
 	state_accessor: Dep<rooms::state_accessor::Service>,
@@ -58,6 +59,7 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			services: Services {
 				server: args.server.clone(),
+				account_data: args.depend::<account_data::Service>("account_data"),
 				admin: args.depend::<admin::Service>("admin"),
 				globals: args.depend::<globals::Service>("globals"),
 				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
@@ -91,6 +93,32 @@ impl crate::Service for Service {
 }
 
 impl Service {
+	/// Returns true/false based on whether the recipient/receiving user has
+	/// blocked the sender
+	pub async fn user_is_ignored(&self, sender_user: &UserId, recipient_user: &UserId) -> bool {
+		self.services
+			.account_data
+			.get(
+				None,
+				recipient_user,
+				GlobalAccountDataEventType::IgnoredUserList
+					.to_string()
+					.into(),
+			)
+			.await
+			.and_then(|event| {
+				serde_json::from_str::<IgnoredUserListEvent>(event.get())
+					.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
+			})
+			.map_or(false, |ignored| {
+				ignored
+					.content
+					.ignored_users
+					.keys()
+					.any(|blocked_user| blocked_user == sender_user)
+			})
+	}
+
 	/// Check if a user is an admin
 	#[inline]
 	pub async fn is_admin(&self, user_id: &UserId) -> bool { self.services.admin.user_is_admin(user_id).await }

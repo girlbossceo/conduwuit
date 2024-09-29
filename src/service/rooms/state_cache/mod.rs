@@ -14,7 +14,6 @@ use itertools::Itertools;
 use ruma::{
 	events::{
 		direct::DirectEvent,
-		ignored_user_list::IgnoredUserListEvent,
 		room::{
 			create::RoomCreateEventContent,
 			member::{MembershipState, RoomMemberEventContent},
@@ -197,30 +196,7 @@ impl Service {
 			},
 			MembershipState::Invite => {
 				// We want to know if the sender is ignored by the receiver
-				let is_ignored = self
-					.services
-					.account_data
-					.get(
-						None,    // Ignored users are in global account data
-						user_id, // Receiver
-						GlobalAccountDataEventType::IgnoredUserList
-							.to_string()
-							.into(),
-					)
-					.await
-					.and_then(|event| {
-						serde_json::from_str::<IgnoredUserListEvent>(event.get())
-							.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
-					})
-					.map_or(false, |ignored| {
-						ignored
-							.content
-							.ignored_users
-							.iter()
-							.any(|(user, _details)| user == sender)
-					});
-
-				if is_ignored {
+				if self.services.users.user_is_ignored(sender, user_id).await {
 					return Ok(());
 				}
 

@@ -1,6 +1,11 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{debug_info, trace, utils, Result, Server};
+use conduit::{
+	debug_info, trace,
+	utils::{self, IterStream},
+	Result, Server,
+};
+use futures::StreamExt;
 use ruma::{
 	api::federation::transactions::edu::{Edu, TypingContent},
 	events::SyncEphemeralRoomEvent,
@@ -8,7 +13,7 @@ use ruma::{
 };
 use tokio::sync::{broadcast, RwLock};
 
-use crate::{globals, sending, Dep};
+use crate::{globals, sending, users, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -23,6 +28,7 @@ pub struct Service {
 struct Services {
 	globals: Dep<globals::Service>,
 	sending: Dep<sending::Service>,
+	users: Dep<users::Service>,
 }
 
 impl crate::Service for Service {
@@ -32,6 +38,7 @@ impl crate::Service for Service {
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				sending: args.depend::<sending::Service>("sending"),
+				users: args.depend::<users::Service>("users"),
 			},
 			typing: RwLock::new(BTreeMap::new()),
 			last_typing_update: RwLock::new(BTreeMap::new()),
@@ -170,17 +177,35 @@ impl Service {
 
 	/// Returns a new typing EDU.
 	pub async fn typings_all(
-		&self, room_id: &RoomId,
+		&self, room_id: &RoomId, sender_user: &UserId,
 	) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
+		let room_typing_indicators = self.typing.read().await.get(room_id).cloned();
+
+		let Some(typing_indicators) = room_typing_indicators else {
+			return Ok(SyncEphemeralRoomEvent {
+				content: ruma::events::typing::TypingEventContent {
+					user_ids: Vec::new(),
+				},
+			});
+		};
+
+		let user_ids: Vec<_> = typing_indicators
+			.into_keys()
+			.stream()
+			.filter_map(|typing_user_id| async move {
+				(!self
+					.services
+					.users
+					.user_is_ignored(&typing_user_id, sender_user)
+					.await)
+					.then_some(typing_user_id)
+			})
+			.collect()
+			.await;
+
 		Ok(SyncEphemeralRoomEvent {
 			content: ruma::events::typing::TypingEventContent {
-				user_ids: self
-					.typing
-					.read()
-					.await
-					.get(room_id)
-					.map(|m| m.keys().cloned().collect())
-					.unwrap_or_default(),
+				user_ids,
 			},
 		})
 	}
