@@ -54,6 +54,7 @@ async fn fresh(services: &Services) -> Result<()> {
 		.db
 		.bump_database_version(DATABASE_VERSION)?;
 
+	db["global"].insert(b"feat_sha256_media", &[]);
 	db["global"].insert(b"fix_bad_double_separator_in_state_cache", &[]);
 	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[]);
 
