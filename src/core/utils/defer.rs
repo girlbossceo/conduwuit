@@ -15,8 +15,14 @@ macro_rules! defer {
 	};
 
 	($body:expr) => {
-		$crate::defer! {{
-			$body
-		}}
+		$crate::defer! {{ $body }}
+	};
+}
+
+#[macro_export]
+macro_rules! scope_restore {
+	($val:ident, $ours:expr) => {
+		let theirs = $crate::utils::exchange($val, $ours);
+		$crate::defer! {{ *$val = theirs; }};
 	};
 }
