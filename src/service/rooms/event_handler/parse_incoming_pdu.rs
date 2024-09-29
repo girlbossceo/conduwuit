@@ -14,7 +14,7 @@ impl super::Service {
 		let room_id: OwnedRoomId = value
 			.get("room_id")
 			.and_then(|id| RoomId::parse(id.as_str()?).ok())
-			.ok_or(err!(Request(InvalidParam("Invalid room id in pdu"))))?;
+			.ok_or_else(|| err!(Request(InvalidParam("Invalid room id in pdu"))))?;
 
 		let Ok(room_version_id) = self.services.state.get_room_version(&room_id).await else {
 			return Err!("Server is not in room {room_id}");
