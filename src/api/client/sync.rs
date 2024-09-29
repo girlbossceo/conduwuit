@@ -1011,15 +1011,27 @@ async fn load_joined_room(
 		.rooms
 		.read_receipt
 		.readreceipts_since(room_id, since)
-		.map(|(_, _, v)| v)
+		.filter_map(|(read_user, _, v)| async move {
+			(!services
+				.users
+				.user_is_ignored(&read_user, sender_user)
+				.await)
+				.then_some(v)
+		})
 		.collect()
 		.await;
 
 	if services.rooms.typing.last_typing_update(room_id).await? > since {
 		edus.push(
 			serde_json::from_str(
-				&serde_json::to_string(&services.rooms.typing.typings_all(room_id).await?)
-					.expect("event is valid, we just created it"),
+				&serde_json::to_string(
+					&services
+						.rooms
+						.typing
+						.typings_all(room_id, sender_user)
+						.await?,
+				)
+				.expect("event is valid, we just created it"),
 			)
 			.expect("event is valid, we just created it"),
 		);
@@ -1583,6 +1595,13 @@ pub(crate) async fn sync_events_v4_route(
 			.rooms
 			.read_receipt
 			.readreceipts_since(room_id, *roomsince)
+			.filter_map(|(read_user, ts, v)| async move {
+				(!services
+					.users
+					.user_is_ignored(&read_user, sender_user)
+					.await)
+					.then_some((read_user, ts, v))
+			})
 			.collect()
 			.await;
 
