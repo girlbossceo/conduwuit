@@ -35,6 +35,7 @@ use ruma::{
 		presence::PresenceEvent,
 		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, StateEventType, TimelineEventType,
+		TimelineEventType::*,
 	},
 	serde::Raw,
 	state_res::Event,
@@ -1004,8 +1005,31 @@ async fn load_joined_room(
 
 	let room_events: Vec<_> = timeline_pdus
 		.iter()
-		.map(|(_, pdu)| pdu.to_sync_room_event())
-		.collect();
+		.stream()
+		.filter_map(|(_, pdu)| async move {
+			// list of safe and common non-state events to ignore
+			if matches!(
+				&pdu.kind,
+				RoomMessage
+					| Sticker | CallInvite
+					| CallNotify | RoomEncrypted
+					| Image | File | Audio
+					| Voice | Video | UnstablePollStart
+					| PollStart | KeyVerificationStart
+					| Reaction | Emote
+					| Location
+			) && services
+				.users
+				.user_is_ignored(&pdu.sender, sender_user)
+				.await
+			{
+				return None;
+			}
+
+			Some(pdu.to_sync_room_event())
+		})
+		.collect()
+		.await;
 
 	let mut edus: Vec<_> = services
 		.rooms
@@ -1144,11 +1168,11 @@ async fn share_encrypted_room(
 pub(crate) async fn sync_events_v4_route(
 	State(services): State<crate::State>, body: Ruma<sync_events::v4::Request>,
 ) -> Result<sync_events::v4::Response> {
-	let sender_user = body.sender_user.expect("user is authenticated");
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.expect("user is authenticated");
 	let mut body = body.body;
 	// Setup watchers, so if there's no response, we can wait for them
-	let watcher = services.globals.watch(&sender_user, &sender_device);
+	let watcher = services.globals.watch(sender_user, &sender_device);
 
 	let next_batch = services.globals.next_count()?;
 
@@ -1191,7 +1215,7 @@ pub(crate) async fn sync_events_v4_route(
 	let all_joined_rooms: Vec<_> = services
 		.rooms
 		.state_cache
-		.rooms_joined(&sender_user)
+		.rooms_joined(sender_user)
 		.map(ToOwned::to_owned)
 		.collect()
 		.await;
@@ -1199,7 +1223,7 @@ pub(crate) async fn sync_events_v4_route(
 	let all_invited_rooms: Vec<_> = services
 		.rooms
 		.state_cache
-		.rooms_invited(&sender_user)
+		.rooms_invited(sender_user)
 		.map(|r| r.0)
 		.collect()
 		.await;
@@ -1213,7 +1237,7 @@ pub(crate) async fn sync_events_v4_route(
 	if body.extensions.to_device.enabled.unwrap_or(false) {
 		services
 			.users
-			.remove_to_device_events(&sender_user, &sender_device, globalsince)
+			.remove_to_device_events(sender_user, &sender_device, globalsince)
 			.await;
 	}
 
@@ -1232,7 +1256,7 @@ pub(crate) async fn sync_events_v4_route(
 	if body.extensions.account_data.enabled.unwrap_or(false) {
 		account_data.global = services
 			.account_data
-			.changes_since(None, &sender_user, globalsince)
+			.changes_since(None, sender_user, globalsince)
 			.await?
 			.into_iter()
 			.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
@@ -1244,7 +1268,7 @@ pub(crate) async fn sync_events_v4_route(
 					room.clone(),
 					services
 						.account_data
-						.changes_since(Some(&room), &sender_user, globalsince)
+						.changes_since(Some(&room), sender_user, globalsince)
 						.await?
 						.into_iter()
 						.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
@@ -1338,7 +1362,7 @@ pub(crate) async fn sync_events_v4_route(
 									let user_id = UserId::parse(state_key.clone())
 										.map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
 
-									if user_id == sender_user {
+									if user_id == *sender_user {
 										continue;
 									}
 
@@ -1350,7 +1374,7 @@ pub(crate) async fn sync_events_v4_route(
 									match new_membership {
 										MembershipState::Join => {
 											// A new user joined an encrypted room
-											if !share_encrypted_room(&services, &sender_user, &user_id, Some(room_id))
+											if !share_encrypted_room(&services, sender_user, &user_id, Some(room_id))
 												.await
 											{
 												device_list_changes.insert(user_id);
@@ -1367,7 +1391,6 @@ pub(crate) async fn sync_events_v4_route(
 						}
 					}
 					if joined_since_last_sync || new_encrypted_room {
-						let sender_user = &sender_user;
 						// If the user is in a new encrypted room, give them all joined users
 						device_list_changes.extend(
 							services
@@ -1400,7 +1423,7 @@ pub(crate) async fn sync_events_v4_route(
 		}
 
 		for user_id in left_encrypted_users {
-			let dont_share_encrypted_room = !share_encrypted_room(&services, &sender_user, &user_id, None).await;
+			let dont_share_encrypted_room = !share_encrypted_room(&services, sender_user, &user_id, None).await;
 
 			// If the user doesn't share an encrypted room with the target anymore, we need
 			// to tell them
@@ -1564,14 +1587,14 @@ pub(crate) async fn sync_events_v4_route(
 			invite_state = services
 				.rooms
 				.state_cache
-				.invite_state(&sender_user, room_id)
+				.invite_state(sender_user, room_id)
 				.await
 				.ok();
 
 			(timeline_pdus, limited) = (Vec::new(), true);
 		} else {
 			(timeline_pdus, limited) =
-				match load_timeline(&services, &sender_user, room_id, roomsincecount, *timeline_limit).await {
+				match load_timeline(&services, sender_user, room_id, roomsincecount, *timeline_limit).await {
 					Ok(value) => value,
 					Err(err) => {
 						warn!("Encountered missing timeline in {}, error {}", room_id, err);
@@ -1584,7 +1607,7 @@ pub(crate) async fn sync_events_v4_route(
 			room_id.clone(),
 			services
 				.account_data
-				.changes_since(Some(room_id), &sender_user, *roomsince)
+				.changes_since(Some(room_id), sender_user, *roomsince)
 				.await?
 				.into_iter()
 				.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
@@ -1639,8 +1662,30 @@ pub(crate) async fn sync_events_v4_route(
 
 		let room_events: Vec<_> = timeline_pdus
 			.iter()
-			.map(|(_, pdu)| pdu.to_sync_room_event())
-			.collect();
+			.stream()
+			.filter_map(|(_, pdu)| async move {
+				// list of safe and common non-state events to ignore
+				if matches!(
+					&pdu.kind,
+					RoomMessage
+						| Sticker | CallInvite
+						| CallNotify | RoomEncrypted
+						| Image | File | Audio
+						| Voice | Video | UnstablePollStart
+						| PollStart | KeyVerificationStart
+						| Reaction | Emote | Location
+				) && services
+					.users
+					.user_is_ignored(&pdu.sender, sender_user)
+					.await
+				{
+					return None;
+				}
+
+				Some(pdu.to_sync_room_event())
+			})
+			.collect()
+			.await;
 
 		for (_, pdu) in timeline_pdus {
 			let ts = MilliSecondsSinceUnixEpoch(pdu.origin_server_ts);
@@ -1669,7 +1714,7 @@ pub(crate) async fn sync_events_v4_route(
 			.rooms
 			.state_cache
 			.room_members(room_id)
-			.ready_filter(|member| member != &sender_user)
+			.ready_filter(|member| member != sender_user)
 			.filter_map(|user_id| {
 				services
 					.rooms
@@ -1743,7 +1788,7 @@ pub(crate) async fn sync_events_v4_route(
 						services
 							.rooms
 							.user
-							.highlight_count(&sender_user, room_id)
+							.highlight_count(sender_user, room_id)
 							.await
 							.try_into()
 							.expect("notification count can't go that high"),
@@ -1752,7 +1797,7 @@ pub(crate) async fn sync_events_v4_route(
 						services
 							.rooms
 							.user
-							.notification_count(&sender_user, room_id)
+							.notification_count(sender_user, room_id)
 							.await
 							.try_into()
 							.expect("notification count can't go that high"),
@@ -1811,7 +1856,7 @@ pub(crate) async fn sync_events_v4_route(
 				Some(sync_events::v4::ToDevice {
 					events: services
 						.users
-						.get_to_device_events(&sender_user, &sender_device)
+						.get_to_device_events(sender_user, &sender_device)
 						.collect()
 						.await,
 					next_batch: next_batch.to_string(),
@@ -1826,7 +1871,7 @@ pub(crate) async fn sync_events_v4_route(
 				},
 				device_one_time_keys_count: services
 					.users
-					.count_one_time_keys(&sender_user, &sender_device)
+					.count_one_time_keys(sender_user, &sender_device)
 					.await,
 				// Fallback keys are not yet supported
 				device_unused_fallback_key_types: None,
