@@ -629,7 +629,9 @@ impl Service {
 					.pdus
 					.iter()
 					.filter(|(_, res)| res.is_err())
-					.for_each(|(pdu_id, res)| warn!("error for {pdu_id} from remote: {res:?}"));
+					.for_each(
+						|(pdu_id, res)| warn!(%transaction_id, %server, "error sending PDU {pdu_id} to remote server: {res:?}"),
+					);
 			})
 			.map(|_| dest.clone())
 			.map_err(|e| (dest.clone(), e))
