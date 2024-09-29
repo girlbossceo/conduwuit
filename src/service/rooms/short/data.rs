@@ -59,7 +59,7 @@ impl Data {
 
 		for (i, short) in self
 			.eventid_shorteventid
-			.multi_get(keys.iter())
+			.get_batch_blocking(keys.iter())
 			.iter()
 			.enumerate()
 		{
