@@ -5,12 +5,12 @@ use conduit::{err, error, Err};
 use futures::StreamExt;
 use ruma::{
 	api::client::{context::get_context, filter::LazyLoadOptions},
-	events::StateEventType,
+	events::{StateEventType, TimelineEventType::*},
 };
 
 use crate::{Result, Ruma};
 
-/// # `GET /_matrix/client/r0/rooms/{roomId}/context`
+/// # `GET /_matrix/client/r0/rooms/{roomId}/context/{eventId}`
 ///
 /// Allows loading room history around an event.
 ///
@@ -31,7 +31,7 @@ pub(crate) async fn get_context_route(
 		LazyLoadOptions::Disabled => (false, cfg!(feature = "element_hacks")),
 	};
 
-	let mut lazy_loaded = HashSet::new();
+	let mut lazy_loaded = HashSet::with_capacity(100);
 
 	let base_token = services
 		.rooms
@@ -79,6 +79,25 @@ pub(crate) async fn get_context_route(
 		.await?
 		.take(limit / 2)
 		.filter_map(|(count, pdu)| async move {
+			// list of safe and common non-state events to ignore
+			if matches!(
+				&pdu.kind,
+				RoomMessage
+					| Sticker | CallInvite
+					| CallNotify | RoomEncrypted
+					| Image | File | Audio
+					| Voice | Video | UnstablePollStart
+					| PollStart | KeyVerificationStart
+					| Reaction | Emote
+					| Location
+			) && services
+				.users
+				.user_is_ignored(&pdu.sender, sender_user)
+				.await
+			{
+				return None;
+			}
+
 			services
 				.rooms
 				.state_accessor
@@ -104,11 +123,6 @@ pub(crate) async fn get_context_route(
 		.last()
 		.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
-	let events_before: Vec<_> = events_before
-		.into_iter()
-		.map(|(_, pdu)| pdu.to_room_event())
-		.collect();
-
 	let events_after: Vec<_> = services
 		.rooms
 		.timeline
@@ -116,6 +130,25 @@ pub(crate) async fn get_context_route(
 		.await?
 		.take(limit / 2)
 		.filter_map(|(count, pdu)| async move {
+			// list of safe and common non-state events to ignore
+			if matches!(
+				&pdu.kind,
+				RoomMessage
+					| Sticker | CallInvite
+					| CallNotify | RoomEncrypted
+					| Image | File | Audio
+					| Voice | Video | UnstablePollStart
+					| PollStart | KeyVerificationStart
+					| Reaction | Emote
+					| Location
+			) && services
+				.users
+				.user_is_ignored(&pdu.sender, sender_user)
+				.await
+			{
+				return None;
+			}
+
 			services
 				.rooms
 				.state_accessor
@@ -167,11 +200,6 @@ pub(crate) async fn get_context_route(
 		.last()
 		.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
-	let events_after: Vec<_> = events_after
-		.into_iter()
-		.map(|(_, pdu)| pdu.to_room_event())
-		.collect();
-
 	let mut state = Vec::with_capacity(state_ids.len());
 
 	for (shortstatekey, id) in state_ids {
@@ -201,9 +229,15 @@ pub(crate) async fn get_context_route(
 	Ok(get_context::v3::Response {
 		start: Some(start_token),
 		end: Some(end_token),
-		events_before,
+		events_before: events_before
+			.iter()
+			.map(|(_, pdu)| pdu.to_room_event())
+			.collect(),
 		event: Some(base_event),
-		events_after,
+		events_after: events_after
+			.iter()
+			.map(|(_, pdu)| pdu.to_room_event())
+			.collect(),
 		state,
 	})
 }
