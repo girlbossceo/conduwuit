@@ -2,7 +2,7 @@
 
 use futures::{
 	future::{ready, Ready},
-	stream::{Any, Filter, FilterMap, Fold, ForEach, SkipWhile, Stream, StreamExt, TakeWhile},
+	stream::{Any, Filter, FilterMap, Fold, ForEach, Scan, SkipWhile, Stream, StreamExt, TakeWhile},
 };
 
 /// Synchronous combinators to augment futures::StreamExt. Most Stream
@@ -11,98 +11,130 @@ use futures::{
 /// convenience to reduce boilerplate by de-cluttering non-async predicates.
 ///
 /// This interface is not necessarily complete; feel free to add as-needed.
-pub trait ReadyExt<Item, S>
+pub trait ReadyExt<Item>
 where
-	S: Stream<Item = Item> + Send + ?Sized,
-	Self: Stream + Send + Sized,
+	Self: Stream<Item = Item> + Send + Sized,
 {
-	fn ready_any<F>(self, f: F) -> Any<Self, Ready<bool>, impl FnMut(S::Item) -> Ready<bool>>
+	fn ready_any<F>(self, f: F) -> Any<Self, Ready<bool>, impl FnMut(Item) -> Ready<bool>>
 	where
-		F: Fn(S::Item) -> bool;
+		F: Fn(Item) -> bool;
 
-	fn ready_filter<'a, F>(self, f: F) -> Filter<Self, Ready<bool>, impl FnMut(&S::Item) -> Ready<bool> + 'a>
+	fn ready_filter<'a, F>(self, f: F) -> Filter<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
-		F: Fn(&S::Item) -> bool + 'a;
+		F: Fn(&Item) -> bool + 'a;
 
-	fn ready_filter_map<F, U>(self, f: F) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(S::Item) -> Ready<Option<U>>>
+	fn ready_filter_map<F, U>(self, f: F) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
 	where
-		F: Fn(S::Item) -> Option<U>;
+		F: Fn(Item) -> Option<U>;
 
-	fn ready_fold<T, F>(self, init: T, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, S::Item) -> Ready<T>>
+	fn ready_fold<T, F>(self, init: T, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
 	where
-		F: Fn(T, S::Item) -> T;
+		F: Fn(T, Item) -> T;
 
-	fn ready_for_each<F>(self, f: F) -> ForEach<Self, Ready<()>, impl FnMut(S::Item) -> Ready<()>>
+	fn ready_for_each<F>(self, f: F) -> ForEach<Self, Ready<()>, impl FnMut(Item) -> Ready<()>>
 	where
-		F: FnMut(S::Item);
+		F: FnMut(Item);
 
-	fn ready_take_while<'a, F>(self, f: F) -> TakeWhile<Self, Ready<bool>, impl FnMut(&S::Item) -> Ready<bool> + 'a>
+	fn ready_take_while<'a, F>(self, f: F) -> TakeWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
-		F: Fn(&S::Item) -> bool + 'a;
+		F: Fn(&Item) -> bool + 'a;
 
-	fn ready_skip_while<'a, F>(self, f: F) -> SkipWhile<Self, Ready<bool>, impl FnMut(&S::Item) -> Ready<bool> + 'a>
+	fn ready_scan<B, T, F>(
+		self, init: T, f: F,
+	) -> Scan<Self, T, Ready<Option<B>>, impl FnMut(&mut T, Item) -> Ready<Option<B>>>
 	where
-		F: Fn(&S::Item) -> bool + 'a;
+		F: Fn(&mut T, Item) -> Option<B>;
+
+	fn ready_scan_each<T, F>(
+		self, init: T, f: F,
+	) -> Scan<Self, T, Ready<Option<Item>>, impl FnMut(&mut T, Item) -> Ready<Option<Item>>>
+	where
+		F: Fn(&mut T, &Item);
+
+	fn ready_skip_while<'a, F>(self, f: F) -> SkipWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	where
+		F: Fn(&Item) -> bool + 'a;
 }
 
-impl<Item, S> ReadyExt<Item, S> for S
+impl<Item, S> ReadyExt<Item> for S
 where
-	S: Stream<Item = Item> + Send + ?Sized,
-	Self: Stream + Send + Sized,
+	S: Stream<Item = Item> + Send + Sized,
 {
 	#[inline]
-	fn ready_any<F>(self, f: F) -> Any<Self, Ready<bool>, impl FnMut(S::Item) -> Ready<bool>>
+	fn ready_any<F>(self, f: F) -> Any<Self, Ready<bool>, impl FnMut(Item) -> Ready<bool>>
 	where
-		F: Fn(S::Item) -> bool,
+		F: Fn(Item) -> bool,
 	{
 		self.any(move |t| ready(f(t)))
 	}
 
 	#[inline]
-	fn ready_filter<'a, F>(self, f: F) -> Filter<Self, Ready<bool>, impl FnMut(&S::Item) -> Ready<bool> + 'a>
+	fn ready_filter<'a, F>(self, f: F) -> Filter<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
-		F: Fn(&S::Item) -> bool + 'a,
+		F: Fn(&Item) -> bool + 'a,
 	{
 		self.filter(move |t| ready(f(t)))
 	}
 
 	#[inline]
-	fn ready_filter_map<F, U>(self, f: F) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(S::Item) -> Ready<Option<U>>>
+	fn ready_filter_map<F, U>(self, f: F) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
 	where
-		F: Fn(S::Item) -> Option<U>,
+		F: Fn(Item) -> Option<U>,
 	{
 		self.filter_map(move |t| ready(f(t)))
 	}
 
 	#[inline]
-	fn ready_fold<T, F>(self, init: T, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, S::Item) -> Ready<T>>
+	fn ready_fold<T, F>(self, init: T, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
 	where
-		F: Fn(T, S::Item) -> T,
+		F: Fn(T, Item) -> T,
 	{
 		self.fold(init, move |a, t| ready(f(a, t)))
 	}
 
 	#[inline]
 	#[allow(clippy::unit_arg)]
-	fn ready_for_each<F>(self, mut f: F) -> ForEach<Self, Ready<()>, impl FnMut(S::Item) -> Ready<()>>
+	fn ready_for_each<F>(self, mut f: F) -> ForEach<Self, Ready<()>, impl FnMut(Item) -> Ready<()>>
 	where
-		F: FnMut(S::Item),
+		F: FnMut(Item),
 	{
 		self.for_each(move |t| ready(f(t)))
 	}
 
 	#[inline]
-	fn ready_take_while<'a, F>(self, f: F) -> TakeWhile<Self, Ready<bool>, impl FnMut(&S::Item) -> Ready<bool> + 'a>
+	fn ready_take_while<'a, F>(self, f: F) -> TakeWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
-		F: Fn(&S::Item) -> bool + 'a,
+		F: Fn(&Item) -> bool + 'a,
 	{
 		self.take_while(move |t| ready(f(t)))
 	}
 
 	#[inline]
-	fn ready_skip_while<'a, F>(self, f: F) -> SkipWhile<Self, Ready<bool>, impl FnMut(&S::Item) -> Ready<bool> + 'a>
+	fn ready_scan<B, T, F>(
+		self, init: T, f: F,
+	) -> Scan<Self, T, Ready<Option<B>>, impl FnMut(&mut T, Item) -> Ready<Option<B>>>
 	where
-		F: Fn(&S::Item) -> bool + 'a,
+		F: Fn(&mut T, Item) -> Option<B>,
+	{
+		self.scan(init, move |s, t| ready(f(s, t)))
+	}
+
+	fn ready_scan_each<T, F>(
+		self, init: T, f: F,
+	) -> Scan<Self, T, Ready<Option<Item>>, impl FnMut(&mut T, Item) -> Ready<Option<Item>>>
+	where
+		F: Fn(&mut T, &Item),
+	{
+		self.ready_scan(init, move |s, t| {
+			f(s, &t);
+			Some(t)
+		})
+	}
+
+	#[inline]
+	fn ready_skip_while<'a, F>(self, f: F) -> SkipWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	where
+		F: Fn(&Item) -> bool + 'a,
 	{
 		self.skip_while(move |t| ready(f(t)))
 	}

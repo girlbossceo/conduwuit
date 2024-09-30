@@ -4,7 +4,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use conduit::{
 	err,
-	utils::{stream::TryIgnore, ReadyExt},
+	utils::{stream::TryIgnore, ReadyExt, StreamTools},
 	warn, Result,
 };
 use data::Data;
@@ -495,11 +495,13 @@ impl Service {
 
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn servers_invite_via<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &ServerName> + Send + 'a {
+		type KeyVal<'a> = (Ignore, Vec<&'a ServerName>);
+
 		self.db
 			.roomid_inviteviaservers
 			.stream_prefix_raw(room_id)
 			.ignore_err()
-			.map(|(_, servers): (Ignore, Vec<&ServerName>)| &**(servers.last().expect("at least one servername")))
+			.map(|(_, servers): KeyVal<'_>| *servers.last().expect("at least one server"))
 	}
 
 	/// Gets up to three servers that are likely to be in the room in the
@@ -525,16 +527,14 @@ impl Service {
 
 		let mut servers: Vec<OwnedServerName> = self
 			.room_members(room_id)
-			.collect::<Vec<_>>()
-			.await
-			.iter()
 			.counts_by(|user| user.server_name().to_owned())
-			.iter()
+			.await
+			.into_iter()
 			.sorted_by_key(|(_, users)| *users)
-			.map(|(server, _)| server.to_owned())
+			.map(|(server, _)| server)
 			.rev()
 			.take(3)
-			.collect_vec();
+			.collect();
 
 		if let Some(server) = most_powerful_user_server {
 			servers.insert(0, server);
