@@ -34,8 +34,8 @@ use ruma::{
 	events::{
 		presence::PresenceEvent,
 		room::member::{MembershipState, RoomMemberEventContent},
-		AnyRawAccountDataEvent, StateEventType, TimelineEventType,
-		TimelineEventType::*,
+		AnyRawAccountDataEvent, StateEventType,
+		TimelineEventType::{self, *},
 	},
 	serde::Raw,
 	state_res::Event,
@@ -50,14 +50,8 @@ use crate::{
 };
 
 const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
-const DEFAULT_BUMP_TYPES: &[TimelineEventType] = &[
-	TimelineEventType::RoomMessage,
-	TimelineEventType::RoomEncrypted,
-	TimelineEventType::Sticker,
-	TimelineEventType::CallInvite,
-	TimelineEventType::PollStart,
-	TimelineEventType::Beacon,
-];
+const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
+	&[RoomMessage, RoomEncrypted, Sticker, CallInvite, PollStart, Beacon];
 
 macro_rules! extract_variant {
 	($e:expr, $variant:path) => {
@@ -376,7 +370,7 @@ async fn handle_left_room(
 			origin_server_ts: utils::millis_since_unix_epoch()
 				.try_into()
 				.expect("Timestamp is valid js_int value"),
-			kind: TimelineEventType::RoomMember,
+			kind: RoomMember,
 			content: serde_json::from_str(r#"{"membership":"leave"}"#).expect("this is valid JSON"),
 			state_key: Some(sender_user.to_string()),
 			unsigned: None,
@@ -639,7 +633,7 @@ async fn load_joined_room(
 				.timeline
 				.all_pdus(sender_user, room_id)
 				.await?
-				.ready_filter(|(_, pdu)| pdu.kind == TimelineEventType::RoomMember)
+				.ready_filter(|(_, pdu)| pdu.kind == RoomMember)
 				.filter_map(|(_, pdu)| async move {
 					let Ok(content) = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()) else {
 						return None;
@@ -827,11 +821,11 @@ async fn load_joined_room(
 
 			let send_member_count = delta_state_events
 				.iter()
-				.any(|event| event.kind == TimelineEventType::RoomMember);
+				.any(|event| event.kind == RoomMember);
 
 			if encrypted_room {
 				for state_event in &delta_state_events {
-					if state_event.kind != TimelineEventType::RoomMember {
+					if state_event.kind != RoomMember {
 						continue;
 					}
 
@@ -895,7 +889,7 @@ async fn load_joined_room(
 
 			// Mark all member events we're returning as lazy-loaded
 			for pdu in &state_events {
-				if pdu.kind == TimelineEventType::RoomMember {
+				if pdu.kind == RoomMember {
 					match UserId::parse(
 						pdu.state_key
 							.as_ref()
@@ -1357,7 +1351,7 @@ pub(crate) async fn sync_events_v4_route(
 								error!("Pdu in state not found: {id}");
 								continue;
 							};
-							if pdu.kind == TimelineEventType::RoomMember {
+							if pdu.kind == RoomMember {
 								if let Some(state_key) = &pdu.state_key {
 									let user_id = UserId::parse(state_key.clone())
 										.map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
