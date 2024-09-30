@@ -1,7 +1,9 @@
+pub mod bool;
 pub mod bytes;
 pub mod content_disposition;
 pub mod debug;
 pub mod defer;
+pub mod future;
 pub mod hash;
 pub mod html;
 pub mod json;
@@ -19,15 +21,17 @@ pub use ::conduit_macros::implement;
 pub use ::ctor::{ctor, dtor};
 
 pub use self::{
+	bool::BoolExt,
 	bytes::{increment, u64_from_bytes, u64_from_u8, u64_from_u8x8},
 	debug::slice_truncated as debug_slice_truncated,
+	future::TryExtExt as TryFutureExtExt,
 	hash::calculate_hash,
 	html::Escape as HtmlEscape,
 	json::{deserialize_from_str, to_canonical_object},
 	math::clamp,
 	mutex_map::{Guard as MutexMapGuard, MutexMap},
 	rand::string as random_string,
-	stream::{IterStream, ReadyExt, TryReadyExt},
+	stream::{IterStream, ReadyExt, Tools as StreamTools, TryReadyExt},
 	string::{str_from_bytes, string_from_bytes},
 	sys::available_parallelism,
 	time::now_millis as millis_since_unix_epoch,
