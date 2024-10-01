@@ -42,14 +42,12 @@ async fn list_joined_members(&self, room_id: Box<RoomId>, local_only: bool) -> R
 		.state_cache
 		.room_members(&room_id)
 		.ready_filter(|user_id| {
-			if local_only {
-				self.services.globals.user_is_local(user_id)
-			} else {
-				true
-			}
+			local_only
+				.then(|| self.services.globals.user_is_local(user_id))
+				.unwrap_or(true)
 		})
+		.map(ToOwned::to_owned)
 		.filter_map(|user_id| async move {
-			let user_id = user_id.to_owned();
 			Some((
 				self.services
 					.users

@@ -77,14 +77,14 @@ pub(crate) async fn search_events_route(
 				.user_can_see_state_events(sender_user, room_id)
 				.await
 			{
-				let room_state = services
+				let room_state: Vec<_> = services
 					.rooms
 					.state_accessor
 					.room_state_full(room_id)
 					.await?
 					.values()
 					.map(|pdu| pdu.to_state_event())
-					.collect::<Vec<_>>();
+					.collect();
 
 				debug!("Room state: {:?}", room_state);
 

@@ -7,13 +7,14 @@ use std::{
 use axum::extract::State;
 use conduit::{
 	debug, err, error, is_equal_to,
+	result::IntoIsOk,
 	utils::{
 		math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
-		IterStream, ReadyExt,
+		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 	},
 	warn, PduCount,
 };
-use futures::{pin_mut, StreamExt};
+use futures::{pin_mut, FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -172,12 +173,12 @@ pub(crate) async fn sync_events_route(
 		process_presence_updates(&services, &mut presence_updates, since, &sender_user).await?;
 	}
 
-	let all_joined_rooms = services
+	let all_joined_rooms: Vec<_> = services
 		.rooms
 		.state_cache
 		.rooms_joined(&sender_user)
 		.map(ToOwned::to_owned)
-		.collect::<Vec<_>>()
+		.collect()
 		.await;
 
 	// Coalesce database writes for the remainder of this scope.
@@ -869,15 +870,13 @@ async fn load_joined_room(
 						.rooms
 						.state_cache
 						.room_members(room_id)
-						.ready_filter(|user_id| {
-							// Don't send key updates from the sender to the sender
-							sender_user != *user_id
-						})
-						.filter_map(|user_id| async move {
-							// Only send keys if the sender doesn't share an encrypted room with the target
-							// already
-							(!share_encrypted_room(services, sender_user, user_id, Some(room_id)).await)
-								.then_some(user_id.to_owned())
+						// Don't send key updates from the sender to the sender
+						.ready_filter(|user_id| sender_user != *user_id)
+						// Only send keys if the sender doesn't share an encrypted room with the target
+						// already
+						.filter_map(|user_id| {
+							share_encrypted_room(services, sender_user, user_id, Some(room_id))
+								.map(|res| res.or_some(user_id.to_owned()))
 						})
 						.collect::<Vec<_>>()
 						.await,
@@ -1117,13 +1116,12 @@ async fn share_encrypted_room(
 		.user
 		.get_shared_rooms(sender_user, user_id)
 		.ready_filter(|&room_id| Some(room_id) != ignore_room)
-		.any(|other_room_id| async move {
+		.any(|other_room_id| {
 			services
 				.rooms
 				.state_accessor
 				.room_state_get(other_room_id, &StateEventType::RoomEncryption, "")
-				.await
-				.is_ok()
+				.map(Result::into_is_ok)
 		})
 		.await
 }
@@ -1178,20 +1176,20 @@ pub(crate) async fn sync_events_v4_route(
 			.sync
 			.update_sync_request_with_cache(sender_user.clone(), sender_device.clone(), &mut body);
 
-	let all_joined_rooms = services
+	let all_joined_rooms: Vec<_> = services
 		.rooms
 		.state_cache
 		.rooms_joined(&sender_user)
 		.map(ToOwned::to_owned)
-		.collect::<Vec<_>>()
+		.collect()
 		.await;
 
-	let all_invited_rooms = services
+	let all_invited_rooms: Vec<_> = services
 		.rooms
 		.state_cache
 		.rooms_invited(&sender_user)
 		.map(|r| r.0)
-		.collect::<Vec<_>>()
+		.collect()
 		.await;
 
 	let all_rooms = all_joined_rooms
@@ -1364,15 +1362,13 @@ pub(crate) async fn sync_events_v4_route(
 								.rooms
 								.state_cache
 								.room_members(room_id)
-								.ready_filter(|user_id| {
-									// Don't send key updates from the sender to the sender
-									sender_user != user_id
-								})
-								.filter_map(|user_id| async move {
-									// Only send keys if the sender doesn't share an encrypted room with the target
-									// already
-									(!share_encrypted_room(&services, sender_user, user_id, Some(room_id)).await)
-										.then_some(user_id.to_owned())
+								// Don't send key updates from the sender to the sender
+								.ready_filter(|user_id| sender_user != user_id)
+								// Only send keys if the sender doesn't share an encrypted room with the target
+								// already
+								.filter_map(|user_id| {
+									share_encrypted_room(&services, sender_user, user_id, Some(room_id))
+										.map(|res| res.or_some(user_id.to_owned()))
 								})
 								.collect::<Vec<_>>()
 								.await,
@@ -1650,26 +1646,25 @@ pub(crate) async fn sync_events_v4_route(
 			.await;
 
 		// Heroes
-		let heroes = services
+		let heroes: Vec<_> = services
 			.rooms
 			.state_cache
 			.room_members(room_id)
 			.ready_filter(|member| member != &sender_user)
-			.filter_map(|member| async move {
+			.filter_map(|user_id| {
 				services
 					.rooms
 					.state_accessor
-					.get_member(room_id, member)
-					.await
-					.map(|memberevent| SlidingSyncRoomHero {
-						user_id: member.to_owned(),
+					.get_member(room_id, user_id)
+					.map_ok(|memberevent| SlidingSyncRoomHero {
+						user_id: user_id.into(),
 						name: memberevent.displayname,
 						avatar: memberevent.avatar_url,
 					})
 					.ok()
 			})
 			.take(5)
-			.collect::<Vec<_>>()
+			.collect()
 			.await;
 
 		let name = match heroes.len().cmp(&(1_usize)) {

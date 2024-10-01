@@ -9,7 +9,7 @@ use itertools::Itertools;
 use ruma::{
 	events::{push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType},
 	push::Ruleset,
-	UserId,
+	OwnedUserId, UserId,
 };
 
 use crate::{media, Services};
@@ -374,11 +374,12 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 	for room_id in &room_ids {
 		debug_info!("Fixing room {room_id}");
 
-		let users_in_room = services
+		let users_in_room: Vec<OwnedUserId> = services
 			.rooms
 			.state_cache
 			.room_members(room_id)
-			.collect::<Vec<_>>()
+			.map(ToOwned::to_owned)
+			.collect()
 			.await;
 
 		let joined_members = users_in_room
@@ -407,12 +408,12 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 			.collect::<Vec<_>>()
 			.await;
 
-		for user_id in joined_members {
+		for user_id in &joined_members {
 			debug_info!("User is joined, marking as joined");
 			services.rooms.state_cache.mark_as_joined(user_id, room_id);
 		}
 
-		for user_id in non_joined_members {
+		for user_id in &non_joined_members {
 			debug_info!("User is left or banned, marking as left");
 			services.rooms.state_cache.mark_as_left(user_id, room_id);
 		}

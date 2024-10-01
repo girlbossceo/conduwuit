@@ -408,7 +408,6 @@ impl Service {
 				.get(None, user, GlobalAccountDataEventType::PushRules.to_string().into())
 				.await
 				.and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).map_err(Into::into))
-				.map_err(|e| err!(Database(warn!(?user, ?e, "Invalid push rules event in db for user"))))
 				.map_or_else(|_| Ruleset::server_default(user), |ev: PushRulesEvent| ev.content.global);
 
 			let mut highlight = false;

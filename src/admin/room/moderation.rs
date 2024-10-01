@@ -555,13 +555,13 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 
 #[admin_command]
 async fn list_banned_rooms(&self, no_details: bool) -> Result<RoomMessageEventContent> {
-	let room_ids = self
+	let room_ids: Vec<OwnedRoomId> = self
 		.services
 		.rooms
 		.metadata
 		.list_banned_rooms()
 		.map(Into::into)
-		.collect::<Vec<OwnedRoomId>>()
+		.collect()
 		.await;
 
 	if room_ids.is_empty() {

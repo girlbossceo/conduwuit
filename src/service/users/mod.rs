@@ -623,7 +623,9 @@ impl Service {
 
 	pub async fn mark_device_key_update(&self, user_id: &UserId) {
 		let count = self.services.globals.next_count().unwrap().to_be_bytes();
+
 		let rooms_joined = self.services.state_cache.rooms_joined(user_id);
+
 		pin_mut!(rooms_joined);
 		while let Some(room_id) = rooms_joined.next().await {
 			// Don't send key updates to unencrypted rooms

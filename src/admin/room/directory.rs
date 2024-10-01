@@ -47,22 +47,22 @@ pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>
 		} => {
 			// TODO: i know there's a way to do this with clap, but i can't seem to find it
 			let page = page.unwrap_or(1);
-			let mut rooms = services
+			let mut rooms: Vec<_> = services
 				.rooms
 				.directory
 				.public_rooms()
 				.then(|room_id| get_room_info(services, room_id))
-				.collect::<Vec<_>>()
+				.collect()
 				.await;
 
 			rooms.sort_by_key(|r| r.1);
 			rooms.reverse();
 
-			let rooms = rooms
+			let rooms: Vec<_> = rooms
 				.into_iter()
 				.skip(page.saturating_sub(1).saturating_mul(PAGE_SIZE))
 				.take(PAGE_SIZE)
-				.collect::<Vec<_>>();
+				.collect();
 
 			if rooms.is_empty() {
 				return Ok(RoomMessageEventContent::text_plain("No more rooms."));

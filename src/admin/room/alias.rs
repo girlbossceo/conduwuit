@@ -119,12 +119,12 @@ pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) ->
 			room_id,
 		} => {
 			if let Some(room_id) = room_id {
-				let aliases = services
+				let aliases: Vec<OwnedRoomAliasId> = services
 					.rooms
 					.alias
 					.local_aliases_for_room(&room_id)
 					.map(Into::into)
-					.collect::<Vec<OwnedRoomAliasId>>()
+					.collect()
 					.await;
 
 				let plain_list = aliases.iter().fold(String::new(), |mut output, alias| {

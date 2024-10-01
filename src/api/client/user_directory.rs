@@ -1,4 +1,5 @@
 use axum::extract::State;
+use conduit::utils::TryFutureExtExt;
 use futures::{pin_mut, StreamExt};
 use ruma::{
 	api::client::user_directory::search_users,
@@ -56,16 +57,12 @@ pub(crate) async fn search_users_route(
 			.rooms
 			.state_cache
 			.rooms_joined(&user.user_id)
-			.any(|room| async move {
+			.any(|room| {
 				services
 					.rooms
 					.state_accessor
-					.room_state_get(room, &StateEventType::RoomJoinRules, "")
-					.await
-					.map_or(false, |event| {
-						serde_json::from_str(event.content.get())
-							.map_or(false, |r: RoomJoinRulesEventContent| r.join_rule == JoinRule::Public)
-					})
+					.room_state_get_content::<RoomJoinRulesEventContent>(room, &StateEventType::RoomJoinRules, "")
+					.map_ok_or(false, |content| content.join_rule == JoinRule::Public)
 			})
 			.await;
 

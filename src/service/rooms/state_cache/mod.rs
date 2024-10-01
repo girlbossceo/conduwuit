@@ -648,35 +648,19 @@ impl Service {
 		self.db.userroomid_leftstate.remove(&userroom_id);
 		self.db.roomuserid_leftcount.remove(&roomuser_id);
 
-		if let Some(servers) = invite_via {
-			let mut prev_servers = self
-				.servers_invite_via(room_id)
-				.map(ToOwned::to_owned)
-				.collect::<Vec<_>>()
-				.await;
-			#[allow(clippy::redundant_clone)] // this is a necessary clone?
-			prev_servers.append(servers.clone().as_mut());
-			let servers = prev_servers.iter().rev().unique().rev().collect_vec();
-
-			let servers = servers
-				.iter()
-				.map(|server| server.as_bytes())
-				.collect_vec()
-				.join(&[0xFF][..]);
-
-			self.db
-				.roomid_inviteviaservers
-				.insert(room_id.as_bytes(), &servers);
+		if let Some(servers) = invite_via.as_deref() {
+			self.add_servers_invite_via(room_id, servers).await;
 		}
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self, servers), level = "debug")]
 	pub async fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) {
-		let mut prev_servers = self
+		let mut prev_servers: Vec<_> = self
 			.servers_invite_via(room_id)
 			.map(ToOwned::to_owned)
-			.collect::<Vec<_>>()
+			.collect()
 			.await;
+
 		prev_servers.extend(servers.to_owned());
 		prev_servers.sort_unstable();
 		prev_servers.dedup();

@@ -161,12 +161,12 @@ pub(crate) async fn join_room_by_id_route(
 	.await?;
 
 	// There is no body.server_name for /roomId/join
-	let mut servers = services
+	let mut servers: Vec<_> = services
 		.rooms
 		.state_cache
 		.servers_invite_via(&body.room_id)
 		.map(ToOwned::to_owned)
-		.collect::<Vec<_>>()
+		.collect()
 		.await;
 
 	servers.extend(
@@ -635,12 +635,13 @@ pub(crate) async fn joined_members_route(
 		.rooms
 		.state_cache
 		.room_members(&body.room_id)
+		.map(ToOwned::to_owned)
 		.then(|user| async move {
 			(
-				user.to_owned(),
+				user.clone(),
 				RoomMember {
-					display_name: services.users.displayname(user).await.ok(),
-					avatar_url: services.users.avatar_url(user).await.ok(),
+					display_name: services.users.displayname(&user).await.ok(),
+					avatar_url: services.users.avatar_url(&user).await.ok(),
 				},
 			)
 		})
@@ -1569,7 +1570,7 @@ pub(crate) async fn invite_helper(
 // Make a user leave all their joined rooms, forgets all rooms, and ignores
 // errors
 pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
-	let all_rooms = services
+	let all_rooms: Vec<_> = services
 		.rooms
 		.state_cache
 		.rooms_joined(user_id)
@@ -1581,7 +1582,7 @@ pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
 				.rooms_invited(user_id)
 				.map(|(r, _)| r),
 		)
-		.collect::<Vec<_>>()
+		.collect()
 		.await;
 
 	for room_id in all_rooms {

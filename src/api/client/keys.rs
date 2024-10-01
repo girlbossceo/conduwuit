@@ -244,7 +244,7 @@ pub(crate) async fn get_key_changes_route(
 		device_list_updates.extend(
 			services
 				.users
-				.keys_changed(room_id.as_ref(), from, Some(to))
+				.keys_changed(room_id.as_str(), from, Some(to))
 				.map(ToOwned::to_owned)
 				.collect::<Vec<_>>()
 				.await,
