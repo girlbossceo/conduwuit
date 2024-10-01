@@ -315,4 +315,7 @@ impl Service {
 
 	#[inline]
 	pub fn server_is_ours(&self, server_name: &ServerName) -> bool { server_name == self.config.server_name }
+
+	#[inline]
+	pub fn is_read_only(&self) -> bool { self.db.db.is_read_only() }
 }

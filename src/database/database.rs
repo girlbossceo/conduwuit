@@ -38,6 +38,14 @@ impl Database {
 
 	#[inline]
 	pub fn iter_maps(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ { self.map.iter() }
+
+	#[inline]
+	#[must_use]
+	pub fn is_read_only(&self) -> bool { self.db.secondary || self.db.read_only }
+
+	#[inline]
+	#[must_use]
+	pub fn is_secondary(&self) -> bool { self.db.secondary }
 }
 
 impl Index<&str> for Database {

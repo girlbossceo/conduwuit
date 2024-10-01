@@ -233,6 +233,8 @@ pub struct Config {
 	#[serde(default)]
 	pub rocksdb_read_only: bool,
 	#[serde(default)]
+	pub rocksdb_secondary: bool,
+	#[serde(default)]
 	pub rocksdb_compaction_prio_idle: bool,
 	#[serde(default = "true_fn")]
 	pub rocksdb_compaction_ioprio_idle: bool,
@@ -736,6 +738,7 @@ impl fmt::Display for Config {
 		line("RocksDB Recovery Mode", &self.rocksdb_recovery_mode.to_string());
 		line("RocksDB Repair Mode", &self.rocksdb_repair.to_string());
 		line("RocksDB Read-only Mode", &self.rocksdb_read_only.to_string());
+		line("RocksDB Secondary Mode", &self.rocksdb_secondary.to_string());
 		line(
 			"RocksDB Compaction Idle Priority",
 			&self.rocksdb_compaction_prio_idle.to_string(),
