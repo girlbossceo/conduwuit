@@ -3,10 +3,6 @@ use serde::Deserialize;
 
 use crate::de;
 
-pub(crate) type OwnedKeyVal = (Vec<u8>, Vec<u8>);
-pub(crate) type OwnedKey = Vec<u8>;
-pub(crate) type OwnedVal = Vec<u8>;
-
 pub type KeyVal<'a, K = &'a Slice, V = &'a Slice> = (Key<'a, K>, Val<'a, V>);
 pub type Key<'a, T = &'a Slice> = T;
 pub type Val<'a, T = &'a Slice> = T;
@@ -71,10 +67,6 @@ where
 {
 	de::from_slice::<V>(val)
 }
-
-#[inline]
-#[must_use]
-pub fn to_owned(kv: KeyVal<'_>) -> OwnedKeyVal { (kv.0.to_owned(), kv.1.to_owned()) }
 
 #[inline]
 pub fn key<K, V>(kv: KeyVal<'_, K, V>) -> Key<'_, K> { kv.0 }
