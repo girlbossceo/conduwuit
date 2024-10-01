@@ -791,17 +791,6 @@ impl Service {
 	}
 
 	pub async fn update_device_metadata(&self, user_id: &UserId, device_id: &DeviceId, device: &Device) -> Result<()> {
-		// Only existing devices should be able to call this, but we shouldn't assert
-		// either...
-		let key = (user_id, device_id);
-		if self.db.userdeviceid_metadata.qry(&key).await.is_err() {
-			return Err!(Database(error!(
-				?user_id,
-				?device_id,
-				"Called update_device_metadata for a non-existent user and/or device"
-			)));
-		}
-
 		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		let mut userdeviceid = user_id.as_bytes().to_vec();
