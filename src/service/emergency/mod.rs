@@ -32,6 +32,10 @@ impl crate::Service for Service {
 	}
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
+		if self.services.globals.is_read_only() {
+			return Ok(());
+		}
+
 		self.set_emergency_access()
 			.await
 			.inspect_err(|e| error!("Could not set the configured emergency password for the conduit user: {e}"))?;
