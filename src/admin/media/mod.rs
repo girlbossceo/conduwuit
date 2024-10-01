@@ -10,7 +10,7 @@ use crate::admin_command_dispatch;
 #[derive(Debug, Subcommand)]
 pub(super) enum MediaCommand {
 	/// - Deletes a single media file from our database and on the filesystem
-	///   via a single MXC URL
+	///   via a single MXC URL or event ID (not redacted)
 	Delete {
 		/// The MXC URL to delete
 		#[arg(long)]
@@ -23,37 +23,44 @@ pub(super) enum MediaCommand {
 	},
 
 	/// - Deletes a codeblock list of MXC URLs from our database and on the
-	///   filesystem
+	///   filesystem. This will always ignore errors.
 	DeleteList,
 
-	/// - Deletes all remote media in the last X amount of time using filesystem
-	///   metadata first created at date.
+	/// - Deletes all remote media in the last/after "X" time using filesystem
+	///   metadata first created at date, or fallback to last modified date.
+	///   This will always ignore errors by default.
+	///
+	/// Synapse
 	DeletePastRemoteMedia {
-		/// - The duration (at or after), e.g. "5m" to delete all media in the
-		///   past 5 minutes
+		/// - The duration (at or after/before), e.g. "5m" to delete all media
+		///   in the past or up to 5 minutes
 		duration: String,
 
-		/// Continues deleting remote media if an undeletable object is found
-		#[arg(short, long)]
-		force: bool,
+		#[arg(long, short)]
+		before: bool,
+
+		#[arg(long, short)]
+		after: bool,
+
+		/// Long argument to delete local media
+		#[arg(long)]
+		yes_i_want_to_delete_local_media: bool,
 	},
 
-	/// - Deletes all the local media from a local user on our server
+	/// - Deletes all the local media from a local user on our server. This will
+	///   always ignore errors by default.
 	DeleteAllFromUser {
 		username: String,
-
-		/// Continues deleting media if an undeletable object is found
-		#[arg(short, long)]
-		force: bool,
 	},
 
-	/// - Deletes all remote media from the specified remote server
+	/// - Deletes all remote media from the specified remote server. This will
+	///   always ignore errors by default.
 	DeleteAllFromServer {
 		server_name: Box<ServerName>,
 
-		/// Continues deleting media if an undeletable object is found
-		#[arg(short, long)]
-		force: bool,
+		/// Long argument to delete local media
+		#[arg(long)]
+		yes_i_want_to_delete_local_media: bool,
 	},
 
 	GetFileInfo {
@@ -82,10 +89,10 @@ pub(super) enum MediaCommand {
 		#[arg(short, long, default_value("10000"))]
 		timeout: u32,
 
-		#[arg(short, long)]
+		#[arg(short, long, default_value("800"))]
 		width: u32,
 
-		#[arg(short, long)]
+		#[arg(short, long, default_value("800"))]
 		height: u32,
 	},
 }
