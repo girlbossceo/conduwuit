@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduit::{debug, debug_error, trace, utils::IterStream, validated, warn, Err, Result};
-use futures::{FutureExt, Stream, StreamExt};
+use futures::Stream;
 use ruma::{EventId, RoomId};
 
 use self::data::Data;
@@ -40,15 +40,27 @@ impl Service {
 	pub async fn event_ids_iter(
 		&self, room_id: &RoomId, starting_events: &[&EventId],
 	) -> Result<impl Stream<Item = Arc<EventId>> + Send + '_> {
-		let chain = self.get_auth_chain(room_id, starting_events).await?;
-		let iter = chain.into_iter().stream().filter_map(|sid| {
-			self.services
-				.short
-				.get_eventid_from_short(sid)
-				.map(Result::ok)
-		});
+		let stream = self
+			.get_event_ids(room_id, starting_events)
+			.await?
+			.into_iter()
+			.stream();
 
-		Ok(iter)
+		Ok(stream)
+	}
+
+	pub async fn get_event_ids(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<Arc<EventId>>> {
+		let chain = self.get_auth_chain(room_id, starting_events).await?;
+		let event_ids = self
+			.services
+			.short
+			.multi_get_eventid_from_short(&chain)
+			.await
+			.into_iter()
+			.filter_map(Result::ok)
+			.collect();
+
+		Ok(event_ids)
 	}
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
