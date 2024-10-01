@@ -1,10 +1,14 @@
 use axum::extract::State;
+use axum_client_ip::InsecureClientIp;
 use conduit::{err, Err};
 use futures::StreamExt;
-use ruma::api::client::{
-	device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
-	error::ErrorKind,
-	uiaa::{AuthFlow, AuthType, UiaaInfo},
+use ruma::{
+	api::client::{
+		device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
+		error::ErrorKind,
+		uiaa::{AuthFlow, AuthType, UiaaInfo},
+	},
+	MilliSecondsSinceUnixEpoch,
 };
 
 use super::SESSION_ID_LENGTH;
@@ -51,8 +55,10 @@ pub(crate) async fn get_device_route(
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Updates the metadata on a given device of the sender user.
+#[tracing::instrument(skip_all, fields(%client), name = "update_device")]
 pub(crate) async fn update_device_route(
-	State(services): State<crate::State>, body: Ruma<update_device::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<update_device::v3::Request>,
 ) -> Result<update_device::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -63,6 +69,10 @@ pub(crate) async fn update_device_route(
 		.map_err(|_| err!(Request(NotFound("Device not found."))))?;
 
 	device.display_name.clone_from(&body.display_name);
+	device.last_seen_ip.clone_from(&Some(client.to_string()));
+	device
+		.last_seen_ts
+		.clone_from(&Some(MilliSecondsSinceUnixEpoch::now()));
 
 	services
 		.users
