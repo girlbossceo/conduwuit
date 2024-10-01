@@ -797,13 +797,13 @@ impl Service {
 		for state in &fork_states {
 			let starting_events: Vec<&EventId> = state.values().map(Borrow::borrow).collect();
 
-			let auth_chain = self
+			let auth_chain: HashSet<Arc<EventId>> = self
 				.services
 				.auth_chain
-				.event_ids_iter(room_id, &starting_events)
+				.get_event_ids(room_id, &starting_events)
 				.await?
-				.collect::<HashSet<Arc<EventId>>>()
-				.await;
+				.into_iter()
+				.collect();
 
 			auth_chain_sets.push(auth_chain);
 		}
@@ -983,13 +983,13 @@ impl Service {
 				starting_events.push(id.borrow());
 			}
 
-			let auth_chain = self
+			let auth_chain: HashSet<Arc<EventId>> = self
 				.services
 				.auth_chain
-				.event_ids_iter(room_id, &starting_events)
+				.get_event_ids(room_id, &starting_events)
 				.await?
-				.collect()
-				.await;
+				.into_iter()
+				.collect();
 
 			auth_chain_sets.push(auth_chain);
 			fork_states.push(state);

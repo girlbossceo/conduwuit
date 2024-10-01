@@ -142,6 +142,23 @@ pub async fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<Even
 }
 
 #[implement(Service)]
+pub async fn multi_get_eventid_from_short(&self, shorteventid: &[u64]) -> Vec<Result<Arc<EventId>>> {
+	const BUFSIZE: usize = size_of::<u64>();
+
+	let keys: Vec<[u8; BUFSIZE]> = shorteventid
+		.iter()
+		.map(|short| short.to_be_bytes())
+		.collect();
+
+	self.db
+		.shorteventid_eventid
+		.get_batch_blocking(keys.iter())
+		.into_iter()
+		.map(Deserialized::deserialized)
+		.collect()
+}
+
+#[implement(Service)]
 pub async fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
 	const BUFSIZE: usize = size_of::<u64>();
 
