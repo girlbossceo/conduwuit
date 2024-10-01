@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{err, implement, utils, Error, Result};
+use conduit::{err, implement, utils, Result};
 use database::{Deserialized, Map};
 use ruma::{events::StateEventType, EventId, RoomId};
 
@@ -69,41 +69,26 @@ pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> u64 {
 
 #[implement(Service)]
 pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Vec<u64> {
-	let mut ret: Vec<u64> = Vec::with_capacity(event_ids.len());
-	let keys = event_ids
-		.iter()
-		.map(|id| id.as_bytes())
-		.collect::<Vec<&[u8]>>();
-
-	for (i, short) in self
-		.db
+	self.db
 		.eventid_shorteventid
-		.get_batch_blocking(keys.iter())
-		.iter()
+		.get_batch_blocking(event_ids.iter())
+		.into_iter()
 		.enumerate()
-	{
-		match short {
-			Some(short) => ret.push(
-				utils::u64_from_bytes(short)
-					.map_err(|_| Error::bad_database("Invalid shorteventid in db."))
-					.unwrap(),
-			),
-			None => {
+		.map(|(i, result)| match result {
+			Ok(ref short) => utils::u64_from_u8(short),
+			Err(_) => {
 				let short = self.services.globals.next_count().unwrap();
 				self.db
 					.eventid_shorteventid
-					.insert(keys[i], &short.to_be_bytes());
+					.insert(event_ids[i], &short.to_be_bytes());
 				self.db
 					.shorteventid_eventid
-					.insert(&short.to_be_bytes(), keys[i]);
+					.insert(&short.to_be_bytes(), event_ids[i]);
 
-				debug_assert!(ret.len() == i, "position of result must match input");
-				ret.push(short);
+				short
 			},
-		}
-	}
-
-	ret
+		})
+		.collect()
 }
 
 #[implement(Service)]
