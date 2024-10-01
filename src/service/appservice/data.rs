@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use conduit::{err, utils::stream::TryIgnore, Result};
-use database::{Database, Deserialized, Map};
+use database::{Database, Map};
 use futures::Stream;
 use ruma::api::appservice::Registration;
 
@@ -40,7 +40,7 @@ impl Data {
 		self.id_appserviceregistrations
 			.get(id)
 			.await
-			.deserialized()
+			.and_then(|ref bytes| serde_yaml::from_slice(bytes).map_err(Into::into))
 			.map_err(|e| err!(Database("Invalid appservice {id:?} registration: {e:?}")))
 	}
 

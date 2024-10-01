@@ -75,6 +75,8 @@ pub enum Error {
 	TracingFilter(#[from] tracing_subscriber::filter::ParseError),
 	#[error("Tracing reload error: {0}")]
 	TracingReload(#[from] tracing_subscriber::reload::Error),
+	#[error(transparent)]
+	Yaml(#[from] serde_yaml::Error),
 
 	// ruma/conduwuit
 	#[error("Arithmetic operation failed: {0}")]
