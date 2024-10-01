@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use conduit::{debug, info, trace, utils::time::parse_timepoint_ago, warn, Result};
+use conduit::{debug, debug_info, debug_warn, error, info, trace, utils::time::parse_timepoint_ago, Result};
 use conduit_service::media::Dim;
 use ruma::{
 	events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, OwnedMxcUri, OwnedServerName, ServerName,
@@ -19,7 +19,7 @@ pub(super) async fn delete(
 	}
 
 	if let Some(mxc) = mxc {
-		debug!("Got MXC URL: {mxc}");
+		trace!("Got MXC URL: {mxc}");
 		self.services
 			.media
 			.delete(&mxc.as_str().try_into()?)
@@ -28,11 +28,12 @@ pub(super) async fn delete(
 		return Ok(RoomMessageEventContent::text_plain(
 			"Deleted the MXC from our database and on our filesystem.",
 		));
-	} else if let Some(event_id) = event_id {
-		debug!("Got event ID to delete media from: {event_id}");
+	}
 
-		let mut mxc_urls = vec![];
-		let mut mxc_deletion_count: usize = 0;
+	if let Some(event_id) = event_id {
+		trace!("Got event ID to delete media from: {event_id}");
+
+		let mut mxc_urls = Vec::with_capacity(4);
 
 		// parsing the PDU for any MXC URLs begins here
 		if let Ok(event_json) = self.services.rooms.timeline.get_pdu_json(&event_id).await {
@@ -124,18 +125,28 @@ pub(super) async fn delete(
 		}
 
 		if mxc_urls.is_empty() {
-			// we shouldn't get here (should have errored earlier) but just in case for
-			// whatever reason we do...
 			info!("Parsed event ID {event_id} but did not contain any MXC URLs.");
 			return Ok(RoomMessageEventContent::text_plain("Parsed event ID but found no MXC URLs."));
 		}
 
+		let mut mxc_deletion_count: usize = 0;
+
 		for mxc_url in mxc_urls {
-			self.services
+			match self
+				.services
 				.media
 				.delete(&mxc_url.as_str().try_into()?)
-				.await?;
-			mxc_deletion_count = mxc_deletion_count.saturating_add(1);
+				.await
+			{
+				Ok(()) => {
+					debug_info!("Successfully deleted {mxc_url} from filesystem and database");
+					mxc_deletion_count = mxc_deletion_count.saturating_add(1);
+				},
+				Err(e) => {
+					debug_warn!("Failed to delete {mxc_url}, ignoring error and skipping: {e}");
+					continue;
+				},
+			}
 		}
 
 		return Ok(RoomMessageEventContent::text_plain(format!(
@@ -158,34 +169,62 @@ pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
 		));
 	}
 
+	let mut failed_parsed_mxcs: usize = 0;
+
 	let mxc_list = self
 		.body
 		.to_vec()
 		.drain(1..self.body.len().checked_sub(1).unwrap())
-		.collect::<Vec<_>>();
+		.filter_map(|mxc_s| {
+			mxc_s
+				.try_into()
+				.inspect_err(|e| {
+					debug_warn!("Failed to parse user-provided MXC URI: {e}");
+
+					failed_parsed_mxcs = failed_parsed_mxcs.saturating_add(1);
+				})
+				.ok()
+		})
+		.collect::<Vec<Mxc<'_>>>();
 
 	let mut mxc_deletion_count: usize = 0;
 
-	for mxc in mxc_list {
-		debug!("Deleting MXC {mxc} in bulk");
-		self.services.media.delete(&mxc.try_into()?).await?;
-		mxc_deletion_count = mxc_deletion_count
-			.checked_add(1)
-			.expect("mxc_deletion_count should not get this high");
+	for mxc in &mxc_list {
+		trace!(%failed_parsed_mxcs, %mxc_deletion_count, "Deleting MXC {mxc} in bulk");
+		match self.services.media.delete(mxc).await {
+			Ok(()) => {
+				debug_info!("Successfully deleted {mxc} from filesystem and database");
+				mxc_deletion_count = mxc_deletion_count.saturating_add(1);
+			},
+			Err(e) => {
+				debug_warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
+				continue;
+			},
+		}
 	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Finished bulk MXC deletion, deleted {mxc_deletion_count} total MXCs from our database and the filesystem.",
+		"Finished bulk MXC deletion, deleted {mxc_deletion_count} total MXCs from our database and the filesystem. \
+		 {failed_parsed_mxcs} MXCs failed to be parsed from the database.",
 	)))
 }
 
 #[admin_command]
-pub(super) async fn delete_past_remote_media(&self, duration: String, force: bool) -> Result<RoomMessageEventContent> {
+pub(super) async fn delete_past_remote_media(
+	&self, duration: String, before: bool, after: bool, yes_i_want_to_delete_local_media: bool,
+) -> Result<RoomMessageEventContent> {
+	if before && after {
+		return Ok(RoomMessageEventContent::text_plain(
+			"Please only pick one argument, --before or --after.",
+		));
+	}
+	assert!(!(before && after), "--before and --after should not be specified together");
+
 	let duration = parse_timepoint_ago(&duration)?;
 	let deleted_count = self
 		.services
 		.media
-		.delete_all_remote_media_at_after_time(duration, force)
+		.delete_all_remote_media_at_after_time(duration, before, after, yes_i_want_to_delete_local_media)
 		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -194,14 +233,10 @@ pub(super) async fn delete_past_remote_media(&self, duration: String, force: boo
 }
 
 #[admin_command]
-pub(super) async fn delete_all_from_user(&self, username: String, force: bool) -> Result<RoomMessageEventContent> {
+pub(super) async fn delete_all_from_user(&self, username: String) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &username)?;
 
-	let deleted_count = self
-		.services
-		.media
-		.delete_from_user(&user_id, force)
-		.await?;
+	let deleted_count = self.services.media.delete_from_user(&user_id).await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Deleted {deleted_count} total files.",
@@ -210,34 +245,36 @@ pub(super) async fn delete_all_from_user(&self, username: String, force: bool) -
 
 #[admin_command]
 pub(super) async fn delete_all_from_server(
-	&self, server_name: Box<ServerName>, force: bool,
+	&self, server_name: Box<ServerName>, yes_i_want_to_delete_local_media: bool,
 ) -> Result<RoomMessageEventContent> {
-	if server_name == self.services.globals.server_name() {
-		return Ok(RoomMessageEventContent::text_plain("This command only works for remote media."));
+	if server_name == self.services.globals.server_name() && !yes_i_want_to_delete_local_media {
+		return Ok(RoomMessageEventContent::text_plain(
+			"This command only works for remote media by default.",
+		));
 	}
 
-	let Ok(all_mxcs) = self.services.media.get_all_mxcs().await else {
+	let Ok(all_mxcs) = self
+		.services
+		.media
+		.get_all_mxcs()
+		.await
+		.inspect_err(|e| error!("Failed to get MXC URIs from our database: {e}"))
+	else {
 		return Ok(RoomMessageEventContent::text_plain("Failed to get MXC URIs from our database"));
 	};
 
 	let mut deleted_count: usize = 0;
 
 	for mxc in all_mxcs {
-		let mxc_server_name = match mxc.server_name() {
-			Ok(server_name) => server_name,
-			Err(e) => {
-				if force {
-					warn!("Failed to parse MXC {mxc} server name from database, ignoring error and skipping: {e}");
-					continue;
-				}
-
-				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Failed to parse MXC {mxc} server name from database: {e}",
-				)));
-			},
+		let Ok(mxc_server_name) = mxc.server_name().inspect_err(|e| {
+			debug_warn!("Failed to parse MXC {mxc} server name from database, ignoring error and skipping: {e}");
+		}) else {
+			continue;
 		};
 
-		if mxc_server_name != server_name || self.services.globals.server_is_ours(mxc_server_name) {
+		if mxc_server_name != server_name
+			|| (self.services.globals.server_is_ours(mxc_server_name) && !yes_i_want_to_delete_local_media)
+		{
 			trace!("skipping MXC URI {mxc}");
 			continue;
 		}
@@ -249,12 +286,8 @@ pub(super) async fn delete_all_from_server(
 				deleted_count = deleted_count.saturating_add(1);
 			},
 			Err(e) => {
-				if force {
-					warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
-					continue;
-				}
-
-				return Ok(RoomMessageEventContent::text_plain(format!("Failed to delete MXC {mxc}: {e}")));
+				debug_warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
+				continue;
 			},
 		}
 	}

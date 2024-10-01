@@ -10,7 +10,7 @@ use std::{path::PathBuf, sync::Arc, time::SystemTime};
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{
-	debug, debug_error, debug_info, err, error, trace,
+	debug, debug_error, debug_info, debug_warn, err, error, trace,
 	utils::{self, MutexMap},
 	warn, Err, Result, Server,
 };
@@ -99,43 +99,46 @@ impl Service {
 	pub async fn delete(&self, mxc: &Mxc<'_>) -> Result<()> {
 		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc).await {
 			for key in keys {
-				trace!(?mxc, ?key, "Deleting from filesystem");
+				trace!(?mxc, "MXC Key: {key:?}");
+				debug_info!(?mxc, "Deleting from filesystem");
+
 				if let Err(e) = self.remove_media_file(&key).await {
-					error!(?mxc, ?key, "Failed to remove media file: {e}");
+					debug_error!(?mxc, "Failed to remove media file: {e}");
 				}
 
-				trace!(?mxc, ?key, "Deleting from database");
+				debug_info!(?mxc, "Deleting from database");
 				self.db.delete_file_mxc(mxc).await;
 			}
 
 			Ok(())
 		} else {
-			Err!(Database(error!(
-				"Failed to find any media keys for MXC {mxc:?} in our database."
-			)))
+			Err!(Database(error!("Failed to find any media keys for MXC {mxc} in our database.")))
 		}
 	}
 
 	/// Deletes all media by the specified user
 	///
 	/// currently, this is only practical for local users
-	pub async fn delete_from_user(&self, user: &UserId, force: bool) -> Result<usize> {
+	pub async fn delete_from_user(&self, user: &UserId) -> Result<usize> {
 		let mxcs = self.db.get_all_user_mxcs(user).await;
 		let mut deletion_count: usize = 0;
 
 		for mxc in mxcs {
-			let mxc: Mxc<'_> = mxc.as_str().try_into()?;
-			debug_info!("Deleting MXC {mxc} by user {user} from database and filesystem");
-			if force {
-				_ = self
-					.delete(&mxc)
-					.await
-					.inspect_err(|e| warn!("Failed to delete {mxc} from user {user}, ignoring error: {e}"));
-			} else {
-				self.delete(&mxc).await?;
-			}
+			let Ok(mxc) = mxc.as_str().try_into().inspect_err(|e| {
+				debug_error!(?mxc, "Failed to parse MXC URI from database: {e}");
+			}) else {
+				continue;
+			};
 
-			deletion_count = deletion_count.saturating_add(1);
+			debug_info!(%deletion_count, "Deleting MXC {mxc} by user {user} from database and filesystem");
+			match self.delete(&mxc).await {
+				Ok(()) => {
+					deletion_count = deletion_count.saturating_add(1);
+				},
+				Err(e) => {
+					debug_error!(%deletion_count, "Failed to delete {mxc} from user {user}, ignoring error: {e}");
+				},
+			}
 		}
 
 		Ok(deletion_count)
@@ -174,9 +177,6 @@ impl Service {
 		for key in all_keys {
 			trace!("Full MXC key from database: {key:?}");
 
-			// we need to get the MXC URL from the first part of the key (the first 0xff /
-			// 255 push). this is all necessary because of conduit using magic keys for
-			// media
 			let mut parts = key.split(|&b| b == 0xFF);
 			let mxc = parts
 				.next()
@@ -187,31 +187,33 @@ impl Service {
 				.transpose()?;
 
 			let Some(mxc_s) = mxc else {
-				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
+				debug_warn!(?mxc, "Parsed MXC URL unicode bytes from database but is still invalid");
+				continue;
 			};
 
 			trace!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
 
-			mxcs.push(mxc);
+			if mxc.is_valid() {
+				mxcs.push(mxc);
+			} else {
+				debug_warn!("{mxc:?} from database was found to not be valid");
+			}
 		}
 
 		Ok(mxcs)
 	}
 
 	/// Deletes all remote only media files in the given at or after
-	/// time/duration. Returns a u32 with the amount of media files deleted.
-	pub async fn delete_all_remote_media_at_after_time(&self, time: SystemTime, force: bool) -> Result<usize> {
+	/// time/duration. Returns a usize with the amount of media files deleted.
+	pub async fn delete_all_remote_media_at_after_time(
+		&self, time: SystemTime, before: bool, after: bool, yes_i_want_to_delete_local_media: bool,
+	) -> Result<usize> {
 		let all_keys = self.db.get_all_media_keys().await;
-
 		let mut remote_mxcs = Vec::with_capacity(all_keys.len());
 
 		for key in all_keys {
 			trace!("Full MXC key from database: {key:?}");
-
-			// we need to get the MXC URL from the first part of the key (the first 0xff /
-			// 255 push). this is all necessary because of conduit using magic keys for
-			// media
 			let mut parts = key.split(|&b| b == 0xFF);
 			let mxc = parts
 				.next()
@@ -222,35 +224,30 @@ impl Service {
 				.transpose()?;
 
 			let Some(mxc_s) = mxc else {
-				return Err!(Database("Parsed MXC URL unicode bytes from database but still is None"));
+				debug_warn!(?mxc, "Parsed MXC URL unicode bytes from database but is still invalid");
+				continue;
 			};
 
 			trace!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
-			if mxc.server_name() == Ok(self.services.globals.server_name()) {
-				debug!("Ignoring local media MXC: {mxc}");
-				// ignore our own MXC URLs as this would be local media.
+			if (mxc.server_name() == Ok(self.services.globals.server_name()) && !yes_i_want_to_delete_local_media)
+				|| !mxc.is_valid()
+			{
+				debug!("Ignoring local or broken media MXC: {mxc}");
 				continue;
 			}
 
 			let path = self.get_media_file(&key);
-			debug!("MXC path: {path:?}");
 
 			let file_metadata = match fs::metadata(path.clone()).await {
 				Ok(file_metadata) => file_metadata,
 				Err(e) => {
-					if force {
-						error!("Failed to obtain file metadata for MXC {mxc} at file path \"{path:?}\", skipping: {e}");
-						continue;
-					}
-
-					return Err!(Database(
-						"Failed to obtain file metadata for MXC {mxc} at file path \"{path:?}\": {e}"
-					));
+					error!("Failed to obtain file metadata for MXC {mxc} at file path \"{path:?}\", skipping: {e}");
+					continue;
 				},
 			};
 
-			debug!("File metadata: {file_metadata:?}");
+			trace!(%mxc, ?path, "File metadata: {file_metadata:?}");
 
 			let file_created_at = match file_metadata.created() {
 				Ok(value) => value,
@@ -259,33 +256,36 @@ impl Service {
 					file_metadata.modified()?
 				},
 				Err(err) => {
-					if force {
-						error!("Could not delete MXC {mxc} at path {path:?}: {err:?}. Skipping...");
-						continue;
-					}
-
-					return Err(err.into());
+					error!("Could not delete MXC {mxc} at path {path:?}: {err:?}. Skipping...");
+					continue;
 				},
 			};
 
 			debug!("File created at: {file_created_at:?}");
-			if file_created_at <= time {
-				debug!("File is within user duration, pushing to list of file paths and keys to delete.");
+
+			if file_created_at >= time && before {
+				debug!("File is within (before) user duration, pushing to list of file paths and keys to delete.");
+				remote_mxcs.push(mxc.to_string());
+			} else if file_created_at <= time && after {
+				debug!("File is not within (after) user duration, pushing to list of file paths and keys to delete.");
 				remote_mxcs.push(mxc.to_string());
 			}
 		}
 
-		debug!(
-			"Finished going through all our media in database for eligible keys to delete, checking if these are empty"
-		);
 		if remote_mxcs.is_empty() {
 			return Err!(Database("Did not found any eligible MXCs to delete."));
 		}
 
-		debug_info!("Deleting media now in the past {time:?}.");
+		debug_info!("Deleting media now in the past {time:?}");
+
 		let mut deletion_count: usize = 0;
+
 		for mxc in remote_mxcs {
-			let mxc: Mxc<'_> = mxc.as_str().try_into()?;
+			let Ok(mxc) = mxc.as_str().try_into() else {
+				debug_warn!("Invalid MXC in database, skipping");
+				continue;
+			};
+
 			debug_info!("Deleting MXC {mxc} from database and filesystem");
 
 			match self.delete(&mxc).await {
@@ -293,12 +293,8 @@ impl Service {
 					deletion_count = deletion_count.saturating_add(1);
 				},
 				Err(e) => {
-					if force {
-						warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
-						continue;
-					}
-
-					return Err!(Database(warn!("Failed to delete MXC {mxc}: {e}")));
+					warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
+					continue;
 				},
 			}
 		}
