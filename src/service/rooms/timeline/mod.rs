@@ -407,9 +407,8 @@ impl Service {
 			let rules_for_user = self
 				.services
 				.account_data
-				.get(None, user, GlobalAccountDataEventType::PushRules.to_string().into())
+				.get_global(user, GlobalAccountDataEventType::PushRules)
 				.await
-				.and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).map_err(Into::into))
 				.map_or_else(|_| Ruleset::server_default(user), |ev: PushRulesEvent| ev.content.global);
 
 			let mut highlight = false;

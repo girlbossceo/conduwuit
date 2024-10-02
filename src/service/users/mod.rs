@@ -98,19 +98,9 @@ impl Service {
 	pub async fn user_is_ignored(&self, sender_user: &UserId, recipient_user: &UserId) -> bool {
 		self.services
 			.account_data
-			.get(
-				None,
-				recipient_user,
-				GlobalAccountDataEventType::IgnoredUserList
-					.to_string()
-					.into(),
-			)
+			.get_global(recipient_user, GlobalAccountDataEventType::IgnoredUserList)
 			.await
-			.and_then(|event| {
-				serde_json::from_str::<IgnoredUserListEvent>(event.get())
-					.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
-			})
-			.map_or(false, |ignored| {
+			.map_or(false, |ignored: IgnoredUserListEvent| {
 				ignored
 					.content
 					.ignored_users

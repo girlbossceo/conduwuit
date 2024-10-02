@@ -5,14 +5,17 @@ use conduit::{
 	utils::{stream::TryIgnore, ReadyExt},
 	Err, Error, Result,
 };
-use database::{Deserialized, Map};
+use database::{Deserialized, Handle, Map};
 use futures::{StreamExt, TryFutureExt};
 use ruma::{
-	events::{AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent, RoomAccountDataEventType},
+	events::{
+		AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent, GlobalAccountDataEventType,
+		RoomAccountDataEventType,
+	},
 	serde::Raw,
 	RoomId, UserId,
 };
-use serde_json::value::RawValue;
+use serde::Deserialize;
 
 use crate::{globals, Dep};
 
@@ -97,18 +100,36 @@ pub async fn update(
 	Ok(())
 }
 
-/// Searches the account data for a specific kind.
+/// Searches the room account data for a specific kind.
 #[implement(Service)]
-pub async fn get(
-	&self, room_id: Option<&RoomId>, user_id: &UserId, kind: RoomAccountDataEventType,
-) -> Result<Box<RawValue>> {
-	let key = (room_id, user_id, kind.to_string());
+pub async fn get_global<T>(&self, user_id: &UserId, kind: GlobalAccountDataEventType) -> Result<T>
+where
+	T: for<'de> Deserialize<'de>,
+{
+	self.get_raw(None, user_id, &kind.to_string())
+		.await
+		.deserialized()
+}
+
+/// Searches the global account data for a specific kind.
+#[implement(Service)]
+pub async fn get_room<T>(&self, room_id: &RoomId, user_id: &UserId, kind: RoomAccountDataEventType) -> Result<T>
+where
+	T: for<'de> Deserialize<'de>,
+{
+	self.get_raw(Some(room_id), user_id, &kind.to_string())
+		.await
+		.deserialized()
+}
+
+#[implement(Service)]
+pub async fn get_raw(&self, room_id: Option<&RoomId>, user_id: &UserId, kind: &str) -> Result<Handle<'_>> {
+	let key = (room_id, user_id, kind.to_owned());
 	self.db
 		.roomusertype_roomuserdataid
 		.qry(&key)
 		.and_then(|roomuserdataid| self.db.roomuserdataid_accountdata.get(&roomuserdataid))
 		.await
-		.deserialized()
 }
 
 /// Returns all changes to the account data that happened after `since`.

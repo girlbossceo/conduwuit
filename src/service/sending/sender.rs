@@ -539,9 +539,8 @@ impl Service {
 			let rules_for_user = self
 				.services
 				.account_data
-				.get(None, userid, GlobalAccountDataEventType::PushRules.to_string().into())
+				.get_global(userid, GlobalAccountDataEventType::PushRules)
 				.await
-				.and_then(|event| serde_json::from_str::<PushRulesEvent>(event.get()).map_err(Into::into))
 				.map_or_else(
 					|_| push::Ruleset::server_default(userid),
 					|ev: PushRulesEvent| ev.content.global,

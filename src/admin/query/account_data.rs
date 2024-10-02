@@ -1,9 +1,6 @@
 use clap::Subcommand;
 use conduit::Result;
-use ruma::{
-	events::{room::message::RoomMessageEventContent, RoomAccountDataEventType},
-	RoomId, UserId,
-};
+use ruma::{events::room::message::RoomMessageEventContent, RoomId, UserId};
 
 use crate::Command;
 
@@ -25,7 +22,7 @@ pub(crate) enum AccountDataCommand {
 		/// Full user ID
 		user_id: Box<UserId>,
 		/// Account data event type
-		kind: RoomAccountDataEventType,
+		kind: String,
 		/// Optional room ID of the account data
 		room_id: Option<Box<RoomId>>,
 	},
@@ -60,7 +57,7 @@ pub(super) async fn process(subcommand: AccountDataCommand, context: &Command<'_
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.account_data
-				.get(room_id.as_deref(), &user_id, kind)
+				.get_raw(room_id.as_deref(), &user_id, &kind)
 				.await;
 			let query_time = timer.elapsed();
 
