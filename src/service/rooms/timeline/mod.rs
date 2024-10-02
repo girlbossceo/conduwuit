@@ -8,13 +8,13 @@ use std::{
 };
 
 use conduit::{
-	debug, err, error, info,
+	debug, err, error, implement, info,
 	pdu::{EventHash, PduBuilder, PduCount, PduEvent},
 	utils,
 	utils::{stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	validated, warn, Err, Error, Result, Server,
 };
-use futures::{future, future::ready, Future, Stream, StreamExt, TryStreamExt};
+use futures::{future, future::ready, Future, FutureExt, Stream, StreamExt, TryStreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation},
 	canonical_json::to_canonical_value,
@@ -858,82 +858,7 @@ impl Service {
 			.await?;
 
 		if self.services.admin.is_admin_room(&pdu.room_id).await {
-			match pdu.event_type() {
-				TimelineEventType::RoomEncryption => {
-					warn!("Encryption is not allowed in the admins room");
-					return Err(Error::BadRequest(
-						ErrorKind::forbidden(),
-						"Encryption is not allowed in the admins room",
-					));
-				},
-				TimelineEventType::RoomMember => {
-					let target = pdu
-						.state_key()
-						.filter(|v| v.starts_with('@'))
-						.unwrap_or(sender.as_str());
-					let server_user = &self.services.globals.server_user.to_string();
-
-					let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
-						.map_err(|_| Error::bad_database("Invalid content in pdu"))?;
-
-					if content.membership == MembershipState::Leave {
-						if target == server_user {
-							warn!("Server user cannot leave from admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::forbidden(),
-								"Server user cannot leave from admins room.",
-							));
-						}
-
-						let count = self
-							.services
-							.state_cache
-							.room_members(&pdu.room_id)
-							.ready_filter(|user| self.services.globals.user_is_local(user))
-							.ready_filter(|user| *user != target)
-							.boxed()
-							.count()
-							.await;
-
-						if count < 2 {
-							warn!("Last admin cannot leave from admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::forbidden(),
-								"Last admin cannot leave from admins room.",
-							));
-						}
-					}
-
-					if content.membership == MembershipState::Ban && pdu.state_key().is_some() {
-						if target == server_user {
-							warn!("Server user cannot be banned in admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::forbidden(),
-								"Server user cannot be banned in admins room.",
-							));
-						}
-
-						let count = self
-							.services
-							.state_cache
-							.room_members(&pdu.room_id)
-							.ready_filter(|user| self.services.globals.user_is_local(user))
-							.ready_filter(|user| *user != target)
-							.boxed()
-							.count()
-							.await;
-
-						if count < 2 {
-							warn!("Last admin cannot be banned in admins room");
-							return Err(Error::BadRequest(
-								ErrorKind::forbidden(),
-								"Last admin cannot be banned in admins room.",
-							));
-						}
-					}
-				},
-				_ => {},
-			}
+			self.check_pdu_for_admin_room(&pdu, sender).boxed().await?;
 		}
 
 		// If redaction event is not authorized, do not append it to the timeline
@@ -1296,6 +1221,71 @@ impl Service {
 		debug!("Prepended backfill pdu");
 		Ok(())
 	}
+}
+
+#[implement(Service)]
+#[tracing::instrument(skip_all, level = "debug")]
+async fn check_pdu_for_admin_room(&self, pdu: &PduEvent, sender: &UserId) -> Result<()> {
+	match pdu.event_type() {
+		TimelineEventType::RoomEncryption => {
+			return Err!(Request(Forbidden(error!("Encryption not supported in admins room."))));
+		},
+		TimelineEventType::RoomMember => {
+			let target = pdu
+				.state_key()
+				.filter(|v| v.starts_with('@'))
+				.unwrap_or(sender.as_str());
+
+			let server_user = &self.services.globals.server_user.to_string();
+
+			let content: RoomMemberEventContent = pdu.get_content()?;
+			match content.membership {
+				MembershipState::Leave => {
+					if target == server_user {
+						return Err!(Request(Forbidden(error!("Server user cannot leave the admins room."))));
+					}
+
+					let count = self
+						.services
+						.state_cache
+						.room_members(&pdu.room_id)
+						.ready_filter(|user| self.services.globals.user_is_local(user))
+						.ready_filter(|user| *user != target)
+						.boxed()
+						.count()
+						.await;
+
+					if count < 2 {
+						return Err!(Request(Forbidden(error!("Last admin cannot leave the admins room."))));
+					}
+				},
+
+				MembershipState::Ban if pdu.state_key().is_some() => {
+					if target == server_user {
+						return Err!(Request(Forbidden(error!("Server cannot be banned from admins room."))));
+					}
+
+					let count = self
+						.services
+						.state_cache
+						.room_members(&pdu.room_id)
+						.ready_filter(|user| self.services.globals.user_is_local(user))
+						.ready_filter(|user| *user != target)
+						.boxed()
+						.count()
+						.await;
+
+					if count < 2 {
+						return Err!(Request(Forbidden(error!("Last admin cannot be banned from admins room."))));
+					}
+				},
+				_ => {},
+			};
+		},
+		_ => {},
+	};
+
+	Ok(())
 }
 
 #[cfg(test)]
