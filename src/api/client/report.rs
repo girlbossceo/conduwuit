@@ -1,10 +1,14 @@
 use std::time::Duration;
 
 use axum::extract::State;
+use axum_client_ip::InsecureClientIp;
 use conduit::{utils::ReadyExt, Err};
 use rand::Rng;
 use ruma::{
-	api::client::{error::ErrorKind, room::report_content},
+	api::client::{
+		error::ErrorKind,
+		room::{report_content, report_room},
+	},
 	events::room::message,
 	int, EventId, RoomId, UserId,
 };
@@ -14,22 +18,75 @@ use tracing::info;
 use crate::{
 	debug_info,
 	service::{pdu::PduEvent, Services},
-	utils::HtmlEscape,
 	Error, Result, Ruma,
 };
+
+/// # `POST /_matrix/client/v3/rooms/{roomId}/report`
+///
+/// Reports an abusive room to homeserver admins
+#[tracing::instrument(skip_all, fields(%client), name = "report_room")]
+pub(crate) async fn report_room_route(
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<report_room::v3::Request>,
+) -> Result<report_room::v3::Response> {
+	// user authentication
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	info!(
+		"Received room report by user {sender_user} for room {} with reason: {:?}",
+		body.room_id, body.reason
+	);
+
+	delay_response().await;
+
+	if !services
+		.rooms
+		.state_cache
+		.server_in_room(&services.globals.config.server_name, &body.room_id)
+		.await
+	{
+		return Err!(Request(NotFound(
+			"Room does not exist to us, no local users have joined at all"
+		)));
+	}
+
+	if body.reason.as_ref().is_some_and(|s| s.len() > 750) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Reason too long, should be 750 characters or fewer",
+		));
+	};
+
+	// send admin room message that we received the report with an @room ping for
+	// urgency
+	services
+		.admin
+		.send_message(message::RoomMessageEventContent::text_markdown(format!(
+			"@room Room report received from {} -\n\nRoom ID: {}\n\nReport Reason: {}",
+			sender_user.to_owned(),
+			body.room_id,
+			body.reason.as_deref().unwrap_or("")
+		)))
+		.await
+		.ok();
+
+	Ok(report_room::v3::Response {})
+}
 
 /// # `POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`
 ///
 /// Reports an inappropriate event to homeserver admins
+#[tracing::instrument(skip_all, fields(%client), name = "report_event")]
 pub(crate) async fn report_event_route(
-	State(services): State<crate::State>, body: Ruma<report_content::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<report_content::v3::Request>,
 ) -> Result<report_content::v3::Response> {
 	// user authentication
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	info!(
-		"Received /report request by user {sender_user} for room {} and event ID {}",
-		body.room_id, body.event_id
+		"Received event report by user {sender_user} for room {} and event ID {}, with reason: {:?}",
+		body.room_id, body.event_id, body.reason
 	);
 
 	delay_response().await;
@@ -39,7 +96,7 @@ pub(crate) async fn report_event_route(
 		return Err!(Request(NotFound("Event ID is not known to us or Event ID is invalid")));
 	};
 
-	is_report_valid(
+	is_event_report_valid(
 		&services,
 		&pdu.event_id,
 		&body.room_id,
@@ -54,32 +111,16 @@ pub(crate) async fn report_event_route(
 	// urgency
 	services
 		.admin
-		.send_message(message::RoomMessageEventContent::text_html(
-			format!(
-				"@room Report received from: {}\n\nEvent ID: {}\nRoom ID: {}\nSent By: {}\n\nReport Score: {}\nReport \
-				 Reason: {}",
-				sender_user.to_owned(),
-				pdu.event_id,
-				pdu.room_id,
-				pdu.sender.clone(),
-				body.score.unwrap_or_else(|| ruma::Int::from(0)),
-				body.reason.as_deref().unwrap_or("")
-			),
-			format!(
-				"<details><summary>@room Report received from: <a href=\"https://matrix.to/#/{0}\">{0}\
-                </a></summary><ul><li>Event Info<ul><li>Event ID: <code>{1}</code>\
-                <a href=\"https://matrix.to/#/{2}/{1}\">🔗</a></li><li>Room ID: <code>{2}</code>\
-                </li><li>Sent By: <a href=\"https://matrix.to/#/{3}\">{3}</a></li></ul></li><li>\
-                Report Info<ul><li>Report Score: {4}</li><li>Report Reason: {5}</li></ul></li>\
-                </ul></details>",
-				sender_user.to_owned(),
-				pdu.event_id.clone(),
-				pdu.room_id.clone(),
-				pdu.sender.clone(),
-				body.score.unwrap_or_else(|| ruma::Int::from(0)),
-				HtmlEscape(body.reason.as_deref().unwrap_or(""))
-			),
-		))
+		.send_message(message::RoomMessageEventContent::text_markdown(format!(
+			"@room Event report received from {} -\n\nEvent ID: {}\nRoom ID: {}\nSent By: {}\n\nReport Score: \
+			 {}\nReport Reason: {}",
+			sender_user.to_owned(),
+			pdu.event_id,
+			pdu.room_id,
+			pdu.sender,
+			body.score.unwrap_or_else(|| ruma::Int::from(0)),
+			body.reason.as_deref().unwrap_or("")
+		)))
 		.await
 		.ok();
 
@@ -92,7 +133,7 @@ pub(crate) async fn report_event_route(
 /// check if score is in valid range
 /// check if report reasoning is less than or equal to 750 characters
 /// check if reporting user is in the reporting room
-async fn is_report_valid(
+async fn is_event_report_valid(
 	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: &Option<String>,
 	score: Option<ruma::Int>, pdu: &std::sync::Arc<PduEvent>,
 ) -> Result<()> {
