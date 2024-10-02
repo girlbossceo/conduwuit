@@ -143,9 +143,8 @@ async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> R
 	let mut event = self
 		.services
 		.account_data
-		.get(Some(room_id), user_id, RoomAccountDataEventType::Tag)
+		.get_room(room_id, user_id, RoomAccountDataEventType::Tag)
 		.await
-		.and_then(|event| serde_json::from_str(event.get()).map_err(Into::into))
 		.unwrap_or_else(|_| TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),

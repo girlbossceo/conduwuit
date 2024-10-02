@@ -58,18 +58,14 @@ pub(crate) async fn get_global_account_data_route(
 ) -> Result<get_global_account_data::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event: Box<RawJsonValue> = services
+	let account_data: ExtractGlobalEventContent = services
 		.account_data
-		.get(None, sender_user, body.event_type.to_string().into())
+		.get_global(sender_user, body.event_type.clone())
 		.await
 		.map_err(|_| err!(Request(NotFound("Data not found."))))?;
 
-	let account_data = serde_json::from_str::<ExtractGlobalEventContent>(event.get())
-		.map_err(|_| Error::bad_database("Invalid account data event in db."))?
-		.content;
-
 	Ok(get_global_account_data::v3::Response {
-		account_data,
+		account_data: account_data.content,
 	})
 }
 
@@ -81,18 +77,14 @@ pub(crate) async fn get_room_account_data_route(
 ) -> Result<get_room_account_data::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event: Box<RawJsonValue> = services
+	let account_data: ExtractRoomEventContent = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, body.event_type.clone())
+		.get_room(&body.room_id, sender_user, body.event_type.clone())
 		.await
 		.map_err(|_| err!(Request(NotFound("Data not found."))))?;
 
-	let account_data = serde_json::from_str::<ExtractRoomEventContent>(event.get())
-		.map_err(|_| Error::bad_database("Invalid account data event in db."))?
-		.content;
-
 	Ok(get_room_account_data::v3::Response {
-		account_data,
+		account_data: account_data.content,
 	})
 }
 

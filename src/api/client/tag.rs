@@ -9,7 +9,7 @@ use ruma::{
 	},
 };
 
-use crate::{Error, Result, Ruma};
+use crate::{Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags/{tag}`
 ///
@@ -21,21 +21,15 @@ pub(crate) async fn update_tag_route(
 ) -> Result<create_tag::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services
+	let mut tags_event = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)
-		.await;
-
-	let mut tags_event = event.map_or_else(
-		|_| {
-			Ok(TagEvent {
-				content: TagEventContent {
-					tags: BTreeMap::new(),
-				},
-			})
-		},
-		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
-	)?;
+		.get_room(&body.room_id, sender_user, RoomAccountDataEventType::Tag)
+		.await
+		.unwrap_or(TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		});
 
 	tags_event
 		.content
@@ -65,21 +59,15 @@ pub(crate) async fn delete_tag_route(
 ) -> Result<delete_tag::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services
+	let mut tags_event = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)
-		.await;
-
-	let mut tags_event = event.map_or_else(
-		|_| {
-			Ok(TagEvent {
-				content: TagEventContent {
-					tags: BTreeMap::new(),
-				},
-			})
-		},
-		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
-	)?;
+		.get_room(&body.room_id, sender_user, RoomAccountDataEventType::Tag)
+		.await
+		.unwrap_or(TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		});
 
 	tags_event.content.tags.remove(&body.tag.clone().into());
 
@@ -106,21 +94,15 @@ pub(crate) async fn get_tags_route(
 ) -> Result<get_tags::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	let event = services
+	let tags_event = services
 		.account_data
-		.get(Some(&body.room_id), sender_user, RoomAccountDataEventType::Tag)
-		.await;
-
-	let tags_event = event.map_or_else(
-		|_| {
-			Ok(TagEvent {
-				content: TagEventContent {
-					tags: BTreeMap::new(),
-				},
-			})
-		},
-		|e| serde_json::from_str(e.get()).map_err(|_| Error::bad_database("Invalid account data event in db.")),
-	)?;
+		.get_room(&body.room_id, sender_user, RoomAccountDataEventType::Tag)
+		.await
+		.unwrap_or(TagEvent {
+			content: TagEventContent {
+				tags: BTreeMap::new(),
+			},
+		});
 
 	Ok(get_tags::v3::Response {
 		tags: tags_event.content.tags,

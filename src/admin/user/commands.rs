@@ -501,20 +501,16 @@ pub(super) async fn put_room_tag(
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
-	let event = self
+	let mut tags_event = self
 		.services
 		.account_data
-		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)
-		.await;
-
-	let mut tags_event = event.map_or_else(
-		|_| TagEvent {
+		.get_room(&room_id, &user_id, RoomAccountDataEventType::Tag)
+		.await
+		.unwrap_or(TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
-		},
-		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
-	);
+		});
 
 	tags_event
 		.content
@@ -542,20 +538,16 @@ pub(super) async fn delete_room_tag(
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
-	let event = self
+	let mut tags_event = self
 		.services
 		.account_data
-		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)
-		.await;
-
-	let mut tags_event = event.map_or_else(
-		|_| TagEvent {
+		.get_room(&room_id, &user_id, RoomAccountDataEventType::Tag)
+		.await
+		.unwrap_or(TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
-		},
-		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
-	);
+		});
 
 	tags_event.content.tags.remove(&tag.clone().into());
 
@@ -578,20 +570,16 @@ pub(super) async fn delete_room_tag(
 pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
-	let event = self
+	let tags_event = self
 		.services
 		.account_data
-		.get(Some(&room_id), &user_id, RoomAccountDataEventType::Tag)
-		.await;
-
-	let tags_event = event.map_or_else(
-		|_| TagEvent {
+		.get_room(&room_id, &user_id, RoomAccountDataEventType::Tag)
+		.await
+		.unwrap_or(TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
-		},
-		|e| serde_json::from_str(e.get()).expect("Bad account data in database for user {user_id}"),
-	);
+		});
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"```\n{:#?}\n```",

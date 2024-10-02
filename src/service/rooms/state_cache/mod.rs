@@ -146,12 +146,9 @@ impl Service {
 						if let Ok(tag_event) = self
 							.services
 							.account_data
-							.get(Some(&predecessor.room_id), user_id, RoomAccountDataEventType::Tag)
+							.get_room(&predecessor.room_id, user_id, RoomAccountDataEventType::Tag)
 							.await
-							.and_then(|event| {
-								serde_json::from_str(event.get())
-									.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
-							}) {
+						{
 							self.services
 								.account_data
 								.update(Some(room_id), user_id, RoomAccountDataEventType::Tag, &tag_event)
@@ -163,12 +160,9 @@ impl Service {
 						if let Ok(mut direct_event) = self
 							.services
 							.account_data
-							.get(None, user_id, GlobalAccountDataEventType::Direct.to_string().into())
+							.get_global::<DirectEvent>(user_id, GlobalAccountDataEventType::Direct)
 							.await
-							.and_then(|event| {
-								serde_json::from_str::<DirectEvent>(event.get())
-									.map_err(|e| err!(Database(warn!("Invalid account data event in db: {e:?}"))))
-							}) {
+						{
 							let mut room_ids_updated = false;
 							for room_ids in direct_event.content.0.values_mut() {
 								if room_ids.iter().any(|r| r == &predecessor.room_id) {

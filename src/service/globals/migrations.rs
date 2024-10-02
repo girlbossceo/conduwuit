@@ -215,13 +215,12 @@ async fn db_lt_12(services: &Services) -> Result<()> {
 			},
 		};
 
-		let raw_rules_list = services
+		let mut account_data: PushRulesEvent = services
 			.account_data
-			.get(None, &user, GlobalAccountDataEventType::PushRules.to_string().into())
+			.get_global(&user, GlobalAccountDataEventType::PushRules)
 			.await
 			.expect("Username is invalid");
 
-		let mut account_data = serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
 		let rules_list = &mut account_data.content.global;
 
 		//content rule
@@ -294,13 +293,11 @@ async fn db_lt_13(services: &Services) -> Result<()> {
 			},
 		};
 
-		let raw_rules_list = services
+		let mut account_data: PushRulesEvent = services
 			.account_data
-			.get(None, &user, GlobalAccountDataEventType::PushRules.to_string().into())
+			.get_global(&user, GlobalAccountDataEventType::PushRules)
 			.await
 			.expect("Username is invalid");
-
-		let mut account_data = serde_json::from_str::<PushRulesEvent>(raw_rules_list.get()).unwrap();
 
 		let user_default_rules = Ruleset::server_default(&user);
 		account_data
