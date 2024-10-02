@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use conduit::{implement, utils::stream::TryIgnore, Result};
-use database::{Ignore, Map};
-use futures::{Stream, StreamExt};
+use database::Map;
+use futures::Stream;
 use ruma::RoomId;
 
 pub struct Service {
@@ -35,10 +35,4 @@ pub fn set_not_public(&self, room_id: &RoomId) { self.db.publicroomids.remove(ro
 pub async fn is_public_room(&self, room_id: &RoomId) -> bool { self.db.publicroomids.get(room_id).await.is_ok() }
 
 #[implement(Service)]
-pub fn public_rooms(&self) -> impl Stream<Item = &RoomId> + Send {
-	self.db
-		.publicroomids
-		.keys()
-		.ignore_err()
-		.map(|(room_id, _): (&RoomId, Ignore)| room_id)
-}
+pub fn public_rooms(&self) -> impl Stream<Item = &RoomId> + Send { self.db.publicroomids.keys().ignore_err() }
