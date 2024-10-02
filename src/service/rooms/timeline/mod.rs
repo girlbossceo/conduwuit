@@ -43,7 +43,7 @@ use self::data::Data;
 pub use self::data::PdusIterItem;
 use crate::{
 	account_data, admin, appservice, appservice::NamespaceRegex, globals, pusher, rooms,
-	rooms::state_compressor::CompressedStateEvent, sending, server_keys, Dep,
+	rooms::state_compressor::CompressedStateEvent, sending, server_keys, users, Dep,
 };
 
 // Update Relationships
@@ -90,6 +90,7 @@ struct Services {
 	sending: Dep<sending::Service>,
 	server_keys: Dep<server_keys::Service>,
 	user: Dep<rooms::user::Service>,
+	users: Dep<users::Service>,
 	pusher: Dep<pusher::Service>,
 	threads: Dep<rooms::threads::Service>,
 	search: Dep<rooms::search::Service>,
@@ -119,6 +120,7 @@ impl crate::Service for Service {
 				sending: args.depend::<sending::Service>("sending"),
 				server_keys: args.depend::<server_keys::Service>("server_keys"),
 				user: args.depend::<rooms::user::Service>("rooms::user"),
+				users: args.depend::<users::Service>("users"),
 				pusher: args.depend::<pusher::Service>("pusher"),
 				threads: args.depend::<rooms::threads::Service>("rooms::threads"),
 				search: args.depend::<rooms::search::Service>("rooms::search"),
@@ -378,20 +380,20 @@ impl Service {
 		let mut notifies = Vec::new();
 		let mut highlights = Vec::new();
 
-		let mut push_target = self
+		let mut push_target: HashSet<_> = self
 			.services
 			.state_cache
 			.active_local_users_in_room(&pdu.room_id)
 			.map(ToOwned::to_owned)
-			.collect::<Vec<_>>()
+			.collect()
 			.await;
 
 		if pdu.kind == TimelineEventType::RoomMember {
 			if let Some(state_key) = &pdu.state_key {
-				let target_user_id = UserId::parse(state_key.clone()).expect("This state_key was previously validated");
+				let target_user_id = UserId::parse(state_key.clone())?;
 
-				if !push_target.contains(&target_user_id) {
-					push_target.push(target_user_id);
+				if self.services.users.is_active_local(&target_user_id).await {
+					push_target.insert(target_user_id);
 				}
 			}
 		}
