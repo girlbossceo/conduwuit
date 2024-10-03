@@ -471,12 +471,7 @@ impl Service {
 						}
 					},
 					_ => {
-						let content =
-							serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get()).map_err(|e| {
-								warn!("Invalid content in redaction pdu: {e}");
-								Error::bad_database("Invalid content in redaction pdu")
-							})?;
-
+						let content: RoomRedactionEventContent = pdu.get_content()?;
 						if let Some(redact_id) = &content.redacts {
 							if self
 								.services
@@ -506,11 +501,7 @@ impl Service {
 					let target_user_id =
 						UserId::parse(state_key.clone()).expect("This state_key was previously validated");
 
-					let content = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()).map_err(|e| {
-						error!("Invalid room member event content in pdu: {e}");
-						Error::bad_database("Invalid room member event content in pdu.")
-					})?;
-
+					let content: RoomMemberEventContent = pdu.get_content()?;
 					let invite_state = match content.membership {
 						MembershipState::Invite => self.services.state.summary_stripped(pdu).await.into(),
 						_ => None,
@@ -533,9 +524,7 @@ impl Service {
 				}
 			},
 			TimelineEventType::RoomMessage => {
-				let content = serde_json::from_str::<ExtractBody>(pdu.content.get())
-					.map_err(|_| Error::bad_database("Invalid content in pdu."))?;
-
+				let content: ExtractBody = pdu.get_content()?;
 				if let Some(body) = content.body {
 					self.services.search.index_pdu(shortroomid, &pdu_id, &body);
 
@@ -549,7 +538,7 @@ impl Service {
 			_ => {},
 		}
 
-		if let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) {
+		if let Ok(content) = pdu.get_content::<ExtractRelatesToEventId>() {
 			if let Ok(related_pducount) = self.get_pdu_count(&content.relates_to.event_id).await {
 				self.services
 					.pdu_metadata
@@ -557,7 +546,7 @@ impl Service {
 			}
 		}
 
-		if let Ok(content) = serde_json::from_str::<ExtractRelatesTo>(pdu.content.get()) {
+		if let Ok(content) = pdu.get_content::<ExtractRelatesTo>() {
 			match content.relates_to {
 				Relation::Reply {
 					in_reply_to,
@@ -712,10 +701,7 @@ impl Service {
 				.room_state_get(room_id, &event_type.to_string().into(), state_key)
 				.await
 			{
-				unsigned.insert(
-					"prev_content".to_owned(),
-					serde_json::from_str(prev_pdu.content.get()).expect("string is valid json"),
-				);
+				unsigned.insert("prev_content".to_owned(), prev_pdu.get_content_as_value());
 				unsigned.insert(
 					"prev_sender".to_owned(),
 					serde_json::to_value(&prev_pdu.sender).expect("UserId::to_value always works"),
@@ -874,9 +860,7 @@ impl Service {
 					};
 				},
 				_ => {
-					let content = serde_json::from_str::<RoomRedactionEventContent>(pdu.content.get())
-						.map_err(|e| err!(Database("Invalid content in redaction pdu: {e:?}")))?;
-
+					let content: RoomRedactionEventContent = pdu.get_content()?;
 					if let Some(redact_id) = &content.redacts {
 						if !self
 							.services
@@ -1026,7 +1010,7 @@ impl Service {
 			.await
 			.map_err(|e| err!(Database(error!(?pdu_id, ?event_id, ?e, "PDU ID points to invalid PDU."))))?;
 
-		if let Ok(content) = serde_json::from_str::<ExtractBody>(pdu.content.get()) {
+		if let Ok(content) = pdu.get_content::<ExtractBody>() {
 			if let Some(body) = content.body {
 				self.services
 					.search
@@ -1200,9 +1184,7 @@ impl Service {
 		drop(insert_lock);
 
 		if pdu.kind == TimelineEventType::RoomMessage {
-			let content = serde_json::from_str::<ExtractBody>(pdu.content.get())
-				.map_err(|e| err!(Database("Invalid content in pdu: {e:?}")))?;
-
+			let content: ExtractBody = pdu.get_content()?;
 			if let Some(body) = content.body {
 				self.services.search.index_pdu(shortroomid, &pdu_id, &body);
 			}
