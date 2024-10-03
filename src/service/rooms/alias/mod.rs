@@ -190,32 +190,31 @@ impl Service {
             // Always allow the server service account to remove the alias, since there may not be an admin room
             || server_user == user_id
 		{
-			Ok(true)
-		// Checking whether the user is able to change canonical aliases of the
-		// room
-		} else if let Ok(event) = self
+			return Ok(true);
+		}
+
+		// Checking whether the user is able to change canonical aliases of the room
+		if let Ok(content) = self
 			.services
 			.state_accessor
-			.room_state_get(&room_id, &StateEventType::RoomPowerLevels, "")
+			.room_state_get_content::<RoomPowerLevelsEventContent>(&room_id, &StateEventType::RoomPowerLevels, "")
 			.await
 		{
-			serde_json::from_str(event.content.get())
-				.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
-				.map(|content: RoomPowerLevelsEventContent| {
-					RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomCanonicalAlias)
-				})
+			return Ok(RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomCanonicalAlias));
+		}
+
 		// If there is no power levels event, only the room creator can change
 		// canonical aliases
-		} else if let Ok(event) = self
+		if let Ok(event) = self
 			.services
 			.state_accessor
 			.room_state_get(&room_id, &StateEventType::RoomCreate, "")
 			.await
 		{
-			Ok(event.sender == user_id)
-		} else {
-			Err(Error::bad_database("Room has no m.room.create event"))
+			return Ok(event.sender == user_id);
 		}
+
+		Err!(Database("Room has no m.room.create event"))
 	}
 
 	async fn who_created_alias(&self, alias: &RoomAliasId) -> Result<OwnedUserId> {

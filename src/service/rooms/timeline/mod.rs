@@ -1061,13 +1061,8 @@ impl Service {
 		let power_levels: RoomPowerLevelsEventContent = self
 			.services
 			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")
+			.room_state_get_content(room_id, &StateEventType::RoomPowerLevels, "")
 			.await
-			.map(|ev| {
-				serde_json::from_str(ev.content.get())
-					.map_err(|_| Error::bad_database("invalid m.room.power_levels event"))
-					.unwrap()
-			})
 			.unwrap_or_default();
 
 		let room_mods = power_levels.users.iter().filter_map(|(user_id, level)| {
