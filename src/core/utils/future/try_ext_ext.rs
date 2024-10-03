@@ -1,6 +1,9 @@
 //! Extended external extensions to futures::TryFutureExt
 
-use futures::{future::MapOkOrElse, TryFuture, TryFutureExt};
+use futures::{
+	future::{MapOkOrElse, UnwrapOrElse},
+	TryFuture, TryFutureExt,
+};
 
 /// This interface is not necessarily complete; feel free to add as-needed.
 pub trait TryExtExt<T, E>
@@ -17,6 +20,10 @@ where
 	fn ok(
 		self,
 	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> Option<Self::Ok>, impl FnOnce(Self::Error) -> Option<Self::Ok>>
+	where
+		Self: Sized;
+
+	fn unwrap_or(self, default: Self::Ok) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
 	where
 		Self: Sized;
 }
@@ -44,5 +51,13 @@ where
 		Self: Sized,
 	{
 		self.map_ok_or(None, Some)
+	}
+
+	#[inline]
+	fn unwrap_or(self, default: Self::Ok) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
+	where
+		Self: Sized,
+	{
+		self.unwrap_or_else(move |_| default)
 	}
 }
