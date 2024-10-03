@@ -1,9 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduit::{
-	err, implement, utils,
+	err, implement,
 	utils::stream::{ReadyExt, TryIgnore},
-	Err, Error, Result,
+	Err, Result,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
 use futures::StreamExt;
@@ -110,57 +110,35 @@ pub async fn update_backup(
 
 #[implement(Service)]
 pub async fn get_latest_backup_version(&self, user_id: &UserId) -> Result<String> {
-	let mut prefix = user_id.as_bytes().to_vec();
-	prefix.push(0xFF);
-	let mut last_possible_key = prefix.clone();
-	last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
+	type Key<'a> = (&'a UserId, &'a str);
 
+	let last_possible_key = (user_id, u64::MAX);
 	self.db
 		.backupid_algorithm
-		.rev_raw_keys_from(&last_possible_key)
+		.rev_keys_from(&last_possible_key)
 		.ignore_err()
-		.ready_take_while(move |key| key.starts_with(&prefix))
+		.ready_take_while(|(user_id_, _): &Key<'_>| *user_id_ == user_id)
+		.map(|(_, version): Key<'_>| version.to_owned())
 		.next()
 		.await
 		.ok_or_else(|| err!(Request(NotFound("No backup versions found"))))
-		.and_then(|key| {
-			utils::string_from_bytes(
-				key.rsplit(|&b| b == 0xFF)
-					.next()
-					.expect("rsplit always returns an element"),
-			)
-			.map_err(|_| Error::bad_database("backupid_algorithm key is invalid."))
-		})
 }
 
 #[implement(Service)]
 pub async fn get_latest_backup(&self, user_id: &UserId) -> Result<(String, Raw<BackupAlgorithm>)> {
-	let mut prefix = user_id.as_bytes().to_vec();
-	prefix.push(0xFF);
-	let mut last_possible_key = prefix.clone();
-	last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
+	type Key<'a> = (&'a UserId, &'a str);
+	type KeyVal<'a> = (Key<'a>, Raw<BackupAlgorithm>);
 
+	let last_possible_key = (user_id, u64::MAX);
 	self.db
 		.backupid_algorithm
-		.rev_raw_stream_from(&last_possible_key)
+		.rev_stream_from(&last_possible_key)
 		.ignore_err()
-		.ready_take_while(move |(key, _)| key.starts_with(&prefix))
+		.ready_take_while(|((user_id_, _), _): &KeyVal<'_>| *user_id_ == user_id)
+		.map(|((_, version), algorithm): KeyVal<'_>| (version.to_owned(), algorithm))
 		.next()
 		.await
 		.ok_or_else(|| err!(Request(NotFound("No backup found"))))
-		.and_then(|(key, val)| {
-			let version = utils::string_from_bytes(
-				key.rsplit(|&b| b == 0xFF)
-					.next()
-					.expect("rsplit always returns an element"),
-			)
-			.map_err(|_| Error::bad_database("backupid_algorithm key is invalid."))?;
-
-			let algorithm = serde_json::from_slice(val)
-				.map_err(|_| Error::bad_database("Algorithm in backupid_algorithm is invalid."))?;
-
-			Ok((version, algorithm))
-		})
 }
 
 #[implement(Service)]
@@ -223,7 +201,8 @@ pub async fn get_etag(&self, user_id: &UserId, version: &str) -> String {
 
 #[implement(Service)]
 pub async fn get_all(&self, user_id: &UserId, version: &str) -> BTreeMap<OwnedRoomId, RoomKeyBackup> {
-	type KeyVal<'a> = ((Ignore, Ignore, &'a RoomId, &'a str), &'a [u8]);
+	type Key<'a> = (Ignore, Ignore, &'a RoomId, &'a str);
+	type KeyVal<'a> = (Key<'a>, Raw<KeyBackupData>);
 
 	let mut rooms = BTreeMap::<OwnedRoomId, RoomKeyBackup>::new();
 	let default = || RoomKeyBackup {
@@ -235,13 +214,12 @@ pub async fn get_all(&self, user_id: &UserId, version: &str) -> BTreeMap<OwnedRo
 		.backupkeyid_backup
 		.stream_prefix(&prefix)
 		.ignore_err()
-		.ready_for_each(|((_, _, room_id, session_id), value): KeyVal<'_>| {
-			let key_data = serde_json::from_slice(value).expect("Invalid KeyBackupData JSON");
+		.ready_for_each(|((_, _, room_id, session_id), key_backup_data): KeyVal<'_>| {
 			rooms
 				.entry(room_id.into())
 				.or_insert_with(default)
 				.sessions
-				.insert(session_id.into(), key_data);
+				.insert(session_id.into(), key_backup_data);
 		})
 		.await;
 
@@ -252,18 +230,14 @@ pub async fn get_all(&self, user_id: &UserId, version: &str) -> BTreeMap<OwnedRo
 pub async fn get_room(
 	&self, user_id: &UserId, version: &str, room_id: &RoomId,
 ) -> BTreeMap<String, Raw<KeyBackupData>> {
-	type KeyVal<'a> = ((Ignore, Ignore, Ignore, &'a str), &'a [u8]);
+	type KeyVal<'a> = ((Ignore, Ignore, Ignore, &'a str), Raw<KeyBackupData>);
 
 	let prefix = (user_id, version, room_id, Interfix);
 	self.db
 		.backupkeyid_backup
 		.stream_prefix(&prefix)
 		.ignore_err()
-		.map(|((.., session_id), value): KeyVal<'_>| {
-			let session_id = session_id.to_owned();
-			let key_backup_data = serde_json::from_slice(value).expect("Invalid KeyBackupData JSON");
-			(session_id, key_backup_data)
-		})
+		.map(|((.., session_id), key_backup_data): KeyVal<'_>| (session_id.to_owned(), key_backup_data))
 		.collect()
 		.await
 }

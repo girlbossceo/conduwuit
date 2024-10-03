@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, mem, mem::size_of, sync::Arc};
 
 use conduit::{
 	debug_warn, err, utils,
-	utils::{stream::TryIgnore, string::Unquoted, ReadyExt, TryReadyExt},
+	utils::{stream::TryIgnore, string::Unquoted, ReadyExt},
 	warn, Err, Error, Result, Server,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
@@ -749,9 +749,9 @@ impl Service {
 		let prefix = (user_id, device_id, Interfix);
 		self.db
 			.todeviceid_events
-			.stream_raw_prefix(&prefix)
-			.ready_and_then(|(_, val)| serde_json::from_slice(val).map_err(Into::into))
+			.stream_prefix(&prefix)
 			.ignore_err()
+			.map(|(_, val): (Ignore, Raw<AnyToDeviceEvent>)| val)
 	}
 
 	pub async fn remove_to_device_events(&self, user_id: &UserId, device_id: &DeviceId, until: u64) {
@@ -812,11 +812,12 @@ impl Service {
 	}
 
 	pub fn all_devices_metadata<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = Device> + Send + 'a {
+		let key = (user_id, Interfix);
 		self.db
 			.userdeviceid_metadata
-			.stream_raw_prefix(&(user_id, Interfix))
-			.ready_and_then(|(_, val)| serde_json::from_slice::<Device>(val).map_err(Into::into))
+			.stream_prefix(&key)
 			.ignore_err()
+			.map(|(_, val): (Ignore, Device)| val)
 	}
 
 	/// Creates a new sync filter. Returns the filter id.
