@@ -93,28 +93,17 @@ impl Service {
 
 		pin_mut!(event_ids);
 		while let Some(event_id) = event_ids.next().await {
-			let Ok(pdu) = self.services.timeline.get_pdu_json(&event_id).await else {
+			let Ok(pdu) = self.services.timeline.get_pdu(&event_id).await else {
 				continue;
-			};
-
-			let pdu: PduEvent = match serde_json::from_str(
-				&serde_json::to_string(&pdu).expect("CanonicalJsonObj can be serialized to JSON"),
-			) {
-				Ok(pdu) => pdu,
-				Err(_) => continue,
 			};
 
 			match pdu.kind {
 				TimelineEventType::RoomMember => {
-					let Ok(membership_event) = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()) else {
+					let Some(user_id) = pdu.state_key.as_ref().map(UserId::parse).flat_ok() else {
 						continue;
 					};
 
-					let Some(state_key) = pdu.state_key else {
-						continue;
-					};
-
-					let Ok(user_id) = UserId::parse(state_key) else {
+					let Ok(membership_event) = pdu.get_content::<RoomMemberEventContent>() else {
 						continue;
 					};
 

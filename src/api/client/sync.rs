@@ -635,17 +635,8 @@ async fn load_joined_room(
 				.await?
 				.ready_filter(|(_, pdu)| pdu.kind == RoomMember)
 				.filter_map(|(_, pdu)| async move {
-					let Ok(content) = serde_json::from_str::<RoomMemberEventContent>(pdu.content.get()) else {
-						return None;
-					};
-
-					let Some(state_key) = &pdu.state_key else {
-						return None;
-					};
-
-					let Ok(user_id) = UserId::parse(state_key) else {
-						return None;
-					};
+					let content: RoomMemberEventContent = pdu.get_content().ok()?;
+					let user_id: &UserId = pdu.state_key.as_deref().map(TryInto::try_into).flat_ok()?;
 
 					if user_id == sender_user {
 						return None;
@@ -656,22 +647,17 @@ async fn load_joined_room(
 						return None;
 					}
 
-					if !services
-						.rooms
-						.state_cache
-						.is_joined(&user_id, room_id)
-						.await && services
-						.rooms
-						.state_cache
-						.is_invited(&user_id, room_id)
-						.await
-					{
+					let is_invited = services.rooms.state_cache.is_invited(user_id, room_id);
+
+					let is_joined = services.rooms.state_cache.is_joined(user_id, room_id);
+
+					if !is_joined.await && is_invited.await {
 						return None;
 					}
 
-					Some(user_id)
+					Some(user_id.to_owned())
 				})
-				.collect::<HashSet<_>>()
+				.collect::<HashSet<OwnedUserId>>()
 				.await;
 
 			Ok::<_, Error>((
@@ -839,11 +825,9 @@ async fn load_joined_room(
 							continue;
 						}
 
-						let new_membership = serde_json::from_str::<RoomMemberEventContent>(state_event.content.get())
-							.map_err(|_| Error::bad_database("Invalid PDU in database."))?
-							.membership;
+						let content: RoomMemberEventContent = state_event.get_content()?;
 
-						match new_membership {
+						match content.membership {
 							MembershipState::Join => {
 								// A new user joined an encrypted room
 								if !share_encrypted_room(services, sender_user, &user_id, Some(room_id)).await {
@@ -1357,12 +1341,8 @@ pub(crate) async fn sync_events_v4_route(
 										continue;
 									}
 
-									let new_membership =
-										serde_json::from_str::<RoomMemberEventContent>(pdu.content.get())
-											.map_err(|_| Error::bad_database("Invalid PDU in database."))?
-											.membership;
-
-									match new_membership {
+									let content: RoomMemberEventContent = pdu.get_content()?;
+									match content.membership {
 										MembershipState::Join => {
 											// A new user joined an encrypted room
 											if !share_encrypted_room(&services, sender_user, &user_id, Some(room_id))

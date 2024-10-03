@@ -614,9 +614,7 @@ impl Service {
 							}
 						},
 						_ => {
-							let content = serde_json::from_str::<RoomRedactionEventContent>(incoming_pdu.content.get())
-								.map_err(|_| Error::bad_database("Invalid content in redaction pdu."))?;
-
+							let content: RoomRedactionEventContent = incoming_pdu.get_content()?;
 							if let Some(redact_id) = &content.redacts {
 								!self
 									.services
@@ -1432,10 +1430,10 @@ impl Service {
 	}
 
 	fn get_room_version_id(create_event: &PduEvent) -> Result<RoomVersionId> {
-		let create_event_content: RoomCreateEventContent = serde_json::from_str(create_event.content.get())
-			.map_err(|e| err!(Database("Invalid create event: {e}")))?;
+		let content: RoomCreateEventContent = create_event.get_content()?;
+		let room_version = content.room_version;
 
-		Ok(create_event_content.room_version)
+		Ok(room_version)
 	}
 
 	#[inline]

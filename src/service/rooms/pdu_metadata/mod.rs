@@ -102,7 +102,7 @@ impl Service {
 					return false;
 				}
 
-				let Ok(content) = serde_json::from_str::<ExtractRelatesToEventId>(pdu.content.get()) else {
+				let Ok(content) = pdu.get_content::<ExtractRelatesToEventId>() else {
 					return false;
 				};
 

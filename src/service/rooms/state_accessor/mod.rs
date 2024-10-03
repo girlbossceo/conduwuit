@@ -325,11 +325,9 @@ impl Service {
 	where
 		T: for<'de> Deserialize<'de> + Send,
 	{
-		use serde_json::from_str;
-
 		self.room_state_get(room_id, event_type, state_key)
 			.await
-			.and_then(|event| from_str::<T>(event.content.get()).map_err(Into::into))
+			.and_then(|event| event.get_content())
 	}
 
 	pub async fn get_name(&self, room_id: &RoomId) -> Result<String> {

@@ -596,12 +596,10 @@ impl Service {
 				.await
 				.map_err(|e| err!(Database("Event {id:?} in space state not found: {e:?}")))?;
 
-			if serde_json::from_str::<SpaceChildEventContent>(pdu.content.get())
-				.ok()
-				.map(|c| c.via)
-				.map_or(true, |v| v.is_empty())
-			{
-				continue;
+			if let Ok(content) = pdu.get_content::<SpaceChildEventContent>() {
+				if content.via.is_empty() {
+					continue;
+				}
 			}
 
 			if OwnedRoomId::try_from(state_key).is_ok() {
