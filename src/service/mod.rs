@@ -1,4 +1,3 @@
-#![recursion_limit = "192"]
 #![allow(refining_impl_trait)]
 
 mod manager;

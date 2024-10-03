@@ -1,5 +1,3 @@
-#![recursion_limit = "192"]
-
 pub(crate) mod clap;
 mod mods;
 mod restart;
