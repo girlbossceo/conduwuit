@@ -14,7 +14,7 @@ use conduit::{
 	},
 	warn, PduCount,
 };
-use futures::{pin_mut, FutureExt, StreamExt, TryFutureExt};
+use futures::{future::OptionFuture, pin_mut, FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -681,20 +681,22 @@ async fn load_joined_room(
 			))
 		};
 
-		let since_sender_member: Option<RoomMemberEventContent> = if let Some(short) = since_shortstatehash {
+		let get_sender_member_content = |short| {
 			services
 				.rooms
 				.state_accessor
-				.state_get(short, &StateEventType::RoomMember, sender_user.as_str())
-				.await
-				.and_then(|pdu| serde_json::from_str(pdu.content.get()).map_err(Into::into))
+				.state_get_content(short, &StateEventType::RoomMember, sender_user.as_str())
 				.ok()
-		} else {
-			None
 		};
 
-		let joined_since_last_sync =
-			since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+		let since_sender_member: OptionFuture<_> = since_shortstatehash.map(get_sender_member_content).into();
+
+		let joined_since_last_sync = since_sender_member
+			.await
+			.flatten()
+			.map_or(true, |content: RoomMemberEventContent| {
+				content.membership != MembershipState::Join
+			});
 
 		if since_shortstatehash.is_none() || joined_since_last_sync {
 			// Probably since = 0, we will do an initial sync
@@ -1296,18 +1298,6 @@ pub(crate) async fn sync_events_v4_route(
 				.await
 				.ok();
 
-			let since_sender_member: Option<RoomMemberEventContent> = if let Some(short) = since_shortstatehash {
-				services
-					.rooms
-					.state_accessor
-					.state_get(short, &StateEventType::RoomMember, sender_user.as_str())
-					.await
-					.and_then(|pdu| serde_json::from_str(pdu.content.get()).map_err(Into::into))
-					.ok()
-			} else {
-				None
-			};
-
 			let encrypted_room = services
 				.rooms
 				.state_accessor
@@ -1325,6 +1315,13 @@ pub(crate) async fn sync_events_v4_route(
 					.rooms
 					.state_accessor
 					.state_get(since_shortstatehash, &StateEventType::RoomEncryption, "")
+					.await;
+
+				let since_sender_member: Option<RoomMemberEventContent> = services
+					.rooms
+					.state_accessor
+					.state_get_content(since_shortstatehash, &StateEventType::RoomMember, sender_user.as_str())
+					.ok()
 					.await;
 
 				let joined_since_last_sync =
