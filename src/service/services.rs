@@ -195,6 +195,7 @@ impl Services {
 		}
 	}
 
+	#[inline]
 	pub fn try_get<T>(&self, name: &str) -> Result<Arc<T>>
 	where
 		T: Any + Send + Sync + Sized,
@@ -202,6 +203,7 @@ impl Services {
 		service::try_get::<T>(&self.service, name)
 	}
 
+	#[inline]
 	pub fn get<T>(&self, name: &str) -> Option<Arc<T>>
 	where
 		T: Any + Send + Sync + Sized,
