@@ -47,10 +47,7 @@ pub(crate) async fn create_invite_route(
 			.forbidden_remote_server_names
 			.contains(&server.to_owned())
 		{
-			return Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"Server is banned on this homeserver.",
-			));
+			return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 		}
 	}
 
@@ -64,15 +61,13 @@ pub(crate) async fn create_invite_route(
 			"Received federated/remote invite from banned server {origin} for room ID {}. Rejecting.",
 			body.room_id
 		);
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Server is banned on this homeserver.",
-		));
+
+		return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 	}
 
 	if let Some(via) = &body.via {
 		if via.is_empty() {
-			return Err(Error::BadRequest(ErrorKind::InvalidParam, "via field must not be empty."));
+			return Err!(Request(InvalidParam("via field must not be empty.")));
 		}
 	}
 
@@ -86,10 +81,7 @@ pub(crate) async fn create_invite_route(
 		.map_err(|e| err!(Request(InvalidParam("Invalid state_key property: {e}"))))?;
 
 	if !services.globals.server_is_ours(invited_user.server_name()) {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"User does not belong to this homeserver.",
-		));
+		return Err!(Request(InvalidParam("User does not belong to this homeserver.")));
 	}
 
 	// Make sure we're not ACL'ed from their room.
@@ -124,17 +116,11 @@ pub(crate) async fn create_invite_route(
 		.map_err(|e| err!(Request(InvalidParam("Invalid sender property: {e}"))))?;
 
 	if services.rooms.metadata.is_banned(&body.room_id).await && !services.users.is_admin(&invited_user).await {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"This room is banned on this homeserver.",
-		));
+		return Err!(Request(Forbidden("This room is banned on this homeserver.")));
 	}
 
 	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user).await {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"This server does not allow room invites.",
-		));
+		return Err!(Request(Forbidden("This server does not allow room invites.")));
 	}
 
 	let mut invite_state = body.invite_room_state.clone();

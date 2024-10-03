@@ -16,9 +16,11 @@ use ruma::{
 		},
 	},
 	events::receipt::{ReceiptEvent, ReceiptEventContent, ReceiptType},
+	serde::Raw,
 	to_device::DeviceIdOrAllDevices,
 	OwnedEventId, ServerName,
 };
+use serde_json::value::RawValue as RawJsonValue;
 use tokio::sync::RwLock;
 
 use crate::{
@@ -70,8 +72,8 @@ pub(crate) async fn send_transaction_message_route(
 		"Starting txn",
 	);
 
-	let resolved_map = handle_pdus(&services, &client, &body, origin, &txn_start_time).await;
-	handle_edus(&services, &client, &body, origin).await;
+	let resolved_map = handle_pdus(&services, &client, &body.pdus, origin, &txn_start_time).await;
+	handle_edus(&services, &client, &body.edus, origin).await;
 
 	debug!(
 		pdus = ?body.pdus.len(),
@@ -91,11 +93,10 @@ pub(crate) async fn send_transaction_message_route(
 }
 
 async fn handle_pdus(
-	services: &Services, _client: &IpAddr, body: &Ruma<send_transaction_message::v1::Request>, origin: &ServerName,
-	txn_start_time: &Instant,
+	services: &Services, _client: &IpAddr, pdus: &[Box<RawJsonValue>], origin: &ServerName, txn_start_time: &Instant,
 ) -> ResolvedMap {
-	let mut parsed_pdus = Vec::with_capacity(body.pdus.len());
-	for pdu in &body.pdus {
+	let mut parsed_pdus = Vec::with_capacity(pdus.len());
+	for pdu in pdus {
 		parsed_pdus.push(match services.rooms.event_handler.parse_incoming_pdu(pdu).await {
 			Ok(t) => t,
 			Err(e) => {
@@ -162,11 +163,8 @@ async fn handle_pdus(
 	resolved_map
 }
 
-async fn handle_edus(
-	services: &Services, client: &IpAddr, body: &Ruma<send_transaction_message::v1::Request>, origin: &ServerName,
-) {
-	for edu in body
-		.edus
+async fn handle_edus(services: &Services, client: &IpAddr, edus: &[Raw<Edu>], origin: &ServerName) {
+	for edu in edus
 		.iter()
 		.filter_map(|edu| serde_json::from_str::<Edu>(edu.json().get()).ok())
 	{
@@ -178,7 +176,7 @@ async fn handle_edus(
 			Edu::DirectToDevice(content) => handle_edu_direct_to_device(services, client, origin, content).await,
 			Edu::SigningKeyUpdate(content) => handle_edu_signing_key_update(services, client, origin, content).await,
 			Edu::_Custom(ref _custom) => {
-				debug_warn!(?body.edus, "received custom/unknown EDU");
+				debug_warn!(?edus, "received custom/unknown EDU");
 			},
 		}
 	}

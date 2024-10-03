@@ -198,7 +198,6 @@ impl Service {
 			Ok(None) => debug!("Command successful with no response"),
 			Ok(Some(output)) | Err(output) => self
 				.handle_response(output)
-				.boxed()
 				.await
 				.unwrap_or_else(default_log),
 		}
@@ -277,6 +276,7 @@ impl Service {
 		};
 
 		self.respond_to_room(content, &pdu.room_id, response_sender)
+			.boxed()
 			.await
 	}
 

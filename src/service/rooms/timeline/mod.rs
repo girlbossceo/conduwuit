@@ -661,8 +661,7 @@ impl Service {
 			.await
 			.or_else(|_| {
 				if event_type == TimelineEventType::RoomCreate {
-					let content = serde_json::from_str::<RoomCreateEventContent>(content.get())
-						.expect("Invalid content in RoomCreate pdu.");
+					let content: RoomCreateEventContent = serde_json::from_str(content.get())?;
 					Ok(content.room_version)
 				} else {
 					Err(Error::InconsistentRoomState(
