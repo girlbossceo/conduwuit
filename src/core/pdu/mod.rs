@@ -18,11 +18,11 @@ use ruma::{
 use serde::{Deserialize, Serialize};
 use serde_json::{
 	json,
-	value::{to_raw_value, RawValue as RawJsonValue},
+	value::{to_raw_value, RawValue as RawJsonValue, Value as JsonValue},
 };
 
 pub use self::{builder::PduBuilder, count::PduCount};
-use crate::{err, warn, Error, Result};
+use crate::{err, is_true, warn, Error, Result};
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {
@@ -58,8 +58,8 @@ pub struct PduEvent {
 	pub unsigned: Option<Box<RawJsonValue>>,
 	pub hashes: EventHash,
 	#[serde(default, skip_serializing_if = "Option::is_none")]
-	pub signatures: Option<Box<RawJsonValue>>, /* BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId,
-	                                            * String>> */
+	// BTreeMap<Box<ServerName>, BTreeMap<ServerSigningKeyId, String>>
+	pub signatures: Option<Box<RawJsonValue>>,
 }
 
 impl PduEvent {
@@ -170,6 +170,54 @@ impl PduEvent {
 		(self.redacts.clone(), self.content.clone())
 	}
 
+	#[must_use]
+	pub fn get_content_as_value(&self) -> JsonValue {
+		self.get_content()
+			.expect("pdu content must be a valid JSON value")
+	}
+
+	pub fn get_content<T>(&self) -> Result<T>
+	where
+		T: for<'de> Deserialize<'de>,
+	{
+		serde_json::from_str(self.content.get())
+			.map_err(|e| err!(Database("Failed to deserialize pdu content into type: {e}")))
+	}
+
+	pub fn contains_unsigned_property<F>(&self, property: &str, is_type: F) -> bool
+	where
+		F: FnOnce(&JsonValue) -> bool,
+	{
+		self.get_unsigned_as_value()
+			.get(property)
+			.map(is_type)
+			.is_some_and(is_true!())
+	}
+
+	pub fn get_unsigned_property<T>(&self, property: &str) -> Result<T>
+	where
+		T: for<'de> Deserialize<'de>,
+	{
+		self.get_unsigned_as_value()
+			.get_mut(property)
+			.map(JsonValue::take)
+			.map(serde_json::from_value)
+			.ok_or(err!(Request(NotFound("property not found in unsigned object"))))?
+			.map_err(|e| err!(Database("Failed to deserialize unsigned.{property} into type: {e}")))
+	}
+
+	#[must_use]
+	pub fn get_unsigned_as_value(&self) -> JsonValue { self.get_unsigned::<JsonValue>().unwrap_or_default() }
+
+	pub fn get_unsigned<T>(&self) -> Result<JsonValue> {
+		self.unsigned
+			.as_ref()
+			.map(|raw| raw.get())
+			.map(serde_json::from_str)
+			.ok_or(err!(Request(NotFound("\"unsigned\" property not found in pdu"))))?
+			.map_err(|e| err!(Database("Failed to deserialize \"unsigned\" into value: {e}")))
+	}
+
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn to_sync_room_event(&self) -> Raw<AnySyncTimelineEvent> {
 		let (redacts, content) = self.copy_redacts();
@@ -270,8 +318,8 @@ impl PduEvent {
 		serde_json::from_value(json).expect("Raw::from_value always works")
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
+	#[must_use]
+	pub fn to_state_event_value(&self) -> JsonValue {
 		let mut json = json!({
 			"content": self.content,
 			"type": self.kind,
@@ -286,7 +334,12 @@ impl PduEvent {
 			json["unsigned"] = json!(unsigned);
 		}
 
-		serde_json::from_value(json).expect("Raw::from_value always works")
+		json
+	}
+
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
+		serde_json::from_value(self.to_state_event_value()).expect("Raw::from_value always works")
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
