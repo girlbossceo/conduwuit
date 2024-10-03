@@ -1327,10 +1327,8 @@ pub async fn validate_and_add_event_id(
 	services: &Services, pdu: &RawJsonValue, room_version: &RoomVersionId,
 	pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
 ) -> Result<(OwnedEventId, CanonicalJsonObject)> {
-	let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get()).map_err(|e| {
-		debug_error!("Invalid PDU in server response: {pdu:#?}");
-		err!(BadServerResponse("Invalid PDU in server response: {e:?}"))
-	})?;
+	let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get())
+		.map_err(|e| err!(BadServerResponse(debug_error!("Invalid PDU in server response: {e:?}"))))?;
 	let event_id = EventId::parse(format!(
 		"${}",
 		ruma::signatures::reference_hash(&value, room_version).expect("ruma can calculate reference hashes")
@@ -1472,10 +1470,8 @@ pub(crate) async fn invite_helper(
 
 		if *pdu.event_id != *event_id {
 			warn!(
-				"Server {} changed invite event, that's not allowed in the spec: ours: {:?}, theirs: {:?}",
+				"Server {} changed invite event, that's not allowed in the spec: ours: {pdu_json:?}, theirs: {value:?}",
 				user_id.server_name(),
-				pdu_json,
-				value
 			);
 		}
 
@@ -1558,20 +1554,19 @@ pub(crate) async fn invite_helper(
 // Make a user leave all their joined rooms, forgets all rooms, and ignores
 // errors
 pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
-	let all_rooms: Vec<_> = services
+	let rooms_joined = services
 		.rooms
 		.state_cache
 		.rooms_joined(user_id)
-		.map(ToOwned::to_owned)
-		.chain(
-			services
-				.rooms
-				.state_cache
-				.rooms_invited(user_id)
-				.map(|(r, _)| r),
-		)
-		.collect()
-		.await;
+		.map(ToOwned::to_owned);
+
+	let rooms_invited = services
+		.rooms
+		.state_cache
+		.rooms_invited(user_id)
+		.map(|(r, _)| r);
+
+	let all_rooms: Vec<_> = rooms_joined.chain(rooms_invited).collect().await;
 
 	for room_id in all_rooms {
 		// ignore errors
@@ -1595,7 +1590,7 @@ pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId,
 		.await
 	{
 		if let Err(e) = remote_leave_room(services, user_id, room_id).await {
-			warn!("Failed to leave room {} remotely: {}", user_id, e);
+			warn!("Failed to leave room {user_id} remotely: {e}");
 			// Don't tell the client about this error
 		}
 
