@@ -62,11 +62,11 @@ impl FromStr for PaginationToken {
 		let mut values = value.split('_');
 
 		let mut pag_tok = || {
-			let mut rooms = vec![];
-
-			for room in values.next()?.split(',') {
-				rooms.push(u64::from_str(room).ok()?);
-			}
+			let rooms = values
+				.next()?
+				.split(',')
+				.filter_map(|room_s| u64::from_str(room_s).ok())
+				.collect();
 
 			Some(Self {
 				short_room_ids: rooms,
@@ -469,7 +469,7 @@ impl Service {
 			},
 		)]];
 
-		let mut results = Vec::new();
+		let mut results = Vec::with_capacity(limit);
 
 		while let Some((current_room, via)) = { next_room_to_traverse(&mut stack, &mut parents) } {
 			if results.len() >= limit {
@@ -548,11 +548,12 @@ impl Service {
 				parents.pop_front();
 				parents.push_back(room);
 
-				let mut short_room_ids = vec![];
-
-				for room in parents {
-					short_room_ids.push(self.services.short.get_or_create_shortroomid(&room).await);
-				}
+				let short_room_ids: Vec<_> = parents
+					.iter()
+					.stream()
+					.filter_map(|room_id| async move { self.services.short.get_shortroomid(room_id).await.ok() })
+					.collect()
+					.await;
 
 				Some(
 					PaginationToken {
@@ -585,7 +586,7 @@ impl Service {
 			.await
 			.map_err(|e| err!(Database("State in space not found: {e}")))?;
 
-		let mut children_pdus = Vec::new();
+		let mut children_pdus = Vec::with_capacity(state.len());
 		for (key, id) in state {
 			let (event_type, state_key) = self.services.short.get_statekey_from_short(key).await?;
 
