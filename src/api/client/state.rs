@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use conduit::{err, error, pdu::PduBuilder, Err, Error, Result};
+use conduit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, Result};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -137,27 +137,15 @@ pub(crate) async fn get_state_events_for_key_route(
 			))))
 		})?;
 
-	if body
+	let event_format = body
 		.format
 		.as_ref()
-		.is_some_and(|f| f.to_lowercase().eq("event"))
-	{
-		Ok(get_state_events_for_key::v3::Response {
-			content: None,
-			event: serde_json::from_str(event.to_state_event().json().get()).map_err(|e| {
-				error!("Invalid room state event in database: {}", e);
-				Error::bad_database("Invalid room state event in database")
-			})?,
-		})
-	} else {
-		Ok(get_state_events_for_key::v3::Response {
-			content: Some(serde_json::from_str(event.content.get()).map_err(|e| {
-				error!("Invalid room state event content in database: {}", e);
-				Error::bad_database("Invalid room state event content in database")
-			})?),
-			event: None,
-		})
-	}
+		.is_some_and(|f| f.to_lowercase().eq("event"));
+
+	Ok(get_state_events_for_key::v3::Response {
+		content: event_format.or(|| event.get_content_as_value()),
+		event: event_format.then(|| event.to_state_event_value()),
+	})
 }
 
 /// # `GET /_matrix/client/v3/rooms/{roomid}/state/{eventType}`

@@ -528,12 +528,8 @@ impl Service {
 
 		for pdu in pdus {
 			// Redacted events are not notification targets (we don't send push for them)
-			if let Some(unsigned) = &pdu.unsigned {
-				if let Ok(unsigned) = serde_json::from_str::<serde_json::Value>(unsigned.get()) {
-					if unsigned.get("redacted_because").is_some() {
-						continue;
-					}
-				}
+			if pdu.contains_unsigned_property("redacted_because", serde_json::Value::is_string) {
+				continue;
 			}
 
 			let rules_for_user = self

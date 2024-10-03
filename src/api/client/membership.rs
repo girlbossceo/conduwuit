@@ -177,10 +177,8 @@ pub(crate) async fn join_room_by_id_route(
 			.await
 			.unwrap_or_default()
 			.iter()
-			.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-			.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-			.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-			.filter_map(|sender| UserId::parse(sender).ok())
+			.filter_map(|event| event.get_field("sender").ok().flatten())
+			.filter_map(|sender: &str| UserId::parse(sender).ok())
 			.map(|user| user.server_name().to_owned()),
 	);
 
@@ -242,10 +240,8 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 					.await
 					.unwrap_or_default()
 					.iter()
-					.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-					.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-					.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-					.filter_map(|sender| UserId::parse(sender).ok())
+					.filter_map(|event| event.get_field("sender").ok().flatten())
+					.filter_map(|sender: &str| UserId::parse(sender).ok())
 					.map(|user| user.server_name().to_owned()),
 			);
 
@@ -288,10 +284,8 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 					.await
 					.unwrap_or_default()
 					.iter()
-					.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-					.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-					.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-					.filter_map(|sender| UserId::parse(sender).ok())
+					.filter_map(|event| event.get_field("sender").ok().flatten())
+					.filter_map(|sender: &str| UserId::parse(sender).ok())
 					.map(|user| user.server_name().to_owned()),
 			);
 
@@ -1702,10 +1696,8 @@ async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &Room
 	servers.extend(
 		invite_state
 			.iter()
-			.filter_map(|event| serde_json::from_str(event.json().get()).ok())
-			.filter_map(|event: serde_json::Value| event.get("sender").cloned())
-			.filter_map(|sender| sender.as_str().map(ToOwned::to_owned))
-			.filter_map(|sender| UserId::parse(sender).ok())
+			.filter_map(|event| event.get_field("sender").ok().flatten())
+			.filter_map(|sender: &str| UserId::parse(sender).ok())
 			.map(|user| user.server_name().to_owned()),
 	);
 

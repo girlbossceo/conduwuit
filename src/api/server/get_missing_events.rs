@@ -2,7 +2,7 @@ use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_missing_events},
-	OwnedEventId, RoomId,
+	CanonicalJsonValue, EventId, RoomId,
 };
 
 use crate::Ruma;
@@ -78,17 +78,19 @@ pub(crate) async fn get_missing_events_route(
 				continue;
 			}
 
-			queued_events.extend_from_slice(
-				&serde_json::from_value::<Vec<OwnedEventId>>(
-					serde_json::to_value(
-						pdu.get("prev_events")
-							.cloned()
-							.ok_or_else(|| Error::bad_database("Event in db has no prev_events property."))?,
-					)
-					.expect("canonical json is valid json value"),
-				)
-				.map_err(|_| Error::bad_database("Invalid prev_events in event in database."))?,
+			let prev_events = pdu
+				.get("prev_events")
+				.and_then(CanonicalJsonValue::as_array)
+				.unwrap_or_default();
+
+			queued_events.extend(
+				prev_events
+					.iter()
+					.map(<&EventId>::try_from)
+					.filter_map(Result::ok)
+					.map(ToOwned::to_owned),
 			);
+
 			events.push(
 				services
 					.sending

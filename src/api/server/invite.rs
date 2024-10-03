@@ -1,11 +1,11 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{utils, warn, Error, PduEvent, Result};
+use conduit::{err, utils, warn, Err, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	serde::JsonObject,
-	CanonicalJsonValue, EventId, OwnedUserId,
+	CanonicalJsonValue, EventId, OwnedUserId, UserId,
 };
 
 use crate::Ruma;
@@ -79,14 +79,11 @@ pub(crate) async fn create_invite_route(
 	let mut signed_event = utils::to_canonical_object(&body.event)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid."))?;
 
-	let invited_user: OwnedUserId = serde_json::from_value(
-		signed_event
-			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event has no state_key property."))?
-			.clone()
-			.into(),
-	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "state_key is not a user ID."))?;
+	let invited_user: OwnedUserId = signed_event
+		.get("state_key")
+		.try_into()
+		.map(UserId::to_owned)
+		.map_err(|e| err!(Request(InvalidParam("Invalid state_key property: {e}"))))?;
 
 	if !services.globals.server_is_ours(invited_user.server_name()) {
 		return Err(Error::BadRequest(
@@ -121,14 +118,10 @@ pub(crate) async fn create_invite_route(
 	// Add event_id back
 	signed_event.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.to_string()));
 
-	let sender: OwnedUserId = serde_json::from_value(
-		signed_event
-			.get("sender")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event had no sender property."))?
-			.clone()
-			.into(),
-	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "sender is not a user ID."))?;
+	let sender: &UserId = signed_event
+		.get("sender")
+		.try_into()
+		.map_err(|e| err!(Request(InvalidParam("Invalid sender property: {e}"))))?;
 
 	if services.rooms.metadata.is_banned(&body.room_id).await && !services.users.is_admin(&invited_user).await {
 		return Err(Error::BadRequest(
@@ -171,7 +164,7 @@ pub(crate) async fn create_invite_route(
 				&body.room_id,
 				&invited_user,
 				RoomMemberEventContent::new(MembershipState::Invite),
-				&sender,
+				sender,
 				Some(invite_state),
 				body.via.clone(),
 				true,

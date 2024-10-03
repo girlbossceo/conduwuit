@@ -30,8 +30,8 @@ use ruma::{
 	int,
 	serde::Base64,
 	state_res::{self, EventTypeExt, RoomVersion, StateMap},
-	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId,
-	RoomVersionId, ServerName,
+	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId,
+	ServerName, UserId,
 };
 use tokio::sync::RwLock;
 
@@ -157,14 +157,10 @@ impl Service {
 		self.acl_check(origin, room_id).await?;
 
 		// 1.3.2 Check room ACL on sender's server name
-		let sender: OwnedUserId = serde_json::from_value(
-			value
-				.get("sender")
-				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "PDU does not have a sender key"))?
-				.clone()
-				.into(),
-		)
-		.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "User ID in sender is invalid"))?;
+		let sender: &UserId = value
+			.get("sender")
+			.try_into()
+			.map_err(|e| err!(Request(InvalidParam("PDU does not have a valid sender key: {e}"))))?;
 
 		self.acl_check(sender.server_name(), room_id).await?;
 

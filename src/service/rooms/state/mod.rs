@@ -9,6 +9,7 @@ use std::{
 
 use conduit::{
 	err,
+	result::FlatOk,
 	utils::{calculate_hash, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard},
 	warn, PduEvent, Result,
 };
