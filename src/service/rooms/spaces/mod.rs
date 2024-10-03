@@ -380,14 +380,9 @@ impl Service {
 		let join_rule = self
 			.services
 			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomJoinRules, "")
+			.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
 			.await
-			.map_or(JoinRule::Invite, |s| {
-				serde_json::from_str(s.content.get())
-					.map(|c: RoomJoinRulesEventContent| c.join_rule)
-					.map_err(|e| err!(Database(error!("Invalid room join rule event in database: {e}"))))
-					.unwrap()
-			});
+			.map_or(JoinRule::Invite, |c: RoomJoinRulesEventContent| c.join_rule);
 
 		let allowed_room_ids = self
 			.services

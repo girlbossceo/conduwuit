@@ -629,16 +629,12 @@ pub(crate) async fn upgrade_room_route(
 	let state_lock = services.rooms.state.mutex.lock(&replacement_room).await;
 
 	// Get the old room creation event
-	let mut create_event_content = serde_json::from_str::<CanonicalJsonObject>(
-		services
-			.rooms
-			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomCreate, "")
-			.await
-			.map_err(|_| err!(Database("Found room without m.room.create event.")))?
-			.content
-			.get(),
-	)?;
+	let mut create_event_content: CanonicalJsonObject = services
+		.rooms
+		.state_accessor
+		.room_state_get_content(&body.room_id, &StateEventType::RoomCreate, "")
+		.await
+		.map_err(|_| err!(Database("Found room without m.room.create event.")))?;
 
 	// Use the m.room.tombstone event as the predecessor
 	let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
@@ -790,16 +786,12 @@ pub(crate) async fn upgrade_room_route(
 	}
 
 	// Get the old room power levels
-	let mut power_levels_event_content: RoomPowerLevelsEventContent = serde_json::from_str(
-		services
-			.rooms
-			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomPowerLevels, "")
-			.await
-			.map_err(|_| err!(Database("Found room without m.room.create event.")))?
-			.content
-			.get(),
-	)?;
+	let mut power_levels_event_content: RoomPowerLevelsEventContent = services
+		.rooms
+		.state_accessor
+		.room_state_get_content(&body.room_id, &StateEventType::RoomPowerLevels, "")
+		.await
+		.map_err(|_| err!(Database("Found room without m.room.power_levels event.")))?;
 
 	// Setting events_default and invite to the greater of 50 and users_default + 1
 	let new_level = max(

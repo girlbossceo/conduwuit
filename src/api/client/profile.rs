@@ -301,10 +301,10 @@ pub async fn update_displayname(
 	// Send a new join membership event into all joined rooms
 	let mut joined_rooms = Vec::new();
 	for room_id in all_joined_rooms {
-		let Ok(event) = services
+		let Ok(content) = services
 			.rooms
 			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
+			.room_state_get_content(room_id, &StateEventType::RoomMember, user_id.as_str())
 			.await
 		else {
 			continue;
@@ -315,7 +315,7 @@ pub async fn update_displayname(
 			content: to_raw_value(&RoomMemberEventContent {
 				displayname: displayname.clone(),
 				join_authorized_via_users_server: None,
-				..serde_json::from_str(event.content.get()).expect("Database contains invalid PDU.")
+				..content
 			})
 			.expect("event is valid, we just created it"),
 			unsigned: None,
@@ -354,35 +354,28 @@ pub async fn update_avatar_url(
 		.iter()
 		.try_stream()
 		.and_then(|room_id: &OwnedRoomId| async move {
-			Ok((
-				PduBuilder {
-					event_type: TimelineEventType::RoomMember,
-					content: to_raw_value(&RoomMemberEventContent {
-						avatar_url: avatar_url.clone(),
-						blurhash: blurhash.clone(),
-						join_authorized_via_users_server: None,
-						..serde_json::from_str(
-							services
-								.rooms
-								.state_accessor
-								.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
-								.await
-								.map_err(|_| {
-									Error::bad_database("Tried to send avatar URL update for user not in the room.")
-								})?
-								.content
-								.get(),
-						)
-						.map_err(|_| Error::bad_database("Database contains invalid PDU."))?
-					})
-					.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(user_id.to_string()),
-					redacts: None,
-					timestamp: None,
-				},
-				room_id,
-			))
+			let content = services
+				.rooms
+				.state_accessor
+				.room_state_get_content(room_id, &StateEventType::RoomMember, user_id.as_str())
+				.await?;
+
+			let pdu = PduBuilder {
+				event_type: TimelineEventType::RoomMember,
+				content: to_raw_value(&RoomMemberEventContent {
+					avatar_url: avatar_url.clone(),
+					blurhash: blurhash.clone(),
+					join_authorized_via_users_server: None,
+					..content
+				})
+				.expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: Some(user_id.to_string()),
+				redacts: None,
+				timestamp: None,
+			};
+
+			Ok((pdu, room_id))
 		})
 		.ignore_err()
 		.collect()

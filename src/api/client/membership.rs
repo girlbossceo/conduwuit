@@ -383,17 +383,12 @@ pub(crate) async fn kick_user_route(
 
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let mut event: RoomMemberEventContent = serde_json::from_str(
-		services
-			.rooms
-			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
-			.await
-			.map_err(|_| err!(Request(BadState("Cannot kick member that's not in the room."))))?
-			.content
-			.get(),
-	)
-	.map_err(|_| err!(Database("Invalid member event in database.")))?;
+	let mut event: RoomMemberEventContent = services
+		.rooms
+		.state_accessor
+		.room_state_get_content(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
+		.await
+		.map_err(|_| err!(Request(BadState("Cannot kick member that's not in the room."))))?;
 
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
@@ -436,10 +431,10 @@ pub(crate) async fn ban_user_route(
 	let event = services
 		.rooms
 		.state_accessor
-		.room_state_get(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
+		.room_state_get_content(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
 		.await
-		.map_or(
-			Ok(RoomMemberEventContent {
+		.map_or_else(
+			|_| RoomMemberEventContent {
 				membership: MembershipState::Ban,
 				displayname: None,
 				avatar_url: None,
@@ -448,21 +443,17 @@ pub(crate) async fn ban_user_route(
 				blurhash: blurhash.clone(),
 				reason: body.reason.clone(),
 				join_authorized_via_users_server: None,
-			}),
-			|event| {
-				serde_json::from_str(event.content.get())
-					.map(|event: RoomMemberEventContent| RoomMemberEventContent {
-						membership: MembershipState::Ban,
-						displayname: None,
-						avatar_url: None,
-						blurhash: blurhash.clone(),
-						reason: body.reason.clone(),
-						join_authorized_via_users_server: None,
-						..event
-					})
-					.map_err(|e| err!(Database("Invalid member event in database: {e:?}")))
 			},
-		)?;
+			|event| RoomMemberEventContent {
+				membership: MembershipState::Ban,
+				displayname: None,
+				avatar_url: None,
+				blurhash: blurhash.clone(),
+				reason: body.reason.clone(),
+				join_authorized_via_users_server: None,
+				..event
+			},
+		);
 
 	services
 		.rooms
@@ -497,17 +488,12 @@ pub(crate) async fn unban_user_route(
 
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let mut event: RoomMemberEventContent = serde_json::from_str(
-		services
-			.rooms
-			.state_accessor
-			.room_state_get(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
-			.await
-			.map_err(|_| err!(Request(BadState("Cannot unban a user who is not banned."))))?
-			.content
-			.get(),
-	)
-	.map_err(|e| err!(Database("Invalid member event in database: {e:?}")))?;
+	let mut event: RoomMemberEventContent = services
+		.rooms
+		.state_accessor
+		.room_state_get_content(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
+		.await
+		.map_err(|_| err!(Request(BadState("Cannot unban a user who is not banned."))))?;
 
 	event.membership = MembershipState::Leave;
 	event.reason.clone_from(&body.reason);
@@ -1644,14 +1630,13 @@ pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId,
 	} else {
 		let state_lock = services.rooms.state.mutex.lock(room_id).await;
 
-		let member_event = services
+		let Ok(mut event) = services
 			.rooms
 			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
-			.await;
-
-		// Fix for broken rooms
-		let Ok(member_event) = member_event else {
+			.room_state_get_content::<RoomMemberEventContent>(room_id, &StateEventType::RoomMember, user_id.as_str())
+			.await
+		else {
+			// Fix for broken rooms
 			error!("Trying to leave a room you are not a member of.");
 
 			services
@@ -1670,9 +1655,6 @@ pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId,
 
 			return Ok(());
 		};
-
-		let mut event: RoomMemberEventContent = serde_json::from_str(member_event.content.get())
-			.map_err(|e| err!(Database(error!("Invalid room member event in database: {e}"))))?;
 
 		event.membership = MembershipState::Leave;
 		event.reason = reason;

@@ -338,14 +338,13 @@ impl Service {
 			.map(|c: RoomNameEventContent| c.name)
 	}
 
-	pub async fn get_avatar(&self, room_id: &RoomId) -> ruma::JsOption<RoomAvatarEventContent> {
-		self.room_state_get(room_id, &StateEventType::RoomAvatar, "")
+	pub async fn get_avatar(&self, room_id: &RoomId) -> JsOption<RoomAvatarEventContent> {
+		let content = self
+			.room_state_get_content(room_id, &StateEventType::RoomAvatar, "")
 			.await
-			.map_or(ruma::JsOption::Undefined, |s| {
-				serde_json::from_str(s.content.get())
-					.map_err(|_| Error::bad_database("Invalid room avatar event in database."))
-					.unwrap()
-			})
+			.ok();
+
+		JsOption::from_option(content)
 	}
 
 	pub async fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<RoomMemberEventContent> {
@@ -416,16 +415,10 @@ impl Service {
 		&self, redacts: &EventId, sender: &UserId, room_id: &RoomId, federation: bool,
 	) -> Result<bool> {
 		if let Ok(event) = self
-			.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")
+			.room_state_get_content::<RoomPowerLevelsEventContent>(room_id, &StateEventType::RoomPowerLevels, "")
 			.await
 		{
-			let Ok(event) = serde_json::from_str(event.content.get())
-				.map(|content: RoomPowerLevelsEventContent| content.into())
-				.map(|event: RoomPowerLevels| event)
-			else {
-				return Ok(false);
-			};
-
+			let event: RoomPowerLevels = event.into();
 			Ok(event.user_can_redact_event_of_other(sender)
 				|| event.user_can_redact_own_event(sender)
 					&& if let Ok(pdu) = self.services.timeline.get_pdu(redacts).await {
