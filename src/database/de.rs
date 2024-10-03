@@ -12,6 +12,7 @@ where
 	let mut deserializer = Deserializer {
 		buf,
 		pos: 0,
+		seq: false,
 	};
 
 	T::deserialize(&mut deserializer).debug_inspect(|_| {
@@ -24,6 +25,7 @@ where
 pub(crate) struct Deserializer<'de> {
 	buf: &'de [u8],
 	pos: usize,
+	seq: bool,
 }
 
 /// Directive to ignore a record. This type can be used to skip deserialization
@@ -32,8 +34,11 @@ pub(crate) struct Deserializer<'de> {
 pub struct Ignore;
 
 impl<'de> Deserializer<'de> {
+	/// Record separator; an intentionally invalid-utf8 byte.
 	const SEP: u8 = b'\xFF';
 
+	/// Determine if the input was fully consumed and error if bytes remaining.
+	/// This is intended for debug assertions; not optimized for parsing logic.
 	fn finished(&self) -> Result<()> {
 		let pos = self.pos;
 		let len = self.buf.len();
@@ -48,6 +53,20 @@ impl<'de> Deserializer<'de> {
 			)))
 	}
 
+	/// Consume the current record to ignore it. Inside a sequence the next
+	/// record is skipped but at the top-level all records are skipped such that
+	/// deserialization completes with self.finished() == Ok.
+	#[inline]
+	fn record_ignore(&mut self) {
+		if self.seq {
+			self.record_next();
+		} else {
+			self.record_trail();
+		}
+	}
+
+	/// Consume the current record. The position pointer is moved to the start
+	/// of the next record. Slice of the current record is returned.
 	#[inline]
 	fn record_next(&mut self) -> &'de [u8] {
 		self.buf[self.pos..]
@@ -57,8 +76,10 @@ impl<'de> Deserializer<'de> {
 			.expect("remainder of buf even if SEP was not found")
 	}
 
+	/// Peek at the first byte of the current record. If all records were
+	/// consumed None is returned instead.
 	#[inline]
-	fn record_next_peek_byte(&self) -> Option<u8> {
+	fn record_peek_byte(&self) -> Option<u8> {
 		let started = self.pos != 0;
 		let buf = &self.buf[self.pos..];
 		debug_assert!(
@@ -69,6 +90,8 @@ impl<'de> Deserializer<'de> {
 		buf.get::<usize>(started.into()).copied()
 	}
 
+	/// Consume the record separator such that the position cleanly points to
+	/// the start of the next record. (Case for some sequences)
 	#[inline]
 	fn record_start(&mut self) {
 		let started = self.pos != 0;
@@ -78,8 +101,11 @@ impl<'de> Deserializer<'de> {
 		);
 
 		self.inc_pos(started.into());
+		self.seq = true;
 	}
 
+	/// Consume all remaining bytes, which may include record separators,
+	/// returning a raw slice.
 	#[inline]
 	fn record_trail(&mut self) -> &'de [u8] {
 		let record = &self.buf[self.pos..];
@@ -87,6 +113,7 @@ impl<'de> Deserializer<'de> {
 		record
 	}
 
+	/// Increment the position pointer.
 	#[inline]
 	fn inc_pos(&mut self, n: usize) {
 		self.pos = self.pos.saturating_add(n);
@@ -142,7 +169,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		V: Visitor<'de>,
 	{
 		match name {
-			"Ignore" => self.record_next(),
+			"Ignore" => self.record_ignore(),
 			_ => unimplemented!("Unrecognized deserialization Directive {name:?}"),
 		};
 
@@ -190,7 +217,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
 	fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let bytes: [u8; size_of::<i64>()] = self.buf[self.pos..].try_into()?;
-		self.pos = self.pos.saturating_add(size_of::<i64>());
+		self.inc_pos(size_of::<i64>());
 		visitor.visit_i64(i64::from_be_bytes(bytes))
 	}
 
@@ -208,7 +235,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
 	fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let bytes: [u8; size_of::<u64>()] = self.buf[self.pos..].try_into()?;
-		self.pos = self.pos.saturating_add(size_of::<u64>());
+		self.inc_pos(size_of::<u64>());
 		visitor.visit_u64(u64::from_be_bytes(bytes))
 	}
 
@@ -267,7 +294,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 			"deserialize_any: type not expected"
 		);
 
-		match self.record_next_peek_byte() {
+		match self.record_peek_byte() {
 			Some(b'{') => self.deserialize_map(visitor),
 			_ => self.deserialize_str(visitor),
 		}
