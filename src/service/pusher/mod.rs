@@ -99,7 +99,7 @@ impl Service {
 			.senderkey_pusher
 			.stream_prefix(&prefix)
 			.ignore_err()
-			.map(|(_, val): (Ignore, &[u8])| serde_json::from_slice(val).expect("Invalid Pusher in db."))
+			.map(|(_, pusher): (Ignore, Pusher)| pusher)
 			.collect()
 			.await
 	}

@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use conduit::{utils, utils::stream::TryIgnore, Error, Result};
+use conduit::{utils::stream::TryIgnore, Result};
 use database::{Deserialized, Interfix, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
@@ -135,20 +135,31 @@ impl Data {
 	pub(super) fn rooms_invited<'a>(
 		&'a self, user_id: &'a UserId,
 	) -> impl Stream<Item = StrippedStateEventItem> + Send + 'a {
+		type Key<'a> = (&'a UserId, &'a RoomId);
+		type KeyVal<'a> = (Key<'a>, Raw<Vec<AnyStrippedStateEvent>>);
+
 		let prefix = (user_id, Interfix);
 		self.userroomid_invitestate
-			.stream_raw_prefix(&prefix)
+			.stream_prefix(&prefix)
 			.ignore_err()
-			.map(|(key, val)| {
-				let room_id = key.rsplit(|&b| b == 0xFF).next().unwrap();
-				let room_id = utils::string_from_bytes(room_id).unwrap();
-				let room_id = RoomId::parse(room_id).unwrap();
-				let state = serde_json::from_slice(val)
-					.map_err(|_| Error::bad_database("Invalid state in userroomid_invitestate."))
-					.unwrap();
+			.map(|((_, room_id), state): KeyVal<'_>| (room_id.to_owned(), state))
+			.map(|(room_id, state)| Ok((room_id, state.deserialize_as()?)))
+			.ignore_err()
+	}
 
-				(room_id, state)
-			})
+	/// Returns an iterator over all rooms a user left.
+	#[inline]
+	pub(super) fn rooms_left<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = SyncStateEventItem> + Send + 'a {
+		type Key<'a> = (&'a UserId, &'a RoomId);
+		type KeyVal<'a> = (Key<'a>, Raw<Vec<Raw<AnySyncStateEvent>>>);
+
+		let prefix = (user_id, Interfix);
+		self.userroomid_leftstate
+			.stream_prefix(&prefix)
+			.ignore_err()
+			.map(|((_, room_id), state): KeyVal<'_>| (room_id.to_owned(), state))
+			.map(|(room_id, state)| Ok((room_id, state.deserialize_as()?)))
+			.ignore_err()
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -156,7 +167,11 @@ impl Data {
 		&self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let key = (user_id, room_id);
-		self.userroomid_invitestate.qry(&key).await.deserialized()
+		self.userroomid_invitestate
+			.qry(&key)
+			.await
+			.deserialized()
+			.and_then(|val: Raw<Vec<AnyStrippedStateEvent>>| val.deserialize_as().map_err(Into::into))
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -164,25 +179,10 @@ impl Data {
 		&self, user_id: &UserId, room_id: &RoomId,
 	) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let key = (user_id, room_id);
-		self.userroomid_leftstate.qry(&key).await.deserialized()
-	}
-
-	/// Returns an iterator over all rooms a user left.
-	#[inline]
-	pub(super) fn rooms_left<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = SyncStateEventItem> + Send + 'a {
-		let prefix = (user_id, Interfix);
 		self.userroomid_leftstate
-			.stream_raw_prefix(&prefix)
-			.ignore_err()
-			.map(|(key, val)| {
-				let room_id = key.rsplit(|&b| b == 0xFF).next().unwrap();
-				let room_id = utils::string_from_bytes(room_id).unwrap();
-				let room_id = RoomId::parse(room_id).unwrap();
-				let state = serde_json::from_slice(val)
-					.map_err(|_| Error::bad_database("Invalid state in userroomid_leftstate."))
-					.unwrap();
-
-				(room_id, state)
-			})
+			.qry(&key)
+			.await
+			.deserialized()
+			.and_then(|val: Raw<Vec<AnyStrippedStateEvent>>| val.deserialize_as().map_err(Into::into))
 	}
 }
