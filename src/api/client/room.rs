@@ -870,6 +870,8 @@ fn default_power_levels_content(
 	// default users from calling public rooms, for obvious reasons.
 	if *visibility == room::Visibility::Public {
 		power_levels_content["events"]["m.call.invite"] = serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["m.call"] = serde_json::to_value(50).expect("50 is valid Value");
+		power_levels_content["events"]["m.call.member"] = serde_json::to_value(50).expect("50 is valid Value");
 		power_levels_content["events"]["org.matrix.msc3401.call"] =
 			serde_json::to_value(50).expect("50 is valid Value");
 		power_levels_content["events"]["org.matrix.msc3401.call.member"] =
