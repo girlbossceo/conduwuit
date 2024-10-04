@@ -6,10 +6,8 @@ use std::{
 
 use axum::extract::State;
 use conduit::{
-	debug, err, error,
-	error::is_not_found,
-	is_equal_to,
-	result::IntoIsOk,
+	debug, err, error, is_equal_to,
+	result::{FlatOk, IntoIsOk},
 	utils::{
 		math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
@@ -1891,7 +1889,7 @@ async fn filter_rooms(
 		.filter_map(|r| async move {
 			let room_type = services.rooms.state_accessor.get_room_type(r).await;
 
-			if room_type.as_ref().is_err_and(|e| !is_not_found(e)) {
+			if room_type.as_ref().is_err_and(|e| !e.is_not_found()) {
 				return None;
 			}
 

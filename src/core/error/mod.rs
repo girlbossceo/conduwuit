@@ -120,17 +120,19 @@ pub enum Error {
 }
 
 impl Error {
+	//#[deprecated]
 	pub fn bad_database(message: &'static str) -> Self { crate::err!(Database(error!("{message}"))) }
 
 	/// Sanitizes public-facing errors that can leak sensitive information.
-	pub fn sanitized_string(&self) -> String {
+	pub fn sanitized_message(&self) -> String {
 		match self {
 			Self::Database(..) => String::from("Database error occurred."),
 			Self::Io(..) => String::from("I/O error occurred."),
-			_ => self.to_string(),
+			_ => self.message(),
 		}
 	}
 
+	/// Generate the error message string.
 	pub fn message(&self) -> String {
 		match self {
 			Self::Federation(ref origin, ref error) => format!("Answer from {origin}: {error}"),
@@ -151,6 +153,8 @@ impl Error {
 		}
 	}
 
+	/// Returns the HTTP error code or closest approximation based on error
+	/// variant.
 	pub fn status_code(&self) -> http::StatusCode {
 		use http::StatusCode;
 
@@ -163,10 +167,17 @@ impl Error {
 			_ => StatusCode::INTERNAL_SERVER_ERROR,
 		}
 	}
+
+	/// Returns true for "not found" errors. This means anything that qualifies
+	/// as a "not found" from any variant's contained error type. This call is
+	/// often used as a special case to eliminate a contained Option with a
+	/// Result where Ok(None) is instead Err(e) if e.is_not_found().
+	#[inline]
+	pub fn is_not_found(&self) -> bool { self.status_code() == http::StatusCode::NOT_FOUND }
 }
 
 impl fmt::Debug for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self}") }
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.message()) }
 }
 
 #[allow(clippy::fallible_impl_from)]
@@ -184,6 +195,8 @@ pub fn infallible(_e: &Infallible) {
 	panic!("infallible error should never exist");
 }
 
+/// Convenience functor for fundamental Error::sanitized_message(); see member.
 #[inline]
 #[must_use]
-pub fn is_not_found(e: &Error) -> bool { e.status_code() == http::StatusCode::NOT_FOUND }
+#[allow(clippy::needless_pass_by_value)]
+pub fn sanitized_message(e: Error) -> String { e.sanitized_message() }
