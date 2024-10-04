@@ -1446,7 +1446,7 @@ pub(crate) async fn invite_helper(
 				)
 				.await?;
 
-			let invite_room_state = services.rooms.state.calculate_invite_state(&pdu).await?;
+			let invite_room_state = services.rooms.state.summary_stripped(&pdu).await;
 
 			drop(state_lock);
 

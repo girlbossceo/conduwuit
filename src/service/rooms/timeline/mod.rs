@@ -513,10 +513,7 @@ impl Service {
 					})?;
 
 					let invite_state = match content.membership {
-						MembershipState::Invite => {
-							let state = self.services.state.calculate_invite_state(pdu).await?;
-							Some(state)
-						},
+						MembershipState::Invite => self.services.state.summary_stripped(pdu).await.into(),
 						_ => None,
 					};
 
