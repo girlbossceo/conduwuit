@@ -122,8 +122,9 @@ impl Data {
 
 		let keys: Vec<Vec<u8>> = self
 			.mediaid_file
-			.keys_prefix_raw(&prefix)
+			.raw_keys_prefix(&prefix)
 			.ignore_err()
+			.map(<[u8]>::to_vec)
 			.collect()
 			.await;
 
