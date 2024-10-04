@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, net::IpAddr, time::Instant};
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug, debug_warn, err, result::LogErr, trace, utils::ReadyExt, warn, Err, Error, Result};
+use conduit::{debug, debug_warn, err, error, result::LogErr, trace, utils::ReadyExt, warn, Err, Error, Result};
 use futures::StreamExt;
 use ruma::{
 	api::{
@@ -85,7 +85,7 @@ pub(crate) async fn send_transaction_message_route(
 	Ok(send_transaction_message::v1::Response {
 		pdus: resolved_map
 			.into_iter()
-			.map(|(e, r)| (e, r.map_err(|e| e.sanitized_string())))
+			.map(|(e, r)| (e, r.map_err(error::sanitized_message)))
 			.collect(),
 	})
 }
