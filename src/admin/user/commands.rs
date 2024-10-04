@@ -12,11 +12,10 @@ use ruma::{
 			redaction::RoomRedactionEventContent,
 		},
 		tag::{TagEvent, TagEventContent, TagInfo},
-		RoomAccountDataEventType, StateEventType, TimelineEventType,
+		RoomAccountDataEventType, StateEventType,
 	},
 	EventId, OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
 };
-use serde_json::value::to_raw_value;
 
 use crate::{
 	admin_command, get_room_info,
@@ -461,14 +460,7 @@ pub(super) async fn force_demote(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomPowerLevels,
-				content: to_raw_value(&power_levels_content).expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(String::new(), &power_levels_content),
 			&user_id,
 			&room_id,
 			&state_lock,
@@ -623,16 +615,11 @@ pub(super) async fn redact_event(&self, event_id: Box<EventId>) -> Result<RoomMe
 		.timeline
 		.build_and_append_pdu(
 			PduBuilder {
-				event_type: TimelineEventType::RoomRedaction,
-				content: to_raw_value(&RoomRedactionEventContent {
+				redacts: Some(event.event_id.clone()),
+				..PduBuilder::timeline(&RoomRedactionEventContent {
 					redacts: Some(event.event_id.clone().into()),
 					reason: Some(reason),
 				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: None,
-				redacts: Some(event.event_id),
-				timestamp: None,
 			},
 			&sender_user,
 			&room_id,

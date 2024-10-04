@@ -150,8 +150,7 @@ pub(crate) async fn create_room_route(
 		None => services.globals.default_room_version(),
 	};
 
-	#[allow(clippy::single_match_else)]
-	let content = match &body.creation_content {
+	let create_content = match &body.creation_content {
 		Some(content) => {
 			use RoomVersionId::*;
 
@@ -213,11 +212,9 @@ pub(crate) async fn create_room_route(
 		.build_and_append_pdu(
 			PduBuilder {
 				event_type: TimelineEventType::RoomCreate,
-				content: to_raw_value(&content).expect("event is valid, we just created it"),
-				unsigned: None,
+				content: to_raw_value(&create_content).expect("create event content serialization"),
 				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
+				..Default::default()
 			},
 			sender_user,
 			&room_id,
@@ -231,24 +228,16 @@ pub(crate) async fn create_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomMember,
-				content: to_raw_value(&RoomMemberEventContent {
-					membership: MembershipState::Join,
+			PduBuilder::state(
+				sender_user.to_string(),
+				&RoomMemberEventContent {
 					displayname: services.users.displayname(sender_user).await.ok(),
 					avatar_url: services.users.avatar_url(sender_user).await.ok(),
-					is_direct: Some(body.is_direct),
-					third_party_invite: None,
 					blurhash: services.users.blurhash(sender_user).await.ok(),
-					reason: None,
-					join_authorized_via_users_server: None,
-				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(sender_user.to_string()),
-				redacts: None,
-				timestamp: None,
-			},
+					is_direct: Some(body.is_direct),
+					..RoomMemberEventContent::new(MembershipState::Join)
+				},
+			),
 			sender_user,
 			&room_id,
 			&state_lock,
@@ -289,11 +278,9 @@ pub(crate) async fn create_room_route(
 		.build_and_append_pdu(
 			PduBuilder {
 				event_type: TimelineEventType::RoomPowerLevels,
-				content: to_raw_value(&power_levels_content).expect("to_raw_value always works on serde_json::Value"),
-				unsigned: None,
+				content: to_raw_value(&power_levels_content).expect("serialized power_levels event content"),
 				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
+				..Default::default()
 			},
 			sender_user,
 			&room_id,
@@ -308,18 +295,13 @@ pub(crate) async fn create_room_route(
 			.rooms
 			.timeline
 			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomCanonicalAlias,
-					content: to_raw_value(&RoomCanonicalAliasEventContent {
+				PduBuilder::state(
+					String::new(),
+					&RoomCanonicalAliasEventContent {
 						alias: Some(room_alias_id.to_owned()),
 						alt_aliases: vec![],
-					})
-					.expect("We checked that alias earlier, it must be fine"),
-					unsigned: None,
-					state_key: Some(String::new()),
-					redacts: None,
-					timestamp: None,
-				},
+					},
+				),
 				sender_user,
 				&room_id,
 				&state_lock,
@@ -335,19 +317,14 @@ pub(crate) async fn create_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomJoinRules,
-				content: to_raw_value(&RoomJoinRulesEventContent::new(match preset {
+			PduBuilder::state(
+				String::new(),
+				&RoomJoinRulesEventContent::new(match preset {
 					RoomPreset::PublicChat => JoinRule::Public,
 					// according to spec "invite" is the default
 					_ => JoinRule::Invite,
-				}))
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+				}),
+			),
 			sender_user,
 			&room_id,
 			&state_lock,
@@ -360,15 +337,10 @@ pub(crate) async fn create_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomHistoryVisibility,
-				content: to_raw_value(&RoomHistoryVisibilityEventContent::new(HistoryVisibility::Shared))
-					.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(
+				String::new(),
+				&RoomHistoryVisibilityEventContent::new(HistoryVisibility::Shared),
+			),
 			sender_user,
 			&room_id,
 			&state_lock,
@@ -381,18 +353,13 @@ pub(crate) async fn create_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomGuestAccess,
-				content: to_raw_value(&RoomGuestAccessEventContent::new(match preset {
+			PduBuilder::state(
+				String::new(),
+				&RoomGuestAccessEventContent::new(match preset {
 					RoomPreset::PublicChat => GuestAccess::Forbidden,
 					_ => GuestAccess::CanJoin,
-				}))
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+				}),
+			),
 			sender_user,
 			&room_id,
 			&state_lock,
@@ -440,15 +407,7 @@ pub(crate) async fn create_room_route(
 			.rooms
 			.timeline
 			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomName,
-					content: to_raw_value(&RoomNameEventContent::new(name.clone()))
-						.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(String::new()),
-					redacts: None,
-					timestamp: None,
-				},
+				PduBuilder::state(String::new(), &RoomNameEventContent::new(name.clone())),
 				sender_user,
 				&room_id,
 				&state_lock,
@@ -462,17 +421,12 @@ pub(crate) async fn create_room_route(
 			.rooms
 			.timeline
 			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomTopic,
-					content: to_raw_value(&RoomTopicEventContent {
+				PduBuilder::state(
+					String::new(),
+					&RoomTopicEventContent {
 						topic: topic.clone(),
-					})
-					.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(String::new()),
-					redacts: None,
-					timestamp: None,
-				},
+					},
+				),
 				sender_user,
 				&room_id,
 				&state_lock,
@@ -641,18 +595,13 @@ pub(crate) async fn upgrade_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomTombstone,
-				content: to_raw_value(&RoomTombstoneEventContent {
+			PduBuilder::state(
+				String::new(),
+				&RoomTombstoneEventContent {
 					body: "This room has been replaced".to_owned(),
 					replacement_room: replacement_room.clone(),
-				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+				},
+			),
 			sender_user,
 			&body.room_id,
 			&state_lock,
@@ -788,10 +737,8 @@ pub(crate) async fn upgrade_room_route(
 				PduBuilder {
 					event_type: event_type.to_string().into(),
 					content: event_content,
-					unsigned: None,
 					state_key: Some(String::new()),
-					redacts: None,
-					timestamp: None,
+					..Default::default()
 				},
 				sender_user,
 				&replacement_room,
@@ -821,7 +768,7 @@ pub(crate) async fn upgrade_room_route(
 	}
 
 	// Get the old room power levels
-	let mut power_levels_event_content: RoomPowerLevelsEventContent = services
+	let power_levels_event_content: RoomPowerLevelsEventContent = services
 		.rooms
 		.state_accessor
 		.room_state_get_content(&body.room_id, &StateEventType::RoomPowerLevels, "")
@@ -836,8 +783,6 @@ pub(crate) async fn upgrade_room_route(
 			.checked_add(int!(1))
 			.ok_or_else(|| err!(Request(BadJson("users_default power levels event content is not valid"))))?,
 	);
-	power_levels_event_content.events_default = new_level;
-	power_levels_event_content.invite = new_level;
 
 	// Modify the power levels in the old room to prevent sending of events and
 	// inviting new users
@@ -845,14 +790,14 @@ pub(crate) async fn upgrade_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomPowerLevels,
-				content: to_raw_value(&power_levels_event_content).expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(
+				String::new(),
+				&RoomPowerLevelsEventContent {
+					events_default: new_level,
+					invite: new_level,
+					..power_levels_event_content
+				},
+			),
 			sender_user,
 			&body.room_id,
 			&state_lock,

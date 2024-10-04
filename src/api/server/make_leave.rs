@@ -2,10 +2,7 @@ use axum::extract::State;
 use conduit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_leave_event},
-	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
-		TimelineEventType,
-	},
+	events::room::member::{MembershipState, RoomMemberEventContent},
 };
 use serde_json::value::to_raw_value;
 
@@ -39,30 +36,12 @@ pub(crate) async fn create_leave_event_template_route(
 
 	let room_version_id = services.rooms.state.get_room_version(&body.room_id).await?;
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
-	let content = to_raw_value(&RoomMemberEventContent {
-		avatar_url: None,
-		blurhash: None,
-		displayname: None,
-		is_direct: None,
-		membership: MembershipState::Leave,
-		third_party_invite: None,
-		reason: None,
-		join_authorized_via_users_server: None,
-	})
-	.expect("member event is valid value");
 
 	let (_pdu, mut pdu_json) = services
 		.rooms
 		.timeline
 		.create_hash_and_sign_event(
-			PduBuilder {
-				event_type: TimelineEventType::RoomMember,
-				content,
-				unsigned: None,
-				state_key: Some(body.user_id.to_string()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(body.user_id.to_string(), &RoomMemberEventContent::new(MembershipState::Leave)),
 			&body.user_id,
 			&body.room_id,
 			&state_lock,

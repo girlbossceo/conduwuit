@@ -9,11 +9,10 @@ use ruma::{
 			power_levels::RoomPowerLevelsEventContent,
 		},
 		tag::{TagEvent, TagEventContent, TagInfo},
-		RoomAccountDataEventType, TimelineEventType,
+		RoomAccountDataEventType,
 	},
 	RoomId, UserId,
 };
-use serde_json::value::to_raw_value;
 
 use crate::pdu::PduBuilder;
 
@@ -35,24 +34,7 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomMember,
-				content: to_raw_value(&RoomMemberEventContent {
-					membership: MembershipState::Invite,
-					displayname: None,
-					avatar_url: None,
-					is_direct: None,
-					third_party_invite: None,
-					blurhash: None,
-					reason: None,
-					join_authorized_via_users_server: None,
-				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(user_id.to_string()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(user_id.to_string(), &RoomMemberEventContent::new(MembershipState::Invite)),
 			server_user,
 			&room_id,
 			&state_lock,
@@ -61,24 +43,7 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomMember,
-				content: to_raw_value(&RoomMemberEventContent {
-					membership: MembershipState::Join,
-					displayname: None,
-					avatar_url: None,
-					is_direct: None,
-					third_party_invite: None,
-					blurhash: None,
-					reason: None,
-					join_authorized_via_users_server: None,
-				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(user_id.to_string()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(user_id.to_string(), &RoomMemberEventContent::new(MembershipState::Join)),
 			user_id,
 			&room_id,
 			&state_lock,
@@ -91,18 +56,13 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder {
-				event_type: TimelineEventType::RoomPowerLevels,
-				content: to_raw_value(&RoomPowerLevelsEventContent {
+			PduBuilder::state(
+				String::new(),
+				&RoomPowerLevelsEventContent {
 					users,
 					..Default::default()
-				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(String::new()),
-				redacts: None,
-				timestamp: None,
-			},
+				},
+			),
 			server_user,
 			&room_id,
 			&state_lock,
@@ -117,23 +77,18 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 		}
 	}
 
+	let welcome_message = String::from("## Thank you for trying out conduwuit!\n\nconduwuit is a fork of upstream Conduit which is in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Git and Documentation: https://github.com/girlbossceo/conduwuit\n> Report issues: https://github.com/girlbossceo/conduwuit/issues\n\nFor a list of available commands, send the following message in this room: `!admin --help`\n\nHere are some rooms you can join (by typing the command):\n\nconduwuit room (Ask questions and get notified on updates):\n`/join #conduwuit:puppygock.gay`");
+
 	// Send welcome message
-	self.services.timeline.build_and_append_pdu(
-  			PduBuilder {
-                event_type: TimelineEventType::RoomMessage,
-                content: to_raw_value(&RoomMessageEventContent::text_markdown(
-                        String::from("## Thank you for trying out conduwuit!\n\nconduwuit is a fork of upstream Conduit which is in Beta. This means you can join and participate in most Matrix rooms, but not all features are supported and you might run into bugs from time to time.\n\nHelpful links:\n> Git and Documentation: https://github.com/girlbossceo/conduwuit\n> Report issues: https://github.com/girlbossceo/conduwuit/issues\n\nFor a list of available commands, send the following message in this room: `!admin --help`\n\nHere are some rooms you can join (by typing the command):\n\nconduwuit room (Ask questions and get notified on updates):\n`/join #conduwuit:puppygock.gay`"),
-                ))
-                .expect("event is valid, we just created it"),
-                unsigned: None,
-                state_key: None,
-                redacts: None,
-                timestamp: None,
-            },
-            server_user,
-            &room_id,
-            &state_lock,
-        ).await?;
+	self.services
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder::timeline(&RoomMessageEventContent::text_markdown(welcome_message)),
+			server_user,
+			&room_id,
+			&state_lock,
+		)
+		.await?;
 
 	Ok(())
 }
