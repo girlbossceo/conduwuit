@@ -101,9 +101,9 @@ impl Service {
 		let prefix = (&room_id, Interfix);
 		self.db
 			.aliasid_alias
-			.keys_prefix(&prefix)
+			.keys_raw_prefix(&prefix)
 			.ignore_err()
-			.ready_for_each(|key: &[u8]| self.db.aliasid_alias.remove(&key))
+			.ready_for_each(|key| self.db.aliasid_alias.remove(key))
 			.await;
 
 		self.db.alias_roomid.remove(alias.as_bytes());
@@ -161,7 +161,7 @@ impl Service {
 			.aliasid_alias
 			.stream_prefix(&prefix)
 			.ignore_err()
-			.map(|((Ignore, Ignore), alias): ((Ignore, Ignore), &RoomAliasId)| alias)
+			.map(|(_, alias): (Ignore, &RoomAliasId)| alias)
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
