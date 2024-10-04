@@ -8,7 +8,7 @@ use ruma::{
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 		},
-		StateEventType, TimelineEventType,
+		StateEventType,
 	},
 	CanonicalJsonObject, RoomId, RoomVersionId, UserId,
 };
@@ -125,30 +125,17 @@ pub(crate) async fn create_join_event_template_route(
 		));
 	}
 
-	let content = to_raw_value(&RoomMemberEventContent {
-		avatar_url: None,
-		blurhash: None,
-		displayname: None,
-		is_direct: None,
-		membership: MembershipState::Join,
-		third_party_invite: None,
-		reason: None,
-		join_authorized_via_users_server,
-	})
-	.expect("member event is valid value");
-
 	let (_pdu, mut pdu_json) = services
 		.rooms
 		.timeline
 		.create_hash_and_sign_event(
-			PduBuilder {
-				event_type: TimelineEventType::RoomMember,
-				content,
-				unsigned: None,
-				state_key: Some(body.user_id.to_string()),
-				redacts: None,
-				timestamp: None,
-			},
+			PduBuilder::state(
+				body.user_id.to_string(),
+				&RoomMemberEventContent {
+					join_authorized_via_users_server,
+					..RoomMemberEventContent::new(MembershipState::Join)
+				},
+			),
 			&body.user_id,
 			&body.room_id,
 			&state_lock,

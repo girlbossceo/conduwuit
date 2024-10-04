@@ -15,13 +15,9 @@ pub use create::create_admin_room;
 use futures::{FutureExt, TryFutureExt};
 use loole::{Receiver, Sender};
 use ruma::{
-	events::{
-		room::message::{Relation, RoomMessageEventContent},
-		TimelineEventType,
-	},
+	events::room::message::{Relation, RoomMessageEventContent},
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
-use serde_json::value::to_raw_value;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::{account_data, globals, rooms, rooms::state::RoomMutexGuard, Dep};
@@ -285,20 +281,12 @@ impl Service {
 	) -> Result<()> {
 		assert!(self.user_is_admin(user_id).await, "sender is not admin");
 
-		let response_pdu = PduBuilder {
-			event_type: TimelineEventType::RoomMessage,
-			content: to_raw_value(&content).expect("event is valid, we just created it"),
-			unsigned: None,
-			state_key: None,
-			redacts: None,
-			timestamp: None,
-		};
-
 		let state_lock = self.services.state.mutex.lock(room_id).await;
+
 		if let Err(e) = self
 			.services
 			.timeline
-			.build_and_append_pdu(response_pdu, user_id, room_id, &state_lock)
+			.build_and_append_pdu(PduBuilder::timeline(&content), user_id, room_id, &state_lock)
 			.await
 		{
 			self.handle_response_error(e, room_id, user_id, &state_lock)
@@ -313,23 +301,14 @@ impl Service {
 		&self, e: Error, room_id: &RoomId, user_id: &UserId, state_lock: &RoomMutexGuard,
 	) -> Result<()> {
 		error!("Failed to build and append admin room response PDU: \"{e}\"");
-		let error_room_message = RoomMessageEventContent::text_plain(format!(
+		let content = RoomMessageEventContent::text_plain(format!(
 			"Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command may have finished \
 			 successfully, but we could not return the output."
 		));
 
-		let response_pdu = PduBuilder {
-			event_type: TimelineEventType::RoomMessage,
-			content: to_raw_value(&error_room_message).expect("event is valid, we just created it"),
-			unsigned: None,
-			state_key: None,
-			redacts: None,
-			timestamp: None,
-		};
-
 		self.services
 			.timeline
-			.build_and_append_pdu(response_pdu, user_id, room_id, state_lock)
+			.build_and_append_pdu(PduBuilder::timeline(&content), user_id, room_id, state_lock)
 			.await?;
 
 		Ok(())

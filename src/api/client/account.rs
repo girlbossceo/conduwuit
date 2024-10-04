@@ -21,11 +21,10 @@ use ruma::{
 			message::RoomMessageEventContent,
 			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		},
-		GlobalAccountDataEventType, StateEventType, TimelineEventType,
+		GlobalAccountDataEventType, StateEventType,
 	},
 	push, OwnedRoomId, UserId,
 };
-use serde_json::value::to_raw_value;
 use service::Services;
 
 use super::{join_room_by_id_helper, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
@@ -729,14 +728,7 @@ pub async fn full_user_deactivate(
 				.rooms
 				.timeline
 				.build_and_append_pdu(
-					PduBuilder {
-						event_type: TimelineEventType::RoomPowerLevels,
-						content: to_raw_value(&power_levels_content).expect("event is valid, we just created it"),
-						unsigned: None,
-						state_key: Some(String::new()),
-						redacts: None,
-						timestamp: None,
-					},
+					PduBuilder::state(String::new(), &power_levels_content),
 					user_id,
 					room_id,
 					&state_lock,

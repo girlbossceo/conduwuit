@@ -1,9 +1,5 @@
 use axum::extract::State;
-use ruma::{
-	api::client::redact::redact_event,
-	events::{room::redaction::RoomRedactionEventContent, TimelineEventType},
-};
-use serde_json::value::to_raw_value;
+use ruma::{api::client::redact::redact_event, events::room::redaction::RoomRedactionEventContent};
 
 use crate::{service::pdu::PduBuilder, Result, Ruma};
 
@@ -25,16 +21,11 @@ pub(crate) async fn redact_event_route(
 		.timeline
 		.build_and_append_pdu(
 			PduBuilder {
-				event_type: TimelineEventType::RoomRedaction,
-				content: to_raw_value(&RoomRedactionEventContent {
+				redacts: Some(body.event_id.clone().into()),
+				..PduBuilder::timeline(&RoomRedactionEventContent {
 					redacts: Some(body.event_id.clone()),
 					reason: body.reason.clone(),
 				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: None,
-				redacts: Some(body.event_id.into()),
-				timestamp: None,
 			},
 			sender_user,
 			&body.room_id,
@@ -44,8 +35,7 @@ pub(crate) async fn redact_event_route(
 
 	drop(state_lock);
 
-	let event_id = (*event_id).to_owned();
 	Ok(redact_event::v3::Response {
-		event_id,
+		event_id: event_id.into(),
 	})
 }

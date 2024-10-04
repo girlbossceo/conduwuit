@@ -21,7 +21,10 @@ use serde_json::{
 	value::{to_raw_value, RawValue as RawJsonValue, Value as JsonValue},
 };
 
-pub use self::{builder::PduBuilder, count::PduCount};
+pub use self::{
+	builder::{Builder, Builder as PduBuilder},
+	count::PduCount,
+};
 use crate::{err, is_true, warn, Error, Result};
 
 #[derive(Deserialize)]

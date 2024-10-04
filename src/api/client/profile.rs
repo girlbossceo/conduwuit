@@ -13,11 +13,10 @@ use ruma::{
 		},
 		federation,
 	},
-	events::{room::member::RoomMemberEventContent, StateEventType, TimelineEventType},
+	events::{room::member::RoomMemberEventContent, StateEventType},
 	presence::PresenceState,
 	OwnedMxcUri, OwnedRoomId, UserId,
 };
-use serde_json::value::to_raw_value;
 use service::Services;
 
 use crate::Ruma;
@@ -310,19 +309,14 @@ pub async fn update_displayname(
 			continue;
 		};
 
-		let pdu = PduBuilder {
-			event_type: TimelineEventType::RoomMember,
-			content: to_raw_value(&RoomMemberEventContent {
+		let pdu = PduBuilder::state(
+			user_id.to_string(),
+			&RoomMemberEventContent {
 				displayname: displayname.clone(),
 				join_authorized_via_users_server: None,
 				..content
-			})
-			.expect("event is valid, we just created it"),
-			unsigned: None,
-			state_key: Some(user_id.to_string()),
-			redacts: None,
-			timestamp: None,
-		};
+			},
+		);
 
 		joined_rooms.push((pdu, room_id));
 	}
@@ -360,20 +354,15 @@ pub async fn update_avatar_url(
 				.room_state_get_content(room_id, &StateEventType::RoomMember, user_id.as_str())
 				.await?;
 
-			let pdu = PduBuilder {
-				event_type: TimelineEventType::RoomMember,
-				content: to_raw_value(&RoomMemberEventContent {
+			let pdu = PduBuilder::state(
+				user_id.to_string(),
+				&RoomMemberEventContent {
 					avatar_url: avatar_url.clone(),
 					blurhash: blurhash.clone(),
 					join_authorized_via_users_server: None,
 					..content
-				})
-				.expect("event is valid, we just created it"),
-				unsigned: None,
-				state_key: Some(user_id.to_string()),
-				redacts: None,
-				timestamp: None,
-			};
+				},
+			);
 
 			Ok((pdu, room_id))
 		})

@@ -37,7 +37,6 @@ use ruma::{
 	ServerName, UserId,
 };
 use serde::Deserialize;
-use serde_json::value::to_raw_value;
 
 use self::data::Data;
 use crate::{rooms, rooms::state::RoomMutexGuard, Dep};
@@ -353,21 +352,14 @@ impl Service {
 	pub async fn user_can_invite(
 		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &RoomMutexGuard,
 	) -> bool {
-		let content = to_raw_value(&RoomMemberEventContent::new(MembershipState::Invite))
-			.expect("Event content always serializes");
-
-		let new_event = PduBuilder {
-			event_type: ruma::events::TimelineEventType::RoomMember,
-			content,
-			unsigned: None,
-			state_key: Some(target_user.into()),
-			redacts: None,
-			timestamp: None,
-		};
-
 		self.services
 			.timeline
-			.create_hash_and_sign_event(new_event, sender, room_id, state_lock)
+			.create_hash_and_sign_event(
+				PduBuilder::state(target_user.into(), &RoomMemberEventContent::new(MembershipState::Invite)),
+				sender,
+				room_id,
+				state_lock,
+			)
 			.await
 			.is_ok()
 	}

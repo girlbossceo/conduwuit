@@ -9,7 +9,6 @@ use conduit::{
 use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::client::{
-		error::ErrorKind,
 		filter::{RoomEventFilter, UrlFilter},
 		message::{get_message_events, send_message_event},
 	},
@@ -21,7 +20,7 @@ use service::rooms::timeline::PdusIterItem;
 
 use crate::{
 	service::{pdu::PduBuilder, Services},
-	utils, Error, Result, Ruma,
+	utils, Result, Ruma,
 };
 
 /// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
@@ -77,27 +76,25 @@ pub(crate) async fn send_message_event_route(
 	let mut unsigned = BTreeMap::new();
 	unsigned.insert("transaction_id".to_owned(), body.txn_id.to_string().into());
 
-	let content = from_str(body.body.body.json().get())
-		.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Invalid JSON body."))?;
+	let content =
+		from_str(body.body.body.json().get()).map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
 
 	let event_id = services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
 			PduBuilder {
-				event_type: body.event_type.to_string().into(),
+				event_type: body.event_type.clone().into(),
 				content,
 				unsigned: Some(unsigned),
-				state_key: None,
-				redacts: None,
 				timestamp: appservice_info.and(body.timestamp),
+				..Default::default()
 			},
 			sender_user,
 			&body.room_id,
 			&state_lock,
 		)
-		.await
-		.map(|event_id| (*event_id).to_owned())?;
+		.await?;
 
 	services
 		.transaction_ids
@@ -106,7 +103,7 @@ pub(crate) async fn send_message_event_route(
 	drop(state_lock);
 
 	Ok(send_message_event::v3::Response {
-		event_id,
+		event_id: event_id.into(),
 	})
 }
 
