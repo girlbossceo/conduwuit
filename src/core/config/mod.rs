@@ -1,3 +1,6 @@
+pub mod check;
+pub mod proxy;
+
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	fmt,
@@ -22,10 +25,7 @@ use url::Url;
 
 pub use self::check::check;
 use self::proxy::ProxyConfig;
-use crate::{error::Error, utils::sys, Err, Result};
-
-pub mod check;
-pub mod proxy;
+use crate::{err, error::Error, utils::sys, Result};
 
 /// all the config options for conduwuit
 #[config_example_generator]
@@ -434,34 +434,26 @@ const DEPRECATED_KEYS: &[&str; 9] = &[
 
 impl Config {
 	/// Pre-initialize config
-	pub fn load(paths: &Option<Vec<PathBuf>>) -> Result<Figment> {
-		let raw_config = if let Some(config_file_env) = Env::var("CONDUIT_CONFIG") {
-			Figment::new().merge(Toml::file(config_file_env).nested())
-		} else if let Some(config_file_arg) = Env::var("CONDUWUIT_CONFIG") {
-			Figment::new().merge(Toml::file(config_file_arg).nested())
-		} else if let Some(config_file_args) = paths {
-			let mut figment = Figment::new();
+	pub fn load(paths: Option<&[PathBuf]>) -> Result<Figment> {
+		let paths_files = paths.into_iter().flatten().map(Toml::file);
 
-			for config in config_file_args {
-				figment = figment.merge(Toml::file(config).nested());
-			}
+		let envs = [Env::var("CONDUIT_CONFIG"), Env::var("CONDUWUIT_CONFIG")];
+		let envs_files = envs.into_iter().flatten().map(Toml::file);
 
-			figment
-		} else {
-			Figment::new()
-		};
-
-		Ok(raw_config
+		let config = envs_files
+			.chain(paths_files)
+			.fold(Figment::new(), |config, file| config.merge(file.nested()))
 			.merge(Env::prefixed("CONDUIT_").global().split("__"))
-			.merge(Env::prefixed("CONDUWUIT_").global().split("__")))
+			.merge(Env::prefixed("CONDUWUIT_").global().split("__"));
+
+		Ok(config)
 	}
 
 	/// Finalize config
 	pub fn new(raw_config: &Figment) -> Result<Self> {
-		let config = match raw_config.extract::<Self>() {
-			Err(e) => return Err!("There was a problem with your configuration file: {e}"),
-			Ok(config) => config,
-		};
+		let config = raw_config
+			.extract::<Self>()
+			.map_err(|e| err!("There was a problem with your configuration file: {e}"))?;
 
 		// don't start if we're listening on both UNIX sockets and TCP at same time
 		check::is_dual_listening(raw_config)?;

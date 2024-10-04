@@ -24,7 +24,7 @@ pub(crate) struct Server {
 
 impl Server {
 	pub(crate) fn build(args: &Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Self>, Error> {
-		let raw_config = Config::load(&args.config)?;
+		let raw_config = Config::load(args.config.as_deref())?;
 		let raw_config = crate::clap::update(raw_config, args)?;
 		let config = Config::new(&raw_config)?;
 
