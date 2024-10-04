@@ -3,6 +3,7 @@ mod data;
 use std::{
 	collections::{HashMap, HashSet},
 	fmt::Write,
+	iter::once,
 	sync::Arc,
 };
 
@@ -13,7 +14,7 @@ use conduit::{
 };
 use data::Data;
 use database::{Ignore, Interfix};
-use futures::{pin_mut, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{future::join_all, pin_mut, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{
 	events::{
 		room::{create::RoomCreateEventContent, member::RoomMemberEventContent},
@@ -288,61 +289,30 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, invite_event), level = "debug")]
-	pub async fn calculate_invite_state(&self, invite_event: &PduEvent) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
-		let mut state = Vec::new();
-		// Add recommended events
-		if let Ok(e) = self
-			.services
-			.state_accessor
-			.room_state_get(&invite_event.room_id, &StateEventType::RoomCreate, "")
-			.await
-		{
-			state.push(e.to_stripped_state_event());
-		}
-		if let Ok(e) = self
-			.services
-			.state_accessor
-			.room_state_get(&invite_event.room_id, &StateEventType::RoomJoinRules, "")
-			.await
-		{
-			state.push(e.to_stripped_state_event());
-		}
-		if let Ok(e) = self
-			.services
-			.state_accessor
-			.room_state_get(&invite_event.room_id, &StateEventType::RoomCanonicalAlias, "")
-			.await
-		{
-			state.push(e.to_stripped_state_event());
-		}
-		if let Ok(e) = self
-			.services
-			.state_accessor
-			.room_state_get(&invite_event.room_id, &StateEventType::RoomAvatar, "")
-			.await
-		{
-			state.push(e.to_stripped_state_event());
-		}
-		if let Ok(e) = self
-			.services
-			.state_accessor
-			.room_state_get(&invite_event.room_id, &StateEventType::RoomName, "")
-			.await
-		{
-			state.push(e.to_stripped_state_event());
-		}
-		if let Ok(e) = self
-			.services
-			.state_accessor
-			.room_state_get(&invite_event.room_id, &StateEventType::RoomMember, invite_event.sender.as_str())
-			.await
-		{
-			state.push(e.to_stripped_state_event());
-		}
+	#[tracing::instrument(skip_all, level = "debug")]
+	pub async fn summary_stripped(&self, invite: &PduEvent) -> Vec<Raw<AnyStrippedStateEvent>> {
+		let cells = [
+			(&StateEventType::RoomCreate, ""),
+			(&StateEventType::RoomJoinRules, ""),
+			(&StateEventType::RoomCanonicalAlias, ""),
+			(&StateEventType::RoomName, ""),
+			(&StateEventType::RoomAvatar, ""),
+			(&StateEventType::RoomMember, invite.sender.as_str()), // Add recommended events
+		];
 
-		state.push(invite_event.to_stripped_state_event());
-		Ok(state)
+		let fetches = cells.iter().map(|(event_type, state_key)| {
+			self.services
+				.state_accessor
+				.room_state_get(&invite.room_id, event_type, state_key)
+		});
+
+		join_all(fetches)
+			.await
+			.into_iter()
+			.filter_map(Result::ok)
+			.map(|e| e.to_stripped_state_event())
+			.chain(once(invite.to_stripped_state_event()))
+			.collect()
 	}
 
 	/// Set the state hash to a new version, but does not update state_cache.
