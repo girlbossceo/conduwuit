@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{err, Error, Result};
+use axum_client_ip::InsecureClientIp;
+use conduit::{err, info, Err, Error, Result};
 use futures::StreamExt;
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;
@@ -18,8 +19,10 @@ use crate::Ruma;
 /// # `GET /_matrix/federation/v1/query/directory`
 ///
 /// Resolve a room alias to a room id.
+#[tracing::instrument(skip_all, fields(%client), name = "query_room_info")]
 pub(crate) async fn get_room_information_route(
-	State(services): State<crate::State>, body: Ruma<get_room_information::v1::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_room_information::v1::Request>,
 ) -> Result<get_room_information::v1::Response> {
 	let room_id = services
 		.rooms
@@ -27,6 +30,17 @@ pub(crate) async fn get_room_information_route(
 		.resolve_local_alias(&body.room_alias)
 		.await
 		.map_err(|_| err!(Request(NotFound("Room alias not found."))))?;
+
+	if services
+		.admin
+		.get_admin_room()
+		.await
+		.is_ok_and(|admin_room| admin_room == room_id)
+	{
+		let origin = body.origin.as_ref().expect("server is authenticated");
+		info!("Remote server {origin} attempted to access the room ID of the admin room");
+		return Err!(Request(NotFound("Room alias not found.")));
+	}
 
 	let mut servers: Vec<OwnedServerName> = services
 		.rooms
