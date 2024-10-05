@@ -21,7 +21,7 @@ use url::Url;
 
 pub use self::check::check;
 use self::proxy::ProxyConfig;
-use crate::{error::Error, Err, Result};
+use crate::{error::Error, utils::sys, Err, Result};
 
 pub mod check;
 pub mod proxy;
@@ -887,29 +887,29 @@ fn default_database_backups_to_keep() -> i16 { 1 }
 
 fn default_database_backend() -> String { "rocksdb".to_owned() }
 
-fn default_db_cache_capacity_mb() -> f64 { 128.0 + (64.0 * (crate::utils::available_parallelism() as f64)) }
+fn default_db_cache_capacity_mb() -> f64 { 128.0 + parallelism_scaled_f64(64.0) }
 
-fn default_pdu_cache_capacity() -> u32 { 100_000 + (10_000 * crate::utils::available_parallelism() as u32) }
+fn default_pdu_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
 
 fn default_cache_capacity_modifier() -> f64 { 1.0 }
 
-fn default_auth_chain_cache_capacity() -> u32 { 100_000 + (10_000 * crate::utils::available_parallelism() as u32) }
+fn default_auth_chain_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
 
-fn default_shorteventid_cache_capacity() -> u32 { 100_000 + (50_000 * crate::utils::available_parallelism() as u32) }
+fn default_shorteventid_cache_capacity() -> u32 { parallelism_scaled_u32(50_000).saturating_add(100_000) }
 
-fn default_eventidshort_cache_capacity() -> u32 { 100_000 + (25_000 * crate::utils::available_parallelism() as u32) }
+fn default_eventidshort_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
 
-fn default_shortstatekey_cache_capacity() -> u32 { 100_000 + (10_000 * crate::utils::available_parallelism() as u32) }
+fn default_shortstatekey_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
 
-fn default_statekeyshort_cache_capacity() -> u32 { 100_000 + (10_000 * crate::utils::available_parallelism() as u32) }
+fn default_statekeyshort_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
 
-fn default_server_visibility_cache_capacity() -> u32 { 500 * crate::utils::available_parallelism() as u32 }
+fn default_server_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(500) }
 
-fn default_user_visibility_cache_capacity() -> u32 { 1000 * crate::utils::available_parallelism() as u32 }
+fn default_user_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
-fn default_stateinfo_cache_capacity() -> u32 { 1000 * crate::utils::available_parallelism() as u32 }
+fn default_stateinfo_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
-fn default_roomid_spacehierarchy_cache_capacity() -> u32 { 1000 * crate::utils::available_parallelism() as u32 }
+fn default_roomid_spacehierarchy_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
 fn default_dns_cache_entries() -> u32 { 32768 }
 
@@ -1087,3 +1087,13 @@ fn default_admin_log_capture() -> String {
 }
 
 fn default_admin_room_tag() -> String { "m.server_notice".to_owned() }
+
+#[allow(clippy::as_conversions, clippy::cast_precision_loss)]
+fn parallelism_scaled_f64(val: f64) -> f64 { val * (sys::available_parallelism() as f64) }
+
+fn parallelism_scaled_u32(val: u32) -> u32 {
+	let val = val.try_into().expect("failed to cast u32 to usize");
+	parallelism_scaled(val).try_into().unwrap_or(u32::MAX)
+}
+
+fn parallelism_scaled(val: usize) -> usize { val.saturating_mul(sys::available_parallelism()) }
