@@ -10,7 +10,7 @@ use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, 
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
-	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env,
+	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env, LogLevel,
 	MultiThreaded, Options,
 };
 
@@ -28,6 +28,8 @@ pub struct Engine {
 	cfs: Mutex<BTreeSet<String>>,
 	pub(crate) db: Db,
 	corks: AtomicU32,
+	pub(super) read_only: bool,
+	pub(super) secondary: bool,
 }
 
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
@@ -80,10 +82,13 @@ impl Engine {
 			.collect::<Vec<_>>();
 
 		debug!("Opening database...");
+		let path = &config.database_path;
 		let res = if config.rocksdb_read_only {
-			Db::open_cf_for_read_only(&db_opts, &config.database_path, cfs.clone(), false)
+			Db::open_cf_descriptors_read_only(&db_opts, path, cfds, false)
+		} else if config.rocksdb_secondary {
+			Db::open_cf_descriptors_as_secondary(&db_opts, path, path, cfds)
 		} else {
-			Db::open_cf_descriptors(&db_opts, &config.database_path, cfds)
+			Db::open_cf_descriptors(&db_opts, path, cfds)
 		};
 
 		let db = res.or_else(or_else)?;
@@ -103,10 +108,12 @@ impl Engine {
 			cfs: Mutex::new(cfs),
 			db,
 			corks: AtomicU32::new(0),
+			read_only: config.rocksdb_read_only,
+			secondary: config.rocksdb_secondary,
 		}))
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub(crate) fn open_cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
 		let mut cfs = self.cfs.lock().expect("locked");
 		if !cfs.contains(name) {
@@ -277,6 +284,21 @@ pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
 	}
 
 	Ok(())
+}
+
+#[tracing::instrument(skip_all, name = "rocksdb")]
+pub(crate) fn handle_log(level: LogLevel, msg: &str) {
+	let msg = msg.trim();
+	if msg.starts_with("Options") {
+		return;
+	}
+
+	match level {
+		LogLevel::Header | LogLevel::Debug => debug!("{msg}"),
+		LogLevel::Error | LogLevel::Fatal => error!("{msg}"),
+		LogLevel::Info => debug!("{msg}"),
+		LogLevel::Warn => warn!("{msg}"),
+	};
 }
 
 impl Drop for Engine {

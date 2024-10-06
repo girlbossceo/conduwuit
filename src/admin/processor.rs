@@ -17,7 +17,7 @@ use conduit::{
 	utils::string::{collect_stream, common_prefix},
 	warn, Error, Result,
 };
-use futures_util::future::FutureExt;
+use futures::future::FutureExt;
 use ruma::{
 	events::{
 		relation::InReplyTo,

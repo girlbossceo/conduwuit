@@ -193,7 +193,7 @@ impl super::Service {
 			.send()
 			.await;
 
-		trace!("response: {:?}", response);
+		trace!("response: {response:?}");
 		if let Err(e) = &response {
 			debug!("error: {e:?}");
 			return Ok(None);
@@ -206,7 +206,7 @@ impl super::Service {
 		}
 
 		let text = response.text().await?;
-		trace!("response text: {:?}", text);
+		trace!("response text: {text:?}");
 		if text.len() >= 12288 {
 			debug_warn!("response contains junk");
 			return Ok(None);
@@ -225,7 +225,7 @@ impl super::Service {
 			return Ok(None);
 		}
 
-		debug_info!("{:?} found at {:?}", dest, m_server);
+		debug_info!("{dest:?} found at {m_server:?}");
 		Ok(Some(m_server.to_owned()))
 	}
 

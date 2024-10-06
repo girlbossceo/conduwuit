@@ -7,32 +7,82 @@ use crate::{debug::type_name, err, Err, Error, Result};
 /// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
 #[macro_export]
 macro_rules! checked {
-	($($input:tt)*) => {
-		$crate::utils::math::checked_ops!($($input)*)
+	($($input:tt)+) => {
+		$crate::utils::math::checked_ops!($($input)+)
 			.ok_or_else(|| $crate::err!(Arithmetic("operation overflowed or result invalid")))
-	}
+	};
 }
 
-/// in release-mode. Use for performance when the expression is obviously safe.
-/// The check remains in debug-mode for regression analysis.
+/// Checked arithmetic expression which panics on failure. This is for
+/// expressions which do not meet the threshold for validated! but the caller
+/// has no realistic expectation for error and no interest in cluttering the
+/// callsite with result handling from checked!.
+#[macro_export]
+macro_rules! expected {
+	($msg:literal, $($input:tt)+) => {
+		$crate::checked!($($input)+).expect($msg)
+	};
+
+	($($input:tt)+) => {
+		$crate::expected!("arithmetic expression expectation failure", $($input)+)
+	};
+}
+
+/// Unchecked arithmetic expression in release-mode. Use for performance when
+/// the expression is obviously safe. The check remains in debug-mode for
+/// regression analysis.
 #[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! validated {
-	($($input:tt)*) => {
+	($($input:tt)+) => {
 		//#[allow(clippy::arithmetic_side_effects)] {
 		//Some($($input)*)
 		//	.ok_or_else(|| $crate::err!(Arithmetic("this error should never been seen")))
 		//}
 
 		//NOTE: remove me when stmt_expr_attributes is stable
-		$crate::checked!($($input)*)
-	}
+		$crate::expected!("validated arithmetic expression failed", $($input)+)
+	};
 }
 
+/// Checked arithmetic expression in debug-mode. Use for performance when
+/// the expression is obviously safe. The check is elided in release-mode.
 #[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! validated {
-	($($input:tt)*) => { $crate::checked!($($input)*) }
+	($($input:tt)+) => { $crate::expected!($($input)+) }
+}
+
+/// Functor for equality to zero
+#[macro_export]
+macro_rules! is_zero {
+	() => {
+		$crate::is_matching!(0)
+	};
+}
+
+/// Functor for equality i.e. .is_some_and(is_equal!(2))
+#[macro_export]
+macro_rules! is_equal_to {
+	($val:expr) => {
+		|x| (x == $val)
+	};
+}
+
+/// Functor for less i.e. .is_some_and(is_less_than!(2))
+#[macro_export]
+macro_rules! is_less_than {
+	($val:expr) => {
+		|x| (x < $val)
+	};
+}
+
+/// Functor for matches! i.e. .is_some_and(is_matching!('A'..='Z'))
+#[macro_export]
+macro_rules! is_matching {
+	($val:expr) => {
+		|x| matches!(x, $val)
+	};
 }
 
 /// Returns false if the exponential backoff has expired based on the inputs
@@ -100,3 +150,6 @@ fn try_into_err<Dst: TryFrom<Src>, Src>(e: <Dst as TryFrom<Src>>::Error) -> Erro
 		type_name::<Dst>()
 	))
 }
+
+#[inline]
+pub fn clamp<T: Ord>(val: T, min: T, max: T) -> T { cmp::min(cmp::max(val, min), max) }

@@ -1,5 +1,6 @@
 use clap::Subcommand;
 use conduit::Result;
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, UserId};
 
 use crate::Command;
@@ -30,7 +31,7 @@ pub(super) async fn process(subcommand: PresenceCommand, context: &Command<'_>) 
 			user_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.presence.db.get_presence(&user_id)?;
+			let results = services.presence.db.get_presence(&user_id).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -42,7 +43,7 @@ pub(super) async fn process(subcommand: PresenceCommand, context: &Command<'_>) 
 		} => {
 			let timer = tokio::time::Instant::now();
 			let results = services.presence.db.presence_since(since);
-			let presence_since: Vec<(_, _, _)> = results.collect();
+			let presence_since: Vec<(_, _, _)> = results.collect().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
