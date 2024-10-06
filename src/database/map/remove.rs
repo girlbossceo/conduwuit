@@ -7,18 +7,18 @@ use serde::Serialize;
 use crate::{ser, util::or_else};
 
 #[implement(super::Map)]
-pub fn del<K>(&self, key: &K)
+pub fn del<K>(&self, key: K)
 where
-	K: Serialize + ?Sized + Debug,
+	K: Serialize + Debug,
 {
 	let mut buf = Vec::<u8>::with_capacity(64);
 	self.bdel(key, &mut buf);
 }
 
 #[implement(super::Map)]
-pub fn adel<const MAX: usize, K>(&self, key: &K)
+pub fn adel<const MAX: usize, K>(&self, key: K)
 where
-	K: Serialize + ?Sized + Debug,
+	K: Serialize + Debug,
 {
 	let mut buf = ArrayVec::<u8, MAX>::new();
 	self.bdel(key, &mut buf);
@@ -26,9 +26,9 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, buf), fields(%self), level = "trace")]
-pub fn bdel<K, B>(&self, key: &K, buf: &mut B)
+pub fn bdel<K, B>(&self, key: K, buf: &mut B)
 where
-	K: Serialize + ?Sized + Debug,
+	K: Serialize + Debug,
 	B: Write + AsRef<[u8]>,
 {
 	let key = ser::serialize(buf, key).expect("failed to serialize deletion key");
