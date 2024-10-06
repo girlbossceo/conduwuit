@@ -1,12 +1,24 @@
 use std::io::Write;
 
-use conduit::{err, result::DebugInspect, utils::exchange, Error, Result};
+use arrayvec::ArrayVec;
+use conduit::{debug::type_name, err, result::DebugInspect, utils::exchange, Error, Result};
 use serde::{ser, Serialize};
 
 #[inline]
-pub(crate) fn serialize_to_vec<T>(val: &T) -> Result<Vec<u8>>
+pub fn serialize_to_array<const MAX: usize, T>(val: T) -> Result<ArrayVec<u8, MAX>>
 where
-	T: Serialize + ?Sized,
+	T: Serialize,
+{
+	let mut buf = ArrayVec::<u8, MAX>::new();
+	serialize(&mut buf, val)?;
+
+	Ok(buf)
+}
+
+#[inline]
+pub fn serialize_to_vec<T>(val: T) -> Result<Vec<u8>>
+where
+	T: Serialize,
 {
 	let mut buf = Vec::with_capacity(64);
 	serialize(&mut buf, val)?;
@@ -15,10 +27,10 @@ where
 }
 
 #[inline]
-pub(crate) fn serialize<'a, W, T>(out: &'a mut W, val: &'a T) -> Result<&'a [u8]>
+pub fn serialize<'a, W, T>(out: &'a mut W, val: T) -> Result<&'a [u8]>
 where
-	W: Write + AsRef<[u8]>,
-	T: Serialize + ?Sized,
+	W: Write + AsRef<[u8]> + 'a,
+	T: Serialize,
 {
 	let mut serializer = Serializer {
 		out,
@@ -43,6 +55,10 @@ pub(crate) struct Serializer<'a, W: Write> {
 	fin: bool,
 }
 
+/// Newtype for JSON serialization.
+#[derive(Debug, Serialize)]
+pub struct Json<T>(pub T);
+
 /// Directive to force separator serialization specifically for prefix keying
 /// use. This is a quirk of the database schema and prefix iterations.
 #[derive(Debug, Serialize)]
@@ -56,38 +72,43 @@ pub struct Separator;
 impl<W: Write> Serializer<'_, W> {
 	const SEP: &'static [u8] = b"\xFF";
 
+	fn tuple_start(&mut self) {
+		debug_assert!(!self.sep, "Tuple start with separator set");
+		self.sequence_start();
+	}
+
+	fn tuple_end(&mut self) -> Result {
+		self.sequence_end()?;
+		Ok(())
+	}
+
 	fn sequence_start(&mut self) {
 		debug_assert!(!self.is_finalized(), "Sequence start with finalization set");
-		debug_assert!(!self.sep, "Sequence start with separator set");
-		if cfg!(debug_assertions) {
-			self.depth = self.depth.saturating_add(1);
-		}
+		cfg!(debug_assertions).then(|| self.depth = self.depth.saturating_add(1));
 	}
 
-	fn sequence_end(&mut self) {
-		self.sep = false;
-		if cfg!(debug_assertions) {
-			self.depth = self.depth.saturating_sub(1);
-		}
+	fn sequence_end(&mut self) -> Result {
+		cfg!(debug_assertions).then(|| self.depth = self.depth.saturating_sub(1));
+		Ok(())
 	}
 
-	fn record_start(&mut self) -> Result<()> {
+	fn record_start(&mut self) -> Result {
 		debug_assert!(!self.is_finalized(), "Starting a record after serialization finalized");
 		exchange(&mut self.sep, true)
 			.then(|| self.separator())
 			.unwrap_or(Ok(()))
 	}
 
-	fn separator(&mut self) -> Result<()> {
+	fn separator(&mut self) -> Result {
 		debug_assert!(!self.is_finalized(), "Writing a separator after serialization finalized");
 		self.out.write_all(Self::SEP).map_err(Into::into)
 	}
 
+	fn write(&mut self, buf: &[u8]) -> Result { self.out.write_all(buf).map_err(Into::into) }
+
 	fn set_finalized(&mut self) {
 		debug_assert!(!self.is_finalized(), "Finalization already set");
-		if cfg!(debug_assertions) {
-			self.fin = true;
-		}
+		cfg!(debug_assertions).then(|| self.fin = true);
 	}
 
 	fn is_finalized(&self) -> bool { self.fin }
@@ -104,53 +125,65 @@ impl<W: Write> ser::Serializer for &mut Serializer<'_, W> {
 	type SerializeTupleStruct = Self;
 	type SerializeTupleVariant = Self;
 
-	fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-		unimplemented!("serialize Map not implemented")
-	}
-
 	fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
 		self.sequence_start();
-		self.record_start()?;
 		Ok(self)
 	}
 
 	fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-		self.sequence_start();
+		self.tuple_start();
 		Ok(self)
 	}
 
 	fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
-		self.sequence_start();
+		self.tuple_start();
 		Ok(self)
 	}
 
 	fn serialize_tuple_variant(
 		self, _name: &'static str, _idx: u32, _var: &'static str, _len: usize,
 	) -> Result<Self::SerializeTupleVariant> {
-		self.sequence_start();
-		Ok(self)
+		unimplemented!("serialize Tuple Variant not implemented")
+	}
+
+	fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+		unimplemented!(
+			"serialize Map not implemented; did you mean to use database::Json() around your serde_json::Value?"
+		)
 	}
 
 	fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-		self.sequence_start();
-		Ok(self)
+		unimplemented!(
+			"serialize Struct not implemented at this time; did you mean to use database::Json() around your struct?"
+		)
 	}
 
 	fn serialize_struct_variant(
 		self, _name: &'static str, _idx: u32, _var: &'static str, _len: usize,
 	) -> Result<Self::SerializeStructVariant> {
-		self.sequence_start();
-		Ok(self)
+		unimplemented!("serialize Struct Variant not implemented")
 	}
 
-	fn serialize_newtype_struct<T: Serialize + ?Sized>(self, _name: &'static str, _value: &T) -> Result<Self::Ok> {
-		unimplemented!("serialize New Type Struct not implemented")
+	#[allow(clippy::needless_borrows_for_generic_args)] // buggy
+	fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<Self::Ok>
+	where
+		T: Serialize + ?Sized,
+	{
+		debug_assert!(
+			name != "Json" || type_name::<T>() != "alloc::boxed::Box<serde_json::raw::RawValue>",
+			"serializing a Json(RawValue); you can skip serialization instead"
+		);
+
+		match name {
+			"Json" => serde_json::to_writer(&mut self.out, value).map_err(Into::into),
+			_ => unimplemented!("Unrecognized serialization Newtype {name:?}"),
+		}
 	}
 
 	fn serialize_newtype_variant<T: Serialize + ?Sized>(
 		self, _name: &'static str, _idx: u32, _var: &'static str, _value: &T,
 	) -> Result<Self::Ok> {
-		unimplemented!("serialize New Type Variant not implemented")
+		unimplemented!("serialize Newtype Variant not implemented")
 	}
 
 	fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok> {
@@ -180,33 +213,92 @@ impl<W: Write> ser::Serializer for &mut Serializer<'_, W> {
 		self.serialize_str(v.encode_utf8(&mut buf))
 	}
 
-	fn serialize_str(self, v: &str) -> Result<Self::Ok> { self.serialize_bytes(v.as_bytes()) }
+	fn serialize_str(self, v: &str) -> Result<Self::Ok> {
+		debug_assert!(
+			self.depth > 0,
+			"serializing string at the top-level; you can skip serialization instead"
+		);
 
-	fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> { self.out.write_all(v).map_err(Error::Io) }
+		self.serialize_bytes(v.as_bytes())
+	}
+
+	fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
+		debug_assert!(
+			self.depth > 0,
+			"serializing byte array at the top-level; you can skip serialization instead"
+		);
+
+		self.write(v)
+	}
 
 	fn serialize_f64(self, _v: f64) -> Result<Self::Ok> { unimplemented!("serialize f64 not implemented") }
 
 	fn serialize_f32(self, _v: f32) -> Result<Self::Ok> { unimplemented!("serialize f32 not implemented") }
 
-	fn serialize_i64(self, v: i64) -> Result<Self::Ok> { self.out.write_all(&v.to_be_bytes()).map_err(Error::Io) }
+	fn serialize_i64(self, v: i64) -> Result<Self::Ok> { self.write(&v.to_be_bytes()) }
 
-	fn serialize_i32(self, _v: i32) -> Result<Self::Ok> { unimplemented!("serialize i32 not implemented") }
+	fn serialize_i32(self, v: i32) -> Result<Self::Ok> { self.write(&v.to_be_bytes()) }
 
 	fn serialize_i16(self, _v: i16) -> Result<Self::Ok> { unimplemented!("serialize i16 not implemented") }
 
 	fn serialize_i8(self, _v: i8) -> Result<Self::Ok> { unimplemented!("serialize i8 not implemented") }
 
-	fn serialize_u64(self, v: u64) -> Result<Self::Ok> { self.out.write_all(&v.to_be_bytes()).map_err(Error::Io) }
+	fn serialize_u64(self, v: u64) -> Result<Self::Ok> { self.write(&v.to_be_bytes()) }
 
-	fn serialize_u32(self, _v: u32) -> Result<Self::Ok> { unimplemented!("serialize u32 not implemented") }
+	fn serialize_u32(self, v: u32) -> Result<Self::Ok> { self.write(&v.to_be_bytes()) }
 
 	fn serialize_u16(self, _v: u16) -> Result<Self::Ok> { unimplemented!("serialize u16 not implemented") }
 
-	fn serialize_u8(self, v: u8) -> Result<Self::Ok> { self.out.write_all(&[v]).map_err(Error::Io) }
+	fn serialize_u8(self, v: u8) -> Result<Self::Ok> { self.write(&[v]) }
 
 	fn serialize_bool(self, _v: bool) -> Result<Self::Ok> { unimplemented!("serialize bool not implemented") }
 
 	fn serialize_unit(self) -> Result<Self::Ok> { unimplemented!("serialize unit not implemented") }
+}
+
+impl<W: Write> ser::SerializeSeq for &mut Serializer<'_, W> {
+	type Error = Error;
+	type Ok = ();
+
+	fn serialize_element<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> { val.serialize(&mut **self) }
+
+	fn end(self) -> Result<Self::Ok> { self.sequence_end() }
+}
+
+impl<W: Write> ser::SerializeTuple for &mut Serializer<'_, W> {
+	type Error = Error;
+	type Ok = ();
+
+	fn serialize_element<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> {
+		self.record_start()?;
+		val.serialize(&mut **self)
+	}
+
+	fn end(self) -> Result<Self::Ok> { self.tuple_end() }
+}
+
+impl<W: Write> ser::SerializeTupleStruct for &mut Serializer<'_, W> {
+	type Error = Error;
+	type Ok = ();
+
+	fn serialize_field<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> {
+		self.record_start()?;
+		val.serialize(&mut **self)
+	}
+
+	fn end(self) -> Result<Self::Ok> { self.tuple_end() }
+}
+
+impl<W: Write> ser::SerializeTupleVariant for &mut Serializer<'_, W> {
+	type Error = Error;
+	type Ok = ();
+
+	fn serialize_field<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> {
+		self.record_start()?;
+		val.serialize(&mut **self)
+	}
+
+	fn end(self) -> Result<Self::Ok> { self.tuple_end() }
 }
 
 impl<W: Write> ser::SerializeMap for &mut Serializer<'_, W> {
@@ -221,95 +313,27 @@ impl<W: Write> ser::SerializeMap for &mut Serializer<'_, W> {
 		unimplemented!("serialize Map Val not implemented")
 	}
 
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
-}
-
-impl<W: Write> ser::SerializeSeq for &mut Serializer<'_, W> {
-	type Error = Error;
-	type Ok = ();
-
-	fn serialize_element<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> { val.serialize(&mut **self) }
-
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
+	fn end(self) -> Result<Self::Ok> { unimplemented!("serialize Map End not implemented") }
 }
 
 impl<W: Write> ser::SerializeStruct for &mut Serializer<'_, W> {
 	type Error = Error;
 	type Ok = ();
 
-	fn serialize_field<T: Serialize + ?Sized>(&mut self, _key: &'static str, val: &T) -> Result<Self::Ok> {
-		self.record_start()?;
-		val.serialize(&mut **self)
+	fn serialize_field<T: Serialize + ?Sized>(&mut self, _key: &'static str, _val: &T) -> Result<Self::Ok> {
+		unimplemented!("serialize Struct Field not implemented")
 	}
 
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
+	fn end(self) -> Result<Self::Ok> { unimplemented!("serialize Struct End not implemented") }
 }
 
 impl<W: Write> ser::SerializeStructVariant for &mut Serializer<'_, W> {
 	type Error = Error;
 	type Ok = ();
 
-	fn serialize_field<T: Serialize + ?Sized>(&mut self, _key: &'static str, val: &T) -> Result<Self::Ok> {
-		self.record_start()?;
-		val.serialize(&mut **self)
+	fn serialize_field<T: Serialize + ?Sized>(&mut self, _key: &'static str, _val: &T) -> Result<Self::Ok> {
+		unimplemented!("serialize Struct Variant Field not implemented")
 	}
 
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
-}
-
-impl<W: Write> ser::SerializeTuple for &mut Serializer<'_, W> {
-	type Error = Error;
-	type Ok = ();
-
-	fn serialize_element<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> {
-		self.record_start()?;
-		val.serialize(&mut **self)
-	}
-
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
-}
-
-impl<W: Write> ser::SerializeTupleStruct for &mut Serializer<'_, W> {
-	type Error = Error;
-	type Ok = ();
-
-	fn serialize_field<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> {
-		self.record_start()?;
-		val.serialize(&mut **self)
-	}
-
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
-}
-
-impl<W: Write> ser::SerializeTupleVariant for &mut Serializer<'_, W> {
-	type Error = Error;
-	type Ok = ();
-
-	fn serialize_field<T: Serialize + ?Sized>(&mut self, val: &T) -> Result<Self::Ok> {
-		self.record_start()?;
-		val.serialize(&mut **self)
-	}
-
-	fn end(self) -> Result<Self::Ok> {
-		self.sequence_end();
-		Ok(())
-	}
+	fn end(self) -> Result<Self::Ok> { unimplemented!("serialize Struct Variant End not implemented") }
 }
