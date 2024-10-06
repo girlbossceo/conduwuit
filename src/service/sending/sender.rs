@@ -57,8 +57,7 @@ impl Service {
 		let receiver = self.receiver.lock().await;
 
 		self.initial_requests(&mut futures, &mut statuses).await;
-		loop {
-			debug_assert!(!receiver.is_closed(), "channel error");
+		while !receiver.is_closed() {
 			tokio::select! {
 				request = receiver.recv_async() => match request {
 					Ok(request) => self.handle_request(request, &mut futures, &mut statuses).await,
