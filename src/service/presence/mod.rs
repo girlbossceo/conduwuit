@@ -55,14 +55,13 @@ impl crate::Service for Service {
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		let mut presence_timers = FuturesUnordered::new();
 		let receiver = self.timer_receiver.lock().await;
-		loop {
-			debug_assert!(!receiver.is_closed(), "channel error");
+		while !receiver.is_closed() {
 			tokio::select! {
 				Some(user_id) = presence_timers.next() => {
 					self.process_presence_timer(&user_id).await.log_err().ok();
 				},
 				event = receiver.recv_async() => match event {
-					Err(_e) => return Ok(()),
+					Err(_) => break,
 					Ok((user_id, timeout)) => {
 						debug!("Adding timer {}: {user_id} timeout:{timeout:?}", presence_timers.len());
 						presence_timers.push(presence_timer(user_id, timeout));
@@ -70,6 +69,8 @@ impl crate::Service for Service {
 				},
 			}
 		}
+
+		Ok(())
 	}
 
 	fn interrupt(&self) {
