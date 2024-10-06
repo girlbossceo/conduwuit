@@ -10,6 +10,7 @@ pub mod maps;
 mod opts;
 mod ser;
 mod stream;
+mod tests;
 mod util;
 mod watchers;
 
@@ -28,7 +29,7 @@ pub use self::{
 	handle::Handle,
 	keyval::{KeyVal, Slice},
 	map::Map,
-	ser::{Interfix, Separator},
+	ser::{serialize, serialize_to_array, serialize_to_vec, Interfix, Json, Separator},
 };
 
 conduit::mod_ctor! {}
