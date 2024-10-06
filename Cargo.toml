@@ -69,7 +69,7 @@ version = "0.8.5"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 [workspace.dependencies.bytes]
-version = "1.7.1"
+version = "1.7.2"
 
 [workspace.dependencies.http-body-util]
 version = "0.1.1"
@@ -111,12 +111,12 @@ version = "0.7"
 version = "0.6.0"
 
 [workspace.dependencies.tower]
-version = "0.5.0"
+version = "0.5.1"
 default-features = false
 features = ["util"]
 
 [workspace.dependencies.tower-http]
-version = "0.5.2"
+version = "0.6.0"
 default-features = false
 features = [
     "add-extension",
@@ -129,10 +129,10 @@ features = [
 ]
 
 [workspace.dependencies.rustls]
-version = "0.23.12"
+version = "0.23.13"
 
 [workspace.dependencies.reqwest]
-version = "0.12.7"
+version = "0.12.8"
 default-features = false
 features = [
 	"rustls-tls-native-roots",
@@ -257,7 +257,8 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-version = "0.1.6"
+# 0.1.9 causes DNS issues
+version = "=0.1.8"
 default-features = false
 features = [
 	"client",
