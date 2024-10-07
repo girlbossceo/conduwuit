@@ -146,8 +146,7 @@ impl Data {
 	}
 
 	pub(super) fn set_latest_educount(&self, server_name: &ServerName, last_count: u64) {
-		self.servername_educount
-			.insert(server_name.as_bytes(), &last_count.to_be_bytes());
+		self.servername_educount.raw_put(server_name, last_count);
 	}
 
 	pub async fn get_latest_educount(&self, server_name: &ServerName) -> u64 {

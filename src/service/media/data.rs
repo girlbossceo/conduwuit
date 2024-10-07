@@ -1,13 +1,13 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use conduit::{
-	debug, debug_info, trace,
+	debug, debug_info, err,
 	utils::{str_from_bytes, stream::TryIgnore, string_from_bytes, ReadyExt},
 	Err, Error, Result,
 };
-use database::{Database, Map};
+use database::{Database, Interfix, Map};
 use futures::StreamExt;
-use ruma::{api::client::error::ErrorKind, http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
+use ruma::{http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
 
 use super::{preview::UrlPreviewData, thumbnail::Dim};
 
@@ -37,39 +37,13 @@ impl Data {
 		&self, mxc: &Mxc<'_>, user: Option<&UserId>, dim: &Dim, content_disposition: Option<&ContentDisposition>,
 		content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
-		let mut key: Vec<u8> = Vec::new();
-		key.extend_from_slice(b"mxc://");
-		key.extend_from_slice(mxc.server_name.as_bytes());
-		key.extend_from_slice(b"/");
-		key.extend_from_slice(mxc.media_id.as_bytes());
-		key.push(0xFF);
-		key.extend_from_slice(&dim.width.to_be_bytes());
-		key.extend_from_slice(&dim.height.to_be_bytes());
-		key.push(0xFF);
-		key.extend_from_slice(
-			content_disposition
-				.map(ToString::to_string)
-				.unwrap_or_default()
-				.as_bytes(),
-		);
-		key.push(0xFF);
-		key.extend_from_slice(
-			content_type
-				.as_ref()
-				.map(|c| c.as_bytes())
-				.unwrap_or_default(),
-		);
-
-		self.mediaid_file.insert(&key, &[]);
-
+		let dim: &[u32] = &[dim.width, dim.height];
+		let key = (mxc, dim, content_disposition, content_type);
+		let key = database::serialize_to_vec(key)?;
+		self.mediaid_file.insert(&key, []);
 		if let Some(user) = user {
-			let mut key: Vec<u8> = Vec::new();
-			key.extend_from_slice(b"mxc://");
-			key.extend_from_slice(mxc.server_name.as_bytes());
-			key.extend_from_slice(b"/");
-			key.extend_from_slice(mxc.media_id.as_bytes());
-			let user = user.as_bytes().to_vec();
-			self.mediaid_user.insert(&key, &user);
+			let key = (mxc, user);
+			self.mediaid_user.put_raw(key, user);
 		}
 
 		Ok(key)
@@ -78,33 +52,23 @@ impl Data {
 	pub(super) async fn delete_file_mxc(&self, mxc: &Mxc<'_>) {
 		debug!("MXC URI: {mxc}");
 
-		let mut prefix: Vec<u8> = Vec::new();
-		prefix.extend_from_slice(b"mxc://");
-		prefix.extend_from_slice(mxc.server_name.as_bytes());
-		prefix.extend_from_slice(b"/");
-		prefix.extend_from_slice(mxc.media_id.as_bytes());
-		prefix.push(0xFF);
-
-		trace!("MXC db prefix: {prefix:?}");
+		let prefix = (mxc, Interfix);
 		self.mediaid_file
-			.raw_keys_prefix(&prefix)
+			.keys_prefix_raw(&prefix)
 			.ignore_err()
-			.ready_for_each(|key| {
-				debug!("Deleting key: {:?}", key);
-				self.mediaid_file.remove(key);
-			})
+			.ready_for_each(|key| self.mediaid_file.remove(key))
 			.await;
 
 		self.mediaid_user
-			.raw_stream_prefix(&prefix)
+			.stream_prefix_raw(&prefix)
 			.ignore_err()
 			.ready_for_each(|(key, val)| {
-				if key.starts_with(&prefix) {
-					let user = str_from_bytes(val).unwrap_or_default();
-					debug_info!("Deleting key {key:?} which was uploaded by user {user}");
+				debug_assert!(key.starts_with(mxc.to_string().as_bytes()), "key should start with the mxc");
 
-					self.mediaid_user.remove(key);
-				}
+				let user = str_from_bytes(val).unwrap_or_default();
+				debug_info!("Deleting key {key:?} which was uploaded by user {user}");
+
+				self.mediaid_user.remove(key);
 			})
 			.await;
 	}
@@ -113,16 +77,10 @@ impl Data {
 	pub(super) async fn search_mxc_metadata_prefix(&self, mxc: &Mxc<'_>) -> Result<Vec<Vec<u8>>> {
 		debug!("MXC URI: {mxc}");
 
-		let mut prefix: Vec<u8> = Vec::new();
-		prefix.extend_from_slice(b"mxc://");
-		prefix.extend_from_slice(mxc.server_name.as_bytes());
-		prefix.extend_from_slice(b"/");
-		prefix.extend_from_slice(mxc.media_id.as_bytes());
-		prefix.push(0xFF);
-
+		let prefix = (mxc, Interfix);
 		let keys: Vec<Vec<u8>> = self
 			.mediaid_file
-			.raw_keys_prefix(&prefix)
+			.keys_prefix_raw(&prefix)
 			.ignore_err()
 			.map(<[u8]>::to_vec)
 			.collect()
@@ -138,24 +96,17 @@ impl Data {
 	}
 
 	pub(super) async fn search_file_metadata(&self, mxc: &Mxc<'_>, dim: &Dim) -> Result<Metadata> {
-		let mut prefix: Vec<u8> = Vec::new();
-		prefix.extend_from_slice(b"mxc://");
-		prefix.extend_from_slice(mxc.server_name.as_bytes());
-		prefix.extend_from_slice(b"/");
-		prefix.extend_from_slice(mxc.media_id.as_bytes());
-		prefix.push(0xFF);
-		prefix.extend_from_slice(&dim.width.to_be_bytes());
-		prefix.extend_from_slice(&dim.height.to_be_bytes());
-		prefix.push(0xFF);
+		let dim: &[u32] = &[dim.width, dim.height];
+		let prefix = (mxc, dim, Interfix);
 
 		let key = self
 			.mediaid_file
-			.raw_keys_prefix(&prefix)
+			.keys_prefix_raw(&prefix)
 			.ignore_err()
 			.map(ToOwned::to_owned)
 			.next()
 			.await
-			.ok_or_else(|| Error::BadRequest(ErrorKind::NotFound, "Media not found"))?;
+			.ok_or_else(|| err!(Request(NotFound("Media not found"))))?;
 
 		let mut parts = key.rsplit(|&b| b == 0xFF);
 
@@ -215,9 +166,7 @@ impl Data {
 		Ok(())
 	}
 
-	pub(super) fn set_url_preview(
-		&self, url: &str, data: &UrlPreviewData, timestamp: std::time::Duration,
-	) -> Result<()> {
+	pub(super) fn set_url_preview(&self, url: &str, data: &UrlPreviewData, timestamp: Duration) -> Result<()> {
 		let mut value = Vec::<u8>::new();
 		value.extend_from_slice(&timestamp.as_secs().to_be_bytes());
 		value.push(0xFF);

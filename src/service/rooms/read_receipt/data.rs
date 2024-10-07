@@ -5,7 +5,7 @@ use conduit::{
 	utils::{stream::TryIgnore, ReadyExt},
 	Error, Result,
 };
-use database::{Deserialized, Map};
+use database::{Deserialized, Json, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
 	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
@@ -44,33 +44,19 @@ impl Data {
 	pub(super) async fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) {
 		type KeyVal<'a> = (&'a RoomId, u64, &'a UserId);
 
-		let mut prefix = room_id.as_bytes().to_vec();
-		prefix.push(0xFF);
-
-		let mut last_possible_key = prefix.clone();
-		last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
-
 		// Remove old entry
+		let last_possible_key = (room_id, u64::MAX);
 		self.readreceiptid_readreceipt
-			.rev_keys_from_raw(&last_possible_key)
+			.rev_keys_from(&last_possible_key)
 			.ignore_err()
 			.ready_take_while(|(r, ..): &KeyVal<'_>| *r == room_id)
 			.ready_filter_map(|(r, c, u): KeyVal<'_>| (u == user_id).then_some((r, c, u)))
-			.ready_for_each(|old: KeyVal<'_>| {
-				// This is the old room_latest
-				self.readreceiptid_readreceipt.del(&old);
-			})
+			.ready_for_each(|old: KeyVal<'_>| self.readreceiptid_readreceipt.del(old))
 			.await;
 
-		let mut room_latest_id = prefix;
-		room_latest_id.extend_from_slice(&self.services.globals.next_count().unwrap().to_be_bytes());
-		room_latest_id.push(0xFF);
-		room_latest_id.extend_from_slice(user_id.as_bytes());
-
-		self.readreceiptid_readreceipt.insert(
-			&room_latest_id,
-			&serde_json::to_vec(event).expect("EduEvent::to_string always works"),
-		);
+		let count = self.services.globals.next_count().unwrap();
+		let latest_id = (room_id, count, user_id);
+		self.readreceiptid_readreceipt.put(latest_id, Json(event));
 	}
 
 	pub(super) fn readreceipts_since<'a>(
@@ -113,15 +99,11 @@ impl Data {
 	}
 
 	pub(super) fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) {
-		let mut key = room_id.as_bytes().to_vec();
-		key.push(0xFF);
-		key.extend_from_slice(user_id.as_bytes());
+		let key = (room_id, user_id);
+		let next_count = self.services.globals.next_count().unwrap();
 
-		self.roomuserid_privateread
-			.insert(&key, &count.to_be_bytes());
-
-		self.roomuserid_lastprivatereadupdate
-			.insert(&key, &self.services.globals.next_count().unwrap().to_be_bytes());
+		self.roomuserid_privateread.put(key, count);
+		self.roomuserid_lastprivatereadupdate.put(key, next_count);
 	}
 
 	pub(super) async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {

@@ -5,7 +5,7 @@ use conduit::{
 	utils::{stream::TryIgnore, ReadyExt},
 	Result,
 };
-use database::{Deserialized, Map};
+use database::{Deserialized, Json, Map};
 use futures::Stream;
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 
@@ -107,14 +107,12 @@ impl Data {
 			last_active_ts,
 			status_msg,
 		);
+
 		let count = self.services.globals.next_count()?;
 		let key = presenceid_key(count, user_id);
 
-		self.presenceid_presence
-			.insert(&key, &presence.to_json_bytes()?);
-
-		self.userid_presenceid
-			.insert(user_id.as_bytes(), &count.to_be_bytes());
+		self.presenceid_presence.raw_put(key, Json(presence));
+		self.userid_presenceid.raw_put(user_id, count);
 
 		if let Ok((last_count, _)) = last_presence {
 			let key = presenceid_key(last_count, user_id);
@@ -136,7 +134,7 @@ impl Data {
 
 		let key = presenceid_key(count, user_id);
 		self.presenceid_presence.remove(&key);
-		self.userid_presenceid.remove(user_id.as_bytes());
+		self.userid_presenceid.remove(user_id);
 	}
 
 	pub fn presence_since(&self, since: u64) -> impl Stream<Item = (OwnedUserId, u64, Vec<u8>)> + Send + '_ {
@@ -152,7 +150,11 @@ impl Data {
 
 #[inline]
 fn presenceid_key(count: u64, user_id: &UserId) -> Vec<u8> {
-	[count.to_be_bytes().to_vec(), user_id.as_bytes().to_vec()].concat()
+	let cap = size_of::<u64>().saturating_add(user_id.as_bytes().len());
+	let mut key = Vec::with_capacity(cap);
+	key.extend_from_slice(&count.to_be_bytes());
+	key.extend_from_slice(user_id.as_bytes());
+	key
 }
 
 #[inline]

@@ -5,7 +5,7 @@ use conduit::{
 	utils::stream::{ReadyExt, TryIgnore},
 	Err, Result,
 };
-use database::{Deserialized, Ignore, Interfix, Map};
+use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::StreamExt;
 use ruma::{
 	api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
@@ -50,31 +50,21 @@ impl crate::Service for Service {
 #[implement(Service)]
 pub fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
 	let version = self.services.globals.next_count()?.to_string();
+	let count = self.services.globals.next_count()?;
 
-	let mut key = user_id.as_bytes().to_vec();
-	key.push(0xFF);
-	key.extend_from_slice(version.as_bytes());
+	let key = (user_id, &version);
+	self.db.backupid_algorithm.put(key, Json(backup_metadata));
 
-	self.db.backupid_algorithm.insert(
-		&key,
-		&serde_json::to_vec(backup_metadata).expect("BackupAlgorithm::to_vec always works"),
-	);
-
-	self.db
-		.backupid_etag
-		.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
+	self.db.backupid_etag.put(key, count);
 
 	Ok(version)
 }
 
 #[implement(Service)]
 pub async fn delete_backup(&self, user_id: &UserId, version: &str) {
-	let mut key = user_id.as_bytes().to_vec();
-	key.push(0xFF);
-	key.extend_from_slice(version.as_bytes());
-
-	self.db.backupid_algorithm.remove(&key);
-	self.db.backupid_etag.remove(&key);
+	let key = (user_id, version);
+	self.db.backupid_algorithm.del(key);
+	self.db.backupid_etag.del(key);
 
 	let key = (user_id, version, Interfix);
 	self.db
@@ -86,26 +76,21 @@ pub async fn delete_backup(&self, user_id: &UserId, version: &str) {
 }
 
 #[implement(Service)]
-pub async fn update_backup(
-	&self, user_id: &UserId, version: &str, backup_metadata: &Raw<BackupAlgorithm>,
-) -> Result<String> {
+pub async fn update_backup<'a>(
+	&self, user_id: &UserId, version: &'a str, backup_metadata: &Raw<BackupAlgorithm>,
+) -> Result<&'a str> {
 	let key = (user_id, version);
 	if self.db.backupid_algorithm.qry(&key).await.is_err() {
 		return Err!(Request(NotFound("Tried to update nonexistent backup.")));
 	}
 
-	let mut key = user_id.as_bytes().to_vec();
-	key.push(0xFF);
-	key.extend_from_slice(version.as_bytes());
-
+	let count = self.services.globals.next_count().unwrap();
+	self.db.backupid_etag.put(key, count);
 	self.db
 		.backupid_algorithm
-		.insert(&key, backup_metadata.json().get().as_bytes());
-	self.db
-		.backupid_etag
-		.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
+		.put_raw(key, backup_metadata.json().get());
 
-	Ok(version.to_owned())
+	Ok(version)
 }
 
 #[implement(Service)]
@@ -156,22 +141,13 @@ pub async fn add_key(
 		return Err!(Request(NotFound("Tried to update nonexistent backup.")));
 	}
 
-	let mut key = user_id.as_bytes().to_vec();
-	key.push(0xFF);
-	key.extend_from_slice(version.as_bytes());
+	let count = self.services.globals.next_count().unwrap();
+	self.db.backupid_etag.put(key, count);
 
-	self.db
-		.backupid_etag
-		.insert(&key, &self.services.globals.next_count()?.to_be_bytes());
-
-	key.push(0xFF);
-	key.extend_from_slice(room_id.as_bytes());
-	key.push(0xFF);
-	key.extend_from_slice(session_id.as_bytes());
-
+	let key = (user_id, version, room_id, session_id);
 	self.db
 		.backupkeyid_backup
-		.insert(&key, key_data.json().get().as_bytes());
+		.put_raw(key, key_data.json().get());
 
 	Ok(())
 }

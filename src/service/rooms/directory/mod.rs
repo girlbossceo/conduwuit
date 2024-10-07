@@ -26,10 +26,10 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-pub fn set_public(&self, room_id: &RoomId) { self.db.publicroomids.insert(room_id.as_bytes(), &[]); }
+pub fn set_public(&self, room_id: &RoomId) { self.db.publicroomids.insert(room_id, []); }
 
 #[implement(Service)]
-pub fn set_not_public(&self, room_id: &RoomId) { self.db.publicroomids.remove(room_id.as_bytes()); }
+pub fn set_not_public(&self, room_id: &RoomId) { self.db.publicroomids.remove(room_id); }
 
 #[implement(Service)]
 pub async fn is_public_room(&self, room_id: &RoomId) -> bool { self.db.publicroomids.get(room_id).await.is_ok() }

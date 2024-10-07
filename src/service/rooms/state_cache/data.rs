@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduit::{utils::stream::TryIgnore, Result};
-use database::{Deserialized, Interfix, Map};
+use database::{serialize_to_vec, Deserialized, Interfix, Json, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
 	events::{AnyStrippedStateEvent, AnySyncStateEvent},
@@ -63,71 +63,62 @@ impl Data {
 	}
 
 	pub(super) fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) {
-		let mut userroom_id = user_id.as_bytes().to_vec();
-		userroom_id.push(0xFF);
-		userroom_id.extend_from_slice(room_id.as_bytes());
-		self.roomuseroncejoinedids.insert(&userroom_id, &[]);
+		let key = (user_id, room_id);
+
+		self.roomuseroncejoinedids.put_raw(key, []);
 	}
 
 	pub(super) fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) {
-		let roomid = room_id.as_bytes().to_vec();
+		let userroom_id = (user_id, room_id);
+		let userroom_id = serialize_to_vec(userroom_id).expect("failed to serialize userroom_id");
 
-		let mut roomuser_id = roomid.clone();
-		roomuser_id.push(0xFF);
-		roomuser_id.extend_from_slice(user_id.as_bytes());
+		let roomuser_id = (room_id, user_id);
+		let roomuser_id = serialize_to_vec(roomuser_id).expect("failed to serialize roomuser_id");
 
-		let mut userroom_id = user_id.as_bytes().to_vec();
-		userroom_id.push(0xFF);
-		userroom_id.extend_from_slice(room_id.as_bytes());
+		self.userroomid_joined.insert(&userroom_id, []);
+		self.roomuserid_joined.insert(&roomuser_id, []);
 
-		self.userroomid_joined.insert(&userroom_id, &[]);
-		self.roomuserid_joined.insert(&roomuser_id, &[]);
 		self.userroomid_invitestate.remove(&userroom_id);
 		self.roomuserid_invitecount.remove(&roomuser_id);
+
 		self.userroomid_leftstate.remove(&userroom_id);
 		self.roomuserid_leftcount.remove(&roomuser_id);
 
-		self.roomid_inviteviaservers.remove(&roomid);
+		self.roomid_inviteviaservers.remove(room_id);
 	}
 
 	pub(super) fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) {
-		let roomid = room_id.as_bytes().to_vec();
+		let userroom_id = (user_id, room_id);
+		let userroom_id = serialize_to_vec(userroom_id).expect("failed to serialize userroom_id");
 
-		let mut roomuser_id = roomid.clone();
-		roomuser_id.push(0xFF);
-		roomuser_id.extend_from_slice(user_id.as_bytes());
+		let roomuser_id = (room_id, user_id);
+		let roomuser_id = serialize_to_vec(roomuser_id).expect("failed to serialize roomuser_id");
 
-		let mut userroom_id = user_id.as_bytes().to_vec();
-		userroom_id.push(0xFF);
-		userroom_id.extend_from_slice(room_id.as_bytes());
+		// (timo) TODO
+		let leftstate = Vec::<Raw<AnySyncStateEvent>>::new();
+		let count = self.services.globals.next_count().unwrap();
 
-		self.userroomid_leftstate.insert(
-			&userroom_id,
-			&serde_json::to_vec(&Vec::<Raw<AnySyncStateEvent>>::new()).unwrap(),
-		); // TODO
-		self.roomuserid_leftcount
-			.insert(&roomuser_id, &self.services.globals.next_count().unwrap().to_be_bytes());
+		self.userroomid_leftstate
+			.raw_put(&userroom_id, Json(leftstate));
+		self.roomuserid_leftcount.raw_put(&roomuser_id, count);
+
 		self.userroomid_joined.remove(&userroom_id);
 		self.roomuserid_joined.remove(&roomuser_id);
+
 		self.userroomid_invitestate.remove(&userroom_id);
 		self.roomuserid_invitecount.remove(&roomuser_id);
 
-		self.roomid_inviteviaservers.remove(&roomid);
+		self.roomid_inviteviaservers.remove(room_id);
 	}
 
 	/// Makes a user forget a room.
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub(super) fn forget(&self, room_id: &RoomId, user_id: &UserId) {
-		let mut userroom_id = user_id.as_bytes().to_vec();
-		userroom_id.push(0xFF);
-		userroom_id.extend_from_slice(room_id.as_bytes());
+		let userroom_id = (user_id, room_id);
+		let roomuser_id = (room_id, user_id);
 
-		let mut roomuser_id = room_id.as_bytes().to_vec();
-		roomuser_id.push(0xFF);
-		roomuser_id.extend_from_slice(user_id.as_bytes());
-
-		self.userroomid_leftstate.remove(&userroom_id);
-		self.roomuserid_leftcount.remove(&roomuser_id);
+		self.userroomid_leftstate.del(userroom_id);
+		self.roomuserid_leftcount.del(roomuser_id);
 	}
 
 	/// Returns an iterator over all rooms a user was invited to.

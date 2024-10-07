@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduit::{trace, utils, utils::rand, Error, Result, Server};
-use database::{Database, Deserialized, Map};
+use database::{Database, Deserialized, Json, Map};
 use futures::{pin_mut, stream::FuturesUnordered, FutureExt, StreamExt};
 use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
@@ -83,7 +83,7 @@ impl Data {
 			.checked_add(1)
 			.expect("counter must not overflow u64");
 
-		self.global.insert(COUNTER, &counter.to_be_bytes());
+		self.global.insert(COUNTER, counter.to_be_bytes());
 
 		Ok(*counter)
 	}
@@ -259,29 +259,21 @@ impl Data {
 	pub async fn add_signing_key(
 		&self, origin: &ServerName, new_keys: ServerSigningKeys,
 	) -> BTreeMap<OwnedServerSigningKeyId, VerifyKey> {
-		// Not atomic, but this is not critical
-		let signingkeys = self.server_signingkeys.get(origin).await;
-
-		let mut keys = signingkeys
-			.and_then(|keys| serde_json::from_slice(&keys).map_err(Into::into))
+		// (timo) Not atomic, but this is not critical
+		let mut keys: ServerSigningKeys = self
+			.server_signingkeys
+			.get(origin)
+			.await
+			.deserialized()
 			.unwrap_or_else(|_| {
 				// Just insert "now", it doesn't matter
 				ServerSigningKeys::new(origin.to_owned(), MilliSecondsSinceUnixEpoch::now())
 			});
 
-		let ServerSigningKeys {
-			verify_keys,
-			old_verify_keys,
-			..
-		} = new_keys;
+		keys.verify_keys.extend(new_keys.verify_keys);
+		keys.old_verify_keys.extend(new_keys.old_verify_keys);
 
-		keys.verify_keys.extend(verify_keys);
-		keys.old_verify_keys.extend(old_verify_keys);
-
-		self.server_signingkeys.insert(
-			origin.as_bytes(),
-			&serde_json::to_vec(&keys).expect("serversigningkeys can be serialized"),
-		);
+		self.server_signingkeys.raw_put(origin, Json(&keys));
 
 		let mut tree = keys.verify_keys;
 		tree.extend(
@@ -324,7 +316,7 @@ impl Data {
 
 	#[inline]
 	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
-		self.global.insert(b"version", &new_version.to_be_bytes());
+		self.global.raw_put(b"version", new_version);
 		Ok(())
 	}
 

@@ -121,10 +121,7 @@ impl Service {
 	}
 
 	#[inline]
-	pub fn update_check_for_updates_id(&self, id: u64) {
-		self.db
-			.insert(LAST_CHECK_FOR_UPDATES_COUNT, &id.to_be_bytes());
-	}
+	pub fn update_check_for_updates_id(&self, id: u64) { self.db.raw_put(LAST_CHECK_FOR_UPDATES_COUNT, id); }
 
 	pub async fn last_check_for_updates_id(&self) -> u64 {
 		self.db

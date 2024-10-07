@@ -38,20 +38,13 @@ impl Data {
 	}
 
 	pub(super) fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) {
-		let mut userroom_id = user_id.as_bytes().to_vec();
-		userroom_id.push(0xFF);
-		userroom_id.extend_from_slice(room_id.as_bytes());
-		let mut roomuser_id = room_id.as_bytes().to_vec();
-		roomuser_id.push(0xFF);
-		roomuser_id.extend_from_slice(user_id.as_bytes());
+		let userroom_id = (user_id, room_id);
+		self.userroomid_highlightcount.put(userroom_id, 0_u64);
+		self.userroomid_notificationcount.put(userroom_id, 0_u64);
 
-		self.userroomid_notificationcount
-			.insert(&userroom_id, &0_u64.to_be_bytes());
-		self.userroomid_highlightcount
-			.insert(&userroom_id, &0_u64.to_be_bytes());
-
-		self.roomuserid_lastnotificationread
-			.insert(&roomuser_id, &self.services.globals.next_count().unwrap().to_be_bytes());
+		let roomuser_id = (room_id, user_id);
+		let count = self.services.globals.next_count().unwrap();
+		self.roomuserid_lastnotificationread.put(roomuser_id, count);
 	}
 
 	pub(super) async fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
@@ -89,11 +82,8 @@ impl Data {
 			.await
 			.expect("room exists");
 
-		let mut key = shortroomid.to_be_bytes().to_vec();
-		key.extend_from_slice(&token.to_be_bytes());
-
-		self.roomsynctoken_shortstatehash
-			.insert(&key, &shortstatehash.to_be_bytes());
+		let key: &[u64] = &[shortroomid, token];
+		self.roomsynctoken_shortstatehash.put(key, shortstatehash);
 	}
 
 	pub(super) async fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<u64> {
