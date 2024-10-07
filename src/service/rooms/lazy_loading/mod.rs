@@ -79,17 +79,9 @@ pub fn lazy_load_confirm_delivery(&self, user_id: &UserId, device_id: &DeviceId,
 		return;
 	};
 
-	let mut prefix = user_id.as_bytes().to_vec();
-	prefix.push(0xFF);
-	prefix.extend_from_slice(device_id.as_bytes());
-	prefix.push(0xFF);
-	prefix.extend_from_slice(room_id.as_bytes());
-	prefix.push(0xFF);
-
 	for ll_id in &user_ids {
-		let mut key = prefix.clone();
-		key.extend_from_slice(ll_id.as_bytes());
-		self.db.lazyloadedids.insert(&key, &[]);
+		let key = (user_id, device_id, room_id, ll_id);
+		self.db.lazyloadedids.put_raw(key, []);
 	}
 }
 

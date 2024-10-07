@@ -39,9 +39,10 @@ impl Data {
 	}
 
 	pub(super) fn add_relation(&self, from: u64, to: u64) {
-		let mut key = to.to_be_bytes().to_vec();
-		key.extend_from_slice(&from.to_be_bytes());
-		self.tofrom_relation.insert(&key, &[]);
+		const BUFSIZE: usize = size_of::<u64>() * 2;
+
+		let key: &[u64] = &[to, from];
+		self.tofrom_relation.aput_raw::<BUFSIZE, _, _>(key, []);
 	}
 
 	pub(super) fn relations_until<'a>(
@@ -78,9 +79,8 @@ impl Data {
 
 	pub(super) fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) {
 		for prev in event_ids {
-			let mut key = room_id.as_bytes().to_vec();
-			key.extend_from_slice(prev.as_bytes());
-			self.referencedevents.insert(&key, &[]);
+			let key = (room_id, prev);
+			self.referencedevents.put_raw(key, []);
 		}
 	}
 
@@ -89,9 +89,7 @@ impl Data {
 		self.referencedevents.qry(&key).await.is_ok()
 	}
 
-	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) {
-		self.softfailedeventids.insert(event_id.as_bytes(), &[]);
-	}
+	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) { self.softfailedeventids.insert(event_id, []); }
 
 	pub(super) async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
 		self.softfailedeventids.get(event_id).await.is_ok()

@@ -3,13 +3,13 @@ mod data;
 use std::{collections::HashSet, sync::Arc};
 
 use conduit::{
-	err,
+	err, is_not_empty,
 	utils::{stream::TryIgnore, ReadyExt, StreamTools},
 	warn, Result,
 };
 use data::Data;
-use database::{Deserialized, Ignore, Interfix};
-use futures::{Stream, StreamExt};
+use database::{serialize_to_vec, Deserialized, Ignore, Interfix, Json};
+use futures::{stream::iter, Stream, StreamExt};
 use itertools::Itertools;
 use ruma::{
 	events::{
@@ -547,50 +547,37 @@ impl Service {
 				.unwrap_or(0),
 		);
 
-		self.db
-			.roomid_joinedcount
-			.insert(room_id.as_bytes(), &joinedcount.to_be_bytes());
-
-		self.db
-			.roomid_invitedcount
-			.insert(room_id.as_bytes(), &invitedcount.to_be_bytes());
+		self.db.roomid_joinedcount.raw_put(room_id, joinedcount);
+		self.db.roomid_invitedcount.raw_put(room_id, invitedcount);
 
 		self.room_servers(room_id)
 			.ready_for_each(|old_joined_server| {
-				if !joined_servers.remove(old_joined_server) {
-					// Server not in room anymore
-					let mut roomserver_id = room_id.as_bytes().to_vec();
-					roomserver_id.push(0xFF);
-					roomserver_id.extend_from_slice(old_joined_server.as_bytes());
-
-					let mut serverroom_id = old_joined_server.as_bytes().to_vec();
-					serverroom_id.push(0xFF);
-					serverroom_id.extend_from_slice(room_id.as_bytes());
-
-					self.db.roomserverids.remove(&roomserver_id);
-					self.db.serverroomids.remove(&serverroom_id);
+				if joined_servers.remove(old_joined_server) {
+					return;
 				}
+
+				// Server not in room anymore
+				let roomserver_id = (room_id, old_joined_server);
+				let serverroom_id = (old_joined_server, room_id);
+
+				self.db.roomserverids.del(roomserver_id);
+				self.db.serverroomids.del(serverroom_id);
 			})
 			.await;
 
 		// Now only new servers are in joined_servers anymore
-		for server in joined_servers {
-			let mut roomserver_id = room_id.as_bytes().to_vec();
-			roomserver_id.push(0xFF);
-			roomserver_id.extend_from_slice(server.as_bytes());
+		for server in &joined_servers {
+			let roomserver_id = (room_id, server);
+			let serverroom_id = (server, room_id);
 
-			let mut serverroom_id = server.as_bytes().to_vec();
-			serverroom_id.push(0xFF);
-			serverroom_id.extend_from_slice(room_id.as_bytes());
-
-			self.db.roomserverids.insert(&roomserver_id, &[]);
-			self.db.serverroomids.insert(&serverroom_id, &[]);
+			self.db.roomserverids.put_raw(roomserver_id, []);
+			self.db.serverroomids.put_raw(serverroom_id, []);
 		}
 
 		self.db
 			.appservice_in_room_cache
 			.write()
-			.unwrap()
+			.expect("locked")
 			.remove(room_id);
 	}
 
@@ -598,44 +585,44 @@ impl Service {
 		&self, user_id: &UserId, room_id: &RoomId, last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
 		invite_via: Option<Vec<OwnedServerName>>,
 	) {
-		let mut roomuser_id = room_id.as_bytes().to_vec();
-		roomuser_id.push(0xFF);
-		roomuser_id.extend_from_slice(user_id.as_bytes());
+		let roomuser_id = (room_id, user_id);
+		let roomuser_id = serialize_to_vec(roomuser_id).expect("failed to serialize roomuser_id");
 
-		let mut userroom_id = user_id.as_bytes().to_vec();
-		userroom_id.push(0xFF);
-		userroom_id.extend_from_slice(room_id.as_bytes());
+		let userroom_id = (user_id, room_id);
+		let userroom_id = serialize_to_vec(userroom_id).expect("failed to serialize userroom_id");
 
-		self.db.userroomid_invitestate.insert(
-			&userroom_id,
-			&serde_json::to_vec(&last_state.unwrap_or_default()).expect("state to bytes always works"),
-		);
+		self.db
+			.userroomid_invitestate
+			.raw_put(&userroom_id, Json(last_state.unwrap_or_default()));
+
 		self.db
 			.roomuserid_invitecount
-			.insert(&roomuser_id, &self.services.globals.next_count().unwrap().to_be_bytes());
+			.raw_aput::<8, _, _>(&roomuser_id, self.services.globals.next_count().unwrap());
+
 		self.db.userroomid_joined.remove(&userroom_id);
 		self.db.roomuserid_joined.remove(&roomuser_id);
+
 		self.db.userroomid_leftstate.remove(&userroom_id);
 		self.db.roomuserid_leftcount.remove(&roomuser_id);
 
-		if let Some(servers) = invite_via.as_deref() {
+		if let Some(servers) = invite_via.filter(is_not_empty!()) {
 			self.add_servers_invite_via(room_id, servers).await;
 		}
 	}
 
 	#[tracing::instrument(skip(self, servers), level = "debug")]
-	pub async fn add_servers_invite_via(&self, room_id: &RoomId, servers: &[OwnedServerName]) {
-		let mut prev_servers: Vec<_> = self
+	pub async fn add_servers_invite_via(&self, room_id: &RoomId, servers: Vec<OwnedServerName>) {
+		let mut servers: Vec<_> = self
 			.servers_invite_via(room_id)
 			.map(ToOwned::to_owned)
+			.chain(iter(servers.into_iter()))
 			.collect()
 			.await;
 
-		prev_servers.extend(servers.to_owned());
-		prev_servers.sort_unstable();
-		prev_servers.dedup();
+		servers.sort_unstable();
+		servers.dedup();
 
-		let servers = prev_servers
+		let servers = servers
 			.iter()
 			.map(|server| server.as_bytes())
 			.collect_vec()

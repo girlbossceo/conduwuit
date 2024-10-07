@@ -35,10 +35,6 @@ impl Presence {
 		serde_json::from_slice(bytes).map_err(|_| Error::bad_database("Invalid presence data in database"))
 	}
 
-	pub(super) fn to_json_bytes(&self) -> Result<Vec<u8>> {
-		serde_json::to_vec(self).map_err(|_| Error::bad_database("Could not serialize Presence to JSON"))
-	}
-
 	/// Creates a PresenceEvent from available data.
 	pub(super) async fn to_presence_event(&self, user_id: &UserId, users: &users::Service) -> PresenceEvent {
 		let now = utils::millis_since_unix_epoch();

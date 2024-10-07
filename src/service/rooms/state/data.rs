@@ -36,12 +36,12 @@ impl Data {
 		_mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) {
 		self.roomid_shortstatehash
-			.insert(room_id.as_bytes(), &new_shortstatehash.to_be_bytes());
+			.raw_put(room_id, new_shortstatehash);
 	}
 
 	pub(super) fn set_event_state(&self, shorteventid: u64, shortstatehash: u64) {
 		self.shorteventid_shortstatehash
-			.insert(&shorteventid.to_be_bytes(), &shortstatehash.to_be_bytes());
+			.put(shorteventid, shortstatehash);
 	}
 
 	pub(super) async fn set_forward_extremities(
@@ -57,12 +57,9 @@ impl Data {
 			.ready_for_each(|key| self.roomid_pduleaves.remove(key))
 			.await;
 
-		let mut prefix = room_id.as_bytes().to_vec();
-		prefix.push(0xFF);
-		for event_id in event_ids {
-			let mut key = prefix.clone();
-			key.extend_from_slice(event_id.as_bytes());
-			self.roomid_pduleaves.insert(&key, event_id.as_bytes());
+		for event_id in &event_ids {
+			let key = (room_id, event_id);
+			self.roomid_pduleaves.put_raw(key, event_id);
 		}
 	}
 }

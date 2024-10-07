@@ -2,7 +2,7 @@ use conduit::{
 	debug_info, debug_warn, error, info,
 	result::NotFound,
 	utils::{stream::TryIgnore, IterStream, ReadyExt},
-	warn, Err, Error, Result,
+	warn, Err, Result,
 };
 use futures::{FutureExt, StreamExt};
 use itertools::Itertools;
@@ -29,10 +29,9 @@ pub(crate) async fn migrations(services: &Services) -> Result<()> {
 	// requires recreating the database from scratch.
 	if users_count > 0 {
 		let conduit_user = &services.globals.server_user;
-
 		if !services.users.exists(conduit_user).await {
-			error!("The {} server user does not exist, and the database is not new.", conduit_user);
-			return Err(Error::bad_database(
+			error!("The {conduit_user} server user does not exist, and the database is not new.");
+			return Err!(Database(
 				"Cannot reuse an existing database after changing the server name, please delete the old one first.",
 			));
 		}
@@ -54,9 +53,9 @@ async fn fresh(services: &Services) -> Result<()> {
 		.db
 		.bump_database_version(DATABASE_VERSION)?;
 
-	db["global"].insert(b"feat_sha256_media", &[]);
-	db["global"].insert(b"fix_bad_double_separator_in_state_cache", &[]);
-	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[]);
+	db["global"].insert(b"feat_sha256_media", []);
+	db["global"].insert(b"fix_bad_double_separator_in_state_cache", []);
+	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", []);
 
 	// Create the admin room and server user on first run
 	crate::admin::create_admin_room(services).await?;
@@ -349,7 +348,7 @@ async fn fix_bad_double_separator_in_state_cache(services: &Services) -> Result<
 		.await;
 
 	db.db.cleanup()?;
-	db["global"].insert(b"fix_bad_double_separator_in_state_cache", &[]);
+	db["global"].insert(b"fix_bad_double_separator_in_state_cache", []);
 
 	info!("Finished fixing");
 	Ok(())
@@ -430,7 +429,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 	}
 
 	db.db.cleanup()?;
-	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", &[]);
+	db["global"].insert(b"retroactively_fix_bad_data_from_roomuserid_joined", []);
 
 	info!("Finished fixing");
 	Ok(())

@@ -8,7 +8,7 @@ use conduit::{
 	utils::{hash, string::EMPTY},
 	Error, Result,
 };
-use database::{Deserialized, Map};
+use database::{Deserialized, Json, Map};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -217,21 +217,14 @@ pub fn get_uiaa_request(
 
 #[implement(Service)]
 fn update_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &str, uiaainfo: Option<&UiaaInfo>) {
-	let mut userdevicesessionid = user_id.as_bytes().to_vec();
-	userdevicesessionid.push(0xFF);
-	userdevicesessionid.extend_from_slice(device_id.as_bytes());
-	userdevicesessionid.push(0xFF);
-	userdevicesessionid.extend_from_slice(session.as_bytes());
+	let key = (user_id, device_id, session);
 
 	if let Some(uiaainfo) = uiaainfo {
-		self.db.userdevicesessionid_uiaainfo.insert(
-			&userdevicesessionid,
-			&serde_json::to_vec(&uiaainfo).expect("UiaaInfo::to_vec always works"),
-		);
-	} else {
 		self.db
 			.userdevicesessionid_uiaainfo
-			.remove(&userdevicesessionid);
+			.put(key, Json(uiaainfo));
+	} else {
+		self.db.userdevicesessionid_uiaainfo.del(key);
 	}
 }
 

@@ -6,7 +6,7 @@ use conduit::{
 	utils::{stream::TryIgnore, string_from_bytes},
 	Err, PduEvent, Result,
 };
-use database::{Deserialized, Ignore, Interfix, Map};
+use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::{Stream, StreamExt};
 use ipaddress::IPAddress;
 use ruma::{
@@ -68,18 +68,12 @@ impl Service {
 	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) {
 		match pusher {
 			set_pusher::v3::PusherAction::Post(data) => {
-				let mut key = sender.as_bytes().to_vec();
-				key.push(0xFF);
-				key.extend_from_slice(data.pusher.ids.pushkey.as_bytes());
-				self.db
-					.senderkey_pusher
-					.insert(&key, &serde_json::to_vec(pusher).expect("Pusher is valid JSON value"));
+				let key = (sender, &data.pusher.ids.pushkey);
+				self.db.senderkey_pusher.put(key, Json(pusher));
 			},
 			set_pusher::v3::PusherAction::Delete(ids) => {
-				let mut key = sender.as_bytes().to_vec();
-				key.push(0xFF);
-				key.extend_from_slice(ids.pushkey.as_bytes());
-				self.db.senderkey_pusher.remove(&key);
+				let key = (sender, &ids.pushkey);
+				self.db.senderkey_pusher.del(key);
 			},
 		}
 	}

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use conduit::{implement, Result};
-use database::{Deserialized, Map};
+use database::{Deserialized, Json, Map};
 use ruma::{CanonicalJsonObject, EventId};
 
 use crate::PduEvent;
@@ -50,8 +50,5 @@ pub async fn get_pdu_outlier(&self, event_id: &EventId) -> Result<PduEvent> {
 #[implement(Service)]
 #[tracing::instrument(skip(self, pdu), level = "debug")]
 pub fn add_pdu_outlier(&self, event_id: &EventId, pdu: &CanonicalJsonObject) {
-	self.db.eventid_outlierpdu.insert(
-		event_id.as_bytes(),
-		&serde_json::to_vec(&pdu).expect("CanonicalJsonObject is valid"),
-	);
+	self.db.eventid_outlierpdu.raw_put(event_id, Json(pdu));
 }

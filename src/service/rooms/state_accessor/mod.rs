@@ -481,4 +481,10 @@ impl Service {
 			.await
 			.map(|content: RoomEncryptionEventContent| content.algorithm)
 	}
+
+	pub async fn is_encrypted_room(&self, room_id: &RoomId) -> bool {
+		self.room_state_get(room_id, &StateEventType::RoomEncryption, "")
+			.await
+			.is_ok()
+	}
 }

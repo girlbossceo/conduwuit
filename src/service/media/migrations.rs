@@ -54,7 +54,7 @@ pub(crate) async fn migrate_sha256_media(services: &Services) -> Result<()> {
 		services.globals.db.bump_database_version(13)?;
 	}
 
-	db["global"].insert(b"feat_sha256_media", &[]);
+	db["global"].insert(b"feat_sha256_media", []);
 	info!("Finished applying sha256_media");
 	Ok(())
 }

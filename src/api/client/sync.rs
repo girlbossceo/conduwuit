@@ -7,7 +7,7 @@ use std::{
 use axum::extract::State;
 use conduit::{
 	debug, err, error, is_equal_to,
-	result::{FlatOk, IntoIsOk},
+	result::FlatOk,
 	utils::{
 		math::{ruma_from_u64, ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
@@ -1136,8 +1136,7 @@ async fn share_encrypted_room(
 			services
 				.rooms
 				.state_accessor
-				.room_state_get(other_room_id, &StateEventType::RoomEncryption, "")
-				.map(Result::into_is_ok)
+				.is_encrypted_room(other_room_id)
 		})
 		.await
 }

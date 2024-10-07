@@ -5,7 +5,7 @@ use conduit::{
 	utils::{stream::TryIgnore, ReadyExt},
 	Err, Error, Result,
 };
-use database::{Deserialized, Handle, Map};
+use database::{Deserialized, Handle, Json, Map};
 use futures::{StreamExt, TryFutureExt};
 use ruma::{
 	events::{
@@ -56,41 +56,19 @@ impl crate::Service for Service {
 pub async fn update(
 	&self, room_id: Option<&RoomId>, user_id: &UserId, event_type: RoomAccountDataEventType, data: &serde_json::Value,
 ) -> Result<()> {
-	let event_type = event_type.to_string();
-	let count = self.services.globals.next_count()?;
-
-	let mut prefix = room_id
-		.map(ToString::to_string)
-		.unwrap_or_default()
-		.as_bytes()
-		.to_vec();
-	prefix.push(0xFF);
-	prefix.extend_from_slice(user_id.as_bytes());
-	prefix.push(0xFF);
-
-	let mut roomuserdataid = prefix.clone();
-	roomuserdataid.extend_from_slice(&count.to_be_bytes());
-	roomuserdataid.push(0xFF);
-	roomuserdataid.extend_from_slice(event_type.as_bytes());
-
-	let mut key = prefix;
-	key.extend_from_slice(event_type.as_bytes());
-
 	if data.get("type").is_none() || data.get("content").is_none() {
 		return Err!(Request(InvalidParam("Account data doesn't have all required fields.")));
 	}
 
-	self.db.roomuserdataid_accountdata.insert(
-		&roomuserdataid,
-		&serde_json::to_vec(&data).expect("to_vec always works on json values"),
-	);
-
-	let prev_key = (room_id, user_id, &event_type);
-	let prev = self.db.roomusertype_roomuserdataid.qry(&prev_key).await;
-
+	let count = self.services.globals.next_count().unwrap();
+	let roomuserdataid = (room_id, user_id, count, &event_type);
 	self.db
-		.roomusertype_roomuserdataid
-		.insert(&key, &roomuserdataid);
+		.roomuserdataid_accountdata
+		.put(roomuserdataid, Json(data));
+
+	let key = (room_id, user_id, &event_type);
+	let prev = self.db.roomusertype_roomuserdataid.qry(&key).await;
+	self.db.roomusertype_roomuserdataid.put(key, roomuserdataid);
 
 	// Remove old entry
 	if let Ok(prev) = prev {

@@ -11,7 +11,7 @@ use conduit::{
 	utils::{stream::TryIgnore, u64_from_u8, ReadyExt},
 	Err, PduCount, PduEvent, Result,
 };
-use database::{Database, Deserialized, KeyVal, Map};
+use database::{Database, Deserialized, Json, KeyVal, Map};
 use futures::{FutureExt, Stream, StreamExt};
 use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use tokio::sync::Mutex;
@@ -168,10 +168,7 @@ impl Data {
 	}
 
 	pub(super) async fn append_pdu(&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64) {
-		self.pduid_pdu.insert(
-			pdu_id,
-			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
-		);
+		self.pduid_pdu.raw_put(pdu_id, Json(json));
 
 		self.lasttimelinecount_cache
 			.lock()
@@ -183,13 +180,10 @@ impl Data {
 	}
 
 	pub(super) fn prepend_backfill_pdu(&self, pdu_id: &[u8], event_id: &EventId, json: &CanonicalJsonObject) {
-		self.pduid_pdu.insert(
-			pdu_id,
-			&serde_json::to_vec(json).expect("CanonicalJsonObject is always a valid"),
-		);
+		self.pduid_pdu.raw_put(pdu_id, Json(json));
 
-		self.eventid_pduid.insert(event_id.as_bytes(), pdu_id);
-		self.eventid_outlierpdu.remove(event_id.as_bytes());
+		self.eventid_pduid.insert(event_id, pdu_id);
+		self.eventid_outlierpdu.remove(event_id);
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
@@ -328,5 +322,5 @@ pub(super) fn pdu_count(pdu_id: &[u8]) -> PduCount {
 fn increment(db: &Arc<Map>, key: &[u8]) {
 	let old = db.get_blocking(key);
 	let new = utils::increment(old.ok().as_deref());
-	db.insert(key, &new);
+	db.insert(key, new);
 }

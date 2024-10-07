@@ -65,12 +65,6 @@ pub(crate) async fn create_invite_route(
 		return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 	}
 
-	if let Some(via) = &body.via {
-		if via.is_empty() {
-			return Err!(Request(InvalidParam("via field must not be empty.")));
-		}
-	}
-
 	let mut signed_event = utils::to_canonical_object(&body.event)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invite event is invalid."))?;
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{mem::size_of_val, sync::Arc};
 
 use conduit::{err, implement, utils, Result};
 use database::{Deserialized, Map};
@@ -46,6 +46,8 @@ impl crate::Service for Service {
 
 #[implement(Service)]
 pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> u64 {
+	const BUFSIZE: usize = size_of::<u64>();
+
 	if let Ok(shorteventid) = self
 		.db
 		.eventid_shorteventid
@@ -57,12 +59,15 @@ pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> u64 {
 	}
 
 	let shorteventid = self.services.globals.next_count().unwrap();
+	debug_assert!(size_of_val(&shorteventid) == BUFSIZE, "buffer requirement changed");
+
 	self.db
 		.eventid_shorteventid
-		.insert(event_id.as_bytes(), &shorteventid.to_be_bytes());
+		.raw_aput::<BUFSIZE, _, _>(event_id, shorteventid);
+
 	self.db
 		.shorteventid_eventid
-		.insert(&shorteventid.to_be_bytes(), event_id.as_bytes());
+		.aput_raw::<BUFSIZE, _, _>(shorteventid, event_id);
 
 	shorteventid
 }
@@ -77,13 +82,17 @@ pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> 
 		.map(|(i, result)| match result {
 			Ok(ref short) => utils::u64_from_u8(short),
 			Err(_) => {
+				const BUFSIZE: usize = size_of::<u64>();
+
 				let short = self.services.globals.next_count().unwrap();
+				debug_assert!(size_of_val(&short) == BUFSIZE, "buffer requirement changed");
+
 				self.db
 					.eventid_shorteventid
-					.insert(event_ids[i], &short.to_be_bytes());
+					.raw_aput::<BUFSIZE, _, _>(event_ids[i], short);
 				self.db
 					.shorteventid_eventid
-					.insert(&short.to_be_bytes(), event_ids[i]);
+					.aput_raw::<BUFSIZE, _, _>(short, event_ids[i]);
 
 				short
 			},
@@ -103,7 +112,9 @@ pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &s
 
 #[implement(Service)]
 pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> u64 {
-	let key = (event_type.to_string(), state_key);
+	const BUFSIZE: usize = size_of::<u64>();
+
+	let key = (event_type, state_key);
 	if let Ok(shortstatekey) = self
 		.db
 		.statekey_shortstatekey
@@ -114,17 +125,16 @@ pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, sta
 		return shortstatekey;
 	}
 
-	let mut key = event_type.to_string().as_bytes().to_vec();
-	key.push(0xFF);
-	key.extend_from_slice(state_key.as_bytes());
-
 	let shortstatekey = self.services.globals.next_count().unwrap();
+	debug_assert!(size_of_val(&shortstatekey) == BUFSIZE, "buffer requirement changed");
+
 	self.db
 		.statekey_shortstatekey
-		.insert(&key, &shortstatekey.to_be_bytes());
+		.put_aput::<BUFSIZE, _, _>(key, shortstatekey);
+
 	self.db
 		.shortstatekey_statekey
-		.insert(&shortstatekey.to_be_bytes(), &key);
+		.aput_put::<BUFSIZE, _, _>(shortstatekey, key);
 
 	shortstatekey
 }
@@ -177,6 +187,8 @@ pub async fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(State
 /// Returns (shortstatehash, already_existed)
 #[implement(Service)]
 pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (u64, bool) {
+	const BUFSIZE: usize = size_of::<u64>();
+
 	if let Ok(shortstatehash) = self
 		.db
 		.statehash_shortstatehash
@@ -188,9 +200,11 @@ pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (u64, boo
 	}
 
 	let shortstatehash = self.services.globals.next_count().unwrap();
+	debug_assert!(size_of_val(&shortstatehash) == BUFSIZE, "buffer requirement changed");
+
 	self.db
 		.statehash_shortstatehash
-		.insert(state_hash, &shortstatehash.to_be_bytes());
+		.raw_aput::<BUFSIZE, _, _>(state_hash, shortstatehash);
 
 	(shortstatehash, false)
 }
@@ -208,10 +222,15 @@ pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> u64 {
 		.await
 		.deserialized()
 		.unwrap_or_else(|_| {
+			const BUFSIZE: usize = size_of::<u64>();
+
 			let short = self.services.globals.next_count().unwrap();
+			debug_assert!(size_of_val(&short) == BUFSIZE, "buffer requirement changed");
+
 			self.db
 				.roomid_shortroomid
-				.insert(room_id.as_bytes(), &short.to_be_bytes());
+				.raw_aput::<BUFSIZE, _, _>(room_id, short);
+
 			short
 		})
 }

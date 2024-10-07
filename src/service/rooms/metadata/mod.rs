@@ -64,9 +64,9 @@ pub fn iter_ids(&self) -> impl Stream<Item = &RoomId> + Send + '_ { self.db.room
 #[inline]
 pub fn disable_room(&self, room_id: &RoomId, disabled: bool) {
 	if disabled {
-		self.db.disabledroomids.insert(room_id.as_bytes(), &[]);
+		self.db.disabledroomids.insert(room_id, []);
 	} else {
-		self.db.disabledroomids.remove(room_id.as_bytes());
+		self.db.disabledroomids.remove(room_id);
 	}
 }
 
@@ -74,9 +74,9 @@ pub fn disable_room(&self, room_id: &RoomId, disabled: bool) {
 #[inline]
 pub fn ban_room(&self, room_id: &RoomId, banned: bool) {
 	if banned {
-		self.db.bannedroomids.insert(room_id.as_bytes(), &[]);
+		self.db.bannedroomids.insert(room_id, []);
 	} else {
-		self.db.bannedroomids.remove(room_id.as_bytes());
+		self.db.bannedroomids.remove(room_id);
 	}
 }
 
