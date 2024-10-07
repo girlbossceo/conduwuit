@@ -3,6 +3,7 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+use arrayvec::ArrayString;
 use rand::{thread_rng, Rng};
 
 pub fn string(length: usize) -> String {
@@ -11,6 +12,18 @@ pub fn string(length: usize) -> String {
 		.take(length)
 		.map(char::from)
 		.collect()
+}
+
+#[inline]
+pub fn string_array<const LENGTH: usize>() -> ArrayString<LENGTH> {
+	let mut ret = ArrayString::<LENGTH>::new();
+	thread_rng()
+		.sample_iter(&rand::distributions::Alphanumeric)
+		.take(LENGTH)
+		.map(char::from)
+		.for_each(|c| ret.push(c));
+
+	ret
 }
 
 #[inline]
