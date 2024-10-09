@@ -197,7 +197,7 @@ pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (u64, boo
 
 #[implement(Service)]
 pub async fn get_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
-	self.db.roomid_shortroomid.qry(room_id).await.deserialized()
+	self.db.roomid_shortroomid.get(room_id).await.deserialized()
 }
 
 #[implement(Service)]

@@ -85,8 +85,8 @@ pub fn list_banned_rooms(&self) -> impl Stream<Item = &RoomId> + Send + '_ { sel
 
 #[implement(Service)]
 #[inline]
-pub async fn is_disabled(&self, room_id: &RoomId) -> bool { self.db.disabledroomids.qry(room_id).await.is_ok() }
+pub async fn is_disabled(&self, room_id: &RoomId) -> bool { self.db.disabledroomids.get(room_id).await.is_ok() }
 
 #[implement(Service)]
 #[inline]
-pub async fn is_banned(&self, room_id: &RoomId) -> bool { self.db.bannedroomids.qry(room_id).await.is_ok() }
+pub async fn is_banned(&self, room_id: &RoomId) -> bool { self.db.bannedroomids.get(room_id).await.is_ok() }
