@@ -13,13 +13,13 @@ where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
 {
-	self.keys_raw_from(from)
+	self.keys_from_raw(from)
 		.map(keyval::result_deserialize_key::<K>)
 }
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn keys_raw_from<P>(&self, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
+pub fn keys_from_raw<P>(&self, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -29,7 +29,7 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn keys_from_raw<'a, K, P>(&'a self, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn keys_raw_from<'a, K, P>(&'a self, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
 	K: Deserialize<'a> + Send,

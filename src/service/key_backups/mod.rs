@@ -79,7 +79,7 @@ pub async fn delete_backup(&self, user_id: &UserId, version: &str) {
 	let key = (user_id, version, Interfix);
 	self.db
 		.backupkeyid_backup
-		.keys_raw_prefix(&key)
+		.keys_prefix_raw(&key)
 		.ignore_err()
 		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
 		.await;
@@ -181,7 +181,7 @@ pub async fn count_keys(&self, user_id: &UserId, version: &str) -> usize {
 	let prefix = (user_id, version);
 	self.db
 		.backupkeyid_backup
-		.keys_raw_prefix(&prefix)
+		.keys_prefix_raw(&prefix)
 		.count()
 		.await
 }
@@ -256,7 +256,7 @@ pub async fn delete_all_keys(&self, user_id: &UserId, version: &str) {
 	let key = (user_id, version, Interfix);
 	self.db
 		.backupkeyid_backup
-		.keys_raw_prefix(&key)
+		.keys_prefix_raw(&key)
 		.ignore_err()
 		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
 		.await;
@@ -267,7 +267,7 @@ pub async fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &
 	let key = (user_id, version, room_id, Interfix);
 	self.db
 		.backupkeyid_backup
-		.keys_raw_prefix(&key)
+		.keys_prefix_raw(&key)
 		.ignore_err()
 		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
 		.await;
@@ -278,7 +278,7 @@ pub async fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &R
 	let key = (user_id, version, room_id, session_id);
 	self.db
 		.backupkeyid_backup
-		.keys_raw_prefix(&key)
+		.keys_prefix_raw(&key)
 		.ignore_err()
 		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
 		.await;

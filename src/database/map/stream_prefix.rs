@@ -22,7 +22,7 @@ where
 	K: Deserialize<'a> + Send,
 	V: Deserialize<'a> + Send,
 {
-	self.stream_raw_prefix(prefix)
+	self.stream_prefix_raw(prefix)
 		.map(keyval::result_deserialize::<K, V>)
 }
 
@@ -32,7 +32,7 @@ where
 /// - Result is raw
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn stream_raw_prefix<P>(&self, prefix: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
+pub fn stream_prefix_raw<P>(&self, prefix: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -47,7 +47,7 @@ where
 /// - Result is deserialized
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn stream_prefix_raw<'a, K, V, P>(
+pub fn stream_raw_prefix<'a, K, V, P>(
 	&'a self, prefix: &'a P,
 ) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send + 'a
 where

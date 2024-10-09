@@ -84,7 +84,7 @@ impl Data {
 		let prefix2 = prefix.clone();
 
 		self.readreceiptid_readreceipt
-			.stream_raw_from(&first_possible_edu)
+			.stream_from_raw(&first_possible_edu)
 			.ignore_err()
 			.ready_take_while(move |(k, _)| k.starts_with(&prefix2))
 			.map(move |(k, v)| {

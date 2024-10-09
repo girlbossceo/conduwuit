@@ -4,12 +4,10 @@ use conduit::implement;
 use futures::stream::StreamExt;
 use serde::Serialize;
 
-use crate::de::Ignore;
-
 /// Count the total number of entries in the map.
 #[implement(super::Map)]
 #[inline]
-pub fn count(&self) -> impl Future<Output = usize> + Send + '_ { self.keys::<Ignore>().count() }
+pub fn count(&self) -> impl Future<Output = usize> + Send + '_ { self.raw_keys().count() }
 
 /// Count the number of entries in the map starting from a lower-bound.
 ///
@@ -20,7 +18,7 @@ pub fn count_from<'a, P>(&'a self, from: &P) -> impl Future<Output = usize> + Se
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {
-	self.keys_from::<Ignore, P>(from).count()
+	self.keys_from_raw(from).count()
 }
 
 /// Count the number of entries in the map matching a prefix.
@@ -32,5 +30,5 @@ pub fn count_prefix<'a, P>(&'a self, prefix: &P) -> impl Future<Output = usize> 
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {
-	self.keys_prefix::<Ignore, P>(prefix).count()
+	self.keys_prefix_raw(prefix).count()
 }

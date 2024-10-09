@@ -17,13 +17,13 @@ where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
 {
-	self.rev_keys_raw_prefix(prefix)
+	self.rev_keys_prefix_raw(prefix)
 		.map(keyval::result_deserialize_key::<K>)
 }
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn rev_keys_raw_prefix<P>(&self, prefix: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
+pub fn rev_keys_prefix_raw<P>(&self, prefix: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -34,7 +34,7 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn rev_keys_prefix_raw<'a, K, P>(&'a self, prefix: &'a P) -> impl Stream<Item = Result<Key<'_, K>>> + Send + 'a
+pub fn rev_keys_raw_prefix<'a, K, P>(&'a self, prefix: &'a P) -> impl Stream<Item = Result<Key<'_, K>>> + Send + 'a
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync + 'a,
 	K: Deserialize<'a> + Send + 'a,

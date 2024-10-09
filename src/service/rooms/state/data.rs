@@ -52,7 +52,7 @@ impl Data {
 	) {
 		let prefix = (room_id, Interfix);
 		self.roomid_pduleaves
-			.keys_raw_prefix(&prefix)
+			.keys_prefix_raw(&prefix)
 			.ignore_err()
 			.ready_for_each(|key| self.roomid_pduleaves.remove(key))
 			.await;

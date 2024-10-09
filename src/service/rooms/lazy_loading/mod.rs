@@ -99,7 +99,7 @@ pub async fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room
 	let prefix = (user_id, device_id, room_id, Interfix);
 	self.db
 		.lazyloadedids
-		.keys_raw_prefix(&prefix)
+		.keys_prefix_raw(&prefix)
 		.ignore_err()
 		.ready_for_each(|key| self.db.lazyloadedids.remove(key))
 		.await;

@@ -408,7 +408,7 @@ impl Service {
 	pub fn rooms_joined<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = &RoomId> + Send + 'a {
 		self.db
 			.userroomid_joined
-			.keys_prefix_raw(user_id)
+			.keys_raw_prefix(user_id)
 			.ignore_err()
 			.map(|(_, room_id): (Ignore, &RoomId)| room_id)
 	}
@@ -469,7 +469,7 @@ impl Service {
 
 		self.db
 			.roomid_inviteviaservers
-			.stream_prefix_raw(room_id)
+			.stream_raw_prefix(room_id)
 			.ignore_err()
 			.map(|(_, servers): KeyVal<'_>| *servers.last().expect("at least one server"))
 	}
