@@ -311,7 +311,7 @@ impl Service {
 		let prefix = (user_id, device_id, Interfix);
 		self.db
 			.todeviceid_events
-			.keys_raw_prefix(&prefix)
+			.keys_prefix_raw(&prefix)
 			.ignore_err()
 			.ready_for_each(|key| self.db.todeviceid_events.remove(key))
 			.await;

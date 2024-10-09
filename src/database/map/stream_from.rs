@@ -18,7 +18,7 @@ where
 	K: Deserialize<'a> + Send,
 	V: Deserialize<'a> + Send,
 {
-	self.stream_raw_from(from)
+	self.stream_from_raw(from)
 		.map(keyval::result_deserialize::<K, V>)
 }
 
@@ -28,7 +28,7 @@ where
 /// - Result is raw
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn stream_raw_from<P>(&self, from: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
+pub fn stream_from_raw<P>(&self, from: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -42,7 +42,7 @@ where
 /// - Result is deserialized
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn stream_from_raw<'a, K, V, P>(&'a self, from: &P) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
+pub fn stream_raw_from<'a, K, V, P>(&'a self, from: &P) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
 	K: Deserialize<'a> + Send,

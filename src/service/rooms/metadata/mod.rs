@@ -50,7 +50,7 @@ pub async fn exists(&self, room_id: &RoomId) -> bool {
 	// Look for PDUs in that room.
 	self.db
 		.pduid_pdu
-		.keys_raw_prefix(&prefix)
+		.keys_prefix_raw(&prefix)
 		.ignore_err()
 		.next()
 		.await

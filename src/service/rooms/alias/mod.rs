@@ -101,7 +101,7 @@ impl Service {
 		let prefix = (&room_id, Interfix);
 		self.db
 			.aliasid_alias
-			.keys_raw_prefix(&prefix)
+			.keys_prefix_raw(&prefix)
 			.ignore_err()
 			.ready_for_each(|key| self.db.aliasid_alias.remove(key))
 			.await;
