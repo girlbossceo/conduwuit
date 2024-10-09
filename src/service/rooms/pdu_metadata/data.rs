@@ -94,6 +94,6 @@ impl Data {
 	}
 
 	pub(super) async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
-		self.softfailedeventids.qry(event_id).await.is_ok()
+		self.softfailedeventids.get(event_id).await.is_ok()
 	}
 }

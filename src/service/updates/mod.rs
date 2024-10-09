@@ -128,7 +128,7 @@ impl Service {
 
 	pub async fn last_check_for_updates_id(&self) -> u64 {
 		self.db
-			.qry(LAST_CHECK_FOR_UPDATES_COUNT)
+			.get(LAST_CHECK_FOR_UPDATES_COUNT)
 			.await
 			.deserialized()
 			.unwrap_or(0_u64)

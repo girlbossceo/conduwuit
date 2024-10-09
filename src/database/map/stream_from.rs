@@ -18,8 +18,7 @@ where
 	K: Deserialize<'a> + Send,
 	V: Deserialize<'a> + Send,
 {
-	let key = ser::serialize_to_vec(from).expect("failed to serialize query key");
-	self.stream_raw_from(&key)
+	self.stream_raw_from(from)
 		.map(keyval::result_deserialize::<K, V>)
 }
 

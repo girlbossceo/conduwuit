@@ -342,7 +342,7 @@ impl Service {
 	/// Returns the number of users which are currently in a room
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn room_joined_count(&self, room_id: &RoomId) -> Result<u64> {
-		self.db.roomid_joinedcount.qry(room_id).await.deserialized()
+		self.db.roomid_joinedcount.get(room_id).await.deserialized()
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -366,7 +366,7 @@ impl Service {
 	pub async fn room_invited_count(&self, room_id: &RoomId) -> Result<u64> {
 		self.db
 			.roomid_invitedcount
-			.qry(room_id)
+			.get(room_id)
 			.await
 			.deserialized()
 	}
