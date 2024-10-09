@@ -5,6 +5,7 @@ use serde::{
 	Deserialize,
 };
 
+/// Deserialize into T from buffer.
 pub(crate) fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
 where
 	T: Deserialize<'a>,
@@ -22,6 +23,7 @@ where
 	})
 }
 
+/// Deserialization state.
 pub(crate) struct Deserializer<'de> {
 	buf: &'de [u8],
 	pos: usize,
@@ -32,6 +34,11 @@ pub(crate) struct Deserializer<'de> {
 /// until the next separator is found.
 #[derive(Debug, Deserialize)]
 pub struct Ignore;
+
+/// Directive to ignore all remaining records. This can be used in a sequence to
+/// ignore the rest of the sequence.
+#[derive(Debug, Deserialize)]
+pub struct IgnoreAll;
 
 impl<'de> Deserializer<'de> {
 	/// Record separator; an intentionally invalid-utf8 byte.
@@ -53,6 +60,13 @@ impl<'de> Deserializer<'de> {
 			)))
 	}
 
+	/// Called at the start of arrays and tuples
+	#[inline]
+	fn sequence_start(&mut self) {
+		debug_assert!(!self.seq, "Nested sequences are not handled at this time");
+		self.seq = true;
+	}
+
 	/// Consume the current record to ignore it. Inside a sequence the next
 	/// record is skipped but at the top-level all records are skipped such that
 	/// deserialization completes with self.finished() == Ok.
@@ -61,9 +75,15 @@ impl<'de> Deserializer<'de> {
 		if self.seq {
 			self.record_next();
 		} else {
-			self.record_trail();
+			self.record_ignore_all();
 		}
 	}
+
+	/// Consume the current and all remaining records to ignore them. Similar to
+	/// Ignore at the top-level, but it can be provided in a sequence to Ignore
+	/// all remaining elements.
+	#[inline]
+	fn record_ignore_all(&mut self) { self.record_trail(); }
 
 	/// Consume the current record. The position pointer is moved to the start
 	/// of the next record. Slice of the current record is returned.
@@ -101,7 +121,6 @@ impl<'de> Deserializer<'de> {
 		);
 
 		self.inc_pos(started.into());
-		self.seq = true;
 	}
 
 	/// Consume all remaining bytes, which may include record separators,
@@ -128,6 +147,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	where
 		V: Visitor<'de>,
 	{
+		self.sequence_start();
 		visitor.visit_seq(self)
 	}
 
@@ -135,6 +155,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	where
 		V: Visitor<'de>,
 	{
+		self.sequence_start();
 		visitor.visit_seq(self)
 	}
 
@@ -142,6 +163,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	where
 		V: Visitor<'de>,
 	{
+		self.sequence_start();
 		visitor.visit_seq(self)
 	}
 
@@ -170,6 +192,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	{
 		match name {
 			"Ignore" => self.record_ignore(),
+			"IgnoreAll" => self.record_ignore_all(),
 			_ => unimplemented!("Unrecognized deserialization Directive {name:?}"),
 		};
 

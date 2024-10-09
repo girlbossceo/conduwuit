@@ -24,7 +24,7 @@ extern crate rust_rocksdb as rocksdb;
 
 pub use self::{
 	database::Database,
-	de::Ignore,
+	de::{Ignore, IgnoreAll},
 	deserialized::Deserialized,
 	handle::Handle,
 	keyval::{KeyVal, Slice},
