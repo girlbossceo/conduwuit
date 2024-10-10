@@ -35,10 +35,14 @@ zstd_compression = [
 ]
 
 [dependencies]
+arrayvec.workspace = true
 conduit-core.workspace = true
 const-str.workspace = true
+futures.workspace = true
 log.workspace = true
 rust-rocksdb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

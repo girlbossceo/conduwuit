@@ -1,25 +1,35 @@
 mod cork;
 mod database;
+mod de;
+mod deserialized;
 mod engine;
 mod handle;
-mod iter;
+pub mod keyval;
 mod map;
 pub mod maps;
 mod opts;
-mod slice;
+mod ser;
+mod stream;
 mod util;
 mod watchers;
+
+pub(crate) use self::{
+	engine::Engine,
+	util::{or_else, result},
+};
 
 extern crate conduit_core as conduit;
 extern crate rust_rocksdb as rocksdb;
 
-pub use database::Database;
-pub(crate) use engine::Engine;
-pub use handle::Handle;
-pub use iter::Iter;
-pub use map::Map;
-pub use slice::{Key, KeyVal, OwnedKey, OwnedKeyVal, OwnedVal, Val};
-pub(crate) use util::{or_else, result};
+pub use self::{
+	database::Database,
+	de::Ignore,
+	deserialized::Deserialized,
+	handle::Handle,
+	keyval::{KeyVal, Slice},
+	map::Map,
+	ser::{Interfix, Separator},
+};
 
 conduit::mod_ctor! {}
 conduit::mod_dtor! {}

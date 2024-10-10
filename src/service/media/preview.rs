@@ -71,16 +71,16 @@ pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
 
 #[implement(Service)]
 pub async fn get_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
-	if let Some(preview) = self.db.get_url_preview(url) {
+	if let Ok(preview) = self.db.get_url_preview(url).await {
 		return Ok(preview);
 	}
 
 	// ensure that only one request is made per URL
 	let _request_lock = self.url_preview_mutex.lock(url).await;
 
-	match self.db.get_url_preview(url) {
-		Some(preview) => Ok(preview),
-		None => self.request_url_preview(url).await,
+	match self.db.get_url_preview(url).await {
+		Ok(preview) => Ok(preview),
+		Err(_) => self.request_url_preview(url).await,
 	}
 }
 

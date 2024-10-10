@@ -7,12 +7,14 @@ use std::{
 };
 
 use conduit::{
-	utils::{calculate_hash, MutexMap, MutexMapGuard},
-	warn, Error, PduEvent, Result,
+	err,
+	utils::{calculate_hash, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard},
+	warn, PduEvent, Result,
 };
 use data::Data;
+use database::{Ignore, Interfix};
+use futures::{pin_mut, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{
-	api::client::error::ErrorKind,
 	events::{
 		room::{create::RoomCreateEventContent, member::RoomMemberEventContent},
 		AnyStrippedStateEvent, StateEventType, TimelineEventType,
@@ -81,14 +83,16 @@ impl Service {
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result<()> {
-		for event_id in statediffnew.iter().filter_map(|new| {
+		let event_ids = statediffnew.iter().stream().filter_map(|new| {
 			self.services
 				.state_compressor
 				.parse_compressed_state_event(new)
-				.ok()
-				.map(|(_, id)| id)
-		}) {
-			let Some(pdu) = self.services.timeline.get_pdu_json(&event_id)? else {
+				.map_ok_or_else(|_| None, |(_, event_id)| Some(event_id))
+		});
+
+		pin_mut!(event_ids);
+		while let Some(event_id) = event_ids.next().await {
+			let Ok(pdu) = self.services.timeline.get_pdu_json(&event_id).await else {
 				continue;
 			};
 
@@ -113,15 +117,10 @@ impl Service {
 						continue;
 					};
 
-					self.services.state_cache.update_membership(
-						room_id,
-						&user_id,
-						membership_event,
-						&pdu.sender,
-						None,
-						None,
-						false,
-					)?;
+					self.services
+						.state_cache
+						.update_membership(room_id, &user_id, membership_event, &pdu.sender, None, None, false)
+						.await?;
 				},
 				TimelineEventType::SpaceChild => {
 					self.services
@@ -135,10 +134,9 @@ impl Service {
 			}
 		}
 
-		self.services.state_cache.update_joined_count(room_id)?;
+		self.services.state_cache.update_joined_count(room_id).await;
 
-		self.db
-			.set_room_state(room_id, shortstatehash, state_lock)?;
+		self.db.set_room_state(room_id, shortstatehash, state_lock);
 
 		Ok(())
 	}
@@ -148,12 +146,16 @@ impl Service {
 	/// This adds all current state events (not including the incoming event)
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
 	#[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
-	pub fn set_event_state(
+	pub async fn set_event_state(
 		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<u64> {
-		let shorteventid = self.services.short.get_or_create_shorteventid(event_id)?;
+		let shorteventid = self
+			.services
+			.short
+			.get_or_create_shorteventid(event_id)
+			.await;
 
-		let previous_shortstatehash = self.db.get_room_shortstatehash(room_id)?;
+		let previous_shortstatehash = self.db.get_room_shortstatehash(room_id).await;
 
 		let state_hash = calculate_hash(
 			&state_ids_compressed
@@ -165,13 +167,18 @@ impl Service {
 		let (shortstatehash, already_existed) = self
 			.services
 			.short
-			.get_or_create_shortstatehash(&state_hash)?;
+			.get_or_create_shortstatehash(&state_hash)
+			.await;
 
 		if !already_existed {
-			let states_parents = previous_shortstatehash.map_or_else(
-				|| Ok(Vec::new()),
-				|p| self.services.state_compressor.load_shortstatehash_info(p),
-			)?;
+			let states_parents = if let Ok(p) = previous_shortstatehash {
+				self.services
+					.state_compressor
+					.load_shortstatehash_info(p)
+					.await?
+			} else {
+				Vec::new()
+			};
 
 			let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
 				let statediffnew: HashSet<_> = state_ids_compressed
@@ -198,7 +205,7 @@ impl Service {
 			)?;
 		}
 
-		self.db.set_event_state(shorteventid, shortstatehash)?;
+		self.db.set_event_state(shorteventid, shortstatehash);
 
 		Ok(shortstatehash)
 	}
@@ -208,34 +215,40 @@ impl Service {
 	/// This adds all current state events (not including the incoming event)
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
 	#[tracing::instrument(skip(self, new_pdu), level = "debug")]
-	pub fn append_to_state(&self, new_pdu: &PduEvent) -> Result<u64> {
+	pub async fn append_to_state(&self, new_pdu: &PduEvent) -> Result<u64> {
 		let shorteventid = self
 			.services
 			.short
-			.get_or_create_shorteventid(&new_pdu.event_id)?;
+			.get_or_create_shorteventid(&new_pdu.event_id)
+			.await;
 
-		let previous_shortstatehash = self.get_room_shortstatehash(&new_pdu.room_id)?;
+		let previous_shortstatehash = self.get_room_shortstatehash(&new_pdu.room_id).await;
 
-		if let Some(p) = previous_shortstatehash {
-			self.db.set_event_state(shorteventid, p)?;
+		if let Ok(p) = previous_shortstatehash {
+			self.db.set_event_state(shorteventid, p);
 		}
 
 		if let Some(state_key) = &new_pdu.state_key {
-			let states_parents = previous_shortstatehash.map_or_else(
-				|| Ok(Vec::new()),
-				#[inline]
-				|p| self.services.state_compressor.load_shortstatehash_info(p),
-			)?;
+			let states_parents = if let Ok(p) = previous_shortstatehash {
+				self.services
+					.state_compressor
+					.load_shortstatehash_info(p)
+					.await?
+			} else {
+				Vec::new()
+			};
 
 			let shortstatekey = self
 				.services
 				.short
-				.get_or_create_shortstatekey(&new_pdu.kind.to_string().into(), state_key)?;
+				.get_or_create_shortstatekey(&new_pdu.kind.to_string().into(), state_key)
+				.await;
 
 			let new = self
 				.services
 				.state_compressor
-				.compress_state_event(shortstatekey, &new_pdu.event_id)?;
+				.compress_state_event(shortstatekey, &new_pdu.event_id)
+				.await;
 
 			let replaces = states_parents
 				.last()
@@ -276,49 +289,55 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, invite_event), level = "debug")]
-	pub fn calculate_invite_state(&self, invite_event: &PduEvent) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
+	pub async fn calculate_invite_state(&self, invite_event: &PduEvent) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let mut state = Vec::new();
 		// Add recommended events
-		if let Some(e) =
-			self.services
-				.state_accessor
-				.room_state_get(&invite_event.room_id, &StateEventType::RoomCreate, "")?
+		if let Ok(e) = self
+			.services
+			.state_accessor
+			.room_state_get(&invite_event.room_id, &StateEventType::RoomCreate, "")
+			.await
 		{
 			state.push(e.to_stripped_state_event());
 		}
-		if let Some(e) =
-			self.services
-				.state_accessor
-				.room_state_get(&invite_event.room_id, &StateEventType::RoomJoinRules, "")?
+		if let Ok(e) = self
+			.services
+			.state_accessor
+			.room_state_get(&invite_event.room_id, &StateEventType::RoomJoinRules, "")
+			.await
 		{
 			state.push(e.to_stripped_state_event());
 		}
-		if let Some(e) = self.services.state_accessor.room_state_get(
-			&invite_event.room_id,
-			&StateEventType::RoomCanonicalAlias,
-			"",
-		)? {
-			state.push(e.to_stripped_state_event());
-		}
-		if let Some(e) =
-			self.services
-				.state_accessor
-				.room_state_get(&invite_event.room_id, &StateEventType::RoomAvatar, "")?
+		if let Ok(e) = self
+			.services
+			.state_accessor
+			.room_state_get(&invite_event.room_id, &StateEventType::RoomCanonicalAlias, "")
+			.await
 		{
 			state.push(e.to_stripped_state_event());
 		}
-		if let Some(e) =
-			self.services
-				.state_accessor
-				.room_state_get(&invite_event.room_id, &StateEventType::RoomName, "")?
+		if let Ok(e) = self
+			.services
+			.state_accessor
+			.room_state_get(&invite_event.room_id, &StateEventType::RoomAvatar, "")
+			.await
 		{
 			state.push(e.to_stripped_state_event());
 		}
-		if let Some(e) = self.services.state_accessor.room_state_get(
-			&invite_event.room_id,
-			&StateEventType::RoomMember,
-			invite_event.sender.as_str(),
-		)? {
+		if let Ok(e) = self
+			.services
+			.state_accessor
+			.room_state_get(&invite_event.room_id, &StateEventType::RoomName, "")
+			.await
+		{
+			state.push(e.to_stripped_state_event());
+		}
+		if let Ok(e) = self
+			.services
+			.state_accessor
+			.room_state_get(&invite_event.room_id, &StateEventType::RoomMember, invite_event.sender.as_str())
+			.await
+		{
 			state.push(e.to_stripped_state_event());
 		}
 
@@ -333,101 +352,108 @@ impl Service {
 		room_id: &RoomId,
 		shortstatehash: u64,
 		mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
-	) -> Result<()> {
-		self.db.set_room_state(room_id, shortstatehash, mutex_lock)
+	) {
+		self.db.set_room_state(room_id, shortstatehash, mutex_lock);
 	}
 
 	/// Returns the room's version.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
-		let create_event = self
-			.services
+	pub async fn get_room_version(&self, room_id: &RoomId) -> Result<RoomVersionId> {
+		self.services
 			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomCreate, "")?;
-
-		let create_event_content: RoomCreateEventContent = create_event
-			.as_ref()
-			.map(|create_event| {
-				serde_json::from_str(create_event.content.get()).map_err(|e| {
-					warn!("Invalid create event: {}", e);
-					Error::bad_database("Invalid create event in db.")
-				})
-			})
-			.transpose()?
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "No create event found"))?;
-
-		Ok(create_event_content.room_version)
+			.room_state_get_content(room_id, &StateEventType::RoomCreate, "")
+			.await
+			.map(|content: RoomCreateEventContent| content.room_version)
+			.map_err(|e| err!(Request(NotFound("No create event found: {e:?}"))))
 	}
 
 	#[inline]
-	pub fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<Option<u64>> {
-		self.db.get_room_shortstatehash(room_id)
+	pub async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<u64> {
+		self.db.get_room_shortstatehash(room_id).await
 	}
 
-	pub fn get_forward_extremities(&self, room_id: &RoomId) -> Result<HashSet<Arc<EventId>>> {
-		self.db.get_forward_extremities(room_id)
+	pub fn get_forward_extremities<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &EventId> + Send + '_ {
+		let prefix = (room_id, Interfix);
+
+		self.db
+			.roomid_pduleaves
+			.keys_prefix(&prefix)
+			.map_ok(|(_, event_id): (Ignore, &EventId)| event_id)
+			.ignore_err()
 	}
 
-	pub fn set_forward_extremities(
+	pub async fn set_forward_extremities(
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
-	) -> Result<()> {
+	) {
 		self.db
 			.set_forward_extremities(room_id, event_ids, state_lock)
+			.await;
 	}
 
 	/// This fetches auth events from the current state.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn get_auth_events(
+	pub async fn get_auth_events(
 		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
 		content: &serde_json::value::RawValue,
 	) -> Result<StateMap<Arc<PduEvent>>> {
-		let Some(shortstatehash) = self.get_room_shortstatehash(room_id)? else {
+		let Ok(shortstatehash) = self.get_room_shortstatehash(room_id).await else {
 			return Ok(HashMap::new());
 		};
 
-		let auth_events =
-			state_res::auth_types_for_event(kind, sender, state_key, content).expect("content is a valid JSON object");
+		let auth_events = state_res::auth_types_for_event(kind, sender, state_key, content)?;
 
-		let mut sauthevents = auth_events
-			.into_iter()
+		let mut sauthevents: HashMap<_, _> = auth_events
+			.iter()
+			.stream()
 			.filter_map(|(event_type, state_key)| {
 				self.services
 					.short
-					.get_shortstatekey(&event_type.to_string().into(), &state_key)
-					.ok()
-					.flatten()
-					.map(|s| (s, (event_type, state_key)))
+					.get_shortstatekey(event_type, state_key)
+					.map_ok(move |s| (s, (event_type, state_key)))
+					.map(Result::ok)
 			})
-			.collect::<HashMap<_, _>>();
+			.collect()
+			.await;
 
 		let full_state = self
 			.services
 			.state_compressor
-			.load_shortstatehash_info(shortstatehash)?
+			.load_shortstatehash_info(shortstatehash)
+			.await
+			.map_err(|e| {
+				err!(Database(
+					"Missing shortstatehash info for {room_id:?} at {shortstatehash:?}: {e:?}"
+				))
+			})?
 			.pop()
 			.expect("there is always one layer")
 			.1;
 
-		Ok(full_state
-			.iter()
-			.filter_map(|compressed| {
-				self.services
-					.state_compressor
-					.parse_compressed_state_event(compressed)
-					.ok()
-			})
-			.filter_map(|(shortstatekey, event_id)| sauthevents.remove(&shortstatekey).map(|k| (k, event_id)))
-			.filter_map(|(k, event_id)| {
-				self.services
-					.timeline
-					.get_pdu(&event_id)
-					.ok()
-					.flatten()
-					.map(|pdu| (k, pdu))
-			})
-			.collect())
+		let mut ret = HashMap::new();
+		for compressed in full_state.iter() {
+			let Ok((shortstatekey, event_id)) = self
+				.services
+				.state_compressor
+				.parse_compressed_state_event(compressed)
+				.await
+			else {
+				continue;
+			};
+
+			let Some((ty, state_key)) = sauthevents.remove(&shortstatekey) else {
+				continue;
+			};
+
+			let Ok(pdu) = self.services.timeline.get_pdu(&event_id).await else {
+				continue;
+			};
+
+			ret.insert((ty.to_owned(), state_key.to_owned()), pdu);
+		}
+
+		Ok(ret)
 	}
 }

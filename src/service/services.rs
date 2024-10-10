@@ -14,7 +14,7 @@ use crate::{
 	manager::Manager,
 	media, presence, pusher, resolver, rooms, sending, server_keys, service,
 	service::{Args, Map, Service},
-	transaction_ids, uiaa, updates, users,
+	sync, transaction_ids, uiaa, updates, users,
 };
 
 pub struct Services {
@@ -32,6 +32,7 @@ pub struct Services {
 	pub rooms: rooms::Service,
 	pub sending: Arc<sending::Service>,
 	pub server_keys: Arc<server_keys::Service>,
+	pub sync: Arc<sync::Service>,
 	pub transaction_ids: Arc<transaction_ids::Service>,
 	pub uiaa: Arc<uiaa::Service>,
 	pub updates: Arc<updates::Service>,
@@ -96,6 +97,7 @@ impl Services {
 			},
 			sending: build!(sending::Service),
 			server_keys: build!(server_keys::Service),
+			sync: build!(sync::Service),
 			transaction_ids: build!(transaction_ids::Service),
 			uiaa: build!(uiaa::Service),
 			updates: build!(updates::Service),
@@ -121,12 +123,28 @@ impl Services {
 			.start()
 			.await?;
 
+		// set the server user as online
+		if self.server.config.allow_local_presence {
+			_ = self
+				.presence
+				.ping_presence(&self.globals.server_user, &ruma::presence::PresenceState::Online)
+				.await;
+		}
+
 		debug_info!("Services startup complete.");
 		Ok(Arc::clone(self))
 	}
 
 	pub async fn stop(&self) {
 		info!("Shutting down services...");
+
+		// set the server user as offline
+		if self.server.config.allow_local_presence {
+			_ = self
+				.presence
+				.ping_presence(&self.globals.server_user, &ruma::presence::PresenceState::Offline)
+				.await;
+		}
 
 		self.interrupt();
 		if let Some(manager) = self.manager.lock().await.as_ref() {
@@ -193,16 +211,18 @@ impl Services {
 		}
 	}
 
-	pub fn try_get<'a, 'b, T>(&'b self, name: &'a str) -> Result<Arc<T>>
+	#[inline]
+	pub fn try_get<T>(&self, name: &str) -> Result<Arc<T>>
 	where
-		T: Send + Sync + 'a + 'b + 'static,
+		T: Any + Send + Sync + Sized,
 	{
 		service::try_get::<T>(&self.service, name)
 	}
 
-	pub fn get<'a, 'b, T>(&'b self, name: &'a str) -> Option<Arc<T>>
+	#[inline]
+	pub fn get<T>(&self, name: &str) -> Option<Arc<T>>
 	where
-		T: Send + Sync + 'a + 'b + 'static,
+		T: Any + Send + Sync + Sized,
 	{
 		service::get::<T>(&self.service, name)
 	}

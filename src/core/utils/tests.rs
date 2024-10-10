@@ -37,33 +37,6 @@ fn increment_wrap() {
 }
 
 #[test]
-fn common_prefix() {
-	use utils::string;
-
-	let input = ["conduwuit", "conduit", "construct"];
-	let output = string::common_prefix(&input);
-	assert_eq!(output, "con");
-}
-
-#[test]
-fn common_prefix_empty() {
-	use utils::string;
-
-	let input = ["abcdefg", "hijklmn", "opqrstu"];
-	let output = string::common_prefix(&input);
-	assert_eq!(output, "");
-}
-
-#[test]
-fn common_prefix_none() {
-	use utils::string;
-
-	let input = [];
-	let output = string::common_prefix(&input);
-	assert_eq!(output, "");
-}
-
-#[test]
 fn checked_add() {
 	use crate::checked;
 
@@ -136,17 +109,131 @@ async fn mutex_map_contend() {
 }
 
 #[test]
-fn camel_to_snake_case_0() {
-	use utils::string::camel_to_snake_string;
+#[allow(clippy::iter_on_single_items, clippy::many_single_char_names)]
+fn set_intersection_none() {
+	use utils::set::intersection;
 
-	let res = camel_to_snake_string("CamelToSnakeCase");
-	assert_eq!(res, "camel_to_snake_case");
+	let a: [&str; 0] = [];
+	let b: [&str; 0] = [];
+	let i = [a.iter(), b.iter()];
+	let r = intersection(i.into_iter());
+	assert_eq!(r.count(), 0);
+
+	let a: [&str; 0] = [];
+	let b = ["abc", "def"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection(i.into_iter());
+	assert_eq!(r.count(), 0);
+	let i = [b.iter(), a.iter()];
+	let r = intersection(i.into_iter());
+	assert_eq!(r.count(), 0);
+	let i = [a.iter()];
+	let r = intersection(i.into_iter());
+	assert_eq!(r.count(), 0);
+
+	let a = ["foo", "bar", "baz"];
+	let b = ["def", "hij", "klm", "nop"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection(i.into_iter());
+	assert_eq!(r.count(), 0);
 }
 
 #[test]
-fn camel_to_snake_case_1() {
-	use utils::string::camel_to_snake_string;
+#[allow(clippy::iter_on_single_items, clippy::many_single_char_names)]
+fn set_intersection_all() {
+	use utils::set::intersection;
 
-	let res = camel_to_snake_string("CAmelTOSnakeCase");
-	assert_eq!(res, "camel_tosnake_case");
+	let a = ["foo"];
+	let b = ["foo"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["foo"].iter()));
+
+	let a = ["foo", "bar"];
+	let b = ["bar", "foo"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["foo", "bar"].iter()));
+	let i = [b.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["bar", "foo"].iter()));
+
+	let a = ["foo", "bar", "baz"];
+	let b = ["baz", "foo", "bar"];
+	let c = ["bar", "baz", "foo"];
+	let i = [a.iter(), b.iter(), c.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["foo", "bar", "baz"].iter()));
+}
+
+#[test]
+#[allow(clippy::iter_on_single_items, clippy::many_single_char_names)]
+fn set_intersection_some() {
+	use utils::set::intersection;
+
+	let a = ["foo"];
+	let b = ["bar", "foo"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["foo"].iter()));
+	let i = [b.iter(), a.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["foo"].iter()));
+
+	let a = ["abcdef", "foo", "hijkl", "abc"];
+	let b = ["hij", "bar", "baz", "abc", "foo"];
+	let c = ["abc", "xyz", "foo", "ghi"];
+	let i = [a.iter(), b.iter(), c.iter()];
+	let r = intersection(i.into_iter());
+	assert!(r.eq(["foo", "abc"].iter()));
+}
+
+#[test]
+#[allow(clippy::iter_on_single_items, clippy::many_single_char_names)]
+fn set_intersection_sorted_some() {
+	use utils::set::intersection_sorted;
+
+	let a = ["bar"];
+	let b = ["bar", "foo"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["bar"].iter()));
+	let i = [b.iter(), a.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["bar"].iter()));
+
+	let a = ["aaa", "ccc", "eee", "ggg"];
+	let b = ["aaa", "bbb", "ccc", "ddd", "eee"];
+	let c = ["bbb", "ccc", "eee", "fff"];
+	let i = [a.iter(), b.iter(), c.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["ccc", "eee"].iter()));
+}
+
+#[test]
+#[allow(clippy::iter_on_single_items, clippy::many_single_char_names)]
+fn set_intersection_sorted_all() {
+	use utils::set::intersection_sorted;
+
+	let a = ["foo"];
+	let b = ["foo"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["foo"].iter()));
+
+	let a = ["bar", "foo"];
+	let b = ["bar", "foo"];
+	let i = [a.iter(), b.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["bar", "foo"].iter()));
+	let i = [b.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["bar", "foo"].iter()));
+
+	let a = ["bar", "baz", "foo"];
+	let b = ["bar", "baz", "foo"];
+	let c = ["bar", "baz", "foo"];
+	let i = [a.iter(), b.iter(), c.iter()];
+	let r = intersection_sorted(i.into_iter());
+	assert!(r.eq(["bar", "baz", "foo"].iter()));
 }

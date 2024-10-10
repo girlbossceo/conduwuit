@@ -2,12 +2,12 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{Error, PduEvent, Result};
+use conduit::{err, PduEvent, Result};
 use data::Data;
+use futures::Stream;
 use ruma::{
-	api::client::{error::ErrorKind, threads::get_threads::v1::IncludeThreads},
-	events::relation::BundledThread,
-	uint, CanonicalJsonValue, EventId, RoomId, UserId,
+	api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint, CanonicalJsonValue,
+	EventId, RoomId, UserId,
 };
 use serde_json::json;
 
@@ -36,30 +36,35 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn threads_until<'a>(
+	pub async fn threads_until<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
-	) -> Result<impl Iterator<Item = Result<(u64, PduEvent)>> + 'a> {
-		self.db.threads_until(user_id, room_id, until, include)
+	) -> Result<impl Stream<Item = (u64, PduEvent)> + Send + 'a> {
+		self.db
+			.threads_until(user_id, room_id, until, include)
+			.await
 	}
 
-	pub fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
+	pub async fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
 		let root_id = self
 			.services
 			.timeline
-			.get_pdu_id(root_event_id)?
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Invalid event id in thread message"))?;
+			.get_pdu_id(root_event_id)
+			.await
+			.map_err(|e| err!(Request(InvalidParam("Invalid event_id in thread message: {e:?}"))))?;
 
 		let root_pdu = self
 			.services
 			.timeline
-			.get_pdu_from_id(&root_id)?
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Thread root pdu not found"))?;
+			.get_pdu_from_id(&root_id)
+			.await
+			.map_err(|e| err!(Request(InvalidParam("Thread root not found: {e:?}"))))?;
 
 		let mut root_pdu_json = self
 			.services
 			.timeline
-			.get_pdu_json_from_id(&root_id)?
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Thread root pdu not found"))?;
+			.get_pdu_json_from_id(&root_id)
+			.await
+			.map_err(|e| err!(Request(InvalidParam("Thread root pdu not found: {e:?}"))))?;
 
 		if let CanonicalJsonValue::Object(unsigned) = root_pdu_json
 			.entry("unsigned".to_owned())
@@ -103,11 +108,12 @@ impl Service {
 
 			self.services
 				.timeline
-				.replace_pdu(&root_id, &root_pdu_json, &root_pdu)?;
+				.replace_pdu(&root_id, &root_pdu_json, &root_pdu)
+				.await?;
 		}
 
 		let mut users = Vec::new();
-		if let Some(userids) = self.db.get_participants(&root_id)? {
+		if let Ok(userids) = self.db.get_participants(&root_id).await {
 			users.extend_from_slice(&userids);
 		} else {
 			users.push(root_pdu.sender);

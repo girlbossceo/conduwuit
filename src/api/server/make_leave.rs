@@ -18,7 +18,7 @@ use crate::{service::pdu::PduBuilder, Ruma};
 pub(crate) async fn create_leave_event_template_route(
 	State(services): State<crate::State>, body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
-	if !services.rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id).await {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
@@ -34,9 +34,10 @@ pub(crate) async fn create_leave_event_template_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)?;
+		.acl_check(origin, &body.room_id)
+		.await?;
 
-	let room_version_id = services.rooms.state.get_room_version(&body.room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(&body.room_id).await?;
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 	let content = to_raw_value(&RoomMemberEventContent {
 		avatar_url: None,
@@ -50,19 +51,23 @@ pub(crate) async fn create_leave_event_template_route(
 	})
 	.expect("member event is valid value");
 
-	let (_pdu, mut pdu_json) = services.rooms.timeline.create_hash_and_sign_event(
-		PduBuilder {
-			event_type: TimelineEventType::RoomMember,
-			content,
-			unsigned: None,
-			state_key: Some(body.user_id.to_string()),
-			redacts: None,
-			timestamp: None,
-		},
-		&body.user_id,
-		&body.room_id,
-		&state_lock,
-	)?;
+	let (_pdu, mut pdu_json) = services
+		.rooms
+		.timeline
+		.create_hash_and_sign_event(
+			PduBuilder {
+				event_type: TimelineEventType::RoomMember,
+				content,
+				unsigned: None,
+				state_key: Some(body.user_id.to_string()),
+				redacts: None,
+				timestamp: None,
+			},
+			&body.user_id,
+			&body.room_id,
+			&state_lock,
+		)
+		.await?;
 
 	drop(state_lock);
 

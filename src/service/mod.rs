@@ -1,4 +1,3 @@
-#![recursion_limit = "192"]
 #![allow(refining_impl_trait)]
 
 mod manager;
@@ -19,6 +18,7 @@ pub mod resolver;
 pub mod rooms;
 pub mod sending;
 pub mod server_keys;
+pub mod sync;
 pub mod transaction_ids;
 pub mod uiaa;
 pub mod updates;
