@@ -101,7 +101,6 @@ features = ["typed-header", "tracing"]
 [workspace.dependencies.axum-server]
 version = "0.7.1"
 default-features = false
-features = ["tls-rustls"]
 
 # to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
 [workspace.dependencies.axum-server-dual-protocol]
