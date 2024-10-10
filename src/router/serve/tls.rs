@@ -20,7 +20,9 @@ pub(super) async fn serve(
 
 	// we use ring for ruma and hashing state, but aws-lc-rs is the new default.
 	// without this, TLS mode will panic.
-	_ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+	rustls::crypto::aws_lc_rs::default_provider()
+		.install_default()
+		.expect("failed to initialise aws-lc-rs rustls crypto provider");
 
 	debug!("Using direct TLS. Certificate path {certs} and certificate private key path {key}",);
 	info!(

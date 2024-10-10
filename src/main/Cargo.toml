@@ -66,6 +66,9 @@ console = [
 #	"conduit-router/dev_release_log_level",
 #	"conduit-service/dev_release_log_level",
 #]
+direct_tls = [
+    "conduit-router/direct_tls"
+]
 element_hacks = [
 	"conduit-api/element_hacks",
 	"conduit-service/element_hacks",

@@ -705,7 +705,6 @@ dependencies = [
  "reqwest",
  "ring",
  "ruma",
- "rustls 0.23.14",
  "sanitize-filename",
  "serde",
  "serde_json",
