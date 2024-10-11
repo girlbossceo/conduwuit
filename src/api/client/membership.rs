@@ -1,17 +1,16 @@
 use std::{
-	collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet},
 	net::IpAddr,
 	sync::Arc,
-	time::Instant,
 };
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduit::{
-	debug, debug_error, debug_warn, err, error, info,
+	debug, debug_info, debug_warn, err, error, info, pdu,
 	pdu::{gen_event_id_canonical_json, PduBuilder},
 	trace, utils,
-	utils::{math::continue_exponential_backoff_secs, IterStream, ReadyExt},
+	utils::{IterStream, ReadyExt},
 	warn, Err, Error, PduEvent, Result,
 };
 use futures::{FutureExt, StreamExt};
@@ -36,13 +35,10 @@ use ruma::{
 		},
 		StateEventType,
 	},
-	serde::Base64,
-	state_res, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
-	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
+	state_res, CanonicalJsonObject, CanonicalJsonValue, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId,
+	RoomVersionId, ServerName, UserId,
 };
-use serde_json::value::RawValue as RawJsonValue;
 use service::{appservice::RegistrationInfo, rooms::state::RoomMutexGuard, Services};
-use tokio::sync::RwLock;
 
 use crate::{client::full_user_deactivate, Ruma};
 
@@ -664,20 +660,22 @@ pub async fn join_room_by_id_helper(
 	if local_join {
 		join_room_by_id_helper_local(services, sender_user, room_id, reason, servers, third_party_signed, state_lock)
 			.boxed()
-			.await
+			.await?;
 	} else {
 		// Ask a remote server if we are not participating in this room
 		join_room_by_id_helper_remote(services, sender_user, room_id, reason, servers, third_party_signed, state_lock)
 			.boxed()
-			.await
+			.await?;
 	}
+
+	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
 }
 
 #[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_remote")]
 async fn join_room_by_id_helper_remote(
 	services: &Services, sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
-) -> Result<join_room_by_id::v3::Response> {
+) -> Result {
 	info!("Joining {room_id} over federation.");
 
 	let (make_join_response, remote_server) = make_join_request(services, sender_user, room_id, servers).await?;
@@ -745,43 +743,33 @@ async fn join_room_by_id_helper_remote(
 
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present
-	ruma::signatures::hash_and_sign_event(
-		services.globals.server_name().as_str(),
-		services.globals.keypair(),
-		&mut join_event_stub,
-		&room_version_id,
-	)
-	.expect("event is valid, we just created it");
+	services
+		.server_keys
+		.hash_and_sign_event(&mut join_event_stub, &room_version_id)?;
 
 	// Generate event id
-	let event_id = format!(
-		"${}",
-		ruma::signatures::reference_hash(&join_event_stub, &room_version_id)
-			.expect("ruma can calculate reference hashes")
-	);
-	let event_id = <&EventId>::try_from(event_id.as_str()).expect("ruma's reference hashes are valid event ids");
+	let event_id = pdu::gen_event_id(&join_event_stub, &room_version_id)?;
 
 	// Add event_id back
-	join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
+	join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.clone().into()));
 
 	// It has enough fields to be called a proper event now
 	let mut join_event = join_event_stub;
 
 	info!("Asking {remote_server} for send_join in room {room_id}");
+	let send_join_request = federation::membership::create_join_event::v2::Request {
+		room_id: room_id.to_owned(),
+		event_id: event_id.clone(),
+		omit_members: false,
+		pdu: services
+			.sending
+			.convert_to_outgoing_federation_event(join_event.clone())
+			.await,
+	};
+
 	let send_join_response = services
 		.sending
-		.send_federation_request(
-			&remote_server,
-			federation::membership::create_join_event::v2::Request {
-				room_id: room_id.to_owned(),
-				event_id: event_id.to_owned(),
-				omit_members: false,
-				pdu: services
-					.sending
-					.convert_to_outgoing_federation_event(join_event.clone())
-					.await,
-			},
-		)
+		.send_federation_request(&remote_server, send_join_request)
 		.await?;
 
 	info!("send_join finished");
@@ -799,7 +787,7 @@ async fn join_room_by_id_helper_remote(
 			// validate and send signatures
 			_ => {
 				if let Some(signed_raw) = &send_join_response.room_state.event {
-					info!(
+					debug_info!(
 						"There is a signed event. This room is probably using restricted joins. Adding signature to \
 						 our event"
 					);
@@ -856,25 +844,25 @@ async fn join_room_by_id_helper_remote(
 		.await;
 
 	info!("Parsing join event");
-	let parsed_join_pdu = PduEvent::from_id_val(event_id, join_event.clone())
+	let parsed_join_pdu = PduEvent::from_id_val(&event_id, join_event.clone())
 		.map_err(|e| err!(BadServerResponse("Invalid join event PDU: {e:?}")))?;
 
-	let mut state = HashMap::new();
-	let pub_key_map = RwLock::new(BTreeMap::new());
-
-	info!("Fetching join signing keys");
+	info!("Acquiring server signing keys for response events");
+	let resp_events = &send_join_response.room_state;
+	let resp_state = &resp_events.state;
+	let resp_auth = &resp_events.auth_chain;
 	services
 		.server_keys
-		.fetch_join_signing_keys(&send_join_response, &room_version_id, &pub_key_map)
-		.await?;
+		.acquire_events_pubkeys(resp_auth.iter().chain(resp_state.iter()))
+		.await;
 
 	info!("Going through send_join response room_state");
-	for result in send_join_response
-		.room_state
-		.state
-		.iter()
-		.map(|pdu| validate_and_add_event_id(services, pdu, &room_version_id, &pub_key_map))
-	{
+	let mut state = HashMap::new();
+	for result in send_join_response.room_state.state.iter().map(|pdu| {
+		services
+			.server_keys
+			.validate_and_add_event_id(pdu, &room_version_id)
+	}) {
 		let Ok((event_id, value)) = result.await else {
 			continue;
 		};
@@ -896,12 +884,11 @@ async fn join_room_by_id_helper_remote(
 	}
 
 	info!("Going through send_join response auth_chain");
-	for result in send_join_response
-		.room_state
-		.auth_chain
-		.iter()
-		.map(|pdu| validate_and_add_event_id(services, pdu, &room_version_id, &pub_key_map))
-	{
+	for result in send_join_response.room_state.auth_chain.iter().map(|pdu| {
+		services
+			.server_keys
+			.validate_and_add_event_id(pdu, &room_version_id)
+	}) {
 		let Ok((event_id, value)) = result.await else {
 			continue;
 		};
@@ -931,29 +918,22 @@ async fn join_room_by_id_helper_remote(
 		return Err!(Request(Forbidden("Auth check failed")));
 	}
 
-	info!("Saving state from send_join");
+	info!("Compressing state from send_join");
+	let compressed = state
+		.iter()
+		.stream()
+		.then(|(&k, id)| services.rooms.state_compressor.compress_state_event(k, id))
+		.collect()
+		.await;
+
+	debug!("Saving compressed state");
 	let (statehash_before_join, new, removed) = services
 		.rooms
 		.state_compressor
-		.save_state(
-			room_id,
-			Arc::new(
-				state
-					.into_iter()
-					.stream()
-					.then(|(k, id)| async move {
-						services
-							.rooms
-							.state_compressor
-							.compress_state_event(k, &id)
-							.await
-					})
-					.collect()
-					.await,
-			),
-		)
+		.save_state(room_id, Arc::new(compressed))
 		.await?;
 
+	debug!("Forcing state for new room");
 	services
 		.rooms
 		.state
@@ -996,14 +976,14 @@ async fn join_room_by_id_helper_remote(
 		.state
 		.set_room_state(room_id, statehash_after_join, &state_lock);
 
-	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
+	Ok(())
 }
 
 #[tracing::instrument(skip_all, fields(%sender_user, %room_id), name = "join_local")]
 async fn join_room_by_id_helper_local(
 	services: &Services, sender_user: &UserId, room_id: &RoomId, reason: Option<String>, servers: &[OwnedServerName],
 	_third_party_signed: Option<&ThirdPartySigned>, state_lock: RoomMutexGuard,
-) -> Result<join_room_by_id::v3::Response> {
+) -> Result {
 	debug!("We can join locally");
 
 	let join_rules_event_content = services
@@ -1083,7 +1063,7 @@ async fn join_room_by_id_helper_local(
 		)
 		.await
 	{
-		Ok(_event_id) => return Ok(join_room_by_id::v3::Response::new(room_id.to_owned())),
+		Ok(_) => return Ok(()),
 		Err(e) => e,
 	};
 
@@ -1153,24 +1133,15 @@ async fn join_room_by_id_helper_local(
 
 		// In order to create a compatible ref hash (EventID) the `hashes` field needs
 		// to be present
-		ruma::signatures::hash_and_sign_event(
-			services.globals.server_name().as_str(),
-			services.globals.keypair(),
-			&mut join_event_stub,
-			&room_version_id,
-		)
-		.expect("event is valid, we just created it");
+		services
+			.server_keys
+			.hash_and_sign_event(&mut join_event_stub, &room_version_id)?;
 
 		// Generate event id
-		let event_id = format!(
-			"${}",
-			ruma::signatures::reference_hash(&join_event_stub, &room_version_id)
-				.expect("ruma can calculate reference hashes")
-		);
-		let event_id = <&EventId>::try_from(event_id.as_str()).expect("ruma's reference hashes are valid event ids");
+		let event_id = pdu::gen_event_id(&join_event_stub, &room_version_id)?;
 
 		// Add event_id back
-		join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
+		join_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.clone().into()));
 
 		// It has enough fields to be called a proper event now
 		let join_event = join_event_stub;
@@ -1181,7 +1152,7 @@ async fn join_room_by_id_helper_local(
 				&remote_server,
 				federation::membership::create_join_event::v2::Request {
 					room_id: room_id.to_owned(),
-					event_id: event_id.to_owned(),
+					event_id: event_id.clone(),
 					omit_members: false,
 					pdu: services
 						.sending
@@ -1208,15 +1179,10 @@ async fn join_room_by_id_helper_local(
 			}
 
 			drop(state_lock);
-			let pub_key_map = RwLock::new(BTreeMap::new());
-			services
-				.server_keys
-				.fetch_required_signing_keys([&signed_value], &pub_key_map)
-				.await?;
 			services
 				.rooms
 				.event_handler
-				.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true, &pub_key_map)
+				.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true)
 				.await?;
 		} else {
 			return Err(error);
@@ -1225,7 +1191,7 @@ async fn join_room_by_id_helper_local(
 		return Err(error);
 	}
 
-	Ok(join_room_by_id::v3::Response::new(room_id.to_owned()))
+	Ok(())
 }
 
 async fn make_join_request(
@@ -1295,62 +1261,6 @@ async fn make_join_request(
 	make_join_response_and_server
 }
 
-pub async fn validate_and_add_event_id(
-	services: &Services, pdu: &RawJsonValue, room_version: &RoomVersionId,
-	pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
-) -> Result<(OwnedEventId, CanonicalJsonObject)> {
-	let mut value: CanonicalJsonObject = serde_json::from_str(pdu.get())
-		.map_err(|e| err!(BadServerResponse(debug_error!("Invalid PDU in server response: {e:?}"))))?;
-	let event_id = EventId::parse(format!(
-		"${}",
-		ruma::signatures::reference_hash(&value, room_version).expect("ruma can calculate reference hashes")
-	))
-	.expect("ruma's reference hashes are valid event ids");
-
-	let back_off = |id| async {
-		match services
-			.globals
-			.bad_event_ratelimiter
-			.write()
-			.expect("locked")
-			.entry(id)
-		{
-			Entry::Vacant(e) => {
-				e.insert((Instant::now(), 1));
-			},
-			Entry::Occupied(mut e) => {
-				*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
-			},
-		}
-	};
-
-	if let Some((time, tries)) = services
-		.globals
-		.bad_event_ratelimiter
-		.read()
-		.expect("locked")
-		.get(&event_id)
-	{
-		// Exponential backoff
-		const MIN: u64 = 60 * 5;
-		const MAX: u64 = 60 * 60 * 24;
-		if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
-			return Err!(BadServerResponse("bad event {event_id:?}, still backing off"));
-		}
-	}
-
-	if let Err(e) = ruma::signatures::verify_event(&*pub_key_map.read().await, &value, room_version) {
-		debug_error!("Event {event_id} failed verification {pdu:#?}");
-		let e = Err!(BadServerResponse(debug_error!("Event {event_id} failed verification: {e:?}")));
-		back_off(event_id).await;
-		return e;
-	}
-
-	value.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
-
-	Ok((event_id, value))
-}
-
 pub(crate) async fn invite_helper(
 	services: &Services, sender_user: &UserId, user_id: &UserId, room_id: &RoomId, reason: Option<String>,
 	is_direct: bool,
@@ -1417,8 +1327,6 @@ pub(crate) async fn invite_helper(
 			)
 			.await?;
 
-		let pub_key_map = RwLock::new(BTreeMap::new());
-
 		// We do not add the event_id field to the pdu here because of signature and
 		// hashes checks
 		let Ok((event_id, value)) = gen_event_id_canonical_json(&response.event, &room_version_id) else {
@@ -1446,15 +1354,10 @@ pub(crate) async fn invite_helper(
 		)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-		services
-			.server_keys
-			.fetch_required_signing_keys([&value], &pub_key_map)
-			.await?;
-
 		let pdu_id: Vec<u8> = services
 			.rooms
 			.event_handler
-			.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
+			.handle_incoming_pdu(&origin, room_id, &event_id, value, true)
 			.await?
 			.ok_or(Error::BadRequest(
 				ErrorKind::InvalidParam,
@@ -1708,24 +1611,15 @@ async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &Room
 
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present
-	ruma::signatures::hash_and_sign_event(
-		services.globals.server_name().as_str(),
-		services.globals.keypair(),
-		&mut leave_event_stub,
-		&room_version_id,
-	)
-	.expect("event is valid, we just created it");
+	services
+		.server_keys
+		.hash_and_sign_event(&mut leave_event_stub, &room_version_id)?;
 
 	// Generate event id
-	let event_id = EventId::parse(format!(
-		"${}",
-		ruma::signatures::reference_hash(&leave_event_stub, &room_version_id)
-			.expect("ruma can calculate reference hashes")
-	))
-	.expect("ruma's reference hashes are valid event ids");
+	let event_id = pdu::gen_event_id(&leave_event_stub, &room_version_id)?;
 
 	// Add event_id back
-	leave_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
+	leave_event_stub.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.clone().into()));
 
 	// It has enough fields to be called a proper event now
 	let leave_event = leave_event_stub;

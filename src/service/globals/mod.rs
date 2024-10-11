@@ -2,7 +2,7 @@ mod data;
 pub(super) mod migrations;
 
 use std::{
-	collections::{BTreeMap, HashMap},
+	collections::HashMap,
 	fmt::Write,
 	sync::{Arc, RwLock},
 	time::Instant,
@@ -13,13 +13,8 @@ use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
-	api::{
-		client::discovery::discover_support::ContactRole,
-		federation::discovery::{ServerSigningKeys, VerifyKey},
-	},
-	serde::Base64,
-	DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedServerSigningKeyId, OwnedUserId, RoomAliasId,
-	RoomVersionId, ServerName, UserId,
+	api::client::discovery::discover_support::ContactRole, DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName,
+	OwnedUserId, RoomAliasId, RoomVersionId, ServerName, UserId,
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -31,7 +26,6 @@ pub struct Service {
 
 	pub config: Config,
 	pub cidr_range_denylist: Vec<IPAddress>,
-	keypair: Arc<ruma::signatures::Ed25519KeyPair>,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
 	pub stable_room_versions: Vec<RoomVersionId>,
 	pub unstable_room_versions: Vec<RoomVersionId>,
@@ -50,16 +44,6 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let db = Data::new(&args);
 		let config = &args.server.config;
-		let keypair = db.load_keypair();
-
-		let keypair = match keypair {
-			Ok(k) => k,
-			Err(e) => {
-				error!("Keypair invalid. Deleting...");
-				db.remove_keypair()?;
-				return Err(e);
-			},
-		};
 
 		let jwt_decoding_key = config
 			.jwt_secret
@@ -115,7 +99,6 @@ impl crate::Service for Service {
 			db,
 			config: config.clone(),
 			cidr_range_denylist,
-			keypair: Arc::new(keypair),
 			jwt_decoding_key,
 			stable_room_versions,
 			unstable_room_versions,
@@ -175,9 +158,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	/// Returns this server's keypair.
-	pub fn keypair(&self) -> &ruma::signatures::Ed25519KeyPair { &self.keypair }
-
 	#[inline]
 	pub fn next_count(&self) -> Result<u64> { self.db.next_count() }
 
@@ -223,8 +203,6 @@ impl Service {
 	pub fn allow_check_for_updates(&self) -> bool { self.config.allow_check_for_updates }
 
 	pub fn trusted_servers(&self) -> &[OwnedServerName] { &self.config.trusted_servers }
-
-	pub fn query_trusted_key_servers_first(&self) -> bool { self.config.query_trusted_key_servers_first }
 
 	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
 
@@ -300,28 +278,6 @@ impl Service {
 		} else {
 			self.stable_room_versions.clone()
 		}
-	}
-
-	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
-	/// for the server.
-	pub async fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-		let mut keys = self.db.verify_keys_for(origin).await?;
-		if origin == self.server_name() {
-			keys.insert(
-				format!("ed25519:{}", self.keypair().version())
-					.try_into()
-					.expect("found invalid server signing keys in DB"),
-				VerifyKey {
-					key: Base64::new(self.keypair.public_key().to_vec()),
-				},
-			);
-		}
-
-		Ok(keys)
-	}
-
-	pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSigningKeys> {
-		self.db.signing_keys_for(origin).await
 	}
 
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }

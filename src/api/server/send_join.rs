@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use std::{borrow::Borrow, collections::BTreeMap};
+use std::borrow::Borrow;
 
 use axum::extract::State;
 use conduit::{err, pdu::gen_event_id_canonical_json, utils::IterStream, warn, Error, Result};
@@ -15,7 +15,6 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::Services;
-use tokio::sync::RwLock;
 
 use crate::Ruma;
 
@@ -42,9 +41,6 @@ async fn create_join_event(
 		.get_room_shortstatehash(room_id)
 		.await
 		.map_err(|_| err!(Request(NotFound("Event state not found."))))?;
-
-	let pub_key_map = RwLock::new(BTreeMap::new());
-	// let mut auth_cache = EventMap::new();
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
@@ -137,19 +133,11 @@ async fn create_join_event(
 			.await
 			.unwrap_or_default()
 	{
-		ruma::signatures::hash_and_sign_event(
-			services.globals.server_name().as_str(),
-			services.globals.keypair(),
-			&mut value,
-			&room_version_id,
-		)
-		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
+		services
+			.server_keys
+			.hash_and_sign_event(&mut value, &room_version_id)
+			.map_err(|e| err!(Request(InvalidParam("Failed to sign event: {e}"))))?;
 	}
-
-	services
-		.server_keys
-		.fetch_required_signing_keys([&value], &pub_key_map)
-		.await?;
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
@@ -171,7 +159,7 @@ async fn create_join_event(
 	let pdu_id: Vec<u8> = services
 		.rooms
 		.event_handler
-		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true, &pub_key_map)
+		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true)
 		.await?
 		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
 

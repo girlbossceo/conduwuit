@@ -490,30 +490,6 @@ pub struct Config {
 	#[serde(default = "default_trusted_servers")]
 	pub trusted_servers: Vec<OwnedServerName>,
 
-	/// Option to control whether conduwuit will query your list of trusted
-	/// notary key servers (`trusted_servers`) for remote homeserver signing
-	/// keys it doesn't know *first*, or query the individual servers first
-	/// before falling back to the trusted key servers.
-	///
-	/// The former/default behaviour makes federated/remote rooms joins
-	/// generally faster because we're querying a single (or list of) server
-	/// that we know works, is reasonably fast, and is reliable for just about
-	/// all the homeserver signing keys in the room. Querying individual
-	/// servers may take longer depending on the general infrastructure of
-	/// everyone in there, how many dead servers there are, etc.
-	///
-	/// However, this does create an increased reliance on one single or
-	/// multiple large entities as `trusted_servers` should generally
-	/// contain long-term and large servers who know a very large number of
-	/// homeservers.
-	///
-	/// If you don't know what any of this means, leave this and
-	/// `trusted_servers` alone to their defaults.
-	///
-	/// Defaults to true as this is the fastest option for federation.
-	#[serde(default = "true_fn")]
-	pub query_trusted_key_servers_first: bool,
-
 	/// max log level for conduwuit. allows debug, info, warn, or error
 	/// see also: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
 	/// **Caveat**:
@@ -1510,10 +1486,6 @@ impl fmt::Display for Config {
 				.iter()
 				.map(|server| server.host())
 				.join(", "),
-		);
-		line(
-			"Query Trusted Key Servers First",
-			&self.query_trusted_key_servers_first.to_string(),
 		);
 		line("OpenID Token TTL", &self.openid_token_ttl.to_string());
 		line(

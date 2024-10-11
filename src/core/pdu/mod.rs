@@ -408,10 +408,13 @@ impl PduEvent {
 		serde_json::from_value(json).expect("Raw::from_value always works")
 	}
 
-	pub fn from_id_val(event_id: &EventId, mut json: CanonicalJsonObject) -> Result<Self, serde_json::Error> {
-		json.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
+	pub fn from_id_val(event_id: &EventId, mut json: CanonicalJsonObject) -> Result<Self> {
+		json.insert("event_id".into(), CanonicalJsonValue::String(event_id.into()));
 
-		serde_json::from_value(serde_json::to_value(json).expect("valid JSON"))
+		let value = serde_json::to_value(json)?;
+		let pdu = serde_json::from_value(value)?;
+
+		Ok(pdu)
 	}
 }
 
@@ -462,13 +465,15 @@ pub fn gen_event_id_canonical_json(
 	let value: CanonicalJsonObject = serde_json::from_str(pdu.get())
 		.map_err(|e| err!(BadServerResponse(warn!("Error parsing incoming event: {e:?}"))))?;
 
-	let event_id = format!(
-		"${}",
-		// Anything higher than version3 behaves the same
-		ruma::signatures::reference_hash(&value, room_version_id).expect("ruma can calculate reference hashes")
-	)
-	.try_into()
-	.expect("ruma's reference hashes are valid event ids");
+	let event_id = gen_event_id(&value, room_version_id)?;
 
 	Ok((event_id, value))
+}
+
+/// Generates a correct eventId for the incoming pdu.
+pub fn gen_event_id(value: &CanonicalJsonObject, room_version_id: &RoomVersionId) -> Result<OwnedEventId> {
+	let reference_hash = ruma::signatures::reference_hash(value, room_version_id)?;
+	let event_id: OwnedEventId = format!("${reference_hash}").try_into()?;
+
+	Ok(event_id)
 }

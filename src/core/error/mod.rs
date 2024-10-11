@@ -85,6 +85,8 @@ pub enum Error {
 	BadRequest(ruma::api::client::error::ErrorKind, &'static str), //TODO: remove
 	#[error("{0}")]
 	BadServerResponse(Cow<'static, str>),
+	#[error(transparent)]
+	CanonicalJson(#[from] ruma::CanonicalJsonError),
 	#[error("There was a problem with the '{0}' directive in your configuration: {1}")]
 	Config(&'static str, Cow<'static, str>),
 	#[error("{0}")]
@@ -109,6 +111,8 @@ pub enum Error {
 	Request(ruma::api::client::error::ErrorKind, Cow<'static, str>, http::StatusCode),
 	#[error(transparent)]
 	Ruma(#[from] ruma::api::client::error::Error),
+	#[error(transparent)]
+	Signatures(#[from] ruma::signatures::Error),
 	#[error(transparent)]
 	StateRes(#[from] ruma::state_res::Error),
 	#[error("uiaa")]

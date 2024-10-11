@@ -48,7 +48,7 @@ where
 	async fn from_request(request: hyper::Request<Body>, services: &State) -> Result<Self, Self::Rejection> {
 		let mut request = request::from(services, request).await?;
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&request.body).ok();
-		let auth = auth::auth(services, &mut request, &json_body, &T::METADATA).await?;
+		let auth = auth::auth(services, &mut request, json_body.as_ref(), &T::METADATA).await?;
 		Ok(Self {
 			body: make_body::<T>(services, &mut request, &mut json_body, &auth)?,
 			origin: auth.origin,

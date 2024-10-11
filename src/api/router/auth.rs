@@ -1,19 +1,20 @@
-use std::collections::BTreeMap;
-
 use axum::RequestPartsExt;
 use axum_extra::{
 	headers::{authorization::Bearer, Authorization},
 	typed_header::TypedHeaderRejectionReason,
 	TypedHeader,
 };
-use conduit::{debug_info, warn, Err, Error, Result};
+use conduit::{debug_error, err, warn, Err, Error, Result};
 use http::uri::PathAndQuery;
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, Metadata},
 	server_util::authorization::XMatrix,
-	CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
+	CanonicalJsonObject, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
-use service::Services;
+use service::{
+	server_keys::{PubKeyMap, PubKeys},
+	Services,
+};
 
 use super::request::Request;
 use crate::service::appservice::RegistrationInfo;
@@ -33,7 +34,7 @@ pub(super) struct Auth {
 }
 
 pub(super) async fn auth(
-	services: &Services, request: &mut Request, json_body: &Option<CanonicalJsonValue>, metadata: &Metadata,
+	services: &Services, request: &mut Request, json_body: Option<&CanonicalJsonValue>, metadata: &Metadata,
 ) -> Result<Auth> {
 	let bearer: Option<TypedHeader<Authorization<Bearer>>> = request.parts.extract().await?;
 	let token = match &bearer {
@@ -151,27 +152,24 @@ pub(super) async fn auth(
 }
 
 async fn auth_appservice(services: &Services, request: &Request, info: Box<RegistrationInfo>) -> Result<Auth> {
-	let user_id = request
+	let user_id_default =
+		|| UserId::parse_with_server_name(info.registration.sender_localpart.as_str(), services.globals.server_name());
+
+	let Ok(user_id) = request
 		.query
 		.user_id
 		.clone()
-		.map_or_else(
-			|| {
-				UserId::parse_with_server_name(
-					info.registration.sender_localpart.as_str(),
-					services.globals.server_name(),
-				)
-			},
-			UserId::parse,
-		)
-		.map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+		.map_or_else(user_id_default, UserId::parse)
+	else {
+		return Err!(Request(InvalidUsername("Username is invalid.")));
+	};
 
 	if !info.is_user_match(&user_id) {
-		return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
+		return Err!(Request(Exclusive("User is not in namespace.")));
 	}
 
 	if !services.users.exists(&user_id).await {
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "User does not exist."));
+		return Err!(Request(Forbidden("User does not exist.")));
 	}
 
 	Ok(Auth {
@@ -182,117 +180,103 @@ async fn auth_appservice(services: &Services, request: &Request, info: Box<Regis
 	})
 }
 
-async fn auth_server(
-	services: &Services, request: &mut Request, json_body: &Option<CanonicalJsonValue>,
-) -> Result<Auth> {
+async fn auth_server(services: &Services, request: &mut Request, body: Option<&CanonicalJsonValue>) -> Result<Auth> {
+	type Member = (String, CanonicalJsonValue);
+	type Object = CanonicalJsonObject;
+	type Value = CanonicalJsonValue;
+
+	let x_matrix = parse_x_matrix(request).await?;
+	auth_server_checks(services, &x_matrix)?;
+
+	let destination = services.globals.server_name();
+	let origin = &x_matrix.origin;
+	let signature_uri = request
+		.parts
+		.uri
+		.path_and_query()
+		.unwrap_or(&PathAndQuery::from_static("/"))
+		.to_string();
+
+	let signature: [Member; 1] = [(x_matrix.key.to_string(), Value::String(x_matrix.sig.to_string()))];
+	let signatures: [Member; 1] = [(origin.to_string(), Value::Object(signature.into()))];
+	let authorization: [Member; 5] = [
+		("destination".into(), Value::String(destination.into())),
+		("method".into(), Value::String(request.parts.method.to_string())),
+		("origin".into(), Value::String(origin.to_string())),
+		("signatures".into(), Value::Object(signatures.into())),
+		("uri".into(), Value::String(signature_uri)),
+	];
+
+	let mut authorization: Object = authorization.into();
+	if let Some(body) = body {
+		authorization.insert("content".to_owned(), body.clone());
+	}
+
+	let key = services
+		.server_keys
+		.get_verify_key(origin, &x_matrix.key)
+		.await
+		.map_err(|e| err!(Request(Forbidden(warn!("Failed to fetch signing keys: {e}")))))?;
+
+	let keys: PubKeys = [(x_matrix.key.to_string(), key.key)].into();
+	let keys: PubKeyMap = [(origin.to_string(), keys)].into();
+	if let Err(e) = ruma::signatures::verify_json(&keys, authorization) {
+		debug_error!("Failed to verify federation request from {origin}: {e}");
+		if request.parts.uri.to_string().contains('@') {
+			warn!(
+				"Request uri contained '@' character. Make sure your reverse proxy gives Conduit the raw uri (apache: \
+				 use nocanon)"
+			);
+		}
+
+		return Err!(Request(Forbidden("Failed to verify X-Matrix signatures.")));
+	}
+
+	Ok(Auth {
+		origin: origin.to_owned().into(),
+		sender_user: None,
+		sender_device: None,
+		appservice_info: None,
+	})
+}
+
+fn auth_server_checks(services: &Services, x_matrix: &XMatrix) -> Result<()> {
 	if !services.server.config.allow_federation {
 		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
-	let TypedHeader(Authorization(x_matrix)) = request
-		.parts
-		.extract::<TypedHeader<Authorization<XMatrix>>>()
-		.await
-		.map_err(|e| {
-			warn!("Missing or invalid Authorization header: {e}");
-
-			let msg = match e.reason() {
-				TypedHeaderRejectionReason::Missing => "Missing Authorization header.",
-				TypedHeaderRejectionReason::Error(_) => "Invalid X-Matrix signatures.",
-				_ => "Unknown header-related error",
-			};
-
-			Error::BadRequest(ErrorKind::forbidden(), msg)
-		})?;
+	let destination = services.globals.server_name();
+	if x_matrix.destination.as_deref() != Some(destination) {
+		return Err!(Request(Forbidden("Invalid destination.")));
+	}
 
 	let origin = &x_matrix.origin;
-
 	if services
 		.server
 		.config
 		.forbidden_remote_server_names
 		.contains(origin)
 	{
-		debug_info!("Refusing to accept inbound federation request to {origin}");
-		return Err!(Request(Forbidden("Federation with this homeserver is not allowed.")));
+		return Err!(Request(Forbidden(debug_warn!("Federation requests from {origin} denied."))));
 	}
 
-	let signatures =
-		BTreeMap::from_iter([(x_matrix.key.clone(), CanonicalJsonValue::String(x_matrix.sig.to_string()))]);
-	let signatures = BTreeMap::from_iter([(
-		origin.as_str().to_owned(),
-		CanonicalJsonValue::Object(
-			signatures
-				.into_iter()
-				.map(|(k, v)| (k.to_string(), v))
-				.collect(),
-		),
-	)]);
+	Ok(())
+}
 
-	let server_destination = services.globals.server_name().as_str().to_owned();
-	if let Some(destination) = x_matrix.destination.as_ref() {
-		if destination != &server_destination {
-			return Err(Error::BadRequest(ErrorKind::forbidden(), "Invalid authorization."));
-		}
-	}
+async fn parse_x_matrix(request: &mut Request) -> Result<XMatrix> {
+	let TypedHeader(Authorization(x_matrix)) = request
+		.parts
+		.extract::<TypedHeader<Authorization<XMatrix>>>()
+		.await
+		.map_err(|e| {
+			let msg = match e.reason() {
+				TypedHeaderRejectionReason::Missing => "Missing Authorization header.",
+				TypedHeaderRejectionReason::Error(_) => "Invalid X-Matrix signatures.",
+				_ => "Unknown header-related error",
+			};
 
-	let signature_uri = CanonicalJsonValue::String(
-		request
-			.parts
-			.uri
-			.path_and_query()
-			.unwrap_or(&PathAndQuery::from_static("/"))
-			.to_string(),
-	);
+			err!(Request(Forbidden(warn!("{msg}: {e}"))))
+		})?;
 
-	let mut request_map = BTreeMap::from_iter([
-		(
-			"method".to_owned(),
-			CanonicalJsonValue::String(request.parts.method.to_string()),
-		),
-		("uri".to_owned(), signature_uri),
-		("origin".to_owned(), CanonicalJsonValue::String(origin.as_str().to_owned())),
-		("destination".to_owned(), CanonicalJsonValue::String(server_destination)),
-		("signatures".to_owned(), CanonicalJsonValue::Object(signatures)),
-	]);
-
-	if let Some(json_body) = json_body {
-		request_map.insert("content".to_owned(), json_body.clone());
-	};
-
-	let keys_result = services
-		.server_keys
-		.fetch_signing_keys_for_server(origin, vec![x_matrix.key.to_string()])
-		.await;
-
-	let keys = keys_result.map_err(|e| {
-		warn!("Failed to fetch signing keys: {e}");
-		Error::BadRequest(ErrorKind::forbidden(), "Failed to fetch signing keys.")
-	})?;
-
-	let pub_key_map = BTreeMap::from_iter([(origin.as_str().to_owned(), keys)]);
-
-	match ruma::signatures::verify_json(&pub_key_map, &request_map) {
-		Ok(()) => Ok(Auth {
-			origin: Some(origin.clone()),
-			sender_user: None,
-			sender_device: None,
-			appservice_info: None,
-		}),
-		Err(e) => {
-			warn!("Failed to verify json request from {origin}: {e}\n{request_map:?}");
-
-			if request.parts.uri.to_string().contains('@') {
-				warn!(
-					"Request uri contained '@' character. Make sure your reverse proxy gives Conduit the raw uri \
-					 (apache: use nocanon)"
-				);
-			}
-
-			Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"Failed to verify X-Matrix signatures.",
-			))
-		},
-	}
+	Ok(x_matrix)
 }

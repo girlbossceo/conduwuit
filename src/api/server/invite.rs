@@ -85,13 +85,10 @@ pub(crate) async fn create_invite_route(
 		.acl_check(invited_user.server_name(), &body.room_id)
 		.await?;
 
-	ruma::signatures::hash_and_sign_event(
-		services.globals.server_name().as_str(),
-		services.globals.keypair(),
-		&mut signed_event,
-		&body.room_version,
-	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Failed to sign event."))?;
+	services
+		.server_keys
+		.hash_and_sign_event(&mut signed_event, &body.room_version)
+		.map_err(|e| err!(Request(InvalidParam("Failed to sign event: {e}"))))?;
 
 	// Generate event id
 	let event_id = EventId::parse(format!(

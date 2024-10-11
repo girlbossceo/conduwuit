@@ -21,7 +21,6 @@ use ruma::{
 	OwnedEventId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
-use tokio::sync::RwLock;
 
 use crate::{
 	services::Services,
@@ -109,22 +108,6 @@ async fn handle_pdus(
 		// and hashes checks
 	}
 
-	// We go through all the signatures we see on the PDUs and fetch the
-	// corresponding signing keys
-	let pub_key_map = RwLock::new(BTreeMap::new());
-	if !parsed_pdus.is_empty() {
-		services
-			.server_keys
-			.fetch_required_signing_keys(parsed_pdus.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
-			.await
-			.unwrap_or_else(|e| warn!("Could not fetch all signatures for PDUs from {origin}: {e:?}"));
-
-		debug!(
-			elapsed = ?txn_start_time.elapsed(),
-			"Fetched signing keys"
-		);
-	}
-
 	let mut resolved_map = BTreeMap::new();
 	for (event_id, value, room_id) in parsed_pdus {
 		let pdu_start_time = Instant::now();
@@ -134,17 +117,18 @@ async fn handle_pdus(
 			.mutex_federation
 			.lock(&room_id)
 			.await;
+
 		resolved_map.insert(
 			event_id.clone(),
 			services
 				.rooms
 				.event_handler
-				.handle_incoming_pdu(origin, &room_id, &event_id, value, true, &pub_key_map)
+				.handle_incoming_pdu(origin, &room_id, &event_id, value, true)
 				.await
 				.map(|_| ()),
 		);
-		drop(mutex_lock);
 
+		drop(mutex_lock);
 		debug!(
 			pdu_elapsed = ?pdu_start_time.elapsed(),
 			txn_elapsed = ?txn_start_time.elapsed(),
