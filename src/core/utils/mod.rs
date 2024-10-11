@@ -34,7 +34,7 @@ pub use self::{
 	stream::{IterStream, ReadyExt, Tools as StreamTools, TryReadyExt},
 	string::{str_from_bytes, string_from_bytes},
 	sys::available_parallelism,
-	time::now_millis as millis_since_unix_epoch,
+	time::{now_millis as millis_since_unix_epoch, timepoint_ago, timepoint_from_now},
 };
 
 #[inline]
