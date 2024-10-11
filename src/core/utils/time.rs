@@ -23,6 +23,13 @@ pub fn timepoint_ago(duration: Duration) -> Result<SystemTime> {
 }
 
 #[inline]
+pub fn timepoint_from_now(duration: Duration) -> Result<SystemTime> {
+	SystemTime::now()
+		.checked_add(duration)
+		.ok_or_else(|| err!(Arithmetic("Duration {duration:?} is too large")))
+}
+
+#[inline]
 pub fn parse_duration(duration: &str) -> Result<Duration> {
 	cyborgtime::parse_duration(duration)
 		.map_err(|error| err!("'{duration:?}' is not a valid duration string: {error:?}"))
