@@ -80,8 +80,16 @@ pub(super) enum DebugCommand {
 	GetSigningKeys {
 		server_name: Option<Box<ServerName>>,
 
+		#[arg(long)]
+		notary: Option<Box<ServerName>>,
+
 		#[arg(short, long)]
-		cached: bool,
+		query: bool,
+	},
+
+	/// - Get and display signing keys from local cache or remote server.
+	GetVerifyKeys {
+		server_name: Option<Box<ServerName>>,
 	},
 
 	/// - Sends a federation request to the remote server's
@@ -118,6 +126,13 @@ pub(super) enum DebugCommand {
 	/// This command needs a JSON blob provided in a Markdown code block below
 	/// the command.
 	VerifyJson,
+
+	/// - Verify PDU
+	///
+	/// This re-verifies a PDU existing in the database found by ID.
+	VerifyPdu {
+		event_id: Box<EventId>,
+	},
 
 	/// - Prints the very first PDU in the specified room (typically
 	///   m.room.create)

@@ -1,19 +1,15 @@
-use std::{
-	collections::BTreeMap,
-	time::{Duration, SystemTime},
-};
+use std::{collections::BTreeMap, time::Duration};
 
 use axum::{extract::State, response::IntoResponse, Json};
+use conduit::{utils::timepoint_from_now, Result};
 use ruma::{
 	api::{
-		federation::discovery::{get_server_keys, ServerSigningKeys, VerifyKey},
+		federation::discovery::{get_server_keys, ServerSigningKeys},
 		OutgoingResponse,
 	},
-	serde::{Base64, Raw},
-	MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId,
+	serde::Raw,
+	MilliSecondsSinceUnixEpoch,
 };
-
-use crate::Result;
 
 /// # `GET /_matrix/key/v2/server`
 ///
@@ -24,45 +20,31 @@ use crate::Result;
 // Response type for this endpoint is Json because we need to calculate a
 // signature for the response
 pub(crate) async fn get_server_keys_route(State(services): State<crate::State>) -> Result<impl IntoResponse> {
-	let verify_keys: BTreeMap<OwnedServerSigningKeyId, VerifyKey> = BTreeMap::from([(
-		format!("ed25519:{}", services.globals.keypair().version())
-			.try_into()
-			.expect("found invalid server signing keys in DB"),
-		VerifyKey {
-			key: Base64::new(services.globals.keypair().public_key().to_vec()),
-		},
-	)]);
+	let server_name = services.globals.server_name();
+	let verify_keys = services.server_keys.verify_keys_for(server_name).await;
+	let server_key = ServerSigningKeys {
+		verify_keys,
+		server_name: server_name.to_owned(),
+		valid_until_ts: valid_until_ts(),
+		old_verify_keys: BTreeMap::new(),
+		signatures: BTreeMap::new(),
+	};
 
-	let mut response = serde_json::from_slice(
-		get_server_keys::v2::Response {
-			server_key: Raw::new(&ServerSigningKeys {
-				server_name: services.globals.server_name().to_owned(),
-				verify_keys,
-				old_verify_keys: BTreeMap::new(),
-				signatures: BTreeMap::new(),
-				valid_until_ts: MilliSecondsSinceUnixEpoch::from_system_time(
-					SystemTime::now()
-						.checked_add(Duration::from_secs(86400 * 7))
-						.expect("valid_until_ts should not get this high"),
-				)
-				.expect("time is valid"),
-			})
-			.expect("static conversion, no errors"),
-		}
-		.try_into_http_response::<Vec<u8>>()
-		.unwrap()
-		.body(),
-	)
-	.unwrap();
+	let response = get_server_keys::v2::Response {
+		server_key: Raw::new(&server_key)?,
+	}
+	.try_into_http_response::<Vec<u8>>()?;
 
-	ruma::signatures::sign_json(
-		services.globals.server_name().as_str(),
-		services.globals.keypair(),
-		&mut response,
-	)
-	.unwrap();
+	let mut response = serde_json::from_slice(response.body())?;
+	services.server_keys.sign_json(&mut response)?;
 
 	Ok(Json(response))
+}
+
+fn valid_until_ts() -> MilliSecondsSinceUnixEpoch {
+	let dur = Duration::from_secs(86400 * 7);
+	let timepoint = timepoint_from_now(dur).expect("SystemTime should not overflow");
+	MilliSecondsSinceUnixEpoch::from_system_time(timepoint).expect("UInt should not overflow")
 }
 
 /// # `GET /_matrix/key/v2/server/{keyId}`

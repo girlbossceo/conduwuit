@@ -1,19 +1,17 @@
 use std::{
-	collections::{BTreeMap, HashMap},
+	collections::HashMap,
 	fmt::Write,
 	sync::Arc,
 	time::{Instant, SystemTime},
 };
 
-use api::client::validate_and_add_event_id;
-use conduit::{debug, debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
+use conduit::{debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
 use futures::StreamExt;
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
-use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 use crate::admin_command;
@@ -219,7 +217,7 @@ pub(super) async fn get_remote_pdu(
 			})?;
 
 			trace!("Attempting to parse PDU: {:?}", &response.pdu);
-			let parsed_pdu = {
+			let _parsed_pdu = {
 				let parsed_result = self
 					.services
 					.rooms
@@ -241,22 +239,11 @@ pub(super) async fn get_remote_pdu(
 				vec![(event_id, value, room_id)]
 			};
 
-			let pub_key_map = RwLock::new(BTreeMap::new());
-
-			debug!("Attempting to fetch homeserver signing keys for {server}");
-			self.services
-				.server_keys
-				.fetch_required_signing_keys(parsed_pdu.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
-				.await
-				.unwrap_or_else(|e| {
-					warn!("Could not fetch all signatures for PDUs from {server}: {e:?}");
-				});
-
 			info!("Attempting to handle event ID {event_id} as backfilled PDU");
 			self.services
 				.rooms
 				.timeline
-				.backfill_pdu(&server, response.pdu, &pub_key_map)
+				.backfill_pdu(&server, response.pdu)
 				.await?;
 
 			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
@@ -433,12 +420,10 @@ pub(super) async fn sign_json(&self) -> Result<RoomMessageEventContent> {
 	let string = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
 	match serde_json::from_str(&string) {
 		Ok(mut value) => {
-			ruma::signatures::sign_json(
-				self.services.globals.server_name().as_str(),
-				self.services.globals.keypair(),
-				&mut value,
-			)
-			.expect("our request json is what ruma expects");
+			self.services
+				.server_keys
+				.sign_json(&mut value)
+				.expect("our request json is what ruma expects");
 			let json_text = serde_json::to_string_pretty(&value).expect("canonical json is valid json");
 			Ok(RoomMessageEventContent::text_plain(json_text))
 		},
@@ -456,25 +441,29 @@ pub(super) async fn verify_json(&self) -> Result<RoomMessageEventContent> {
 	}
 
 	let string = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
-	match serde_json::from_str(&string) {
-		Ok(value) => {
-			let pub_key_map = RwLock::new(BTreeMap::new());
-
-			self.services
-				.server_keys
-				.fetch_required_signing_keys([&value], &pub_key_map)
-				.await?;
-
-			let pub_key_map = pub_key_map.read().await;
-			match ruma::signatures::verify_json(&pub_key_map, &value) {
-				Ok(()) => Ok(RoomMessageEventContent::text_plain("Signature correct")),
-				Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
-					"Signature verification failed: {e}"
-				))),
-			}
+	match serde_json::from_str::<CanonicalJsonObject>(&string) {
+		Ok(value) => match self.services.server_keys.verify_json(&value, None).await {
+			Ok(()) => Ok(RoomMessageEventContent::text_plain("Signature correct")),
+			Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+				"Signature verification failed: {e}"
+			))),
 		},
 		Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
 	}
+}
+
+#[admin_command]
+pub(super) async fn verify_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+	let mut event = self.services.rooms.timeline.get_pdu_json(&event_id).await?;
+
+	event.remove("event_id");
+	let msg = match self.services.server_keys.verify_event(&event, None).await {
+		Ok(ruma::signatures::Verified::Signatures) => "signatures OK, but content hash failed (redaction).",
+		Ok(ruma::signatures::Verified::All) => "signatures and hashes OK.",
+		Err(e) => return Err(e),
+	};
+
+	Ok(RoomMessageEventContent::notice_plain(msg))
 }
 
 #[admin_command]
@@ -557,7 +546,6 @@ pub(super) async fn force_set_room_state_from_server(
 	let room_version = self.services.rooms.state.get_room_version(&room_id).await?;
 
 	let mut state: HashMap<u64, Arc<EventId>> = HashMap::new();
-	let pub_key_map = RwLock::new(BTreeMap::new());
 
 	let remote_state_response = self
 		.services
@@ -571,38 +559,28 @@ pub(super) async fn force_set_room_state_from_server(
 		)
 		.await?;
 
-	let mut events = Vec::with_capacity(remote_state_response.pdus.len());
-
 	for pdu in remote_state_response.pdus.clone() {
-		events.push(
-			match self
-				.services
-				.rooms
-				.event_handler
-				.parse_incoming_pdu(&pdu)
-				.await
-			{
-				Ok(t) => t,
-				Err(e) => {
-					warn!("Could not parse PDU, ignoring: {e}");
-					continue;
-				},
+		match self
+			.services
+			.rooms
+			.event_handler
+			.parse_incoming_pdu(&pdu)
+			.await
+		{
+			Ok(t) => t,
+			Err(e) => {
+				warn!("Could not parse PDU, ignoring: {e}");
+				continue;
 			},
-		);
+		};
 	}
 
-	info!("Fetching required signing keys for all the state events we got");
-	self.services
-		.server_keys
-		.fetch_required_signing_keys(events.iter().map(|(_event_id, event, _room_id)| event), &pub_key_map)
-		.await?;
-
 	info!("Going through room_state response PDUs");
-	for result in remote_state_response
-		.pdus
-		.iter()
-		.map(|pdu| validate_and_add_event_id(self.services, pdu, &room_version, &pub_key_map))
-	{
+	for result in remote_state_response.pdus.iter().map(|pdu| {
+		self.services
+			.server_keys
+			.validate_and_add_event_id(pdu, &room_version)
+	}) {
 		let Ok((event_id, value)) = result.await else {
 			continue;
 		};
@@ -630,11 +608,11 @@ pub(super) async fn force_set_room_state_from_server(
 	}
 
 	info!("Going through auth_chain response");
-	for result in remote_state_response
-		.auth_chain
-		.iter()
-		.map(|pdu| validate_and_add_event_id(self.services, pdu, &room_version, &pub_key_map))
-	{
+	for result in remote_state_response.auth_chain.iter().map(|pdu| {
+		self.services
+			.server_keys
+			.validate_and_add_event_id(pdu, &room_version)
+	}) {
 		let Ok((event_id, value)) = result.await else {
 			continue;
 		};
@@ -686,10 +664,33 @@ pub(super) async fn force_set_room_state_from_server(
 
 #[admin_command]
 pub(super) async fn get_signing_keys(
-	&self, server_name: Option<Box<ServerName>>, _cached: bool,
+	&self, server_name: Option<Box<ServerName>>, notary: Option<Box<ServerName>>, query: bool,
 ) -> Result<RoomMessageEventContent> {
 	let server_name = server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
-	let signing_keys = self.services.globals.signing_keys_for(&server_name).await?;
+
+	if let Some(notary) = notary {
+		let signing_keys = self
+			.services
+			.server_keys
+			.notary_request(&notary, &server_name)
+			.await?;
+
+		return Ok(RoomMessageEventContent::notice_markdown(format!(
+			"```rs\n{signing_keys:#?}\n```"
+		)));
+	}
+
+	let signing_keys = if query {
+		self.services
+			.server_keys
+			.server_request(&server_name)
+			.await?
+	} else {
+		self.services
+			.server_keys
+			.signing_keys_for(&server_name)
+			.await?
+	};
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"```rs\n{signing_keys:#?}\n```"
@@ -697,34 +698,20 @@ pub(super) async fn get_signing_keys(
 }
 
 #[admin_command]
-#[allow(dead_code)]
-pub(super) async fn get_verify_keys(
-	&self, server_name: Option<Box<ServerName>>, cached: bool,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_verify_keys(&self, server_name: Option<Box<ServerName>>) -> Result<RoomMessageEventContent> {
 	let server_name = server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
-	let mut out = String::new();
 
-	if cached {
-		writeln!(out, "| Key ID | VerifyKey |")?;
-		writeln!(out, "| --- | --- |")?;
-		for (key_id, verify_key) in self.services.globals.verify_keys_for(&server_name).await? {
-			writeln!(out, "| {key_id} | {verify_key:?} |")?;
-		}
-
-		return Ok(RoomMessageEventContent::notice_markdown(out));
-	}
-
-	let signature_ids: Vec<String> = Vec::new();
 	let keys = self
 		.services
 		.server_keys
-		.fetch_signing_keys_for_server(&server_name, signature_ids)
-		.await?;
+		.verify_keys_for(&server_name)
+		.await;
 
+	let mut out = String::new();
 	writeln!(out, "| Key ID | Public Key |")?;
 	writeln!(out, "| --- | --- |")?;
 	for (key_id, key) in keys {
-		writeln!(out, "| {key_id} | {key} |")?;
+		writeln!(out, "| {key_id} | {key:?} |")?;
 	}
 
 	Ok(RoomMessageEventContent::notice_markdown(out))

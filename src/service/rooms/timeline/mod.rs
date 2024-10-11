@@ -16,7 +16,7 @@ use conduit::{
 };
 use futures::{future, future::ready, Future, FutureExt, Stream, StreamExt, TryStreamExt};
 use ruma::{
-	api::{client::error::ErrorKind, federation},
+	api::federation,
 	canonical_json::to_canonical_value,
 	events::{
 		push_rules::PushRulesEvent,
@@ -30,14 +30,12 @@ use ruma::{
 		GlobalAccountDataEventType, StateEventType, TimelineEventType,
 	},
 	push::{Action, Ruleset, Tweak},
-	serde::Base64,
 	state_res::{self, Event, RoomVersion},
 	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
 	RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
-use tokio::sync::RwLock;
 
 use self::data::Data;
 pub use self::data::PdusIterItem;
@@ -784,21 +782,15 @@ impl Service {
 			to_canonical_value(self.services.globals.server_name()).expect("server name is a valid CanonicalJsonValue"),
 		);
 
-		match ruma::signatures::hash_and_sign_event(
-			self.services.globals.server_name().as_str(),
-			self.services.globals.keypair(),
-			&mut pdu_json,
-			&room_version_id,
-		) {
-			Ok(()) => {},
-			Err(e) => {
-				return match e {
-					ruma::signatures::Error::PduSize => {
-						Err(Error::BadRequest(ErrorKind::TooLarge, "Message is too long"))
-					},
-					_ => Err(Error::BadRequest(ErrorKind::Unknown, "Signing event failed")),
-				}
-			},
+		if let Err(e) = self
+			.services
+			.server_keys
+			.hash_and_sign_event(&mut pdu_json, &room_version_id)
+		{
+			return match e {
+				Error::Signatures(ruma::signatures::Error::PduSize) => Err!(Request(TooLarge("Message is too long"))),
+				_ => Err!(Request(Unknown("Signing event failed"))),
+			};
 		}
 
 		// Generate event id
@@ -1106,9 +1098,8 @@ impl Service {
 				.await;
 			match response {
 				Ok(response) => {
-					let pub_key_map = RwLock::new(BTreeMap::new());
 					for pdu in response.pdus {
-						if let Err(e) = self.backfill_pdu(backfill_server, pdu, &pub_key_map).await {
+						if let Err(e) = self.backfill_pdu(backfill_server, pdu).await {
 							warn!("Failed to add backfilled pdu in room {room_id}: {e}");
 						}
 					}
@@ -1124,11 +1115,8 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, pdu, pub_key_map))]
-	pub async fn backfill_pdu(
-		&self, origin: &ServerName, pdu: Box<RawJsonValue>,
-		pub_key_map: &RwLock<BTreeMap<String, BTreeMap<String, Base64>>>,
-	) -> Result<()> {
+	#[tracing::instrument(skip(self, pdu))]
+	pub async fn backfill_pdu(&self, origin: &ServerName, pdu: Box<RawJsonValue>) -> Result<()> {
 		let (event_id, value, room_id) = self.services.event_handler.parse_incoming_pdu(&pdu).await?;
 
 		// Lock so we cannot backfill the same pdu twice at the same time
@@ -1147,13 +1135,8 @@ impl Service {
 		}
 
 		self.services
-			.server_keys
-			.fetch_required_signing_keys([&value], pub_key_map)
-			.await?;
-
-		self.services
 			.event_handler
-			.handle_incoming_pdu(origin, &room_id, &event_id, value, false, pub_key_map)
+			.handle_incoming_pdu(origin, &room_id, &event_id, value, false)
 			.await?;
 
 		let value = self

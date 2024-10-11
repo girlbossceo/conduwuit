@@ -1,7 +1,5 @@
 #![allow(deprecated)]
 
-use std::collections::BTreeMap;
-
 use axum::extract::State;
 use conduit::{utils::ReadyExt, Error, Result};
 use ruma::{
@@ -13,7 +11,6 @@ use ruma::{
 	OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
-use tokio::sync::RwLock;
 
 use crate::{
 	service::{pdu::gen_event_id_canonical_json, Services},
@@ -59,8 +56,6 @@ async fn create_leave_event(
 		.event_handler
 		.acl_check(origin, room_id)
 		.await?;
-
-	let pub_key_map = RwLock::new(BTreeMap::new());
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
@@ -154,21 +149,17 @@ async fn create_leave_event(
 	)
 	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
 
-	services
-		.server_keys
-		.fetch_required_signing_keys([&value], &pub_key_map)
-		.await?;
-
 	let mutex_lock = services
 		.rooms
 		.event_handler
 		.mutex_federation
 		.lock(room_id)
 		.await;
+
 	let pdu_id: Vec<u8> = services
 		.rooms
 		.event_handler
-		.handle_incoming_pdu(&origin, room_id, &event_id, value, true, &pub_key_map)
+		.handle_incoming_pdu(&origin, room_id, &event_id, value, true)
 		.await?
 		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
 

@@ -13,8 +13,6 @@ pub(crate) enum GlobalsCommand {
 
 	LastCheckForUpdatesId,
 
-	LoadKeypair,
-
 	/// - This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	///   for the server.
 	SigningKeysFor {
@@ -54,20 +52,11 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		GlobalsCommand::LoadKeypair => {
-			let timer = tokio::time::Instant::now();
-			let results = services.globals.db.load_keypair();
-			let query_time = timer.elapsed();
-
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
-		},
 		GlobalsCommand::SigningKeysFor {
 			origin,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.globals.db.verify_keys_for(&origin).await;
+			let results = services.server_keys.verify_keys_for(&origin).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

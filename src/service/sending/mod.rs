@@ -17,7 +17,7 @@ use tokio::sync::Mutex;
 
 use self::data::Data;
 pub use self::dest::Destination;
-use crate::{account_data, client, globals, presence, pusher, resolver, rooms, users, Dep};
+use crate::{account_data, client, globals, presence, pusher, resolver, rooms, server_keys, users, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -41,6 +41,7 @@ struct Services {
 	account_data: Dep<account_data::Service>,
 	appservice: Dep<crate::appservice::Service>,
 	pusher: Dep<pusher::Service>,
+	server_keys: Dep<server_keys::Service>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,6 +79,7 @@ impl crate::Service for Service {
 				account_data: args.depend::<account_data::Service>("account_data"),
 				appservice: args.depend::<crate::appservice::Service>("appservice"),
 				pusher: args.depend::<pusher::Service>("pusher"),
+				server_keys: args.depend::<server_keys::Service>("server_keys"),
 			},
 			db: Data::new(&args),
 			sender,

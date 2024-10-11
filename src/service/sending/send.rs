@@ -1,8 +1,8 @@
 use std::{fmt::Debug, mem};
 
 use conduit::{
-	debug, debug_error, debug_info, debug_warn, err, error::inspect_debug_log, trace, utils::string::EMPTY, Err, Error,
-	Result,
+	debug, debug_error, debug_info, debug_warn, err, error::inspect_debug_log, implement, trace, utils::string::EMPTY,
+	Err, Error, Result,
 };
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
@@ -18,7 +18,7 @@ use ruma::{
 };
 
 use crate::{
-	globals, resolver,
+	resolver,
 	resolver::{actual::ActualDest, cache::CachedDest},
 };
 
@@ -75,7 +75,7 @@ impl super::Service {
 			.try_into_http_request::<Vec<u8>>(&actual.string, SATIR, &VERSIONS)
 			.map_err(|e| err!(BadServerResponse("Invalid destination: {e:?}")))?;
 
-		sign_request::<T>(&self.services.globals, dest, &mut http_request);
+		self.sign_request::<T>(dest, &mut http_request);
 
 		let request = Request::try_from(http_request)?;
 		self.validate_url(request.url())?;
@@ -178,7 +178,8 @@ where
 	Err(e.into())
 }
 
-fn sign_request<T>(globals: &globals::Service, dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
+#[implement(super::Service)]
+fn sign_request<T>(&self, dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
 where
 	T: OutgoingRequest + Debug + Send,
 {
@@ -200,11 +201,13 @@ where
 			.to_string()
 			.into(),
 	);
-	req_map.insert("origin".to_owned(), globals.server_name().as_str().into());
+	req_map.insert("origin".to_owned(), self.services.globals.server_name().to_string().into());
 	req_map.insert("destination".to_owned(), dest.as_str().into());
 
 	let mut req_json = serde_json::from_value(req_map.into()).expect("valid JSON is valid BTreeMap");
-	ruma::signatures::sign_json(globals.server_name().as_str(), globals.keypair(), &mut req_json)
+	self.services
+		.server_keys
+		.sign_json(&mut req_json)
 		.expect("our request json is what ruma expects");
 
 	let req_json: serde_json::Map<String, serde_json::Value> =
@@ -231,7 +234,12 @@ where
 
 			http_request.headers_mut().insert(
 				AUTHORIZATION,
-				HeaderValue::from(&XMatrix::new(globals.config.server_name.clone(), dest.to_owned(), key, sig)),
+				HeaderValue::from(&XMatrix::new(
+					self.services.globals.server_name().to_owned(),
+					dest.to_owned(),
+					key,
+					sig,
+				)),
 			);
 		}
 	}
