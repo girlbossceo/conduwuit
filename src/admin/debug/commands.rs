@@ -6,7 +6,7 @@ use std::{
 };
 
 use api::client::validate_and_add_event_id;
-use conduit::{debug, debug_error, err, info, trace, utils, warn, Error, PduEvent, Result};
+use conduit::{debug, debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
 use futures::StreamExt;
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
@@ -57,7 +57,9 @@ pub(super) async fn get_auth_chain(&self, event_id: Box<EventId>) -> Result<Room
 
 #[admin_command]
 pub(super) async fn parse_pdu(&self) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&EMPTY).trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -134,7 +136,9 @@ pub(super) async fn get_remote_pdu_list(
 		));
 	}
 
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&EMPTY).trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -843,7 +847,7 @@ pub(super) async fn database_stats(
 	&self, property: Option<String>, map: Option<String>,
 ) -> Result<RoomMessageEventContent> {
 	let property = property.unwrap_or_else(|| "rocksdb.stats".to_owned());
-	let map_name = map.as_ref().map_or(utils::string::EMPTY, String::as_str);
+	let map_name = map.as_ref().map_or(EMPTY, String::as_str);
 
 	let mut out = String::new();
 	for (name, map) in self.services.db.iter_maps() {
