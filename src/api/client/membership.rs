@@ -652,13 +652,16 @@ pub async fn join_room_by_id_helper(
 		});
 	}
 
-	if services
+	let server_in_room = services
 		.rooms
 		.state_cache
 		.server_in_room(services.globals.server_name(), room_id)
-		.await || servers.is_empty()
-		|| (servers.len() == 1 && services.globals.server_is_ours(&servers[0]))
-	{
+		.await;
+
+	let local_join =
+		server_in_room || servers.is_empty() || (servers.len() == 1 && services.globals.server_is_ours(&servers[0]));
+
+	if local_join {
 		join_room_by_id_helper_local(services, sender_user, room_id, reason, servers, third_party_signed, state_lock)
 			.boxed()
 			.await
