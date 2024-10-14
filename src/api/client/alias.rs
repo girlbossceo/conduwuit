@@ -86,25 +86,19 @@ pub(crate) async fn get_alias_route(
 	State(services): State<crate::State>, body: Ruma<get_alias::v3::Request>,
 ) -> Result<get_alias::v3::Response> {
 	let room_alias = body.body.room_alias;
-	let servers = None;
 
-	let Ok((room_id, pre_servers)) = services
-		.rooms
-		.alias
-		.resolve_alias(&room_alias, servers.as_ref())
-		.await
-	else {
+	let Ok((room_id, servers)) = services.rooms.alias.resolve_alias(&room_alias, None).await else {
 		return Err!(Request(NotFound("Room with alias not found.")));
 	};
 
-	let servers = room_available_servers(&services, &room_id, &room_alias, &pre_servers).await;
+	let servers = room_available_servers(&services, &room_id, &room_alias, servers).await;
 	debug!(?room_alias, ?room_id, "available servers: {servers:?}");
 
 	Ok(get_alias::v3::Response::new(room_id, servers))
 }
 
 async fn room_available_servers(
-	services: &Services, room_id: &RoomId, room_alias: &RoomAliasId, pre_servers: &Option<Vec<OwnedServerName>>,
+	services: &Services, room_id: &RoomId, room_alias: &RoomAliasId, pre_servers: Vec<OwnedServerName>,
 ) -> Vec<OwnedServerName> {
 	// find active servers in room state cache to suggest
 	let mut servers: Vec<OwnedServerName> = services
@@ -117,9 +111,7 @@ async fn room_available_servers(
 
 	// push any servers we want in the list already (e.g. responded remote alias
 	// servers, room alias server itself)
-	if let Some(pre_servers) = pre_servers {
-		servers.extend(pre_servers.clone());
-	};
+	servers.extend(pre_servers);
 
 	servers.sort_unstable();
 	servers.dedup();

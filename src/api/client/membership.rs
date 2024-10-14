@@ -9,8 +9,9 @@ use axum_client_ip::InsecureClientIp;
 use conduit::{
 	debug, debug_info, debug_warn, err, error, info, pdu,
 	pdu::{gen_event_id_canonical_json, PduBuilder},
+	result::FlatOk,
 	trace, utils,
-	utils::{IterStream, ReadyExt},
+	utils::{shuffle, IterStream, ReadyExt},
 	warn, Err, Error, PduEvent, Result,
 };
 use futures::{FutureExt, StreamExt};
@@ -182,6 +183,10 @@ pub(crate) async fn join_room_by_id_route(
 		servers.push(server.into());
 	}
 
+	servers.sort_unstable();
+	servers.dedup();
+	shuffle(&mut servers);
+
 	join_room_by_id_helper(
 		&services,
 		sender_user,
@@ -245,45 +250,48 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 				servers.push(server.to_owned());
 			}
 
+			servers.sort_unstable();
+			servers.dedup();
+			shuffle(&mut servers);
+
 			(servers, room_id)
 		},
 		Err(room_alias) => {
-			let response = services
+			let (room_id, mut servers) = services
 				.rooms
 				.alias
-				.resolve_alias(&room_alias, Some(&body.via.clone()))
+				.resolve_alias(&room_alias, Some(body.via.clone()))
 				.await?;
-			let (room_id, mut pre_servers) = response;
 
 			banned_room_check(&services, sender_user, Some(&room_id), Some(room_alias.server_name()), client).await?;
 
-			let mut servers = body.via;
-			if let Some(pre_servers) = &mut pre_servers {
-				servers.append(pre_servers);
-			}
+			let addl_via_servers = services
+				.rooms
+				.state_cache
+				.servers_invite_via(&room_id)
+				.map(ToOwned::to_owned);
 
-			servers.extend(
-				services
-					.rooms
-					.state_cache
-					.servers_invite_via(&room_id)
-					.map(ToOwned::to_owned)
-					.collect::<Vec<_>>()
-					.await,
-			);
+			let addl_state_servers = services
+				.rooms
+				.state_cache
+				.invite_state(sender_user, &room_id)
+				.await
+				.unwrap_or_default();
 
-			servers.extend(
-				services
-					.rooms
-					.state_cache
-					.invite_state(sender_user, &room_id)
-					.await
-					.unwrap_or_default()
-					.iter()
-					.filter_map(|event| event.get_field("sender").ok().flatten())
-					.filter_map(|sender: &str| UserId::parse(sender).ok())
-					.map(|user| user.server_name().to_owned()),
-			);
+			let mut addl_servers: Vec<_> = addl_state_servers
+				.iter()
+				.map(|event| event.get_field("sender"))
+				.filter_map(FlatOk::flat_ok)
+				.map(|user: &UserId| user.server_name().to_owned())
+				.stream()
+				.chain(addl_via_servers)
+				.collect()
+				.await;
+
+			addl_servers.sort_unstable();
+			addl_servers.dedup();
+			shuffle(&mut addl_servers);
+			servers.append(&mut addl_servers);
 
 			(servers, room_id)
 		},
