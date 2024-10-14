@@ -11,6 +11,7 @@ pub struct Service {
 	pub extern_media: reqwest::Client,
 	pub well_known: reqwest::Client,
 	pub federation: reqwest::Client,
+	pub synapse: reqwest::Client,
 	pub sender: reqwest::Client,
 	pub appservice: reqwest::Client,
 	pub pusher: reqwest::Client,
@@ -48,9 +49,15 @@ impl crate::Service for Service {
 			federation: base(config)?
 				.dns_resolver(resolver.resolver.hooked.clone())
 				.read_timeout(Duration::from_secs(config.federation_timeout))
-				.timeout(Duration::from_secs(config.federation_timeout))
 				.pool_max_idle_per_host(config.federation_idle_per_host.into())
 				.pool_idle_timeout(Duration::from_secs(config.federation_idle_timeout))
+				.redirect(redirect::Policy::limited(3))
+				.build()?,
+
+			synapse: base(config)?
+				.dns_resolver(resolver.resolver.hooked.clone())
+				.read_timeout(Duration::from_secs(305))
+				.pool_max_idle_per_host(0)
 				.redirect(redirect::Policy::limited(3))
 				.build()?,
 

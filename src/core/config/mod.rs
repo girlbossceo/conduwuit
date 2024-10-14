@@ -1767,7 +1767,7 @@ fn default_well_known_conn_timeout() -> u64 { 6 }
 
 fn default_well_known_timeout() -> u64 { 10 }
 
-fn default_federation_timeout() -> u64 { 300 }
+fn default_federation_timeout() -> u64 { 25 }
 
 fn default_federation_idle_timeout() -> u64 { 25 }
 

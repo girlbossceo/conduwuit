@@ -245,12 +245,23 @@ impl Service {
 			.await
 	}
 
+	/// Sends a request to a federation server
 	#[tracing::instrument(skip_all, name = "request")]
 	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
 		let client = &self.services.client.federation;
+		self.send(client, dest, request).await
+	}
+
+	/// Like send_federation_request() but with a very large timeout
+	#[tracing::instrument(skip_all, name = "synapse")]
+	pub async fn send_synapse_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+	where
+		T: OutgoingRequest + Debug + Send,
+	{
+		let client = &self.services.client.synapse;
 		self.send(client, dest, request).await
 	}
 
