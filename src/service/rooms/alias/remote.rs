@@ -1,75 +1,67 @@
-use conduit::{debug, debug_warn, Error, Result};
-use ruma::{
-	api::{client::error::ErrorKind, federation},
-	OwnedRoomId, OwnedServerName, RoomAliasId,
-};
+use std::iter::once;
 
-impl super::Service {
-	pub(super) async fn remote_resolve(
-		&self, room_alias: &RoomAliasId, servers: Option<&Vec<OwnedServerName>>,
-	) -> Result<(OwnedRoomId, Option<Vec<OwnedServerName>>)> {
-		debug!(?room_alias, ?servers, "resolve");
+use conduit::{debug, debug_error, err, implement, Result};
+use federation::query::get_room_information::v1::Response;
+use ruma::{api::federation, OwnedRoomId, OwnedServerName, RoomAliasId, ServerName};
 
-		let mut response = self
-			.services
-			.sending
-			.send_federation_request(
-				room_alias.server_name(),
-				federation::query::get_room_information::v1::Request {
-					room_alias: room_alias.to_owned(),
-				},
-			)
-			.await;
+#[implement(super::Service)]
+pub(super) async fn remote_resolve(
+	&self, room_alias: &RoomAliasId, servers: Vec<OwnedServerName>,
+) -> Result<(OwnedRoomId, Vec<OwnedServerName>)> {
+	debug!(?room_alias, servers = ?servers, "resolve");
+	let servers = once(room_alias.server_name())
+		.map(ToOwned::to_owned)
+		.chain(servers.into_iter());
 
-		debug!("room alias server_name get_alias_helper response: {response:?}");
+	let mut resolved_servers = Vec::new();
+	let mut resolved_room_id: Option<OwnedRoomId> = None;
+	for server in servers {
+		match self.remote_request(room_alias, &server).await {
+			Err(e) => debug_error!("Failed to query for {room_alias:?} from {server}: {e}"),
+			Ok(Response {
+				room_id,
+				servers,
+			}) => {
+				debug!("Server {server} answered with {room_id:?} for {room_alias:?} servers: {servers:?}");
 
-		if let Err(ref e) = response {
-			debug_warn!(
-				"Server {} of the original room alias failed to assist in resolving room alias: {e}",
-				room_alias.server_name(),
-			);
-		}
+				resolved_room_id.get_or_insert(room_id);
+				add_server(&mut resolved_servers, server);
 
-		if response.as_ref().is_ok_and(|resp| resp.servers.is_empty()) || response.as_ref().is_err() {
-			if let Some(servers) = servers {
-				for server in servers {
-					response = self
-						.services
-						.sending
-						.send_federation_request(
-							server,
-							federation::query::get_room_information::v1::Request {
-								room_alias: room_alias.to_owned(),
-							},
-						)
-						.await;
-					debug!("Got response from server {server} for room aliases: {response:?}");
-
-					if let Ok(ref response) = response {
-						if !response.servers.is_empty() {
-							break;
-						}
-						debug_warn!(
-							"Server {server} responded with room aliases, but was empty? Response: {response:?}"
-						);
-					}
+				if !servers.is_empty() {
+					add_servers(&mut resolved_servers, servers);
+					break;
 				}
-			}
+			},
 		}
+	}
 
-		if let Ok(response) = response {
-			let room_id = response.room_id;
+	resolved_room_id
+		.map(|room_id| (room_id, resolved_servers))
+		.ok_or_else(|| err!(Request(NotFound("No servers could assist in resolving the room alias"))))
+}
 
-			let mut pre_servers = response.servers;
-			// since the room alis server responded, insert it into the list
-			pre_servers.push(room_alias.server_name().into());
+#[implement(super::Service)]
+async fn remote_request(&self, room_alias: &RoomAliasId, server: &ServerName) -> Result<Response> {
+	use federation::query::get_room_information::v1::Request;
 
-			return Ok((room_id, Some(pre_servers)));
-		}
+	let request = Request {
+		room_alias: room_alias.to_owned(),
+	};
 
-		Err(Error::BadRequest(
-			ErrorKind::NotFound,
-			"No servers could assist in resolving the room alias",
-		))
+	self.services
+		.sending
+		.send_federation_request(server, request)
+		.await
+}
+
+fn add_servers(servers: &mut Vec<OwnedServerName>, new: Vec<OwnedServerName>) {
+	for server in new {
+		add_server(servers, server);
+	}
+}
+
+fn add_server(servers: &mut Vec<OwnedServerName>, server: OwnedServerName) {
+	if !servers.contains(&server) {
+		servers.push(server);
 	}
 }

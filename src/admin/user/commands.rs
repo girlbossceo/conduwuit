@@ -381,13 +381,18 @@ pub(super) async fn force_join_room(
 	&self, user_id: String, room_id: OwnedRoomOrAliasId,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &user_id)?;
-	let room_id = self.services.rooms.alias.resolve(&room_id).await?;
+	let (room_id, servers) = self
+		.services
+		.rooms
+		.alias
+		.resolve_with_servers(&room_id, None)
+		.await?;
 
 	assert!(
 		self.services.globals.user_is_local(&user_id),
 		"Parsed user_id must be a local user"
 	);
-	join_room_by_id_helper(self.services, &user_id, &room_id, None, &[], None, &None).await?;
+	join_room_by_id_helper(self.services, &user_id, &room_id, None, &servers, None, &None).await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been joined to {room_id}.",

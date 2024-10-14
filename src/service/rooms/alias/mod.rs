@@ -112,40 +112,51 @@ impl Service {
 		Ok(())
 	}
 
+	#[inline]
 	pub async fn resolve(&self, room: &RoomOrAliasId) -> Result<OwnedRoomId> {
+		self.resolve_with_servers(room, None)
+			.await
+			.map(|(room_id, _)| room_id)
+	}
+
+	pub async fn resolve_with_servers(
+		&self, room: &RoomOrAliasId, servers: Option<Vec<OwnedServerName>>,
+	) -> Result<(OwnedRoomId, Vec<OwnedServerName>)> {
 		if room.is_room_id() {
-			let room_id: &RoomId = &RoomId::parse(room).expect("valid RoomId");
-			Ok(room_id.to_owned())
+			let room_id = RoomId::parse(room).expect("valid RoomId");
+			Ok((room_id, servers.unwrap_or_default()))
 		} else {
-			let alias: &RoomAliasId = &RoomAliasId::parse(room).expect("valid RoomAliasId");
-			Ok(self.resolve_alias(alias, None).await?.0)
+			let alias = &RoomAliasId::parse(room).expect("valid RoomAliasId");
+			self.resolve_alias(alias, servers).await
 		}
 	}
 
 	#[tracing::instrument(skip(self), name = "resolve")]
 	pub async fn resolve_alias(
-		&self, room_alias: &RoomAliasId, servers: Option<&Vec<OwnedServerName>>,
-	) -> Result<(OwnedRoomId, Option<Vec<OwnedServerName>>)> {
-		if !self
-			.services
-			.globals
-			.server_is_ours(room_alias.server_name())
-			&& (!servers
+		&self, room_alias: &RoomAliasId, servers: Option<Vec<OwnedServerName>>,
+	) -> Result<(OwnedRoomId, Vec<OwnedServerName>)> {
+		let server_name = room_alias.server_name();
+		let server_is_ours = self.services.globals.server_is_ours(server_name);
+		let servers_contains_ours = || {
+			servers
 				.as_ref()
-				.is_some_and(|servers| servers.contains(&self.services.globals.server_name().to_owned()))
-				|| servers.as_ref().is_none())
-		{
-			return self.remote_resolve(room_alias, servers).await;
+				.is_some_and(|servers| servers.contains(&self.services.globals.config.server_name))
+		};
+
+		if !server_is_ours && !servers_contains_ours() {
+			return self
+				.remote_resolve(room_alias, servers.unwrap_or_default())
+				.await;
 		}
 
-		let room_id: Option<OwnedRoomId> = match self.resolve_local_alias(room_alias).await {
+		let room_id = match self.resolve_local_alias(room_alias).await {
 			Ok(r) => Some(r),
 			Err(_) => self.resolve_appservice_alias(room_alias).await?,
 		};
 
 		room_id.map_or_else(
-			|| Err(Error::BadRequest(ErrorKind::NotFound, "Room with alias not found.")),
-			|room_id| Ok((room_id, None)),
+			|| Err!(Request(NotFound("Room with alias not found."))),
+			|room_id| Ok((room_id, Vec::new())),
 		)
 	}
 
