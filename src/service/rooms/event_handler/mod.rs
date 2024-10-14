@@ -1016,7 +1016,7 @@ impl Service {
 		let res = self
 			.services
 			.sending
-			.send_federation_request(
+			.send_synapse_request(
 				origin,
 				get_room_state_ids::v1::Request {
 					room_id: room_id.to_owned(),

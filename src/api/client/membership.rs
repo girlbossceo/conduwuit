@@ -775,7 +775,7 @@ async fn join_room_by_id_helper_remote(
 
 	let send_join_response = services
 		.sending
-		.send_federation_request(&remote_server, send_join_request)
+		.send_synapse_request(&remote_server, send_join_request)
 		.await?;
 
 	info!("send_join finished");
@@ -1154,7 +1154,7 @@ async fn join_room_by_id_helper_local(
 
 		let send_join_response = services
 			.sending
-			.send_federation_request(
+			.send_synapse_request(
 				&remote_server,
 				federation::membership::create_join_event::v2::Request {
 					room_id: room_id.to_owned(),
