@@ -5,6 +5,7 @@ use std::{
 
 use conduit::{
 	err, is_not_empty,
+	result::LogErr,
 	utils::{stream::TryIgnore, ReadyExt, StreamTools},
 	warn, Result,
 };
@@ -246,44 +247,40 @@ impl Service {
 
 	#[tracing::instrument(skip(self, room_id, appservice), level = "debug")]
 	pub async fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> bool {
-		let maybe = self
+		if let Some(cached) = self
 			.appservice_in_room_cache
 			.read()
 			.expect("locked")
 			.get(room_id)
 			.and_then(|map| map.get(&appservice.registration.id))
-			.copied();
-
-		if let Some(b) = maybe {
-			b
-		} else {
-			let bridge_user_id = UserId::parse_with_server_name(
-				appservice.registration.sender_localpart.as_str(),
-				self.services.globals.server_name(),
-			)
-			.ok();
-
-			let in_room = if let Some(id) = &bridge_user_id {
-				self.is_joined(id, room_id).await
-			} else {
-				false
-			};
-
-			let in_room = in_room
-				|| self
-					.room_members(room_id)
-					.ready_any(|userid| appservice.users.is_match(userid.as_str()))
-					.await;
-
-			self.appservice_in_room_cache
-				.write()
-				.expect("locked")
-				.entry(room_id.to_owned())
-				.or_default()
-				.insert(appservice.registration.id.clone(), in_room);
-
-			in_room
+			.copied()
+		{
+			return cached;
 		}
+
+		let bridge_user_id = UserId::parse_with_server_name(
+			appservice.registration.sender_localpart.as_str(),
+			self.services.globals.server_name(),
+		);
+
+		let Ok(bridge_user_id) = bridge_user_id.log_err() else {
+			return false;
+		};
+
+		let in_room = self.is_joined(&bridge_user_id, room_id).await
+			|| self
+				.room_members(room_id)
+				.ready_any(|user_id| appservice.users.is_match(user_id.as_str()))
+				.await;
+
+		self.appservice_in_room_cache
+			.write()
+			.expect("locked")
+			.entry(room_id.into())
+			.or_default()
+			.insert(appservice.registration.id.clone(), in_room);
+
+		in_room
 	}
 
 	/// Direct DB function to directly mark a user as joined. It is not
