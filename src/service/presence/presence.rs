@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use conduit::{utils, Error, Result};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
@@ -42,7 +40,7 @@ impl Presence {
 	}
 
 	/// Creates a PresenceEvent from available data.
-	pub(super) fn to_presence_event(&self, user_id: &UserId, users: &Arc<users::Service>) -> Result<PresenceEvent> {
+	pub(super) async fn to_presence_event(&self, user_id: &UserId, users: &users::Service) -> PresenceEvent {
 		let now = utils::millis_since_unix_epoch();
 		let last_active_ago = if self.currently_active {
 			None
@@ -50,16 +48,16 @@ impl Presence {
 			Some(UInt::new_saturating(now.saturating_sub(self.last_active_ts)))
 		};
 
-		Ok(PresenceEvent {
+		PresenceEvent {
 			sender: user_id.to_owned(),
 			content: PresenceEventContent {
 				presence: self.state.clone(),
 				status_msg: self.status_msg.clone(),
 				currently_active: Some(self.currently_active),
 				last_active_ago,
-				displayname: users.displayname(user_id)?,
-				avatar_url: users.avatar_url(user_id)?,
+				displayname: users.displayname(user_id).await.ok(),
+				avatar_url: users.avatar_url(user_id).await.ok(),
 			},
-		})
+		}
 	}
 }

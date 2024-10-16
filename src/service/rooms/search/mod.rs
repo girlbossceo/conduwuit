@@ -21,20 +21,21 @@ impl crate::Service for Service {
 }
 
 impl Service {
+	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
-		self.db.index_pdu(shortroomid, pdu_id, message_body)
+	pub fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
+		self.db.index_pdu(shortroomid, pdu_id, message_body);
 	}
 
+	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) -> Result<()> {
-		self.db.deindex_pdu(shortroomid, pdu_id, message_body)
+	pub fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
+		self.db.deindex_pdu(shortroomid, pdu_id, message_body);
 	}
 
+	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn search_pdus<'a>(
-		&'a self, room_id: &RoomId, search_string: &str,
-	) -> Result<Option<(impl Iterator<Item = Vec<u8>> + 'a, Vec<String>)>> {
-		self.db.search_pdus(room_id, search_string)
+	pub async fn search_pdus(&self, room_id: &RoomId, search_string: &str) -> Option<(Vec<Vec<u8>>, Vec<String>)> {
+		self.db.search_pdus(room_id, search_string).await
 	}
 }

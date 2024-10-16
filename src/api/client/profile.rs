@@ -1,5 +1,10 @@
 use axum::extract::State;
-use conduit::{pdu::PduBuilder, warn, Err, Error, Result};
+use conduit::{
+	pdu::PduBuilder,
+	utils::{stream::TryIgnore, IterStream},
+	warn, Err, Error, Result,
+};
+use futures::{StreamExt, TryStreamExt};
 use ruma::{
 	api::{
 		client::{
@@ -35,16 +40,18 @@ pub(crate) async fn set_displayname_route(
 		.rooms
 		.state_cache
 		.rooms_joined(&body.user_id)
-		.filter_map(Result::ok)
-		.collect();
+		.map(ToOwned::to_owned)
+		.collect()
+		.await;
 
-	update_displayname(&services, &body.user_id, body.displayname.clone(), all_joined_rooms).await?;
+	update_displayname(&services, &body.user_id, body.displayname.clone(), &all_joined_rooms).await?;
 
 	if services.globals.allow_local_presence() {
 		// Presence update
 		services
 			.presence
-			.ping_presence(&body.user_id, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)
+			.await?;
 	}
 
 	Ok(set_display_name::v3::Response {})
@@ -72,22 +79,19 @@ pub(crate) async fn get_displayname_route(
 			)
 			.await
 		{
-			if !services.users.exists(&body.user_id)? {
+			if !services.users.exists(&body.user_id).await {
 				services.users.create(&body.user_id, None)?;
 			}
 
 			services
 				.users
-				.set_displayname(&body.user_id, response.displayname.clone())
-				.await?;
+				.set_displayname(&body.user_id, response.displayname.clone());
 			services
 				.users
-				.set_avatar_url(&body.user_id, response.avatar_url.clone())
-				.await?;
+				.set_avatar_url(&body.user_id, response.avatar_url.clone());
 			services
 				.users
-				.set_blurhash(&body.user_id, response.blurhash.clone())
-				.await?;
+				.set_blurhash(&body.user_id, response.blurhash.clone());
 
 			return Ok(get_display_name::v3::Response {
 				displayname: response.displayname,
@@ -95,14 +99,14 @@ pub(crate) async fn get_displayname_route(
 		}
 	}
 
-	if !services.users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id).await {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_display_name::v3::Response {
-		displayname: services.users.displayname(&body.user_id)?,
+		displayname: services.users.displayname(&body.user_id).await.ok(),
 	})
 }
 
@@ -124,15 +128,16 @@ pub(crate) async fn set_avatar_url_route(
 		.rooms
 		.state_cache
 		.rooms_joined(&body.user_id)
-		.filter_map(Result::ok)
-		.collect();
+		.map(ToOwned::to_owned)
+		.collect()
+		.await;
 
 	update_avatar_url(
 		&services,
 		&body.user_id,
 		body.avatar_url.clone(),
 		body.blurhash.clone(),
-		all_joined_rooms,
+		&all_joined_rooms,
 	)
 	.await?;
 
@@ -140,7 +145,9 @@ pub(crate) async fn set_avatar_url_route(
 		// Presence update
 		services
 			.presence
-			.ping_presence(&body.user_id, &PresenceState::Online)?;
+			.ping_presence(&body.user_id, &PresenceState::Online)
+			.await
+			.ok();
 	}
 
 	Ok(set_avatar_url::v3::Response {})
@@ -168,22 +175,21 @@ pub(crate) async fn get_avatar_url_route(
 			)
 			.await
 		{
-			if !services.users.exists(&body.user_id)? {
+			if !services.users.exists(&body.user_id).await {
 				services.users.create(&body.user_id, None)?;
 			}
 
 			services
 				.users
-				.set_displayname(&body.user_id, response.displayname.clone())
-				.await?;
+				.set_displayname(&body.user_id, response.displayname.clone());
+
 			services
 				.users
-				.set_avatar_url(&body.user_id, response.avatar_url.clone())
-				.await?;
+				.set_avatar_url(&body.user_id, response.avatar_url.clone());
+
 			services
 				.users
-				.set_blurhash(&body.user_id, response.blurhash.clone())
-				.await?;
+				.set_blurhash(&body.user_id, response.blurhash.clone());
 
 			return Ok(get_avatar_url::v3::Response {
 				avatar_url: response.avatar_url,
@@ -192,15 +198,15 @@ pub(crate) async fn get_avatar_url_route(
 		}
 	}
 
-	if !services.users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id).await {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_avatar_url::v3::Response {
-		avatar_url: services.users.avatar_url(&body.user_id)?,
-		blurhash: services.users.blurhash(&body.user_id)?,
+		avatar_url: services.users.avatar_url(&body.user_id).await.ok(),
+		blurhash: services.users.blurhash(&body.user_id).await.ok(),
 	})
 }
 
@@ -226,31 +232,30 @@ pub(crate) async fn get_profile_route(
 			)
 			.await
 		{
-			if !services.users.exists(&body.user_id)? {
+			if !services.users.exists(&body.user_id).await {
 				services.users.create(&body.user_id, None)?;
 			}
 
 			services
 				.users
-				.set_displayname(&body.user_id, response.displayname.clone())
-				.await?;
+				.set_displayname(&body.user_id, response.displayname.clone());
+
 			services
 				.users
-				.set_avatar_url(&body.user_id, response.avatar_url.clone())
-				.await?;
+				.set_avatar_url(&body.user_id, response.avatar_url.clone());
+
 			services
 				.users
-				.set_blurhash(&body.user_id, response.blurhash.clone())
-				.await?;
+				.set_blurhash(&body.user_id, response.blurhash.clone());
+
 			services
 				.users
-				.set_timezone(&body.user_id, response.tz.clone())
-				.await?;
+				.set_timezone(&body.user_id, response.tz.clone());
 
 			for (profile_key, profile_key_value) in &response.custom_profile_fields {
 				services
 					.users
-					.set_profile_key(&body.user_id, profile_key, Some(profile_key_value.clone()))?;
+					.set_profile_key(&body.user_id, profile_key, Some(profile_key_value.clone()));
 			}
 
 			return Ok(get_profile::v3::Response {
@@ -263,104 +268,93 @@ pub(crate) async fn get_profile_route(
 		}
 	}
 
-	if !services.users.exists(&body.user_id)? {
+	if !services.users.exists(&body.user_id).await {
 		// Return 404 if this user doesn't exist and we couldn't fetch it over
 		// federation
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
 	Ok(get_profile::v3::Response {
-		avatar_url: services.users.avatar_url(&body.user_id)?,
-		blurhash: services.users.blurhash(&body.user_id)?,
-		displayname: services.users.displayname(&body.user_id)?,
-		tz: services.users.timezone(&body.user_id)?,
+		avatar_url: services.users.avatar_url(&body.user_id).await.ok(),
+		blurhash: services.users.blurhash(&body.user_id).await.ok(),
+		displayname: services.users.displayname(&body.user_id).await.ok(),
+		tz: services.users.timezone(&body.user_id).await.ok(),
 		custom_profile_fields: services
 			.users
 			.all_profile_keys(&body.user_id)
-			.filter_map(Result::ok)
-			.collect(),
+			.collect()
+			.await,
 	})
 }
 
 pub async fn update_displayname(
-	services: &Services, user_id: &UserId, displayname: Option<String>, all_joined_rooms: Vec<OwnedRoomId>,
+	services: &Services, user_id: &UserId, displayname: Option<String>, all_joined_rooms: &[OwnedRoomId],
 ) -> Result<()> {
-	let current_display_name = services.users.displayname(user_id).unwrap_or_default();
+	let current_display_name = services.users.displayname(user_id).await.ok();
 
 	if displayname == current_display_name {
 		return Ok(());
 	}
 
-	services
-		.users
-		.set_displayname(user_id, displayname.clone())
-		.await?;
+	services.users.set_displayname(user_id, displayname.clone());
 
 	// Send a new join membership event into all joined rooms
-	let all_joined_rooms: Vec<_> = all_joined_rooms
-		.iter()
-		.map(|room_id| {
-			Ok::<_, Error>((
-				PduBuilder {
-					event_type: TimelineEventType::RoomMember,
-					content: to_raw_value(&RoomMemberEventContent {
-						displayname: displayname.clone(),
-						join_authorized_via_users_server: None,
-						..serde_json::from_str(
-							services
-								.rooms
-								.state_accessor
-								.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
-								.ok_or_else(|| {
-									Error::bad_database("Tried to send display name update for user not in the room.")
-								})?
-								.content
-								.get(),
-						)
-						.map_err(|_| Error::bad_database("Database contains invalid PDU."))?
-					})
-					.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(user_id.to_string()),
-					redacts: None,
-					timestamp: None,
-				},
-				room_id,
-			))
-		})
-		.filter_map(Result::ok)
-		.collect();
+	let mut joined_rooms = Vec::new();
+	for room_id in all_joined_rooms {
+		let Ok(event) = services
+			.rooms
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
+			.await
+		else {
+			continue;
+		};
 
-	update_all_rooms(services, all_joined_rooms, user_id).await;
+		let pdu = PduBuilder {
+			event_type: TimelineEventType::RoomMember,
+			content: to_raw_value(&RoomMemberEventContent {
+				displayname: displayname.clone(),
+				join_authorized_via_users_server: None,
+				..serde_json::from_str(event.content.get()).expect("Database contains invalid PDU.")
+			})
+			.expect("event is valid, we just created it"),
+			unsigned: None,
+			state_key: Some(user_id.to_string()),
+			redacts: None,
+			timestamp: None,
+		};
+
+		joined_rooms.push((pdu, room_id));
+	}
+
+	update_all_rooms(services, joined_rooms, user_id).await;
 
 	Ok(())
 }
 
 pub async fn update_avatar_url(
 	services: &Services, user_id: &UserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>,
-	all_joined_rooms: Vec<OwnedRoomId>,
+	all_joined_rooms: &[OwnedRoomId],
 ) -> Result<()> {
-	let current_avatar_url = services.users.avatar_url(user_id).unwrap_or_default();
-	let current_blurhash = services.users.blurhash(user_id).unwrap_or_default();
+	let current_avatar_url = services.users.avatar_url(user_id).await.ok();
+	let current_blurhash = services.users.blurhash(user_id).await.ok();
 
 	if current_avatar_url == avatar_url && current_blurhash == blurhash {
 		return Ok(());
 	}
 
-	services
-		.users
-		.set_avatar_url(user_id, avatar_url.clone())
-		.await?;
-	services
-		.users
-		.set_blurhash(user_id, blurhash.clone())
-		.await?;
+	services.users.set_avatar_url(user_id, avatar_url.clone());
+
+	services.users.set_blurhash(user_id, blurhash.clone());
 
 	// Send a new join membership event into all joined rooms
+	let avatar_url = &avatar_url;
+	let blurhash = &blurhash;
 	let all_joined_rooms: Vec<_> = all_joined_rooms
 		.iter()
-		.map(|room_id| {
-			Ok::<_, Error>((
+		.try_stream()
+		.and_then(|room_id: &OwnedRoomId| async move {
+			Ok((
 				PduBuilder {
 					event_type: TimelineEventType::RoomMember,
 					content: to_raw_value(&RoomMemberEventContent {
@@ -371,8 +365,9 @@ pub async fn update_avatar_url(
 							services
 								.rooms
 								.state_accessor
-								.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())?
-								.ok_or_else(|| {
+								.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
+								.await
+								.map_err(|_| {
 									Error::bad_database("Tried to send avatar URL update for user not in the room.")
 								})?
 								.content
@@ -389,8 +384,9 @@ pub async fn update_avatar_url(
 				room_id,
 			))
 		})
-		.filter_map(Result::ok)
-		.collect();
+		.ignore_err()
+		.collect()
+		.await;
 
 	update_all_rooms(services, all_joined_rooms, user_id).await;
 

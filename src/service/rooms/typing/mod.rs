@@ -1,6 +1,11 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{debug_info, trace, utils, Result, Server};
+use conduit::{
+	debug_info, trace,
+	utils::{self, IterStream},
+	Result, Server,
+};
+use futures::StreamExt;
 use ruma::{
 	api::federation::transactions::edu::{Edu, TypingContent},
 	events::SyncEphemeralRoomEvent,
@@ -8,7 +13,7 @@ use ruma::{
 };
 use tokio::sync::{broadcast, RwLock};
 
-use crate::{globals, sending, Dep};
+use crate::{globals, sending, users, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -23,6 +28,7 @@ pub struct Service {
 struct Services {
 	globals: Dep<globals::Service>,
 	sending: Dep<sending::Service>,
+	users: Dep<users::Service>,
 }
 
 impl crate::Service for Service {
@@ -32,6 +38,7 @@ impl crate::Service for Service {
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				sending: args.depend::<sending::Service>("sending"),
+				users: args.depend::<users::Service>("users"),
 			},
 			typing: RwLock::new(BTreeMap::new()),
 			last_typing_update: RwLock::new(BTreeMap::new()),
@@ -46,7 +53,7 @@ impl Service {
 	/// Sets a user as typing until the timeout timestamp is reached or
 	/// roomtyping_remove is called.
 	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
-		debug_info!("typing started {:?} in {:?} timeout:{:?}", user_id, room_id, timeout);
+		debug_info!("typing started {user_id:?} in {room_id:?} timeout:{timeout:?}");
 		// update clients
 		self.typing
 			.write()
@@ -54,17 +61,19 @@ impl Service {
 			.entry(room_id.to_owned())
 			.or_default()
 			.insert(user_id.to_owned(), timeout);
+
 		self.last_typing_update
 			.write()
 			.await
 			.insert(room_id.to_owned(), self.services.globals.next_count()?);
+
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
 		// update federation
 		if self.services.globals.user_is_local(user_id) {
-			self.federation_send(room_id, user_id, true)?;
+			self.federation_send(room_id, user_id, true).await?;
 		}
 
 		Ok(())
@@ -72,7 +81,7 @@ impl Service {
 
 	/// Removes a user from typing before the timeout is reached.
 	pub async fn typing_remove(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		debug_info!("typing stopped {:?} in {:?}", user_id, room_id);
+		debug_info!("typing stopped {user_id:?} in {room_id:?}");
 		// update clients
 		self.typing
 			.write()
@@ -80,31 +89,31 @@ impl Service {
 			.entry(room_id.to_owned())
 			.or_default()
 			.remove(user_id);
+
 		self.last_typing_update
 			.write()
 			.await
 			.insert(room_id.to_owned(), self.services.globals.next_count()?);
+
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
 		// update federation
 		if self.services.globals.user_is_local(user_id) {
-			self.federation_send(room_id, user_id, false)?;
+			self.federation_send(room_id, user_id, false).await?;
 		}
 
 		Ok(())
 	}
 
-	pub async fn wait_for_update(&self, room_id: &RoomId) -> Result<()> {
+	pub async fn wait_for_update(&self, room_id: &RoomId) {
 		let mut receiver = self.typing_update_sender.subscribe();
 		while let Ok(next) = receiver.recv().await {
 			if next == room_id {
 				break;
 			}
 		}
-
-		Ok(())
 	}
 
 	/// Makes sure that typing events with old timestamps get removed.
@@ -123,30 +132,30 @@ impl Service {
 					removable.push(user.clone());
 				}
 			}
-
-			drop(typing);
 		};
 
 		if !removable.is_empty() {
 			let typing = &mut self.typing.write().await;
 			let room = typing.entry(room_id.to_owned()).or_default();
 			for user in &removable {
-				debug_info!("typing timeout {:?} in {:?}", &user, room_id);
+				debug_info!("typing timeout {user:?} in {room_id:?}");
 				room.remove(user);
 			}
+
 			// update clients
 			self.last_typing_update
 				.write()
 				.await
 				.insert(room_id.to_owned(), self.services.globals.next_count()?);
+
 			if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 				trace!("receiver found what it was looking for and is no longer interested");
 			}
 
 			// update federation
-			for user in removable {
-				if self.services.globals.user_is_local(&user) {
-					self.federation_send(room_id, &user, false)?;
+			for user in &removable {
+				if self.services.globals.user_is_local(user) {
+					self.federation_send(room_id, user, false).await?;
 				}
 			}
 		}
@@ -168,22 +177,40 @@ impl Service {
 
 	/// Returns a new typing EDU.
 	pub async fn typings_all(
-		&self, room_id: &RoomId,
+		&self, room_id: &RoomId, sender_user: &UserId,
 	) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
+		let room_typing_indicators = self.typing.read().await.get(room_id).cloned();
+
+		let Some(typing_indicators) = room_typing_indicators else {
+			return Ok(SyncEphemeralRoomEvent {
+				content: ruma::events::typing::TypingEventContent {
+					user_ids: Vec::new(),
+				},
+			});
+		};
+
+		let user_ids: Vec<_> = typing_indicators
+			.into_keys()
+			.stream()
+			.filter_map(|typing_user_id| async move {
+				(!self
+					.services
+					.users
+					.user_is_ignored(&typing_user_id, sender_user)
+					.await)
+					.then_some(typing_user_id)
+			})
+			.collect()
+			.await;
+
 		Ok(SyncEphemeralRoomEvent {
 			content: ruma::events::typing::TypingEventContent {
-				user_ids: self
-					.typing
-					.read()
-					.await
-					.get(room_id)
-					.map(|m| m.keys().cloned().collect())
-					.unwrap_or_default(),
+				user_ids,
 			},
 		})
 	}
 
-	fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
+	async fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
 		debug_assert!(
 			self.services.globals.user_is_local(user_id),
 			"tried to broadcast typing status of remote user",
@@ -197,7 +224,8 @@ impl Service {
 
 		self.services
 			.sending
-			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))?;
+			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))
+			.await?;
 
 		Ok(())
 	}

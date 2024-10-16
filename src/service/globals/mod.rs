@@ -40,6 +40,8 @@ pub struct Service {
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
+	pub turn_secret: String,
+	pub registration_token: Option<String>,
 }
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
@@ -84,6 +86,31 @@ impl crate::Service for Service {
 			.collect::<Result<_, String>>()
 			.map_err(|e| err!(Config("ip_range_denylist", e)))?;
 
+		let turn_secret = config
+			.turn_secret_file
+			.as_ref()
+			.map_or(config.turn_secret.clone(), |path| {
+				std::fs::read_to_string(path).unwrap_or_else(|e| {
+					error!("Failed to read the TURN secret file: {e}");
+
+					config.turn_secret.clone()
+				})
+			});
+
+		let registration_token =
+			config
+				.registration_token_file
+				.as_ref()
+				.map_or(config.registration_token.clone(), |path| {
+					let Ok(token) = std::fs::read_to_string(path).inspect_err(|e| {
+						error!("Failed to read the registration token file: {e}");
+					}) else {
+						return config.registration_token.clone();
+					};
+
+					Some(token)
+				});
+
 		let mut s = Self {
 			db,
 			config: config.clone(),
@@ -99,6 +126,8 @@ impl crate::Service for Service {
 				.expect("#admins:server_name is valid alias name"),
 			server_user: UserId::parse_with_server_name(String::from("conduit"), &config.server_name)
 				.expect("@conduit:server_name is valid"),
+			turn_secret,
+			registration_token,
 		};
 
 		if !s
@@ -207,8 +236,6 @@ impl Service {
 
 	pub fn turn_username(&self) -> &String { &self.config.turn_username }
 
-	pub fn turn_secret(&self) -> &String { &self.config.turn_secret }
-
 	pub fn allow_profile_lookup_federation_requests(&self) -> bool {
 		self.config.allow_profile_lookup_federation_requests
 	}
@@ -264,18 +291,21 @@ impl Service {
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
 
 	pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
-		let mut room_versions: Vec<RoomVersionId> = Vec::with_capacity(self.stable_room_versions.len());
-		room_versions.extend(self.stable_room_versions.clone());
-		if self.allow_unstable_room_versions() {
-			room_versions.extend(self.unstable_room_versions.clone());
-		};
-		room_versions
+		if self.config.allow_unstable_room_versions {
+			self.stable_room_versions
+				.clone()
+				.into_iter()
+				.chain(self.unstable_room_versions.clone())
+				.collect()
+		} else {
+			self.stable_room_versions.clone()
+		}
 	}
 
 	/// This returns an empty `Ok(BTreeMap<..>)` when there are no keys found
 	/// for the server.
-	pub fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
-		let mut keys = self.db.verify_keys_for(origin)?;
+	pub async fn verify_keys_for(&self, origin: &ServerName) -> Result<BTreeMap<OwnedServerSigningKeyId, VerifyKey>> {
+		let mut keys = self.db.verify_keys_for(origin).await?;
 		if origin == self.server_name() {
 			keys.insert(
 				format!("ed25519:{}", self.keypair().version())
@@ -290,8 +320,8 @@ impl Service {
 		Ok(keys)
 	}
 
-	pub fn signing_keys_for(&self, origin: &ServerName) -> Result<Option<ServerSigningKeys>> {
-		self.db.signing_keys_for(origin)
+	pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSigningKeys> {
+		self.db.signing_keys_for(origin).await
 	}
 
 	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
@@ -315,4 +345,7 @@ impl Service {
 
 	#[inline]
 	pub fn server_is_ours(&self, server_name: &ServerName) -> bool { server_name == self.config.server_name }
+
+	#[inline]
+	pub fn is_read_only(&self) -> bool { self.db.db.is_read_only() }
 }

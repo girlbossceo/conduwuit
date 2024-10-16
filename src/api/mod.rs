@@ -1,5 +1,3 @@
-#![recursion_limit = "192"]
-
 pub mod client;
 pub mod router;
 pub mod server;

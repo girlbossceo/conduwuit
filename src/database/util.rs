@@ -1,4 +1,16 @@
 use conduit::{err, Result};
+use rocksdb::{Direction, IteratorMode};
+
+#[inline]
+pub(crate) fn _into_direction(mode: &IteratorMode<'_>) -> Direction {
+	use Direction::{Forward, Reverse};
+	use IteratorMode::{End, From, Start};
+
+	match mode {
+		Start | From(_, Forward) => Forward,
+		End | From(_, Reverse) => Reverse,
+	}
+}
 
 #[inline]
 pub(crate) fn result<T>(r: std::result::Result<T, rocksdb::Error>) -> Result<T, conduit::Error> {

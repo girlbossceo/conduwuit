@@ -18,7 +18,7 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 	let reload_handles = LogLevelReloadHandles::default();
 
 	let console_filter = EnvFilter::try_new(&config.log).map_err(|e| err!(Config("log", "{e}.")))?;
-	let console_layer = tracing_subscriber::fmt::Layer::new();
+	let console_layer = tracing_subscriber::fmt::Layer::new().with_ansi(config.log_colors);
 	let (console_reload_filter, console_reload_handle) = reload::Layer::new(console_filter.clone());
 	reload_handles.add("console", Box::new(console_reload_handle));
 

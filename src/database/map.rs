@@ -1,16 +1,34 @@
-use std::{ffi::CStr, future::Future, mem::size_of, pin::Pin, sync::Arc};
+mod count;
+mod get;
+mod insert;
+mod keys;
+mod keys_from;
+mod keys_prefix;
+mod remove;
+mod rev_keys;
+mod rev_keys_from;
+mod rev_keys_prefix;
+mod rev_stream;
+mod rev_stream_from;
+mod rev_stream_prefix;
+mod stream;
+mod stream_from;
+mod stream_prefix;
 
-use conduit::{utils, Result};
-use rocksdb::{
-	AsColumnFamilyRef, ColumnFamily, Direction, IteratorMode, ReadOptions, WriteBatchWithTransaction, WriteOptions,
+use std::{
+	convert::AsRef,
+	ffi::CStr,
+	fmt,
+	fmt::{Debug, Display},
+	future::Future,
+	pin::Pin,
+	sync::Arc,
 };
 
-use crate::{
-	or_else, result,
-	slice::{Byte, Key, KeyVal, OwnedKey, OwnedKeyValPair, OwnedVal, Val},
-	watchers::Watchers,
-	Engine, Handle, Iter,
-};
+use conduit::Result;
+use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, WriteOptions};
+
+use crate::{watchers::Watchers, Engine};
 
 pub struct Map {
 	name: String,
@@ -20,8 +38,6 @@ pub struct Map {
 	write_options: WriteOptions,
 	read_options: ReadOptions,
 }
-
-type OwnedKeyValPairIter<'a> = Box<dyn Iterator<Item = OwnedKeyValPair> + Send + 'a>;
 
 impl Map {
 	pub(crate) fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<Self>> {
@@ -35,162 +51,18 @@ impl Map {
 		}))
 	}
 
-	pub fn get(&self, key: &Key) -> Result<Option<Handle<'_>>> {
-		let read_options = &self.read_options;
-		let res = self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options);
-
-		Ok(result(res)?.map(Handle::from))
-	}
-
-	pub fn multi_get(&self, keys: &[&Key]) -> Result<Vec<Option<OwnedVal>>> {
-		// Optimization can be `true` if key vector is pre-sorted **by the column
-		// comparator**.
-		const SORTED: bool = false;
-
-		let mut ret: Vec<Option<OwnedKey>> = Vec::with_capacity(keys.len());
-		let read_options = &self.read_options;
-		for res in self
-			.db
-			.db
-			.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, read_options)
-		{
-			match res {
-				Ok(Some(res)) => ret.push(Some((*res).to_vec())),
-				Ok(None) => ret.push(None),
-				Err(e) => return or_else(e),
-			}
-		}
-
-		Ok(ret)
-	}
-
-	pub fn insert(&self, key: &Key, value: &Val) -> Result<()> {
-		let write_options = &self.write_options;
-		self.db
-			.db
-			.put_cf_opt(&self.cf(), key, value, write_options)
-			.or_else(or_else)?;
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		self.watchers.wake(key);
-
-		Ok(())
-	}
-
-	pub fn insert_batch<'a, I>(&'a self, iter: I) -> Result<()>
+	#[inline]
+	pub fn watch_prefix<'a, K>(&'a self, prefix: &K) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>
 	where
-		I: Iterator<Item = KeyVal<'a>>,
+		K: AsRef<[u8]> + ?Sized + Debug,
 	{
-		let mut batch = WriteBatchWithTransaction::<false>::default();
-		for KeyVal(key, value) in iter {
-			batch.put_cf(&self.cf(), key, value);
-		}
-
-		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		result(res)
+		self.watchers.watch(prefix.as_ref())
 	}
 
-	pub fn remove(&self, key: &Key) -> Result<()> {
-		let write_options = &self.write_options;
-		let res = self.db.db.delete_cf_opt(&self.cf(), key, write_options);
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		result(res)
-	}
-
-	pub fn remove_batch<'a, I>(&'a self, iter: I) -> Result<()>
-	where
-		I: Iterator<Item = &'a Key>,
-	{
-		let mut batch = WriteBatchWithTransaction::<false>::default();
-		for key in iter {
-			batch.delete_cf(&self.cf(), key);
-		}
-
-		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		result(res)
-	}
-
-	pub fn iter(&self) -> OwnedKeyValPairIter<'_> {
-		let mode = IteratorMode::Start;
-		let read_options = read_options_default();
-		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
-	}
-
-	pub fn iter_from(&self, from: &Key, reverse: bool) -> OwnedKeyValPairIter<'_> {
-		let direction = if reverse {
-			Direction::Reverse
-		} else {
-			Direction::Forward
-		};
-		let mode = IteratorMode::From(from, direction);
-		let read_options = read_options_default();
-		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode))
-	}
-
-	pub fn scan_prefix(&self, prefix: OwnedKey) -> OwnedKeyValPairIter<'_> {
-		let mode = IteratorMode::From(&prefix, Direction::Forward);
-		let read_options = read_options_default();
-		Box::new(Iter::new(&self.db, &self.cf, read_options, &mode).take_while(move |(k, _)| k.starts_with(&prefix)))
-	}
-
-	pub fn increment(&self, key: &Key) -> Result<[Byte; size_of::<u64>()]> {
-		let old = self.get(key)?;
-		let new = utils::increment(old.as_deref());
-		self.insert(key, &new)?;
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		Ok(new)
-	}
-
-	pub fn increment_batch<'a, I>(&'a self, iter: I) -> Result<()>
-	where
-		I: Iterator<Item = &'a Key>,
-	{
-		let mut batch = WriteBatchWithTransaction::<false>::default();
-		for key in iter {
-			let old = self.get(key)?;
-			let new = utils::increment(old.as_deref());
-			batch.put_cf(&self.cf(), key, new);
-		}
-
-		let write_options = &self.write_options;
-		let res = self.db.db.write_opt(batch, write_options);
-
-		if !self.db.corked() {
-			self.db.flush()?;
-		}
-
-		result(res)
-	}
-
-	pub fn watch_prefix<'a>(&'a self, prefix: &Key) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-		self.watchers.watch(prefix)
-	}
-
+	#[inline]
 	pub fn property_integer(&self, name: &CStr) -> Result<u64> { self.db.property_integer(&self.cf(), name) }
 
+	#[inline]
 	pub fn property(&self, name: &str) -> Result<String> { self.db.property(&self.cf(), name) }
 
 	#[inline]
@@ -199,12 +71,12 @@ impl Map {
 	fn cf(&self) -> impl AsColumnFamilyRef + '_ { &*self.cf }
 }
 
-impl<'a> IntoIterator for &'a Map {
-	type IntoIter = Box<dyn Iterator<Item = Self::Item> + Send + 'a>;
-	type Item = OwnedKeyValPair;
+impl Debug for Map {
+	fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result { write!(out, "Map {{name: {0}}}", self.name) }
+}
 
-	#[inline]
-	fn into_iter(self) -> Self::IntoIter { self.iter() }
+impl Display for Map {
+	fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result { write!(out, "{0}", self.name) }
 }
 
 fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
@@ -212,10 +84,7 @@ fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
 	let bounded_ptr = Arc::into_raw(bounded_arc);
 	let cf_ptr = bounded_ptr.cast::<ColumnFamily>();
 
-	// SAFETY: After thorough contemplation this appears to be the best solution,
-	// even by a significant margin.
-	//
-	// BACKGROUND: Column family handles out of RocksDB are basic pointers and can
+	// SAFETY: Column family handles out of RocksDB are basic pointers and can
 	// be invalidated: 1. when the database closes. 2. when the column is dropped or
 	// closed. rust_rocksdb wraps this for us by storing handles in their own
 	// `RwLock<BTreeMap>` map and returning an Arc<BoundColumnFamily<'_>>` to

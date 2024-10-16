@@ -31,27 +31,32 @@ pub(crate) async fn set_read_marker_route(
 				event_id: fully_read.clone(),
 			},
 		};
-		services.account_data.update(
-			Some(&body.room_id),
-			sender_user,
-			RoomAccountDataEventType::FullyRead,
-			&serde_json::to_value(fully_read_event).expect("to json value always works"),
-		)?;
+		services
+			.account_data
+			.update(
+				Some(&body.room_id),
+				sender_user,
+				RoomAccountDataEventType::FullyRead,
+				&serde_json::to_value(fully_read_event).expect("to json value always works"),
+			)
+			.await?;
 	}
 
 	if body.private_read_receipt.is_some() || body.read_receipt.is_some() {
 		services
 			.rooms
 			.user
-			.reset_notification_counts(sender_user, &body.room_id)?;
+			.reset_notification_counts(sender_user, &body.room_id);
 	}
 
 	if let Some(event) = &body.private_read_receipt {
 		let count = services
 			.rooms
 			.timeline
-			.get_pdu_count(event)?
-			.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event does not exist."))?;
+			.get_pdu_count(event)
+			.await
+			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event does not exist."))?;
+
 		let count = match count {
 			PduCount::Backfilled(_) => {
 				return Err(Error::BadRequest(
@@ -64,7 +69,7 @@ pub(crate) async fn set_read_marker_route(
 		services
 			.rooms
 			.read_receipt
-			.private_read_set(&body.room_id, sender_user, count)?;
+			.private_read_set(&body.room_id, sender_user, count);
 	}
 
 	if let Some(event) = &body.read_receipt {
@@ -83,14 +88,18 @@ pub(crate) async fn set_read_marker_route(
 		let mut receipt_content = BTreeMap::new();
 		receipt_content.insert(event.to_owned(), receipts);
 
-		services.rooms.read_receipt.readreceipt_update(
-			sender_user,
-			&body.room_id,
-			&ruma::events::receipt::ReceiptEvent {
-				content: ruma::events::receipt::ReceiptEventContent(receipt_content),
-				room_id: body.room_id.clone(),
-			},
-		)?;
+		services
+			.rooms
+			.read_receipt
+			.readreceipt_update(
+				sender_user,
+				&body.room_id,
+				&ruma::events::receipt::ReceiptEvent {
+					content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+					room_id: body.room_id.clone(),
+				},
+			)
+			.await;
 	}
 
 	Ok(set_read_marker::v3::Response {})
@@ -111,7 +120,7 @@ pub(crate) async fn create_receipt_route(
 		services
 			.rooms
 			.user
-			.reset_notification_counts(sender_user, &body.room_id)?;
+			.reset_notification_counts(sender_user, &body.room_id);
 	}
 
 	match body.receipt_type {
@@ -121,12 +130,15 @@ pub(crate) async fn create_receipt_route(
 					event_id: body.event_id.clone(),
 				},
 			};
-			services.account_data.update(
-				Some(&body.room_id),
-				sender_user,
-				RoomAccountDataEventType::FullyRead,
-				&serde_json::to_value(fully_read_event).expect("to json value always works"),
-			)?;
+			services
+				.account_data
+				.update(
+					Some(&body.room_id),
+					sender_user,
+					RoomAccountDataEventType::FullyRead,
+					&serde_json::to_value(fully_read_event).expect("to json value always works"),
+				)
+				.await?;
 		},
 		create_receipt::v3::ReceiptType::Read => {
 			let mut user_receipts = BTreeMap::new();
@@ -143,21 +155,27 @@ pub(crate) async fn create_receipt_route(
 			let mut receipt_content = BTreeMap::new();
 			receipt_content.insert(body.event_id.clone(), receipts);
 
-			services.rooms.read_receipt.readreceipt_update(
-				sender_user,
-				&body.room_id,
-				&ruma::events::receipt::ReceiptEvent {
-					content: ruma::events::receipt::ReceiptEventContent(receipt_content),
-					room_id: body.room_id.clone(),
-				},
-			)?;
+			services
+				.rooms
+				.read_receipt
+				.readreceipt_update(
+					sender_user,
+					&body.room_id,
+					&ruma::events::receipt::ReceiptEvent {
+						content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+						room_id: body.room_id.clone(),
+					},
+				)
+				.await;
 		},
 		create_receipt::v3::ReceiptType::ReadPrivate => {
 			let count = services
 				.rooms
 				.timeline
-				.get_pdu_count(&body.event_id)?
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Event does not exist."))?;
+				.get_pdu_count(&body.event_id)
+				.await
+				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event does not exist."))?;
+
 			let count = match count {
 				PduCount::Backfilled(_) => {
 					return Err(Error::BadRequest(
@@ -170,7 +188,7 @@ pub(crate) async fn create_receipt_route(
 			services
 				.rooms
 				.read_receipt
-				.private_read_set(&body.room_id, sender_user, count)?;
+				.private_read_set(&body.room_id, sender_user, count);
 		},
 		_ => return Err(Error::bad_database("Unsupported receipt type")),
 	}

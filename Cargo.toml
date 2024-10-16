@@ -101,7 +101,6 @@ features = ["typed-header", "tracing"]
 [workspace.dependencies.axum-server]
 version = "0.7.1"
 default-features = false
-features = ["tls-rustls"]
 
 # to listen on both HTTP and HTTPS if listening on TLS dierctly from conduwuit for complement or sytest
 [workspace.dependencies.axum-server-dual-protocol]
@@ -211,9 +210,10 @@ features = [
 	"string",
 ]
 
-[workspace.dependencies.futures-util]
+[workspace.dependencies.futures]
 version = "0.3.30"
 default-features = false
+features = ["std"]
 
 [workspace.dependencies.tokio]
 version = "1.40.0"
@@ -315,7 +315,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+rev = "e81ed2741b4ebe98fe41cabdfee2ac28a52a8e37"
 features = [
     "compat",
     "rand",
@@ -330,16 +330,19 @@ features = [
     "ring-compat",
     "identifiers-validation",
     "unstable-unspecified",
+    "unstable-msc2409",
     "unstable-msc2448",
     "unstable-msc2666",
     "unstable-msc2867",
     "unstable-msc2870",
     "unstable-msc3026",
     "unstable-msc3061",
+    "unstable-msc3245",
     "unstable-msc3266",
     "unstable-msc3381", # polls
     "unstable-msc3489", # beacon / live location
     "unstable-msc3575",
+    "unstable-msc4075",
     "unstable-msc4121",
     "unstable-msc4125",
     "unstable-msc4186",
@@ -460,7 +463,6 @@ version = "1.0.36"
 
 [workspace.dependencies.proc-macro2]
 version = "1.0.86"
-
 
 #
 # Patches
@@ -821,6 +823,7 @@ missing_panics_doc = { level = "allow", priority = 1 }
 module_name_repetitions = { level = "allow", priority = 1 }
 no_effect_underscore_binding = { level = "allow", priority = 1 }
 similar_names = { level = "allow", priority = 1 }
+single_match_else = { level = "allow", priority = 1 }
 struct_field_names = { level = "allow", priority = 1 }
 unnecessary_wraps = { level = "allow", priority = 1 }
 unused_async = { level = "allow", priority = 1 }
