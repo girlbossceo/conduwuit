@@ -41,6 +41,16 @@ pub use self::{
 pub fn exchange<T>(state: &mut T, source: T) -> T { std::mem::replace(state, source) }
 
 #[macro_export]
+macro_rules! extract_variant {
+	($e:expr, $variant:path) => {
+		match $e {
+			$variant(value) => Some(value),
+			_ => None,
+		}
+	};
+}
+
+#[macro_export]
 macro_rules! at {
 	($idx:tt) => {
 		|t| t.$idx
