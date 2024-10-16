@@ -8,11 +8,11 @@ use conduit::{
 	err, expected,
 	result::{LogErr, NotFound},
 	utils,
-	utils::{stream::TryIgnore, u64_from_u8, ReadyExt},
+	utils::{future::TryExtExt, stream::TryIgnore, u64_from_u8, ReadyExt},
 	Err, PduCount, PduEvent, Result,
 };
 use database::{Database, Deserialized, Json, KeyVal, Map};
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{Stream, StreamExt};
 use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use tokio::sync::Mutex;
 
@@ -115,12 +115,10 @@ impl Data {
 
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and
 	/// parsing the PduEvent
-	pub(super) async fn non_outlier_pdu_exists(&self, event_id: &EventId) -> Result<()> {
+	pub(super) async fn non_outlier_pdu_exists(&self, event_id: &EventId) -> Result {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.get(&pduid).await?;
-
-		Ok(())
+		self.pduid_pdu.get(&pduid).await.map(|_| ())
 	}
 
 	/// Returns the pdu.
@@ -140,16 +138,14 @@ impl Data {
 
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and
 	/// parsing the PduEvent
-	pub(super) async fn outlier_pdu_exists(&self, event_id: &EventId) -> Result<()> {
-		self.eventid_outlierpdu.get(event_id).await?;
-
-		Ok(())
+	pub(super) async fn outlier_pdu_exists(&self, event_id: &EventId) -> Result {
+		self.eventid_outlierpdu.get(event_id).await.map(|_| ())
 	}
 
 	/// Like get_pdu(), but without the expense of fetching and parsing the data
 	pub(super) async fn pdu_exists(&self, event_id: &EventId) -> bool {
-		let non_outlier = self.non_outlier_pdu_exists(event_id).map(|res| res.is_ok());
-		let outlier = self.outlier_pdu_exists(event_id).map(|res| res.is_ok());
+		let non_outlier = self.non_outlier_pdu_exists(event_id).is_ok();
+		let outlier = self.outlier_pdu_exists(event_id).is_ok();
 
 		//TODO: parallelize
 		non_outlier.await || outlier.await
@@ -169,7 +165,6 @@ impl Data {
 
 	pub(super) async fn append_pdu(&self, pdu_id: &[u8], pdu: &PduEvent, json: &CanonicalJsonObject, count: u64) {
 		self.pduid_pdu.raw_put(pdu_id, Json(json));
-
 		self.lasttimelinecount_cache
 			.lock()
 			.await
@@ -181,21 +176,17 @@ impl Data {
 
 	pub(super) fn prepend_backfill_pdu(&self, pdu_id: &[u8], event_id: &EventId, json: &CanonicalJsonObject) {
 		self.pduid_pdu.raw_put(pdu_id, Json(json));
-
 		self.eventid_pduid.insert(event_id, pdu_id);
 		self.eventid_outlierpdu.remove(event_id);
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
-	pub(super) async fn replace_pdu(
-		&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent,
-	) -> Result<()> {
+	pub(super) async fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, _pdu: &PduEvent) -> Result {
 		if self.pduid_pdu.get(pdu_id).await.is_not_found() {
 			return Err!(Request(NotFound("PDU does not exist.")));
 		}
 
-		let pdu = serde_json::to_vec(pdu_json)?;
-		self.pduid_pdu.insert(pdu_id, &pdu);
+		self.pduid_pdu.raw_put(pdu_id, Json(pdu_json));
 
 		Ok(())
 	}

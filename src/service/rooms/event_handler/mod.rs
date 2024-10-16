@@ -169,7 +169,7 @@ impl Service {
 			.await?;
 
 		// Procure the room version
-		let room_version_id = Self::get_room_version_id(&create_event)?;
+		let room_version_id = get_room_version_id(&create_event)?;
 
 		let first_pdu_in_room = self.services.timeline.first_pdu_in_room(room_id).await?;
 
@@ -178,7 +178,7 @@ impl Service {
 			.boxed()
 			.await?;
 
-		Self::check_room_id(room_id, &incoming_pdu)?;
+		check_room_id(room_id, &incoming_pdu)?;
 
 		// 8. if not timeline event: stop
 		if !is_timeline_event {
@@ -341,7 +341,7 @@ impl Service {
 
 		// 2. Check signatures, otherwise drop
 		// 3. check content hash, redact if doesn't match
-		let room_version_id = Self::get_room_version_id(create_event)?;
+		let room_version_id = get_room_version_id(create_event)?;
 		let mut val = match self
 			.services
 			.server_keys
@@ -378,7 +378,7 @@ impl Service {
 		)
 		.map_err(|_| Error::bad_database("Event is not a valid PDU."))?;
 
-		Self::check_room_id(room_id, &incoming_pdu)?;
+		check_room_id(room_id, &incoming_pdu)?;
 
 		if !auth_events_known {
 			// 4. fetch any missing auth events doing all checks listed here starting at 1.
@@ -414,7 +414,7 @@ impl Service {
 				continue;
 			};
 
-			Self::check_room_id(room_id, &auth_event)?;
+			check_room_id(room_id, &auth_event)?;
 
 			match auth_events.entry((
 				auth_event.kind.to_string().into(),
@@ -454,7 +454,7 @@ impl Service {
 		};
 
 		let auth_check = state_res::event_auth::auth_check(
-			&Self::to_room_version(&room_version_id),
+			&to_room_version(&room_version_id),
 			&incoming_pdu,
 			None, // TODO: third party invite
 			state_fetch,
@@ -502,8 +502,8 @@ impl Service {
 		}
 
 		debug!("Upgrading to timeline pdu");
-		let timer = tokio::time::Instant::now();
-		let room_version_id = Self::get_room_version_id(create_event)?;
+		let timer = Instant::now();
+		let room_version_id = get_room_version_id(create_event)?;
 
 		// 10. Fetch missing state and auth chain events by calling /state_ids at
 		//     backwards extremities doing all the checks in this list starting at 1.
@@ -524,7 +524,7 @@ impl Service {
 		}
 
 		let state_at_incoming_event = state_at_incoming_event.expect("we always set this to some above");
-		let room_version = Self::to_room_version(&room_version_id);
+		let room_version = to_room_version(&room_version_id);
 
 		debug!("Performing auth check");
 		// 11. Check the auth of the event passes based on the state of the event
@@ -1278,7 +1278,7 @@ impl Service {
 				.await
 				.pop()
 			{
-				Self::check_room_id(room_id, &pdu)?;
+				check_room_id(room_id, &pdu)?;
 
 				let limit = self.services.globals.max_fetch_prev_events();
 				if amount > limit {
@@ -1370,31 +1370,34 @@ impl Service {
 		}
 	}
 
-	fn check_room_id(room_id: &RoomId, pdu: &PduEvent) -> Result<()> {
-		if pdu.room_id != room_id {
-			return Err!(Request(InvalidParam(
-				warn!(pdu_event_id = ?pdu.event_id, pdu_room_id = ?pdu.room_id, ?room_id, "Found event from room in room")
-			)));
-		}
-
-		Ok(())
-	}
-
-	fn get_room_version_id(create_event: &PduEvent) -> Result<RoomVersionId> {
-		let content: RoomCreateEventContent = create_event.get_content()?;
-		let room_version = content.room_version;
-
-		Ok(room_version)
-	}
-
-	#[inline]
-	fn to_room_version(room_version_id: &RoomVersionId) -> RoomVersion {
-		RoomVersion::new(room_version_id).expect("room version is supported")
-	}
-
 	async fn event_exists(&self, event_id: Arc<EventId>) -> bool { self.services.timeline.pdu_exists(&event_id).await }
 
 	async fn event_fetch(&self, event_id: Arc<EventId>) -> Option<Arc<PduEvent>> {
 		self.services.timeline.get_pdu(&event_id).await.ok()
 	}
+}
+
+fn check_room_id(room_id: &RoomId, pdu: &PduEvent) -> Result {
+	if pdu.room_id != room_id {
+		return Err!(Request(InvalidParam(error!(
+			pdu_event_id = ?pdu.event_id,
+			pdu_room_id = ?pdu.room_id,
+			?room_id,
+			"Found event from room in room",
+		))));
+	}
+
+	Ok(())
+}
+
+fn get_room_version_id(create_event: &PduEvent) -> Result<RoomVersionId> {
+	let content: RoomCreateEventContent = create_event.get_content()?;
+	let room_version = content.room_version;
+
+	Ok(room_version)
+}
+
+#[inline]
+fn to_room_version(room_version_id: &RoomVersionId) -> RoomVersion {
+	RoomVersion::new(room_version_id).expect("room version is supported")
 }
