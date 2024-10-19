@@ -58,6 +58,8 @@ The systemd unit for conduwuit can be found
 [here](../configuration/examples.md#example-systemd-unit-file). You may need to
 change the `ExecStart=` path to where you placed the conduwuit binary.
 
+On systems where rsyslog is used alongside journald (i.e. Red Hat-based distros and OpenSUSE), put `$EscapeControlCharactersOnReceive off` inside `/etc/rsyslog.conf` to allow color in logs.
+
 ## Creating the conduwuit configuration file
 
 Now we need to create the conduwuit's config file in
