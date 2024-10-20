@@ -15,7 +15,7 @@ LOG_FILE="$2"
 # A `.jsonl` file to write test results to
 RESULTS_FILE="$3"
 
-OCI_IMAGE="complement-conduit:main"
+OCI_IMAGE="complement-conduwuit:main"
 
 # Complement tests that are skipped due to flakiness/reliability issues
 SKIPPED_COMPLEMENT_TESTS='-skip=TestClientSpacesSummary.*|TestJoinFederatedRoomFromApplicationServiceBridgeUser.*|TestJumpToDateEndpoint.*'
@@ -34,7 +34,7 @@ toplevel="$(git rev-parse --show-toplevel)"
 
 pushd "$toplevel" > /dev/null
 
-bin/nix-build-and-cache just .#static-complement
+bin/nix-build-and-cache just .#linux-complement
 
 docker load < result
 popd > /dev/null

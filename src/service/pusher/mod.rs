@@ -332,6 +332,13 @@ impl Service {
 						.await
 						.ok();
 
+					notifi.room_alias = self
+						.services
+						.state_accessor
+						.get_canonical_alias(&event.room_id)
+						.await
+						.ok();
+
 					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
 						.await?;
 				}

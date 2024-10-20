@@ -45,9 +45,10 @@ pub fn content_disposition_type(content_type: Option<&str>) -> ContentDispositio
 		return ContentDispositionType::Attachment;
 	};
 
-	// is_sorted is unstable
-	/* debug_assert!(ALLOWED_INLINE_CONTENT_TYPES.is_sorted(),
-	 * "ALLOWED_INLINE_CONTENT_TYPES is not sorted"); */
+	assert!(
+		ALLOWED_INLINE_CONTENT_TYPES.is_sorted(),
+		"ALLOWED_INLINE_CONTENT_TYPES is not sorted!"
+	);
 
 	let content_type: Cow<'_, str> = content_type
 		.split(';')

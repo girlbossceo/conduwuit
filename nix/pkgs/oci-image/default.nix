@@ -16,7 +16,7 @@ dockerTools.buildLayeredImage {
     dockerTools.caCertificates
   ];
   config = {
-    Entrypoint = if !stdenv.isDarwin
+    Entrypoint = if !stdenv.hostPlatform.isDarwin
       # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT)
       # are handled as expected
       then [ "${lib.getExe' tini "tini"}" "--" ]

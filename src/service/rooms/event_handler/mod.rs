@@ -1162,6 +1162,7 @@ impl Service {
 						origin,
 						get_event::v1::Request {
 							event_id: (*next_id).to_owned(),
+							include_unredacted_content: None,
 						},
 					)
 					.await

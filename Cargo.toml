@@ -19,7 +19,7 @@ license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.81.0"
+rust-version = "1.82.0"
 version = "0.4.7"
 
 [workspace.metadata.crane]
@@ -107,7 +107,7 @@ default-features = false
 version = "0.7"
 
 [workspace.dependencies.axum-client-ip]
-version = "0.6.0"
+version = "0.6.1"
 
 [workspace.dependencies.tower]
 version = "0.5.1"
@@ -199,7 +199,7 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.15"
+version = "4.5.20"
 default-features = false
 features = [
 	"std",
@@ -248,7 +248,7 @@ features = ["alloc", "std"]
 default-features = false
 
 [workspace.dependencies.hyper]
-version = "1.4.1"
+version = "1.5.0"
 default-features = false
 features = [
 	"server",
@@ -315,7 +315,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "d7baeb7e5c3ae28e79ad3fe81c5e8b207a26cc73"
+rev = "9f6c48eea2239e4c065dde38534407ea2596ab99"
 features = [
     "compat",
     "rand",
@@ -447,7 +447,7 @@ version = "0.4.3"
 default-features = false
 
 [workspace.dependencies.termimad]
-version = "0.30.0"
+version = "0.30.1"
 default-features = false
 
 [workspace.dependencies.checked_ops]
@@ -462,7 +462,7 @@ features = ["full", "extra-traits"]
 version = "1.0.36"
 
 [workspace.dependencies.proc-macro2]
-version = "1.0.86"
+version = "1.0.88"
 
 #
 # Patches
@@ -719,12 +719,14 @@ opt-level = 'z'
 # primarily used for CI
 [profile.test]
 inherits = "dev"
+strip = false
 codegen-units = 16
 incremental = false
 
 [profile.test.package.'*']
 inherits = "dev"
 debug = 0
+strip = false
 codegen-units = 16
 incremental = false
 
@@ -812,6 +814,7 @@ significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
 pedantic = { level = "warn", priority = -1 }
 
 ## some sadness
+too_long_first_doc_paragraph = { level = "allow", priority = 1 }
 doc_markdown = { level = "allow", priority = 1 }
 enum_glob_use = { level = "allow", priority = 1 }
 if_not_else = { level = "allow", priority = 1 }

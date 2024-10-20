@@ -60,8 +60,7 @@ pub fn set_panic_trap() {
 }
 
 #[inline(always)]
-#[allow(deprecated_in_future)]
-fn panic_handler(info: &panic::PanicInfo<'_>, next: &dyn Fn(&panic::PanicInfo<'_>)) {
+fn panic_handler(info: &panic::PanicHookInfo<'_>, next: &dyn Fn(&panic::PanicHookInfo<'_>)) {
 	trap();
 	next(info);
 }

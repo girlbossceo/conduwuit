@@ -190,6 +190,7 @@ async fn auth_server(services: &Services, request: &mut Request, body: Option<&C
 
 	let destination = services.globals.server_name();
 	let origin = &x_matrix.origin;
+	#[allow(clippy::or_fun_call)]
 	let signature_uri = request
 		.parts
 		.uri

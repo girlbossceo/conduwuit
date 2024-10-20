@@ -465,8 +465,13 @@ impl Service {
 					}
 				},
 				SendingEvent::Edu(edu) => {
-					if let Ok(edu) = serde_json::from_slice(edu) {
-						edu_jsons.push(edu);
+					if appservice
+						.receive_ephemeral
+						.is_some_and(|receive_ephemeral| receive_ephemeral)
+					{
+						if let Ok(edu) = serde_json::from_slice(edu) {
+							edu_jsons.push(edu);
+						}
 					}
 				},
 				SendingEvent::Flush => {}, // flush only; no new content

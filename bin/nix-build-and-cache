@@ -26,7 +26,13 @@ just() {
         "$ATTIC_TOKEN"
 
     # Find all output paths of the installables and their build dependencies
-    readarray -t derivations < <(nix path-info --derivation "$@")
+    #readarray -t derivations < <(nix path-info --derivation "$@")
+
+    derivations=()
+    while IFS=$'\n' read derivation; do
+        derivations+=("$derivation")
+    done < <(nix path-info --derivation "$@")
+
     cache=()
     for derivation in "${derivations[@]}"; do
         cache+=(
@@ -77,8 +83,8 @@ ci() {
         --inputs-from "$toplevel"
 
         # Keep sorted
-        "$toplevel#devShells.x86_64-linux.default"
-        "$toplevel#devShells.x86_64-linux.all-features"
+        #"$toplevel#devShells.x86_64-linux.default"
+        #"$toplevel#devShells.x86_64-linux.all-features"
         attic#default
         cachix#default
         nixpkgs#direnv

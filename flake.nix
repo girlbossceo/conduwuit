@@ -9,7 +9,7 @@
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.6.1"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.7.2"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 
@@ -18,7 +18,6 @@
     let
       pkgsHost = import inputs.nixpkgs{
         inherit system;
-        config.permittedInsecurePackages = [ "olm-3.2.16" ];
       };
       pkgsHostStatic = pkgsHost.pkgsStatic;
 
@@ -27,7 +26,7 @@
         file = ./rust-toolchain.toml;
 
         # See also `rust-toolchain.toml`
-        sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
+        sha256 = "sha256-yMuSb5eQPO/bHv+Bcf/US8LVMbf/G/0MSfiPwBhiPpk=";
       };
 
       mkScope = pkgs: pkgs.lib.makeScope pkgs.newScope (self: {
@@ -38,10 +37,19 @@
         inherit inputs;
         main = self.callPackage ./nix/pkgs/main {};
         oci-image = self.callPackage ./nix/pkgs/oci-image {};
+        tini = pkgs.tini.overrideAttrs {
+            # newer clang/gcc is unhappy with tini-static: <https://3.dog/~strawberry/pb/c8y4>
+            patches = [ (pkgs.fetchpatch {
+                url = "https://patch-diff.githubusercontent.com/raw/krallin/tini/pull/224.patch";
+                hash = "sha256-4bTfAhRyIT71VALhHY13hUgbjLEUyvgkIJMt3w9ag3k=";
+              })
+            ];
+        };
+
         liburing = pkgs.liburing.overrideAttrs {
           # Tests weren't building
           outputs = [ "out" "dev" "man" ];
-          buildFlags = [ "library"];
+          buildFlags = [ "library" ];
           src = inputs.liburing;
         };
         rocksdb = (pkgs.rocksdb.override {
@@ -88,6 +96,17 @@
 
       scopeHost = mkScope pkgsHost;
       scopeHostStatic = mkScope pkgsHostStatic;
+      scopeCrossLinux = mkScope pkgsHost.pkgsLinux.pkgsStatic;
+
+      mkCrossScope = crossSystem:
+        let pkgsCrossStatic = (import inputs.nixpkgs {
+          inherit system;
+          crossSystem = {
+           config = crossSystem;
+          };
+        }).pkgsStatic;
+         in
+        mkScope pkgsCrossStatic;
 
       mkDevShell = scope: scope.pkgs.mkShell {
         env = scope.main.env // {
@@ -100,9 +119,9 @@
           # code.
           COMPLEMENT_SRC = inputs.complement.outPath;
 
-          # Needed for Complement
-          CGO_CFLAGS = "-I${scope.pkgs.olm}/include";
-          CGO_LDFLAGS = "-L${scope.pkgs.olm}/lib";
+          # Needed for Complement: <https://github.com/golang/go/issues/52690>
+          CGO_CFLAGS = "-Wl,--no-gc-sections";
+          CGO_LDFLAGS = "-Wl,--no-gc-sections";
         };
 
         # Development tools
@@ -116,9 +135,6 @@
           toolchain
         ]
         ++ (with pkgsHost.pkgs; [
-          engage
-          cargo-audit
-          liburing
 
           # Required by hardened-malloc.rs dep
           binutils
@@ -126,8 +142,14 @@
           # Needed for producing Debian packages
           cargo-deb
 
+          # Needed for CI
+          cargo-audit
+
           # Needed for CI to check validity of produced Debian packages (dpkg-deb)
           dpkg
+
+          # Needed for CI
+          engage
 
           # Needed for Complement
           go
@@ -149,12 +171,22 @@
 
           # needed so we can get rid of gcc and other unused deps that bloat OCI images
           removeReferencesTo
-        ])
+        ]
+        # liburing is Linux-exclusive
+        ++ lib.optional stdenv.hostPlatform.isLinux liburing
+        # needed to build Rust applications on macOS
+        ++ lib.optionals stdenv.hostPlatform.isDarwin [
+            # https://github.com/NixOS/nixpkgs/issues/206242
+            # ld: library not found for -liconv
+            libiconv
+
+            # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
+            # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
+            pkgsBuildHost.darwin.apple_sdk.frameworks.Security
+            ])
         ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs
         ++ scope.main.nativeBuildInputs;
-
-        meta.broken = scope.main.meta.broken;
       };
     in
     {
@@ -228,6 +260,8 @@
 
         complement = scopeHost.complement;
         static-complement = scopeHostStatic.complement;
+        # macOS containers don't exist, so the complement images must be forced to linux
+        linux-complement = (mkCrossScope "${pkgsHost.hostPlatform.qemuArch}-linux-musl").complement;
       }
       //
       builtins.listToAttrs
@@ -236,14 +270,7 @@
             (crossSystem:
               let
                 binaryName = "static-${crossSystem}";
-                pkgsCrossStatic =
-                  (import inputs.nixpkgs {
-                    inherit system;
-                    crossSystem = {
-                      config = crossSystem;
-                    };
-                  }).pkgsStatic;
-                scopeCrossStatic = mkScope pkgsCrossStatic;
+                scopeCrossStatic = mkCrossScope crossSystem;
               in
               [
                 # An output for a statically-linked binary
@@ -373,11 +400,20 @@
                     };
                   };
                 }
+
+                # An output for a complement OCI image for the specified platform
+                {
+                  name = "complement-${crossSystem}";
+                  value = scopeCrossStatic.complement;
+                }
               ]
             )
             [
-              "x86_64-unknown-linux-musl"
-              "aarch64-unknown-linux-musl"
+              #"x86_64-apple-darwin"
+              #"aarch64-apple-darwin"
+              "x86_64-linux-gnu"
+              "x86_64-linux-musl"
+              "aarch64-linux-musl"
             ]
           )
         );

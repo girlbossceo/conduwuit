@@ -23,8 +23,8 @@ Nix (or [Lix](https://lix.systems)) to build conduwuit as this has the most guar
 reproducibiltiy and easiest to get a build environment and output going. This also
 allows easy cross-compilation.
 
-You can run the `nix build -L .#static-x86_64-unknown-linux-musl-all-features` or
-`nix build -L .#static-aarch64-unknown-linux-musl-all-features` commands based
+You can run the `nix build -L .#static-x86_64-linux-musl-all-features` or
+`nix build -L .#static-aarch64-linux-musl-all-features` commands based
 on architecture to cross-compile the necessary static binary located at
 `result/bin/conduit`. This is reproducible with the static binaries produced in our CI.
 

@@ -203,6 +203,7 @@ pub(super) async fn get_remote_pdu(
 			&server,
 			ruma::api::federation::event::get_event::v1::Request {
 				event_id: event_id.clone().into(),
+				include_unredacted_content: None,
 			},
 		)
 		.await
