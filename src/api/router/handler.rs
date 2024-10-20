@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use axum::{
 	extract::FromRequestParts,
 	response::IntoResponse,
@@ -7,19 +5,25 @@ use axum::{
 	Router,
 };
 use conduit::Result;
+use futures::{Future, TryFutureExt};
 use http::Method;
 use ruma::api::IncomingRequest;
 
 use super::{Ruma, RumaResponse, State};
 
+pub(in super::super) trait RumaHandler<T> {
+	fn add_route(&'static self, router: Router<State>, path: &str) -> Router<State>;
+	fn add_routes(&'static self, router: Router<State>) -> Router<State>;
+}
+
 pub(in super::super) trait RouterExt {
-	fn ruma_route<H, T>(self, handler: H) -> Self
+	fn ruma_route<H, T>(self, handler: &'static H) -> Self
 	where
 		H: RumaHandler<T>;
 }
 
 impl RouterExt for Router<State> {
-	fn ruma_route<H, T>(self, handler: H) -> Self
+	fn ruma_route<H, T>(self, handler: &'static H) -> Self
 	where
 		H: RumaHandler<T>,
 	{
@@ -27,34 +31,28 @@ impl RouterExt for Router<State> {
 	}
 }
 
-pub(in super::super) trait RumaHandler<T> {
-	fn add_routes(&self, router: Router<State>) -> Router<State>;
-
-	fn add_route(&self, router: Router<State>, path: &str) -> Router<State>;
-}
-
 macro_rules! ruma_handler {
 	( $($tx:ident),* $(,)? ) => {
 		#[allow(non_snake_case)]
-		impl<Req, Ret, Fut, Fun, $($tx,)*> RumaHandler<($($tx,)* Ruma<Req>,)> for Fun
+		impl<Err, Req, Fut, Fun, $($tx,)*> RumaHandler<($($tx,)* Ruma<Req>,)> for Fun
 		where
-			Req: IncomingRequest + Send + 'static,
-			Ret: IntoResponse,
-			Fut: Future<Output = Result<Req::OutgoingResponse, Ret>> + Send,
-			Fun: FnOnce($($tx,)* Ruma<Req>,) -> Fut + Clone + Send + Sync + 'static,
-			$( $tx: FromRequestParts<State> + Send + 'static, )*
+			Fun: Fn($($tx,)* Ruma<Req>,) -> Fut + Send + Sync + 'static,
+			Fut: Future<Output = Result<Req::OutgoingResponse, Err>> + Send,
+			Req: IncomingRequest + Send + Sync,
+			Err: IntoResponse + Send,
+			<Req as IncomingRequest>::OutgoingResponse: Send,
+			$( $tx: FromRequestParts<State> + Send + Sync + 'static, )*
 		{
-			fn add_routes(&self, router: Router<State>) -> Router<State> {
+			fn add_routes(&'static self, router: Router<State>) -> Router<State> {
 				Req::METADATA
 					.history
 					.all_paths()
 					.fold(router, |router, path| self.add_route(router, path))
 			}
 
-			fn add_route(&self, router: Router<State>, path: &str) -> Router<State> {
-				let handle = self.clone();
+			fn add_route(&'static self, router: Router<State>, path: &str) -> Router<State> {
+				let action = |$($tx,)* req| self($($tx,)* req).map_ok(RumaResponse);
 				let method = method_to_filter(&Req::METADATA.method);
-				let action = |$($tx,)* req| async { handle($($tx,)* req).await.map(RumaResponse) };
 				router.route(path, on(method, action))
 			}
 		}

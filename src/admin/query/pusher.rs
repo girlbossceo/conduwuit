@@ -21,7 +21,7 @@ pub(super) async fn process(subcommand: PusherCommand, context: &Command<'_>) ->
 			user_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.pusher.get_pushers(&user_id)?;
+			let results = services.pusher.get_pushers(&user_id).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

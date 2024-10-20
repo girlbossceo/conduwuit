@@ -1,10 +1,18 @@
 use std::{mem::size_of, sync::Arc};
 
-use conduit::{utils, Error, Result};
-use database::Map;
-use ruma::{events::receipt::ReceiptEvent, serde::Raw, CanonicalJsonObject, RoomId, UserId};
+use conduit::{
+	utils,
+	utils::{stream::TryIgnore, ReadyExt},
+	Error, Result,
+};
+use database::{Deserialized, Map};
+use futures::{Stream, StreamExt};
+use ruma::{
+	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
+	serde::Raw,
+	CanonicalJsonObject, OwnedUserId, RoomId, UserId,
+};
 
-use super::AnySyncEphemeralRoomEventIter;
 use crate::{globals, Dep};
 
 pub(super) struct Data {
@@ -17,6 +25,8 @@ pub(super) struct Data {
 struct Services {
 	globals: Dep<globals::Service>,
 }
+
+pub(super) type ReceiptItem = (OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>);
 
 impl Data {
 	pub(super) fn new(args: &crate::Args<'_>) -> Self {
@@ -31,7 +41,9 @@ impl Data {
 		}
 	}
 
-	pub(super) fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) -> Result<()> {
+	pub(super) async fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) {
+		type KeyVal<'a> = (&'a RoomId, u64, &'a UserId);
+
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
@@ -39,108 +51,90 @@ impl Data {
 		last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
 
 		// Remove old entry
-		if let Some((old, _)) = self
-			.readreceiptid_readreceipt
-			.iter_from(&last_possible_key, true)
-			.take_while(|(key, _)| key.starts_with(&prefix))
-			.find(|(key, _)| {
-				key.rsplit(|&b| b == 0xFF)
-					.next()
-					.expect("rsplit always returns an element")
-					== user_id.as_bytes()
-			}) {
-			// This is the old room_latest
-			self.readreceiptid_readreceipt.remove(&old)?;
-		}
+		self.readreceiptid_readreceipt
+			.rev_keys_from_raw(&last_possible_key)
+			.ignore_err()
+			.ready_take_while(|(r, ..): &KeyVal<'_>| *r == room_id)
+			.ready_filter_map(|(r, c, u): KeyVal<'_>| (u == user_id).then_some((r, c, u)))
+			.ready_for_each(|old: KeyVal<'_>| {
+				// This is the old room_latest
+				self.readreceiptid_readreceipt.del(&old);
+			})
+			.await;
 
 		let mut room_latest_id = prefix;
-		room_latest_id.extend_from_slice(&self.services.globals.next_count()?.to_be_bytes());
+		room_latest_id.extend_from_slice(&self.services.globals.next_count().unwrap().to_be_bytes());
 		room_latest_id.push(0xFF);
 		room_latest_id.extend_from_slice(user_id.as_bytes());
 
 		self.readreceiptid_readreceipt.insert(
 			&room_latest_id,
 			&serde_json::to_vec(event).expect("EduEvent::to_string always works"),
-		)?;
-
-		Ok(())
+		);
 	}
 
-	pub(super) fn readreceipts_since<'a>(&'a self, room_id: &RoomId, since: u64) -> AnySyncEphemeralRoomEventIter<'a> {
+	pub(super) fn readreceipts_since<'a>(
+		&'a self, room_id: &'a RoomId, since: u64,
+	) -> impl Stream<Item = ReceiptItem> + Send + 'a {
+		let after_since = since.saturating_add(1); // +1 so we don't send the event at since
+		let first_possible_edu = (room_id, after_since);
+
 		let mut prefix = room_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		let prefix2 = prefix.clone();
 
-		let mut first_possible_edu = prefix.clone();
-		first_possible_edu.extend_from_slice(&(since.saturating_add(1)).to_be_bytes()); // +1 so we don't send the event at since
+		self.readreceiptid_readreceipt
+			.stream_raw_from(&first_possible_edu)
+			.ignore_err()
+			.ready_take_while(move |(k, _)| k.starts_with(&prefix2))
+			.map(move |(k, v)| {
+				let count_offset = prefix.len().saturating_add(size_of::<u64>());
+				let user_id_offset = count_offset.saturating_add(1);
 
-		Box::new(
-			self.readreceiptid_readreceipt
-				.iter_from(&first_possible_edu, false)
-				.take_while(move |(k, _)| k.starts_with(&prefix2))
-				.map(move |(k, v)| {
-					let count_offset = prefix.len().saturating_add(size_of::<u64>());
-					let count = utils::u64_from_bytes(&k[prefix.len()..count_offset])
-						.map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
-					let user_id_offset = count_offset.saturating_add(1);
-					let user_id = UserId::parse(
-						utils::string_from_bytes(&k[user_id_offset..])
-							.map_err(|_| Error::bad_database("Invalid readreceiptid userid bytes in db."))?,
-					)
+				let count = utils::u64_from_bytes(&k[prefix.len()..count_offset])
+					.map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
+
+				let user_id_str = utils::string_from_bytes(&k[user_id_offset..])
+					.map_err(|_| Error::bad_database("Invalid readreceiptid userid bytes in db."))?;
+
+				let user_id = UserId::parse(user_id_str)
 					.map_err(|_| Error::bad_database("Invalid readreceiptid userid in db."))?;
 
-					let mut json = serde_json::from_slice::<CanonicalJsonObject>(&v)
-						.map_err(|_| Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid json."))?;
-					json.remove("room_id");
+				let mut json = serde_json::from_slice::<CanonicalJsonObject>(v)
+					.map_err(|_| Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid json."))?;
 
-					Ok((
-						user_id,
-						count,
-						Raw::from_json(serde_json::value::to_raw_value(&json).expect("json is valid raw value")),
-					))
-				}),
-		)
+				json.remove("room_id");
+
+				let event = Raw::from_json(serde_json::value::to_raw_value(&json)?);
+
+				Ok((user_id, count, event))
+			})
+			.ignore_err()
 	}
 
-	pub(super) fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()> {
+	pub(super) fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) {
 		let mut key = room_id.as_bytes().to_vec();
 		key.push(0xFF);
 		key.extend_from_slice(user_id.as_bytes());
 
 		self.roomuserid_privateread
-			.insert(&key, &count.to_be_bytes())?;
+			.insert(&key, &count.to_be_bytes());
 
 		self.roomuserid_lastprivatereadupdate
-			.insert(&key, &self.services.globals.next_count()?.to_be_bytes())
+			.insert(&key, &self.services.globals.next_count().unwrap().to_be_bytes());
 	}
 
-	pub(super) fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
-		let mut key = room_id.as_bytes().to_vec();
-		key.push(0xFF);
-		key.extend_from_slice(user_id.as_bytes());
-
-		self.roomuserid_privateread
-			.get(&key)?
-			.map_or(Ok(None), |v| {
-				Ok(Some(
-					utils::u64_from_bytes(&v).map_err(|_| Error::bad_database("Invalid private read marker bytes"))?,
-				))
-			})
+	pub(super) async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
+		let key = (room_id, user_id);
+		self.roomuserid_privateread.qry(&key).await.deserialized()
 	}
 
-	pub(super) fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
-		let mut key = room_id.as_bytes().to_vec();
-		key.push(0xFF);
-		key.extend_from_slice(user_id.as_bytes());
-
-		Ok(self
-			.roomuserid_lastprivatereadupdate
-			.get(&key)?
-			.map(|bytes| {
-				utils::u64_from_bytes(&bytes)
-					.map_err(|_| Error::bad_database("Count in roomuserid_lastprivatereadupdate is invalid."))
-			})
-			.transpose()?
-			.unwrap_or(0))
+	pub(super) async fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
+		let key = (room_id, user_id);
+		self.roomuserid_lastprivatereadupdate
+			.qry(&key)
+			.await
+			.deserialized()
+			.unwrap_or(0)
 	}
 }

@@ -3,7 +3,8 @@ mod data;
 use std::sync::Arc;
 
 use conduit::Result;
-use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
+use futures::{pin_mut, Stream, StreamExt};
+use ruma::{RoomId, UserId};
 
 use self::data::Data;
 
@@ -22,32 +23,49 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) -> Result<()> {
-		self.db.reset_notification_counts(user_id, room_id)
+	#[inline]
+	pub fn reset_notification_counts(&self, user_id: &UserId, room_id: &RoomId) {
+		self.db.reset_notification_counts(user_id, room_id);
 	}
 
-	pub fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
-		self.db.notification_count(user_id, room_id)
+	#[inline]
+	pub async fn notification_count(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
+		self.db.notification_count(user_id, room_id).await
 	}
 
-	pub fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
-		self.db.highlight_count(user_id, room_id)
+	#[inline]
+	pub async fn highlight_count(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
+		self.db.highlight_count(user_id, room_id).await
 	}
 
-	pub fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
-		self.db.last_notification_read(user_id, room_id)
+	#[inline]
+	pub async fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
+		self.db.last_notification_read(user_id, room_id).await
 	}
 
-	pub fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: u64) -> Result<()> {
+	#[inline]
+	pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: u64) {
 		self.db
 			.associate_token_shortstatehash(room_id, token, shortstatehash)
+			.await;
 	}
 
-	pub fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<Option<u64>> {
-		self.db.get_token_shortstatehash(room_id, token)
+	#[inline]
+	pub async fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<u64> {
+		self.db.get_token_shortstatehash(room_id, token).await
 	}
 
-	pub fn get_shared_rooms(&self, users: Vec<OwnedUserId>) -> Result<impl Iterator<Item = Result<OwnedRoomId>> + '_> {
-		self.db.get_shared_rooms(users)
+	#[inline]
+	pub fn get_shared_rooms<'a>(
+		&'a self, user_a: &'a UserId, user_b: &'a UserId,
+	) -> impl Stream<Item = &RoomId> + Send + 'a {
+		self.db.get_shared_rooms(user_a, user_b)
+	}
+
+	pub async fn has_shared_rooms<'a>(&'a self, user_a: &'a UserId, user_b: &'a UserId) -> bool {
+		let get_shared_rooms = self.get_shared_rooms(user_a, user_b);
+
+		pin_mut!(get_shared_rooms);
+		get_shared_rooms.next().await.is_some()
 	}
 }

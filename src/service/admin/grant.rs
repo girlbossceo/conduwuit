@@ -17,108 +17,108 @@ use serde_json::value::to_raw_value;
 
 use crate::pdu::PduBuilder;
 
-impl super::Service {
-	/// Invite the user to the conduit admin room.
-	///
-	/// In conduit, this is equivalent to granting admin privileges.
-	pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
-		let Some(room_id) = self.get_admin_room()? else {
-			return Ok(());
-		};
+/// Invite the user to the conduit admin room.
+///
+/// In conduit, this is equivalent to granting admin privileges.
+#[implement(super::Service)]
+pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
+	let Ok(room_id) = self.get_admin_room().await else {
+		return Ok(());
+	};
 
-		let state_lock = self.services.state.mutex.lock(&room_id).await;
+	let state_lock = self.services.state.mutex.lock(&room_id).await;
 
-		// Use the server user to grant the new admin's power level
-		let server_user = &self.services.globals.server_user;
+	// Use the server user to grant the new admin's power level
+	let server_user = &self.services.globals.server_user;
 
-		// Invite and join the real user
-		self.services
-			.timeline
-			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomMember,
-					content: to_raw_value(&RoomMemberEventContent {
-						membership: MembershipState::Invite,
-						displayname: None,
-						avatar_url: None,
-						is_direct: None,
-						third_party_invite: None,
-						blurhash: None,
-						reason: None,
-						join_authorized_via_users_server: None,
-					})
-					.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(user_id.to_string()),
-					redacts: None,
-					timestamp: None,
-				},
-				server_user,
-				&room_id,
-				&state_lock,
-			)
-			.await?;
-		self.services
-			.timeline
-			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomMember,
-					content: to_raw_value(&RoomMemberEventContent {
-						membership: MembershipState::Join,
-						displayname: None,
-						avatar_url: None,
-						is_direct: None,
-						third_party_invite: None,
-						blurhash: None,
-						reason: None,
-						join_authorized_via_users_server: None,
-					})
-					.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(user_id.to_string()),
-					redacts: None,
-					timestamp: None,
-				},
-				user_id,
-				&room_id,
-				&state_lock,
-			)
-			.await?;
+	// Invite and join the real user
+	self.services
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder {
+				event_type: TimelineEventType::RoomMember,
+				content: to_raw_value(&RoomMemberEventContent {
+					membership: MembershipState::Invite,
+					displayname: None,
+					avatar_url: None,
+					is_direct: None,
+					third_party_invite: None,
+					blurhash: None,
+					reason: None,
+					join_authorized_via_users_server: None,
+				})
+				.expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: Some(user_id.to_string()),
+				redacts: None,
+				timestamp: None,
+			},
+			server_user,
+			&room_id,
+			&state_lock,
+		)
+		.await?;
+	self.services
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder {
+				event_type: TimelineEventType::RoomMember,
+				content: to_raw_value(&RoomMemberEventContent {
+					membership: MembershipState::Join,
+					displayname: None,
+					avatar_url: None,
+					is_direct: None,
+					third_party_invite: None,
+					blurhash: None,
+					reason: None,
+					join_authorized_via_users_server: None,
+				})
+				.expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: Some(user_id.to_string()),
+				redacts: None,
+				timestamp: None,
+			},
+			user_id,
+			&room_id,
+			&state_lock,
+		)
+		.await?;
 
-		// Set power level
-		let users = BTreeMap::from_iter([(server_user.clone(), 100.into()), (user_id.to_owned(), 100.into())]);
+	// Set power level
+	let users = BTreeMap::from_iter([(server_user.clone(), 100.into()), (user_id.to_owned(), 100.into())]);
 
-		self.services
-			.timeline
-			.build_and_append_pdu(
-				PduBuilder {
-					event_type: TimelineEventType::RoomPowerLevels,
-					content: to_raw_value(&RoomPowerLevelsEventContent {
-						users,
-						..Default::default()
-					})
-					.expect("event is valid, we just created it"),
-					unsigned: None,
-					state_key: Some(String::new()),
-					redacts: None,
-					timestamp: None,
-				},
-				server_user,
-				&room_id,
-				&state_lock,
-			)
-			.await?;
+	self.services
+		.timeline
+		.build_and_append_pdu(
+			PduBuilder {
+				event_type: TimelineEventType::RoomPowerLevels,
+				content: to_raw_value(&RoomPowerLevelsEventContent {
+					users,
+					..Default::default()
+				})
+				.expect("event is valid, we just created it"),
+				unsigned: None,
+				state_key: Some(String::new()),
+				redacts: None,
+				timestamp: None,
+			},
+			server_user,
+			&room_id,
+			&state_lock,
+		)
+		.await?;
 
-		// Set room tag
-		let room_tag = &self.services.server.config.admin_room_tag;
-		if !room_tag.is_empty() {
-			if let Err(e) = self.set_room_tag(&room_id, user_id, room_tag) {
-				error!(?room_id, ?user_id, ?room_tag, ?e, "Failed to set tag for admin grant");
-			}
+	// Set room tag
+	let room_tag = &self.services.server.config.admin_room_tag;
+	if !room_tag.is_empty() {
+		if let Err(e) = self.set_room_tag(&room_id, user_id, room_tag).await {
+			error!(?room_id, ?user_id, ?room_tag, ?e, "Failed to set tag for admin grant");
 		}
+	}
 
-		// Send welcome message
-		self.services.timeline.build_and_append_pdu(
+	// Send welcome message
+	self.services.timeline.build_and_append_pdu(
   			PduBuilder {
                 event_type: TimelineEventType::RoomMessage,
                 content: to_raw_value(&RoomMessageEventContent::text_markdown(
@@ -135,19 +135,18 @@ impl super::Service {
             &state_lock,
         ).await?;
 
-		Ok(())
-	}
+	Ok(())
 }
 
 #[implement(super::Service)]
-fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result<()> {
+async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result<()> {
 	let mut event = self
 		.services
 		.account_data
-		.get(Some(room_id), user_id, RoomAccountDataEventType::Tag)?
-		.map(|event| serde_json::from_str(event.get()))
-		.and_then(Result::ok)
-		.unwrap_or_else(|| TagEvent {
+		.get(Some(room_id), user_id, RoomAccountDataEventType::Tag)
+		.await
+		.and_then(|event| serde_json::from_str(event.get()).map_err(Into::into))
+		.unwrap_or_else(|_| TagEvent {
 			content: TagEventContent {
 				tags: BTreeMap::new(),
 			},
@@ -158,12 +157,15 @@ fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result<
 		.tags
 		.insert(tag.to_owned().into(), TagInfo::new());
 
-	self.services.account_data.update(
-		Some(room_id),
-		user_id,
-		RoomAccountDataEventType::Tag,
-		&serde_json::to_value(event)?,
-	)?;
+	self.services
+		.account_data
+		.update(
+			Some(room_id),
+			user_id,
+			RoomAccountDataEventType::Tag,
+			&serde_json::to_value(event)?,
+		)
+		.await?;
 
 	Ok(())
 }
