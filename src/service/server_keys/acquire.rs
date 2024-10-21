@@ -47,35 +47,66 @@ where
 	S: Iterator<Item = (&'a ServerName, K)> + Send + Clone,
 	K: Iterator<Item = &'a ServerSigningKeyId> + Send + Clone,
 {
+	let notary_only = self.services.server.config.only_query_trusted_key_servers;
+	let notary_first_always = self.services.server.config.query_trusted_key_servers_first;
+	let notary_first_on_join = self
+		.services
+		.server
+		.config
+		.query_trusted_key_servers_first_on_join;
+
 	let requested_servers = batch.clone().count();
 	let requested_keys = batch.clone().flat_map(|(_, key_ids)| key_ids).count();
 
 	debug!("acquire {requested_keys} keys from {requested_servers}");
 
-	let missing = self.acquire_locals(batch).await;
-	let missing_keys = keys_count(&missing);
-	let missing_servers = missing.len();
+	let mut missing = self.acquire_locals(batch).await;
+	let mut missing_keys = keys_count(&missing);
+	let mut missing_servers = missing.len();
 	if missing_servers == 0 {
 		return;
 	}
 
 	debug!("missing {missing_keys} keys for {missing_servers} servers locally");
 
-	let missing = self.acquire_origins(missing.into_iter()).await;
-	let missing_keys = keys_count(&missing);
-	let missing_servers = missing.len();
-	if missing_servers == 0 {
-		return;
+	if notary_first_always || notary_first_on_join {
+		missing = self.acquire_notary(missing.into_iter()).await;
+		missing_keys = keys_count(&missing);
+		missing_servers = missing.len();
+		if missing_keys == 0 {
+			return;
+		}
+
+		debug_warn!("missing {missing_keys} keys for {missing_servers} servers from all notaries first");
 	}
 
-	debug_warn!("missing {missing_keys} keys for {missing_servers} servers unreachable");
+	if !notary_only {
+		missing = self.acquire_origins(missing.into_iter()).await;
+		missing_keys = keys_count(&missing);
+		missing_servers = missing.len();
+		if missing_keys == 0 {
+			return;
+		}
 
-	let missing = self.acquire_notary(missing.into_iter()).await;
-	let missing_keys = keys_count(&missing);
-	let missing_servers = missing.len();
+		debug_warn!("missing {missing_keys} keys for {missing_servers} servers unreachable");
+	}
+
+	if !notary_first_always && !notary_first_on_join {
+		missing = self.acquire_notary(missing.into_iter()).await;
+		missing_keys = keys_count(&missing);
+		missing_servers = missing.len();
+		if missing_keys == 0 {
+			return;
+		}
+
+		debug_warn!("still missing {missing_keys} keys for {missing_servers} servers from all notaries.");
+	}
+
 	if missing_keys > 0 {
-		debug_warn!("still missing {missing_keys} keys for {missing_servers} servers from all notaries");
-		warn!("did not obtain {missing_keys} of {requested_keys} keys; some events may not be accepted");
+		warn!(
+			"did not obtain {missing_keys} keys for {missing_servers} servers out of {requested_keys} total keys for \
+			 {requested_servers} total servers; some events may not be verifiable"
+		);
 	}
 }
 

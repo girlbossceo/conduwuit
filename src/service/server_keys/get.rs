@@ -53,17 +53,40 @@ where
 
 #[implement(super::Service)]
 pub async fn get_verify_key(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
+	let notary_first = self.services.server.config.query_trusted_key_servers_first;
+	let notary_only = self.services.server.config.only_query_trusted_key_servers;
+
 	if let Some(result) = self.verify_keys_for(origin).await.remove(key_id) {
 		return Ok(result);
 	}
 
-	if let Ok(server_key) = self.server_request(origin).await {
-		self.add_signing_keys(server_key.clone()).await;
-		if let Some(result) = extract_key(server_key, key_id) {
+	if notary_first {
+		if let Ok(result) = self.get_verify_key_from_notaries(origin, key_id).await {
 			return Ok(result);
 		}
 	}
 
+	if !notary_only {
+		if let Ok(result) = self.get_verify_key_from_origin(origin, key_id).await {
+			return Ok(result);
+		}
+	}
+
+	if !notary_first {
+		if let Ok(result) = self.get_verify_key_from_notaries(origin, key_id).await {
+			return Ok(result);
+		}
+	}
+
+	Err!(BadServerResponse(debug_error!(
+		?key_id,
+		?origin,
+		"Failed to fetch federation signing-key"
+	)))
+}
+
+#[implement(super::Service)]
+async fn get_verify_key_from_notaries(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
 	for notary in self.services.globals.trusted_servers() {
 		if let Ok(server_keys) = self.notary_request(notary, origin).await {
 			for server_key in &server_keys {
@@ -78,9 +101,17 @@ pub async fn get_verify_key(&self, origin: &ServerName, key_id: &ServerSigningKe
 		}
 	}
 
-	Err!(BadServerResponse(debug_error!(
-		?key_id,
-		?origin,
-		"Failed to fetch federation signing-key"
-	)))
+	Err!(Request(NotFound("Failed to fetch signing-key from notaries")))
+}
+
+#[implement(super::Service)]
+async fn get_verify_key_from_origin(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
+	if let Ok(server_key) = self.server_request(origin).await {
+		self.add_signing_keys(server_key.clone()).await;
+		if let Some(result) = extract_key(server_key, key_id) {
+			return Ok(result);
+		}
+	}
+
+	Err!(Request(NotFound("Failed to fetch signing-key from origin")))
 }

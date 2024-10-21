@@ -7,7 +7,7 @@ mod verify;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use conduit::{implement, utils::time::timepoint_from_now, Result};
+use conduit::{implement, utils::time::timepoint_from_now, Result, Server};
 use database::{Deserialized, Json, Map};
 use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
@@ -30,6 +30,7 @@ pub struct Service {
 struct Services {
 	globals: Dep<globals::Service>,
 	sending: Dep<sending::Service>,
+	server: Arc<Server>,
 }
 
 struct Data {
@@ -52,6 +53,7 @@ impl crate::Service for Service {
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				sending: args.depend::<sending::Service>("sending"),
+				server: args.server.clone(),
 			},
 			db: Data {
 				server_signingkeys: args.db["server_signingkeys"].clone(),
