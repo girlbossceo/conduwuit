@@ -7,8 +7,12 @@ mod sender;
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{err, utils::ReadyExt, warn, Result, Server};
-use futures::{future::ready, Stream, StreamExt, TryStreamExt};
+use conduit::{
+	err,
+	utils::{ReadyExt, TryReadyExt},
+	warn, Result, Server,
+};
+use futures::{Stream, StreamExt};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	RoomId, ServerName, UserId,
@@ -235,12 +239,12 @@ impl Service {
 			.map(ToOwned::to_owned)
 			.map(Destination::Normal)
 			.map(Ok)
-			.try_for_each(|dest| {
-				ready(self.dispatch(Msg {
+			.ready_try_for_each(|dest| {
+				self.dispatch(Msg {
 					dest,
 					event: SendingEvent::Flush,
 					queue_id: Vec::<u8>::new(),
-				}))
+				})
 			})
 			.await
 	}
