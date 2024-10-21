@@ -719,12 +719,14 @@ opt-level = 'z'
 # primarily used for CI
 [profile.test]
 inherits = "dev"
+opt-level = 0
 strip = false
 codegen-units = 16
 incremental = false
 
 [profile.test.package.'*']
 inherits = "dev"
+opt-level = 0
 debug = 0
 strip = false
 codegen-units = 16
