@@ -13,7 +13,7 @@ use conduit::{
 	result::LogErr,
 	trace,
 	utils::{math::continue_exponential_backoff_secs, IterStream, MutexMap},
-	warn, Err, Error, PduEvent, Result,
+	warn, Err, Error, PduEvent, Result, Server,
 };
 use futures::{future, future::ready, FutureExt, StreamExt, TryFutureExt};
 use ruma::{
@@ -55,6 +55,7 @@ struct Services {
 	state_accessor: Dep<rooms::state_accessor::Service>,
 	state_compressor: Dep<rooms::state_compressor::Service>,
 	timeline: Dep<rooms::timeline::Service>,
+	server: Arc<Server>,
 }
 
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
@@ -76,6 +77,7 @@ impl crate::Service for Service {
 				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
+				server: args.server.clone(),
 			},
 			federation_handletime: HandleTimeMap::new().into(),
 			mutex_federation: RoomMutexMap::new(),
@@ -1280,7 +1282,7 @@ impl Service {
 			{
 				check_room_id(room_id, &pdu)?;
 
-				let limit = self.services.globals.max_fetch_prev_events();
+				let limit = self.services.server.config.max_fetch_prev_events;
 				if amount > limit {
 					debug_warn!("Max prev event limit reached! Limit: {limit}");
 					graph.insert(prev_event_id.clone(), HashSet::new());

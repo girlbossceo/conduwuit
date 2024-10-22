@@ -1822,7 +1822,7 @@ fn default_appservice_idle_timeout() -> u64 { 300 }
 
 fn default_pusher_idle_timeout() -> u64 { 15 }
 
-fn default_max_fetch_prev_events() -> u16 { 100_u16 }
+fn default_max_fetch_prev_events() -> u16 { 192_u16 }
 
 fn default_tracing_flame_filter() -> String {
 	cfg!(debug_assertions)
