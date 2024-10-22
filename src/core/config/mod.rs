@@ -2,7 +2,7 @@ pub mod check;
 pub mod proxy;
 
 use std::{
-	collections::{BTreeMap, BTreeSet},
+	collections::{BTreeMap, BTreeSet, HashSet},
 	fmt,
 	net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 	path::PathBuf,
@@ -983,8 +983,8 @@ pub struct Config {
 
 	/// Vector list of servers that conduwuit will refuse to download remote
 	/// media from. No default.
-	#[serde(default = "Vec::new")]
-	pub prevent_media_downloads_from: Vec<OwnedServerName>,
+	#[serde(default = "HashSet::new")]
+	pub prevent_media_downloads_from: HashSet<OwnedServerName>,
 
 	/// List of forbidden server names that we will block incoming AND outgoing
 	/// federation with, and block client room joins / remote user invites.
@@ -994,14 +994,14 @@ pub struct Config {
 	/// outbound federation handler.
 	///
 	/// Basically "global" ACLs. No default.
-	#[serde(default = "Vec::new")]
-	pub forbidden_remote_server_names: Vec<OwnedServerName>,
+	#[serde(default = "HashSet::new")]
+	pub forbidden_remote_server_names: HashSet<OwnedServerName>,
 
 	/// List of forbidden server names that we will block all outgoing federated
 	/// room directory requests for. Useful for preventing our users from
 	/// wandering into bad servers or spaces. No default.
-	#[serde(default = "Vec::new")]
-	pub forbidden_remote_room_directory_server_names: Vec<OwnedServerName>,
+	#[serde(default = "HashSet::new")]
+	pub forbidden_remote_room_directory_server_names: HashSet<OwnedServerName>,
 
 	/// Vector list of IPv4 and IPv6 CIDR ranges / subnets *in quotes* that you
 	/// do not want conduwuit to send outbound requests to. Defaults to

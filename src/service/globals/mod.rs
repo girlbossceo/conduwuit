@@ -252,10 +252,6 @@ impl Service {
 
 	pub fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
 
-	pub fn forbidden_remote_room_directory_server_names(&self) -> &[OwnedServerName] {
-		&self.config.forbidden_remote_room_directory_server_names
-	}
-
 	pub fn well_known_support_page(&self) -> &Option<Url> { &self.config.well_known.support_page }
 
 	pub fn well_known_support_role(&self) -> &Option<ContactRole> { &self.config.well_known.support_role }

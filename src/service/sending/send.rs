@@ -1,8 +1,8 @@
 use std::{fmt::Debug, mem};
 
 use conduit::{
-	debug, debug_error, debug_info, debug_warn, err, error::inspect_debug_log, implement, trace, utils::string::EMPTY,
-	Err, Error, Result,
+	debug, debug_error, debug_warn, err, error::inspect_debug_log, implement, trace, utils::string::EMPTY, Err, Error,
+	Result,
 };
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
@@ -36,10 +36,9 @@ impl super::Service {
 			.server
 			.config
 			.forbidden_remote_server_names
-			.contains(&dest.to_owned())
+			.contains(dest)
 		{
-			debug_info!("Refusing to send outbound federation request to {dest}");
-			return Err!(Request(Forbidden("Federation with this homeserver is not allowed.")));
+			return Err!(Request(Forbidden(debug_warn!("Federation with this {dest} is not allowed."))));
 		}
 
 		let actual = self.services.resolver.get_actual_dest(dest).await?;
