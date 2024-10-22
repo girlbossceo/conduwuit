@@ -20,7 +20,10 @@ use ruma::{
 use tokio::sync::Mutex;
 
 use self::data::Data;
-pub use self::dest::Destination;
+pub use self::{
+	dest::Destination,
+	sender::{EDU_LIMIT, PDU_LIMIT},
+};
 use crate::{account_data, client, globals, presence, pusher, resolver, rooms, server_keys, users, Dep};
 
 pub struct Service {

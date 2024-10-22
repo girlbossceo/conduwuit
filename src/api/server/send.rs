@@ -21,15 +21,15 @@ use ruma::{
 	OwnedEventId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
+use service::{
+	sending::{EDU_LIMIT, PDU_LIMIT},
+	Services,
+};
 
 use crate::{
-	services::Services,
 	utils::{self},
 	Ruma,
 };
-
-const PDU_LIMIT: usize = 50;
-const EDU_LIMIT: usize = 100;
 
 type ResolvedMap = BTreeMap<OwnedEventId, Result<()>>;
 
