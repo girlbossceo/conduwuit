@@ -1,18 +1,21 @@
-use std::{fmt::Write as _, fs::File, io::Write as _};
+use std::{
+	collections::{HashMap, HashSet},
+	fmt::Write as _,
+	fs::OpenOptions,
+	io::Write as _,
+};
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-	parse::Parser, punctuated::Punctuated, Error, Expr, ExprLit, Field, Fields, FieldsNamed, ItemStruct, Lit, Meta,
-	MetaList, MetaNameValue, Type, TypePath,
+	parse::Parser, punctuated::Punctuated, spanned::Spanned, Error, Expr, ExprLit, Field, Fields, FieldsNamed,
+	ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, TypePath,
 };
 
 use crate::{utils::is_cargo_build, Result};
 
 const UNDOCUMENTED: &str = "# This item is undocumented. Please contribute documentation for it.";
-const HEADER: &str = "## Conduwuit Configuration\n##\n## THIS FILE IS GENERATED. Changes to documentation and \
-                      defaults must\n## be made within the code found at src/core/config/\n";
 
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<TokenStream> {
@@ -25,11 +28,41 @@ pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<Toke
 
 #[allow(clippy::needless_pass_by_value)]
 #[allow(unused_variables)]
-fn generate_example(input: &ItemStruct, _args: &[Meta]) -> Result<()> {
-	let mut file = File::create("conduwuit-example.toml")
+fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
+	let settings = get_settings(args);
+
+	let filename = settings
+		.get("filename")
+		.ok_or_else(|| Error::new(args[0].span(), "missing required 'filename' attribute argument"))?;
+
+	let undocumented = settings
+		.get("undocumented")
+		.map_or(UNDOCUMENTED, String::as_str);
+
+	let ignore: HashSet<&str> = settings
+		.get("ignore")
+		.map_or("", String::as_str)
+		.split(' ')
+		.collect();
+
+	let section = settings
+		.get("section")
+		.ok_or_else(|| Error::new(args[0].span(), "missing required 'section' attribute argument"))?;
+
+	let mut file = OpenOptions::new()
+		.write(true)
+		.create(section == "global")
+		.truncate(section == "global")
+		.append(section != "global")
+		.open(filename)
 		.map_err(|e| Error::new(Span::call_site(), format!("Failed to open config file for generation: {e}")))?;
 
-	file.write_all(HEADER.as_bytes())
+	if let Some(header) = settings.get("header") {
+		file.write_all(header.as_bytes())
+			.expect("written to config file");
+	}
+
+	file.write_fmt(format_args!("\n[{section}]\n"))
 		.expect("written to config file");
 
 	if let Fields::Named(FieldsNamed {
@@ -42,12 +75,16 @@ fn generate_example(input: &ItemStruct, _args: &[Meta]) -> Result<()> {
 				continue;
 			};
 
+			if ignore.contains(ident.to_string().as_str()) {
+				continue;
+			}
+
 			let Some(type_name) = get_type_name(field) else {
 				continue;
 			};
 
 			let doc = get_doc_comment(field)
-				.unwrap_or_else(|| UNDOCUMENTED.into())
+				.unwrap_or_else(|| undocumented.into())
 				.trim_end()
 				.to_owned();
 
@@ -75,7 +112,45 @@ fn generate_example(input: &ItemStruct, _args: &[Meta]) -> Result<()> {
 		}
 	}
 
+	if let Some(footer) = settings.get("footer") {
+		file.write_all(footer.as_bytes())
+			.expect("written to config file");
+	}
+
 	Ok(())
+}
+
+fn get_settings(args: &[Meta]) -> HashMap<String, String> {
+	let mut map = HashMap::new();
+	for arg in args {
+		let Meta::NameValue(MetaNameValue {
+			path,
+			value,
+			..
+		}) = arg
+		else {
+			continue;
+		};
+
+		let Expr::Lit(
+			ExprLit {
+				lit: Lit::Str(str),
+				..
+			},
+			..,
+		) = value
+		else {
+			continue;
+		};
+
+		let Some(key) = path.segments.iter().next().map(|s| s.ident.clone()) else {
+			continue;
+		};
+
+		map.insert(key.to_string(), str.value());
+	}
+
+	map
 }
 
 fn get_default(field: &Field) -> Option<String> {

@@ -28,10 +28,19 @@ use self::proxy::ProxyConfig;
 use crate::{err, error::Error, utils::sys, Result};
 
 /// all the config options for conduwuit
-#[config_example_generator]
-#[derive(Clone, Debug, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 #[allow(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
+#[derive(Clone, Debug, Deserialize)]
+#[config_example_generator(
+	filename = "conduwuit-example.toml",
+	section = "global",
+	undocumented = "# This item is undocumented. Please contribute documentation for it.",
+	header = "### Conduwuit Configuration\n###\n### THIS FILE IS GENERATED. YOUR CHANGES WILL BE OVERWRITTEN!\n### \
+	          You should rename this file before configuring your server. Changes\n### to documentation and defaults \
+	          can be contributed in sourcecode at\n### src/core/config/mod.rs. This file is generated when \
+	          building.\n###\n",
+	ignore = "catchall well_known tls"
+)]
 pub struct Config {
 	/// The server_name is the pretty name of this server. It is used as a
 	/// suffix for user and room ids. Examples: matrix.org, conduit.rs
@@ -71,6 +80,7 @@ pub struct Config {
 	#[serde(default = "default_port")]
 	port: ListeningPort,
 
+	// external structure; separate section
 	pub tls: Option<TlsConfig>,
 
 	/// Uncomment unix_socket_path to listen on a UNIX socket at the specified
@@ -458,15 +468,18 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub allow_unstable_room_versions: bool,
 
+	/// default: 10
 	#[serde(default = "default_default_room_version")]
 	pub default_room_version: RoomVersionId,
 
+	// external structure; separate section
 	#[serde(default)]
 	pub well_known: WellKnownConfig,
 
 	#[serde(default)]
 	pub allow_jaeger: bool,
 
+	/// default: "info"
 	#[serde(default = "default_jaeger_filter")]
 	pub jaeger_filter: String,
 
@@ -478,12 +491,38 @@ pub struct Config {
 	#[serde(default)]
 	pub tracing_flame: bool,
 
+	/// default: "info"
 	#[serde(default = "default_tracing_flame_filter")]
 	pub tracing_flame_filter: String,
 
+	/// default: "./tracing.folded"
 	#[serde(default = "default_tracing_flame_output_path")]
 	pub tracing_flame_output_path: String,
 
+	/// Examples:
+	/// - No proxy (default):
+	/// proxy ="none"
+	///
+	/// - For global proxy, create the section at the bottom of this file:
+	/// [global.proxy]
+	/// global = { url = "socks5h://localhost:9050" }
+	///
+	/// - To proxy some domains:
+	/// [global.proxy]
+	/// [[global.proxy.by_domain]]
+	/// url = "socks5h://localhost:9050"
+	/// include = ["*.onion", "matrix.myspecial.onion"]
+	/// exclude = ["*.myspecial.onion"]
+	///
+	/// Include vs. Exclude:
+	/// - If include is an empty list, it is assumed to be `["*"]`.
+	/// - If a domain matches both the exclude and include list, the proxy will
+	///   only be used if it was included because of a more specific rule than
+	///   it was excluded. In the above example, the proxy would be used for
+	///   `ordinary.onion`, `matrix.myspecial.onion`, but not
+	///   `hello.myspecial.onion`.
+	///
+	/// default: "none"
 	#[serde(default)]
 	pub proxy: ProxyConfig,
 
@@ -1278,6 +1317,7 @@ pub struct Config {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[config_example_generator(filename = "conduwuit-example.toml", section = "global.tls")]
 pub struct TlsConfig {
 	pub certs: String,
 	pub key: String,
@@ -1287,6 +1327,7 @@ pub struct TlsConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
+#[config_example_generator(filename = "conduwuit-example.toml", section = "global.well_known")]
 pub struct WellKnownConfig {
 	pub client: Option<Url>,
 	pub server: Option<OwnedServerName>,
