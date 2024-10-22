@@ -359,7 +359,7 @@ impl Service {
 				};
 
 				// Skip the PDU if it is redacted and we already have it as an outlier event
-				if self.services.timeline.get_pdu_json(event_id).await.is_ok() {
+				if self.services.timeline.pdu_exists(event_id).await {
 					return Err!(Request(InvalidParam("Event was redacted and we already knew about it")));
 				}
 
@@ -1123,7 +1123,6 @@ impl Service {
 			let mut todo_auth_events = vec![Arc::clone(id)];
 			let mut events_in_reverse_order = Vec::with_capacity(todo_auth_events.len());
 			let mut events_all = HashSet::with_capacity(todo_auth_events.len());
-			let mut i: u64 = 0;
 			while let Some(next_id) = todo_auth_events.pop() {
 				if let Some((time, tries)) = self
 					.services
@@ -1146,12 +1145,7 @@ impl Service {
 					continue;
 				}
 
-				i = i.saturating_add(1);
-				if i % 100 == 0 {
-					tokio::task::yield_now().await;
-				}
-
-				if self.services.timeline.get_pdu(&next_id).await.is_ok() {
+				if self.services.timeline.pdu_exists(&next_id).await {
 					trace!("Found {next_id} in db");
 					continue;
 				}
