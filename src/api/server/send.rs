@@ -118,15 +118,12 @@ async fn handle_pdus(
 			.lock(&room_id)
 			.await;
 
-		resolved_map.insert(
-			event_id.clone(),
-			services
-				.rooms
-				.event_handler
-				.handle_incoming_pdu(origin, &room_id, &event_id, value, true)
-				.await
-				.map(|_| ()),
-		);
+		let result = services
+			.rooms
+			.event_handler
+			.handle_incoming_pdu(origin, &room_id, &event_id, value, true)
+			.await
+			.map(|_| ());
 
 		drop(mutex_lock);
 		debug!(
@@ -134,12 +131,14 @@ async fn handle_pdus(
 			txn_elapsed = ?txn_start_time.elapsed(),
 			"Finished PDU {event_id}",
 		);
+
+		resolved_map.insert(event_id, result);
 	}
 
-	for pdu in &resolved_map {
-		if let Err(e) = pdu.1 {
+	for (id, result) in &resolved_map {
+		if let Err(e) = result {
 			if matches!(e, Error::BadRequest(ErrorKind::NotFound, _)) {
-				warn!("Incoming PDU failed {pdu:?}");
+				warn!("Incoming PDU failed {id}: {e:?}");
 			}
 		}
 	}
