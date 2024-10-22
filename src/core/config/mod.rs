@@ -54,9 +54,9 @@ pub struct Config {
 	/// want this to be localhost (127.0.0.1 / ::1). If you are using Docker or
 	/// a container NAT networking setup, you likely need this to be 0.0.0.0.
 	/// To listen multiple addresses, specify a vector e.g. ["127.0.0.1", "::1"]
+	/// Default if unspecified is both IPv4 and IPv6 localhost.
 	///
-	/// default if unspecified is both IPv4 and IPv6 localhost: ["127.0.0.1",
-	/// "::1"]
+	/// default: ["127.0.0.1", "::1"]
 	#[serde(default = "default_address")]
 	address: ListeningAddr,
 
@@ -67,7 +67,7 @@ pub struct Config {
 	/// port to this. To listen on multiple ports, specify a vector e.g. [8080,
 	/// 8448]
 	///
-	/// default if unspecified is 8008
+	/// default: 8008
 	#[serde(default = "default_port")]
 	port: ListeningPort,
 
@@ -80,9 +80,11 @@ pub struct Config {
 	/// (666 minimum).
 	pub unix_socket_path: Option<PathBuf>,
 
+	/// default: 660
 	#[serde(default = "default_unix_socket_perms")]
 	pub unix_socket_perms: u32,
 
+	/// default: rocksdb
 	#[serde(default = "default_database_backend")]
 	pub database_backend: String,
 
@@ -98,7 +100,9 @@ pub struct Config {
 	/// Set this to any float value in megabytes for conduwuit to tell the
 	/// database engine that this much memory is available for database-related
 	/// caches.  May be useful if you have significant memory to spare to
-	/// increase performance.  Defaults to 256.0
+	/// increase performance.
+	///
+	/// default: 256.0
 	#[serde(default = "default_db_cache_capacity_mb")]
 	pub db_cache_capacity_mb: f64,
 
@@ -107,6 +111,8 @@ pub struct Config {
 	/// lightning bolt emoji option, just replaced with support for adding your
 	/// own custom text or emojis.  To disable, set this to "" (an empty string)
 	/// Defaults to "🏳️⚧️" (trans pride flag)
+	///
+	/// default: 🏳️⚧️
 	#[serde(default = "default_new_user_displayname_suffix")]
 	pub new_user_displayname_suffix: String,
 
@@ -123,11 +129,10 @@ pub struct Config {
 
 	/// Set this to any float value to multiply conduwuit's in-memory LRU caches
 	/// with. May be useful if you have significant memory to spare to increase
-	/// performance.
+	/// performance. This was previously called
+	/// `conduit_cache_capacity_modifier`.
 	///
-	/// This was previously called `conduit_cache_capacity_modifier`
-	///
-	/// Defaults to 1.0.
+	/// default: 1.0.
 	#[serde(default = "default_cache_capacity_modifier", alias = "conduit_cache_capacity_modifier")]
 	pub cache_capacity_modifier: f64,
 
@@ -197,11 +202,9 @@ pub struct Config {
 	pub dns_tcp_fallback: bool,
 
 	/// Enable to query all nameservers until the domain is found. Referred to
-	/// as "trust_negative_responses" in hickory_reso> This can avoid useless
-	/// DNS queries if the first nameserver responds with NXDOMAIN or an empty
-	/// NOERROR response.
-	///
-	/// The default is to query one nameserver and stop (false).
+	/// as "trust_negative_responses" in hickory_resolver. This can avoid
+	/// useless DNS queries if the first nameserver responds with NXDOMAIN or
+	/// an empty NOERROR response.
 	#[serde(default = "true_fn")]
 	pub query_all_nameservers: bool,
 
@@ -230,116 +233,121 @@ pub struct Config {
 	///
 	/// Defaults to 5 - Ipv4ThenIpv6 as this is the most compatible and IPv4
 	/// networking is currently the most prevalent.
+	///
+	/// default: 5
 	#[serde(default = "default_ip_lookup_strategy")]
 	pub ip_lookup_strategy: u8,
 
 	/// Max request size for file uploads
+	///
+	/// default: 20971520
 	#[serde(default = "default_max_request_size")]
 	pub max_request_size: usize,
 
 	#[serde(default = "default_max_fetch_prev_events")]
 	pub max_fetch_prev_events: u16,
 
-	/// Default/base connection timeout.
-	/// This is used only by URL previews and update/news endpoint checks
+	/// Default/base connection timeout (seconds). This is used only by URL
+	/// previews and update/news endpoint checks.
 	///
-	/// Defaults to 10 seconds
+	/// default: 10
 	#[serde(default = "default_request_conn_timeout")]
 	pub request_conn_timeout: u64,
 
-	/// Default/base request timeout. The time waiting to receive more data from
-	/// another server. This is used only by URL previews, update/news, and
-	/// misc endpoint checks
+	/// Default/base request timeout (seconds). The time waiting to receive more
+	/// data from another server. This is used only by URL previews,
+	/// update/news, and misc endpoint checks.
 	///
-	/// Defaults to 35 seconds
+	/// default: 35
 	#[serde(default = "default_request_timeout")]
 	pub request_timeout: u64,
 
-	/// Default/base request total timeout. The time limit for a whole request.
-	/// This is set very high to not cancel healthy requests while serving as a
-	/// backstop. This is used only by URL previews and update/news endpoint
-	/// checks
+	/// Default/base request total timeout (seconds). The time limit for a whole
+	/// request. This is set very high to not cancel healthy requests while
+	/// serving as a backstop. This is used only by URL previews and
+	/// update/news endpoint checks.
 	///
-	/// Defaults to 320 seconds
+	/// default: 320
 	#[serde(default = "default_request_total_timeout")]
 	pub request_total_timeout: u64,
 
-	/// Default/base idle connection pool timeout
-	/// This is used only by URL previews and update/news endpoint checks
+	/// Default/base idle connection pool timeout (seconds). This is used only
+	/// by URL previews and update/news endpoint checks.
 	///
-	/// Defaults to 5 seconds
+	/// default: 5
 	#[serde(default = "default_request_idle_timeout")]
 	pub request_idle_timeout: u64,
 
-	/// Default/base max idle connections per host
-	/// This is used only by URL previews and update/news endpoint checks
+	/// Default/base max idle connections per host. This is used only by URL
+	/// previews and update/news endpoint checks. Defaults to 1 as generally the
+	/// same open connection can be re-used.
 	///
-	/// Defaults to 1 as generally the same open connection can be re-used
+	/// default: 1
 	#[serde(default = "default_request_idle_per_host")]
 	pub request_idle_per_host: u16,
 
-	/// Federation well-known resolution connection timeout
+	/// Federation well-known resolution connection timeout (seconds)
 	///
-	/// Defaults to 6 seconds
+	/// default: 6
 	#[serde(default = "default_well_known_conn_timeout")]
 	pub well_known_conn_timeout: u64,
 
-	/// Federation HTTP well-known resolution request timeout
+	/// Federation HTTP well-known resolution request timeout (seconds)
 	///
-	/// Defaults to 10 seconds
+	/// default: 10
 	#[serde(default = "default_well_known_timeout")]
 	pub well_known_timeout: u64,
 
-	/// Federation client request timeout
-	/// You most definitely want this to be high to account for extremely large
-	/// room joins, slow homeservers, your own resources etc.
+	/// Federation client request timeout (seconds). You most definitely want
+	/// this to be high to account for extremely large room joins, slow
+	/// homeservers, your own resources etc.
 	///
-	/// Defaults to 300 seconds
+	/// default: 300
 	#[serde(default = "default_federation_timeout")]
 	pub federation_timeout: u64,
 
-	/// Federation client idle connection pool timeout
+	/// Federation client idle connection pool timeout (seconds)
 	///
-	/// Defaults to 25 seconds
+	/// default: 25
 	#[serde(default = "default_federation_idle_timeout")]
 	pub federation_idle_timeout: u64,
 
-	/// Federation client max idle connections per host
+	/// Federation client max idle connections per host. Defaults to 1 as
+	/// generally the same open connection can be re-used
 	///
-	/// Defaults to 1 as generally the same open connection can be re-used
+	/// default: 1
 	#[serde(default = "default_federation_idle_per_host")]
 	pub federation_idle_per_host: u16,
 
-	/// Federation sender request timeout
-	/// The time it takes for the remote server to process sent transactions can
-	/// take a while.
+	/// Federation sender request timeout (seconds). The time it takes for the
+	/// remote server to process sent transactions can take a while.
 	///
-	/// Defaults to 180 seconds
+	/// default: 180
 	#[serde(default = "default_sender_timeout")]
 	pub sender_timeout: u64,
 
-	/// Federation sender idle connection pool timeout
+	/// Federation sender idle connection pool timeout (seconds)
 	///
-	/// Defaults to 180 seconds
+	/// default: 180
 	#[serde(default = "default_sender_idle_timeout")]
 	pub sender_idle_timeout: u64,
 
-	/// Federation sender transaction retry backoff limit
+	/// Federation sender transaction retry backoff limit (seconds)
 	///
-	/// Defaults to 86400 seconds
+	/// default: 86400
 	#[serde(default = "default_sender_retry_backoff_limit")]
 	pub sender_retry_backoff_limit: u64,
 
-	/// Appservice URL request connection timeout
+	/// Appservice URL request connection timeout. Defaults to 35 seconds as
+	/// generally appservices are hosted within the same network.
 	///
-	/// Defaults to 35 seconds as generally appservices are hosted within the
-	/// same network
+	/// default: 35
 	#[serde(default = "default_appservice_timeout")]
 	pub appservice_timeout: u64,
 
-	/// Appservice URL idle connection pool timeout
+	/// Appservice URL idle connection pool timeout (seconds)
 	///
-	/// Defaults to 300 seconds
+	/// default: 300
 	#[serde(default = "default_appservice_idle_timeout")]
 	pub appservice_idle_timeout: u64,
 
@@ -377,12 +385,11 @@ pub struct Config {
 	/// no default
 	pub registration_token_file: Option<PathBuf>,
 
-	/// controls whether encrypted rooms and events are allowed (default true)
+	/// Controls whether encrypted rooms and events are allowed.
 	#[serde(default = "true_fn")]
 	pub allow_encryption: bool,
 
-	/// controls whether federation is allowed or not
-	/// defaults to true
+	/// Controls whether federation is allowed or not.
 	#[serde(default = "true_fn")]
 	pub allow_federation: bool,
 
@@ -487,6 +494,8 @@ pub struct Config {
 	///
 	/// (Currently, conduwuit doesn't support batched key requests, so this list
 	/// should only contain other Synapse servers) Defaults to `matrix.org`
+	///
+	/// default: ["matrix.org"]
 	#[serde(default = "default_trusted_servers")]
 	pub trusted_servers: Vec<OwnedServerName>,
 
@@ -527,13 +536,13 @@ pub struct Config {
 	/// binary from trace macros. For debug builds, this restriction is not
 	/// applied.
 	///
-	/// Defaults to "info"
+	/// default: "info"
 	#[serde(default = "default_log")]
 	pub log: String,
 
 	/// controls whether logs will be outputted with ANSI colours
 	///
-	/// defaults to true
+	/// default: true
 	#[serde(default = "true_fn", alias = "log_colours")]
 	pub log_colors: bool,
 
@@ -542,7 +551,7 @@ pub struct Config {
 	/// These are the OpenID tokens that are primarily used for Matrix account
 	/// integrations, *not* OIDC/OpenID Connect/etc
 	///
-	/// Defaults to 3600 (1 hour)
+	/// default: 3600
 	#[serde(default = "default_openid_token_ttl")]
 	pub openid_token_ttl: u64,
 
@@ -585,9 +594,9 @@ pub struct Config {
 	/// no default
 	pub turn_secret_file: Option<PathBuf>,
 
-	/// TURN TTL
+	/// TURN TTL in seconds
 	///
-	/// Default is 86400 seconds
+	/// default: 86400
 	#[serde(default = "default_turn_ttl")]
 	pub turn_ttl: u64,
 
@@ -629,10 +638,14 @@ pub struct Config {
 	pub rocksdb_log_stderr: bool,
 
 	/// Max RocksDB `LOG` file size before rotating in bytes. Defaults to 4MB.
+	///
+	/// default: 4194304
 	#[serde(default = "default_rocksdb_max_log_file_size")]
 	pub rocksdb_max_log_file_size: usize,
 
-	/// Time in seconds before RocksDB will forcibly rotate logs. Defaults to 0.
+	/// Time in seconds before RocksDB will forcibly rotate logs.
+	///
+	/// default: 0
 	#[serde(default = "default_rocksdb_log_time_to_roll")]
 	pub rocksdb_log_time_to_roll: usize,
 
@@ -649,8 +662,6 @@ pub struct Config {
 	/// RocksDB issues, try enabling this option as it turns off Direct IO and
 	/// feel free to report in the conduwuit Matrix room if this option fixes
 	/// your DB issues. See https://github.com/facebook/rocksdb/wiki/Direct-IO for more information.
-	///
-	/// Defaults to false
 	#[serde(default)]
 	pub rocksdb_optimize_for_spinning_disks: bool,
 
@@ -662,14 +673,16 @@ pub struct Config {
 
 	/// Amount of threads that RocksDB will use for parallelism on database
 	/// operatons such as cleanup, sync, flush, compaction, etc. Set to 0 to use
-	/// all your logical threads.
+	/// all your logical threads. Defaults to your CPU logical thread count.
 	///
-	/// Defaults to your CPU logical thread count.
+	/// default: 0
 	#[serde(default = "default_rocksdb_parallelism_threads")]
 	pub rocksdb_parallelism_threads: usize,
 
 	/// Maximum number of LOG files RocksDB will keep. This must *not* be set to
 	/// 0. It must be at least 1. Defaults to 3 as these are not very useful.
+	///
+	/// default: 3
 	#[serde(default = "default_rocksdb_max_log_files")]
 	pub rocksdb_max_log_files: usize,
 
@@ -682,7 +695,7 @@ pub struct Config {
 	///
 	/// "none" will disable compression.
 	///
-	/// Defaults to "zstd"
+	/// default: "zstd"
 	#[serde(default = "default_rocksdb_compression_algo")]
 	pub rocksdb_compression_algo: String,
 
@@ -746,6 +759,8 @@ pub struct Config {
 	/// See https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes for more information
 	///
 	/// Defaults to 1 (TolerateCorruptedTailRecords)
+	///
+	/// default: 1
 	#[serde(default = "default_rocksdb_recovery_mode")]
 	pub rocksdb_recovery_mode: u8,
 
@@ -760,8 +775,6 @@ pub struct Config {
 	///   repair.
 	/// - Disabling repair mode and restarting the server is recommended after
 	///   running the repair.
-	///
-	/// Defaults to false
 	#[serde(default)]
 	pub rocksdb_repair: bool,
 
@@ -798,6 +811,8 @@ pub struct Config {
 	/// 6 = All statistics.
 	///
 	/// Defaults to 1 (No statistics, except in debug-mode)
+	///
+	/// default: 1
 	#[serde(default = "default_rocksdb_stats_level")]
 	pub rocksdb_stats_level: u8,
 
@@ -831,11 +846,15 @@ pub struct Config {
 
 	/// Config option to control how many seconds before presence updates that
 	/// you are idle. Defaults to 5 minutes.
+	///
+	/// default: 300
 	#[serde(default = "default_presence_idle_timeout_s")]
 	pub presence_idle_timeout_s: u64,
 
 	/// Config option to control how many seconds before presence updates that
 	/// you are offline. Defaults to 30 minutes.
+	///
+	/// default: 1800
 	#[serde(default = "default_presence_offline_timeout_s")]
 	pub presence_offline_timeout_s: u64,
 
@@ -843,42 +862,46 @@ pub struct Config {
 	/// Disabling is offered as an optimization for servers participating in
 	/// many large rooms or when resources are limited. Disabling it may cause
 	/// incorrect presence states (i.e. stuck online) to be seen for some
-	/// remote users. Defaults to true.
+	/// remote users.
 	#[serde(default = "true_fn")]
 	pub presence_timeout_remote_users: bool,
 
 	/// Config option to control whether we should receive remote incoming read
-	/// receipts. Defaults to true.
+	/// receipts.
 	#[serde(default = "true_fn")]
 	pub allow_incoming_read_receipts: bool,
 
 	/// Config option to control whether we should send read receipts to remote
-	/// servers. Defaults to true.
+	/// servers.
 	#[serde(default = "true_fn")]
 	pub allow_outgoing_read_receipts: bool,
 
-	/// Config option to control outgoing typing updates to federation. Defaults
-	/// to true.
+	/// Config option to control outgoing typing updates to federation.
 	#[serde(default = "true_fn")]
 	pub allow_outgoing_typing: bool,
 
 	/// Config option to control incoming typing updates from federation.
-	/// Defaults to true.
 	#[serde(default = "true_fn")]
 	pub allow_incoming_typing: bool,
 
 	/// Config option to control maximum time federation user can indicate
 	/// typing.
+	///
+	/// default: 30
 	#[serde(default = "default_typing_federation_timeout_s")]
 	pub typing_federation_timeout_s: u64,
 
 	/// Config option to control minimum time local client can indicate typing.
 	/// This does not override a client's request to stop typing. It only
 	/// enforces a minimum value in case of no stop request.
+	///
+	/// default: 15
 	#[serde(default = "default_typing_client_timeout_min_s")]
 	pub typing_client_timeout_min_s: u64,
 
 	/// Config option to control maximum time local client can indicate typing.
+	///
+	/// default: 45
 	#[serde(default = "default_typing_client_timeout_max_s")]
 	pub typing_client_timeout_max_s: u64,
 
@@ -910,7 +933,7 @@ pub struct Config {
 	pub brotli_compression: bool,
 
 	/// Set to true to allow user type "guest" registrations. Element attempts
-	/// to register guest users automatically. Defaults to false
+	/// to register guest users automatically. Defaults to false.
 	#[serde(default)]
 	pub allow_guest_registration: bool,
 
@@ -920,7 +943,7 @@ pub struct Config {
 	pub log_guest_registrations: bool,
 
 	/// Set to true to allow guest registrations/users to auto join any rooms
-	/// specified in `auto_join_rooms` Defaults to false
+	/// specified in `auto_join_rooms` Defaults to false.
 	#[serde(default)]
 	pub allow_guests_auto_join_rooms: bool,
 
@@ -964,9 +987,7 @@ pub struct Config {
 	/// is now disabled by default. You may still return to upstream Conduit
 	/// but you have to run Conduwuit at least once with this set to true and
 	/// allow the media_startup_check to take place before shutting
-	/// down to return to Conduit.
-	///
-	/// Disabled by default.
+	/// down to return to Conduit. Disabled by default.
 	#[serde(default)]
 	pub media_compat_file_link: bool,
 
@@ -975,9 +996,7 @@ pub struct Config {
 	/// corresponding entries will be removed from the database. This is
 	/// disabled by default because if the media directory is accidentally moved
 	/// or inaccessible the metadata entries in the database will be lost with
-	/// sadness.
-	///
-	/// Disabled by default.
+	/// sadness. Disabled by default.
 	#[serde(default)]
 	pub prune_missing_media: bool,
 
@@ -1008,12 +1027,35 @@ pub struct Config {
 	/// RFC1918, unroutable, loopback, multicast, and testnet addresses for
 	/// security.
 	///
-	/// To disable, set this to be an empty vector (`[]`).
 	/// Please be aware that this is *not* a guarantee. You should be using a
 	/// firewall with zones as doing this on the application layer may have
 	/// bypasses.
 	///
 	/// Currently this does not account for proxies in use like Synapse does.
+	///
+	/// To disable, set this to be an empty vector (`[]`).
+	/// The default is:
+	/// [
+	/// "127.0.0.0/8",
+	/// "10.0.0.0/8",
+	/// "172.16.0.0/12",
+	/// "192.168.0.0/16",
+	/// "100.64.0.0/10",
+	/// "192.0.0.0/24",
+	/// "169.254.0.0/16",
+	/// "192.88.99.0/24",
+	/// "198.18.0.0/15",
+	/// "192.0.2.0/24",
+	/// "198.51.100.0/24",
+	/// "203.0.113.0/24",
+	/// "224.0.0.0/4",
+	/// "::1/128",
+	/// "fe80::/10",
+	/// "fc00::/7",
+	/// "2001:db8::/32",
+	/// "ff00::/8",
+	/// "fec0::/10",
+	/// ]
 	#[serde(default = "default_ip_range_denylist")]
 	pub ip_range_denylist: Vec<String>,
 
@@ -1060,7 +1102,9 @@ pub struct Config {
 	pub url_preview_url_contains_allowlist: Vec<String>,
 
 	/// Maximum amount of bytes allowed in a URL preview body size when
-	/// spidering. Defaults to 384KB (384_000 bytes)
+	/// spidering. Defaults to 384KB.
+	///
+	/// defaukt: 384000
 	#[serde(default = "default_url_preview_max_spider_size")]
 	pub url_preview_max_spider_size: usize,
 
@@ -1109,27 +1153,27 @@ pub struct Config {
 	/// reattempt every message without trimming the queues; this may consume
 	/// significant disk. Set this value to 0 to drop all messages without any
 	/// attempt at redelivery.
+	///
+	/// default: 50
 	#[serde(default = "default_startup_netburst_keep")]
 	pub startup_netburst_keep: i64,
 
 	/// controls whether non-admin local users are forbidden from sending room
 	/// invites (local and remote), and if non-admin users can receive remote
 	/// room invites. admins are always allowed to send and receive all room
-	/// invites. defaults to false
+	/// invites.
 	#[serde(default)]
 	pub block_non_admin_invites: bool,
 
 	/// Allows admins to enter commands in rooms other than #admins by prefixing
 	/// with \!admin. The reply will be publicly visible to the room,
-	/// originating from the sender. defaults to true
+	/// originating from the sender.
 	#[serde(default = "true_fn")]
 	pub admin_escape_commands: bool,
 
 	/// Controls whether the conduwuit admin room console / CLI will immediately
 	/// activate on startup. This option can also be enabled with `--console`
-	/// conduwuit argument
-	///
-	/// Defaults to false
+	/// conduwuit argument.
 	#[serde(default)]
 	pub admin_console_automatic: bool,
 
@@ -1145,21 +1189,20 @@ pub struct Config {
 	/// Such example could be: `./conduwuit --execute "server admin-notice
 	/// conduwuit has started up at $(date)"`
 	///
-	/// Defaults to nothing.
+	/// default: []
 	#[serde(default)]
 	pub admin_execute: Vec<String>,
 
 	/// Controls whether conduwuit should error and fail to start if an admin
-	/// execute command (`--execute` / `admin_execute`) fails
-	///
-	/// Defaults to false
+	/// execute command (`--execute` / `admin_execute`) fails.
 	#[serde(default)]
 	pub admin_execute_errors_ignore: bool,
 
 	/// Controls the max log level for admin command log captures (logs
-	/// generated from running admin commands)
+	/// generated from running admin commands). Defaults to "info" on release
+	/// builds, else "debug" on debug builds.
 	///
-	/// Defaults to "info" on release builds, else "debug" on debug builds
+	/// default: "info"
 	#[serde(default = "default_admin_log_capture")]
 	pub admin_log_capture: String,
 
@@ -1169,8 +1212,6 @@ pub struct Config {
 	/// Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
 	/// This is NOT enabled by default. conduwuit's default Sentry reporting
 	/// endpoint is o4506996327251968.ingest.us.sentry.io
-	///
-	/// Defaults to *false*
 	#[serde(default)]
 	pub sentry: bool,
 
@@ -1182,8 +1223,6 @@ pub struct Config {
 	pub sentry_endpoint: Option<Url>,
 
 	/// Report your Conduwuit server_name in Sentry.io crash reports and metrics
-	///
-	/// Defaults to false
 	#[serde(default)]
 	pub sentry_send_server_name: bool,
 
@@ -1191,9 +1230,9 @@ pub struct Config {
 	///
 	/// Note that too high values may impact performance, and can be disabled by
 	/// setting it to 0.0 (0%) This value is read as a percentage to Sentry,
-	/// represented as a decimal
+	/// represented as a decimal. Defaults to 15% of traces (0.15)
 	///
-	/// Defaults to 15% of traces (0.15)
+	/// default: 0.15
 	#[serde(default = "default_sentry_traces_sample_rate")]
 	pub sentry_traces_sample_rate: f32,
 
