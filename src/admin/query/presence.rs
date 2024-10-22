@@ -42,12 +42,16 @@ pub(super) async fn process(subcommand: PresenceCommand, context: &Command<'_>) 
 			since,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.presence.db.presence_since(since);
-			let presence_since: Vec<(_, _, _)> = results.collect().await;
+			let results: Vec<(_, _, _)> = services
+				.presence
+				.presence_since(since)
+				.map(|(user_id, count, bytes)| (user_id.to_owned(), count, bytes.to_vec()))
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{presence_since:#?}\n```"
+				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
 	}

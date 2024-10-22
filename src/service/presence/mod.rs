@@ -162,8 +162,7 @@ impl Service {
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
-	#[inline]
-	pub fn presence_since(&self, since: u64) -> impl Stream<Item = (OwnedUserId, u64, Vec<u8>)> + Send + '_ {
+	pub fn presence_since(&self, since: u64) -> impl Stream<Item = (&UserId, u64, &[u8])> + Send + '_ {
 		self.db.presence_since(since)
 	}
 

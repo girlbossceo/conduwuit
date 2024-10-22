@@ -488,7 +488,7 @@ async fn process_presence_updates(
 		if !services
 			.rooms
 			.state_cache
-			.user_sees_user(syncing_user, &user_id)
+			.user_sees_user(syncing_user, user_id)
 			.await
 		{
 			continue;
@@ -496,10 +496,10 @@ async fn process_presence_updates(
 
 		let presence_event = services
 			.presence
-			.from_json_bytes_to_event(&presence_bytes, &user_id)
+			.from_json_bytes_to_event(presence_bytes, user_id)
 			.await?;
 
-		match presence_updates.entry(user_id) {
+		match presence_updates.entry(user_id.into()) {
 			Entry::Vacant(slot) => {
 				slot.insert(presence_event);
 			},
@@ -524,7 +524,7 @@ async fn process_presence_updates(
 					.currently_active
 					.or(curr_content.currently_active);
 			},
-		}
+		};
 	}
 
 	Ok(())

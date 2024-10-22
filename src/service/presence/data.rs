@@ -7,7 +7,7 @@ use conduit::{
 };
 use database::{Deserialized, Json, Map};
 use futures::Stream;
-use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
+use ruma::{events::presence::PresenceEvent, presence::PresenceState, UInt, UserId};
 
 use super::Presence;
 use crate::{globals, users, Dep};
@@ -137,13 +137,14 @@ impl Data {
 		self.userid_presenceid.remove(user_id);
 	}
 
-	pub fn presence_since(&self, since: u64) -> impl Stream<Item = (OwnedUserId, u64, Vec<u8>)> + Send + '_ {
+	#[inline]
+	pub(super) fn presence_since(&self, since: u64) -> impl Stream<Item = (&UserId, u64, &[u8])> + Send + '_ {
 		self.presenceid_presence
 			.raw_stream()
 			.ignore_err()
-			.ready_filter_map(move |(key, presence_bytes)| {
-				let (count, user_id) = presenceid_parse(key).expect("invalid presenceid_parse");
-				(count > since).then(|| (user_id.to_owned(), count, presence_bytes.to_vec()))
+			.ready_filter_map(move |(key, presence)| {
+				let (count, user_id) = presenceid_parse(key).ok()?;
+				(count > since).then_some((user_id, count, presence))
 			})
 	}
 }

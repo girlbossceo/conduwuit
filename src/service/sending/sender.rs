@@ -7,7 +7,9 @@ use std::{
 
 use base64::{engine::general_purpose, Engine as _};
 use conduit::{
-	debug, debug_warn, err, trace,
+	debug, debug_warn, err,
+	result::LogErr,
+	trace,
 	utils::{calculate_hash, math::continue_exponential_backoff_secs, ReadyExt},
 	warn, Error, Result,
 };
@@ -315,14 +317,14 @@ impl Service {
 		while let Some((user_id, count, presence_bytes)) = presence_since.next().await {
 			*max_edu_count = cmp::max(count, *max_edu_count);
 
-			if !self.services.globals.user_is_local(&user_id) {
+			if !self.services.globals.user_is_local(user_id) {
 				continue;
 			}
 
 			if !self
 				.services
 				.state_cache
-				.server_sees_user(server_name, &user_id)
+				.server_sees_user(server_name, user_id)
 				.await
 			{
 				continue;
