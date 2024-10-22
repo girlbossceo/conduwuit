@@ -162,7 +162,7 @@ pub(crate) async fn sync_events_v4_route(
 		device_list_changes.extend(
 			services
 				.users
-				.keys_changed(sender_user.as_ref(), globalsince, None)
+				.keys_changed(sender_user, globalsince, None)
 				.map(ToOwned::to_owned)
 				.collect::<Vec<_>>()
 				.await,
@@ -285,7 +285,8 @@ pub(crate) async fn sync_events_v4_route(
 			device_list_changes.extend(
 				services
 					.users
-					.keys_changed(room_id.as_ref(), globalsince, None)
+					.room_keys_changed(room_id, globalsince, None)
+					.map(|(user_id, _)| user_id)
 					.map(ToOwned::to_owned)
 					.collect::<Vec<_>>()
 					.await,

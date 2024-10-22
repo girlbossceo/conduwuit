@@ -13,7 +13,7 @@ use ruma::{
 	events::{ignored_user_list::IgnoredUserListEvent, AnyToDeviceEvent, GlobalAccountDataEventType},
 	serde::Raw,
 	DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedDeviceKeyId,
-	OwnedMxcUri, OwnedUserId, UInt, UserId,
+	OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
 };
 use serde_json::json;
 
@@ -585,9 +585,24 @@ impl Service {
 		Ok(())
 	}
 
+	#[inline]
 	pub fn keys_changed<'a>(
-		&'a self, user_or_room_id: &'a str, from: u64, to: Option<u64>,
+		&'a self, user_id: &'a UserId, from: u64, to: Option<u64>,
 	) -> impl Stream<Item = &UserId> + Send + 'a {
+		self.keys_changed_user_or_room(user_id.as_str(), from, to)
+			.map(|(user_id, ..)| user_id)
+	}
+
+	#[inline]
+	pub fn room_keys_changed<'a>(
+		&'a self, room_id: &'a RoomId, from: u64, to: Option<u64>,
+	) -> impl Stream<Item = (&UserId, u64)> + Send + 'a {
+		self.keys_changed_user_or_room(room_id.as_str(), from, to)
+	}
+
+	fn keys_changed_user_or_room<'a>(
+		&'a self, user_or_room_id: &'a str, from: u64, to: Option<u64>,
+	) -> impl Stream<Item = (&UserId, u64)> + Send + 'a {
 		type KeyVal<'a> = ((&'a str, u64), &'a UserId);
 
 		let to = to.unwrap_or(u64::MAX);
@@ -597,7 +612,7 @@ impl Service {
 			.stream_from(&start)
 			.ignore_err()
 			.ready_take_while(move |((prefix, count), _): &KeyVal<'_>| *prefix == user_or_room_id && *count <= to)
-			.map(|((..), user_id): KeyVal<'_>| user_id)
+			.map(|((_, count), user_id): KeyVal<'_>| (user_id, count))
 	}
 
 	pub async fn mark_device_key_update(&self, user_id: &UserId) {

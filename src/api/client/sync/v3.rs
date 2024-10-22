@@ -138,7 +138,7 @@ pub(crate) async fn sync_events_route(
 	device_list_updates.extend(
 		services
 			.users
-			.keys_changed(sender_user.as_ref(), since, None)
+			.keys_changed(&sender_user, since, None)
 			.map(ToOwned::to_owned)
 			.collect::<Vec<_>>()
 			.await,
@@ -917,7 +917,8 @@ async fn load_joined_room(
 	device_list_updates.extend(
 		services
 			.users
-			.keys_changed(room_id.as_ref(), since, None)
+			.room_keys_changed(room_id, since, None)
+			.map(|(user_id, _)| user_id)
 			.map(ToOwned::to_owned)
 			.collect::<Vec<_>>()
 			.await,
