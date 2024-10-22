@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::{
 	de, ser,
 	ser::{serialize_to_vec, Json},
-	Interfix,
+	Ignore, Interfix,
 };
 
 #[test]
@@ -185,6 +185,66 @@ fn de_tuple() {
 
 	assert_eq!(a, user_id, "deserialized user_id does not match");
 	assert_eq!(b, room_id, "deserialized room_id does not match");
+}
+
+#[test]
+#[should_panic(expected = "failed to deserialize")]
+fn de_tuple_invalid() {
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+
+	let raw: &[u8] = b"@user:example.com\xFF@user:example.com";
+	let (a, b): (&UserId, &RoomId) = de::from_slice(raw).expect("failed to deserialize");
+
+	assert_eq!(a, user_id, "deserialized user_id does not match");
+	assert_eq!(b, room_id, "deserialized room_id does not match");
+}
+
+#[test]
+#[should_panic(expected = "failed to deserialize")]
+fn de_tuple_incomplete() {
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let raw: &[u8] = b"@user:example.com";
+	let (a, _): (&UserId, &RoomId) = de::from_slice(raw).expect("failed to deserialize");
+
+	assert_eq!(a, user_id, "deserialized user_id does not match");
+}
+
+#[test]
+#[should_panic(expected = "failed to deserialize")]
+fn de_tuple_incomplete_with_sep() {
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let raw: &[u8] = b"@user:example.com\xFF";
+	let (a, _): (&UserId, &RoomId) = de::from_slice(raw).expect("failed to deserialize");
+
+	assert_eq!(a, user_id, "deserialized user_id does not match");
+}
+
+#[test]
+#[should_panic(expected = "deserialization failed to consume trailing bytes")]
+fn de_tuple_unfinished() {
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+
+	let raw: &[u8] = b"@user:example.com\xFF!room:example.com\xFF@user:example.com";
+	let (a, b): (&UserId, &RoomId) = de::from_slice(raw).expect("failed to deserialize");
+
+	assert_eq!(a, user_id, "deserialized user_id does not match");
+	assert_eq!(b, room_id, "deserialized room_id does not match");
+}
+
+#[test]
+fn de_tuple_ignore() {
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+
+	let raw: &[u8] = b"@user:example.com\xFF@user2:example.net\xFF!room:example.com";
+	let (a, _, c): (&UserId, Ignore, &RoomId) = de::from_slice(raw).expect("failed to deserialize");
+
+	assert_eq!(a, user_id, "deserialized user_id does not match");
+	assert_eq!(c, room_id, "deserialized room_id does not match");
 }
 
 #[test]
