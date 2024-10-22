@@ -71,7 +71,7 @@ pub(crate) async fn send_transaction_message_route(
 		"Starting txn",
 	);
 
-	let resolved_map = handle_pdus(&services, &client, &body.pdus, origin, &txn_start_time).await;
+	let resolved_map = handle_pdus(&services, &client, &body.pdus, origin, &txn_start_time).await?;
 	handle_edus(&services, &client, &body.edus, origin).await;
 
 	debug!(
@@ -93,7 +93,7 @@ pub(crate) async fn send_transaction_message_route(
 
 async fn handle_pdus(
 	services: &Services, _client: &IpAddr, pdus: &[Box<RawJsonValue>], origin: &ServerName, txn_start_time: &Instant,
-) -> ResolvedMap {
+) -> Result<ResolvedMap> {
 	let mut parsed_pdus = Vec::with_capacity(pdus.len());
 	for pdu in pdus {
 		parsed_pdus.push(match services.rooms.event_handler.parse_incoming_pdu(pdu).await {
@@ -110,6 +110,7 @@ async fn handle_pdus(
 
 	let mut resolved_map = BTreeMap::new();
 	for (event_id, value, room_id) in parsed_pdus {
+		services.server.check_running()?;
 		let pdu_start_time = Instant::now();
 		let mutex_lock = services
 			.rooms
@@ -143,7 +144,7 @@ async fn handle_pdus(
 		}
 	}
 
-	resolved_map
+	Ok(resolved_map)
 }
 
 async fn handle_edus(services: &Services, client: &IpAddr, edus: &[Raw<Edu>], origin: &ServerName) {

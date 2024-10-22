@@ -5,7 +5,7 @@ use std::{
 
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config::Config, log::Log, metrics::Metrics, Err, Result};
+use crate::{config::Config, err, log::Log, metrics::Metrics, Err, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
@@ -105,6 +105,13 @@ impl Server {
 		self.runtime
 			.as_ref()
 			.expect("runtime handle available in Server")
+	}
+
+	#[inline]
+	pub fn check_running(&self) -> Result {
+		self.running()
+			.then_some(())
+			.ok_or_else(|| err!(debug_warn!("Server is shutting down.")))
 	}
 
 	#[inline]

@@ -205,6 +205,7 @@ impl Service {
 
 		debug!(events = ?sorted_prev_events, "Got previous events");
 		for prev_id in sorted_prev_events {
+			self.services.server.check_running()?;
 			match self
 				.handle_prev_pdu(
 					origin,
@@ -1268,6 +1269,8 @@ impl Service {
 		let mut amount = 0;
 
 		while let Some(prev_event_id) = todo_outlier_stack.pop() {
+			self.services.server.check_running()?;
+
 			if let Some((pdu, mut json_opt)) = self
 				.fetch_and_handle_outliers(origin, &[prev_event_id.clone()], create_event, room_id, room_version_id)
 				.boxed()
