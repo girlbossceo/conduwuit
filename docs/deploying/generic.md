@@ -76,13 +76,15 @@ If you are using a dedicated user for conduwuit, you will need to allow it to
 read the config. To do that you can run this:
 
 ```bash
-sudo chown -R root:root /etc/conduwuit sudo chmod -R 755 /etc/conduwuit
+sudo chown -R root:root /etc/conduwuit
+sudo chmod -R 755 /etc/conduwuit
 ```
 
 If you use the default database path you also need to run this:
 
 ```bash
-sudo mkdir -p /var/lib/conduwuit/ sudo chown -R conduwuit:conduwuit /var/lib/conduwuit/
+sudo mkdir -p /var/lib/conduwuit/
+sudo chown -R conduwuit:conduwuit /var/lib/conduwuit/
 sudo chmod 700 /var/lib/conduwuit/
 ```
 
