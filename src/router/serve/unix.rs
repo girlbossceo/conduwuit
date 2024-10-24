@@ -10,7 +10,7 @@ use axum::{
 	extract::{connect_info::IntoMakeServiceWithConnectInfo, Request},
 	Router,
 };
-use conduit::{debug, debug_error, error::infallible, info, trace, warn, Err, Result, Server};
+use conduit::{debug, debug_error, info, result::UnwrapInfallible, trace, warn, Err, Result, Server};
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
 	rt::{TokioExecutor, TokioIo},
@@ -62,11 +62,7 @@ async fn accept(
 	let socket = TokioIo::new(socket);
 	trace!(?listener, ?socket, ?remote, "accepted");
 
-	let called = app
-		.call(NULL_ADDR)
-		.await
-		.inspect_err(infallible)
-		.expect("infallible");
+	let called = app.call(NULL_ADDR).await.unwrap_infallible();
 
 	let service = move |req: Request<Incoming>| called.clone().oneshot(req);
 	let handler = service_fn(service);

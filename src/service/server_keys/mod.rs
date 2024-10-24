@@ -5,7 +5,7 @@ use std::{
 };
 
 use conduit::{debug, debug_error, debug_warn, err, error, info, trace, warn, Err, Result};
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::{
 		discovery::{
@@ -179,7 +179,8 @@ impl Service {
 			let result: BTreeMap<_, _> = self
 				.services
 				.globals
-				.verify_keys_for(origin)?
+				.verify_keys_for(origin)
+				.await?
 				.into_iter()
 				.map(|(k, v)| (k.to_string(), v.key))
 				.collect();
@@ -236,7 +237,8 @@ impl Service {
 							.services
 							.globals
 							.db
-							.add_signing_key(&k.server_name, k.clone())?
+							.add_signing_key(&k.server_name, k.clone())
+							.await
 							.into_iter()
 							.map(|(k, v)| (k.to_string(), v.key))
 							.collect::<BTreeMap<_, _>>();
@@ -283,7 +285,8 @@ impl Service {
 						.services
 						.globals
 						.db
-						.add_signing_key(&origin, key)?
+						.add_signing_key(&origin, key)
+						.await
 						.into_iter()
 						.map(|(k, v)| (k.to_string(), v.key))
 						.collect();
@@ -384,7 +387,8 @@ impl Service {
 		let mut result: BTreeMap<_, _> = self
 			.services
 			.globals
-			.verify_keys_for(origin)?
+			.verify_keys_for(origin)
+			.await?
 			.into_iter()
 			.map(|(k, v)| (k.to_string(), v.key))
 			.collect();
@@ -431,7 +435,8 @@ impl Service {
 						self.services
 							.globals
 							.db
-							.add_signing_key(origin, k.clone())?;
+							.add_signing_key(origin, k.clone())
+							.await;
 						result.extend(
 							k.verify_keys
 								.into_iter()
@@ -462,7 +467,8 @@ impl Service {
 				self.services
 					.globals
 					.db
-					.add_signing_key(origin, server_key.clone())?;
+					.add_signing_key(origin, server_key.clone())
+					.await;
 
 				result.extend(
 					server_key
@@ -495,7 +501,8 @@ impl Service {
 				self.services
 					.globals
 					.db
-					.add_signing_key(origin, server_key.clone())?;
+					.add_signing_key(origin, server_key.clone())
+					.await;
 
 				result.extend(
 					server_key
@@ -545,7 +552,8 @@ impl Service {
 						self.services
 							.globals
 							.db
-							.add_signing_key(origin, k.clone())?;
+							.add_signing_key(origin, k.clone())
+							.await;
 						result.extend(
 							k.verify_keys
 								.into_iter()

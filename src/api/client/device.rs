@@ -1,8 +1,14 @@
 use axum::extract::State;
-use ruma::api::client::{
-	device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
-	error::ErrorKind,
-	uiaa::{AuthFlow, AuthType, UiaaInfo},
+use axum_client_ip::InsecureClientIp;
+use conduit::{err, Err};
+use futures::StreamExt;
+use ruma::{
+	api::client::{
+		device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
+		error::ErrorKind,
+		uiaa::{AuthFlow, AuthType, UiaaInfo},
+	},
+	MilliSecondsSinceUnixEpoch,
 };
 
 use super::SESSION_ID_LENGTH;
@@ -19,8 +25,8 @@ pub(crate) async fn get_devices_route(
 	let devices: Vec<device::Device> = services
 		.users
 		.all_devices_metadata(sender_user)
-		.filter_map(Result::ok) // Filter out buggy devices
-		.collect();
+		.collect()
+		.await;
 
 	Ok(get_devices::v3::Response {
 		devices,
@@ -37,8 +43,9 @@ pub(crate) async fn get_device_route(
 
 	let device = services
 		.users
-		.get_device_metadata(sender_user, &body.body.device_id)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
+		.get_device_metadata(sender_user, &body.body.device_id)
+		.await
+		.map_err(|_| err!(Request(NotFound("Device not found."))))?;
 
 	Ok(get_device::v3::Response {
 		device,
@@ -48,21 +55,29 @@ pub(crate) async fn get_device_route(
 /// # `PUT /_matrix/client/r0/devices/{deviceId}`
 ///
 /// Updates the metadata on a given device of the sender user.
+#[tracing::instrument(skip_all, fields(%client), name = "update_device")]
 pub(crate) async fn update_device_route(
-	State(services): State<crate::State>, body: Ruma<update_device::v3::Request>,
+	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<update_device::v3::Request>,
 ) -> Result<update_device::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let mut device = services
 		.users
-		.get_device_metadata(sender_user, &body.device_id)?
-		.ok_or(Error::BadRequest(ErrorKind::NotFound, "Device not found."))?;
+		.get_device_metadata(sender_user, &body.device_id)
+		.await
+		.map_err(|_| err!(Request(NotFound("Device not found."))))?;
 
 	device.display_name.clone_from(&body.display_name);
+	device.last_seen_ip.clone_from(&Some(client.to_string()));
+	device
+		.last_seen_ts
+		.clone_from(&Some(MilliSecondsSinceUnixEpoch::now()));
 
 	services
 		.users
-		.update_device_metadata(sender_user, &body.device_id, &device)?;
+		.update_device_metadata(sender_user, &body.device_id, &device)
+		.await?;
 
 	Ok(update_device::v3::Response {})
 }
@@ -97,22 +112,28 @@ pub(crate) async fn delete_device_route(
 	if let Some(auth) = &body.auth {
 		let (worked, uiaainfo) = services
 			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)
+			.await?;
+
 		if !worked {
-			return Err(Error::Uiaa(uiaainfo));
+			return Err!(Uiaa(uiaainfo));
 		}
 	// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
 			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json)?;
-		return Err(Error::Uiaa(uiaainfo));
+			.create(sender_user, sender_device, &uiaainfo, &json);
+
+		return Err!(Uiaa(uiaainfo));
 	} else {
-		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+		return Err!(Request(NotJson("Not json.")));
 	}
 
-	services.users.remove_device(sender_user, &body.device_id)?;
+	services
+		.users
+		.remove_device(sender_user, &body.device_id)
+		.await;
 
 	Ok(delete_device::v3::Response {})
 }
@@ -149,7 +170,9 @@ pub(crate) async fn delete_devices_route(
 	if let Some(auth) = &body.auth {
 		let (worked, uiaainfo) = services
 			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)?;
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)
+			.await?;
+
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
@@ -158,14 +181,15 @@ pub(crate) async fn delete_devices_route(
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
 			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json)?;
+			.create(sender_user, sender_device, &uiaainfo, &json);
+
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
 	for device_id in &body.devices {
-		services.users.remove_device(sender_user, device_id)?;
+		services.users.remove_device(sender_user, device_id).await;
 	}
 
 	Ok(delete_devices::v3::Response {})

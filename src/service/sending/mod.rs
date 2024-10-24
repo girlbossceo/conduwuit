@@ -7,10 +7,11 @@ mod sender;
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{err, warn, Result, Server};
+use conduit::{err, utils::ReadyExt, warn, Result, Server};
+use futures::{future::ready, Stream, StreamExt, TryStreamExt};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
-	OwnedServerName, RoomId, ServerName, UserId,
+	RoomId, ServerName, UserId,
 };
 use tokio::sync::Mutex;
 
@@ -104,7 +105,7 @@ impl Service {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(pdu_id.to_owned());
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
+		let keys = self.db.queue_requests(&[(&event, &dest)]);
 		self.dispatch(Msg {
 			dest,
 			event,
@@ -117,7 +118,7 @@ impl Service {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
+		let keys = self.db.queue_requests(&[(&event, &dest)]);
 		self.dispatch(Msg {
 			dest,
 			event,
@@ -126,30 +127,31 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, pdu_id), level = "debug")]
-	pub fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
+	pub async fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
 		let servers = self
 			.services
 			.state_cache
 			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server_name| !self.services.globals.server_is_ours(server_name));
+			.ready_filter(|server_name| !self.services.globals.server_is_ours(server_name));
 
-		self.send_pdu_servers(servers, pdu_id)
+		self.send_pdu_servers(servers, pdu_id).await
 	}
 
 	#[tracing::instrument(skip(self, servers, pdu_id), level = "debug")]
-	pub fn send_pdu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, pdu_id: &[u8]) -> Result<()> {
-		let requests = servers
-			.into_iter()
-			.map(|server| (Destination::Normal(server), SendingEvent::Pdu(pdu_id.to_owned())))
-			.collect::<Vec<_>>();
+	pub async fn send_pdu_servers<'a, S>(&self, servers: S, pdu_id: &[u8]) -> Result<()>
+	where
+		S: Stream<Item = &'a ServerName> + Send + 'a,
+	{
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(
-			&requests
-				.iter()
-				.map(|(o, e)| (o, e.clone()))
-				.collect::<Vec<_>>(),
-		)?;
+		let requests = servers
+			.map(|server| (Destination::Normal(server.into()), SendingEvent::Pdu(pdu_id.into())))
+			.collect::<Vec<_>>()
+			.await;
+
+		let keys = self
+			.db
+			.queue_requests(&requests.iter().map(|(o, e)| (e, o)).collect::<Vec<_>>());
+
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
 			self.dispatch(Msg {
 				dest,
@@ -166,7 +168,7 @@ impl Service {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(&[(&dest, event.clone())])?;
+		let keys = self.db.queue_requests(&[(&event, &dest)]);
 		self.dispatch(Msg {
 			dest,
 			event,
@@ -175,30 +177,30 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
-	pub fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
+	pub async fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
 		let servers = self
 			.services
 			.state_cache
 			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server_name| !self.services.globals.server_is_ours(server_name));
+			.ready_filter(|server_name| !self.services.globals.server_is_ours(server_name));
 
-		self.send_edu_servers(servers, serialized)
+		self.send_edu_servers(servers, serialized).await
 	}
 
 	#[tracing::instrument(skip(self, servers, serialized), level = "debug")]
-	pub fn send_edu_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I, serialized: Vec<u8>) -> Result<()> {
-		let requests = servers
-			.into_iter()
-			.map(|server| (Destination::Normal(server), SendingEvent::Edu(serialized.clone())))
-			.collect::<Vec<_>>();
+	pub async fn send_edu_servers<'a, S>(&self, servers: S, serialized: Vec<u8>) -> Result<()>
+	where
+		S: Stream<Item = &'a ServerName> + Send + 'a,
+	{
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(
-			&requests
-				.iter()
-				.map(|(o, e)| (o, e.clone()))
-				.collect::<Vec<_>>(),
-		)?;
+		let requests = servers
+			.map(|server| (Destination::Normal(server.to_owned()), SendingEvent::Edu(serialized.clone())))
+			.collect::<Vec<_>>()
+			.await;
+
+		let keys = self
+			.db
+			.queue_requests(&requests.iter().map(|(o, e)| (e, o)).collect::<Vec<_>>());
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
 			self.dispatch(Msg {
@@ -212,29 +214,33 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id), level = "debug")]
-	pub fn flush_room(&self, room_id: &RoomId) -> Result<()> {
+	pub async fn flush_room(&self, room_id: &RoomId) -> Result<()> {
 		let servers = self
 			.services
 			.state_cache
 			.room_servers(room_id)
-			.filter_map(Result::ok)
-			.filter(|server_name| !self.services.globals.server_is_ours(server_name));
+			.ready_filter(|server_name| !self.services.globals.server_is_ours(server_name));
 
-		self.flush_servers(servers)
+		self.flush_servers(servers).await
 	}
 
 	#[tracing::instrument(skip(self, servers), level = "debug")]
-	pub fn flush_servers<I: Iterator<Item = OwnedServerName>>(&self, servers: I) -> Result<()> {
-		let requests = servers.into_iter().map(Destination::Normal);
-		for dest in requests {
-			self.dispatch(Msg {
-				dest,
-				event: SendingEvent::Flush,
-				queue_id: Vec::<u8>::new(),
-			})?;
-		}
-
-		Ok(())
+	pub async fn flush_servers<'a, S>(&self, servers: S) -> Result<()>
+	where
+		S: Stream<Item = &'a ServerName> + Send + 'a,
+	{
+		servers
+			.map(ToOwned::to_owned)
+			.map(Destination::Normal)
+			.map(Ok)
+			.try_for_each(|dest| {
+				ready(self.dispatch(Msg {
+					dest,
+					event: SendingEvent::Flush,
+					queue_id: Vec::<u8>::new(),
+				}))
+			})
+			.await
 	}
 
 	#[tracing::instrument(skip_all, name = "request")]
@@ -263,11 +269,10 @@ impl Service {
 	/// Cleanup event data
 	/// Used for instance after we remove an appservice registration
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn cleanup_events(&self, appservice_id: String) -> Result<()> {
+	pub async fn cleanup_events(&self, appservice_id: String) {
 		self.db
-			.delete_all_requests_for(&Destination::Appservice(appservice_id))?;
-
-		Ok(())
+			.delete_all_requests_for(&Destination::Appservice(appservice_id))
+			.await;
 	}
 
 	fn dispatch(&self, msg: Msg) -> Result<()> {

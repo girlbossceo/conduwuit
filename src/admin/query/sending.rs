@@ -1,5 +1,6 @@
 use clap::Subcommand;
 use conduit::Result;
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, ServerName, UserId};
 use service::sending::Destination;
 
@@ -68,7 +69,7 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 		SendingCommand::ActiveRequests => {
 			let timer = tokio::time::Instant::now();
 			let results = services.sending.db.active_requests();
-			let active_requests: Result<Vec<(_, _, _)>> = results.collect();
+			let active_requests = results.collect::<Vec<_>>().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -133,7 +134,7 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 				},
 			};
 
-			let queued_requests = results.collect::<Result<Vec<(_, _)>>>();
+			let queued_requests = results.collect::<Vec<_>>().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -199,7 +200,7 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 				},
 			};
 
-			let active_requests = results.collect::<Result<Vec<(_, _)>>>();
+			let active_requests = results.collect::<Vec<_>>().await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -210,7 +211,7 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 			server_name,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.sending.db.get_latest_educount(&server_name);
+			let results = services.sending.db.get_latest_educount(&server_name).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

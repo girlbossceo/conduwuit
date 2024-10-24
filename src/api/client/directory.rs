@@ -1,6 +1,7 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{err, info, warn, Err, Error, Result};
+use conduit::{info, warn, Err, Error, Result};
+use futures::{StreamExt, TryFutureExt};
 use ruma::{
 	api::{
 		client::{
@@ -18,7 +19,7 @@ use ruma::{
 		},
 		StateEventType,
 	},
-	uint, RoomId, ServerName, UInt, UserId,
+	uint, OwnedRoomId, RoomId, ServerName, UInt, UserId,
 };
 use service::Services;
 
@@ -119,16 +120,22 @@ pub(crate) async fn set_room_visibility_route(
 ) -> Result<set_room_visibility::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services.rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id).await {
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
 
-	if services.users.is_deactivated(sender_user).unwrap_or(false) && body.appservice_info.is_none() {
+	if services
+		.users
+		.is_deactivated(sender_user)
+		.await
+		.unwrap_or(false)
+		&& body.appservice_info.is_none()
+	{
 		return Err!(Request(Forbidden("Guests cannot publish to room directories")));
 	}
 
-	if !user_can_publish_room(&services, sender_user, &body.room_id)? {
+	if !user_can_publish_room(&services, sender_user, &body.room_id).await? {
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"User is not allowed to publish this room",
@@ -137,7 +144,7 @@ pub(crate) async fn set_room_visibility_route(
 
 	match &body.visibility {
 		room::Visibility::Public => {
-			if services.globals.config.lockdown_public_room_directory && !services.users.is_admin(sender_user)? {
+			if services.globals.config.lockdown_public_room_directory && !services.users.is_admin(sender_user).await {
 				info!(
 					"Non-admin user {sender_user} tried to publish {0} to the room directory while \
 					 \"lockdown_public_room_directory\" is enabled",
@@ -158,14 +165,14 @@ pub(crate) async fn set_room_visibility_route(
 				));
 			}
 
-			services.rooms.directory.set_public(&body.room_id)?;
+			services.rooms.directory.set_public(&body.room_id);
 			services
 				.admin
 				.send_text(&format!("{sender_user} made {} public to the room directory", body.room_id))
 				.await;
 			info!("{sender_user} made {0} public to the room directory", body.room_id);
 		},
-		room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id)?,
+		room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id),
 		_ => {
 			return Err(Error::BadRequest(
 				ErrorKind::InvalidParam,
@@ -183,13 +190,13 @@ pub(crate) async fn set_room_visibility_route(
 pub(crate) async fn get_room_visibility_route(
 	State(services): State<crate::State>, body: Ruma<get_room_visibility::v3::Request>,
 ) -> Result<get_room_visibility::v3::Response> {
-	if !services.rooms.metadata.exists(&body.room_id)? {
+	if !services.rooms.metadata.exists(&body.room_id).await {
 		// Return 404 if the room doesn't exist
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
 	}
 
 	Ok(get_room_visibility::v3::Response {
-		visibility: if services.rooms.directory.is_public_room(&body.room_id)? {
+		visibility: if services.rooms.directory.is_public_room(&body.room_id).await {
 			room::Visibility::Public
 		} else {
 			room::Visibility::Private
@@ -248,101 +255,41 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		}
 	}
 
-	let mut all_rooms: Vec<_> = services
+	let mut all_rooms: Vec<PublicRoomsChunk> = services
 		.rooms
 		.directory
 		.public_rooms()
-		.map(|room_id| {
-			let room_id = room_id?;
-
-			let chunk = PublicRoomsChunk {
-				canonical_alias: services
-					.rooms
-					.state_accessor
-					.get_canonical_alias(&room_id)?,
-				name: services.rooms.state_accessor.get_name(&room_id)?,
-				num_joined_members: services
-					.rooms
-					.state_cache
-					.room_joined_count(&room_id)?
-					.unwrap_or_else(|| {
-						warn!("Room {} has no member count", room_id);
-						0
-					})
-					.try_into()
-					.expect("user count should not be that big"),
-				topic: services
-					.rooms
-					.state_accessor
-					.get_room_topic(&room_id)
-					.unwrap_or(None),
-				world_readable: services.rooms.state_accessor.is_world_readable(&room_id)?,
-				guest_can_join: services
-					.rooms
-					.state_accessor
-					.guest_can_join(&room_id)?,
-				avatar_url: services
-					.rooms
-					.state_accessor
-					.get_avatar(&room_id)?
-					.into_option()
-					.unwrap_or_default()
-					.url,
-				join_rule: services
-					.rooms
-					.state_accessor
-					.room_state_get(&room_id, &StateEventType::RoomJoinRules, "")?
-					.map(|s| {
-						serde_json::from_str(s.content.get())
-							.map(|c: RoomJoinRulesEventContent| match c.join_rule {
-								JoinRule::Public => Some(PublicRoomJoinRule::Public),
-								JoinRule::Knock => Some(PublicRoomJoinRule::Knock),
-								_ => None,
-							})
-							.map_err(|e| {
-								err!(Database(error!("Invalid room join rule event in database: {e}")))
-							})
-					})
-					.transpose()?
-					.flatten()
-					.ok_or_else(|| Error::bad_database("Missing room join rule event for room."))?,
-				room_type: services
-					.rooms
-					.state_accessor
-					.get_room_type(&room_id)?,
-				room_id,
-			};
-			Ok(chunk)
-		})
-		.filter_map(|r: Result<_>| r.ok()) // Filter out buggy rooms
-		.filter(|chunk| {
+		.map(ToOwned::to_owned)
+		.then(|room_id| public_rooms_chunk(services, room_id))
+		.filter_map(|chunk| async move {
 			if let Some(query) = filter.generic_search_term.as_ref().map(|q| q.to_lowercase()) {
 				if let Some(name) = &chunk.name {
 					if name.as_str().to_lowercase().contains(&query) {
-						return true;
+						return Some(chunk);
 					}
 				}
 
 				if let Some(topic) = &chunk.topic {
 					if topic.to_lowercase().contains(&query) {
-						return true;
+						return Some(chunk);
 					}
 				}
 
 				if let Some(canonical_alias) = &chunk.canonical_alias {
 					if canonical_alias.as_str().to_lowercase().contains(&query) {
-						return true;
+						return Some(chunk);
 					}
 				}
 
-				false
-			} else {
-				// No search term
-				true
+				return None;
 			}
+
+			// No search term
+			Some(chunk)
 		})
 		// We need to collect all, so we can sort by member count
-		.collect();
+		.collect()
+		.await;
 
 	all_rooms.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
@@ -385,22 +332,23 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 
 /// Check whether the user can publish to the room directory via power levels of
 /// room history visibility event or room creator
-fn user_can_publish_room(services: &Services, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
-	if let Some(event) = services
+async fn user_can_publish_room(services: &Services, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+	if let Ok(event) = services
 		.rooms
 		.state_accessor
-		.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")?
+		.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")
+		.await
 	{
 		serde_json::from_str(event.content.get())
 			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
 			.map(|content: RoomPowerLevelsEventContent| {
 				RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
 			})
-	} else if let Some(event) =
-		services
-			.rooms
-			.state_accessor
-			.room_state_get(room_id, &StateEventType::RoomCreate, "")?
+	} else if let Ok(event) = services
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomCreate, "")
+		.await
 	{
 		Ok(event.sender == user_id)
 	} else {
@@ -408,5 +356,63 @@ fn user_can_publish_room(services: &Services, user_id: &UserId, room_id: &RoomId
 			ErrorKind::forbidden(),
 			"User is not allowed to publish this room",
 		));
+	}
+}
+
+async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> PublicRoomsChunk {
+	PublicRoomsChunk {
+		canonical_alias: services
+			.rooms
+			.state_accessor
+			.get_canonical_alias(&room_id)
+			.await
+			.ok(),
+		name: services.rooms.state_accessor.get_name(&room_id).await.ok(),
+		num_joined_members: services
+			.rooms
+			.state_cache
+			.room_joined_count(&room_id)
+			.await
+			.unwrap_or(0)
+			.try_into()
+			.expect("joined count overflows ruma UInt"),
+		topic: services
+			.rooms
+			.state_accessor
+			.get_room_topic(&room_id)
+			.await
+			.ok(),
+		world_readable: services
+			.rooms
+			.state_accessor
+			.is_world_readable(&room_id)
+			.await,
+		guest_can_join: services.rooms.state_accessor.guest_can_join(&room_id).await,
+		avatar_url: services
+			.rooms
+			.state_accessor
+			.get_avatar(&room_id)
+			.await
+			.into_option()
+			.unwrap_or_default()
+			.url,
+		join_rule: services
+			.rooms
+			.state_accessor
+			.room_state_get_content(&room_id, &StateEventType::RoomJoinRules, "")
+			.map_ok(|c: RoomJoinRulesEventContent| match c.join_rule {
+				JoinRule::Public => PublicRoomJoinRule::Public,
+				JoinRule::Knock => PublicRoomJoinRule::Knock,
+				_ => "invite".into(),
+			})
+			.await
+			.unwrap_or_default(),
+		room_type: services
+			.rooms
+			.state_accessor
+			.get_room_type(&room_id)
+			.await
+			.ok(),
+		room_id,
 	}
 }

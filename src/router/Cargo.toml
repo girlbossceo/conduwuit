@@ -42,9 +42,16 @@ systemd = [
 	"dep:sd-notify",
 ]
 
+direct_tls = [
+    "axum-server/tls-rustls",
+    "dep:rustls",
+    "dep:axum-server-dual-protocol",
+]
+
 [dependencies]
 axum-client-ip.workspace = true
 axum-server-dual-protocol.workspace = true
+axum-server-dual-protocol.optional = true
 axum-server.workspace = true
 axum.workspace = true
 conduit-admin.workspace = true
@@ -63,6 +70,7 @@ hyper.workspace = true
 hyper-util.workspace = true
 ruma.workspace = true
 rustls.workspace = true
+rustls.optional = true
 sentry.optional = true
 sentry-tower.optional = true
 sentry-tower.workspace = true

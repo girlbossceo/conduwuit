@@ -7,7 +7,11 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{debug, debug_info, debug_warn, error, info, warn, Config, Result};
+use conduit::{
+	debug, debug_info, debug_warn, error, info,
+	utils::{stream::TryIgnore, ReadyExt},
+	warn, Config, Result,
+};
 
 use crate::{globals, Services};
 
@@ -23,12 +27,17 @@ pub(crate) async fn migrate_sha256_media(services: &Services) -> Result<()> {
 
 	// Move old media files to new names
 	let mut changes = Vec::<(PathBuf, PathBuf)>::new();
-	for (key, _) in mediaid_file.iter() {
-		let old = services.media.get_media_file_b64(&key);
-		let new = services.media.get_media_file_sha256(&key);
-		debug!(?key, ?old, ?new, num = changes.len(), "change");
-		changes.push((old, new));
-	}
+	mediaid_file
+		.raw_keys()
+		.ignore_err()
+		.ready_for_each(|key| {
+			let old = services.media.get_media_file_b64(key);
+			let new = services.media.get_media_file_sha256(key);
+			debug!(?key, ?old, ?new, num = changes.len(), "change");
+			changes.push((old, new));
+		})
+		.await;
+
 	// move the file to the new location
 	for (old_path, path) in changes {
 		if old_path.exists() {
@@ -41,11 +50,11 @@ pub(crate) async fn migrate_sha256_media(services: &Services) -> Result<()> {
 
 	// Apply fix from when sha256_media was backward-incompat and bumped the schema
 	// version from 13 to 14. For users satisfying these conditions we can go back.
-	if services.globals.db.database_version()? == 14 && globals::migrations::DATABASE_VERSION == 13 {
+	if services.globals.db.database_version().await == 14 && globals::migrations::DATABASE_VERSION == 13 {
 		services.globals.db.bump_database_version(13)?;
 	}
 
-	db["global"].insert(b"feat_sha256_media", &[])?;
+	db["global"].insert(b"feat_sha256_media", &[]);
 	info!("Finished applying sha256_media");
 	Ok(())
 }
@@ -71,7 +80,7 @@ pub(crate) async fn checkup_sha256_media(services: &Services) -> Result<()> {
 		.filter_map(|ent| ent.map_or(None, |ent| Some(ent.path().into_os_string())))
 		.collect();
 
-	for key in media.db.get_all_media_keys() {
+	for key in media.db.get_all_media_keys().await {
 		let new_path = media.get_media_file_sha256(&key).into_os_string();
 		let old_path = media.get_media_file_b64(&key).into_os_string();
 		if let Err(e) = handle_media_check(&dbs, config, &files, &key, &new_path, &old_path).await {
@@ -112,8 +121,8 @@ async fn handle_media_check(
 			"Media is missing at all paths. Removing from database..."
 		);
 
-		mediaid_file.remove(key)?;
-		mediaid_user.remove(key)?;
+		mediaid_file.remove(key);
+		mediaid_user.remove(key);
 	}
 
 	if config.media_compat_file_link && !old_exists && new_exists {

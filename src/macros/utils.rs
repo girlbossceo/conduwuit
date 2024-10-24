@@ -41,8 +41,5 @@ pub(crate) fn camel_to_snake_string(s: &str) -> String {
 	output
 }
 
-pub(crate) fn exchange<T: Clone>(state: &mut T, source: T) -> T {
-	let ret = state.clone();
-	*state = source;
-	ret
-}
+#[inline]
+pub(crate) fn exchange<T>(state: &mut T, source: T) -> T { std::mem::replace(state, source) }

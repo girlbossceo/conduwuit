@@ -75,6 +75,8 @@ pub enum Error {
 	TracingFilter(#[from] tracing_subscriber::filter::ParseError),
 	#[error("Tracing reload error: {0}")]
 	TracingReload(#[from] tracing_subscriber::reload::Error),
+	#[error(transparent)]
+	Yaml(#[from] serde_yaml::Error),
 
 	// ruma/conduwuit
 	#[error("Arithmetic operation failed: {0}")]
@@ -86,7 +88,7 @@ pub enum Error {
 	#[error("There was a problem with the '{0}' directive in your configuration: {1}")]
 	Config(&'static str, Cow<'static, str>),
 	#[error("{0}")]
-	Conflict(&'static str), // This is only needed for when a room alias already exists
+	Conflict(Cow<'static, str>), // This is only needed for when a room alias already exists
 	#[error(transparent)]
 	ContentDisposition(#[from] ruma::http_headers::ContentDispositionParseError),
 	#[error("{0}")]
@@ -107,6 +109,8 @@ pub enum Error {
 	Request(ruma::api::client::error::ErrorKind, Cow<'static, str>, http::StatusCode),
 	#[error(transparent)]
 	Ruma(#[from] ruma::api::client::error::Error),
+	#[error(transparent)]
+	StateRes(#[from] ruma::state_res::Error),
 	#[error("uiaa")]
 	Uiaa(ruma::api::client::uiaa::UiaaInfo),
 
@@ -141,19 +145,22 @@ impl Error {
 		use ruma::api::client::error::ErrorKind::Unknown;
 
 		match self {
-			Self::Federation(_, error) => response::ruma_error_kind(error).clone(),
+			Self::Federation(_, error) | Self::Ruma(error) => response::ruma_error_kind(error).clone(),
 			Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
 			_ => Unknown,
 		}
 	}
 
 	pub fn status_code(&self) -> http::StatusCode {
+		use http::StatusCode;
+
 		match self {
-			Self::Federation(_, ref error) | Self::Ruma(ref error) => error.status_code,
-			Self::Request(ref kind, _, code) => response::status_code(kind, *code),
-			Self::BadRequest(ref kind, ..) => response::bad_request_code(kind),
-			Self::Conflict(_) => http::StatusCode::CONFLICT,
-			_ => http::StatusCode::INTERNAL_SERVER_ERROR,
+			Self::Federation(_, error) | Self::Ruma(error) => error.status_code,
+			Self::Request(kind, _, code) => response::status_code(kind, *code),
+			Self::BadRequest(kind, ..) => response::bad_request_code(kind),
+			Self::Reqwest(error) => error.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+			Self::Conflict(_) => StatusCode::CONFLICT,
+			_ => StatusCode::INTERNAL_SERVER_ERROR,
 		}
 	}
 }
@@ -176,3 +183,7 @@ impl From<Infallible> for Error {
 pub fn infallible(_e: &Infallible) {
 	panic!("infallible error should never exist");
 }
+
+#[inline]
+#[must_use]
+pub fn is_not_found(e: &Error) -> bool { e.status_code() == http::StatusCode::NOT_FOUND }

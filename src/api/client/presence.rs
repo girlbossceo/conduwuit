@@ -28,7 +28,8 @@ pub(crate) async fn set_presence_route(
 
 	services
 		.presence
-		.set_presence(sender_user, &body.presence, None, None, body.status_msg.clone())?;
+		.set_presence(sender_user, &body.presence, None, None, body.status_msg.clone())
+		.await?;
 
 	Ok(set_presence::v3::Response {})
 }
@@ -49,14 +50,15 @@ pub(crate) async fn get_presence_route(
 
 	let mut presence_event = None;
 
-	for _room_id in services
+	let has_shared_rooms = services
 		.rooms
 		.user
-		.get_shared_rooms(vec![sender_user.clone(), body.user_id.clone()])?
-	{
-		if let Some(presence) = services.presence.get_presence(&body.user_id)? {
+		.has_shared_rooms(sender_user, &body.user_id)
+		.await;
+
+	if has_shared_rooms {
+		if let Ok(presence) = services.presence.get_presence(&body.user_id).await {
 			presence_event = Some(presence);
-			break;
 		}
 	}
 

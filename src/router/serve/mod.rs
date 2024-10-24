@@ -1,4 +1,5 @@
 mod plain;
+#[cfg(feature = "direct_tls")]
 mod tls;
 mod unix;
 
@@ -23,7 +24,14 @@ pub(super) async fn serve(
 	if cfg!(unix) && config.unix_socket_path.is_some() {
 		unix::serve(server, app, shutdown).await
 	} else if config.tls.is_some() {
-		tls::serve(server, app, handle, addrs).await
+		#[cfg(feature = "direct_tls")]
+		return tls::serve(server, app, handle, addrs).await;
+
+		#[cfg(not(feature = "direct_tls"))]
+		return conduit::Err!(Config(
+			"tls",
+			"conduwuit was not built with direct TLS support (\"direct_tls\")"
+		));
 	} else {
 		plain::serve(server, app, handle, addrs).await
 	}

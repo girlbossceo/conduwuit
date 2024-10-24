@@ -9,7 +9,7 @@ Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/bad
 
 <!-- ANCHOR_END: catchphrase -->
 
-Visit the [Conduwuit documentation](https://conduwuit.puppyirl.gay/) for more
+Visit the [conduwuit documentation](https://conduwuit.puppyirl.gay/) for more
 information.
 
 <!-- ANCHOR: body -->
@@ -23,9 +23,9 @@ to communicate with users outside of Matrix, like a community on Discord.
 
 #### What is the goal?
 
-An efficient Matrix homeserver that's easy to set up and just works. You can
-install it on a mini-computer like the Raspberry Pi to host Matrix for your
-family, friends or company.
+A high-performance and efficient Matrix homeserver that's easy to set up and
+just works. You can install it on a mini-computer like the Raspberry Pi to
+host Matrix for your family, friends or company.
 
 #### Can I try it out?
 
@@ -42,9 +42,28 @@ transfem.dev is also listed at
 
 #### What is the current status?
 
-conduwuit is a hard fork of Conduit which is in beta, meaning you can join and
-participate in most Matrix rooms, but not all features are supported and you
-might run into bugs from time to time.
+conduwuit is technically a hard fork of Conduit, which is in Beta. The Beta status
+initially was inherited from Conduit, however overtime this Beta status is rapidly
+becoming less and less relevant as our codebase significantly diverges more and more.
+
+conduwuit is quite stable and very usable as a daily driver and for a low-medium
+sized homeserver. There is still a lot of more work to be done, but it is in a far
+better place than the project was in early 2024.
+
+#### How is conduwuit funded? Is conduwuit sustainable?
+
+conduwuit has no external funding. This is made possible purely in my freetime with
+contributors, also in their free time, and only by user-curated donations.
+
+conduwuit has existed since around November 2023, but [only became more publicly known
+in March/April 2024](https://matrix.org/blog/2024/04/26/this-week-in-matrix-2024-04-26/#conduwuit-website)
+and we have no plans in stopping or slowing down any time soon!
+
+#### Can I migrate or switch from Conduit?
+
+conduwuit is a complete drop-in replacement for Conduit. As long as you are using RocksDB,
+the only "migration" you need to do is replace the binary or container image. There
+is no harm or additional steps required for using conduwuit.
 
 <!-- ANCHOR_END: body -->
 
@@ -58,6 +77,10 @@ If you run into any question, feel free to
 - [Open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new)
 
 #### Donate
+
+conduwuit development is purely made possible by myself and contributors. I do
+not get paid to work on this, and I work on it in my free time. Donations are
+heavily appreciated! 💜🥺
 
 - Liberapay: <https://liberapay.com/girlbossceo>
 - Ko-fi: <https://ko-fi.com/puppygock>
