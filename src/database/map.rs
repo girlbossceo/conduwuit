@@ -1,3 +1,4 @@
+mod contains;
 mod count;
 mod get;
 mod insert;
