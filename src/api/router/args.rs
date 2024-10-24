@@ -3,17 +3,14 @@ use std::{mem, ops::Deref};
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, BytesMut};
 use conduit::{debug, err, trace, utils::string::EMPTY, Error, Result};
-use ruma::{api::IncomingRequest, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId};
+use ruma::{api::IncomingRequest, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, ServerName, UserId};
 use service::Services;
 
 use super::{auth, auth::Auth, request, request::Request};
 use crate::{service::appservice::RegistrationInfo, State};
 
 /// Extractor for Ruma request structs
-pub(crate) struct Args<T>
-where
-	T: IncomingRequest + Send + Sync + 'static,
-{
+pub(crate) struct Args<T> {
 	/// Request struct body
 	pub(crate) body: T,
 
@@ -36,6 +33,17 @@ where
 	/// Parsed JSON content.
 	/// None when body is not a valid string
 	pub(crate) json_body: Option<CanonicalJsonValue>,
+}
+
+impl<T> Args<T>
+where
+	T: IncomingRequest + Send + Sync + 'static,
+{
+	#[inline]
+	pub(crate) fn sender_user(&self) -> &UserId { self.sender_user.as_deref().expect("user is authenticated") }
+
+	#[inline]
+	pub(crate) fn origin(&self) -> &ServerName { self.origin.as_deref().expect("server is authenticated") }
 }
 
 #[async_trait]

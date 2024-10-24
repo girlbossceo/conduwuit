@@ -8,7 +8,7 @@ use ruma::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	OwnedServerName, OwnedUserId, RoomId, ServerName,
+	OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
 
@@ -23,9 +23,7 @@ use crate::{
 pub(crate) async fn create_leave_event_v1_route(
 	State(services): State<crate::State>, body: Ruma<create_leave_event::v1::Request>,
 ) -> Result<create_leave_event::v1::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
-	create_leave_event(&services, origin, &body.room_id, &body.pdu).await?;
+	create_leave_event(&services, body.origin(), &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v1::Response::new())
 }
@@ -36,9 +34,7 @@ pub(crate) async fn create_leave_event_v1_route(
 pub(crate) async fn create_leave_event_v2_route(
 	State(services): State<crate::State>, body: Ruma<create_leave_event::v2::Request>,
 ) -> Result<create_leave_event::v2::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
-	create_leave_event(&services, origin, &body.room_id, &body.pdu).await?;
+	create_leave_event(&services, body.origin(), &body.room_id, &body.pdu).await?;
 
 	Ok(create_leave_event::v2::Response::new())
 }
@@ -139,16 +135,6 @@ async fn create_leave_event(
 		));
 	}
 
-	let origin: OwnedServerName = serde_json::from_value(
-		serde_json::to_value(
-			value
-				.get("origin")
-				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing origin property."))?,
-		)
-		.expect("CanonicalJson is valid json value"),
-	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
-
 	let mutex_lock = services
 		.rooms
 		.event_handler
@@ -159,7 +145,7 @@ async fn create_leave_event(
 	let pdu_id: Vec<u8> = services
 		.rooms
 		.event_handler
-		.handle_incoming_pdu(&origin, room_id, &event_id, value, true)
+		.handle_incoming_pdu(origin, room_id, &event_id, value, true)
 		.await?
 		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
 

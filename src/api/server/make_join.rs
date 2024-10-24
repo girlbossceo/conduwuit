@@ -30,8 +30,7 @@ pub(crate) async fn create_join_event_template_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	let origin = body.origin.as_ref().expect("server is authenticated");
-	if body.user_id.server_name() != origin {
+	if body.user_id.server_name() != body.origin() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Not allowed to join on behalf of another server/user",
@@ -42,19 +41,21 @@ pub(crate) async fn create_join_event_template_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)
+		.acl_check(body.origin(), &body.room_id)
 		.await?;
 
 	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(origin)
+		.contains(body.origin())
 	{
 		warn!(
-			"Server {origin} for remote user {} tried joining room ID {} which has a server name that is globally \
+			"Server {} for remote user {} tried joining room ID {} which has a server name that is globally \
 			 forbidden. Rejecting.",
-			&body.user_id, &body.room_id,
+			body.origin(),
+			&body.user_id,
+			&body.room_id,
 		);
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),

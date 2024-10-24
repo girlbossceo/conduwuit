@@ -217,16 +217,15 @@ async fn create_join_event(
 pub(crate) async fn create_join_event_v1_route(
 	State(services): State<crate::State>, body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(origin)
+		.contains(body.origin())
 	{
 		warn!(
-			"Server {origin} tried joining room ID {} who has a server name that is globally forbidden. Rejecting.",
+			"Server {} tried joining room ID {} who has a server name that is globally forbidden. Rejecting.",
+			body.origin(),
 			&body.room_id,
 		);
 		return Err(Error::BadRequest(
@@ -243,8 +242,8 @@ pub(crate) async fn create_join_event_v1_route(
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Server {origin} tried joining room ID {} which has a server name that is globally forbidden. \
-				 Rejecting.",
+				"Server {} tried joining room ID {} which has a server name that is globally forbidden. Rejecting.",
+				body.origin(),
 				&body.room_id,
 			);
 			return Err(Error::BadRequest(
@@ -254,7 +253,7 @@ pub(crate) async fn create_join_event_v1_route(
 		}
 	}
 
-	let room_state = create_join_event(&services, origin, &body.room_id, &body.pdu).await?;
+	let room_state = create_join_event(&services, body.origin(), &body.room_id, &body.pdu).await?;
 
 	Ok(create_join_event::v1::Response {
 		room_state,
@@ -267,13 +266,11 @@ pub(crate) async fn create_join_event_v1_route(
 pub(crate) async fn create_join_event_v2_route(
 	State(services): State<crate::State>, body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	if services
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(origin)
+		.contains(body.origin())
 	{
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
@@ -299,7 +296,7 @@ pub(crate) async fn create_join_event_v2_route(
 		auth_chain,
 		state,
 		event,
-	} = create_join_event(&services, origin, &body.room_id, &body.pdu).await?;
+	} = create_join_event(&services, body.origin(), &body.room_id, &body.pdu).await?;
 	let room_state = create_join_event::v2::RoomState {
 		members_omitted: false,
 		auth_chain,

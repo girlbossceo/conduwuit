@@ -13,8 +13,6 @@ use crate::Ruma;
 pub(crate) async fn get_event_route(
 	State(services): State<crate::State>, body: Ruma<get_event::v1::Request>,
 ) -> Result<get_event::v1::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	let event = services
 		.rooms
 		.timeline
@@ -37,7 +35,7 @@ pub(crate) async fn get_event_route(
 		.await && !services
 		.rooms
 		.state_cache
-		.server_in_room(origin, room_id)
+		.server_in_room(body.origin(), room_id)
 		.await
 	{
 		return Err!(Request(Forbidden("Server is not in room.")));
@@ -46,7 +44,7 @@ pub(crate) async fn get_event_route(
 	if !services
 		.rooms
 		.state_accessor
-		.server_can_see_event(origin, room_id, &body.event_id)
+		.server_can_see_event(body.origin(), room_id, &body.event_id)
 		.await?
 	{
 		return Err!(Request(Forbidden("Server is not allowed to see event.")));

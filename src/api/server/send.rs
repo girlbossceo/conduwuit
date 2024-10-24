@@ -41,9 +41,7 @@ pub(crate) async fn send_transaction_message_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
-	if *origin != body.body.origin {
+	if body.origin() != body.body.origin {
 		return Err!(Request(Forbidden(
 			"Not allowed to send transactions on behalf of other servers"
 		)));
@@ -67,19 +65,19 @@ pub(crate) async fn send_transaction_message_route(
 		edus = ?body.edus.len(),
 		elapsed = ?txn_start_time.elapsed(),
 		id = ?body.transaction_id,
-		origin =?body.origin,
+		origin =?body.origin(),
 		"Starting txn",
 	);
 
-	let resolved_map = handle_pdus(&services, &client, &body.pdus, origin, &txn_start_time).await?;
-	handle_edus(&services, &client, &body.edus, origin).await;
+	let resolved_map = handle_pdus(&services, &client, &body.pdus, body.origin(), &txn_start_time).await?;
+	handle_edus(&services, &client, &body.edus, body.origin()).await;
 
 	debug!(
 		pdus = ?body.pdus.len(),
 		edus = ?body.edus.len(),
 		elapsed = ?txn_start_time.elapsed(),
 		id = ?body.transaction_id,
-		origin =?body.origin,
+		origin =?body.origin(),
 		"Finished txn",
 	);
 

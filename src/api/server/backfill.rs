@@ -18,12 +18,10 @@ use crate::Ruma;
 pub(crate) async fn get_backfill_route(
 	State(services): State<crate::State>, body: Ruma<get_backfill::v1::Request>,
 ) -> Result<get_backfill::v1::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)
+		.acl_check(body.origin(), &body.room_id)
 		.await?;
 
 	if !services
@@ -33,7 +31,7 @@ pub(crate) async fn get_backfill_route(
 		.await && !services
 		.rooms
 		.state_cache
-		.server_in_room(origin, &body.room_id)
+		.server_in_room(body.origin(), &body.room_id)
 		.await
 	{
 		return Err!(Request(Forbidden("Server is not in room.")));
@@ -59,6 +57,7 @@ pub(crate) async fn get_backfill_route(
 		.try_into()
 		.expect("UInt could not be converted to usize");
 
+	let origin = body.origin();
 	let pdus = services
 		.rooms
 		.timeline

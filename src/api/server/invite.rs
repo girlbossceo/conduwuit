@@ -18,13 +18,11 @@ pub(crate) async fn create_invite_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<create_invite::v2::Request>,
 ) -> Result<create_invite::v2::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	// ACL check origin
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)
+		.acl_check(body.origin(), &body.room_id)
 		.await?;
 
 	if !services
@@ -55,10 +53,11 @@ pub(crate) async fn create_invite_route(
 		.globals
 		.config
 		.forbidden_remote_server_names
-		.contains(origin)
+		.contains(body.origin())
 	{
 		warn!(
-			"Received federated/remote invite from banned server {origin} for room ID {}. Rejecting.",
+			"Received federated/remote invite from banned server {} for room ID {}. Rejecting.",
+			body.origin(),
 			body.room_id
 		);
 

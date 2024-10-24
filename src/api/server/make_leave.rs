@@ -19,8 +19,7 @@ pub(crate) async fn create_leave_event_template_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
-	let origin = body.origin.as_ref().expect("server is authenticated");
-	if body.user_id.server_name() != origin {
+	if body.user_id.server_name() != body.origin() {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Not allowed to leave on behalf of another server/user",
@@ -31,7 +30,7 @@ pub(crate) async fn create_leave_event_template_route(
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)
+		.acl_check(body.origin(), &body.room_id)
 		.await?;
 
 	let room_version_id = services.rooms.state.get_room_version(&body.room_id).await?;

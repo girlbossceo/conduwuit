@@ -13,12 +13,10 @@ use crate::Ruma;
 pub(crate) async fn get_missing_events_route(
 	State(services): State<crate::State>, body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	services
 		.rooms
 		.event_handler
-		.acl_check(origin, &body.room_id)
+		.acl_check(body.origin(), &body.room_id)
 		.await?;
 
 	if !services
@@ -28,7 +26,7 @@ pub(crate) async fn get_missing_events_route(
 		.await && !services
 		.rooms
 		.state_cache
-		.server_in_room(origin, &body.room_id)
+		.server_in_room(body.origin(), &body.room_id)
 		.await
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
@@ -71,7 +69,7 @@ pub(crate) async fn get_missing_events_route(
 			if !services
 				.rooms
 				.state_accessor
-				.server_can_see_event(origin, &body.room_id, &queued_events[i])
+				.server_can_see_event(body.origin(), &body.room_id, &queued_events[i])
 				.await?
 			{
 				i = i.saturating_add(1);

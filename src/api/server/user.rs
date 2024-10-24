@@ -27,8 +27,6 @@ pub(crate) async fn get_devices_route(
 		));
 	}
 
-	let origin = body.origin.as_ref().expect("server is authenticated");
-
 	let user_id = &body.user_id;
 	Ok(get_devices::v1::Response {
 		user_id: user_id.clone(),
@@ -66,12 +64,12 @@ pub(crate) async fn get_devices_route(
 			.await,
 		master_key: services
 			.users
-			.get_master_key(None, &body.user_id, &|u| u.server_name() == origin)
+			.get_master_key(None, &body.user_id, &|u| u.server_name() == body.origin())
 			.await
 			.ok(),
 		self_signing_key: services
 			.users
-			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == origin)
+			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == body.origin())
 			.await
 			.ok(),
 	})
