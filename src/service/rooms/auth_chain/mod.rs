@@ -167,10 +167,12 @@ impl Service {
 				Err(e) => debug_error!(?event_id, ?e, "Could not find pdu mentioned in auth events"),
 				Ok(pdu) => {
 					if pdu.room_id != room_id {
-						return Err!(Request(Forbidden(
-							"auth event {event_id:?} for incorrect room {} which is not {room_id}",
-							pdu.room_id,
-						)));
+						return Err!(Request(Forbidden(error!(
+							?event_id,
+							?room_id,
+							wrong_room_id = ?pdu.room_id,
+							"auth event for incorrect room"
+						))));
 					}
 
 					for auth_event in &pdu.auth_events {
