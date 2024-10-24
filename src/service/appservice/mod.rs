@@ -1,147 +1,49 @@
-mod data;
+mod namespace_regex;
+mod registration_info;
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{err, Result};
-use data::Data;
+use conduit::{err, utils::stream::TryIgnore, Result};
+use database::Map;
 use futures::{Future, StreamExt, TryStreamExt};
-use regex::RegexSet;
-use ruma::{
-	api::appservice::{Namespace, Registration},
-	RoomAliasId, RoomId, UserId,
-};
+use ruma::{api::appservice::Registration, RoomAliasId, RoomId, UserId};
 use tokio::sync::RwLock;
 
+pub use self::{namespace_regex::NamespaceRegex, registration_info::RegistrationInfo};
 use crate::{sending, Dep};
 
-/// Compiled regular expressions for a namespace
-#[derive(Clone, Debug)]
-pub struct NamespaceRegex {
-	pub exclusive: Option<RegexSet>,
-	pub non_exclusive: Option<RegexSet>,
-}
-
-impl NamespaceRegex {
-	/// Checks if this namespace has rights to a namespace
-	#[inline]
-	#[must_use]
-	pub fn is_match(&self, heystack: &str) -> bool {
-		if self.is_exclusive_match(heystack) {
-			return true;
-		}
-
-		if let Some(non_exclusive) = &self.non_exclusive {
-			if non_exclusive.is_match(heystack) {
-				return true;
-			}
-		}
-		false
-	}
-
-	/// Checks if this namespace has exlusive rights to a namespace
-	#[inline]
-	#[must_use]
-	pub fn is_exclusive_match(&self, heystack: &str) -> bool {
-		if let Some(exclusive) = &self.exclusive {
-			if exclusive.is_match(heystack) {
-				return true;
-			}
-		}
-		false
-	}
-}
-
-impl RegistrationInfo {
-	#[must_use]
-	pub fn is_user_match(&self, user_id: &UserId) -> bool {
-		self.users.is_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
-	}
-
-	#[inline]
-	#[must_use]
-	pub fn is_exclusive_user_match(&self, user_id: &UserId) -> bool {
-		self.users.is_exclusive_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
-	}
-}
-
-impl TryFrom<Vec<Namespace>> for NamespaceRegex {
-	type Error = regex::Error;
-
-	fn try_from(value: Vec<Namespace>) -> Result<Self, regex::Error> {
-		let mut exclusive = Vec::with_capacity(value.len());
-		let mut non_exclusive = Vec::with_capacity(value.len());
-
-		for namespace in value {
-			if namespace.exclusive {
-				exclusive.push(namespace.regex);
-			} else {
-				non_exclusive.push(namespace.regex);
-			}
-		}
-
-		Ok(Self {
-			exclusive: if exclusive.is_empty() {
-				None
-			} else {
-				Some(RegexSet::new(exclusive)?)
-			},
-			non_exclusive: if non_exclusive.is_empty() {
-				None
-			} else {
-				Some(RegexSet::new(non_exclusive)?)
-			},
-		})
-	}
-}
-
-/// Appservice registration combined with its compiled regular expressions.
-#[derive(Clone, Debug)]
-pub struct RegistrationInfo {
-	pub registration: Registration,
-	pub users: NamespaceRegex,
-	pub aliases: NamespaceRegex,
-	pub rooms: NamespaceRegex,
-}
-
-impl TryFrom<Registration> for RegistrationInfo {
-	type Error = regex::Error;
-
-	fn try_from(value: Registration) -> Result<Self, regex::Error> {
-		Ok(Self {
-			users: value.namespaces.users.clone().try_into()?,
-			aliases: value.namespaces.aliases.clone().try_into()?,
-			rooms: value.namespaces.rooms.clone().try_into()?,
-			registration: value,
-		})
-	}
-}
-
 pub struct Service {
-	pub db: Data,
-	services: Services,
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,
+	services: Services,
+	db: Data,
 }
 
 struct Services {
 	sending: Dep<sending::Service>,
 }
 
+struct Data {
+	id_appserviceregistrations: Arc<Map>,
+}
+
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data::new(args.db),
+			registration_info: RwLock::new(BTreeMap::new()),
 			services: Services {
 				sending: args.depend::<sending::Service>("sending"),
 			},
-			registration_info: RwLock::new(BTreeMap::new()),
+			db: Data {
+				id_appserviceregistrations: args.db["id_appserviceregistrations"].clone(),
+			},
 		}))
 	}
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		// Inserting registrations into cache
-		for appservice in iter_ids(&self.db).await? {
+		for appservice in self.iter_db_ids().await? {
 			self.registration_info.write().await.insert(
 				appservice.0,
 				appservice
@@ -158,9 +60,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	#[inline]
-	pub async fn all(&self) -> Result<Vec<(String, Registration)>> { iter_ids(&self.db).await }
-
 	/// Registers an appservice and returns the ID to the caller
 	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
 		//TODO: Check for collisions between exclusive appservice namespaces
@@ -169,7 +68,11 @@ impl Service {
 			.await
 			.insert(yaml.id.clone(), yaml.clone().try_into()?);
 
-		self.db.register_appservice(&yaml)
+		let id = yaml.id.as_str();
+		let yaml = serde_yaml::to_string(&yaml)?;
+		self.db.id_appserviceregistrations.insert(id, yaml);
+
+		Ok(id.to_owned())
 	}
 
 	/// Remove an appservice registration
@@ -186,7 +89,7 @@ impl Service {
 			.ok_or(err!("Appservice not found"))?;
 
 		// remove the appservice from the database
-		self.db.unregister_appservice(service_name)?;
+		self.db.id_appserviceregistrations.remove(service_name);
 
 		// deletes all active requests for the appservice if there are any so we stop
 		// sending to the URL
@@ -254,11 +157,29 @@ impl Service {
 	pub fn read(&self) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>> {
 		self.registration_info.read()
 	}
-}
 
-async fn iter_ids(db: &Data) -> Result<Vec<(String, Registration)>> {
-	db.iter_ids()
-		.then(|id| async move { Ok((id.clone(), db.get_registration(&id).await?)) })
-		.try_collect()
-		.await
+	#[inline]
+	pub async fn all(&self) -> Result<Vec<(String, Registration)>> { self.iter_db_ids().await }
+
+	pub async fn get_db_registration(&self, id: &str) -> Result<Registration> {
+		self.db
+			.id_appserviceregistrations
+			.get(id)
+			.await
+			.and_then(|ref bytes| serde_yaml::from_slice(bytes).map_err(Into::into))
+			.map_err(|e| err!(Database("Invalid appservice {id:?} registration: {e:?}")))
+	}
+
+	async fn iter_db_ids(&self) -> Result<Vec<(String, Registration)>> {
+		self.db
+			.id_appserviceregistrations
+			.keys()
+			.ignore_err()
+			.then(|id: String| async move {
+				let reg = self.get_db_registration(&id).await?;
+				Ok((id, reg))
+			})
+			.try_collect()
+			.await
+	}
 }
