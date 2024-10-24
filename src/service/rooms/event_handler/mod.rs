@@ -206,7 +206,7 @@ impl Service {
 		debug!(events = ?sorted_prev_events, "Got previous events");
 		for prev_id in sorted_prev_events {
 			self.services.server.check_running()?;
-			match self
+			if let Err(e) = self
 				.handle_prev_pdu(
 					origin,
 					event_id,
@@ -218,25 +218,26 @@ impl Service {
 				)
 				.await
 			{
-				Ok(()) => continue,
-				Err(e) => {
-					warn!("Prev event {prev_id} failed: {e}");
-					match self
-						.services
-						.globals
-						.bad_event_ratelimiter
-						.write()
-						.expect("locked")
-						.entry((*prev_id).to_owned())
-					{
-						hash_map::Entry::Vacant(e) => {
-							e.insert((Instant::now(), 1));
-						},
-						hash_map::Entry::Occupied(mut e) => {
-							*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
-						},
-					};
-				},
+				use hash_map::Entry;
+
+				let now = Instant::now();
+				warn!("Prev event {prev_id} failed: {e}");
+
+				match self
+					.services
+					.globals
+					.bad_event_ratelimiter
+					.write()
+					.expect("locked")
+					.entry(prev_id.into())
+				{
+					Entry::Vacant(e) => {
+						e.insert((now, 1));
+					},
+					Entry::Occupied(mut e) => {
+						*e.get_mut() = (now, e.get().1.saturating_add(1));
+					},
+				};
 			}
 		}
 
