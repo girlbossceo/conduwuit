@@ -28,6 +28,11 @@ pub struct Log {
 // the crate namespace like these.
 
 #[macro_export]
+macro_rules! event {
+	( $level:expr, $($x:tt)+ ) => { ::tracing::event!( $level, $($x)+ ) }
+}
+
+#[macro_export]
 macro_rules! error {
     ( $($x:tt)+ ) => { ::tracing::error!( $($x)+ ) }
 }
