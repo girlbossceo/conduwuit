@@ -44,7 +44,9 @@ pub type PubKeys = PublicKeySet;
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let minimum_valid = Duration::from_secs(3600);
+
 		let (keypair, verify_keys) = keypair::init(args.db)?;
+		debug_assert!(verify_keys.len() == 1, "only one active verify_key supported");
 
 		Ok(Arc::new(Self {
 			keypair,
@@ -67,6 +69,21 @@ impl crate::Service for Service {
 #[implement(Service)]
 #[inline]
 pub fn keypair(&self) -> &Ed25519KeyPair { &self.keypair }
+
+#[implement(Service)]
+#[inline]
+pub fn active_key_id(&self) -> &ServerSigningKeyId { self.active_verify_key().0 }
+
+#[implement(Service)]
+#[inline]
+pub fn active_verify_key(&self) -> (&ServerSigningKeyId, &VerifyKey) {
+	debug_assert!(self.verify_keys.len() <= 1, "more than one active verify_key");
+	self.verify_keys
+		.iter()
+		.next()
+		.map(|(id, key)| (id.as_ref(), key))
+		.expect("missing active verify_key")
+}
 
 #[implement(Service)]
 async fn add_signing_keys(&self, new_keys: ServerSigningKeys) {
