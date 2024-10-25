@@ -479,6 +479,8 @@ impl Service {
 						.collect::<Vec<_>>(),
 				)))
 					.into(),
+				ephemeral: Vec::new(),
+				to_device: Vec::new(),
 			},
 		)
 		.await

@@ -63,6 +63,7 @@ impl Data {
 			.iter()
 			.enumerate()
 		{
+			#[allow(clippy::single_match_else)]
 			match short {
 				Some(short) => ret.push(
 					utils::u64_from_bytes(short).map_err(|_| Error::bad_database("Invalid shorteventid in db."))?,

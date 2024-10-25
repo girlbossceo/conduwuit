@@ -9,22 +9,6 @@ pub fn check(config: &Config) -> Result<()> {
 		info!("Note: conduwuit was built without optimisations (i.e. debug build)");
 	}
 
-	// prevents catching this in `--all-features`
-	if cfg!(all(feature = "rocksdb", not(feature = "sha256_media"))) {
-		warn!(
-			"Note the rocksdb feature was deleted from conduwuit. SQLite support was removed and RocksDB is the only \
-			 supported backend now. Please update your build script to remove this feature."
-		);
-	}
-
-	// prevents catching this in `--all-features`
-	if cfg!(all(feature = "sha256_media", not(feature = "rocksdb"))) {
-		warn!(
-			"Note the sha256_media feature was deleted from conduwuit, it is now fully integrated in a \
-			 forwards-compatible way. Please update your build script to remove this feature."
-		);
-	}
-
 	warn_deprecated(config);
 	warn_unknown_key(config);
 

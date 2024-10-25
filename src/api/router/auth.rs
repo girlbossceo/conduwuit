@@ -236,6 +236,7 @@ async fn auth_server(
 		}
 	}
 
+	#[allow(clippy::or_fun_call)]
 	let signature_uri = CanonicalJsonValue::String(
 		request
 			.parts

@@ -9,7 +9,7 @@
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.6.1"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.7.3"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 
@@ -27,7 +27,7 @@
         file = ./rust-toolchain.toml;
 
         # See also `rust-toolchain.toml`
-        sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
+        sha256 = "sha256-yMuSb5eQPO/bHv+Bcf/US8LVMbf/G/0MSfiPwBhiPpk=";
       };
 
       mkScope = pkgs: pkgs.lib.makeScope pkgs.newScope (self: {
@@ -41,7 +41,7 @@
         liburing = pkgs.liburing.overrideAttrs {
           # Tests weren't building
           outputs = [ "out" "dev" "man" ];
-          buildFlags = [ "library"];
+          buildFlags = [ "library" ];
           src = inputs.liburing;
         };
         rocksdb = (pkgs.rocksdb.override {

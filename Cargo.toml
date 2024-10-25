@@ -19,7 +19,7 @@ license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.81.0"
+rust-version = "1.82.0"
 version = "0.4.7"
 
 [workspace.metadata.crane]
@@ -108,7 +108,7 @@ features = ["tls-rustls"]
 version = "0.7"
 
 [workspace.dependencies.axum-client-ip]
-version = "0.6.0"
+version = "0.6.1"
 
 [workspace.dependencies.tower]
 version = "0.5.1"
@@ -200,7 +200,7 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.15"
+version = "4.5.20"
 default-features = false
 features = [
 	"std",
@@ -248,7 +248,7 @@ features = ["alloc", "std"]
 default-features = false
 
 [workspace.dependencies.hyper]
-version = "1.4.1"
+version = "1.5.0"
 default-features = false
 features = [
 	"server",
@@ -315,7 +315,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "b6f82a72b6c0899d8ac8e53206d375c2c6f0a2ad"
+rev = "9900d0676564883cfade556d6e8da2a2c9061efd"
 features = [
     "compat",
     "rand",
@@ -330,16 +330,19 @@ features = [
     "ring-compat",
     "identifiers-validation",
     "unstable-unspecified",
+    "unstable-msc2409",
     "unstable-msc2448",
     "unstable-msc2666",
     "unstable-msc2867",
     "unstable-msc2870",
     "unstable-msc3026",
     "unstable-msc3061",
+    "unstable-msc3245",
     "unstable-msc3266",
     "unstable-msc3381", # polls
     "unstable-msc3489", # beacon / live location
     "unstable-msc3575",
+    "unstable-msc4075",
     "unstable-msc4121",
     "unstable-msc4125",
     "unstable-msc4186",
@@ -405,17 +408,17 @@ version = "0.34.0"
 # jemalloc usage
 [workspace.dependencies.tikv-jemalloc-sys]
 git = "https://github.com/girlbossceo/jemallocator"
-rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
+rev = "d87938bfddc26377dd7fdf14bbcd345f3ab19442"
 default-features = false
 features = ["unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemallocator]
 git = "https://github.com/girlbossceo/jemallocator"
-rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
+rev = "d87938bfddc26377dd7fdf14bbcd345f3ab19442"
 default-features = false
 features = ["unprefixed_malloc_on_supported_platforms"]
 [workspace.dependencies.tikv-jemalloc-ctl]
 git = "https://github.com/girlbossceo/jemallocator"
-rev = "c32af15f3b440ae5e46c3404f78b19093bbd5294"
+rev = "d87938bfddc26377dd7fdf14bbcd345f3ab19442"
 default-features = false
 features = ["use_std"]
 
@@ -444,7 +447,7 @@ version = "0.4.3"
 default-features = false
 
 [workspace.dependencies.termimad]
-version = "0.30.0"
+version = "0.30.1"
 default-features = false
 
 [workspace.dependencies.checked_ops]
@@ -459,7 +462,7 @@ features = ["full", "extra-traits"]
 version = "1.0.36"
 
 [workspace.dependencies.proc-macro2]
-version = "1.0.86"
+version = "1.0.89"
 
 
 #
@@ -717,12 +720,16 @@ opt-level = 'z'
 # primarily used for CI
 [profile.test]
 inherits = "dev"
+strip = false
+opt-level = 0
 codegen-units = 16
 incremental = false
 
 [profile.test.package.'*']
 inherits = "dev"
 debug = 0
+strip = false
+opt-level = 0
 codegen-units = 16
 incremental = false
 
@@ -810,6 +817,7 @@ significant_drop_tightening = { level = "allow", priority = 1 }      # TODO
 pedantic = { level = "warn", priority = -1 }
 
 ## some sadness
+too_long_first_doc_paragraph = { level = "allow", priority = 1 }
 doc_markdown = { level = "allow", priority = 1 }
 enum_glob_use = { level = "allow", priority = 1 }
 if_not_else = { level = "allow", priority = 1 }

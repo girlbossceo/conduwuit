@@ -119,6 +119,7 @@ pub(crate) async fn create_room_route(
 		None => services.globals.default_room_version(),
 	};
 
+	#[allow(clippy::single_match_else)]
 	let content = match &body.creation_content {
 		Some(content) => {
 			use RoomVersionId::*;

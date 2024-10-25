@@ -52,10 +52,6 @@ zstd_compression = [
 perf_measurements = []
 sentry_telemetry = []
 
-# these do nothing, these are purely for informing users to update their build scripts if they use one
-rocksdb = []
-sha256_media = []
-
 [dependencies]
 argon2.workspace = true
 arrayvec.workspace = true

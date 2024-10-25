@@ -2,8 +2,6 @@
 #
 # Other files that need upkeep when this changes:
 #
-# * `.gitlab-ci.yml`
-# * `.github/workflows/ci.yml`
 # * `Cargo.toml`
 # * `flake.nix`
 #
@@ -11,13 +9,20 @@
 # If you're having trouble making the relevant changes, bug a maintainer.
 
 [toolchain]
-channel = "1.81.0"
+channel = "1.82.0"
+profile = "minimal"
 components = [
     # For rust-analyzer
     "rust-src",
+    "rust-analyzer",
+    # For CI and editors
+    "rustfmt",
+    "clippy",
 ]
 targets = [
+    #"x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
     "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
+    #"aarch64-apple-darwin",
 ]
