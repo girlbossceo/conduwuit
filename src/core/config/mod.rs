@@ -377,6 +377,13 @@ pub struct Config {
 	#[serde(default)]
 	pub test: BTreeSet<String>,
 
+	/// Controls whether admin room notices like account registrations, password
+	/// changes, account deactivations, room directory publications, etc will
+	/// be sent to the admin room. Update notices and normal admin command
+	/// responses will still be sent.
+	#[serde(default = "true_fn")]
+	pub admin_room_notices: bool,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
 	catchall: BTreeMap<String, IgnoredAny>,
@@ -867,6 +874,7 @@ impl fmt::Display for Config {
 				.map_or("", |url| url.as_str()),
 		);
 		line("Enable the tokio-console", &self.tokio_console.to_string());
+		line("Admin room notices", &self.admin_room_notices.to_string());
 
 		Ok(())
 	}

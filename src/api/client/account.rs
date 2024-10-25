@@ -310,21 +310,27 @@ pub(crate) async fn register_route(
 	if body.appservice_info.is_none() && !is_guest {
 		if !device_display_name.is_empty() {
 			info!("New user \"{user_id}\" registered on this server with device display name: {device_display_name}");
-			services
-				.admin
-				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"New user \"{user_id}\" registered on this server from IP {client} and device display name \
-					 \"{device_display_name}\""
-				)))
-				.await;
+
+			if services.globals.config.admin_room_notices {
+				services
+					.admin
+					.send_message(RoomMessageEventContent::notice_plain(format!(
+						"New user \"{user_id}\" registered on this server from IP {client} and device display name \
+						 \"{device_display_name}\""
+					)))
+					.await;
+			}
 		} else {
 			info!("New user \"{user_id}\" registered on this server.");
-			services
-				.admin
-				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"New user \"{user_id}\" registered on this server from IP {client}"
-				)))
-				.await;
+
+			if services.globals.config.admin_room_notices {
+				services
+					.admin
+					.send_message(RoomMessageEventContent::notice_plain(format!(
+						"New user \"{user_id}\" registered on this server from IP {client}"
+					)))
+					.await;
+			}
 		}
 	}
 
@@ -333,20 +339,26 @@ pub(crate) async fn register_route(
 		info!("New guest user \"{user_id}\" registered on this server.");
 
 		if !device_display_name.is_empty() {
-			services
-				.admin
-				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"Guest user \"{user_id}\" with device display name \"{device_display_name}\" registered on this \
-					 server from IP {client}"
-				)))
-				.await;
+			if services.globals.config.admin_room_notices {
+				services
+					.admin
+					.send_message(RoomMessageEventContent::notice_plain(format!(
+						"Guest user \"{user_id}\" with device display name \"{device_display_name}\" registered on \
+						 this server from IP {client}"
+					)))
+					.await;
+			}
 		} else {
-			services
-				.admin
-				.send_message(RoomMessageEventContent::notice_plain(format!(
-					"Guest user \"{user_id}\" with no device display name registered on this server from IP {client}",
-				)))
-				.await;
+			#[allow(clippy::collapsible_else_if)]
+			if services.globals.config.admin_room_notices {
+				services
+					.admin
+					.send_message(RoomMessageEventContent::notice_plain(format!(
+						"Guest user \"{user_id}\" with no device display name registered on this server from IP \
+						 {client}",
+					)))
+					.await;
+			}
 		}
 	}
 
@@ -481,12 +493,15 @@ pub(crate) async fn change_password_route(
 	}
 
 	info!("User {sender_user} changed their password.");
-	services
-		.admin
-		.send_message(RoomMessageEventContent::notice_plain(format!(
-			"User {sender_user} changed their password."
-		)))
-		.await;
+
+	if services.globals.config.admin_room_notices {
+		services
+			.admin
+			.send_message(RoomMessageEventContent::notice_plain(format!(
+				"User {sender_user} changed their password."
+			)))
+			.await;
+	}
 
 	Ok(change_password::v3::Response {})
 }
@@ -572,12 +587,15 @@ pub(crate) async fn deactivate_route(
 	full_user_deactivate(&services, sender_user, all_joined_rooms).await?;
 
 	info!("User {sender_user} deactivated their account.");
-	services
-		.admin
-		.send_message(RoomMessageEventContent::notice_plain(format!(
-			"User {sender_user} deactivated their account."
-		)))
-		.await;
+
+	if services.globals.config.admin_room_notices {
+		services
+			.admin
+			.send_message(RoomMessageEventContent::notice_plain(format!(
+				"User {sender_user} deactivated their account."
+			)))
+			.await;
+	}
 
 	Ok(deactivate::v3::Response {
 		id_server_unbind_result: ThirdPartyIdRemovalStatus::NoSupport,

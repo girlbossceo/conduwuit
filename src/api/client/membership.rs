@@ -71,13 +71,16 @@ async fn banned_room_check(
 
 				if services.globals.config.auto_deactivate_banned_room_attempts {
 					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
-					services
-						.admin
-						.send_message(RoomMessageEventContent::text_plain(format!(
-							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
-							 {client_ip}"
-						)))
-						.await;
+
+					if services.globals.config.admin_room_notices {
+						services
+							.admin
+							.send_message(RoomMessageEventContent::text_plain(format!(
+								"Automatically deactivating user {user_id} due to attempted banned room join from IP \
+								 {client_ip}"
+							)))
+							.await;
+					}
 
 					let all_joined_rooms: Vec<OwnedRoomId> = services
 						.rooms
@@ -108,13 +111,16 @@ async fn banned_room_check(
 
 				if services.globals.config.auto_deactivate_banned_room_attempts {
 					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
-					services
-						.admin
-						.send_message(RoomMessageEventContent::text_plain(format!(
-							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
-							 {client_ip}"
-						)))
-						.await;
+
+					if services.globals.config.admin_room_notices {
+						services
+							.admin
+							.send_message(RoomMessageEventContent::text_plain(format!(
+								"Automatically deactivating user {user_id} due to attempted banned room join from IP \
+								 {client_ip}"
+							)))
+							.await;
+					}
 
 					let all_joined_rooms: Vec<OwnedRoomId> = services
 						.rooms

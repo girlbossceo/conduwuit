@@ -103,14 +103,17 @@ pub(crate) async fn create_room_route(
 			 \"lockdown_public_room_directory\" is enabled",
 			&room_id
 		);
-		services
-			.admin
-			.send_text(&format!(
-				"Non-admin user {sender_user} tried to publish {0} to the room directory while \
-				 \"lockdown_public_room_directory\" is enabled",
-				&room_id
-			))
-			.await;
+
+		if services.globals.config.admin_room_notices {
+			services
+				.admin
+				.send_text(&format!(
+					"Non-admin user {sender_user} tried to publish {0} to the room directory while \
+					 \"lockdown_public_room_directory\" is enabled",
+					&room_id
+				))
+				.await;
+		}
 
 		return Err!(Request(Forbidden("Publishing rooms to the room directory is not allowed")));
 	}
@@ -473,10 +476,13 @@ pub(crate) async fn create_room_route(
 
 	if body.visibility == room::Visibility::Public {
 		services.rooms.directory.set_public(&room_id)?;
-		services
-			.admin
-			.send_text(&format!("{sender_user} made {} public to the room directory", &room_id))
-			.await;
+
+		if services.globals.config.admin_room_notices {
+			services
+				.admin
+				.send_text(&format!("{sender_user} made {} public to the room directory", &room_id))
+				.await;
+		}
 		info!("{sender_user} made {0} public to the room directory", &room_id);
 	}
 

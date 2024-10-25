@@ -351,6 +351,14 @@ allow_profile_lookup_federation_requests = true
 # defaults to true
 #admin_escape_commands = true
 
+# Controls whether admin room notices like account registrations, password changes, account deactivations,
+# room directory publications, etc will be sent to the admin room.
+#
+# Update notices and normal admin command responses will still be sent.
+#
+# defaults to true
+#admin_room_notices = true
+
 
 ### Misc
 
