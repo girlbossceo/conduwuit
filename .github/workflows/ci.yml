@@ -236,8 +236,8 @@ jobs:
         strategy:
             matrix:
                 include:
-                    - target: aarch64-unknown-linux-musl
-                    - target: x86_64-unknown-linux-musl
+                    - target: aarch64-linux-musl
+                    - target: x86_64-linux-musl
         steps:
             - name: Free Disk Space (Ubuntu)
               uses: jlumbroso/free-disk-space@main
@@ -311,7 +311,14 @@ jobs:
 
             - name: Build static ${{ matrix.target }}
               run: |
-                  CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
+                  if [[ ${{ matrix.target }} == "x86_64-linux-musl" ]]
+                  then
+                    CARGO_DEB_TARGET_TUPLE="x86_64-unknown-linux-musl"
+                  elif [[ ${{ matrix.target }} == "aarch64-linux-musl" ]]
+                  then
+                    CARGO_DEB_TARGET_TUPLE="aarch64-unknown-linux-musl"
+                  fi
+
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
                   bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features
@@ -335,7 +342,14 @@ jobs:
 
             - name: Build static debug ${{ matrix.target }}
               run: |
-                  CARGO_DEB_TARGET_TUPLE=$(echo ${{ matrix.target }} | grep -o -E '^([^-]*-){3}[^-]*')
+                  if [[ ${{ matrix.target }} == "x86_64-linux-musl" ]]
+                  then
+                    CARGO_DEB_TARGET_TUPLE="x86_64-unknown-linux-musl"
+                  elif [[ ${{ matrix.target }} == "aarch64-linux-musl" ]]
+                  then
+                    CARGO_DEB_TARGET_TUPLE="aarch64-unknown-linux-musl"
+                  fi
+
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
 
                   bin/nix-build-and-cache just .#static-${{ matrix.target }}-all-features-debug
@@ -542,10 +556,10 @@ jobs:
 
             - name: Move OCI images into position
               run: |
-                  mv -v oci-image-x86_64-unknown-linux-musl/*.tar.gz oci-image-amd64.tar.gz
-                  mv -v oci-image-aarch64-unknown-linux-musl/*.tar.gz oci-image-arm64v8.tar.gz
-                  mv -v oci-image-x86_64-unknown-linux-musl-debug/*.tar.gz oci-image-amd64-debug.tar.gz
-                  mv -v oci-image-aarch64-unknown-linux-musl-debug/*.tar.gz oci-image-arm64v8-debug.tar.gz
+                  mv -v oci-image-x86_64-linux-musl/*.tar.gz oci-image-amd64.tar.gz
+                  mv -v oci-image-aarch64-linux-musl/*.tar.gz oci-image-arm64v8.tar.gz
+                  mv -v oci-image-x86_64-linux-musl-debug/*.tar.gz oci-image-amd64-debug.tar.gz
+                  mv -v oci-image-aarch64-linux-musl-debug/*.tar.gz oci-image-arm64v8-debug.tar.gz
 
             - name: Load and push amd64 image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}

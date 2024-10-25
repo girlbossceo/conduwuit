@@ -60,7 +60,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
-      - uses: nixbuild/nix-quick-install-action@v28
+      - uses: nixbuild/nix-quick-install-action@master
 
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v5.1.0
