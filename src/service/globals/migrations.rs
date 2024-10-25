@@ -24,6 +24,14 @@ use crate::{media, Services};
 ///   equal or lesser version. These are expected to be backward-compatible.
 pub(crate) const DATABASE_VERSION: u64 = 13;
 
+/// Conduit's database version.
+///
+/// Conduit bumped the database version to 16, but did not introduce any
+/// breaking changes. Their database migrations are extremely fragile and risky,
+/// and also do not really apply to us, so just to retain Conduit -> conduwuit
+/// compatibility we'll check for both versions.
+pub(crate) const CONDUIT_DATABASE_VERSION: u64 = 16;
+
 pub(crate) async fn migrations(services: &Services) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
 	// requires recreating the database from scratch.
@@ -148,9 +156,11 @@ async fn migrate(services: &Services) -> Result<()> {
 		retroactively_fix_bad_data_from_roomuserid_joined(services).await?;
 	}
 
-	assert_eq!(
-		services.globals.db.database_version().unwrap(),
-		DATABASE_VERSION,
+	let version_match = services.globals.db.database_version().unwrap() == DATABASE_VERSION
+		|| services.globals.db.database_version().unwrap() == CONDUIT_DATABASE_VERSION;
+
+	assert!(
+		version_match,
 		"Failed asserting local database version {} is equal to known latest conduwuit database version {}",
 		services.globals.db.database_version().unwrap(),
 		DATABASE_VERSION,
