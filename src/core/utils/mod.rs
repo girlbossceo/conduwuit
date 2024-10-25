@@ -1,3 +1,4 @@
+pub mod arrayvec;
 pub mod bool;
 pub mod bytes;
 pub mod content_disposition;
@@ -22,6 +23,7 @@ pub use ::conduit_macros::implement;
 pub use ::ctor::{ctor, dtor};
 
 pub use self::{
+	arrayvec::ArrayVecExt,
 	bool::BoolExt,
 	bytes::{increment, u64_from_bytes, u64_from_u8, u64_from_u8x8},
 	debug::slice_truncated as debug_slice_truncated,
