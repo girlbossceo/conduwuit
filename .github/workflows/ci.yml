@@ -16,7 +16,6 @@ on:
           - 'docker/**'
         branches:
             - main
-            - change-ci-cache
         tags:
           - '*'
     # Allows you to run this workflow manually from the Actions tab
@@ -24,7 +23,7 @@ on:
 
 concurrency:
     group: ${{ github.head_ref || github.ref_name }}
-    cancel-in-progress: true
+    cancel-in-progress: false
 
 env:
     # sccache only on main repo
@@ -51,8 +50,11 @@ env:
     # Get error output from nix that we can actually use, and use our binary caches for the earlier CI steps
     NIX_CONFIG: |
       show-trace = true
-      extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+      extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://cache.lix.systems https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
       extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+      experimental-features = nix-command flakes
+      extra-experimental-features = nix-command flakes
+      accept-flake-config = true
     # complement uses libolm
     NIXPKGS_ALLOW_INSECURE: 1
 
@@ -64,11 +66,22 @@ jobs:
     tests:
         name: Test
         runs-on: ubuntu-latest
-        env:
-          CARGO_PROFILE: "test"
         steps:
             - name: Free Disk Space (Ubuntu)
               uses: jlumbroso/free-disk-space@main
+
+            - name: Free up more runner space
+              run: |
+                set +o pipefail
+                # large docker images
+                sudo docker image prune --all --force || true
+                # large packages
+                sudo apt-get purge -y '^llvm-.*' 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-cloud-cli google-chrome-stable firefox powershell microsoft-edge-stable || true
+                sudo apt-get autoremove -y
+                sudo apt-get clean
+                # large folders
+                sudo rm -rf /var/lib/apt/lists/* /usr/local/games /usr/local/sqlpackage /usr/local/.ghcup /usr/local/share/powershell /usr/local/share/edge_driver /usr/local/share/gecko_driver /usr/local/share/chromium /usr/local/share/chromedriver-linux64 /usr/local/share/vcpkg /usr/local/lib/python* /usr/local/lib/node_modules /usr/local/julia* /opt/mssql-tools /etc/skel /usr/share/vim /usr/share/postgresql /usr/share/man /usr/share/apache-maven-* /usr/share/R /usr/share/alsa /usr/share/miniconda /usr/share/grub /usr/share/gradle-* /usr/share/locale /usr/share/texinfo /usr/share/kotlinc /usr/share/swift /usr/share/doc /usr/share/az_9.3.0 /usr/share/sbt /usr/share/ri /usr/share/icons /usr/share/java /usr/share/fonts /usr/lib/google-cloud-sdk /usr/lib/jvm /usr/lib/mono /usr/lib/R /usr/lib/postgresql /usr/lib/heroku /usr/lib/gcc
+                set -o pipefail
 
             - name: Sync repository
               uses: actions/checkout@v4
@@ -85,7 +98,7 @@ jobs:
                     exit 1
                   fi
 
-            - uses: nixbuild/nix-quick-install-action@v28
+            - uses: nixbuild/nix-quick-install-action@master
 
             - name: Restore and cache Nix store
               uses: nix-community/cache-nix-action@v5.1.0
@@ -117,8 +130,11 @@ jobs:
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+                  extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://cache.lix.systems https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
                   extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+                  experimental-features = nix-command flakes
+                  extra-experimental-features = nix-command flakes
+                  accept-flake-config = true
                   EOF
 
             - name: Use alternative Nix binary caches if specified
@@ -132,9 +148,9 @@ jobs:
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
+                  nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
-                  nix develop .#all-features --command true --impure
+                  nix develop .#all-features --command true
 
             - name: Cache CI dependencies
               run: |
@@ -151,10 +167,14 @@ jobs:
                 cache-all-crates: "true"
 
             - name: Run CI tests
+              env:
+                CARGO_PROFILE: "test"
               run: |
                   direnv exec . engage > >(tee -a test_output.log)
 
             - name: Run Complement tests
+              env:
+                CARGO_PROFILE: "test"
               run: |
                   # the nix devshell sets $COMPLEMENT_SRC, so "/dev/null" is no-op
                   direnv exec . bin/complement "/dev/null" complement_test_logs.jsonl complement_test_results.jsonl > >(tee -a test_output.log)
@@ -202,7 +222,7 @@ jobs:
                       echo '```' >> $GITHUB_STEP_SUMMARY
                   fi
 
-            - name: Run cargo clean test artifacts
+            - name: Run cargo clean test artifacts to free up space
               run: |
                   cargo clean --profile test
 
@@ -254,8 +274,11 @@ jobs:
             - name: Apply Nix binary cache configuration
               run: |
                   sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+                  extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://cache.lix.systems https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
                   extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+                  experimental-features = nix-command flakes
+                  extra-experimental-features = nix-command flakes
+                  accept-flake-config = true
                   EOF
 
             - name: Use alternative Nix binary caches if specified
@@ -400,6 +423,71 @@ jobs:
                   path: oci-image-${{ matrix.target }}-debug.tar.gz
                   if-no-files-found: error
                   compression-level: 0
+
+    build_mac_binaries:
+        name: Build MacOS Binaries
+        strategy:
+          matrix:
+            os: [macos-latest, macos-13]
+        runs-on: ${{ matrix.os }}
+        steps:
+            - name: Sync repository
+              uses: actions/checkout@v4
+            - name: Tag comparison check
+              if: ${{ startsWith(github.ref, 'refs/tags/v') && !endsWith(github.ref, '-rc') }}
+              run: |
+                  # Tag mismatch with latest repo tag check to prevent potential downgrades
+                  LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+                  if [ $LATEST_TAG != ${{ github.ref_name }} ]; then
+                    echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.'
+                    echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.' >> $GITHUB_STEP_SUMMARY
+                    exit 1
+                  fi
+            # use sccache for Rust
+            - name: Run sccache-cache
+              if: (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]')
+              uses: mozilla-actions/sccache-action@main
+            # use rust-cache
+            - uses: Swatinem/rust-cache@v2
+              with:
+                cache-all-crates: "true"
+            # Nix can't do portable macOS builds yet
+            - name: Build macOS x86_64 binary
+              if: ${{ matrix.os == 'macos-13' }}
+              run: |
+                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short HEAD)" cargo build --release
+                  cp -v -f target/release/conduit conduwuit-macos-x86_64
+                  otool -L conduwuit-macos-x86_64
+            # quick smoke test of the x86_64 macOS binary
+            - name: Run x86_64 macOS release binary
+              if: ${{ matrix.os == 'macos-13' }}
+              run: |
+                  ./conduwuit-macos-x86_64 --version
+            - name: Build macOS arm64 binary
+              if: ${{ matrix.os == 'macos-latest' }}
+              run: |
+                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short HEAD)" cargo build --release
+                  cp -v -f target/release/conduit conduwuit-macos-arm64
+                  otool -L conduwuit-macos-arm64
+            # quick smoke test of the arm64 macOS binary
+            - name: Run arm64 macOS release binary
+              if: ${{ matrix.os == 'macos-latest' }}
+              run: |
+                  ./conduwuit-macos-arm64 --version
+            - name: Upload macOS x86_64 binary
+              if: ${{ matrix.os == 'macos-13' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: conduwuit-macos-x86_64
+                  path: conduwuit-macos-x86_64
+                  if-no-files-found: error
+            - name: Upload macOS arm64 binary
+              if: ${{ matrix.os == 'macos-latest' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: conduwuit-macos-arm64
+                  path: conduwuit-macos-arm64
+                  if-no-files-found: error
 
     docker:
         name: Docker publish

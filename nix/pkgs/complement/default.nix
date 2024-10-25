@@ -18,6 +18,15 @@ let
     all_features = true;
     disable_release_max_log_level = true;
     disable_features = [
+        # no reason to use jemalloc for complement, just has compatibility/build issues
+        "jemalloc"
+        # console/CLI stuff isn't used or relevant for complement
+        "console"
+        "tokio_console"
+        # sentry telemetry isn't useful for complement, disabled by default anyways
+        "sentry_telemetry"
+        # the containers don't use or need systemd signal support
+        "systemd"
         # this is non-functional on nix for some reason
         "hardened_malloc"
         # dont include experimental features
@@ -57,7 +66,7 @@ let
 in
 
 dockerTools.buildImage {
-  name = "complement-${main.pname}";
+  name = "complement-conduwuit";
   tag = "main";
 
   copyToRoot = buildEnv {
@@ -78,7 +87,7 @@ dockerTools.buildImage {
       "${lib.getExe start}"
     ];
 
-    Entrypoint = if !stdenv.isDarwin
+    Entrypoint = if !stdenv.hostPlatform.isDarwin
       # Use the `tini` init system so that signals (e.g. ctrl+c/SIGINT)
       # are handled as expected
       then [ "${lib.getExe' tini "tini"}" "--" ]

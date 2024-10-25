@@ -6,6 +6,7 @@
 , libiconv
 , liburing
 , pkgsBuildHost
+, pkgsBuildTarget
 , rocksdb
 , removeReferencesTo
 , rust
@@ -40,7 +41,7 @@ features'' = lib.subtractLists disable_features' features';
 
 featureEnabled = feature : builtins.elem feature features'';
 
-enableLiburing = featureEnabled "io_uring" && !stdenv.isDarwin;
+enableLiburing = featureEnabled "io_uring" && !stdenv.hostPlatform.isDarwin;
 
 # This derivation will set the JEMALLOC_OVERRIDE variable, causing the
 # tikv-jemalloc-sys crate to use the nixpkgs jemalloc instead of building it's
@@ -72,16 +73,12 @@ buildDepsOnlyEnv =
       # jemalloc symbols are prefixed.
       #
       # [1]: https://github.com/tikv/jemallocator/blob/ab0676d77e81268cd09b059260c75b38dbef2d51/jemalloc-sys/src/env.rs#L17
-      enableJemalloc = featureEnabled "jemalloc" && !stdenv.isDarwin;
+      enableJemalloc = featureEnabled "jemalloc" && !stdenv.hostPlatform.isDarwin;
 
       # for some reason enableLiburing in nixpkgs rocksdb is default true
       # which breaks Darwin entirely
       enableLiburing = enableLiburing;
     }).overrideAttrs (old: {
-      # TODO: static rocksdb fails to build on darwin, also see <https://github.com/NixOS/nixpkgs/issues/320448>
-      # build log at <https://girlboss.ceo/~strawberry/pb/JjGH>
-      meta.broken = stdenv.hostPlatform.isStatic && stdenv.isDarwin;
-
       enableLiburing = enableLiburing;
     });
   in
@@ -99,6 +96,7 @@ buildDepsOnlyEnv =
     inherit
       lib
       pkgsBuildHost
+      pkgsBuildTarget
       rust
       stdenv;
   });
@@ -137,7 +135,16 @@ commonAttrs = {
     dontStrip = profile == "dev" || profile == "test";
     dontPatchELF = profile == "dev" || profile == "test";
 
-    buildInputs = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys';
+    buildInputs = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys'
+    # needed to build Rust applications on macOS
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [
+        # https://github.com/NixOS/nixpkgs/issues/206242
+        # ld: library not found for -liconv
+        libiconv
+        # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
+        # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
+        pkgsBuildHost.darwin.apple_sdk.frameworks.Security
+      ];
 
     nativeBuildInputs = [
       # bindgen needs the build platform's libclang. Apparently due to "splicing
@@ -154,8 +161,10 @@ commonAttrs = {
       # needed so we can get rid of gcc and other unused deps that bloat OCI images
       removeReferencesTo
   ]
-  ++ lib.optionals stdenv.isDarwin [
+  # needed to build Rust applications on macOS
+  ++ lib.optionals stdenv.hostPlatform.isDarwin [
       # https://github.com/NixOS/nixpkgs/issues/206242
+      # ld: library not found for -liconv
       libiconv
 
       # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
@@ -167,7 +176,7 @@ commonAttrs = {
     #
     # <https://github.com/input-output-hk/haskell.nix/issues/829>
     postInstall = with pkgsBuildHost; ''
-        find "$out" -type f -exec remove-references-to -t ${stdenv.cc} -t ${gcc} -t ${libgcc} -t ${linuxHeaders} -t ${libidn2} -t ${libunistring} '{}' +
+        find "$out" -type f -exec remove-references-to -t ${stdenv.cc} -t ${gcc} -t ${rustc.unwrapped} -t ${rustc} -t ${libidn2} -t ${libunistring} '{}' +
     '';
  };
 in

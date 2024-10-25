@@ -38,6 +38,14 @@
         inherit inputs;
         main = self.callPackage ./nix/pkgs/main {};
         oci-image = self.callPackage ./nix/pkgs/oci-image {};
+        tini = pkgs.tini.overrideAttrs {
+            # newer clang/gcc is unhappy with tini-static: <https://3.dog/~strawberry/pb/c8y4>
+            patches = [ (pkgs.fetchpatch {
+                url = "https://patch-diff.githubusercontent.com/raw/krallin/tini/pull/224.patch";
+                hash = "sha256-4bTfAhRyIT71VALhHY13hUgbjLEUyvgkIJMt3w9ag3k=";
+              })
+            ];
+        };
         liburing = pkgs.liburing.overrideAttrs {
           # Tests weren't building
           outputs = [ "out" "dev" "man" ];
@@ -88,6 +96,16 @@
 
       scopeHost = mkScope pkgsHost;
       scopeHostStatic = mkScope pkgsHostStatic;
+      scopeCrossLinux = mkScope pkgsHost.pkgsLinux.pkgsStatic;
+      mkCrossScope = crossSystem:
+        let pkgsCrossStatic = (import inputs.nixpkgs {
+          inherit system;
+          crossSystem = {
+           config = crossSystem;
+          };
+        }).pkgsStatic;
+         in
+        mkScope pkgsCrossStatic;
 
       mkDevShell = scope: scope.pkgs.mkShell {
         env = scope.main.env // {
@@ -118,7 +136,6 @@
         ++ (with pkgsHost.pkgs; [
           engage
           cargo-audit
-          liburing
 
           # Required by hardened-malloc.rs dep
           binutils
@@ -149,12 +166,21 @@
 
           # needed so we can get rid of gcc and other unused deps that bloat OCI images
           removeReferencesTo
-        ])
+        ]
+        # liburing is Linux-exclusive
+        ++ lib.optional stdenv.hostPlatform.isLinux liburing
+        # needed to build Rust applications on macOS
+        ++ lib.optionals stdenv.hostPlatform.isDarwin [
+            # https://github.com/NixOS/nixpkgs/issues/206242
+            # ld: library not found for -liconv
+            libiconv
+            # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
+            # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
+            pkgsBuildHost.darwin.apple_sdk.frameworks.Security
+            ])
         ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs
         ++ scope.main.nativeBuildInputs;
-
-        meta.broken = scope.main.meta.broken;
       };
     in
     {
@@ -228,6 +254,8 @@
 
         complement = scopeHost.complement;
         static-complement = scopeHostStatic.complement;
+        # macOS containers don't exist, so the complement images must be forced to linux
+        linux-complement = (mkCrossScope "${pkgsHost.hostPlatform.qemuArch}-linux-musl").complement;
       }
       //
       builtins.listToAttrs
@@ -236,14 +264,7 @@
             (crossSystem:
               let
                 binaryName = "static-${crossSystem}";
-                pkgsCrossStatic =
-                  (import inputs.nixpkgs {
-                    inherit system;
-                    crossSystem = {
-                      config = crossSystem;
-                    };
-                  }).pkgsStatic;
-                scopeCrossStatic = mkScope pkgsCrossStatic;
+                scopeCrossStatic = mkCrossScope crossSystem;
               in
               [
                 # An output for a statically-linked binary
@@ -373,11 +394,20 @@
                     };
                   };
                 }
+
+                # An output for a complement OCI image for the specified platform
+                {
+                  name = "complement-${crossSystem}";
+                  value = scopeCrossStatic.complement;
+                }
               ]
             )
             [
-              "x86_64-unknown-linux-musl"
-              "aarch64-unknown-linux-musl"
+              #"x86_64-apple-darwin"
+              #"aarch64-apple-darwin"
+              "x86_64-linux-gnu"
+              "x86_64-linux-musl"
+              "aarch64-linux-musl"
             ]
           )
         );

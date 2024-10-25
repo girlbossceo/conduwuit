@@ -10,6 +10,13 @@ variables:
   FF_USE_FASTZIP: true
   # Print progress reports for cache and artifact transfers
   TRANSFER_METER_FREQUENCY: 5s
+  NIX_CONFIG: |
+    show-trace = true
+    extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
+    extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+    experimental-features = nix-command flakes
+    extra-experimental-features = nix-command flakes
+    accept-flake-config = true
 
 # Avoid duplicate pipelines
 # See: https://docs.gitlab.com/ee/ci/yaml/workflow.html#switch-between-branch-pipelines-and-merge-request-pipelines
@@ -23,6 +30,9 @@ workflow:
 before_script:
   # Enable nix-command and flakes
   - if command -v nix > /dev/null; then echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf; fi
+  - if command -v nix > /dev/null; then echo "extra-experimental-features = nix-command flakes" >> /etc/nix/nix.conf; fi
+  # Accept flake config from "untrusted" users
+  - if command -v nix > /dev/null; then echo "accept-flake-config = true" >> /etc/nix/nix.conf; fi
 
   # Add conduwuit binary cache
   - if command -v nix > /dev/null; then echo "extra-substituters = https://attic.kennel.juneis.dog/conduwuit" >> /etc/nix/nix.conf; fi
@@ -46,6 +56,8 @@ before_script:
   # Add nix-community binary cache
   - if command -v nix > /dev/null; then echo "extra-substituters = https://nix-community.cachix.org" >> /etc/nix/nix.conf; fi
   - if command -v nix > /dev/null; then echo "extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=" >> /etc/nix/nix.conf; fi
+
+  - if command -v nix > /dev/null; then echo "extra-substituters = https://aseipp-nix-cache.freetls.fastly.net" >> /etc/nix/nix.conf; fi
 
   # Install direnv and nix-direnv
   - if command -v nix > /dev/null; then nix-env -iA nixpkgs.direnv nixpkgs.nix-direnv; fi
