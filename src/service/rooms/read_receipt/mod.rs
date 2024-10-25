@@ -3,16 +3,17 @@ mod data;
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduit::{debug, Result};
-use data::Data;
+use futures::Stream;
 use ruma::{
 	events::{
 		receipt::{ReceiptEvent, ReceiptEventContent},
-		AnySyncEphemeralRoomEvent, SyncEphemeralRoomEvent,
+		SyncEphemeralRoomEvent,
 	},
 	serde::Raw,
-	OwnedUserId, RoomId, UserId,
+	RoomId, UserId,
 };
 
+use self::data::{Data, ReceiptItem};
 use crate::{sending, Dep};
 
 pub struct Service {
@@ -23,9 +24,6 @@ pub struct Service {
 struct Services {
 	sending: Dep<sending::Service>,
 }
-
-type AnySyncEphemeralRoomEventIter<'a> =
-	Box<dyn Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a>;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -42,44 +40,53 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Replaces the previous read receipt.
-	pub fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) -> Result<()> {
-		self.db.readreceipt_update(user_id, room_id, event)?;
-		self.services.sending.flush_room(room_id)?;
-
-		Ok(())
+	pub async fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) {
+		self.db.readreceipt_update(user_id, room_id, event).await;
+		self.services
+			.sending
+			.flush_room(room_id)
+			.await
+			.expect("room flush failed");
 	}
 
 	/// Returns an iterator over the most recent read_receipts in a room that
 	/// happened after the event with id `since`.
+	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn readreceipts_since<'a>(
-		&'a self, room_id: &RoomId, since: u64,
-	) -> impl Iterator<Item = Result<(OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>> + 'a {
+		&'a self, room_id: &'a RoomId, since: u64,
+	) -> impl Stream<Item = ReceiptItem> + Send + 'a {
 		self.db.readreceipts_since(room_id, since)
 	}
 
 	/// Sets a private read marker at `count`.
+	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) -> Result<()> {
-		self.db.private_read_set(room_id, user_id, count)
+	pub fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) {
+		self.db.private_read_set(room_id, user_id, count);
 	}
 
 	/// Returns the private read marker.
+	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Option<u64>> {
-		self.db.private_read_get(room_id, user_id)
+	pub async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
+		self.db.private_read_get(room_id, user_id).await
 	}
 
 	/// Returns the count of the last typing update in this room.
-	pub fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> Result<u64> {
-		self.db.last_privateread_update(user_id, room_id)
+	#[inline]
+	pub async fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
+		self.db.last_privateread_update(user_id, room_id).await
 	}
 }
 
 #[must_use]
-pub fn pack_receipts(receipts: AnySyncEphemeralRoomEventIter<'_>) -> Raw<SyncEphemeralRoomEvent<ReceiptEventContent>> {
+pub fn pack_receipts<I>(receipts: I) -> Raw<SyncEphemeralRoomEvent<ReceiptEventContent>>
+where
+	I: Iterator<Item = ReceiptItem>,
+{
 	let mut json = BTreeMap::new();
-	for (_user, _count, value) in receipts.flatten() {
+	for (_, _, value) in receipts {
 		let receipt = serde_json::from_str::<SyncEphemeralRoomEvent<ReceiptEventContent>>(value.json().get());
 		if let Ok(value) = receipt {
 			for (event, receipt) in value.content {

@@ -1,10 +1,10 @@
 use std::{any::Any, panic};
 
-/// Export debug proc_macros
+// Export debug proc_macros
 pub use conduit_macros::recursion_depth;
 
-/// Export all of the ancillary tools from here as well.
-pub use crate::utils::debug::*;
+// Export all of the ancillary tools from here as well.
+pub use crate::{result::DebugInspect, utils::debug::*};
 
 /// Log event at given level in debug-mode (when debug-assertions are enabled).
 /// In release-mode it becomes DEBUG level, and possibly subject to elision.

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{Error, Result};
+use conduit::{utils::ReadyExt, Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_leave_event},
 	events::{
@@ -49,18 +49,22 @@ pub(crate) async fn create_leave_event_v2_route(
 async fn create_leave_event(
 	services: &Services, origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<()> {
-	if !services.rooms.metadata.exists(room_id)? {
+	if !services.rooms.metadata.exists(room_id).await {
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
 	}
 
 	// ACL check origin
-	services.rooms.event_handler.acl_check(origin, room_id)?;
+	services
+		.rooms
+		.event_handler
+		.acl_check(origin, room_id)
+		.await?;
 
 	let pub_key_map = RwLock::new(BTreeMap::new());
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
-	let room_version_id = services.rooms.state.get_room_version(room_id)?;
+	let room_version_id = services.rooms.state.get_room_version(room_id).await?;
 	let Ok((event_id, value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
 		return Err(Error::BadRequest(
@@ -114,7 +118,8 @@ async fn create_leave_event(
 	services
 		.rooms
 		.event_handler
-		.acl_check(sender.server_name(), room_id)?;
+		.acl_check(sender.server_name(), room_id)
+		.await?;
 
 	if sender.server_name() != origin {
 		return Err(Error::BadRequest(
@@ -173,10 +178,9 @@ async fn create_leave_event(
 		.rooms
 		.state_cache
 		.room_servers(room_id)
-		.filter_map(Result::ok)
-		.filter(|server| !services.globals.server_is_ours(server));
+		.ready_filter(|server| !services.globals.server_is_ours(server));
 
-	services.sending.send_pdu_servers(servers, &pdu_id)?;
+	services.sending.send_pdu_servers(servers, &pdu_id).await?;
 
 	Ok(())
 }

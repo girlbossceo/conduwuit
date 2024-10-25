@@ -1,5 +1,7 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
+use conduit::{debug, err, info, utils::ReadyExt, warn, Err};
+use futures::StreamExt;
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -19,7 +21,6 @@ use ruma::{
 	UserId,
 };
 use serde::Deserialize;
-use tracing::{debug, info, warn};
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{utils, utils::hash, Error, Result, Ruma};
@@ -79,21 +80,22 @@ pub(crate) async fn login_route(
 				UserId::parse(user)
 			} else {
 				warn!("Bad login type: {:?}", &body.login_info);
-				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
+				return Err!(Request(Forbidden("Bad login type.")));
 			}
 			.map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 			let hash = services
 				.users
-				.password_hash(&user_id)?
-				.ok_or(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."))?;
+				.password_hash(&user_id)
+				.await
+				.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
 
 			if hash.is_empty() {
-				return Err(Error::BadRequest(ErrorKind::UserDeactivated, "The user has been deactivated"));
+				return Err!(Request(UserDeactivated("The user has been deactivated")));
 			}
 
 			if hash::verify_password(password, &hash).is_err() {
-				return Err(Error::BadRequest(ErrorKind::forbidden(), "Wrong username or password."));
+				return Err!(Request(Forbidden("Wrong username or password.")));
 			}
 
 			user_id
@@ -112,15 +114,12 @@ pub(crate) async fn login_route(
 
 				let username = token.claims.sub.to_lowercase();
 
-				UserId::parse_with_server_name(username, services.globals.server_name()).map_err(|e| {
-					warn!("Failed to parse username from user logging in: {e}");
-					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-				})?
+				UserId::parse_with_server_name(username, services.globals.server_name())
+					.map_err(|e| err!(Request(InvalidUsername(debug_error!(?e, "Failed to parse login username")))))?
 			} else {
-				return Err(Error::BadRequest(
-					ErrorKind::Unknown,
-					"Token login is not supported (server has no jwt decoding key).",
-				));
+				return Err!(Request(Unknown(
+					"Token login is not supported (server has no jwt decoding key)."
+				)));
 			}
 		},
 		#[allow(deprecated)]
@@ -169,23 +168,32 @@ pub(crate) async fn login_route(
 	let token = utils::random_string(TOKEN_LENGTH);
 
 	// Determine if device_id was provided and exists in the db for this user
-	let device_exists = body.device_id.as_ref().map_or(false, |device_id| {
+	let device_exists = if body.device_id.is_some() {
 		services
 			.users
 			.all_device_ids(&user_id)
-			.any(|x| x.as_ref().map_or(false, |v| v == device_id))
-	});
+			.ready_any(|v| v == device_id)
+			.await
+	} else {
+		false
+	};
 
 	if device_exists {
-		services.users.set_token(&user_id, &device_id, &token)?;
+		services
+			.users
+			.set_token(&user_id, &device_id, &token)
+			.await?;
 	} else {
-		services.users.create_device(
-			&user_id,
-			&device_id,
-			&token,
-			body.initial_device_display_name.clone(),
-			Some(client.to_string()),
-		)?;
+		services
+			.users
+			.create_device(
+				&user_id,
+				&device_id,
+				&token,
+				body.initial_device_display_name.clone(),
+				Some(client.to_string()),
+			)
+			.await?;
 	}
 
 	// send client well-known if specified so the client knows to reconfigure itself
@@ -228,10 +236,13 @@ pub(crate) async fn logout_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
-	services.users.remove_device(sender_user, sender_device)?;
+	services
+		.users
+		.remove_device(sender_user, sender_device)
+		.await;
 
 	// send device list update for user after logout
-	services.users.mark_device_key_update(sender_user)?;
+	services.users.mark_device_key_update(sender_user).await;
 
 	Ok(logout::v3::Response::new())
 }
@@ -256,12 +267,14 @@ pub(crate) async fn logout_all_route(
 ) -> Result<logout_all::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	for device_id in services.users.all_device_ids(sender_user).flatten() {
-		services.users.remove_device(sender_user, &device_id)?;
-	}
+	services
+		.users
+		.all_device_ids(sender_user)
+		.for_each(|device_id| services.users.remove_device(sender_user, device_id))
+		.await;
 
 	// send device list update for user after logout
-	services.users.mark_device_key_update(sender_user)?;
+	services.users.mark_device_key_update(sender_user).await;
 
 	Ok(logout_all::v3::Response::new())
 }

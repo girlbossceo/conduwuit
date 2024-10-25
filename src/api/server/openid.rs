@@ -10,6 +10,9 @@ pub(crate) async fn get_openid_userinfo_route(
 	State(services): State<crate::State>, body: Ruma<get_openid_userinfo::v1::Request>,
 ) -> Result<get_openid_userinfo::v1::Response> {
 	Ok(get_openid_userinfo::v1::Response::new(
-		services.users.find_from_openid_token(&body.access_token)?,
+		services
+			.users
+			.find_from_openid_token(&body.access_token)
+			.await?,
 	))
 }

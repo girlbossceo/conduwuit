@@ -1,5 +1,6 @@
 use axum::extract::State;
 use conduit::{Error, Result};
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::api::{
 	client::error::ErrorKind,
 	federation::{
@@ -28,41 +29,51 @@ pub(crate) async fn get_devices_route(
 
 	let origin = body.origin.as_ref().expect("server is authenticated");
 
+	let user_id = &body.user_id;
 	Ok(get_devices::v1::Response {
-		user_id: body.user_id.clone(),
+		user_id: user_id.clone(),
 		stream_id: services
 			.users
-			.get_devicelist_version(&body.user_id)?
+			.get_devicelist_version(user_id)
+			.await
 			.unwrap_or(0)
-			.try_into()
-			.expect("version will not grow that large"),
+			.try_into()?,
 		devices: services
 			.users
-			.all_devices_metadata(&body.user_id)
-			.filter_map(Result::ok)
-			.filter_map(|metadata| {
-				let device_id_string = metadata.device_id.as_str().to_owned();
+			.all_devices_metadata(user_id)
+			.filter_map(|metadata| async move {
+				let device_id = metadata.device_id.clone();
+				let device_id_clone = device_id.clone();
+				let device_id_string = device_id.as_str().to_owned();
 				let device_display_name = if services.globals.allow_device_name_federation() {
-					metadata.display_name
+					metadata.display_name.clone()
 				} else {
 					Some(device_id_string)
 				};
-				Some(UserDevice {
-					keys: services
-						.users
-						.get_device_keys(&body.user_id, &metadata.device_id)
-						.ok()??,
-					device_id: metadata.device_id,
-					device_display_name,
-				})
+
+				services
+					.users
+					.get_device_keys(user_id, &device_id_clone)
+					.map_ok(|keys| UserDevice {
+						device_id,
+						keys,
+						device_display_name,
+					})
+					.map(Result::ok)
+					.await
 			})
-			.collect(),
+			.collect()
+			.await,
 		master_key: services
 			.users
-			.get_master_key(None, &body.user_id, &|u| u.server_name() == origin)?,
+			.get_master_key(None, &body.user_id, &|u| u.server_name() == origin)
+			.await
+			.ok(),
 		self_signing_key: services
 			.users
-			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == origin)?,
+			.get_self_signing_key(None, &body.user_id, &|u| u.server_name() == origin)
+			.await
+			.ok(),
 	})
 }
 

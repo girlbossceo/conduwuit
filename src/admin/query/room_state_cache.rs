@@ -1,5 +1,6 @@
 use clap::Subcommand;
 use conduit::Result;
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
 
 use crate::Command;
@@ -86,7 +87,11 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let result = services.rooms.state_cache.server_in_room(&server, &room_id);
+			let result = services
+				.rooms
+				.state_cache
+				.server_in_room(&server, &room_id)
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -97,7 +102,13 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services.rooms.state_cache.room_servers(&room_id).collect();
+			let results: Vec<_> = services
+				.rooms
+				.state_cache
+				.room_servers(&room_id)
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -108,7 +119,13 @@ pub(super) async fn process(
 			server,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services.rooms.state_cache.server_rooms(&server).collect();
+			let results: Vec<_> = services
+				.rooms
+				.state_cache
+				.server_rooms(&server)
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -119,7 +136,13 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services.rooms.state_cache.room_members(&room_id).collect();
+			let results: Vec<_> = services
+				.rooms
+				.state_cache
+				.room_members(&room_id)
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -134,7 +157,9 @@ pub(super) async fn process(
 				.rooms
 				.state_cache
 				.local_users_in_room(&room_id)
-				.collect();
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -149,7 +174,9 @@ pub(super) async fn process(
 				.rooms
 				.state_cache
 				.active_local_users_in_room(&room_id)
-				.collect();
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -160,7 +187,7 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.rooms.state_cache.room_joined_count(&room_id);
+			let results = services.rooms.state_cache.room_joined_count(&room_id).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -171,7 +198,11 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.rooms.state_cache.room_invited_count(&room_id);
+			let results = services
+				.rooms
+				.state_cache
+				.room_invited_count(&room_id)
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -182,11 +213,13 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services
+			let results: Vec<_> = services
 				.rooms
 				.state_cache
 				.room_useroncejoined(&room_id)
-				.collect();
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -197,11 +230,13 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services
+			let results: Vec<_> = services
 				.rooms
 				.state_cache
 				.room_members_invited(&room_id)
-				.collect();
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -216,7 +251,8 @@ pub(super) async fn process(
 			let results = services
 				.rooms
 				.state_cache
-				.get_invite_count(&room_id, &user_id);
+				.get_invite_count(&room_id, &user_id)
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -231,7 +267,8 @@ pub(super) async fn process(
 			let results = services
 				.rooms
 				.state_cache
-				.get_left_count(&room_id, &user_id);
+				.get_left_count(&room_id, &user_id)
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -242,7 +279,13 @@ pub(super) async fn process(
 			user_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services.rooms.state_cache.rooms_joined(&user_id).collect();
+			let results: Vec<_> = services
+				.rooms
+				.state_cache
+				.rooms_joined(&user_id)
+				.map(ToOwned::to_owned)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -253,7 +296,12 @@ pub(super) async fn process(
 			user_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services.rooms.state_cache.rooms_invited(&user_id).collect();
+			let results: Vec<_> = services
+				.rooms
+				.state_cache
+				.rooms_invited(&user_id)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -264,7 +312,12 @@ pub(super) async fn process(
 			user_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results: Result<Vec<_>> = services.rooms.state_cache.rooms_left(&user_id).collect();
+			let results: Vec<_> = services
+				.rooms
+				.state_cache
+				.rooms_left(&user_id)
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -276,7 +329,11 @@ pub(super) async fn process(
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services.rooms.state_cache.invite_state(&user_id, &room_id);
+			let results = services
+				.rooms
+				.state_cache
+				.invite_state(&user_id, &room_id)
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
