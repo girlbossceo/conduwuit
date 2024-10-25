@@ -137,7 +137,10 @@ pub(crate) async fn set_room_visibility_route(
 
 	match &body.visibility {
 		room::Visibility::Public => {
-			if services.globals.config.lockdown_public_room_directory && !services.users.is_admin(sender_user)? {
+			if services.globals.config.lockdown_public_room_directory
+				&& !services.users.is_admin(sender_user)?
+				&& body.appservice_info.is_none()
+			{
 				info!(
 					"Non-admin user {sender_user} tried to publish {0} to the room directory while \
 					 \"lockdown_public_room_directory\" is enabled",

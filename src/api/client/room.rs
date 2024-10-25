@@ -1,7 +1,7 @@
 use std::{cmp::max, collections::BTreeMap};
 
 use axum::extract::State;
-use conduit::{debug_info, debug_warn, err};
+use conduit::{debug_info, debug_warn, err, Err};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -64,6 +64,7 @@ const TRANSFERABLE_STATE_EVENTS: &[StateEventType; 9] = &[
 /// - Send events listed in initial state
 /// - Send events implied by `name` and `topic`
 /// - Send invite events
+#[allow(clippy::large_stack_frames)]
 pub(crate) async fn create_room_route(
 	State(services): State<crate::State>, body: Ruma<create_room::v3::Request>,
 ) -> Result<create_room::v3::Response> {
@@ -90,6 +91,28 @@ pub(crate) async fn create_room_route(
 			ErrorKind::RoomInUse,
 			"Room with that custom room ID already exists",
 		));
+	}
+
+	if body.visibility == room::Visibility::Public
+		&& services.globals.config.lockdown_public_room_directory
+		&& !services.users.is_admin(sender_user)?
+		&& body.appservice_info.is_none()
+	{
+		info!(
+			"Non-admin user {sender_user} tried to publish {0} to the room directory while \
+			 \"lockdown_public_room_directory\" is enabled",
+			&room_id
+		);
+		services
+			.admin
+			.send_text(&format!(
+				"Non-admin user {sender_user} tried to publish {0} to the room directory while \
+				 \"lockdown_public_room_directory\" is enabled",
+				&room_id
+			))
+			.await;
+
+		return Err!(Request(Forbidden("Publishing rooms to the room directory is not allowed")));
 	}
 
 	let _short_id = services.rooms.short.get_or_create_shortroomid(&room_id)?;
@@ -450,6 +473,11 @@ pub(crate) async fn create_room_route(
 
 	if body.visibility == room::Visibility::Public {
 		services.rooms.directory.set_public(&room_id)?;
+		services
+			.admin
+			.send_text(&format!("{sender_user} made {} public to the room directory", &room_id))
+			.await;
+		info!("{sender_user} made {0} public to the room directory", &room_id);
 	}
 
 	info!("{sender_user} created a room with room ID {room_id}");
