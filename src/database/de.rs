@@ -41,8 +41,7 @@ pub struct Ignore;
 pub struct IgnoreAll;
 
 impl<'de> Deserializer<'de> {
-	/// Record separator; an intentionally invalid-utf8 byte.
-	const SEP: u8 = b'\xFF';
+	const SEP: u8 = crate::ser::SEP;
 
 	/// Determine if the input was fully consumed and error if bytes remaining.
 	/// This is intended for debug assertions; not optimized for parsing logic.

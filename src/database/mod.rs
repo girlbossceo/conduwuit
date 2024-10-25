@@ -29,7 +29,7 @@ pub use self::{
 	handle::Handle,
 	keyval::{KeyVal, Slice},
 	map::Map,
-	ser::{serialize, serialize_to_array, serialize_to_vec, Interfix, Json, Separator},
+	ser::{serialize, serialize_to_array, serialize_to_vec, Interfix, Json, Separator, SEP},
 };
 
 conduit::mod_ctor! {}

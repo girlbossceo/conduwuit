@@ -69,8 +69,11 @@ pub struct Interfix;
 #[derive(Debug, Serialize)]
 pub struct Separator;
 
+/// Record separator; an intentionally invalid-utf8 byte.
+pub const SEP: u8 = b'\xFF';
+
 impl<W: Write> Serializer<'_, W> {
-	const SEP: &'static [u8] = b"\xFF";
+	const SEP: &'static [u8] = &[SEP];
 
 	fn tuple_start(&mut self) {
 		debug_assert!(!self.sep, "Tuple start with separator set");
