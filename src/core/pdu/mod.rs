@@ -1,6 +1,7 @@
 mod builder;
 mod content;
 mod count;
+mod filter;
 mod id;
 mod redact;
 mod state_res;
