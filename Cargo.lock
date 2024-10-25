@@ -2025,9 +2025,13 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "loole"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad95468e4700cb37d8d1f198050db18cebe55e4b4c8aa9180a715deedb2f8965"
+checksum = "a2998397c725c822c6b2ba605fd9eb4c6a7a0810f1629ba3cc232ef4f0308d96"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+]
 
 [[package]]
 name = "lru-cache"
