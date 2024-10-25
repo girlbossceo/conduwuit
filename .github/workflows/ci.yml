@@ -155,6 +155,9 @@ jobs:
             - name: Cache CI dependencies
               run: |
                   bin/nix-build-and-cache ci
+                  bin/nix-build-and-cache just '.#devShells.x86_64-linux.default'
+                  bin/nix-build-and-cache just '.#devShells.x86_64-linux.all-features'
+                  bin/nix-build-and-cache just '.#devShells.x86_64-linux.dynamic'
 
             # use sccache for Rust
             - name: Run sccache-cache
