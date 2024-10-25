@@ -83,7 +83,7 @@ not get paid to work on this, and I work on it in my free time. Donations are
 heavily appreciated! 💜🥺
 
 - Liberapay: <https://liberapay.com/girlbossceo>
-- Ko-fi: <https://ko-fi.com/puppygock>
+- Ko-fi (note they take a fee): <https://ko-fi.com/puppygock>
 - GitHub Sponsors: <https://github.com/sponsors/girlbossceo>
 
 #### Logo
