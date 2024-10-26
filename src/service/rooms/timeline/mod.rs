@@ -1,4 +1,5 @@
 mod data;
+mod pduid;
 
 use std::{
 	cmp,
@@ -38,7 +39,10 @@ use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 
 use self::data::Data;
-pub use self::data::PdusIterItem;
+pub use self::{
+	data::PdusIterItem,
+	pduid::{PduId, RawPduId},
+};
 use crate::{
 	account_data, admin, appservice, appservice::NamespaceRegex, globals, pusher, rooms,
 	rooms::state_compressor::CompressedStateEvent, sending, server_keys, users, Dep,

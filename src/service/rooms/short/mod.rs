@@ -24,6 +24,10 @@ struct Services {
 	globals: Dep<globals::Service>,
 }
 
+pub type ShortEventId = ShortId;
+pub type ShortRoomId = ShortId;
+pub type ShortId = u64;
+
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
