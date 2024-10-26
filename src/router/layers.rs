@@ -24,15 +24,15 @@ use tracing::Level;
 
 use crate::{request, router};
 
-const CONDUWUIT_CSP: &[&str] = &[
-	"sandbox",
+const CONDUWUIT_CSP: &[&str; 5] = &[
 	"default-src 'none'",
 	"frame-ancestors 'none'",
 	"form-action 'none'",
 	"base-uri 'none'",
+	"sandbox",
 ];
 
-const CONDUWUIT_PERMISSIONS_POLICY: &[&str] = &["interest-cohort=()", "browsing-topics=()"];
+const CONDUWUIT_PERMISSIONS_POLICY: &[&str; 2] = &["interest-cohort=()", "browsing-topics=()"];
 
 pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 	let server = &services.server;
@@ -78,7 +78,7 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 		))
 		.layer(SetResponseHeaderLayer::if_not_present(
 			header::CONTENT_SECURITY_POLICY,
-			HeaderValue::from_str(&CONDUWUIT_CSP.join("; "))?,
+			HeaderValue::from_str(&CONDUWUIT_CSP.join(";"))?,
 		))
 		.layer(cors_layer(server))
 		.layer(body_limit_layer(server))
