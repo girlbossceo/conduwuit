@@ -6,7 +6,15 @@ use axum_extra::{
 };
 use conduit::{debug_error, err, warn, Err, Error, Result};
 use ruma::{
-	api::{client::error::ErrorKind, AuthScheme, Metadata},
+	api::{
+		client::{
+			directory::get_public_rooms,
+			error::ErrorKind,
+			profile::{get_avatar_url, get_display_name, get_profile, get_profile_key, get_timezone_key},
+			voip::get_turn_server_info,
+		},
+		AuthScheme, IncomingRequest, Metadata,
+	},
 	server_util::authorization::XMatrix,
 	CanonicalJsonObject, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
@@ -54,14 +62,30 @@ pub(super) async fn auth(
 	};
 
 	if metadata.authentication == AuthScheme::None {
-		match request.parts.uri.path() {
-			// TODO: can we check this better?
-			"/_matrix/client/v3/publicRooms" | "/_matrix/client/r0/publicRooms" => {
+		match metadata {
+			&get_public_rooms::v3::Request::METADATA => {
 				if !services
 					.globals
 					.config
 					.allow_public_room_directory_without_auth
 				{
+					match token {
+						Token::Appservice(_) | Token::User(_) => {
+							// we should have validated the token above
+							// already
+						},
+						Token::None | Token::Invalid => {
+							return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing or invalid access token."));
+						},
+					}
+				}
+			},
+			&get_profile::v3::Request::METADATA
+			| &get_profile_key::unstable::Request::METADATA
+			| &get_display_name::v3::Request::METADATA
+			| &get_avatar_url::v3::Request::METADATA
+			| &get_timezone_key::unstable::Request::METADATA => {
+				if services.globals.config.require_auth_for_profile_requests {
 					match token {
 						Token::Appservice(_) | Token::User(_) => {
 							// we should have validated the token above
@@ -107,9 +131,9 @@ pub(super) async fn auth(
 				appservice_info: Some(*info),
 			})
 		},
-		(AuthScheme::AccessToken, Token::None) => match request.parts.uri.path() {
+		(AuthScheme::AccessToken, Token::None) => match metadata {
 			// TODO: can we check this better?
-			"/_matrix/client/v3/voip/turnServer" | "/_matrix/client/r0/voip/turnServer" => {
+			&get_turn_server_info::v3::Request::METADATA => {
 				if services.globals.config.turn_allow_guests {
 					Ok(Auth {
 						origin: None,

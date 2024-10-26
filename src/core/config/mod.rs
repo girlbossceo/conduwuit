@@ -58,7 +58,6 @@ pub struct Config {
 	/// YOU NEED TO EDIT THIS
 	pub server_name: OwnedServerName,
 
-	/// Database backend: Only rocksdb is supported.
 	/// default address (IPv4 or IPv6) conduwuit will listen on. Generally you
 	/// want this to be localhost (127.0.0.1 / ::1). If you are using Docker or
 	/// a container NAT networking setup, you likely need this to be 0.0.0.0.
@@ -94,6 +93,8 @@ pub struct Config {
 	#[serde(default = "default_unix_socket_perms")]
 	pub unix_socket_perms: u32,
 
+	/// Database backend: Only rocksdb is supported.
+	///
 	/// default: rocksdb
 	#[serde(default = "default_database_backend")]
 	pub database_backend: String,
@@ -405,6 +406,14 @@ pub struct Config {
 
 	#[serde(default)]
 	pub federation_loopback: bool,
+
+	/// Set this to true to require authentication on the normally
+	/// unauthenticated profile retrieval endpoints (GET)
+	/// "/_matrix/client/v3/profile/{userId}".
+	///
+	/// This can prevent profile scraping.
+	#[serde(default)]
+	pub require_auth_for_profile_requests: bool,
 
 	/// Set this to true to allow your server's public room directory to be
 	/// federated. Set this to false to protect against /publicRooms spiders,
