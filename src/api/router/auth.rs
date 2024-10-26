@@ -5,7 +5,6 @@ use axum_extra::{
 	TypedHeader,
 };
 use conduit::{debug_error, err, warn, Err, Error, Result};
-use http::uri::PathAndQuery;
 use ruma::{
 	api::{client::error::ErrorKind, AuthScheme, Metadata},
 	server_util::authorization::XMatrix,
@@ -190,12 +189,11 @@ async fn auth_server(services: &Services, request: &mut Request, body: Option<&C
 
 	let destination = services.globals.server_name();
 	let origin = &x_matrix.origin;
-	#[allow(clippy::or_fun_call)]
 	let signature_uri = request
 		.parts
 		.uri
 		.path_and_query()
-		.unwrap_or(&PathAndQuery::from_static("/"))
+		.expect("all requests have a path")
 		.to_string();
 
 	let signature: [Member; 1] = [(x_matrix.key.to_string(), Value::String(x_matrix.sig.to_string()))];

@@ -184,12 +184,20 @@ fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_u
 }
 
 fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
-	let path = request
-		.extensions()
-		.get::<MatchedPath>()
-		.map_or_else(|| request.uri().path(), truncated_matched_path);
+	let path = request.extensions().get::<MatchedPath>().map_or_else(
+		|| {
+			request
+				.uri()
+				.path_and_query()
+				.expect("all requests have a path")
+				.as_str()
+		},
+		truncated_matched_path,
+	);
 
-	tracing::info_span!("router:", %path)
+	let method = request.method();
+
+	tracing::info_span!("router:", %method, %path)
 }
 
 fn truncated_matched_path(path: &MatchedPath) -> &str {
