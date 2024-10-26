@@ -1,18 +1,18 @@
 use axum::extract::State;
-use conduit::err;
+use conduit::{err, Err};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
 		push::{
 			delete_pushrule, get_pushers, get_pushrule, get_pushrule_actions, get_pushrule_enabled, get_pushrules_all,
-			set_pusher, set_pushrule, set_pushrule_actions, set_pushrule_enabled, RuleScope,
+			set_pusher, set_pushrule, set_pushrule_actions, set_pushrule_enabled,
 		},
 	},
 	events::{
 		push_rules::{PushRulesEvent, PushRulesEventContent},
 		GlobalAccountDataEventType,
 	},
-	push::{InsertPushRuleError, RemovePushRuleError, Ruleset},
+	push::{InsertPushRuleError, PredefinedContentRuleId, PredefinedOverrideRuleId, RemovePushRuleError, Ruleset},
 	CanonicalJsonObject, CanonicalJsonValue,
 };
 use service::Services;
@@ -43,7 +43,24 @@ pub(crate) async fn get_pushrules_all_route(
 	let account_data_content = serde_json::from_value::<PushRulesEventContent>(content_value.into())
 		.map_err(|e| err!(Database(warn!("Invalid push rules account data event in database: {e}"))))?;
 
-	let global_ruleset: Ruleset = account_data_content.global;
+	let mut global_ruleset = account_data_content.global;
+
+	// remove old deprecated mentions push rules as per MSC4210
+	#[allow(deprecated)]
+	{
+		use ruma::push::RuleKind::*;
+
+		global_ruleset
+			.remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
+			.ok();
+		global_ruleset
+			.remove(Override, PredefinedOverrideRuleId::RoomNotif)
+			.ok();
+
+		global_ruleset
+			.remove(Content, PredefinedContentRuleId::ContainsUserName)
+			.ok();
+	};
 
 	Ok(get_pushrules_all::v3::Response {
 		global: global_ruleset,
@@ -57,6 +74,15 @@ pub(crate) async fn get_pushrule_route(
 	State(services): State<crate::State>, body: Ruma<get_pushrule::v3::Request>,
 ) -> Result<get_pushrule::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	// remove old deprecated mentions push rules as per MSC4210
+	#[allow(deprecated)]
+	if body.rule_id.as_str() == PredefinedContentRuleId::ContainsUserName.as_str()
+		|| body.rule_id.as_str() == PredefinedOverrideRuleId::ContainsDisplayName.as_str()
+		|| body.rule_id.as_str() == PredefinedOverrideRuleId::RoomNotif.as_str()
+	{
+		return Err!(Request(NotFound("Push rule not found.")));
+	}
 
 	let event: PushRulesEvent = services
 		.account_data
@@ -79,7 +105,7 @@ pub(crate) async fn get_pushrule_route(
 	}
 }
 
-/// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
+/// # `PUT /_matrix/client/r0/pushrules/global/{kind}/{ruleId}`
 ///
 /// Creates a single specified push rule for this user.
 pub(crate) async fn set_pushrule_route(
@@ -87,13 +113,6 @@ pub(crate) async fn set_pushrule_route(
 ) -> Result<set_pushrule::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let body = body.body;
-
-	if body.scope != RuleScope::Global {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Scopes other than 'global' are not supported.",
-		));
-	}
 
 	let mut account_data: PushRulesEvent = services
 		.account_data
@@ -145,7 +164,7 @@ pub(crate) async fn set_pushrule_route(
 	Ok(set_pushrule::v3::Response {})
 }
 
-/// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
+/// # `GET /_matrix/client/r0/pushrules/global/{kind}/{ruleId}/actions`
 ///
 /// Gets the actions of a single specified push rule for this user.
 pub(crate) async fn get_pushrule_actions_route(
@@ -153,11 +172,13 @@ pub(crate) async fn get_pushrule_actions_route(
 ) -> Result<get_pushrule_actions::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if body.scope != RuleScope::Global {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Scopes other than 'global' are not supported.",
-		));
+	// remove old deprecated mentions push rules as per MSC4210
+	#[allow(deprecated)]
+	if body.rule_id.as_str() == PredefinedContentRuleId::ContainsUserName.as_str()
+		|| body.rule_id.as_str() == PredefinedOverrideRuleId::ContainsDisplayName.as_str()
+		|| body.rule_id.as_str() == PredefinedOverrideRuleId::RoomNotif.as_str()
+	{
+		return Err!(Request(NotFound("Push rule not found.")));
 	}
 
 	let event: PushRulesEvent = services
@@ -178,20 +199,13 @@ pub(crate) async fn get_pushrule_actions_route(
 	})
 }
 
-/// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/actions`
+/// # `PUT /_matrix/client/r0/pushrules/global/{kind}/{ruleId}/actions`
 ///
 /// Sets the actions of a single specified push rule for this user.
 pub(crate) async fn set_pushrule_actions_route(
 	State(services): State<crate::State>, body: Ruma<set_pushrule_actions::v3::Request>,
 ) -> Result<set_pushrule_actions::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	if body.scope != RuleScope::Global {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Scopes other than 'global' are not supported.",
-		));
-	}
 
 	let mut account_data: PushRulesEvent = services
 		.account_data
@@ -221,7 +235,7 @@ pub(crate) async fn set_pushrule_actions_route(
 	Ok(set_pushrule_actions::v3::Response {})
 }
 
-/// # `GET /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
+/// # `GET /_matrix/client/r0/pushrules/global/{kind}/{ruleId}/enabled`
 ///
 /// Gets the enabled status of a single specified push rule for this user.
 pub(crate) async fn get_pushrule_enabled_route(
@@ -229,11 +243,15 @@ pub(crate) async fn get_pushrule_enabled_route(
 ) -> Result<get_pushrule_enabled::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if body.scope != RuleScope::Global {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Scopes other than 'global' are not supported.",
-		));
+	// remove old deprecated mentions push rules as per MSC4210
+	#[allow(deprecated)]
+	if body.rule_id.as_str() == PredefinedContentRuleId::ContainsUserName.as_str()
+		|| body.rule_id.as_str() == PredefinedOverrideRuleId::ContainsDisplayName.as_str()
+		|| body.rule_id.as_str() == PredefinedOverrideRuleId::RoomNotif.as_str()
+	{
+		return Ok(get_pushrule_enabled::v3::Response {
+			enabled: false,
+		});
 	}
 
 	let event: PushRulesEvent = services
@@ -254,20 +272,13 @@ pub(crate) async fn get_pushrule_enabled_route(
 	})
 }
 
-/// # `PUT /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}/enabled`
+/// # `PUT /_matrix/client/r0/pushrules/global/{kind}/{ruleId}/enabled`
 ///
 /// Sets the enabled status of a single specified push rule for this user.
 pub(crate) async fn set_pushrule_enabled_route(
 	State(services): State<crate::State>, body: Ruma<set_pushrule_enabled::v3::Request>,
 ) -> Result<set_pushrule_enabled::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	if body.scope != RuleScope::Global {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Scopes other than 'global' are not supported.",
-		));
-	}
 
 	let mut account_data: PushRulesEvent = services
 		.account_data
@@ -297,20 +308,13 @@ pub(crate) async fn set_pushrule_enabled_route(
 	Ok(set_pushrule_enabled::v3::Response {})
 }
 
-/// # `DELETE /_matrix/client/r0/pushrules/{scope}/{kind}/{ruleId}`
+/// # `DELETE /_matrix/client/r0/pushrules/global/{kind}/{ruleId}`
 ///
 /// Deletes a single specified push rule for this user.
 pub(crate) async fn delete_pushrule_route(
 	State(services): State<crate::State>, body: Ruma<delete_pushrule::v3::Request>,
 ) -> Result<delete_pushrule::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	if body.scope != RuleScope::Global {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Scopes other than 'global' are not supported.",
-		));
-	}
 
 	let mut account_data: PushRulesEvent = services
 		.account_data
