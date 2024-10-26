@@ -113,6 +113,7 @@ pub async fn search_pdus<'a>(
 				.ok()
 		})
 		.ready_filter(|pdu| !pdu.is_redacted())
+		.ready_filter(|pdu| pdu.matches(&query.criteria.filter))
 		.filter_map(move |pdu| async move {
 			self.services
 				.state_accessor
