@@ -786,6 +786,7 @@ dependencies = [
 name = "conduit_service"
 version = "0.5.0"
 dependencies = [
+ "arrayvec",
  "async-trait",
  "base64 0.22.1",
  "bytes",
