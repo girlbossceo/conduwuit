@@ -458,11 +458,16 @@ pub struct Config {
 	/// obtain the profiles of our local users from
 	/// `/_matrix/federation/v1/query/profile`
 	///
-	/// This is inherently false if `allow_federation` is disabled
+	/// Increases privacy of your local user's such as display names, but some
+	/// remote users may get a false "this user does not exist" error when they
+	/// try to invite you to a DM or room. Also can protect against profile
+	/// spiders.
 	///
-	/// Defaults to true
-	#[serde(default = "true_fn")]
-	pub allow_profile_lookup_federation_requests: bool,
+	/// Defaults to true.
+	///
+	/// This is inherently false if `allow_federation` is disabled
+	#[serde(default = "true_fn", alias = "allow_profile_lookup_federation_requests")]
+	pub allow_inbound_profile_lookup_federation_requests: bool,
 
 	/// controls whether users are allowed to create rooms.
 	/// appservices and admins are always allowed to create rooms
@@ -1531,6 +1536,10 @@ impl fmt::Display for Config {
 		line("Allow federation", &self.allow_federation.to_string());
 		line("Federation loopback", &self.federation_loopback.to_string());
 		line(
+			"Require authentication for profile requests",
+			&self.require_auth_for_profile_requests.to_string(),
+		);
+		line(
 			"Allow incoming federated presence requests (updates)",
 			&self.allow_incoming_presence.to_string(),
 		);
@@ -1577,7 +1586,9 @@ impl fmt::Display for Config {
 		line("Allow device name federation", &self.allow_device_name_federation.to_string());
 		line(
 			"Allow incoming profile lookup federation requests",
-			&self.allow_profile_lookup_federation_requests.to_string(),
+			&self
+				.allow_inbound_profile_lookup_federation_requests
+				.to_string(),
 		);
 		line(
 			"Auto deactivate banned room join attempts",

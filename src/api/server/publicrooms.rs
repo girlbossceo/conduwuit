@@ -20,7 +20,8 @@ pub(crate) async fn get_public_rooms_filtered_route(
 ) -> Result<get_public_rooms_filtered::v1::Response> {
 	if !services
 		.globals
-		.allow_public_room_directory_over_federation()
+		.config
+		.allow_public_room_directory_over_federation
 	{
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Room directory is not public"));
 	}

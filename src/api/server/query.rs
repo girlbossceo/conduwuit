@@ -63,7 +63,11 @@ pub(crate) async fn get_room_information_route(
 pub(crate) async fn get_profile_information_route(
 	State(services): State<crate::State>, body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
-	if !services.globals.allow_profile_lookup_federation_requests() {
+	if !services
+		.globals
+		.config
+		.allow_inbound_profile_lookup_federation_requests
+	{
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
 			"Profile lookup over federation is not allowed on this homeserver.",

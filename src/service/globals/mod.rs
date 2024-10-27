@@ -212,10 +212,6 @@ impl Service {
 
 	pub fn turn_username(&self) -> &String { &self.config.turn_username }
 
-	pub fn allow_profile_lookup_federation_requests(&self) -> bool {
-		self.config.allow_profile_lookup_federation_requests
-	}
-
 	pub fn notification_push_path(&self) -> &String { &self.config.notification_push_path }
 
 	pub fn emergency_password(&self) -> &Option<String> { &self.config.emergency_password }
