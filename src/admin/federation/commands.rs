@@ -4,7 +4,7 @@ use conduit::Result;
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
 
-use crate::{admin_command, escape_html, get_room_info};
+use crate::{admin_command, get_room_info};
 
 #[admin_command]
 pub(super) async fn disable_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
@@ -108,33 +108,15 @@ pub(super) async fn remote_user_in_rooms(&self, user_id: Box<UserId>) -> Result<
 	rooms.sort_by_key(|r| r.1);
 	rooms.reverse();
 
-	let output_plain = format!(
-		"Rooms {user_id} shares with us ({}):\n{}",
+	let output = format!(
+		"Rooms {user_id} shares with us ({}):\n```\n{}\n```",
 		rooms.len(),
 		rooms
 			.iter()
-			.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+			.map(|(id, members, name)| format!("{id} | Members: {members} | Name: {name}"))
 			.collect::<Vec<_>>()
 			.join("\n")
 	);
-	let output_html = format!(
-		"<table><caption>Rooms {user_id} shares with us \
-		 ({})</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-		rooms.len(),
-		rooms
-			.iter()
-			.fold(String::new(), |mut output, (id, members, name)| {
-				writeln!(
-					output,
-					"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-					id,
-					members,
-					escape_html(name)
-				)
-				.expect("should be able to write to string buffer");
-				output
-			})
-	);
 
-	Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+	Ok(RoomMessageEventContent::text_markdown(output))
 }

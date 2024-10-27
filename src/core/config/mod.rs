@@ -1441,7 +1441,7 @@ impl Config {
 
 impl fmt::Display for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		writeln!(f, "Active config values:\n\n").expect("wrote line to formatter stream");
+		writeln!(f, "Active config values:\n").expect("wrote line to formatter stream");
 		let mut line = |key: &str, val: &str| {
 			writeln!(f, "{key}: {val}").expect("wrote line to formatter stream");
 		};

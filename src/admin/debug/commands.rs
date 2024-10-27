@@ -106,7 +106,7 @@ pub(super) async fn get_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessage
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"{}\n```json\n{}\n```",
 				if outlier {
-					"Outlier PDU found in our database"
+					"Outlier (Rejected / Soft Failed) PDU found in our database"
 				} else {
 					"PDU found in our database"
 				},

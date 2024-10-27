@@ -1,11 +1,9 @@
-use std::fmt::Write;
-
 use clap::Subcommand;
 use conduit::Result;
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId};
 
-use crate::{escape_html, get_room_info, Command, PAGE_SIZE};
+use crate::{get_room_info, Command, PAGE_SIZE};
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum RoomDirectoryCommand {
@@ -68,32 +66,15 @@ pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>
 				return Ok(RoomMessageEventContent::text_plain("No more rooms."));
 			};
 
-			let output_plain = format!(
-				"Rooms:\n{}",
+			let output = format!(
+				"Rooms (page {page}):\n```\n{}\n```",
 				rooms
 					.iter()
-					.map(|(id, members, name)| format!("{id}\tMembers: {members}\tName: {name}"))
+					.map(|(id, members, name)| format!("{id} | Members: {members} | Name: {name}"))
 					.collect::<Vec<_>>()
 					.join("\n")
 			);
-			let output_html = format!(
-				"<table><caption>Room directory - page \
-				 {page}</caption>\n<tr><th>id</th>\t<th>members</th>\t<th>name</th></tr>\n{}</table>",
-				rooms
-					.iter()
-					.fold(String::new(), |mut output, (id, members, name)| {
-						writeln!(
-							output,
-							"<tr><td>{}</td>\t<td>{}</td>\t<td>{}</td></tr>",
-							escape_html(id.as_ref()),
-							members,
-							escape_html(name.as_ref())
-						)
-						.expect("should be able to write to string buffer");
-						output
-					})
-			);
-			Ok(RoomMessageEventContent::text_html(output_plain, output_html))
+			Ok(RoomMessageEventContent::text_markdown(output))
 		},
 	}
 }
