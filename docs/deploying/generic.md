@@ -119,12 +119,16 @@ is the recommended reverse proxy for new users and is very trivial to use
 (handles TLS, reverse proxy headers, etc transparently with proper defaults).
 
 Lighttpd is not supported as it seems to mess with the `X-Matrix` Authorization
-header, making federation non-functional. If using Apache, you need to use
-`nocanon` in your `ProxyPass` directive to prevent this (note that Apache
-isn't very good as a general reverse proxy).
+header, making federation non-functional. If a workaround is found, feel free to share to get it added to the documentation here.
+
+If using Apache, you need to use `nocanon` in your `ProxyPass` directive to prevent this (note that Apache isn't very good as a general reverse proxy and we discourage the usage of it if you can).
+
+If using Nginx, you need to give conduwuit the request URI using `$request_uri`, or like so:
+- `proxy_pass http://127.0.0.1:6167$request_uri;`
+- `proxy_pass http://127.0.0.1:6167;`
 
 Nginx users may need to set `proxy_buffering off;` if there are issues with
-uploading media like images.
+uploading media like images. This is due to Nginx storing the entire POST content in-memory (`/tmp`) and running out of memory if on low memory hardware.
 
 You will need to reverse proxy everything under following routes:
 - `/_matrix/` - core Matrix C-S and S-S APIs

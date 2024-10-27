@@ -247,8 +247,8 @@ async fn auth_server(services: &Services, request: &mut Request, body: Option<&C
 		debug_error!("Failed to verify federation request from {origin}: {e}");
 		if request.parts.uri.to_string().contains('@') {
 			warn!(
-				"Request uri contained '@' character. Make sure your reverse proxy gives Conduit the raw uri (apache: \
-				 use nocanon)"
+				"Request uri contained '@' character. Make sure your reverse proxy gives conduwuit the raw uri \
+				 (apache: use nocanon)"
 			);
 		}
 
