@@ -1,10 +1,10 @@
 mod builder;
 mod content;
 mod count;
+mod event;
 mod filter;
 mod id;
 mod redact;
-mod state_res;
 mod strip;
 mod unsigned;
 
@@ -19,6 +19,7 @@ use serde_json::value::RawValue as RawJsonValue;
 pub use self::{
 	builder::{Builder, Builder as PduBuilder},
 	count::PduCount,
+	event::Event,
 	id::*,
 };
 use crate::Result;
