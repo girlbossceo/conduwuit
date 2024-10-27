@@ -560,7 +560,7 @@ pub(crate) async fn sync_events_v4_route(
 
 		for (_, pdu) in timeline_pdus {
 			let ts = MilliSecondsSinceUnixEpoch(pdu.origin_server_ts);
-			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) && !timestamp.is_some_and(|time| time > ts) {
+			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) && timestamp.is_none_or(|time| time <= ts) {
 				timestamp = Some(ts);
 			}
 		}

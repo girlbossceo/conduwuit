@@ -126,8 +126,8 @@ pub(crate) async fn create_room_route(
 		.await;
 	let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 
-	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = &body.room_alias_name {
-		Some(room_alias_check(&services, alias, &body.appservice_info).await?)
+	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = body.room_alias_name.as_ref() {
+		Some(room_alias_check(&services, alias, body.appservice_info.as_ref()).await?)
 	} else {
 		None
 	};
@@ -270,7 +270,7 @@ pub(crate) async fn create_room_route(
 	}
 
 	let power_levels_content =
-		default_power_levels_content(&body.power_level_content_override, &body.visibility, users)?;
+		default_power_levels_content(body.power_level_content_override.as_ref(), &body.visibility, users)?;
 
 	services
 		.rooms
@@ -814,7 +814,7 @@ pub(crate) async fn upgrade_room_route(
 
 /// creates the power_levels_content for the PDU builder
 fn default_power_levels_content(
-	power_level_content_override: &Option<Raw<RoomPowerLevelsEventContent>>, visibility: &room::Visibility,
+	power_level_content_override: Option<&Raw<RoomPowerLevelsEventContent>>, visibility: &room::Visibility,
 	users: BTreeMap<OwnedUserId, Int>,
 ) -> Result<serde_json::Value> {
 	let mut power_levels_content = serde_json::to_value(RoomPowerLevelsEventContent {
@@ -864,7 +864,7 @@ fn default_power_levels_content(
 
 /// if a room is being created with a room alias, run our checks
 async fn room_alias_check(
-	services: &Services, room_alias_name: &str, appservice_info: &Option<RegistrationInfo>,
+	services: &Services, room_alias_name: &str, appservice_info: Option<&RegistrationInfo>,
 ) -> Result<OwnedRoomAliasId> {
 	// Basic checks on the room alias validity
 	if room_alias_name.contains(':') {
@@ -905,7 +905,7 @@ async fn room_alias_check(
 		return Err(Error::BadRequest(ErrorKind::RoomInUse, "Room alias already exists."));
 	}
 
-	if let Some(ref info) = appservice_info {
+	if let Some(info) = appservice_info {
 		if !info.aliases.is_match(full_room_alias.as_str()) {
 			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
 		}

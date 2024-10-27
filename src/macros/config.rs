@@ -164,11 +164,11 @@ fn get_default(field: &Field) -> Option<String> {
 			continue;
 		};
 
-		if !path
+		if path
 			.segments
 			.iter()
 			.next()
-			.is_some_and(|s| s.ident == "serde")
+			.is_none_or(|s| s.ident == "serde")
 		{
 			continue;
 		}
@@ -218,12 +218,7 @@ fn get_doc_default(field: &Field) -> Option<String> {
 			continue;
 		};
 
-		if !path
-			.segments
-			.iter()
-			.next()
-			.is_some_and(|s| s.ident == "doc")
-		{
+		if path.segments.iter().next().is_none_or(|s| s.ident == "doc") {
 			continue;
 		}
 
@@ -266,12 +261,7 @@ fn get_doc_comment(field: &Field) -> Option<String> {
 			continue;
 		};
 
-		if !path
-			.segments
-			.iter()
-			.next()
-			.is_some_and(|s| s.ident == "doc")
-		{
+		if path.segments.iter().next().is_none_or(|s| s.ident == "doc") {
 			continue;
 		}
 

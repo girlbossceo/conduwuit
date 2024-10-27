@@ -101,7 +101,7 @@ pub(crate) async fn report_event_route(
 		&pdu.event_id,
 		&body.room_id,
 		sender_user,
-		&body.reason,
+		body.reason.as_ref(),
 		body.score,
 		&pdu,
 	)
@@ -134,7 +134,7 @@ pub(crate) async fn report_event_route(
 /// check if report reasoning is less than or equal to 750 characters
 /// check if reporting user is in the reporting room
 async fn is_event_report_valid(
-	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: &Option<String>,
+	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: Option<&String>,
 	score: Option<ruma::Int>, pdu: &std::sync::Arc<PduEvent>,
 ) -> Result<()> {
 	debug_info!("Checking if report from user {sender_user} for event {event_id} in room {room_id} is valid");

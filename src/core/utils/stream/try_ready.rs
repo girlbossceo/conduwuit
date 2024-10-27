@@ -1,4 +1,5 @@
 //! Synchronous combinator extensions to futures::TryStream
+#![allow(clippy::type_complexity)]
 
 use futures::{
 	future::{ready, Ready},

@@ -113,7 +113,7 @@ impl Services {
 	pub async fn start(self: &Arc<Self>) -> Result<Arc<Self>> {
 		debug_info!("Starting services...");
 
-		self.admin.set_services(&Some(Arc::clone(self)));
+		self.admin.set_services(Some(Arc::clone(self)).as_ref());
 		globals::migrations::migrations(self).await?;
 		self.manager
 			.lock()
@@ -151,7 +151,7 @@ impl Services {
 			manager.stop().await;
 		}
 
-		self.admin.set_services(&None);
+		self.admin.set_services(None);
 
 		debug_info!("Services shutdown complete.");
 	}

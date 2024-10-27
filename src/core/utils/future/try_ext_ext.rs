@@ -1,4 +1,5 @@
 //! Extended external extensions to futures::TryFutureExt
+#![allow(clippy::type_complexity)]
 
 use futures::{
 	future::{MapOkOrElse, UnwrapOrElse},

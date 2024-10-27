@@ -772,6 +772,7 @@ unused-qualifications = "warn"
 #unused-results = "warn"                                             # TODO
 
 ## some sadness
+elided_named_lifetimes = "allow"                                     # TODO!
 let_underscore_drop = "allow"
 missing_docs = "allow"
 # cfgs cannot be limited to expected cfgs or their de facto non-transitive/opt-in use-case e.g.

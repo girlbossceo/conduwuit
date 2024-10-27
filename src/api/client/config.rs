@@ -23,7 +23,7 @@ pub(crate) async fn set_global_account_data_route(
 	set_account_data(
 		&services,
 		None,
-		&body.sender_user,
+		body.sender_user.as_ref(),
 		&body.event_type.to_string(),
 		body.data.json(),
 	)
@@ -41,7 +41,7 @@ pub(crate) async fn set_room_account_data_route(
 	set_account_data(
 		&services,
 		Some(&body.room_id),
-		&body.sender_user,
+		body.sender_user.as_ref(),
 		&body.event_type.to_string(),
 		body.data.json(),
 	)
@@ -89,7 +89,7 @@ pub(crate) async fn get_room_account_data_route(
 }
 
 async fn set_account_data(
-	services: &Services, room_id: Option<&RoomId>, sender_user: &Option<OwnedUserId>, event_type: &str,
+	services: &Services, room_id: Option<&RoomId>, sender_user: Option<&OwnedUserId>, event_type: &str,
 	data: &RawJsonValue,
 ) -> Result<()> {
 	let sender_user = sender_user.as_ref().expect("user is authenticated");

@@ -370,9 +370,9 @@ impl Service {
 
 	/// Sets the self-reference to crate::Services which will provide context to
 	/// the admin commands.
-	pub(super) fn set_services(&self, services: &Option<Arc<crate::Services>>) {
+	pub(super) fn set_services(&self, services: Option<&Arc<crate::Services>>) {
 		let receiver = &mut *self.services.services.write().expect("locked for writing");
-		let weak = services.as_ref().map(Arc::downgrade);
+		let weak = services.map(Arc::downgrade);
 		*receiver = weak;
 	}
 }
