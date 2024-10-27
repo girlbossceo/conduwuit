@@ -1,14 +1,25 @@
-use std::collections::HashSet;
+use std::iter::once;
 
 use axum::extract::State;
-use conduit::{err, error, Err};
-use futures::StreamExt;
+use conduit::{
+	err, error,
+	utils::{future::TryExtExt, stream::ReadyExt, IterStream},
+	Err, Result,
+};
+use futures::{future::try_join, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{context::get_context, filter::LazyLoadOptions},
-	events::{StateEventType, TimelineEventType::*},
+	events::StateEventType,
+	UserId,
 };
 
-use crate::{Result, Ruma};
+use crate::{
+	client::message::{event_filter, ignored_filter, update_lazy, visibility_filter, LazySet},
+	Ruma,
+};
+
+const LIMIT_MAX: usize = 100;
+const LIMIT_DEFAULT: usize = 10;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/context/{eventId}`
 ///
@@ -19,33 +30,43 @@ use crate::{Result, Ruma};
 pub(crate) async fn get_context_route(
 	State(services): State<crate::State>, body: Ruma<get_context::v3::Request>,
 ) -> Result<get_context::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+	let filter = &body.filter;
+	let sender = body.sender();
+	let (sender_user, _) = sender;
+
+	// Use limit or else 10, with maximum 100
+	let limit: usize = body
+		.limit
+		.try_into()
+		.unwrap_or(LIMIT_DEFAULT)
+		.min(LIMIT_MAX);
 
 	// some clients, at least element, seem to require knowledge of redundant
 	// members for "inline" profiles on the timeline to work properly
-	let (lazy_load_enabled, lazy_load_send_redundant) = match &body.filter.lazy_load_options {
-		LazyLoadOptions::Enabled {
-			include_redundant_members,
-		} => (true, *include_redundant_members),
-		LazyLoadOptions::Disabled => (false, cfg!(feature = "element_hacks")),
-	};
+	let lazy_load_enabled = matches!(filter.lazy_load_options, LazyLoadOptions::Enabled { .. });
 
-	let mut lazy_loaded = HashSet::with_capacity(100);
+	let lazy_load_redundant = if let LazyLoadOptions::Enabled {
+		include_redundant_members,
+	} = filter.lazy_load_options
+	{
+		include_redundant_members
+	} else {
+		false
+	};
 
 	let base_token = services
 		.rooms
 		.timeline
 		.get_pdu_count(&body.event_id)
-		.await
-		.map_err(|_| err!(Request(NotFound("Base event id not found."))))?;
+		.map_err(|_| err!(Request(NotFound("Event not found."))));
 
 	let base_event = services
 		.rooms
 		.timeline
 		.get_pdu(&body.event_id)
-		.await
-		.map_err(|_| err!(Request(NotFound("Base event not found."))))?;
+		.map_err(|_| err!(Request(NotFound("Base event not found."))));
+
+	let (base_token, base_event) = try_join(base_token, base_event).await?;
 
 	let room_id = &base_event.room_id;
 
@@ -58,136 +79,50 @@ pub(crate) async fn get_context_route(
 		return Err!(Request(Forbidden("You don't have permission to view this event.")));
 	}
 
-	if !services
-		.rooms
-		.lazy_loading
-		.lazy_load_was_sent_before(sender_user, sender_device, room_id, &base_event.sender)
-		.await || lazy_load_send_redundant
-	{
-		lazy_loaded.insert(base_event.sender.as_str().to_owned());
-	}
-
-	// Use limit or else 10, with maximum 100
-	let limit = usize::try_from(body.limit).unwrap_or(10).min(100);
-
-	let base_event = base_event.to_room_event();
-
 	let events_before: Vec<_> = services
 		.rooms
 		.timeline
 		.pdus_until(sender_user, room_id, base_token)
 		.await?
+		.ready_filter_map(|item| event_filter(item, filter))
+		.filter_map(|item| ignored_filter(&services, item, sender_user))
+		.filter_map(|item| visibility_filter(&services, item, sender_user))
 		.take(limit / 2)
-		.filter_map(|(count, pdu)| async move {
-			// list of safe and common non-state events to ignore
-			if matches!(
-				&pdu.kind,
-				RoomMessage
-					| Sticker | CallInvite
-					| CallNotify | RoomEncrypted
-					| Image | File | Audio
-					| Voice | Video | UnstablePollStart
-					| PollStart | KeyVerificationStart
-					| Reaction | Emote
-					| Location
-			) && services
-				.users
-				.user_is_ignored(&pdu.sender, sender_user)
-				.await
-			{
-				return None;
-			}
-
-			services
-				.rooms
-				.state_accessor
-				.user_can_see_event(sender_user, room_id, &pdu.event_id)
-				.await
-				.then_some((count, pdu))
-		})
 		.collect()
 		.await;
-
-	for (_, event) in &events_before {
-		if !services
-			.rooms
-			.lazy_loading
-			.lazy_load_was_sent_before(sender_user, sender_device, room_id, &event.sender)
-			.await || lazy_load_send_redundant
-		{
-			lazy_loaded.insert(event.sender.as_str().to_owned());
-		}
-	}
-
-	let start_token = events_before
-		.last()
-		.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
 
 	let events_after: Vec<_> = services
 		.rooms
 		.timeline
 		.pdus_after(sender_user, room_id, base_token)
 		.await?
+		.ready_filter_map(|item| event_filter(item, filter))
+		.filter_map(|item| ignored_filter(&services, item, sender_user))
+		.filter_map(|item| visibility_filter(&services, item, sender_user))
 		.take(limit / 2)
-		.filter_map(|(count, pdu)| async move {
-			// list of safe and common non-state events to ignore
-			if matches!(
-				&pdu.kind,
-				RoomMessage
-					| Sticker | CallInvite
-					| CallNotify | RoomEncrypted
-					| Image | File | Audio
-					| Voice | Video | UnstablePollStart
-					| PollStart | KeyVerificationStart
-					| Reaction | Emote
-					| Location
-			) && services
-				.users
-				.user_is_ignored(&pdu.sender, sender_user)
-				.await
-			{
-				return None;
-			}
-
-			services
-				.rooms
-				.state_accessor
-				.user_can_see_event(sender_user, room_id, &pdu.event_id)
-				.await
-				.then_some((count, pdu))
-		})
 		.collect()
 		.await;
 
-	for (_, event) in &events_after {
-		if !services
-			.rooms
-			.lazy_loading
-			.lazy_load_was_sent_before(sender_user, sender_device, room_id, &event.sender)
-			.await || lazy_load_send_redundant
-		{
-			lazy_loaded.insert(event.sender.as_str().to_owned());
-		}
-	}
+	let lazy = once(&(base_token, (*base_event).clone()))
+		.chain(events_before.iter())
+		.chain(events_after.iter())
+		.stream()
+		.fold(LazySet::new(), |lazy, item| {
+			update_lazy(&services, room_id, sender, lazy, item, lazy_load_redundant)
+		})
+		.await;
+
+	let state_id = events_after
+		.last()
+		.map_or(body.event_id.as_ref(), |(_, e)| e.event_id.as_ref());
 
 	let shortstatehash = services
 		.rooms
 		.state_accessor
-		.pdu_shortstatehash(
-			events_after
-				.last()
-				.map_or(&*body.event_id, |(_, e)| &*e.event_id),
-		)
+		.pdu_shortstatehash(state_id)
+		.or_else(|_| services.rooms.state.get_room_shortstatehash(room_id))
 		.await
-		.map_or(
-			services
-				.rooms
-				.state
-				.get_room_shortstatehash(room_id)
-				.await
-				.expect("All rooms have state"),
-			|hash| hash,
-		);
+		.map_err(|e| err!(Database("State hash not found: {e}")))?;
 
 	let state_ids = services
 		.rooms
@@ -196,48 +131,61 @@ pub(crate) async fn get_context_route(
 		.await
 		.map_err(|e| err!(Database("State not found: {e}")))?;
 
-	let end_token = events_after
-		.last()
-		.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify());
+	let lazy = &lazy;
+	let state: Vec<_> = state_ids
+		.iter()
+		.stream()
+		.filter_map(|(shortstatekey, event_id)| {
+			services
+				.rooms
+				.short
+				.get_statekey_from_short(*shortstatekey)
+				.map_ok(move |(event_type, state_key)| (event_type, state_key, event_id))
+				.ok()
+		})
+		.filter_map(|(event_type, state_key, event_id)| async move {
+			if lazy_load_enabled && event_type == StateEventType::RoomMember {
+				let user_id: &UserId = state_key.as_str().try_into().ok()?;
+				if !lazy.contains(user_id) {
+					return None;
+				}
+			}
 
-	let mut state = Vec::with_capacity(state_ids.len());
-
-	for (shortstatekey, id) in state_ids {
-		let (event_type, state_key) = services
-			.rooms
-			.short
-			.get_statekey_from_short(shortstatekey)
-			.await?;
-
-		if event_type != StateEventType::RoomMember {
-			let Ok(pdu) = services.rooms.timeline.get_pdu(&id).await else {
-				error!("Pdu in state not found: {id}");
-				continue;
-			};
-
-			state.push(pdu.to_state_event());
-		} else if !lazy_load_enabled || lazy_loaded.contains(&state_key) {
-			let Ok(pdu) = services.rooms.timeline.get_pdu(&id).await else {
-				error!("Pdu in state not found: {id}");
-				continue;
-			};
-
-			state.push(pdu.to_state_event());
-		}
-	}
+			services
+				.rooms
+				.timeline
+				.get_pdu(event_id)
+				.await
+				.inspect_err(|_| error!("Pdu in state not found: {event_id}"))
+				.map(|pdu| pdu.to_state_event())
+				.ok()
+		})
+		.collect()
+		.await;
 
 	Ok(get_context::v3::Response {
-		start: Some(start_token),
-		end: Some(end_token),
+		event: Some(base_event.to_room_event()),
+
+		start: events_before
+			.last()
+			.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify())
+			.into(),
+
+		end: events_after
+			.last()
+			.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify())
+			.into(),
+
 		events_before: events_before
-			.iter()
+			.into_iter()
 			.map(|(_, pdu)| pdu.to_room_event())
 			.collect(),
-		event: Some(base_event),
+
 		events_after: events_after
-			.iter()
+			.into_iter()
 			.map(|(_, pdu)| pdu.to_room_event())
 			.collect(),
+
 		state,
 	})
 }

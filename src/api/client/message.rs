@@ -1,111 +1,52 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use axum::extract::State;
 use conduit::{
-	err,
-	utils::{IterStream, ReadyExt},
-	Err, PduCount,
+	at, is_equal_to,
+	utils::{
+		result::{FlatOk, LogErr},
+		IterStream, ReadyExt,
+	},
+	Event, PduCount, Result,
 };
 use futures::{FutureExt, StreamExt};
 use ruma::{
-	api::client::{
-		filter::RoomEventFilter,
-		message::{get_message_events, send_message_event},
+	api::{
+		client::{filter::RoomEventFilter, message::get_message_events},
+		Direction,
 	},
-	events::{MessageLikeEventType, StateEventType, TimelineEventType::*},
-	UserId,
+	events::{AnyStateEvent, StateEventType, TimelineEventType, TimelineEventType::*},
+	serde::Raw,
+	DeviceId, OwnedUserId, RoomId, UserId,
 };
-use serde_json::from_str;
-use service::rooms::timeline::PdusIterItem;
+use service::{rooms::timeline::PdusIterItem, Services};
 
-use crate::{
-	service::{pdu::PduBuilder, Services},
-	utils, Result, Ruma,
-};
+use crate::Ruma;
 
-/// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
-///
-/// Send a message event into the room.
-///
-/// - Is a NOOP if the txn id was already used before and returns the same event
-///   id again
-/// - The only requirement for the content is that it has to be valid json
-/// - Tries to send the event into the room, auth rules will determine if it is
-///   allowed
-pub(crate) async fn send_message_event_route(
-	State(services): State<crate::State>, body: Ruma<send_message_event::v3::Request>,
-) -> Result<send_message_event::v3::Response> {
-	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
-	let sender_device = body.sender_device.as_deref();
-	let appservice_info = body.appservice_info.as_ref();
+pub(crate) type LazySet = HashSet<OwnedUserId>;
 
-	// Forbid m.room.encrypted if encryption is disabled
-	if MessageLikeEventType::RoomEncrypted == body.event_type && !services.globals.allow_encryption() {
-		return Err!(Request(Forbidden("Encryption has been disabled")));
-	}
+/// list of safe and common non-state events to ignore
+const IGNORED_MESSAGE_TYPES: &[TimelineEventType] = &[
+	RoomMessage,
+	Sticker,
+	CallInvite,
+	CallNotify,
+	RoomEncrypted,
+	Image,
+	File,
+	Audio,
+	Voice,
+	Video,
+	UnstablePollStart,
+	PollStart,
+	KeyVerificationStart,
+	Reaction,
+	Emote,
+	Location,
+];
 
-	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
-
-	if body.event_type == MessageLikeEventType::CallInvite
-		&& services.rooms.directory.is_public_room(&body.room_id).await
-	{
-		return Err!(Request(Forbidden("Room call invites are not allowed in public rooms")));
-	}
-
-	// Check if this is a new transaction id
-	if let Ok(response) = services
-		.transaction_ids
-		.existing_txnid(sender_user, sender_device, &body.txn_id)
-		.await
-	{
-		// The client might have sent a txnid of the /sendToDevice endpoint
-		// This txnid has no response associated with it
-		if response.is_empty() {
-			return Err!(Request(InvalidParam(
-				"Tried to use txn id already used for an incompatible endpoint."
-			)));
-		}
-
-		return Ok(send_message_event::v3::Response {
-			event_id: utils::string_from_bytes(&response)
-				.map(TryInto::try_into)
-				.map_err(|e| err!(Database("Invalid event_id in txnid data: {e:?}")))??,
-		});
-	}
-
-	let mut unsigned = BTreeMap::new();
-	unsigned.insert("transaction_id".to_owned(), body.txn_id.to_string().into());
-
-	let content =
-		from_str(body.body.body.json().get()).map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
-
-	let event_id = services
-		.rooms
-		.timeline
-		.build_and_append_pdu(
-			PduBuilder {
-				event_type: body.event_type.clone().into(),
-				content,
-				unsigned: Some(unsigned),
-				timestamp: appservice_info.and(body.timestamp),
-				..Default::default()
-			},
-			sender_user,
-			&body.room_id,
-			&state_lock,
-		)
-		.await?;
-
-	services
-		.transaction_ids
-		.add_txnid(sender_user, sender_device, &body.txn_id, event_id.as_bytes());
-
-	drop(state_lock);
-
-	Ok(send_message_event::v3::Response {
-		event_id: event_id.into(),
-	})
-}
+const LIMIT_MAX: usize = 100;
+const LIMIT_DEFAULT: usize = 10;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/messages`
 ///
@@ -116,209 +57,171 @@ pub(crate) async fn send_message_event_route(
 pub(crate) async fn get_message_events_route(
 	State(services): State<crate::State>, body: Ruma<get_message_events::v3::Request>,
 ) -> Result<get_message_events::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
-
+	let sender = body.sender();
+	let (sender_user, sender_device) = sender;
 	let room_id = &body.room_id;
 	let filter = &body.filter;
 
-	let limit = usize::try_from(body.limit).unwrap_or(10).min(100);
-	let from = match body.from.as_ref() {
-		Some(from) => PduCount::try_from_string(from)?,
-		None => match body.dir {
-			ruma::api::Direction::Forward => PduCount::min(),
-			ruma::api::Direction::Backward => PduCount::max(),
-		},
+	let from_default = match body.dir {
+		Direction::Forward => PduCount::min(),
+		Direction::Backward => PduCount::max(),
 	};
 
-	let to = body
-		.to
-		.as_ref()
-		.and_then(|t| PduCount::try_from_string(t).ok());
+	let from = body
+		.from
+		.as_deref()
+		.map(PduCount::try_from_string)
+		.transpose()?
+		.unwrap_or(from_default);
+
+	let to = body.to.as_deref().map(PduCount::try_from_string).flat_ok();
+
+	let limit: usize = body
+		.limit
+		.try_into()
+		.unwrap_or(LIMIT_DEFAULT)
+		.min(LIMIT_MAX);
 
 	services
 		.rooms
 		.lazy_loading
 		.lazy_load_confirm_delivery(sender_user, sender_device, room_id, from);
 
-	let mut resp = get_message_events::v3::Response::new();
-	let mut lazy_loaded = HashSet::new();
-	let next_token;
-	match body.dir {
-		ruma::api::Direction::Forward => {
-			let events_after: Vec<PdusIterItem> = services
-				.rooms
-				.timeline
-				.pdus_after(sender_user, room_id, from)
-				.await?
-				.ready_filter_map(|item| event_filter(item, filter))
-				.filter_map(|item| visibility_filter(&services, item, sender_user))
-				.ready_take_while(|(count, _)| Some(*count) != to) // Stop at `to`
-				.take(limit)
-				.collect()
-				.boxed()
-				.await;
-
-			for (_, event) in &events_after {
-				/* TODO: Remove the not "element_hacks" check when these are resolved:
-				 * https://github.com/vector-im/element-android/issues/3417
-				 * https://github.com/vector-im/element-web/issues/21034
-				 */
-				if !cfg!(feature = "element_hacks")
-					&& !services
-						.rooms
-						.lazy_loading
-						.lazy_load_was_sent_before(sender_user, sender_device, room_id, &event.sender)
-						.await
-				{
-					lazy_loaded.insert(event.sender.clone());
-				}
-
-				if cfg!(features = "element_hacks") {
-					lazy_loaded.insert(event.sender.clone());
-				}
-			}
-
-			next_token = events_after.last().map(|(count, _)| count).copied();
-
-			let events_after: Vec<_> = events_after
-				.into_iter()
-				.stream()
-				.filter_map(|(_, pdu)| async move {
-					// list of safe and common non-state events to ignore
-					if matches!(
-						&pdu.kind,
-						RoomMessage
-							| Sticker | CallInvite
-							| CallNotify | RoomEncrypted
-							| Image | File | Audio
-							| Voice | Video | UnstablePollStart
-							| PollStart | KeyVerificationStart
-							| Reaction | Emote | Location
-					) && services
-						.users
-						.user_is_ignored(&pdu.sender, sender_user)
-						.await
-					{
-						return None;
-					}
-
-					Some(pdu.to_room_event())
-				})
-				.collect()
-				.await;
-
-			resp.start = from.stringify();
-			resp.end = next_token.map(|count| count.stringify());
-			resp.chunk = events_after;
-		},
-		ruma::api::Direction::Backward => {
-			services
-				.rooms
-				.timeline
-				.backfill_if_required(room_id, from)
-				.boxed()
-				.await?;
-
-			let events_before: Vec<PdusIterItem> = services
-				.rooms
-				.timeline
-				.pdus_until(sender_user, room_id, from)
-				.await?
-				.ready_filter_map(|item| event_filter(item, filter))
-				.filter_map(|(count, pdu)| async move {
-					// list of safe and common non-state events to ignore
-					if matches!(
-						&pdu.kind,
-						RoomMessage
-							| Sticker | CallInvite
-							| CallNotify | RoomEncrypted
-							| Image | File | Audio
-							| Voice | Video | UnstablePollStart
-							| PollStart | KeyVerificationStart
-							| Reaction | Emote | Location
-					) && services
-						.users
-						.user_is_ignored(&pdu.sender, sender_user)
-						.await
-					{
-						return None;
-					}
-
-					Some((count, pdu))
-				})
-				.filter_map(|item| visibility_filter(&services, item, sender_user))
-				.ready_take_while(|(count, _)| Some(*count) != to) // Stop at `to`
-				.take(limit)
-				.collect()
-				.boxed()
-				.await;
-
-			for (_, event) in &events_before {
-				/* TODO: Remove the not "element_hacks" check when these are resolved:
-				 * https://github.com/vector-im/element-android/issues/3417
-				 * https://github.com/vector-im/element-web/issues/21034
-				 */
-				if !cfg!(feature = "element_hacks")
-					&& !services
-						.rooms
-						.lazy_loading
-						.lazy_load_was_sent_before(sender_user, sender_device, room_id, &event.sender)
-						.await
-				{
-					lazy_loaded.insert(event.sender.clone());
-				}
-
-				if cfg!(features = "element_hacks") {
-					lazy_loaded.insert(event.sender.clone());
-				}
-			}
-
-			next_token = events_before.last().map(|(count, _)| count).copied();
-
-			let events_before: Vec<_> = events_before
-				.into_iter()
-				.map(|(_, pdu)| pdu.to_room_event())
-				.collect();
-
-			resp.start = from.stringify();
-			resp.end = next_token.map(|count| count.stringify());
-			resp.chunk = events_before;
-		},
+	if matches!(body.dir, Direction::Backward) {
+		services
+			.rooms
+			.timeline
+			.backfill_if_required(room_id, from)
+			.boxed()
+			.await
+			.log_err()
+			.ok();
 	}
 
-	resp.state = lazy_loaded
-		.iter()
-		.stream()
-		.filter_map(|ll_user_id| async move {
-			services
-				.rooms
-				.state_accessor
-				.room_state_get(room_id, &StateEventType::RoomMember, ll_user_id.as_str())
-				.await
-				.map(|member_event| member_event.to_state_event())
-				.ok()
-		})
+	let it = match body.dir {
+		Direction::Forward => services
+			.rooms
+			.timeline
+			.pdus_after(sender_user, room_id, from)
+			.await?
+			.boxed(),
+
+		Direction::Backward => services
+			.rooms
+			.timeline
+			.pdus_until(sender_user, room_id, from)
+			.await?
+			.boxed(),
+	};
+
+	let events: Vec<_> = it
+		.ready_take_while(|(count, _)| Some(*count) != to)
+		.ready_filter_map(|item| event_filter(item, filter))
+		.filter_map(|item| ignored_filter(&services, item, sender_user))
+		.filter_map(|item| visibility_filter(&services, item, sender_user))
+		.take(limit)
 		.collect()
 		.await;
 
-	// remove the feature check when we are sure clients like element can handle it
+	let lazy = events
+		.iter()
+		.stream()
+		.fold(LazySet::new(), |lazy, item| {
+			update_lazy(&services, room_id, sender, lazy, item, false)
+		})
+		.await;
+
+	let state = lazy
+		.iter()
+		.stream()
+		.filter_map(|user_id| get_member_event(&services, room_id, user_id))
+		.collect()
+		.await;
+
+	let next_token = events.last().map(|(count, _)| count).copied();
+
 	if !cfg!(feature = "element_hacks") {
 		if let Some(next_token) = next_token {
-			services.rooms.lazy_loading.lazy_load_mark_sent(
-				sender_user,
-				sender_device,
-				room_id,
-				lazy_loaded,
-				next_token,
-			);
+			services
+				.rooms
+				.lazy_loading
+				.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy, next_token);
 		}
 	}
 
-	Ok(resp)
+	let chunk = events
+		.into_iter()
+		.map(at!(1))
+		.map(|pdu| pdu.to_room_event())
+		.collect();
+
+	Ok(get_message_events::v3::Response {
+		start: from.stringify(),
+		end: next_token.as_ref().map(PduCount::stringify),
+		chunk,
+		state,
+	})
 }
 
-async fn visibility_filter(services: &Services, item: PdusIterItem, user_id: &UserId) -> Option<PdusIterItem> {
+async fn get_member_event(services: &Services, room_id: &RoomId, user_id: &UserId) -> Option<Raw<AnyStateEvent>> {
+	services
+		.rooms
+		.state_accessor
+		.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
+		.await
+		.map(|member_event| member_event.to_state_event())
+		.ok()
+}
+
+pub(crate) async fn update_lazy(
+	services: &Services, room_id: &RoomId, sender: (&UserId, &DeviceId), mut lazy: LazySet, item: &PdusIterItem,
+	force: bool,
+) -> LazySet {
+	let (_, event) = &item;
+	let (sender_user, sender_device) = sender;
+
+	/* TODO: Remove the not "element_hacks" check when these are resolved:
+	 * https://github.com/vector-im/element-android/issues/3417
+	 * https://github.com/vector-im/element-web/issues/21034
+	 */
+	if force || cfg!(features = "element_hacks") {
+		lazy.insert(event.sender().into());
+		return lazy;
+	}
+
+	if !services
+		.rooms
+		.lazy_loading
+		.lazy_load_was_sent_before(sender_user, sender_device, room_id, event.sender())
+		.await
+	{
+		lazy.insert(event.sender().into());
+	}
+
+	lazy
+}
+
+pub(crate) async fn ignored_filter(services: &Services, item: PdusIterItem, user_id: &UserId) -> Option<PdusIterItem> {
+	let (_, pdu) = &item;
+
+	if pdu.kind.to_cow_str() == "org.matrix.dummy_event" {
+		return None;
+	}
+
+	if !IGNORED_MESSAGE_TYPES.iter().any(is_equal_to!(&pdu.kind)) {
+		return Some(item);
+	}
+
+	if !services.users.user_is_ignored(&pdu.sender, user_id).await {
+		return Some(item);
+	}
+
+	None
+}
+
+pub(crate) async fn visibility_filter(
+	services: &Services, item: PdusIterItem, user_id: &UserId,
+) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
 
 	services
@@ -329,7 +232,7 @@ async fn visibility_filter(services: &Services, item: PdusIterItem, user_id: &Us
 		.then_some(item)
 }
 
-fn event_filter(item: PdusIterItem, filter: &RoomEventFilter) -> Option<PdusIterItem> {
+pub(crate) fn event_filter(item: PdusIterItem, filter: &RoomEventFilter) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
 	pdu.matches(filter).then_some(item)
 }

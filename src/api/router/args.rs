@@ -3,7 +3,9 @@ use std::{mem, ops::Deref};
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, BytesMut};
 use conduit::{debug, err, trace, utils::string::EMPTY, Error, Result};
-use ruma::{api::IncomingRequest, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, ServerName, UserId};
+use ruma::{
+	api::IncomingRequest, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName, OwnedUserId, ServerName, UserId,
+};
 use service::Services;
 
 use super::{auth, auth::Auth, request, request::Request};
@@ -40,10 +42,28 @@ where
 	T: IncomingRequest + Send + Sync + 'static,
 {
 	#[inline]
-	pub(crate) fn sender_user(&self) -> &UserId { self.sender_user.as_deref().expect("user is authenticated") }
+	pub(crate) fn sender(&self) -> (&UserId, &DeviceId) { (self.sender_user(), self.sender_device()) }
 
 	#[inline]
-	pub(crate) fn origin(&self) -> &ServerName { self.origin.as_deref().expect("server is authenticated") }
+	pub(crate) fn sender_user(&self) -> &UserId {
+		self.sender_user
+			.as_deref()
+			.expect("user must be authenticated for this handler")
+	}
+
+	#[inline]
+	pub(crate) fn sender_device(&self) -> &DeviceId {
+		self.sender_device
+			.as_deref()
+			.expect("user must be authenticated and device identified")
+	}
+
+	#[inline]
+	pub(crate) fn origin(&self) -> &ServerName {
+		self.origin
+			.as_deref()
+			.expect("server must be authenticated for this handler")
+	}
 }
 
 #[async_trait]
