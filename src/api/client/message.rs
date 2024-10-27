@@ -9,13 +9,13 @@ use conduit::{
 use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::client::{
-		filter::{RoomEventFilter, UrlFilter},
+		filter::RoomEventFilter,
 		message::{get_message_events, send_message_event},
 	},
 	events::{MessageLikeEventType, StateEventType, TimelineEventType::*},
 	UserId,
 };
-use serde_json::{from_str, Value};
+use serde_json::from_str;
 use service::rooms::timeline::PdusIterItem;
 
 use crate::{
@@ -151,7 +151,7 @@ pub(crate) async fn get_message_events_route(
 				.timeline
 				.pdus_after(sender_user, room_id, from)
 				.await?
-				.ready_filter_map(|item| contains_url_filter(item, filter))
+				.ready_filter_map(|item| event_filter(item, filter))
 				.filter_map(|item| visibility_filter(&services, item, sender_user))
 				.ready_take_while(|(count, _)| Some(*count) != to) // Stop at `to`
 				.take(limit)
@@ -225,7 +225,7 @@ pub(crate) async fn get_message_events_route(
 				.timeline
 				.pdus_until(sender_user, room_id, from)
 				.await?
-				.ready_filter_map(|item| contains_url_filter(item, filter))
+				.ready_filter_map(|item| event_filter(item, filter))
 				.filter_map(|(count, pdu)| async move {
 					// list of safe and common non-state events to ignore
 					if matches!(
@@ -329,19 +329,7 @@ async fn visibility_filter(services: &Services, item: PdusIterItem, user_id: &Us
 		.then_some(item)
 }
 
-fn contains_url_filter(item: PdusIterItem, filter: &RoomEventFilter) -> Option<PdusIterItem> {
+fn event_filter(item: PdusIterItem, filter: &RoomEventFilter) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
-
-	if filter.url_filter.is_none() {
-		return Some(item);
-	}
-
-	let content: Value = from_str(pdu.content.get()).unwrap();
-	let res = match filter.url_filter {
-		Some(UrlFilter::EventsWithoutUrl) => !content["url"].is_string(),
-		Some(UrlFilter::EventsWithUrl) => content["url"].is_string(),
-		None => true,
-	};
-
-	res.then_some(item)
+	pdu.matches(filter).then_some(item)
 }
