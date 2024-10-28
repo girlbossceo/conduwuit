@@ -128,10 +128,10 @@ features = [
 ]
 
 [workspace.dependencies.rustls]
-version = "0.23.13"
+version = "0.23.16"
 
 [workspace.dependencies.reqwest]
-version = "0.12.8"
+version = "0.12.9"
 default-features = false
 features = [
 	"rustls-tls-native-roots",
@@ -141,7 +141,7 @@ features = [
 ]
 
 [workspace.dependencies.serde]
-version = "1.0.209"
+version = "1.0.214"
 default-features = false
 features = ["rc"]
 
@@ -257,7 +257,7 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-# 0.1.9 causes DNS issues
+# 0.1.9 and above causes DNS issues
 version = "=0.1.8"
 default-features = false
 features = [
@@ -315,7 +315,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "39c1addd37a4eed612ac1135edc2cccd9d331d5e"
+rev = "dd8b13ed2fa2ec4d9fe5c6fbb18e701ac4d4d08a"
 features = [
     "compat",
     "rand",
