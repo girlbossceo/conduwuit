@@ -1,4 +1,5 @@
 use std::{
+	borrow::Cow,
 	fmt,
 	net::{IpAddr, SocketAddr},
 };
@@ -29,24 +30,25 @@ pub(crate) fn add_port_to_hostname(dest_str: &str) -> FedDest {
 }
 
 impl FedDest {
-	pub(crate) fn into_https_string(self) -> String {
+	pub(crate) fn https_string(&self) -> String {
 		match self {
 			Self::Literal(addr) => format!("https://{addr}"),
 			Self::Named(host, port) => format!("https://{host}{port}"),
 		}
 	}
 
-	pub(crate) fn into_uri_string(self) -> String {
+	pub(crate) fn uri_string(&self) -> String {
 		match self {
 			Self::Literal(addr) => addr.to_string(),
 			Self::Named(host, port) => format!("{host}{port}"),
 		}
 	}
 
-	pub(crate) fn hostname(&self) -> String {
+	#[inline]
+	pub(crate) fn hostname(&self) -> Cow<'_, str> {
 		match &self {
-			Self::Literal(addr) => addr.ip().to_string(),
-			Self::Named(host, _) => host.clone(),
+			Self::Literal(addr) => addr.ip().to_string().into(),
+			Self::Named(host, _) => host.into(),
 		}
 	}
 
@@ -61,10 +63,5 @@ impl FedDest {
 }
 
 impl fmt::Display for FedDest {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Named(host, port) => write!(f, "{host}{port}"),
-			Self::Literal(addr) => write!(f, "{addr}"),
-		}
-	}
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.uri_string().as_str()) }
 }

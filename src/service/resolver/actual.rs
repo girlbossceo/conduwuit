@@ -18,34 +18,33 @@ use crate::resolver::{
 pub(crate) struct ActualDest {
 	pub(crate) dest: FedDest,
 	pub(crate) host: String,
-	pub(crate) string: String,
 	pub(crate) cached: bool,
+}
+
+impl ActualDest {
+	#[inline]
+	pub(crate) fn string(&self) -> String { self.dest.https_string() }
 }
 
 impl super::Service {
 	#[tracing::instrument(skip_all, name = "resolve")]
 	pub(crate) async fn get_actual_dest(&self, server_name: &ServerName) -> Result<ActualDest> {
-		let cached;
-		let cached_result = self.get_cached_destination(server_name);
+		let (result, cached) = if let Some(result) = self.get_cached_destination(server_name) {
+			(result, true)
+		} else {
+			self.validate_dest(server_name)?;
+			(self.resolve_actual_dest(server_name, true).await?, false)
+		};
 
 		let CachedDest {
 			dest,
 			host,
 			..
-		} = if let Some(result) = cached_result {
-			cached = true;
-			result
-		} else {
-			cached = false;
-			self.validate_dest(server_name)?;
-			self.resolve_actual_dest(server_name, true).await?
-		};
+		} = result;
 
-		let string = dest.clone().into_https_string();
 		Ok(ActualDest {
 			dest,
 			host,
-			string,
 			cached,
 		})
 	}
@@ -89,7 +88,7 @@ impl super::Service {
 		debug!("Actual destination: {actual_dest:?} hostname: {host:?}");
 		Ok(CachedDest {
 			dest: actual_dest,
-			host: host.into_uri_string(),
+			host: host.uri_string(),
 			expire: CachedDest::default_expire(),
 		})
 	}
@@ -109,7 +108,7 @@ impl super::Service {
 
 	async fn actual_dest_3(&self, host: &mut String, cache: bool, delegated: String) -> Result<FedDest> {
 		debug!("3: A .well-known file is available");
-		*host = add_port_to_hostname(&delegated).into_uri_string();
+		*host = add_port_to_hostname(&delegated).uri_string();
 		match get_ip_with_port(&delegated) {
 			Some(host_and_port) => Self::actual_dest_3_1(host_and_port),
 			None => {

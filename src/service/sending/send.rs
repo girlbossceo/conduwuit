@@ -71,7 +71,7 @@ impl super::Service {
 
 		trace!("Preparing request");
 		let mut http_request = req
-			.try_into_http_request::<Vec<u8>>(&actual.string, SATIR, &VERSIONS)
+			.try_into_http_request::<Vec<u8>>(actual.string().as_str(), SATIR, &VERSIONS)
 			.map_err(|e| err!(BadServerResponse("Invalid destination: {e:?}")))?;
 
 		self.sign_request::<T>(dest, &mut http_request);
@@ -107,7 +107,7 @@ where
 		request_url = ?url,
 		response_url = ?response.url(),
 		"Received response from {}",
-		actual.string,
+		actual.string(),
 	);
 
 	let mut http_response_builder = http::Response::builder()
