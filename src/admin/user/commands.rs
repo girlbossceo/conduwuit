@@ -18,7 +18,7 @@ use ruma::{
 		tag::{TagEvent, TagEventContent, TagInfo},
 		RoomAccountDataEventType, StateEventType,
 	},
-	EventId, OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId,
+	EventId, OwnedRoomId, OwnedRoomOrAliasId, OwnedUserId, RoomId, UserId,
 };
 
 use crate::{
@@ -27,6 +27,7 @@ use crate::{
 };
 
 const AUTO_GEN_PASSWORD_LENGTH: usize = 25;
+const BULK_JOIN_REASON: &str = "Bulk force joining this room as initiated by the server admin.";
 
 #[admin_command]
 pub(super) async fn list_users(&self) -> Result<RoomMessageEventContent> {
@@ -384,8 +385,6 @@ pub(super) async fn list_joined_rooms(&self, user_id: String) -> Result<RoomMess
 pub(super) async fn force_join_list_of_local_users(
 	&self, room_id: OwnedRoomOrAliasId, yes_i_want_to_do_this: bool,
 ) -> Result<RoomMessageEventContent> {
-	const REASON: &str = "Bulk force joining this room as initiated by the server admin.";
-
 	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -491,7 +490,100 @@ pub(super) async fn force_join_list_of_local_users(
 			self.services,
 			&user_id,
 			&room_id,
-			Some(String::from(REASON)),
+			Some(String::from(BULK_JOIN_REASON)),
+			&servers,
+			None,
+			&None,
+		)
+		.await
+		{
+			Ok(_res) => {
+				successful_joins = successful_joins.saturating_add(1);
+			},
+			Err(e) => {
+				debug_warn!("Failed force joining {user_id} to {room_id} during bulk join: {e}");
+				failed_joins = failed_joins.saturating_add(1);
+			},
+		};
+	}
+
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"{successful_joins} local users have been joined to {room_id}. {failed_joins} joins failed.",
+	)))
+}
+
+#[admin_command]
+pub(super) async fn force_join_all_local_users(
+	&self, room_id: OwnedRoomOrAliasId, yes_i_want_to_do_this: bool,
+) -> Result<RoomMessageEventContent> {
+	if !yes_i_want_to_do_this {
+		return Ok(RoomMessageEventContent::notice_markdown(
+			"You must pass the --yes-i-want-to-do-this-flag to ensure you really want to force bulk join all local \
+			 users.",
+		));
+	}
+
+	let Ok(admin_room) = self.services.admin.get_admin_room().await else {
+		return Ok(RoomMessageEventContent::notice_markdown(
+			"There is not an admin room to check for server admins.",
+		));
+	};
+
+	let (room_id, servers) = self
+		.services
+		.rooms
+		.alias
+		.resolve_with_servers(&room_id, None)
+		.await?;
+
+	if !self
+		.services
+		.rooms
+		.state_cache
+		.server_in_room(self.services.globals.server_name(), &room_id)
+		.await
+	{
+		return Ok(RoomMessageEventContent::notice_markdown("We are not joined in this room."));
+	}
+
+	let server_admins: Vec<_> = self
+		.services
+		.rooms
+		.state_cache
+		.active_local_users_in_room(&admin_room)
+		.map(ToOwned::to_owned)
+		.collect()
+		.await;
+
+	if !self
+		.services
+		.rooms
+		.state_cache
+		.room_members(&room_id)
+		.ready_any(|user_id| server_admins.contains(&user_id.to_owned()))
+		.await
+	{
+		return Ok(RoomMessageEventContent::notice_markdown(
+			"There is not a single server admin in the room.",
+		));
+	}
+
+	let mut failed_joins: usize = 0;
+	let mut successful_joins: usize = 0;
+
+	for user_id in &self
+		.services
+		.users
+		.list_local_users()
+		.map(UserId::to_owned)
+		.collect::<Vec<_>>()
+		.await
+	{
+		match join_room_by_id_helper(
+			self.services,
+			user_id,
+			&room_id,
+			Some(String::from(BULK_JOIN_REASON)),
 			&servers,
 			None,
 			&None,

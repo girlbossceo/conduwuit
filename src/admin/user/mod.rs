@@ -130,10 +130,22 @@ pub(super) enum UserCommand {
 	///
 	/// Specify a codeblock of usernames.
 	///
-	/// At least 1 server admin must be in the room to prevent abuse.
+	/// At least 1 server admin must be in the room to reduce abuse.
 	///
 	/// Requires the `--yes-i-want-to-do-this` flag.
 	ForceJoinListOfLocalUsers {
+		room_id: OwnedRoomOrAliasId,
+
+		#[arg(long)]
+		yes_i_want_to_do_this: bool,
+	},
+
+	/// - Force joins all local users to the specified room.
+	///
+	/// At least 1 server admin must be in the room to reduce abuse.
+	///
+	/// Requires the `--yes-i-want-to-do-this` flag.
+	ForceJoinAllLocalUsers {
 		room_id: OwnedRoomOrAliasId,
 
 		#[arg(long)]
