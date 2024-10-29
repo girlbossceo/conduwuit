@@ -34,6 +34,9 @@ impl Database {
 	pub fn iter(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ { self.maps.iter() }
 
 	#[inline]
+	pub fn keys(&self) -> impl Iterator<Item = &MapsKey> + Send + '_ { self.maps.keys() }
+
+	#[inline]
 	#[must_use]
 	pub fn is_read_only(&self) -> bool { self.db.secondary || self.db.read_only }
 
