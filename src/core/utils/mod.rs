@@ -54,6 +54,25 @@ macro_rules! extract_variant {
 }
 
 #[macro_export]
+macro_rules! apply {
+	(1, $($idx:tt)+) => {
+		|t| (($($idx)+)(t.0),)
+	};
+
+	(2, $($idx:tt)+) => {
+		|t| (($($idx)+)(t.0), ($($idx)+)(t.1),)
+	};
+
+	(3, $($idx:tt)+) => {
+		|t| (($($idx)+)(t.0), ($($idx)+)(t.1), ($($idx)+)(t.2),)
+	};
+
+	(4, $($idx:tt)+) => {
+		|t| (($($idx)+)(t.0), ($($idx)+)(t.1), ($($idx)+)(t.2), ($($idx)+4)(t.3))
+	};
+}
+
+#[macro_export]
 macro_rules! at {
 	($idx:tt) => {
 		|t| t.$idx
@@ -109,6 +128,14 @@ macro_rules! is_matching {
 macro_rules! is_not_empty {
 	() => {
 		|x| !x.is_empty()
+	};
+}
+
+/// Functor for equality i.e. (a, b).map(is_equal!())
+#[macro_export]
+macro_rules! is_equal {
+	() => {
+		|a, b| a == b
 	};
 }
 
