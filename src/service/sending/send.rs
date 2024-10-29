@@ -14,7 +14,7 @@ use ruma::{
 	},
 	serde::Base64,
 	server_util::authorization::XMatrix,
-	ServerName,
+	CanonicalJsonObject, CanonicalJsonValue, ServerName, ServerSigningKeyId,
 };
 
 use crate::{
@@ -74,7 +74,7 @@ impl super::Service {
 			.try_into_http_request::<Vec<u8>>(actual.string().as_str(), SATIR, &VERSIONS)
 			.map_err(|e| err!(BadServerResponse("Invalid destination: {e:?}")))?;
 
-		self.sign_request::<T>(dest, &mut http_request);
+		self.sign_request(&mut http_request, dest);
 
 		let request = Request::try_from(http_request)?;
 		self.validate_url(request.url())?;
@@ -178,68 +178,71 @@ where
 }
 
 #[implement(super::Service)]
-fn sign_request<T>(&self, dest: &ServerName, http_request: &mut http::Request<Vec<u8>>)
-where
-	T: OutgoingRequest + Debug + Send,
-{
-	let mut req_map = serde_json::Map::with_capacity(8);
-	if !http_request.body().is_empty() {
-		req_map.insert(
-			"content".to_owned(),
-			serde_json::from_slice(http_request.body()).expect("body is valid json, we just created it"),
-		);
+fn sign_request(&self, http_request: &mut http::Request<Vec<u8>>, dest: &ServerName) {
+	type Member = (String, Value);
+	type Value = CanonicalJsonValue;
+	type Object = CanonicalJsonObject;
+
+	let origin = self.services.globals.server_name();
+	let body = http_request.body();
+	let uri = http_request
+		.uri()
+		.path_and_query()
+		.expect("http::Request missing path_and_query");
+
+	let mut req: Object = if !body.is_empty() {
+		let content: CanonicalJsonValue = serde_json::from_slice(body).expect("failed to serialize body");
+
+		let authorization: [Member; 5] = [
+			("content".into(), content),
+			("destination".into(), dest.as_str().into()),
+			("method".into(), http_request.method().as_str().into()),
+			("origin".into(), origin.as_str().into()),
+			("uri".into(), uri.to_string().into()),
+		];
+
+		authorization.into()
+	} else {
+		let authorization: [Member; 4] = [
+			("destination".into(), dest.as_str().into()),
+			("method".into(), http_request.method().as_str().into()),
+			("origin".into(), origin.as_str().into()),
+			("uri".into(), uri.to_string().into()),
+		];
+
+		authorization.into()
 	};
 
-	req_map.insert("method".to_owned(), T::METADATA.method.to_string().into());
-	req_map.insert(
-		"uri".to_owned(),
-		http_request
-			.uri()
-			.path_and_query()
-			.expect("all requests have a path")
-			.to_string()
-			.into(),
-	);
-	req_map.insert("origin".to_owned(), self.services.globals.server_name().to_string().into());
-	req_map.insert("destination".to_owned(), dest.as_str().into());
-
-	let mut req_json = serde_json::from_value(req_map.into()).expect("valid JSON is valid BTreeMap");
 	self.services
 		.server_keys
-		.sign_json(&mut req_json)
-		.expect("our request json is what ruma expects");
+		.sign_json(&mut req)
+		.expect("request signing failed");
 
-	let req_json: serde_json::Map<String, serde_json::Value> =
-		serde_json::from_slice(&serde_json::to_vec(&req_json).unwrap()).unwrap();
-
-	let signatures = req_json["signatures"]
+	let signatures = req["signatures"]
 		.as_object()
-		.expect("signatures object")
+		.and_then(|object| object[origin.as_str()].as_object())
+		.expect("origin signatures object");
+
+	let key: &ServerSigningKeyId = signatures
+		.keys()
+		.next()
+		.map(|k| k.as_str().try_into())
+		.expect("at least one signature from this origin")
+		.expect("keyid is json string");
+
+	let sig: Base64 = signatures
 		.values()
-		.map(|v| {
-			v.as_object()
-				.expect("server signatures object")
-				.iter()
-				.map(|(k, v)| (k, v.as_str().expect("server signature string")))
-		});
+		.next()
+		.map(|s| s.as_str().map(Base64::parse))
+		.expect("at least one signature from this origin")
+		.expect("signature is json string")
+		.expect("signature is valid base64");
 
-	for signature_server in signatures {
-		for s in signature_server {
-			let key =
-				s.0.as_str()
-					.try_into()
-					.expect("valid homeserver signing key ID");
-			let sig = Base64::parse(s.1).expect("valid base64");
+	let x_matrix = XMatrix::new(origin.into(), dest.into(), key.into(), sig);
+	let authorization = HeaderValue::from(&x_matrix);
+	let authorization = http_request
+		.headers_mut()
+		.insert(AUTHORIZATION, authorization);
 
-			http_request.headers_mut().insert(
-				AUTHORIZATION,
-				HeaderValue::from(&XMatrix::new(
-					self.services.globals.server_name().to_owned(),
-					dest.to_owned(),
-					key,
-					sig,
-				)),
-			);
-		}
-	}
+	debug_assert!(authorization.is_none(), "Authorization header already present");
 }

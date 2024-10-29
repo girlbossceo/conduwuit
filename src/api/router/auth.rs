@@ -220,20 +220,32 @@ async fn auth_server(services: &Services, request: &mut Request, body: Option<&C
 		.expect("all requests have a path")
 		.to_string();
 
-	let signature: [Member; 1] = [(x_matrix.key.to_string(), Value::String(x_matrix.sig.to_string()))];
-	let signatures: [Member; 1] = [(origin.to_string(), Value::Object(signature.into()))];
-	let authorization: [Member; 5] = [
-		("destination".into(), Value::String(destination.into())),
-		("method".into(), Value::String(request.parts.method.to_string())),
-		("origin".into(), Value::String(origin.to_string())),
-		("signatures".into(), Value::Object(signatures.into())),
-		("uri".into(), Value::String(signature_uri)),
-	];
+	let signature: [Member; 1] = [(x_matrix.key.as_str().into(), Value::String(x_matrix.sig.to_string()))];
 
-	let mut authorization: Object = authorization.into();
-	if let Some(body) = body {
-		authorization.insert("content".to_owned(), body.clone());
-	}
+	let signatures: [Member; 1] = [(origin.as_str().into(), Value::Object(signature.into()))];
+
+	let authorization: Object = if let Some(body) = body.cloned() {
+		let authorization: [Member; 6] = [
+			("content".into(), body),
+			("destination".into(), Value::String(destination.into())),
+			("method".into(), Value::String(request.parts.method.as_str().into())),
+			("origin".into(), Value::String(origin.as_str().into())),
+			("signatures".into(), Value::Object(signatures.into())),
+			("uri".into(), Value::String(signature_uri)),
+		];
+
+		authorization.into()
+	} else {
+		let authorization: [Member; 5] = [
+			("destination".into(), Value::String(destination.into())),
+			("method".into(), Value::String(request.parts.method.as_str().into())),
+			("origin".into(), Value::String(origin.as_str().into())),
+			("signatures".into(), Value::Object(signatures.into())),
+			("uri".into(), Value::String(signature_uri)),
+		];
+
+		authorization.into()
+	};
 
 	let key = services
 		.server_keys
@@ -242,7 +254,7 @@ async fn auth_server(services: &Services, request: &mut Request, body: Option<&C
 		.map_err(|e| err!(Request(Forbidden(warn!("Failed to fetch signing keys: {e}")))))?;
 
 	let keys: PubKeys = [(x_matrix.key.to_string(), key.key)].into();
-	let keys: PubKeyMap = [(origin.to_string(), keys)].into();
+	let keys: PubKeyMap = [(origin.as_str().into(), keys)].into();
 	if let Err(e) = ruma::signatures::verify_json(&keys, authorization) {
 		debug_error!("Failed to verify federation request from {origin}: {e}");
 		if request.parts.uri.to_string().contains('@') {
