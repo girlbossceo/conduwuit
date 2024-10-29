@@ -9,9 +9,9 @@ use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
 use ruma::ServerName;
 
-use crate::resolver::{
+use super::{
 	cache::{CachedDest, CachedOverride},
-	fed::{add_port_to_hostname, get_ip_with_port, FedDest},
+	fed::{add_port_to_hostname, get_ip_with_port, FedDest, PortString},
 };
 
 #[derive(Clone, Debug)]
@@ -77,12 +77,12 @@ impl super::Service {
 		let host = if let Ok(addr) = host.parse::<SocketAddr>() {
 			FedDest::Literal(addr)
 		} else if let Ok(addr) = host.parse::<IpAddr>() {
-			FedDest::Named(addr.to_string(), ":8448".to_owned())
+			FedDest::Named(addr.to_string(), FedDest::default_port())
 		} else if let Some(pos) = host.find(':') {
 			let (host, port) = host.split_at(pos);
-			FedDest::Named(host.to_owned(), port.to_owned())
+			FedDest::Named(host.to_owned(), port.try_into().unwrap_or_else(|_| FedDest::default_port()))
 		} else {
-			FedDest::Named(host, ":8448".to_owned())
+			FedDest::Named(host, FedDest::default_port())
 		};
 
 		debug!("Actual destination: {actual_dest:?} hostname: {host:?}");
@@ -103,7 +103,10 @@ impl super::Service {
 		let (host, port) = dest.as_str().split_at(pos);
 		self.conditional_query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448), cache)
 			.await?;
-		Ok(FedDest::Named(host.to_owned(), port.to_owned()))
+		Ok(FedDest::Named(
+			host.to_owned(),
+			port.try_into().unwrap_or_else(|_| FedDest::default_port()),
+		))
 	}
 
 	async fn actual_dest_3(&self, host: &mut String, cache: bool, delegated: String) -> Result<FedDest> {
@@ -136,7 +139,10 @@ impl super::Service {
 		let (host, port) = delegated.split_at(pos);
 		self.conditional_query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448), cache)
 			.await?;
-		Ok(FedDest::Named(host.to_owned(), port.to_owned()))
+		Ok(FedDest::Named(
+			host.to_owned(),
+			port.try_into().unwrap_or_else(|_| FedDest::default_port()),
+		))
 	}
 
 	async fn actual_dest_3_3(&self, cache: bool, delegated: String, overrider: FedDest) -> Result<FedDest> {
@@ -145,7 +151,13 @@ impl super::Service {
 		self.conditional_query_and_cache_override(&delegated, &overrider.hostname(), force_port.unwrap_or(8448), cache)
 			.await?;
 		if let Some(port) = force_port {
-			Ok(FedDest::Named(delegated, format!(":{port}")))
+			Ok(FedDest::Named(
+				delegated,
+				format!(":{port}")
+					.as_str()
+					.try_into()
+					.unwrap_or_else(|_| FedDest::default_port()),
+			))
 		} else {
 			Ok(add_port_to_hostname(&delegated))
 		}
@@ -164,7 +176,11 @@ impl super::Service {
 		self.conditional_query_and_cache_override(host, &overrider.hostname(), force_port.unwrap_or(8448), cache)
 			.await?;
 		if let Some(port) = force_port {
-			Ok(FedDest::Named(host.to_owned(), format!(":{port}")))
+			let port = format!(":{port}");
+			Ok(FedDest::Named(
+				host.to_owned(),
+				PortString::from(port.as_str()).unwrap_or_else(|_| FedDest::default_port()),
+			))
 		} else {
 			Ok(add_port_to_hostname(host))
 		}
@@ -269,7 +285,10 @@ impl super::Service {
 			srv.iter().next().map(|result| {
 				FedDest::Named(
 					result.target().to_string().trim_end_matches('.').to_owned(),
-					format!(":{}", result.port()),
+					format!(":{}", result.port())
+						.as_str()
+						.try_into()
+						.unwrap_or_else(|_| FedDest::default_port()),
 				)
 			})
 		}

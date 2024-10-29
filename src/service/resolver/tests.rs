@@ -30,7 +30,7 @@ fn ips_keep_custom_ports() {
 fn hostnames_get_default_ports() {
 	assert_eq!(
 		add_port_to_hostname("example.com"),
-		FedDest::Named(String::from("example.com"), String::from(":8448"))
+		FedDest::Named(String::from("example.com"), ":8448".try_into().unwrap())
 	);
 }
 
@@ -38,6 +38,6 @@ fn hostnames_get_default_ports() {
 fn hostnames_keep_custom_ports() {
 	assert_eq!(
 		add_port_to_hostname("example.com:1337"),
-		FedDest::Named(String::from("example.com"), String::from(":1337"))
+		FedDest::Named(String::from("example.com"), ":1337".try_into().unwrap())
 	);
 }

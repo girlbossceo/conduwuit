@@ -4,11 +4,18 @@ use std::{
 	net::{IpAddr, SocketAddr},
 };
 
+use arrayvec::ArrayString;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FedDest {
 	Literal(SocketAddr),
-	Named(String, String),
+	Named(String, PortString),
 }
+
+/// numeric or service-name
+pub type PortString = ArrayString<16>;
+
+const DEFAULT_PORT: &str = ":8448";
 
 pub(crate) fn get_ip_with_port(dest_str: &str) -> Option<FedDest> {
 	if let Ok(dest) = dest_str.parse::<SocketAddr>() {
@@ -20,13 +27,16 @@ pub(crate) fn get_ip_with_port(dest_str: &str) -> Option<FedDest> {
 	}
 }
 
-pub(crate) fn add_port_to_hostname(dest_str: &str) -> FedDest {
-	let (host, port) = match dest_str.find(':') {
-		None => (dest_str, ":8448"),
-		Some(pos) => dest_str.split_at(pos),
+pub(crate) fn add_port_to_hostname(dest: &str) -> FedDest {
+	let (host, port) = match dest.find(':') {
+		None => (dest, DEFAULT_PORT),
+		Some(pos) => dest.split_at(pos),
 	};
 
-	FedDest::Named(host.to_owned(), port.to_owned())
+	FedDest::Named(
+		host.to_owned(),
+		PortString::from(port).unwrap_or_else(|_| FedDest::default_port()),
+	)
 }
 
 impl FedDest {
@@ -60,6 +70,10 @@ impl FedDest {
 			Self::Named(_, port) => port[1..].parse().ok(),
 		}
 	}
+
+	#[inline]
+	#[must_use]
+	pub fn default_port() -> PortString { PortString::from(DEFAULT_PORT).expect("default port string") }
 }
 
 impl fmt::Display for FedDest {
