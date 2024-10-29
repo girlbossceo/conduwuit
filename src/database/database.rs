@@ -1,9 +1,8 @@
 use std::{ops::Index, sync::Arc};
 
-use conduit::{Result, Server};
+use conduit::{err, Result, Server};
 
 use crate::{
-	cork::Cork,
 	maps,
 	maps::{Maps, MapsKey, MapsVal},
 	Engine, Map,
@@ -11,7 +10,7 @@ use crate::{
 
 pub struct Database {
 	pub db: Arc<Engine>,
-	map: Maps,
+	maps: Maps,
 }
 
 impl Database {
@@ -20,24 +19,19 @@ impl Database {
 		let db = Engine::open(server)?;
 		Ok(Arc::new(Self {
 			db: db.clone(),
-			map: maps::open(&db)?,
+			maps: maps::open(&db)?,
 		}))
 	}
 
 	#[inline]
-	#[must_use]
-	pub fn cork(&self) -> Cork { Cork::new(&self.db, false, false) }
+	pub fn get(&self, name: &str) -> Result<&Arc<Map>> {
+		self.maps
+			.get(name)
+			.ok_or_else(|| err!(Request(NotFound("column not found"))))
+	}
 
 	#[inline]
-	#[must_use]
-	pub fn cork_and_flush(&self) -> Cork { Cork::new(&self.db, true, false) }
-
-	#[inline]
-	#[must_use]
-	pub fn cork_and_sync(&self) -> Cork { Cork::new(&self.db, true, true) }
-
-	#[inline]
-	pub fn iter_maps(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ { self.map.iter() }
+	pub fn iter(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ { self.maps.iter() }
 
 	#[inline]
 	#[must_use]
@@ -52,7 +46,7 @@ impl Index<&str> for Database {
 	type Output = Arc<Map>;
 
 	fn index(&self, name: &str) -> &Self::Output {
-		self.map
+		self.maps
 			.get(name)
 			.expect("column in database does not exist")
 	}

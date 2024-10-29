@@ -1,11 +1,25 @@
 use std::sync::Arc;
 
-use crate::Engine;
+use crate::{Database, Engine};
 
 pub struct Cork {
 	db: Arc<Engine>,
 	flush: bool,
 	sync: bool,
+}
+
+impl Database {
+	#[inline]
+	#[must_use]
+	pub fn cork(&self) -> Cork { Cork::new(&self.db, false, false) }
+
+	#[inline]
+	#[must_use]
+	pub fn cork_and_flush(&self) -> Cork { Cork::new(&self.db, true, false) }
+
+	#[inline]
+	#[must_use]
+	pub fn cork_and_sync(&self) -> Cork { Cork::new(&self.db, true, true) }
 }
 
 impl Cork {
