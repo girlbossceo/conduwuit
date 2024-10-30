@@ -2,13 +2,13 @@ use std::cmp;
 
 use axum::extract::State;
 use conduit::{
-	is_equal_to,
 	utils::{IterStream, ReadyExt},
-	Err, PduCount, Result,
+	PduCount, Result,
 };
 use futures::{FutureExt, StreamExt};
 use ruma::{api::federation::backfill::get_backfill, uint, user_id, MilliSecondsSinceUnixEpoch};
 
+use super::AccessCheck;
 use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/backfill/<room_id>`
@@ -18,24 +18,14 @@ use crate::Ruma;
 pub(crate) async fn get_backfill_route(
 	State(services): State<crate::State>, body: Ruma<get_backfill::v1::Request>,
 ) -> Result<get_backfill::v1::Response> {
-	services
-		.rooms
-		.event_handler
-		.acl_check(body.origin(), &body.room_id)
-		.await?;
-
-	if !services
-		.rooms
-		.state_accessor
-		.is_world_readable(&body.room_id)
-		.await && !services
-		.rooms
-		.state_cache
-		.server_in_room(body.origin(), &body.room_id)
-		.await
-	{
-		return Err!(Request(Forbidden("Server is not in room.")));
+	AccessCheck {
+		services: &services,
+		origin: body.origin(),
+		room_id: &body.room_id,
+		event_id: None,
 	}
+	.check()
+	.await?;
 
 	let until = body
 		.v
@@ -70,7 +60,6 @@ pub(crate) async fn get_backfill_route(
 				.state_accessor
 				.server_can_see_event(origin, &pdu.room_id, &pdu.event_id)
 				.await
-				.is_ok_and(is_equal_to!(true))
 			{
 				return None;
 			}

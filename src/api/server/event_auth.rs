@@ -8,6 +8,7 @@ use ruma::{
 	RoomId,
 };
 
+use super::AccessCheck;
 use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/event_auth/{roomId}/{eventId}`
@@ -18,24 +19,14 @@ use crate::Ruma;
 pub(crate) async fn get_event_authorization_route(
 	State(services): State<crate::State>, body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
-	services
-		.rooms
-		.event_handler
-		.acl_check(body.origin(), &body.room_id)
-		.await?;
-
-	if !services
-		.rooms
-		.state_accessor
-		.is_world_readable(&body.room_id)
-		.await && !services
-		.rooms
-		.state_cache
-		.server_in_room(body.origin(), &body.room_id)
-		.await
-	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room."));
+	AccessCheck {
+		services: &services,
+		origin: body.origin(),
+		room_id: &body.room_id,
+		event_id: None,
 	}
+	.check()
+	.await?;
 
 	let event = services
 		.rooms

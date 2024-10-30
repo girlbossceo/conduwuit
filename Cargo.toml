@@ -213,7 +213,7 @@ features = [
 [workspace.dependencies.futures]
 version = "0.3.30"
 default-features = false
-features = ["std"]
+features = ["std", "async-await"]
 
 [workspace.dependencies.tokio]
 version = "1.40.0"

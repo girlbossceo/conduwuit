@@ -1,7 +1,8 @@
 use axum::extract::State;
-use conduit::{err, Err, Result};
+use conduit::{err, Result};
 use ruma::{api::federation::event::get_event, MilliSecondsSinceUnixEpoch, RoomId};
 
+use super::AccessCheck;
 use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/event/{eventId}`
@@ -20,35 +21,21 @@ pub(crate) async fn get_event_route(
 		.await
 		.map_err(|_| err!(Request(NotFound("Event not found."))))?;
 
-	let room_id_str = event
+	let room_id: &RoomId = event
 		.get("room_id")
 		.and_then(|val| val.as_str())
-		.ok_or_else(|| err!(Database("Invalid event in database.")))?;
+		.ok_or_else(|| err!(Database("Invalid event in database.")))?
+		.try_into()
+		.map_err(|_| err!(Database("Invalid room_id in event in database.")))?;
 
-	let room_id =
-		<&RoomId>::try_from(room_id_str).map_err(|_| err!(Database("Invalid room_id in event in database.")))?;
-
-	if !services
-		.rooms
-		.state_accessor
-		.is_world_readable(room_id)
-		.await && !services
-		.rooms
-		.state_cache
-		.server_in_room(body.origin(), room_id)
-		.await
-	{
-		return Err!(Request(Forbidden("Server is not in room.")));
+	AccessCheck {
+		services: &services,
+		origin: body.origin(),
+		room_id,
+		event_id: Some(&body.event_id),
 	}
-
-	if !services
-		.rooms
-		.state_accessor
-		.server_can_see_event(body.origin(), room_id, &body.event_id)
-		.await?
-	{
-		return Err!(Request(Forbidden("Server is not allowed to see event.")));
-	}
+	.check()
+	.await?;
 
 	Ok(get_event::v1::Response {
 		origin: services.globals.server_name().to_owned(),

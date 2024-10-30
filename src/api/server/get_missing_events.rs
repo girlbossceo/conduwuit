@@ -5,6 +5,7 @@ use ruma::{
 	CanonicalJsonValue, EventId, RoomId,
 };
 
+use super::AccessCheck;
 use crate::Ruma;
 
 /// # `POST /_matrix/federation/v1/get_missing_events/{roomId}`
@@ -13,29 +14,16 @@ use crate::Ruma;
 pub(crate) async fn get_missing_events_route(
 	State(services): State<crate::State>, body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
-	services
-		.rooms
-		.event_handler
-		.acl_check(body.origin(), &body.room_id)
-		.await?;
-
-	if !services
-		.rooms
-		.state_accessor
-		.is_world_readable(&body.room_id)
-		.await && !services
-		.rooms
-		.state_cache
-		.server_in_room(body.origin(), &body.room_id)
-		.await
-	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Server is not in room"));
+	AccessCheck {
+		services: &services,
+		origin: body.origin(),
+		room_id: &body.room_id,
+		event_id: None,
 	}
+	.check()
+	.await?;
 
-	let limit = body
-		.limit
-		.try_into()
-		.expect("UInt could not be converted to usize");
+	let limit = body.limit.try_into()?;
 
 	let mut queued_events = body.latest_events.clone();
 	// the vec will never have more entries the limit
@@ -70,7 +58,7 @@ pub(crate) async fn get_missing_events_route(
 				.rooms
 				.state_accessor
 				.server_can_see_event(body.origin(), &body.room_id, &queued_events[i])
-				.await?
+				.await
 			{
 				i = i.saturating_add(1);
 				continue;
