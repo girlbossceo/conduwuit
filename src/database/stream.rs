@@ -71,6 +71,7 @@ impl<'a> State<'a> {
 		self
 	}
 
+	#[inline]
 	fn seek_fwd(&mut self) {
 		if !exchange(&mut self.init, false) {
 			self.inner.next();
@@ -79,6 +80,7 @@ impl<'a> State<'a> {
 		}
 	}
 
+	#[inline]
 	fn seek_rev(&mut self) {
 		if !exchange(&mut self.init, false) {
 			self.inner.prev();
@@ -95,6 +97,7 @@ impl<'a> State<'a> {
 
 	fn status(&self) -> Option<Error> { self.inner.status().map_err(map_err).err() }
 
+	#[inline]
 	fn valid(&self) -> bool { self.inner.valid() }
 }
 

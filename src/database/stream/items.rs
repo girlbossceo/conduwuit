@@ -28,6 +28,7 @@ impl<'a> Cursor<'a, KeyVal<'a>> for Items<'a> {
 
 	fn fetch(&self) -> Option<KeyVal<'a>> { self.state.fetch().map(keyval_longevity) }
 
+	#[inline]
 	fn seek(&mut self) { self.state.seek_fwd(); }
 }
 
@@ -40,5 +41,6 @@ impl<'a> Stream for Items<'a> {
 }
 
 impl FusedStream for Items<'_> {
+	#[inline]
 	fn is_terminated(&self) -> bool { !self.state.init && !self.state.valid() }
 }

@@ -26,8 +26,10 @@ impl<'a> Keys<'a> {
 impl<'a> Cursor<'a, Key<'a>> for Keys<'a> {
 	fn state(&self) -> &State<'a> { &self.state }
 
+	#[inline]
 	fn fetch(&self) -> Option<Key<'a>> { self.state.fetch_key().map(slice_longevity) }
 
+	#[inline]
 	fn seek(&mut self) { self.state.seek_fwd(); }
 }
 
@@ -40,5 +42,6 @@ impl<'a> Stream for Keys<'a> {
 }
 
 impl FusedStream for Keys<'_> {
+	#[inline]
 	fn is_terminated(&self) -> bool { !self.state.init && !self.state.valid() }
 }
