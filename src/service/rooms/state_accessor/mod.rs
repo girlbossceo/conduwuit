@@ -160,20 +160,18 @@ impl Service {
 	/// Whether a server is allowed to see an event through federation, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip(self, origin, room_id, event_id))]
-	pub async fn server_can_see_event(
-		&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId,
-	) -> Result<bool> {
+	pub async fn server_can_see_event(&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId) -> bool {
 		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
-			return Ok(true);
+			return true;
 		};
 
 		if let Some(visibility) = self
 			.server_visibility_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.get_mut(&(origin.to_owned(), shortstatehash))
 		{
-			return Ok(*visibility);
+			return *visibility;
 		}
 
 		let history_visibility = self
@@ -211,10 +209,10 @@ impl Service {
 
 		self.server_visibility_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.insert((origin.to_owned(), shortstatehash), visibility);
 
-		Ok(visibility)
+		visibility
 	}
 
 	/// Whether a user is allowed to see an event, based on
@@ -228,7 +226,7 @@ impl Service {
 		if let Some(visibility) = self
 			.user_visibility_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.get_mut(&(user_id.to_owned(), shortstatehash))
 		{
 			return *visibility;
@@ -262,7 +260,7 @@ impl Service {
 
 		self.user_visibility_cache
 			.lock()
-			.unwrap()
+			.expect("locked")
 			.insert((user_id.to_owned(), shortstatehash), visibility);
 
 		visibility
