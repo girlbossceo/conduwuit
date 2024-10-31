@@ -1,12 +1,16 @@
 mod data;
 use std::sync::Arc;
 
-use conduit::{utils::stream::IterStream, PduCount, Result};
-use futures::StreamExt;
+use conduit::{
+	at,
+	utils::{result::FlatOk, stream::ReadyExt, IterStream},
+	PduCount, Result,
+};
+use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::{client::relations::get_relating_events, Direction},
 	events::{relation::RelationType, TimelineEventType},
-	uint, EventId, RoomId, UInt, UserId,
+	EventId, RoomId, UInt, UserId,
 };
 use serde::Deserialize;
 
@@ -63,24 +67,24 @@ impl Service {
 	#[allow(clippy::too_many_arguments)]
 	pub async fn paginate_relations_with_filter(
 		&self, sender_user: &UserId, room_id: &RoomId, target: &EventId, filter_event_type: Option<TimelineEventType>,
-		filter_rel_type: Option<RelationType>, from: Option<&String>, to: Option<&String>, limit: Option<UInt>,
+		filter_rel_type: Option<RelationType>, from: Option<&str>, to: Option<&str>, limit: Option<UInt>,
 		recurse: bool, dir: Direction,
 	) -> Result<get_relating_events::v1::Response> {
-		let from = match from {
-			Some(from) => PduCount::try_from_string(from)?,
-			None => match dir {
+		let from = from
+			.map(PduCount::try_from_string)
+			.transpose()?
+			.unwrap_or_else(|| match dir {
 				Direction::Forward => PduCount::min(),
 				Direction::Backward => PduCount::max(),
-			},
-		};
+			});
 
-		let to = to.and_then(|t| PduCount::try_from_string(t).ok());
+		let to = to.map(PduCount::try_from_string).flat_ok();
 
-		// Use limit or else 10, with maximum 100
-		let limit = limit
-			.unwrap_or_else(|| uint!(10))
-			.try_into()
-			.unwrap_or(10)
+		// Use limit or else 30, with maximum 100
+		let limit: usize = limit
+			.map(TryInto::try_into)
+			.flat_ok()
+			.unwrap_or(30)
 			.min(100);
 
 		// Spec (v1.10) recommends depth of at least 3
@@ -90,53 +94,96 @@ impl Service {
 			1
 		};
 
-		let relations_until: Vec<PdusIterItem> = self
-			.relations_until(sender_user, room_id, target, from, depth)
-			.await?;
-
-		// TODO: should be relations_after
-		let events: Vec<_> = relations_until
+		let events: Vec<PdusIterItem> = self
+			.get_relations(sender_user, room_id, target, from, limit, depth, dir)
+			.await
 			.into_iter()
-			.filter(move |(_, pdu): &PdusIterItem| {
-				if !filter_event_type.as_ref().map_or(true, |t| pdu.kind == *t) {
-					return false;
-				}
-
-				let Ok(content) = pdu.get_content::<ExtractRelatesToEventId>() else {
-					return false;
-				};
-
-				filter_rel_type
+			.filter(|(_, pdu)| {
+				filter_event_type
 					.as_ref()
-					.map_or(true, |r| *r == content.relates_to.rel_type)
+					.is_none_or(|kind| *kind == pdu.kind)
 			})
-			.take(limit)
-			.take_while(|(k, _)| Some(*k) != to)
+			.filter(|(_, pdu)| {
+				filter_rel_type.as_ref().is_none_or(|rel_type| {
+					pdu.get_content()
+						.map(|c: ExtractRelatesToEventId| c.relates_to.rel_type)
+						.is_ok_and(|r| r == *rel_type)
+				})
+			})
 			.stream()
 			.filter_map(|item| self.visibility_filter(sender_user, item))
+			.ready_take_while(|(count, _)| Some(*count) != to)
+			.take(limit)
+			.collect()
+			.boxed()
+			.await;
+
+		let next_batch = match dir {
+			Direction::Backward => events.first(),
+			Direction::Forward => events.last(),
+		}
+		.map(at!(0))
+		.map(|t| t.stringify());
+
+		Ok(get_relating_events::v1::Response {
+			next_batch,
+			prev_batch: Some(from.stringify()),
+			recursion_depth: recurse.then_some(depth.into()),
+			chunk: events
+				.into_iter()
+				.map(at!(1))
+				.map(|pdu| pdu.to_message_like_event())
+				.collect(),
+		})
+	}
+
+	#[allow(clippy::too_many_arguments)]
+	pub async fn get_relations(
+		&self, user_id: &UserId, room_id: &RoomId, target: &EventId, until: PduCount, limit: usize, max_depth: u8,
+		dir: Direction,
+	) -> Vec<PdusIterItem> {
+		let room_id = self.services.short.get_or_create_shortroomid(room_id).await;
+
+		let target = match self.services.timeline.get_pdu_count(target).await {
+			Ok(PduCount::Normal(c)) => c,
+			// TODO: Support backfilled relations
+			_ => 0, // This will result in an empty iterator
+		};
+
+		let mut pdus: Vec<_> = self
+			.db
+			.get_relations(user_id, room_id, target, until, dir)
 			.collect()
 			.await;
 
-		let next_token = events.last().map(|(count, _)| count).copied();
+		let mut stack: Vec<_> = pdus.iter().map(|pdu| (pdu.clone(), 1)).collect();
 
-		let events_chunk: Vec<_> = match dir {
-			Direction::Forward => events
-				.into_iter()
-				.map(|(_, pdu)| pdu.to_message_like_event())
-				.collect(),
-			Direction::Backward => events
-				.into_iter()
-				.rev() // relations are always most recent first
-				.map(|(_, pdu)| pdu.to_message_like_event())
-				.collect(),
-		};
+		'limit: while let Some(stack_pdu) = stack.pop() {
+			let target = match stack_pdu.0 .0 {
+				PduCount::Normal(c) => c,
+				// TODO: Support backfilled relations
+				PduCount::Backfilled(_) => 0, // This will result in an empty iterator
+			};
 
-		Ok(get_relating_events::v1::Response {
-			chunk: events_chunk,
-			next_batch: next_token.map(|t| t.stringify()),
-			prev_batch: Some(from.stringify()),
-			recursion_depth: recurse.then_some(depth.into()),
-		})
+			let relations: Vec<_> = self
+				.db
+				.get_relations(user_id, room_id, target, until, dir)
+				.collect()
+				.await;
+
+			for relation in relations {
+				if stack_pdu.1 < max_depth {
+					stack.push((relation.clone(), stack_pdu.1.saturating_add(1)));
+				}
+
+				pdus.push(relation);
+				if pdus.len() >= limit {
+					break 'limit;
+				}
+			}
+		}
+
+		pdus
 	}
 
 	async fn visibility_filter(&self, sender_user: &UserId, item: PdusIterItem) -> Option<PdusIterItem> {
@@ -147,52 +194,6 @@ impl Service {
 			.user_can_see_event(sender_user, &pdu.room_id, &pdu.event_id)
 			.await
 			.then_some(item)
-	}
-
-	pub async fn relations_until(
-		&self, user_id: &UserId, room_id: &RoomId, target: &EventId, until: PduCount, max_depth: u8,
-	) -> Result<Vec<PdusIterItem>> {
-		let room_id = self.services.short.get_or_create_shortroomid(room_id).await;
-
-		let target = match self.services.timeline.get_pdu_count(target).await {
-			Ok(PduCount::Normal(c)) => c,
-			// TODO: Support backfilled relations
-			_ => 0, // This will result in an empty iterator
-		};
-
-		let mut pdus: Vec<PdusIterItem> = self
-			.db
-			.relations_until(user_id, room_id, target, until)
-			.collect()
-			.await;
-
-		let mut stack: Vec<_> = pdus.clone().into_iter().map(|pdu| (pdu, 1)).collect();
-
-		while let Some(stack_pdu) = stack.pop() {
-			let target = match stack_pdu.0 .0 {
-				PduCount::Normal(c) => c,
-				// TODO: Support backfilled relations
-				PduCount::Backfilled(_) => 0, // This will result in an empty iterator
-			};
-
-			let relations: Vec<PdusIterItem> = self
-				.db
-				.relations_until(user_id, room_id, target, until)
-				.collect()
-				.await;
-
-			for relation in relations {
-				if stack_pdu.1 < max_depth {
-					stack.push((relation.clone(), stack_pdu.1.saturating_add(1)));
-				}
-
-				pdus.push(relation);
-			}
-		}
-
-		pdus.sort_by(|a, b| a.0.cmp(&b.0));
-
-		Ok(pdus)
 	}
 
 	#[inline]

@@ -8,7 +8,7 @@ use conduit::{
 };
 use database::Map;
 use futures::{Stream, StreamExt};
-use ruma::{EventId, RoomId, UserId};
+use ruma::{api::Direction, EventId, RoomId, UserId};
 
 use crate::{rooms, Dep};
 
@@ -45,9 +45,9 @@ impl Data {
 		self.tofrom_relation.aput_raw::<BUFSIZE, _, _>(key, []);
 	}
 
-	pub(super) fn relations_until<'a>(
-		&'a self, user_id: &'a UserId, shortroomid: u64, target: u64, until: PduCount,
-	) -> impl Stream<Item = PdusIterItem> + Send + 'a + '_ {
+	pub(super) fn get_relations<'a>(
+		&'a self, user_id: &'a UserId, shortroomid: u64, target: u64, until: PduCount, dir: Direction,
+	) -> impl Stream<Item = PdusIterItem> + Send + '_ {
 		let prefix = target.to_be_bytes().to_vec();
 		let mut current = prefix.clone();
 		let count_raw = match until {
@@ -59,22 +59,23 @@ impl Data {
 		};
 		current.extend_from_slice(&count_raw.to_be_bytes());
 
-		self.tofrom_relation
-			.rev_raw_keys_from(&current)
-			.ignore_err()
-			.ready_take_while(move |key| key.starts_with(&prefix))
-			.map(|to_from| utils::u64_from_u8(&to_from[(size_of::<u64>())..]))
-			.filter_map(move |from| async move {
-				let mut pduid = shortroomid.to_be_bytes().to_vec();
-				pduid.extend_from_slice(&from.to_be_bytes());
-				let mut pdu = self.services.timeline.get_pdu_from_id(&pduid).await.ok()?;
+		match dir {
+			Direction::Forward => self.tofrom_relation.raw_keys_from(&current).boxed(),
+			Direction::Backward => self.tofrom_relation.rev_raw_keys_from(&current).boxed(),
+		}
+		.ignore_err()
+		.ready_take_while(move |key| key.starts_with(&prefix))
+		.map(|to_from| utils::u64_from_u8(&to_from[(size_of::<u64>())..]))
+		.filter_map(move |from| async move {
+			let mut pduid = shortroomid.to_be_bytes().to_vec();
+			pduid.extend_from_slice(&from.to_be_bytes());
+			let mut pdu = self.services.timeline.get_pdu_from_id(&pduid).await.ok()?;
+			if pdu.sender != user_id {
+				pdu.remove_transaction_id().log_err().ok();
+			}
 
-				if pdu.sender != user_id {
-					pdu.remove_transaction_id().log_err().ok();
-				}
-
-				Some((PduCount::Normal(from), pdu))
-			})
+			Some((PduCount::Normal(from), pdu))
+		})
 	}
 
 	pub(super) fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) {
