@@ -5,6 +5,7 @@ use std::{
 	time::SystemTime,
 };
 
+use arrayvec::ArrayVec;
 use conduit::{trace, utils::rand};
 use ruma::{OwnedServerName, ServerName};
 
@@ -24,13 +25,16 @@ pub struct CachedDest {
 
 #[derive(Clone, Debug)]
 pub struct CachedOverride {
-	pub ips: Vec<IpAddr>,
+	pub ips: IpAddrs,
 	pub port: u16,
 	pub expire: SystemTime,
 }
 
 pub type WellKnownMap = HashMap<OwnedServerName, CachedDest>;
 pub type TlsNameMap = HashMap<String, CachedOverride>;
+
+pub type IpAddrs = ArrayVec<IpAddr, MAX_IPS>;
+pub(crate) const MAX_IPS: usize = 3;
 
 impl Cache {
 	pub(super) fn new() -> Arc<Self> {
@@ -61,13 +65,13 @@ impl super::Service {
 			.cloned()
 	}
 
-	pub fn set_cached_override(&self, name: String, over: CachedOverride) -> Option<CachedOverride> {
+	pub fn set_cached_override(&self, name: &str, over: CachedOverride) -> Option<CachedOverride> {
 		trace!(?name, ?over, "set cached override");
 		self.cache
 			.overrides
 			.write()
 			.expect("locked for writing")
-			.insert(name, over)
+			.insert(name.into(), over)
 	}
 
 	#[must_use]

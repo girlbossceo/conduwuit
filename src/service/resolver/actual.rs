@@ -10,7 +10,7 @@ use ipaddress::IPAddress;
 use ruma::ServerName;
 
 use super::{
-	cache::{CachedDest, CachedOverride},
+	cache::{CachedDest, CachedOverride, MAX_IPS},
 	fed::{add_port_to_hostname, get_ip_with_port, FedDest, PortString},
 };
 
@@ -266,9 +266,9 @@ impl super::Service {
 				}
 
 				self.set_cached_override(
-					overname.to_owned(),
+					overname,
 					CachedOverride {
-						ips: override_ip.iter().collect(),
+						ips: override_ip.into_iter().take(MAX_IPS).collect(),
 						port,
 						expire: CachedOverride::default_expire(),
 					},

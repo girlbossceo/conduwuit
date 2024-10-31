@@ -1,4 +1,4 @@
-use std::{iter, net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use conduit::{err, Result, Server};
 use futures::FutureExt;
@@ -101,14 +101,12 @@ impl Resolve for Hooked {
 }
 
 async fn cached_to_reqwest(cached: CachedOverride) -> ResolvingResult {
-	let first_ip = cached
+	let addrs = cached
 		.ips
-		.first()
-		.expect("must provide at least one override");
+		.into_iter()
+		.map(move |ip| SocketAddr::new(ip, cached.port));
 
-	let saddr = SocketAddr::new(*first_ip, cached.port);
-
-	Ok(Box::new(iter::once(saddr)))
+	Ok(Box::new(addrs))
 }
 
 async fn resolve_to_reqwest(resolver: Arc<TokioAsyncResolver>, name: Name) -> ResolvingResult {
