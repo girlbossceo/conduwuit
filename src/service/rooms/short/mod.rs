@@ -24,6 +24,7 @@ struct Services {
 	globals: Dep<globals::Service>,
 }
 
+pub type ShortStateHash = ShortId;
 pub type ShortStateKey = ShortId;
 pub type ShortEventId = ShortId;
 pub type ShortRoomId = ShortId;
@@ -50,7 +51,7 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> u64 {
+pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> ShortEventId {
 	const BUFSIZE: usize = size_of::<u64>();
 
 	if let Ok(shorteventid) = self
@@ -78,7 +79,7 @@ pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> u64 {
 }
 
 #[implement(Service)]
-pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Vec<u64> {
+pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Vec<ShortEventId> {
 	self.db
 		.eventid_shorteventid
 		.get_batch_blocking(event_ids.iter())
@@ -106,7 +107,7 @@ pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> 
 }
 
 #[implement(Service)]
-pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<u64> {
+pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<ShortStateKey> {
 	let key = (event_type, state_key);
 	self.db
 		.statekey_shortstatekey
@@ -116,8 +117,8 @@ pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &s
 }
 
 #[implement(Service)]
-pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> u64 {
-	const BUFSIZE: usize = size_of::<u64>();
+pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> ShortStateKey {
+	const BUFSIZE: usize = size_of::<ShortStateKey>();
 
 	let key = (event_type, state_key);
 	if let Ok(shortstatekey) = self
@@ -145,8 +146,8 @@ pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, sta
 }
 
 #[implement(Service)]
-pub async fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<EventId>> {
-	const BUFSIZE: usize = size_of::<u64>();
+pub async fn get_eventid_from_short(&self, shorteventid: ShortEventId) -> Result<Arc<EventId>> {
+	const BUFSIZE: usize = size_of::<ShortEventId>();
 
 	self.db
 		.shorteventid_eventid
@@ -157,8 +158,8 @@ pub async fn get_eventid_from_short(&self, shorteventid: u64) -> Result<Arc<Even
 }
 
 #[implement(Service)]
-pub async fn multi_get_eventid_from_short(&self, shorteventid: &[u64]) -> Vec<Result<Arc<EventId>>> {
-	const BUFSIZE: usize = size_of::<u64>();
+pub async fn multi_get_eventid_from_short(&self, shorteventid: &[ShortEventId]) -> Vec<Result<Arc<EventId>>> {
+	const BUFSIZE: usize = size_of::<ShortEventId>();
 
 	let keys: Vec<[u8; BUFSIZE]> = shorteventid
 		.iter()
@@ -174,8 +175,8 @@ pub async fn multi_get_eventid_from_short(&self, shorteventid: &[u64]) -> Vec<Re
 }
 
 #[implement(Service)]
-pub async fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(StateEventType, String)> {
-	const BUFSIZE: usize = size_of::<u64>();
+pub async fn get_statekey_from_short(&self, shortstatekey: ShortStateKey) -> Result<(StateEventType, String)> {
+	const BUFSIZE: usize = size_of::<ShortStateKey>();
 
 	self.db
 		.shortstatekey_statekey
@@ -191,8 +192,8 @@ pub async fn get_statekey_from_short(&self, shortstatekey: u64) -> Result<(State
 
 /// Returns (shortstatehash, already_existed)
 #[implement(Service)]
-pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (u64, bool) {
-	const BUFSIZE: usize = size_of::<u64>();
+pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (ShortStateHash, bool) {
+	const BUFSIZE: usize = size_of::<ShortStateHash>();
 
 	if let Ok(shortstatehash) = self
 		.db
@@ -215,19 +216,19 @@ pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (u64, boo
 }
 
 #[implement(Service)]
-pub async fn get_shortroomid(&self, room_id: &RoomId) -> Result<u64> {
+pub async fn get_shortroomid(&self, room_id: &RoomId) -> Result<ShortRoomId> {
 	self.db.roomid_shortroomid.get(room_id).await.deserialized()
 }
 
 #[implement(Service)]
-pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> u64 {
+pub async fn get_or_create_shortroomid(&self, room_id: &RoomId) -> ShortRoomId {
 	self.db
 		.roomid_shortroomid
 		.get(room_id)
 		.await
 		.deserialized()
 		.unwrap_or_else(|_| {
-			const BUFSIZE: usize = size_of::<u64>();
+			const BUFSIZE: usize = size_of::<ShortRoomId>();
 
 			let short = self.services.globals.next_count().unwrap();
 			debug_assert!(size_of_val(&short) == BUFSIZE, "buffer requirement changed");

@@ -5,7 +5,7 @@ use database::{Deserialized, Map};
 use futures::TryFutureExt;
 use ruma::{events::StateEventType, EventId, RoomId};
 
-use crate::{rooms, Dep};
+use crate::{rooms, rooms::short::ShortStateHash, Dep};
 
 pub(super) struct Data {
 	eventid_shorteventid: Arc<Map>,
@@ -36,7 +36,7 @@ impl Data {
 	}
 
 	#[allow(unused_qualifications)] // async traits
-	pub(super) async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
+	pub(super) async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
 		let full_state = self
 			.services
 			.state_compressor
@@ -69,7 +69,7 @@ impl Data {
 
 	#[allow(unused_qualifications)] // async traits
 	pub(super) async fn state_full(
-		&self, shortstatehash: u64,
+		&self, shortstatehash: ShortStateHash,
 	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		let full_state = self
 			.services
@@ -107,7 +107,7 @@ impl Data {
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	#[allow(clippy::unused_self)]
 	pub(super) async fn state_get_id(
-		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
+		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<Arc<EventId>> {
 		let shortstatekey = self
 			.services
@@ -147,7 +147,7 @@ impl Data {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub(super) async fn state_get(
-		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
+		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<Arc<PduEvent>> {
 		self.state_get_id(shortstatehash, event_type, state_key)
 			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
@@ -155,7 +155,7 @@ impl Data {
 	}
 
 	/// Returns the state hash for this pdu.
-	pub(super) async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<u64> {
+	pub(super) async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<ShortStateHash> {
 		self.eventid_shorteventid
 			.get(event_id)
 			.and_then(|shorteventid| self.shorteventid_shortstatehash.get(&shorteventid))

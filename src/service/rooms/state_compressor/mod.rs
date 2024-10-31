@@ -10,7 +10,11 @@ use database::Map;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
-use crate::{rooms, rooms::short::ShortId, Dep};
+use crate::{
+	rooms,
+	rooms::short::{ShortStateHash, ShortStateKey},
+	Dep,
+};
 
 pub struct Service {
 	pub stateinfo_cache: Mutex<StateInfoLruCache>,
@@ -49,9 +53,8 @@ pub struct HashSetCompressStateEvent {
 	pub removed: Arc<HashSet<CompressedStateEvent>>,
 }
 
-pub type ShortStateHash = ShortId;
 pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
-type StateInfoLruCache = LruCache<u64, ShortStateInfoVec>;
+type StateInfoLruCache = LruCache<ShortStateHash, ShortStateInfoVec>;
 type ShortStateInfoVec = Vec<ShortStateInfo>;
 type ParentStatesVec = Vec<ShortStateInfo>;
 
@@ -86,7 +89,7 @@ impl crate::Service for Service {
 impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
-	pub async fn load_shortstatehash_info(&self, shortstatehash: u64) -> Result<ShortStateInfoVec> {
+	pub async fn load_shortstatehash_info(&self, shortstatehash: ShortStateHash) -> Result<ShortStateInfoVec> {
 		if let Some(r) = self
 			.stateinfo_cache
 			.lock()
@@ -141,7 +144,7 @@ impl Service {
 		}
 	}
 
-	pub async fn compress_state_event(&self, shortstatekey: u64, event_id: &EventId) -> CompressedStateEvent {
+	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
 		let mut v = shortstatekey.to_be_bytes().to_vec();
 		v.extend_from_slice(
 			&self
@@ -159,7 +162,7 @@ impl Service {
 	#[inline]
 	pub async fn parse_compressed_state_event(
 		&self, compressed_event: &CompressedStateEvent,
-	) -> Result<(u64, Arc<EventId>)> {
+	) -> Result<(ShortStateKey, Arc<EventId>)> {
 		use utils::u64_from_u8;
 
 		let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<u64>()]);
@@ -192,7 +195,7 @@ impl Service {
 	///   added diff and removed diff for each parent layer
 	#[tracing::instrument(skip_all, level = "debug")]
 	pub fn save_state_from_diff(
-		&self, shortstatehash: u64, statediffnew: Arc<HashSet<CompressedStateEvent>>,
+		&self, shortstatehash: ShortStateHash, statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		statediffremoved: Arc<HashSet<CompressedStateEvent>>, diff_to_sibling: usize,
 		mut parent_states: ParentStatesVec,
 	) -> Result {
@@ -377,9 +380,9 @@ impl Service {
 		})
 	}
 
-	async fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {
-		const BUFSIZE: usize = size_of::<u64>();
-		const STRIDE: usize = size_of::<u64>();
+	async fn get_statediff(&self, shortstatehash: ShortStateHash) -> Result<StateDiff> {
+		const BUFSIZE: usize = size_of::<ShortStateHash>();
+		const STRIDE: usize = size_of::<ShortStateHash>();
 
 		let value = self
 			.db
@@ -418,7 +421,7 @@ impl Service {
 		})
 	}
 
-	fn save_statediff(&self, shortstatehash: u64, diff: &StateDiff) {
+	fn save_statediff(&self, shortstatehash: ShortStateHash, diff: &StateDiff) {
 		let mut value = diff.parent.unwrap_or(0).to_be_bytes().to_vec();
 		for new in diff.added.iter() {
 			value.extend_from_slice(&new[..]);
