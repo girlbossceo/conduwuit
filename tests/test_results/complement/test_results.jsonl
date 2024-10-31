@@ -225,7 +225,6 @@
 {"Action":"pass","Test":"TestToDeviceMessagesOverFederation/good_connectivity"}
 {"Action":"pass","Test":"TestToDeviceMessagesOverFederation/interrupted_connectivity"}
 {"Action":"fail","Test":"TestToDeviceMessagesOverFederation/stopped_server"}
-{"Action":"pass","Test":"TestUnbanViaInvite"}
 {"Action":"fail","Test":"TestUnknownEndpoints"}
 {"Action":"pass","Test":"TestUnknownEndpoints/Client-server_endpoints"}
 {"Action":"fail","Test":"TestUnknownEndpoints/Key_endpoints"}
