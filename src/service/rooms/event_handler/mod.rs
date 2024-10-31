@@ -33,8 +33,11 @@ use ruma::{
 	RoomId, RoomVersionId, ServerName, UserId,
 };
 
-use super::state_compressor::CompressedStateEvent;
-use crate::{globals, rooms, sending, server_keys, Dep};
+use crate::{
+	globals, rooms,
+	rooms::state_compressor::{CompressedStateEvent, HashSetCompressStateEvent},
+	sending, server_keys, Dep,
+};
 
 pub struct Service {
 	services: Services,
@@ -692,7 +695,11 @@ impl Service {
 
 			// Set the new room state to the resolved state
 			debug!("Forcing new room state");
-			let (sstatehash, new, removed) = self
+			let HashSetCompressStateEvent {
+				shortstatehash,
+				added,
+				removed,
+			} = self
 				.services
 				.state_compressor
 				.save_state(room_id, new_room_state)
@@ -700,7 +707,7 @@ impl Service {
 
 			self.services
 				.state
-				.force_state(room_id, sstatehash, new, removed, &state_lock)
+				.force_state(room_id, shortstatehash, added, removed, &state_lock)
 				.await?;
 		}
 

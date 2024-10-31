@@ -10,7 +10,7 @@ use database::Map;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
-use crate::{rooms, Dep};
+use crate::{rooms, rooms::short::ShortId, Dep};
 
 pub struct Service {
 	pub stateinfo_cache: Mutex<StateInfoLruCache>,
@@ -27,24 +27,33 @@ struct Data {
 	shortstatehash_statediff: Arc<Map>,
 }
 
+#[derive(Clone)]
 struct StateDiff {
 	parent: Option<u64>,
 	added: Arc<HashSet<CompressedStateEvent>>,
 	removed: Arc<HashSet<CompressedStateEvent>>,
 }
 
+#[derive(Clone, Default)]
+pub struct ShortStateInfo {
+	pub shortstatehash: ShortStateHash,
+	pub full_state: Arc<HashSet<CompressedStateEvent>>,
+	pub added: Arc<HashSet<CompressedStateEvent>>,
+	pub removed: Arc<HashSet<CompressedStateEvent>>,
+}
+
+#[derive(Clone, Default)]
+pub struct HashSetCompressStateEvent {
+	pub shortstatehash: ShortStateHash,
+	pub added: Arc<HashSet<CompressedStateEvent>>,
+	pub removed: Arc<HashSet<CompressedStateEvent>>,
+}
+
+pub type ShortStateHash = ShortId;
+pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 type StateInfoLruCache = LruCache<u64, ShortStateInfoVec>;
 type ShortStateInfoVec = Vec<ShortStateInfo>;
 type ParentStatesVec = Vec<ShortStateInfo>;
-type ShortStateInfo = (
-	u64,                                // sstatehash
-	Arc<HashSet<CompressedStateEvent>>, // full state
-	Arc<HashSet<CompressedStateEvent>>, // added
-	Arc<HashSet<CompressedStateEvent>>, // removed
-);
-
-type HashSetCompressStateEvent = (u64, Arc<HashSet<CompressedStateEvent>>, Arc<HashSet<CompressedStateEvent>>);
-pub type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -95,14 +104,19 @@ impl Service {
 
 		if let Some(parent) = parent {
 			let mut response = Box::pin(self.load_shortstatehash_info(parent)).await?;
-			let mut state = (*response.last().expect("at least one response").1).clone();
+			let mut state = (*response.last().expect("at least one response").full_state).clone();
 			state.extend(added.iter().copied());
 			let removed = (*removed).clone();
 			for r in &removed {
 				state.remove(r);
 			}
 
-			response.push((shortstatehash, Arc::new(state), added, Arc::new(removed)));
+			response.push(ShortStateInfo {
+				shortstatehash,
+				full_state: Arc::new(state),
+				added,
+				removed: Arc::new(removed),
+			});
 
 			self.stateinfo_cache
 				.lock()
@@ -111,7 +125,13 @@ impl Service {
 
 			Ok(response)
 		} else {
-			let response = vec![(shortstatehash, added.clone(), added, removed)];
+			let response = vec![ShortStateInfo {
+				shortstatehash,
+				full_state: added.clone(),
+				added,
+				removed,
+			}];
+
 			self.stateinfo_cache
 				.lock()
 				.expect("locked")
@@ -185,8 +205,8 @@ impl Service {
 			// To many layers, we have to go deeper
 			let parent = parent_states.pop().expect("parent must have a state");
 
-			let mut parent_new = (*parent.2).clone();
-			let mut parent_removed = (*parent.3).clone();
+			let mut parent_new = (*parent.added).clone();
+			let mut parent_removed = (*parent.removed).clone();
 
 			for removed in statediffremoved.iter() {
 				if !parent_new.remove(removed) {
@@ -236,14 +256,14 @@ impl Service {
 		// 2. We replace a layer above
 
 		let parent = parent_states.pop().expect("parent must have a state");
-		let parent_2_len = parent.2.len();
-		let parent_3_len = parent.3.len();
-		let parent_diff = checked!(parent_2_len + parent_3_len)?;
+		let parent_added_len = parent.added.len();
+		let parent_removed_len = parent.removed.len();
+		let parent_diff = checked!(parent_added_len + parent_removed_len)?;
 
 		if checked!(diffsum * diffsum)? >= checked!(2 * diff_to_sibling * parent_diff)? {
 			// Diff too big, we replace above layer(s)
-			let mut parent_new = (*parent.2).clone();
-			let mut parent_removed = (*parent.3).clone();
+			let mut parent_new = (*parent.added).clone();
+			let mut parent_removed = (*parent.removed).clone();
 
 			for removed in statediffremoved.iter() {
 				if !parent_new.remove(removed) {
@@ -275,7 +295,7 @@ impl Service {
 			self.save_statediff(
 				shortstatehash,
 				&StateDiff {
-					parent: Some(parent.0),
+					parent: Some(parent.shortstatehash),
 					added: statediffnew,
 					removed: statediffremoved,
 				},
@@ -311,7 +331,10 @@ impl Service {
 			.await;
 
 		if Some(new_shortstatehash) == previous_shortstatehash {
-			return Ok((new_shortstatehash, Arc::new(HashSet::new()), Arc::new(HashSet::new())));
+			return Ok(HashSetCompressStateEvent {
+				shortstatehash: new_shortstatehash,
+				..Default::default()
+			});
 		}
 
 		let states_parents = if let Some(p) = previous_shortstatehash {
@@ -322,12 +345,12 @@ impl Service {
 
 		let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
 			let statediffnew: HashSet<_> = new_state_ids_compressed
-				.difference(&parent_stateinfo.1)
+				.difference(&parent_stateinfo.full_state)
 				.copied()
 				.collect();
 
 			let statediffremoved: HashSet<_> = parent_stateinfo
-				.1
+				.full_state
 				.difference(&new_state_ids_compressed)
 				.copied()
 				.collect();
@@ -347,7 +370,11 @@ impl Service {
 			)?;
 		};
 
-		Ok((new_shortstatehash, statediffnew, statediffremoved))
+		Ok(HashSetCompressStateEvent {
+			shortstatehash: new_shortstatehash,
+			added: statediffnew,
+			removed: statediffremoved,
+		})
 	}
 
 	async fn get_statediff(&self, shortstatehash: u64) -> Result<StateDiff> {

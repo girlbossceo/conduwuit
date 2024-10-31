@@ -24,6 +24,7 @@ struct Services {
 	globals: Dep<globals::Service>,
 }
 
+pub type ShortStateKey = ShortId;
 pub type ShortEventId = ShortId;
 pub type ShortRoomId = ShortId;
 pub type ShortId = u64;

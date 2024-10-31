@@ -12,6 +12,7 @@ use ruma::{
 	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
 };
+use service::rooms::state_compressor::HashSetCompressStateEvent;
 use tracing_subscriber::EnvFilter;
 
 use crate::admin_command;
@@ -632,7 +633,11 @@ pub(super) async fn force_set_room_state_from_server(
 		.await?;
 
 	info!("Forcing new room state");
-	let (short_state_hash, new, removed) = self
+	let HashSetCompressStateEvent {
+		shortstatehash: short_state_hash,
+		added,
+		removed,
+	} = self
 		.services
 		.rooms
 		.state_compressor
@@ -643,7 +648,7 @@ pub(super) async fn force_set_room_state_from_server(
 	self.services
 		.rooms
 		.state
-		.force_state(room_id.clone().as_ref(), short_state_hash, new, removed, &state_lock)
+		.force_state(room_id.clone().as_ref(), short_state_hash, added, removed, &state_lock)
 		.await?;
 
 	info!(

@@ -182,12 +182,12 @@ impl Service {
 
 			let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
 				let statediffnew: HashSet<_> = state_ids_compressed
-					.difference(&parent_stateinfo.1)
+					.difference(&parent_stateinfo.full_state)
 					.copied()
 					.collect();
 
 				let statediffremoved: HashSet<_> = parent_stateinfo
-					.1
+					.full_state
 					.difference(&state_ids_compressed)
 					.copied()
 					.collect();
@@ -259,7 +259,7 @@ impl Service {
 			let replaces = states_parents
 				.last()
 				.map(|info| {
-					info.1
+					info.full_state
 						.iter()
 						.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
 				})
@@ -421,7 +421,7 @@ impl Service {
 			})?
 			.pop()
 			.expect("there is always one layer")
-			.1;
+			.full_state;
 
 		let mut ret = HashMap::new();
 		for compressed in full_state.iter() {

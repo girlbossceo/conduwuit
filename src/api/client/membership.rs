@@ -39,7 +39,11 @@ use ruma::{
 	state_res, CanonicalJsonObject, CanonicalJsonValue, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId,
 	RoomVersionId, ServerName, UserId,
 };
-use service::{appservice::RegistrationInfo, rooms::state::RoomMutexGuard, Services};
+use service::{
+	appservice::RegistrationInfo,
+	rooms::{state::RoomMutexGuard, state_compressor::HashSetCompressStateEvent},
+	Services,
+};
 
 use crate::{client::full_user_deactivate, Ruma};
 
@@ -941,7 +945,11 @@ async fn join_room_by_id_helper_remote(
 		.await;
 
 	debug!("Saving compressed state");
-	let (statehash_before_join, new, removed) = services
+	let HashSetCompressStateEvent {
+		shortstatehash: statehash_before_join,
+		added,
+		removed,
+	} = services
 		.rooms
 		.state_compressor
 		.save_state(room_id, Arc::new(compressed))
@@ -951,7 +959,7 @@ async fn join_room_by_id_helper_remote(
 	services
 		.rooms
 		.state
-		.force_state(room_id, statehash_before_join, new, removed, &state_lock)
+		.force_state(room_id, statehash_before_join, added, removed, &state_lock)
 		.await?;
 
 	info!("Updating joined counts for new room");

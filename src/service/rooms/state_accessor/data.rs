@@ -45,7 +45,7 @@ impl Data {
 			.map_err(|e| err!(Database("Missing state IDs: {e}")))?
 			.pop()
 			.expect("there is always one layer")
-			.1;
+			.full_state;
 
 		let mut result = HashMap::new();
 		let mut i: u8 = 0;
@@ -78,7 +78,7 @@ impl Data {
 			.await?
 			.pop()
 			.expect("there is always one layer")
-			.1;
+			.full_state;
 
 		let mut result = HashMap::new();
 		let mut i: u8 = 0;
@@ -123,7 +123,7 @@ impl Data {
 			.map_err(|e| err!(Database(error!(?event_type, ?state_key, "Missing state: {e:?}"))))?
 			.pop()
 			.expect("there is always one layer")
-			.1;
+			.full_state;
 
 		let compressed = full_state
 			.iter()
