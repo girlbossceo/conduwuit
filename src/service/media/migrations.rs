@@ -13,7 +13,7 @@ use conduit::{
 	warn, Config, Result,
 };
 
-use crate::{globals, Services};
+use crate::{migrations, Services};
 
 /// Migrates a media directory from legacy base64 file names to sha2 file names.
 /// All errors are fatal. Upon success the database is keyed to not perform this
@@ -50,7 +50,7 @@ pub(crate) async fn migrate_sha256_media(services: &Services) -> Result<()> {
 
 	// Apply fix from when sha256_media was backward-incompat and bumped the schema
 	// version from 13 to 14. For users satisfying these conditions we can go back.
-	if services.globals.db.database_version().await == 14 && globals::migrations::DATABASE_VERSION == 13 {
+	if services.globals.db.database_version().await == 14 && migrations::DATABASE_VERSION == 13 {
 		services.globals.db.bump_database_version(13)?;
 	}
 

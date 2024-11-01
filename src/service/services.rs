@@ -114,7 +114,7 @@ impl Services {
 		debug_info!("Starting services...");
 
 		self.admin.set_services(Some(Arc::clone(self)).as_ref());
-		globals::migrations::migrations(self).await?;
+		super::migrations::migrations(self).await?;
 		self.manager
 			.lock()
 			.await

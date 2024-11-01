@@ -1,5 +1,4 @@
 mod data;
-pub(super) mod migrations;
 
 use std::{
 	collections::HashMap,
