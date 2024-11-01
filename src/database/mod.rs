@@ -11,7 +11,7 @@ mod opts;
 mod ser;
 mod stream;
 mod tests;
-mod util;
+pub(crate) mod util;
 mod watchers;
 
 pub(crate) use self::{

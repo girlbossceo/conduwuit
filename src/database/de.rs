@@ -5,6 +5,8 @@ use serde::{
 	Deserialize,
 };
 
+use crate::util::unhandled;
+
 /// Deserialize into T from buffer.
 pub(crate) fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
 where
@@ -192,7 +194,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		match name {
 			"Ignore" => self.record_ignore(),
 			"IgnoreAll" => self.record_ignore_all(),
-			_ => unimplemented!("Unrecognized deserialization Directive {name:?}"),
+			_ => unhandled!("Unrecognized deserialization Directive {name:?}"),
 		};
 
 		visitor.visit_unit()
@@ -214,27 +216,27 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	where
 		V: Visitor<'de>,
 	{
-		unimplemented!("deserialize Enum not implemented")
+		unhandled!("deserialize Enum not implemented")
 	}
 
 	fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize Option not implemented")
+		unhandled!("deserialize Option not implemented")
 	}
 
 	fn deserialize_bool<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize bool not implemented")
+		unhandled!("deserialize bool not implemented")
 	}
 
 	fn deserialize_i8<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize i8 not implemented")
+		unhandled!("deserialize i8 not implemented")
 	}
 
 	fn deserialize_i16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize i16 not implemented")
+		unhandled!("deserialize i16 not implemented")
 	}
 
 	fn deserialize_i32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize i32 not implemented")
+		unhandled!("deserialize i32 not implemented")
 	}
 
 	fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -244,15 +246,15 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_u8<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize u8 not implemented; try dereferencing the Handle for [u8] access instead")
+		unhandled!("deserialize u8 not implemented; try dereferencing the Handle for [u8] access instead")
 	}
 
 	fn deserialize_u16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize u16 not implemented")
+		unhandled!("deserialize u16 not implemented")
 	}
 
 	fn deserialize_u32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize u32 not implemented")
+		unhandled!("deserialize u32 not implemented")
 	}
 
 	fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -262,15 +264,15 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_f32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize f32 not implemented")
+		unhandled!("deserialize f32 not implemented")
 	}
 
 	fn deserialize_f64<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize f64 not implemented")
+		unhandled!("deserialize f64 not implemented")
 	}
 
 	fn deserialize_char<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize char not implemented")
+		unhandled!("deserialize char not implemented")
 	}
 
 	fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -291,11 +293,11 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_byte_buf<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize Byte Buf not implemented")
+		unhandled!("deserialize Byte Buf not implemented")
 	}
 
 	fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize Unit not implemented")
+		unhandled!("deserialize Unit not implemented")
 	}
 
 	// this only used for $serde_json::private::RawValue at this time; see MapAccess
@@ -305,7 +307,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_ignored_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unimplemented!("deserialize Ignored Any not implemented")
+		unhandled!("deserialize Ignored Any not implemented")
 	}
 
 	fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
