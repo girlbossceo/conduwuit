@@ -11,6 +11,7 @@ use conduit_service::{
 	media::{Dim, FileMeta, CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN, MXC_LENGTH},
 	Services,
 };
+use reqwest::Url;
 use ruma::{
 	api::client::{
 		authenticated_media::{
@@ -165,23 +166,33 @@ pub(crate) async fn get_media_preview_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	let url = &body.url;
-	if !services.media.url_preview_allowed(url) {
+	let url = Url::parse(&body.url).map_err(|e| {
+		err!(Request(InvalidParam(
+			debug_warn!(%sender_user, %url, "Requested URL is not valid: {e}")
+		)))
+	})?;
+
+	if !services.media.url_preview_allowed(&url) {
 		return Err!(Request(Forbidden(
 			debug_warn!(%sender_user, %url, "URL is not allowed to be previewed")
 		)));
 	}
 
-	let preview = services.media.get_url_preview(url).await.map_err(|error| {
-		err!(Request(Unknown(
-			debug_error!(%sender_user, %url, ?error, "Failed to fetch URL preview.")
-		)))
-	})?;
+	let preview = services
+		.media
+		.get_url_preview(&url)
+		.await
+		.map_err(|error| {
+			err!(Request(Unknown(
+				debug_error!(%sender_user, %url, "Failed to fetch URL preview: {error}")
+			)))
+		})?;
 
 	serde_json::value::to_raw_value(&preview)
 		.map(get_media_preview::v1::Response::from_raw_value)
 		.map_err(|error| {
 			err!(Request(Unknown(
-				debug_error!(%sender_user, %url, ?error, "Failed to parse URL preview.")
+				debug_error!(%sender_user, %url, "Failed to parse URL preview: {error}")
 			)))
 		})
 }

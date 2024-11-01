@@ -1,6 +1,6 @@
 use std::{io::Cursor, time::SystemTime};
 
-use conduit::{debug, utils, warn, Err, Result};
+use conduit::{debug, utils, Err, Result};
 use conduit_core::implement;
 use image::ImageReader as ImgReader;
 use ipaddress::IPAddress;
@@ -70,30 +70,30 @@ pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
 }
 
 #[implement(Service)]
-pub async fn get_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
-	if let Ok(preview) = self.db.get_url_preview(url).await {
+pub async fn get_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
+	if let Ok(preview) = self.db.get_url_preview(url.as_str()).await {
 		return Ok(preview);
 	}
 
 	// ensure that only one request is made per URL
-	let _request_lock = self.url_preview_mutex.lock(url).await;
+	let _request_lock = self.url_preview_mutex.lock(url.as_str()).await;
 
-	match self.db.get_url_preview(url).await {
+	match self.db.get_url_preview(url.as_str()).await {
 		Ok(preview) => Ok(preview),
 		Err(_) => self.request_url_preview(url).await,
 	}
 }
 
 #[implement(Service)]
-async fn request_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
-	if let Ok(ip) = IPAddress::parse(url) {
+async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
+	if let Ok(ip) = IPAddress::parse(url.host_str().expect("URL previously validated")) {
 		if !self.services.globals.valid_cidr_range(&ip) {
 			return Err!(BadServerResponse("Requesting from this address is forbidden"));
 		}
 	}
 
 	let client = &self.services.client.url_preview;
-	let response = client.head(url).send().await?;
+	let response = client.head(url.as_str()).send().await?;
 
 	if let Some(remote_addr) = response.remote_addr() {
 		if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
@@ -111,12 +111,12 @@ async fn request_url_preview(&self, url: &str) -> Result<UrlPreviewData> {
 		return Err!(Request(Unknown("Unknown Content-Type")));
 	};
 	let data = match content_type {
-		html if html.starts_with("text/html") => self.download_html(url).await?,
-		img if img.starts_with("image/") => self.download_image(url).await?,
+		html if html.starts_with("text/html") => self.download_html(url.as_str()).await?,
+		img if img.starts_with("image/") => self.download_image(url.as_str()).await?,
 		_ => return Err!(Request(Unknown("Unsupported Content-Type"))),
 	};
 
-	self.set_url_preview(url, &data).await?;
+	self.set_url_preview(url.as_str(), &data).await?;
 
 	Ok(data)
 }
@@ -159,15 +159,7 @@ async fn download_html(&self, url: &str) -> Result<UrlPreviewData> {
 }
 
 #[implement(Service)]
-pub fn url_preview_allowed(&self, url_str: &str) -> bool {
-	let url: Url = match Url::parse(url_str) {
-		Ok(u) => u,
-		Err(e) => {
-			warn!("Failed to parse URL from a str: {}", e);
-			return false;
-		},
-	};
-
+pub fn url_preview_allowed(&self, url: &Url) -> bool {
 	if ["http", "https"]
 		.iter()
 		.all(|&scheme| scheme != url.scheme().to_lowercase())
