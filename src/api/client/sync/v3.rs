@@ -432,28 +432,26 @@ async fn handle_left_room(
 
 	left_state_ids.insert(leave_shortstatekey, left_event_id);
 
-	let mut i: u8 = 0;
-	for (key, id) in left_state_ids {
-		if full_state || since_state_ids.get(&key) != Some(&id) {
-			let (event_type, state_key) = services.rooms.short.get_statekey_from_short(key).await?;
+	for (shortstatekey, event_id) in left_state_ids {
+		if full_state || since_state_ids.get(&shortstatekey) != Some(&event_id) {
+			let (event_type, state_key) = services
+				.rooms
+				.short
+				.get_statekey_from_short(shortstatekey)
+				.await?;
 
+			// TODO: Delete "element_hacks" when this is resolved: https://github.com/vector-im/element-web/issues/22565
 			if !lazy_load_enabled
-                    || event_type != StateEventType::RoomMember
-                    || full_state
-                    // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
-                    || (cfg!(feature = "element_hacks") && *sender_user == state_key)
+				|| event_type != StateEventType::RoomMember
+				|| full_state
+				|| (cfg!(feature = "element_hacks") && *sender_user == state_key)
 			{
-				let Ok(pdu) = services.rooms.timeline.get_pdu(&id).await else {
-					error!("Pdu in state not found: {}", id);
+				let Ok(pdu) = services.rooms.timeline.get_pdu(&event_id).await else {
+					error!("Pdu in state not found: {event_id}");
 					continue;
 				};
 
 				left_state_events.push(pdu.to_sync_state_event());
-
-				i = i.wrapping_add(1);
-				if i % 100 == 0 {
-					tokio::task::yield_now().await;
-				}
 			}
 		}
 	}
@@ -542,7 +540,7 @@ async fn load_joined_room(
 	let insert_lock = services.rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
-	let (timeline_pdus, limited) = load_timeline(services, sender_user, room_id, sincecount, 10).await?;
+	let (timeline_pdus, limited) = load_timeline(services, sender_user, room_id, sincecount, 10_usize).await?;
 
 	let send_notification_counts = !timeline_pdus.is_empty()
 		|| services
@@ -678,8 +676,7 @@ async fn load_joined_room(
 			let mut state_events = Vec::new();
 			let mut lazy_loaded = HashSet::new();
 
-			let mut i: u8 = 0;
-			for (shortstatekey, id) in current_state_ids {
+			for (shortstatekey, event_id) in current_state_ids {
 				let (event_type, state_key) = services
 					.rooms
 					.short
@@ -687,24 +684,22 @@ async fn load_joined_room(
 					.await?;
 
 				if event_type != StateEventType::RoomMember {
-					let Ok(pdu) = services.rooms.timeline.get_pdu(&id).await else {
-						error!("Pdu in state not found: {id}");
+					let Ok(pdu) = services.rooms.timeline.get_pdu(&event_id).await else {
+						error!("Pdu in state not found: {event_id}");
 						continue;
 					};
-					state_events.push(pdu);
 
-					i = i.wrapping_add(1);
-					if i % 100 == 0 {
-						tokio::task::yield_now().await;
-					}
-				} else if !lazy_load_enabled
-                || full_state
-                || timeline_users.contains(&state_key)
-                // TODO: Delete the following line when this is resolved: https://github.com/vector-im/element-web/issues/22565
-                || (cfg!(feature = "element_hacks") && *sender_user == state_key)
+					state_events.push(pdu);
+					continue;
+				}
+
+				// TODO: Delete "element_hacks" when this is resolved: https://github.com/vector-im/element-web/issues/22565
+				if !lazy_load_enabled
+					|| full_state || timeline_users.contains(&state_key)
+					|| (cfg!(feature = "element_hacks") && *sender_user == state_key)
 				{
-					let Ok(pdu) = services.rooms.timeline.get_pdu(&id).await else {
-						error!("Pdu in state not found: {id}");
+					let Ok(pdu) = services.rooms.timeline.get_pdu(&event_id).await else {
+						error!("Pdu in state not found: {event_id}");
 						continue;
 					};
 
@@ -712,12 +707,8 @@ async fn load_joined_room(
 					if let Ok(uid) = UserId::parse(&state_key) {
 						lazy_loaded.insert(uid);
 					}
-					state_events.push(pdu);
 
-					i = i.wrapping_add(1);
-					if i % 100 == 0 {
-						tokio::task::yield_now().await;
-					}
+					state_events.push(pdu);
 				}
 			}
 

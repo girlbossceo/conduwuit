@@ -8,7 +8,7 @@ use axum::extract::State;
 use conduit::{
 	debug, error, extract_variant,
 	utils::{
-		math::{ruma_from_usize, usize_from_ruma},
+		math::{ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 	},
 	warn, Error, PduCount, Result,
@@ -350,14 +350,16 @@ pub(crate) async fn sync_events_v4_route(
 
 						new_known_rooms.extend(room_ids.iter().cloned());
 						for room_id in &room_ids {
-							let todo_room = todo_rooms
-								.entry(room_id.clone())
-								.or_insert((BTreeSet::new(), 0, u64::MAX));
+							let todo_room =
+								todo_rooms
+									.entry(room_id.clone())
+									.or_insert((BTreeSet::new(), 0_usize, u64::MAX));
 
-							let limit = list
+							let limit: usize = list
 								.room_details
 								.timeline_limit
-								.map_or(10, u64::from)
+								.map(u64::from)
+								.map_or(10, usize_from_u64_truncated)
 								.min(100);
 
 							todo_room
@@ -406,8 +408,14 @@ pub(crate) async fn sync_events_v4_route(
 		}
 		let todo_room = todo_rooms
 			.entry(room_id.clone())
-			.or_insert((BTreeSet::new(), 0, u64::MAX));
-		let limit = room.timeline_limit.map_or(10, u64::from).min(100);
+			.or_insert((BTreeSet::new(), 0_usize, u64::MAX));
+
+		let limit: usize = room
+			.timeline_limit
+			.map(u64::from)
+			.map_or(10, usize_from_u64_truncated)
+			.min(100);
+
 		todo_room.0.extend(room.required_state.iter().cloned());
 		todo_room.1 = todo_room.1.max(limit);
 		// 0 means unknown because it got out of date

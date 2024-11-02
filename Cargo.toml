@@ -27,6 +27,7 @@ name = "conduit"
 
 [workspace.dependencies.arrayvec]
 version = "0.7.4"
+features = ["std", "serde"]
 
 [workspace.dependencies.const-str]
 version = "0.5.7"

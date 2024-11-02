@@ -1,17 +1,22 @@
-use std::{mem::size_of, sync::Arc};
+use std::sync::Arc;
 
 use conduit::{
-	checked,
 	result::LogErr,
-	utils,
 	utils::{stream::TryIgnore, ReadyExt},
-	PduEvent, Result,
+	PduCount, PduEvent, Result,
 };
 use database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{api::client::threads::get_threads::v1::IncludeThreads, OwnedUserId, RoomId, UserId};
 
-use crate::{rooms, Dep};
+use crate::{
+	rooms,
+	rooms::{
+		short::ShortRoomId,
+		timeline::{PduId, RawPduId},
+	},
+	Dep,
+};
 
 pub(super) struct Data {
 	threadid_userids: Arc<Map>,
@@ -35,40 +40,39 @@ impl Data {
 		}
 	}
 
+	#[inline]
 	pub(super) async fn threads_until<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, _include: &'a IncludeThreads,
-	) -> Result<impl Stream<Item = (u64, PduEvent)> + Send + 'a> {
-		let prefix = self
-			.services
-			.short
-			.get_shortroomid(room_id)
-			.await?
-			.to_be_bytes()
-			.to_vec();
+		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount, _include: &'a IncludeThreads,
+	) -> Result<impl Stream<Item = (PduCount, PduEvent)> + Send + 'a> {
+		let shortroomid: ShortRoomId = self.services.short.get_shortroomid(room_id).await?;
 
-		let mut current = prefix.clone();
-		current.extend_from_slice(&(checked!(until - 1)?).to_be_bytes());
+		let current: RawPduId = PduId {
+			shortroomid,
+			shorteventid: until.saturating_sub(1),
+		}
+		.into();
 
 		let stream = self
 			.threadid_userids
 			.rev_raw_keys_from(&current)
 			.ignore_err()
-			.ready_take_while(move |key| key.starts_with(&prefix))
-			.map(|pduid| (utils::u64_from_u8(&pduid[(size_of::<u64>())..]), pduid))
-			.filter_map(move |(count, pduid)| async move {
-				let mut pdu = self.services.timeline.get_pdu_from_id(pduid).await.ok()?;
+			.map(RawPduId::from)
+			.ready_take_while(move |pdu_id| pdu_id.shortroomid() == shortroomid.to_be_bytes())
+			.filter_map(move |pdu_id| async move {
+				let mut pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await.ok()?;
+				let pdu_id: PduId = pdu_id.into();
 
 				if pdu.sender != user_id {
 					pdu.remove_transaction_id().log_err().ok();
 				}
 
-				Some((count, pdu))
+				Some((pdu_id.shorteventid, pdu))
 			});
 
 		Ok(stream)
 	}
 
-	pub(super) fn update_participants(&self, root_id: &[u8], participants: &[OwnedUserId]) -> Result<()> {
+	pub(super) fn update_participants(&self, root_id: &RawPduId, participants: &[OwnedUserId]) -> Result {
 		let users = participants
 			.iter()
 			.map(|user| user.as_bytes())
@@ -80,7 +84,7 @@ impl Data {
 		Ok(())
 	}
 
-	pub(super) async fn get_participants(&self, root_id: &[u8]) -> Result<Vec<OwnedUserId>> {
-		self.threadid_userids.qry(root_id).await.deserialized()
+	pub(super) async fn get_participants(&self, root_id: &RawPduId) -> Result<Vec<OwnedUserId>> {
+		self.threadid_userids.get(root_id).await.deserialized()
 	}
 }

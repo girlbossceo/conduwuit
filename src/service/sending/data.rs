@@ -115,10 +115,10 @@ impl Data {
 		let mut keys = Vec::new();
 		for (event, destination) in requests {
 			let mut key = destination.get_prefix();
-			if let SendingEvent::Pdu(value) = &event {
-				key.extend_from_slice(value);
+			if let SendingEvent::Pdu(value) = event {
+				key.extend(value.as_ref());
 			} else {
-				key.extend_from_slice(&self.services.globals.next_count().unwrap().to_be_bytes());
+				key.extend(&self.services.globals.next_count().unwrap().to_be_bytes());
 			}
 			let value = if let SendingEvent::Edu(value) = &event {
 				&**value
@@ -175,7 +175,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 		(
 			Destination::Appservice(server),
 			if value.is_empty() {
-				SendingEvent::Pdu(event.to_vec())
+				SendingEvent::Pdu(event.into())
 			} else {
 				SendingEvent::Edu(value.to_vec())
 			},
@@ -202,7 +202,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 		(
 			Destination::Push(user_id, pushkey_string),
 			if value.is_empty() {
-				SendingEvent::Pdu(event.to_vec())
+				SendingEvent::Pdu(event.into())
 			} else {
 				// I'm pretty sure this should never be called
 				SendingEvent::Edu(value.to_vec())
@@ -225,7 +225,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 					.map_err(|_| Error::bad_database("Invalid server string in server_currenttransaction"))?,
 			),
 			if value.is_empty() {
-				SendingEvent::Pdu(event.to_vec())
+				SendingEvent::Pdu(event.into())
 			} else {
 				SendingEvent::Edu(value.to_vec())
 			},

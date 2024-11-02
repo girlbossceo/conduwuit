@@ -24,7 +24,10 @@ pub use self::{
 	dest::Destination,
 	sender::{EDU_LIMIT, PDU_LIMIT},
 };
-use crate::{account_data, client, globals, presence, pusher, resolver, rooms, server_keys, users, Dep};
+use crate::{
+	account_data, client, globals, presence, pusher, resolver, rooms, rooms::timeline::RawPduId, server_keys, users,
+	Dep,
+};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -61,9 +64,9 @@ struct Msg {
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SendingEvent {
-	Pdu(Vec<u8>), // pduid
-	Edu(Vec<u8>), // pdu json
-	Flush,        // none
+	Pdu(RawPduId), // pduid
+	Edu(Vec<u8>),  // pdu json
+	Flush,         // none
 }
 
 #[async_trait]
@@ -110,9 +113,9 @@ impl crate::Service for Service {
 
 impl Service {
 	#[tracing::instrument(skip(self, pdu_id, user, pushkey), level = "debug")]
-	pub fn send_pdu_push(&self, pdu_id: &[u8], user: &UserId, pushkey: String) -> Result<()> {
+	pub fn send_pdu_push(&self, pdu_id: &RawPduId, user: &UserId, pushkey: String) -> Result {
 		let dest = Destination::Push(user.to_owned(), pushkey);
-		let event = SendingEvent::Pdu(pdu_id.to_owned());
+		let event = SendingEvent::Pdu(*pdu_id);
 		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(&[(&event, &dest)]);
 		self.dispatch(Msg {
@@ -123,7 +126,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: Vec<u8>) -> Result<()> {
+	pub fn send_pdu_appservice(&self, appservice_id: String, pdu_id: RawPduId) -> Result {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
 		let _cork = self.db.db.cork();
@@ -136,7 +139,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, pdu_id), level = "debug")]
-	pub async fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &[u8]) -> Result<()> {
+	pub async fn send_pdu_room(&self, room_id: &RoomId, pdu_id: &RawPduId) -> Result {
 		let servers = self
 			.services
 			.state_cache
@@ -147,13 +150,13 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers, pdu_id), level = "debug")]
-	pub async fn send_pdu_servers<'a, S>(&self, servers: S, pdu_id: &[u8]) -> Result<()>
+	pub async fn send_pdu_servers<'a, S>(&self, servers: S, pdu_id: &RawPduId) -> Result
 	where
 		S: Stream<Item = &'a ServerName> + Send + 'a,
 	{
 		let _cork = self.db.db.cork();
 		let requests = servers
-			.map(|server| (Destination::Normal(server.into()), SendingEvent::Pdu(pdu_id.into())))
+			.map(|server| (Destination::Normal(server.into()), SendingEvent::Pdu(pdu_id.to_owned())))
 			.collect::<Vec<_>>()
 			.await;
 

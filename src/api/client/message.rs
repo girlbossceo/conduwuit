@@ -62,19 +62,17 @@ pub(crate) async fn get_message_events_route(
 	let room_id = &body.room_id;
 	let filter = &body.filter;
 
-	let from_default = match body.dir {
-		Direction::Forward => PduCount::min(),
-		Direction::Backward => PduCount::max(),
-	};
-
-	let from = body
+	let from: PduCount = body
 		.from
 		.as_deref()
-		.map(PduCount::try_from_string)
+		.map(str::parse)
 		.transpose()?
-		.unwrap_or(from_default);
+		.unwrap_or_else(|| match body.dir {
+			Direction::Forward => PduCount::min(),
+			Direction::Backward => PduCount::max(),
+		});
 
-	let to = body.to.as_deref().map(PduCount::try_from_string).flat_ok();
+	let to: Option<PduCount> = body.to.as_deref().map(str::parse).flat_ok();
 
 	let limit: usize = body
 		.limit
@@ -156,8 +154,8 @@ pub(crate) async fn get_message_events_route(
 		.collect();
 
 	Ok(get_message_events::v3::Response {
-		start: from.stringify(),
-		end: next_token.as_ref().map(PduCount::stringify),
+		start: from.to_string(),
+		end: next_token.as_ref().map(PduCount::to_string),
 		chunk,
 		state,
 	})

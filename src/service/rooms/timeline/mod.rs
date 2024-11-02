@@ -1,5 +1,4 @@
 mod data;
-mod pduid;
 
 use std::{
 	cmp,
@@ -15,6 +14,7 @@ use conduit::{
 	utils::{stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	validated, warn, Err, Error, Result, Server,
 };
+pub use conduit::{PduId, RawPduId};
 use futures::{future, future::ready, Future, FutureExt, Stream, StreamExt, TryStreamExt};
 use ruma::{
 	api::federation,
@@ -39,13 +39,13 @@ use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 
 use self::data::Data;
-pub use self::{
-	data::PdusIterItem,
-	pduid::{PduId, RawPduId},
-};
+pub use self::data::PdusIterItem;
 use crate::{
-	account_data, admin, appservice, appservice::NamespaceRegex, globals, pusher, rooms,
-	rooms::state_compressor::CompressedStateEvent, sending, server_keys, users, Dep,
+	account_data, admin, appservice,
+	appservice::NamespaceRegex,
+	globals, pusher, rooms,
+	rooms::{short::ShortRoomId, state_compressor::CompressedStateEvent},
+	sending, server_keys, users, Dep,
 };
 
 // Update Relationships
@@ -229,9 +229,7 @@ impl Service {
 
 	/// Returns the pdu's id.
 	#[inline]
-	pub async fn get_pdu_id(&self, event_id: &EventId) -> Result<database::Handle<'_>> {
-		self.db.get_pdu_id(event_id).await
-	}
+	pub async fn get_pdu_id(&self, event_id: &EventId) -> Result<RawPduId> { self.db.get_pdu_id(event_id).await }
 
 	/// Returns the pdu.
 	///
@@ -256,16 +254,16 @@ impl Service {
 	/// Returns the pdu.
 	///
 	/// This does __NOT__ check the outliers `Tree`.
-	pub async fn get_pdu_from_id(&self, pdu_id: &[u8]) -> Result<PduEvent> { self.db.get_pdu_from_id(pdu_id).await }
+	pub async fn get_pdu_from_id(&self, pdu_id: &RawPduId) -> Result<PduEvent> { self.db.get_pdu_from_id(pdu_id).await }
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
-	pub async fn get_pdu_json_from_id(&self, pdu_id: &[u8]) -> Result<CanonicalJsonObject> {
+	pub async fn get_pdu_json_from_id(&self, pdu_id: &RawPduId) -> Result<CanonicalJsonObject> {
 		self.db.get_pdu_json_from_id(pdu_id).await
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn replace_pdu(&self, pdu_id: &[u8], pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
+	pub async fn replace_pdu(&self, pdu_id: &RawPduId, pdu_json: &CanonicalJsonObject, pdu: &PduEvent) -> Result<()> {
 		self.db.replace_pdu(pdu_id, pdu_json, pdu).await
 	}
 
@@ -282,7 +280,7 @@ impl Service {
 		mut pdu_json: CanonicalJsonObject,
 		leaves: Vec<OwnedEventId>,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
-	) -> Result<Vec<u8>> {
+	) -> Result<RawPduId> {
 		// Coalesce database writes for the remainder of this scope.
 		let _cork = self.db.db.cork_and_flush();
 
@@ -359,9 +357,12 @@ impl Service {
 			.user
 			.reset_notification_counts(&pdu.sender, &pdu.room_id);
 
-		let count2 = self.services.globals.next_count().unwrap();
-		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
-		pdu_id.extend_from_slice(&count2.to_be_bytes());
+		let count2 = PduCount::Normal(self.services.globals.next_count().unwrap());
+		let pdu_id: RawPduId = PduId {
+			shortroomid,
+			shorteventid: count2,
+		}
+		.into();
 
 		// Insert pdu
 		self.db.append_pdu(&pdu_id, pdu, &pdu_json, count2).await;
@@ -544,7 +545,7 @@ impl Service {
 			if let Ok(related_pducount) = self.get_pdu_count(&content.relates_to.event_id).await {
 				self.services
 					.pdu_metadata
-					.add_relation(PduCount::Normal(count2), related_pducount);
+					.add_relation(count2, related_pducount);
 			}
 		}
 
@@ -558,7 +559,7 @@ impl Service {
 					if let Ok(related_pducount) = self.get_pdu_count(&in_reply_to.event_id).await {
 						self.services
 							.pdu_metadata
-							.add_relation(PduCount::Normal(count2), related_pducount);
+							.add_relation(count2, related_pducount);
 					}
 				},
 				Relation::Thread(thread) => {
@@ -580,7 +581,7 @@ impl Service {
 			{
 				self.services
 					.sending
-					.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
+					.send_pdu_appservice(appservice.registration.id.clone(), pdu_id)?;
 				continue;
 			}
 
@@ -596,7 +597,7 @@ impl Service {
 					if state_key_uid == appservice_uid {
 						self.services
 							.sending
-							.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
+							.send_pdu_appservice(appservice.registration.id.clone(), pdu_id)?;
 						continue;
 					}
 				}
@@ -623,7 +624,7 @@ impl Service {
 			{
 				self.services
 					.sending
-					.send_pdu_appservice(appservice.registration.id.clone(), pdu_id.clone())?;
+					.send_pdu_appservice(appservice.registration.id.clone(), pdu_id)?;
 			}
 		}
 
@@ -935,7 +936,7 @@ impl Service {
 		state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 		soft_fail: bool,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
-	) -> Result<Option<Vec<u8>>> {
+	) -> Result<Option<RawPduId>> {
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't
 		// fail.
@@ -993,7 +994,7 @@ impl Service {
 
 	/// Replace a PDU with the redacted form.
 	#[tracing::instrument(skip(self, reason))]
-	pub async fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent, shortroomid: u64) -> Result<()> {
+	pub async fn redact_pdu(&self, event_id: &EventId, reason: &PduEvent, shortroomid: ShortRoomId) -> Result {
 		// TODO: Don't reserialize, keep original json
 		let Ok(pdu_id) = self.get_pdu_id(event_id).await else {
 			// If event does not exist, just noop
@@ -1133,7 +1134,6 @@ impl Service {
 
 		// Skip the PDU if we already have it as a timeline event
 		if let Ok(pdu_id) = self.get_pdu_id(&event_id).await {
-			let pdu_id = pdu_id.to_vec();
 			debug!("We already know {event_id} at {pdu_id:?}");
 			return Ok(());
 		}
@@ -1158,11 +1158,13 @@ impl Service {
 
 		let insert_lock = self.mutex_insert.lock(&room_id).await;
 
-		let max = u64::MAX;
-		let count = self.services.globals.next_count().unwrap();
-		let mut pdu_id = shortroomid.to_be_bytes().to_vec();
-		pdu_id.extend_from_slice(&0_u64.to_be_bytes());
-		pdu_id.extend_from_slice(&(validated!(max - count)).to_be_bytes());
+		let count: i64 = self.services.globals.next_count().unwrap().try_into()?;
+
+		let pdu_id: RawPduId = PduId {
+			shortroomid,
+			shorteventid: PduCount::Backfilled(validated!(0 - count)),
+		}
+		.into();
 
 		// Insert pdu
 		self.db.prepend_backfill_pdu(&pdu_id, &event_id, &value);
@@ -1245,17 +1247,4 @@ async fn check_pdu_for_admin_room(&self, pdu: &PduEvent, sender: &UserId) -> Res
 	};
 
 	Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn comparisons() {
-		assert!(PduCount::Normal(1) < PduCount::Normal(2));
-		assert!(PduCount::Backfilled(2) < PduCount::Backfilled(1));
-		assert!(PduCount::Normal(1) > PduCount::Backfilled(1));
-		assert!(PduCount::Backfilled(1) < PduCount::Normal(1));
-	}
 }

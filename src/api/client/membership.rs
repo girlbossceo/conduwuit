@@ -1376,15 +1376,12 @@ pub(crate) async fn invite_helper(
 		)
 		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Origin field is invalid."))?;
 
-		let pdu_id: Vec<u8> = services
+		let pdu_id = services
 			.rooms
 			.event_handler
 			.handle_incoming_pdu(&origin, room_id, &event_id, value, true)
 			.await?
-			.ok_or(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Could not accept incoming PDU as timeline event.",
-			))?;
+			.ok_or_else(|| err!(Request(InvalidParam("Could not accept incoming PDU as timeline event."))))?;
 
 		services.sending.send_pdu_room(room_id, &pdu_id).await?;
 		return Ok(());

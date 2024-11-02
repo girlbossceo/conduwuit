@@ -33,7 +33,7 @@ use ruma::{
 };
 use tokio::sync::Mutex;
 
-use crate::{rooms, sending, Dep};
+use crate::{rooms, rooms::short::ShortRoomId, sending, Dep};
 
 pub struct CachedSpaceHierarchySummary {
 	summary: SpaceHierarchyParentSummary,
@@ -49,7 +49,7 @@ pub enum SummaryAccessibility {
 pub struct PaginationToken {
 	/// Path down the hierarchy of the room to start the response at,
 	/// excluding the root space.
-	pub short_room_ids: Vec<u64>,
+	pub short_room_ids: Vec<ShortRoomId>,
 	pub limit: UInt,
 	pub max_depth: UInt,
 	pub suggested_only: bool,
@@ -448,7 +448,7 @@ impl Service {
 	}
 
 	pub async fn get_client_hierarchy(
-		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, short_room_ids: Vec<u64>, max_depth: u64,
+		&self, sender_user: &UserId, room_id: &RoomId, limit: usize, short_room_ids: Vec<ShortRoomId>, max_depth: u64,
 		suggested_only: bool,
 	) -> Result<client::space::get_hierarchy::v1::Response> {
 		let mut parents = VecDeque::new();

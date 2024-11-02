@@ -5,7 +5,7 @@ use database::{Deserialized, Map};
 use futures::{pin_mut, Stream, StreamExt};
 use ruma::{RoomId, UserId};
 
-use crate::{globals, rooms, Dep};
+use crate::{globals, rooms, rooms::short::ShortStateHash, Dep};
 
 pub struct Service {
 	db: Data,
@@ -93,7 +93,7 @@ pub async fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -
 }
 
 #[implement(Service)]
-pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: u64) {
+pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: ShortStateHash) {
 	let shortroomid = self
 		.services
 		.short
@@ -108,7 +108,7 @@ pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64,
 }
 
 #[implement(Service)]
-pub async fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<u64> {
+pub async fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<ShortStateHash> {
 	let shortroomid = self.services.short.get_shortroomid(room_id).await?;
 
 	let key: &[u64] = &[shortroomid, token];

@@ -1,34 +1,43 @@
 use axum::extract::State;
-use ruma::api::client::relations::{
-	get_relating_events, get_relating_events_with_rel_type, get_relating_events_with_rel_type_and_event_type,
+use conduit::{
+	at,
+	utils::{result::FlatOk, IterStream, ReadyExt},
+	PduCount, Result,
 };
+use futures::{FutureExt, StreamExt};
+use ruma::{
+	api::{
+		client::relations::{
+			get_relating_events, get_relating_events_with_rel_type, get_relating_events_with_rel_type_and_event_type,
+		},
+		Direction,
+	},
+	events::{relation::RelationType, TimelineEventType},
+	EventId, RoomId, UInt, UserId,
+};
+use service::{rooms::timeline::PdusIterItem, Services};
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}/{eventType}`
 pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
 	State(services): State<crate::State>, body: Ruma<get_relating_events_with_rel_type_and_event_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type_and_event_type::v1::Response> {
-	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
-
-	let res = services
-		.rooms
-		.pdu_metadata
-		.paginate_relations_with_filter(
-			sender_user,
-			&body.room_id,
-			&body.event_id,
-			body.event_type.clone().into(),
-			body.rel_type.clone().into(),
-			body.from.as_deref(),
-			body.to.as_deref(),
-			body.limit,
-			body.recurse,
-			body.dir,
-		)
-		.await?;
-
-	Ok(get_relating_events_with_rel_type_and_event_type::v1::Response {
+	paginate_relations_with_filter(
+		&services,
+		body.sender_user(),
+		&body.room_id,
+		&body.event_id,
+		body.event_type.clone().into(),
+		body.rel_type.clone().into(),
+		body.from.as_deref(),
+		body.to.as_deref(),
+		body.limit,
+		body.recurse,
+		body.dir,
+	)
+	.await
+	.map(|res| get_relating_events_with_rel_type_and_event_type::v1::Response {
 		chunk: res.chunk,
 		next_batch: res.next_batch,
 		prev_batch: res.prev_batch,
@@ -40,26 +49,21 @@ pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
 pub(crate) async fn get_relating_events_with_rel_type_route(
 	State(services): State<crate::State>, body: Ruma<get_relating_events_with_rel_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type::v1::Response> {
-	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
-
-	let res = services
-		.rooms
-		.pdu_metadata
-		.paginate_relations_with_filter(
-			sender_user,
-			&body.room_id,
-			&body.event_id,
-			None,
-			body.rel_type.clone().into(),
-			body.from.as_deref(),
-			body.to.as_deref(),
-			body.limit,
-			body.recurse,
-			body.dir,
-		)
-		.await?;
-
-	Ok(get_relating_events_with_rel_type::v1::Response {
+	paginate_relations_with_filter(
+		&services,
+		body.sender_user(),
+		&body.room_id,
+		&body.event_id,
+		None,
+		body.rel_type.clone().into(),
+		body.from.as_deref(),
+		body.to.as_deref(),
+		body.limit,
+		body.recurse,
+		body.dir,
+	)
+	.await
+	.map(|res| get_relating_events_with_rel_type::v1::Response {
 		chunk: res.chunk,
 		next_batch: res.next_batch,
 		prev_batch: res.prev_batch,
@@ -71,22 +75,103 @@ pub(crate) async fn get_relating_events_with_rel_type_route(
 pub(crate) async fn get_relating_events_route(
 	State(services): State<crate::State>, body: Ruma<get_relating_events::v1::Request>,
 ) -> Result<get_relating_events::v1::Response> {
-	let sender_user = body.sender_user.as_deref().expect("user is authenticated");
+	paginate_relations_with_filter(
+		&services,
+		body.sender_user(),
+		&body.room_id,
+		&body.event_id,
+		None,
+		None,
+		body.from.as_deref(),
+		body.to.as_deref(),
+		body.limit,
+		body.recurse,
+		body.dir,
+	)
+	.await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn paginate_relations_with_filter(
+	services: &Services, sender_user: &UserId, room_id: &RoomId, target: &EventId,
+	filter_event_type: Option<TimelineEventType>, filter_rel_type: Option<RelationType>, from: Option<&str>,
+	to: Option<&str>, limit: Option<UInt>, recurse: bool, dir: Direction,
+) -> Result<get_relating_events::v1::Response> {
+	let from: PduCount = from
+		.map(str::parse)
+		.transpose()?
+		.unwrap_or_else(|| match dir {
+			Direction::Forward => PduCount::min(),
+			Direction::Backward => PduCount::max(),
+		});
+
+	let to: Option<PduCount> = to.map(str::parse).flat_ok();
+
+	// Use limit or else 30, with maximum 100
+	let limit: usize = limit
+		.map(TryInto::try_into)
+		.flat_ok()
+		.unwrap_or(30)
+		.min(100);
+
+	// Spec (v1.10) recommends depth of at least 3
+	let depth: u8 = if recurse {
+		3
+	} else {
+		1
+	};
+
+	let events: Vec<PdusIterItem> = services
+		.rooms
+		.pdu_metadata
+		.get_relations(sender_user, room_id, target, from, limit, depth, dir)
+		.await
+		.into_iter()
+		.filter(|(_, pdu)| {
+			filter_event_type
+				.as_ref()
+				.is_none_or(|kind| *kind == pdu.kind)
+		})
+		.filter(|(_, pdu)| {
+			filter_rel_type
+				.as_ref()
+				.is_none_or(|rel_type| pdu.relation_type_equal(rel_type))
+		})
+		.stream()
+		.filter_map(|item| visibility_filter(services, sender_user, item))
+		.ready_take_while(|(count, _)| Some(*count) != to)
+		.take(limit)
+		.collect()
+		.boxed()
+		.await;
+
+	let next_batch = match dir {
+		Direction::Backward => events.first(),
+		Direction::Forward => events.last(),
+	}
+	.map(at!(0))
+	.as_ref()
+	.map(ToString::to_string);
+
+	Ok(get_relating_events::v1::Response {
+		next_batch,
+		prev_batch: Some(from.to_string()),
+		recursion_depth: recurse.then_some(depth.into()),
+		chunk: events
+			.into_iter()
+			.map(at!(1))
+			.map(|pdu| pdu.to_message_like_event())
+			.collect(),
+	})
+}
+
+async fn visibility_filter(services: &Services, sender_user: &UserId, item: PdusIterItem) -> Option<PdusIterItem> {
+	let (_, pdu) = &item;
 
 	services
 		.rooms
-		.pdu_metadata
-		.paginate_relations_with_filter(
-			sender_user,
-			&body.room_id,
-			&body.event_id,
-			None,
-			None,
-			body.from.as_deref(),
-			body.to.as_deref(),
-			body.limit,
-			body.recurse,
-			body.dir,
-		)
+		.state_accessor
+		.user_can_see_event(sender_user, &pdu.room_id, &pdu.event_id)
 		.await
+		.then_some(item)
 }

@@ -7,9 +7,11 @@ use conduit::{err, utils, utils::math::usize_from_f64, Err, Result};
 use database::Map;
 use lru_cache::LruCache;
 
+use crate::rooms::short::ShortEventId;
+
 pub(super) struct Data {
 	shorteventid_authchain: Arc<Map>,
-	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[u64]>>>,
+	pub(super) auth_chain_cache: Mutex<LruCache<Vec<u64>, Arc<[ShortEventId]>>>,
 }
 
 impl Data {
@@ -24,7 +26,7 @@ impl Data {
 		}
 	}
 
-	pub(super) async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[u64]>> {
+	pub(super) async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[ShortEventId]>> {
 		debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
 		// Check RAM cache
@@ -63,7 +65,7 @@ impl Data {
 		Ok(chain)
 	}
 
-	pub(super) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[u64]>) {
+	pub(super) fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: Arc<[ShortEventId]>) {
 		debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
 		// Only persist single events in db

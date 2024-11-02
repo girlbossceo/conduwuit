@@ -1,7 +1,7 @@
 #![allow(deprecated)]
 
 use axum::extract::State;
-use conduit::{utils::ReadyExt, Error, Result};
+use conduit::{err, utils::ReadyExt, Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_leave_event},
 	events::{
@@ -142,12 +142,12 @@ async fn create_leave_event(
 		.lock(room_id)
 		.await;
 
-	let pdu_id: Vec<u8> = services
+	let pdu_id = services
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(origin, room_id, &event_id, value, true)
 		.await?
-		.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Could not accept as timeline event."))?;
+		.ok_or_else(|| err!(Request(InvalidParam("Could not accept as timeline event."))))?;
 
 	drop(mutex_lock);
 

@@ -2,7 +2,7 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{err, PduEvent, Result};
+use conduit::{err, PduCount, PduEvent, Result};
 use data::Data;
 use futures::Stream;
 use ruma::{
@@ -37,8 +37,8 @@ impl crate::Service for Service {
 
 impl Service {
 	pub async fn threads_until<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: u64, include: &'a IncludeThreads,
-	) -> Result<impl Stream<Item = (u64, PduEvent)> + Send + 'a> {
+		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount, include: &'a IncludeThreads,
+	) -> Result<impl Stream<Item = (PduCount, PduEvent)> + Send + 'a> {
 		self.db
 			.threads_until(user_id, room_id, until, include)
 			.await

@@ -39,13 +39,17 @@ use ruma::{
 use serde::Deserialize;
 
 use self::data::Data;
-use crate::{rooms, rooms::state::RoomMutexGuard, Dep};
+use crate::{
+	rooms,
+	rooms::{short::ShortStateHash, state::RoomMutexGuard},
+	Dep,
+};
 
 pub struct Service {
 	services: Services,
 	db: Data,
-	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, u64), bool>>,
-	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, u64), bool>>,
+	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, ShortStateHash), bool>>,
+	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, ShortStateHash), bool>>,
 }
 
 struct Services {
@@ -94,11 +98,13 @@ impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_full_ids(&self, shortstatehash: u64) -> Result<HashMap<u64, Arc<EventId>>> {
+	pub async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
 		self.db.state_full_ids(shortstatehash).await
 	}
 
-	pub async fn state_full(&self, shortstatehash: u64) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	pub async fn state_full(
+		&self, shortstatehash: ShortStateHash,
+	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		self.db.state_full(shortstatehash).await
 	}
 
@@ -106,7 +112,7 @@ impl Service {
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn state_get_id(
-		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
+		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<Arc<EventId>> {
 		self.db
 			.state_get_id(shortstatehash, event_type, state_key)
@@ -117,7 +123,7 @@ impl Service {
 	/// `state_key`).
 	#[inline]
 	pub async fn state_get(
-		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
+		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<Arc<PduEvent>> {
 		self.db
 			.state_get(shortstatehash, event_type, state_key)
@@ -126,7 +132,7 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub async fn state_get_content<T>(
-		&self, shortstatehash: u64, event_type: &StateEventType, state_key: &str,
+		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<T>
 	where
 		T: for<'de> Deserialize<'de> + Send,
@@ -137,7 +143,7 @@ impl Service {
 	}
 
 	/// Get membership for given user in state
-	async fn user_membership(&self, shortstatehash: u64, user_id: &UserId) -> MembershipState {
+	async fn user_membership(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> MembershipState {
 		self.state_get_content(shortstatehash, &StateEventType::RoomMember, user_id.as_str())
 			.await
 			.map_or(MembershipState::Leave, |c: RoomMemberEventContent| c.membership)
@@ -145,14 +151,14 @@ impl Service {
 
 	/// The user was a joined member at this state (potentially in the past)
 	#[inline]
-	async fn user_was_joined(&self, shortstatehash: u64, user_id: &UserId) -> bool {
+	async fn user_was_joined(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
 		self.user_membership(shortstatehash, user_id).await == MembershipState::Join
 	}
 
 	/// The user was an invited or joined room member at this state (potentially
 	/// in the past)
 	#[inline]
-	async fn user_was_invited(&self, shortstatehash: u64, user_id: &UserId) -> bool {
+	async fn user_was_invited(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
 		let s = self.user_membership(shortstatehash, user_id).await;
 		s == MembershipState::Join || s == MembershipState::Invite
 	}
@@ -285,7 +291,7 @@ impl Service {
 	}
 
 	/// Returns the state hash for this pdu.
-	pub async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<u64> {
+	pub async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<ShortStateHash> {
 		self.db.pdu_shortstatehash(event_id).await
 	}
 

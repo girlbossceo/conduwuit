@@ -1,5 +1,6 @@
 use std::{mem::size_of_val, sync::Arc};
 
+pub use conduit::pdu::{ShortEventId, ShortId, ShortRoomId};
 use conduit::{err, implement, utils, Result};
 use database::{Deserialized, Map};
 use ruma::{events::StateEventType, EventId, RoomId};
@@ -26,9 +27,6 @@ struct Services {
 
 pub type ShortStateHash = ShortId;
 pub type ShortStateKey = ShortId;
-pub type ShortEventId = ShortId;
-pub type ShortRoomId = ShortId;
-pub type ShortId = u64;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -52,7 +50,7 @@ impl crate::Service for Service {
 
 #[implement(Service)]
 pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> ShortEventId {
-	const BUFSIZE: usize = size_of::<u64>();
+	const BUFSIZE: usize = size_of::<ShortEventId>();
 
 	if let Ok(shorteventid) = self
 		.db
@@ -88,7 +86,7 @@ pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> 
 		.map(|(i, result)| match result {
 			Ok(ref short) => utils::u64_from_u8(short),
 			Err(_) => {
-				const BUFSIZE: usize = size_of::<u64>();
+				const BUFSIZE: usize = size_of::<ShortEventId>();
 
 				let short = self.services.globals.next_count().unwrap();
 				debug_assert!(size_of_val(&short) == BUFSIZE, "buffer requirement changed");

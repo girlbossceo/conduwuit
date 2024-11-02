@@ -10,7 +10,7 @@ use futures::Stream;
 use ruma::{EventId, RoomId};
 
 use self::data::Data;
-use crate::{rooms, Dep};
+use crate::{rooms, rooms::short::ShortEventId, Dep};
 
 pub struct Service {
 	services: Services,
@@ -64,7 +64,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
-	pub async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<u64>> {
+	pub async fn get_auth_chain(&self, room_id: &RoomId, starting_events: &[&EventId]) -> Result<Vec<ShortEventId>> {
 		const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
 
@@ -97,7 +97,7 @@ impl Service {
 				continue;
 			}
 
-			let chunk_key: Vec<u64> = chunk.iter().map(|(short, _)| short).copied().collect();
+			let chunk_key: Vec<ShortEventId> = chunk.iter().map(|(short, _)| short).copied().collect();
 			if let Ok(cached) = self.get_cached_eventid_authchain(&chunk_key).await {
 				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
@@ -156,7 +156,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
-	async fn get_auth_chain_inner(&self, room_id: &RoomId, event_id: &EventId) -> Result<HashSet<u64>> {
+	async fn get_auth_chain_inner(&self, room_id: &RoomId, event_id: &EventId) -> Result<HashSet<ShortEventId>> {
 		let mut todo = vec![Arc::from(event_id)];
 		let mut found = HashSet::new();
 
@@ -195,19 +195,19 @@ impl Service {
 	}
 
 	#[inline]
-	pub async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[u64]>> {
+	pub async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[ShortEventId]>> {
 		self.db.get_cached_eventid_authchain(key).await
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<u64>) {
-		let val = auth_chain.iter().copied().collect::<Arc<[u64]>>();
+	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<ShortEventId>) {
+		let val = auth_chain.iter().copied().collect::<Arc<[ShortEventId]>>();
 		self.db.cache_auth_chain(key, val);
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<u64>) {
-		let val = auth_chain.iter().copied().collect::<Arc<[u64]>>();
+	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<ShortEventId>) {
+		let val = auth_chain.iter().copied().collect::<Arc<[ShortEventId]>>();
 		self.db.cache_auth_chain(key, val);
 	}
 

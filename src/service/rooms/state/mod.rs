@@ -95,7 +95,7 @@ impl Service {
 		let event_ids = statediffnew.iter().stream().filter_map(|new| {
 			self.services
 				.state_compressor
-				.parse_compressed_state_event(new)
+				.parse_compressed_state_event(*new)
 				.map_ok_or_else(|_| None, |(_, event_id)| Some(event_id))
 		});
 
@@ -428,7 +428,7 @@ impl Service {
 			let Ok((shortstatekey, event_id)) = self
 				.services
 				.state_compressor
-				.parse_compressed_state_event(compressed)
+				.parse_compressed_state_event(*compressed)
 				.await
 			else {
 				continue;

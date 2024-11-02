@@ -17,7 +17,7 @@ pub use ::tracing;
 pub use config::Config;
 pub use error::Error;
 pub use info::{rustc_flags_capture, version, version::version};
-pub use pdu::{Event, PduBuilder, PduCount, PduEvent};
+pub use pdu::{Event, PduBuilder, PduCount, PduEvent, PduId, RawPduId};
 pub use server::Server;
 pub use utils::{ctor, dtor, implement, result, result::Result};
 

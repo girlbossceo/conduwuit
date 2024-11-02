@@ -1,10 +1,10 @@
-use std::{iter, sync::Arc};
+use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use conduit::{
 	implement,
 	utils::{set, stream::TryIgnore, ArrayVecExt, IterStream, ReadyExt},
-	PduEvent, Result,
+	PduCount, PduEvent, Result,
 };
 use database::{keyval::Val, Map};
 use futures::{Stream, StreamExt};
@@ -66,13 +66,13 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-pub fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
+pub fn index_pdu(&self, shortroomid: ShortRoomId, pdu_id: &RawPduId, message_body: &str) {
 	let batch = tokenize(message_body)
 		.map(|word| {
 			let mut key = shortroomid.to_be_bytes().to_vec();
 			key.extend_from_slice(word.as_bytes());
 			key.push(0xFF);
-			key.extend_from_slice(pdu_id); // TODO: currently we save the room id a second time here
+			key.extend_from_slice(pdu_id.as_ref()); // TODO: currently we save the room id a second time here
 			(key, Vec::<u8>::new())
 		})
 		.collect::<Vec<_>>();
@@ -81,12 +81,12 @@ pub fn index_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
 }
 
 #[implement(Service)]
-pub fn deindex_pdu(&self, shortroomid: u64, pdu_id: &[u8], message_body: &str) {
+pub fn deindex_pdu(&self, shortroomid: ShortRoomId, pdu_id: &RawPduId, message_body: &str) {
 	let batch = tokenize(message_body).map(|word| {
 		let mut key = shortroomid.to_be_bytes().to_vec();
 		key.extend_from_slice(word.as_bytes());
 		key.push(0xFF);
-		key.extend_from_slice(pdu_id); // TODO: currently we save the room id a second time here
+		key.extend_from_slice(pdu_id.as_ref()); // TODO: currently we save the room id a second time here
 		key
 	});
 
@@ -159,24 +159,24 @@ fn search_pdu_ids_query_words<'a>(
 	&'a self, shortroomid: ShortRoomId, word: &'a str,
 ) -> impl Stream<Item = RawPduId> + Send + '_ {
 	self.search_pdu_ids_query_word(shortroomid, word)
-		.ready_filter_map(move |key| {
-			key[prefix_len(word)..]
-				.chunks_exact(PduId::LEN)
-				.next()
-				.map(RawPduId::try_from)
-				.and_then(Result::ok)
+		.map(move |key| -> RawPduId {
+			let key = &key[prefix_len(word)..];
+			key.into()
 		})
 }
 
 /// Iterate over raw database results for a word
 #[implement(Service)]
 fn search_pdu_ids_query_word(&self, shortroomid: ShortRoomId, word: &str) -> impl Stream<Item = Val<'_>> + Send + '_ {
-	const PDUID_LEN: usize = PduId::LEN;
 	// rustc says const'ing this not yet stable
-	let end_id: ArrayVec<u8, PDUID_LEN> = iter::repeat(u8::MAX).take(PduId::LEN).collect();
+	let end_id: RawPduId = PduId {
+		shortroomid,
+		shorteventid: PduCount::max(),
+	}
+	.into();
 
 	// Newest pdus first
-	let end = make_tokenid(shortroomid, word, end_id.as_slice());
+	let end = make_tokenid(shortroomid, word, &end_id);
 	let prefix = make_prefix(shortroomid, word);
 	self.db
 		.tokenids
@@ -196,11 +196,9 @@ fn tokenize(body: &str) -> impl Iterator<Item = String> + Send + '_ {
 		.map(str::to_lowercase)
 }
 
-fn make_tokenid(shortroomid: ShortRoomId, word: &str, pdu_id: &[u8]) -> TokenId {
-	debug_assert!(pdu_id.len() == PduId::LEN, "pdu_id size mismatch");
-
+fn make_tokenid(shortroomid: ShortRoomId, word: &str, pdu_id: &RawPduId) -> TokenId {
 	let mut key = make_prefix(shortroomid, word);
-	key.extend_from_slice(pdu_id);
+	key.extend_from_slice(pdu_id.as_ref());
 	key
 }
 

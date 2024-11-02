@@ -2,15 +2,21 @@ use std::{mem::size_of, sync::Arc};
 
 use conduit::{
 	result::LogErr,
-	utils,
-	utils::{stream::TryIgnore, ReadyExt},
+	utils::{stream::TryIgnore, u64_from_u8, ReadyExt},
 	PduCount, PduEvent,
 };
 use database::Map;
 use futures::{Stream, StreamExt};
 use ruma::{api::Direction, EventId, RoomId, UserId};
 
-use crate::{rooms, Dep};
+use crate::{
+	rooms,
+	rooms::{
+		short::{ShortEventId, ShortRoomId},
+		timeline::{PduId, RawPduId},
+	},
+	Dep,
+};
 
 pub(super) struct Data {
 	tofrom_relation: Arc<Map>,
@@ -46,35 +52,36 @@ impl Data {
 	}
 
 	pub(super) fn get_relations<'a>(
-		&'a self, user_id: &'a UserId, shortroomid: u64, target: u64, until: PduCount, dir: Direction,
+		&'a self, user_id: &'a UserId, shortroomid: ShortRoomId, target: ShortEventId, from: PduCount, dir: Direction,
 	) -> impl Stream<Item = PdusIterItem> + Send + '_ {
-		let prefix = target.to_be_bytes().to_vec();
-		let mut current = prefix.clone();
-		let count_raw = match until {
-			PduCount::Normal(x) => x.saturating_sub(1),
-			PduCount::Backfilled(x) => {
-				current.extend_from_slice(&0_u64.to_be_bytes());
-				u64::MAX.saturating_sub(x).saturating_sub(1)
-			},
-		};
-		current.extend_from_slice(&count_raw.to_be_bytes());
+		let current: RawPduId = PduId {
+			shortroomid,
+			shorteventid: from,
+		}
+		.into();
 
 		match dir {
 			Direction::Forward => self.tofrom_relation.raw_keys_from(&current).boxed(),
 			Direction::Backward => self.tofrom_relation.rev_raw_keys_from(&current).boxed(),
 		}
 		.ignore_err()
-		.ready_take_while(move |key| key.starts_with(&prefix))
-		.map(|to_from| utils::u64_from_u8(&to_from[(size_of::<u64>())..]))
-		.filter_map(move |from| async move {
-			let mut pduid = shortroomid.to_be_bytes().to_vec();
-			pduid.extend_from_slice(&from.to_be_bytes());
-			let mut pdu = self.services.timeline.get_pdu_from_id(&pduid).await.ok()?;
+		.ready_take_while(move |key| key.starts_with(&target.to_be_bytes()))
+		.map(|to_from| u64_from_u8(&to_from[8..16]))
+		.map(PduCount::from_unsigned)
+		.filter_map(move |shorteventid| async move {
+			let pdu_id: RawPduId = PduId {
+				shortroomid,
+				shorteventid,
+			}
+			.into();
+
+			let mut pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await.ok()?;
+
 			if pdu.sender != user_id {
 				pdu.remove_transaction_id().log_err().ok();
 			}
 
-			Some((PduCount::Normal(from), pdu))
+			Some((shorteventid, pdu))
 		})
 	}
 

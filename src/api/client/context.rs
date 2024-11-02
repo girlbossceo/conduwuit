@@ -168,12 +168,12 @@ pub(crate) async fn get_context_route(
 
 		start: events_before
 			.last()
-			.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify())
+			.map_or_else(|| base_token.to_string(), |(count, _)| count.to_string())
 			.into(),
 
 		end: events_after
 			.last()
-			.map_or_else(|| base_token.stringify(), |(count, _)| count.stringify())
+			.map_or_else(|| base_token.to_string(), |(count, _)| count.to_string())
 			.into(),
 
 		events_before: events_before

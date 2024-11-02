@@ -1,10 +1,7 @@
 mod v3;
 mod v4;
 
-use conduit::{
-	utils::{math::usize_from_u64_truncated, ReadyExt},
-	PduCount,
-};
+use conduit::{utils::ReadyExt, PduCount};
 use futures::StreamExt;
 use ruma::{RoomId, UserId};
 
@@ -12,7 +9,7 @@ pub(crate) use self::{v3::sync_events_route, v4::sync_events_v4_route};
 use crate::{service::Services, Error, PduEvent, Result};
 
 async fn load_timeline(
-	services: &Services, sender_user: &UserId, room_id: &RoomId, roomsincecount: PduCount, limit: u64,
+	services: &Services, sender_user: &UserId, room_id: &RoomId, roomsincecount: PduCount, limit: usize,
 ) -> Result<(Vec<(PduCount, PduEvent)>, bool), Error> {
 	let last_timeline_count = services
 		.rooms
@@ -29,12 +26,12 @@ async fn load_timeline(
 		.timeline
 		.pdus_until(sender_user, room_id, PduCount::max())
 		.await?
-		.ready_take_while(|(pducount, _)| pducount > &roomsincecount);
+		.ready_take_while(|(pducount, _)| *pducount > roomsincecount);
 
 	// Take the last events for the timeline
 	let timeline_pdus: Vec<_> = non_timeline_pdus
 		.by_ref()
-		.take(usize_from_u64_truncated(limit))
+		.take(limit)
 		.collect::<Vec<_>>()
 		.await
 		.into_iter()

@@ -4,8 +4,12 @@ mod count;
 mod event;
 mod event_id;
 mod filter;
+mod id;
+mod raw_id;
 mod redact;
+mod relation;
 mod strip;
+mod tests;
 mod unsigned;
 
 use std::{cmp::Ordering, sync::Arc};
@@ -21,6 +25,8 @@ pub use self::{
 	count::PduCount,
 	event::Event,
 	event_id::*,
+	id::*,
+	raw_id::*,
 };
 use crate::Result;
 

@@ -53,7 +53,7 @@ impl Data {
 			let parsed = self
 				.services
 				.state_compressor
-				.parse_compressed_state_event(compressed)
+				.parse_compressed_state_event(*compressed)
 				.await?;
 
 			result.insert(parsed.0, parsed.1);
@@ -86,7 +86,7 @@ impl Data {
 			let (_, eventid) = self
 				.services
 				.state_compressor
-				.parse_compressed_state_event(compressed)
+				.parse_compressed_state_event(*compressed)
 				.await?;
 
 			if let Ok(pdu) = self.services.timeline.get_pdu(&eventid).await {
@@ -132,7 +132,7 @@ impl Data {
 
 		self.services
 			.state_compressor
-			.parse_compressed_state_event(compressed)
+			.parse_compressed_state_event(*compressed)
 			.map_ok(|(_, id)| id)
 			.map_err(|e| {
 				err!(Database(error!(

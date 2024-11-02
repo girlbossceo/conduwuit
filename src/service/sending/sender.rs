@@ -536,7 +536,8 @@ impl Service {
 			&events
 				.iter()
 				.map(|e| match e {
-					SendingEvent::Edu(b) | SendingEvent::Pdu(b) => &**b,
+					SendingEvent::Edu(b) => &**b,
+					SendingEvent::Pdu(b) => b.as_ref(),
 					SendingEvent::Flush => &[],
 				})
 				.collect::<Vec<_>>(),
@@ -660,7 +661,8 @@ impl Service {
 			&events
 				.iter()
 				.map(|e| match e {
-					SendingEvent::Edu(b) | SendingEvent::Pdu(b) => &**b,
+					SendingEvent::Edu(b) => &**b,
+					SendingEvent::Pdu(b) => b.as_ref(),
 					SendingEvent::Flush => &[],
 				})
 				.collect::<Vec<_>>(),

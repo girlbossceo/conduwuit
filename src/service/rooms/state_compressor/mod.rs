@@ -34,25 +34,26 @@ struct Data {
 #[derive(Clone)]
 struct StateDiff {
 	parent: Option<u64>,
-	added: Arc<HashSet<CompressedStateEvent>>,
-	removed: Arc<HashSet<CompressedStateEvent>>,
+	added: Arc<CompressedState>,
+	removed: Arc<CompressedState>,
 }
 
 #[derive(Clone, Default)]
 pub struct ShortStateInfo {
 	pub shortstatehash: ShortStateHash,
-	pub full_state: Arc<HashSet<CompressedStateEvent>>,
-	pub added: Arc<HashSet<CompressedStateEvent>>,
-	pub removed: Arc<HashSet<CompressedStateEvent>>,
+	pub full_state: Arc<CompressedState>,
+	pub added: Arc<CompressedState>,
+	pub removed: Arc<CompressedState>,
 }
 
 #[derive(Clone, Default)]
 pub struct HashSetCompressStateEvent {
 	pub shortstatehash: ShortStateHash,
-	pub added: Arc<HashSet<CompressedStateEvent>>,
-	pub removed: Arc<HashSet<CompressedStateEvent>>,
+	pub added: Arc<CompressedState>,
+	pub removed: Arc<CompressedState>,
 }
 
+pub(crate) type CompressedState = HashSet<CompressedStateEvent>;
 pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 type StateInfoLruCache = LruCache<ShortStateHash, ShortStateInfoVec>;
 type ShortStateInfoVec = Vec<ShortStateInfo>;
@@ -105,7 +106,7 @@ impl Service {
 			removed,
 		} = self.get_statediff(shortstatehash).await?;
 
-		if let Some(parent) = parent {
+		let response = if let Some(parent) = parent {
 			let mut response = Box::pin(self.load_shortstatehash_info(parent)).await?;
 			let mut state = (*response.last().expect("at least one response").full_state).clone();
 			state.extend(added.iter().copied());
@@ -121,27 +122,22 @@ impl Service {
 				removed: Arc::new(removed),
 			});
 
-			self.stateinfo_cache
-				.lock()
-				.expect("locked")
-				.insert(shortstatehash, response.clone());
-
-			Ok(response)
+			response
 		} else {
-			let response = vec![ShortStateInfo {
+			vec![ShortStateInfo {
 				shortstatehash,
 				full_state: added.clone(),
 				added,
 				removed,
-			}];
+			}]
+		};
 
-			self.stateinfo_cache
-				.lock()
-				.expect("locked")
-				.insert(shortstatehash, response.clone());
+		self.stateinfo_cache
+			.lock()
+			.expect("locked")
+			.insert(shortstatehash, response.clone());
 
-			Ok(response)
-		}
+		Ok(response)
 	}
 
 	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
@@ -161,7 +157,7 @@ impl Service {
 	/// Returns shortstatekey, event id
 	#[inline]
 	pub async fn parse_compressed_state_event(
-		&self, compressed_event: &CompressedStateEvent,
+		&self, compressed_event: CompressedStateEvent,
 	) -> Result<(ShortStateKey, Arc<EventId>)> {
 		use utils::u64_from_u8;
 

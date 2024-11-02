@@ -35,7 +35,10 @@ use ruma::{
 
 use crate::{
 	globals, rooms,
-	rooms::state_compressor::{CompressedStateEvent, HashSetCompressStateEvent},
+	rooms::{
+		state_compressor::{CompressedStateEvent, HashSetCompressStateEvent},
+		timeline::RawPduId,
+	},
 	sending, server_keys, Dep,
 };
 
@@ -136,10 +139,10 @@ impl Service {
 	pub async fn handle_incoming_pdu<'a>(
 		&self, origin: &'a ServerName, room_id: &'a RoomId, event_id: &'a EventId,
 		value: BTreeMap<String, CanonicalJsonValue>, is_timeline_event: bool,
-	) -> Result<Option<Vec<u8>>> {
+	) -> Result<Option<RawPduId>> {
 		// 1. Skip the PDU if we already have it as a timeline event
 		if let Ok(pdu_id) = self.services.timeline.get_pdu_id(event_id).await {
-			return Ok(Some(pdu_id.to_vec()));
+			return Ok(Some(pdu_id));
 		}
 
 		// 1.1 Check the server is in the room
@@ -488,7 +491,7 @@ impl Service {
 	pub async fn upgrade_outlier_to_timeline_pdu(
 		&self, incoming_pdu: Arc<PduEvent>, val: BTreeMap<String, CanonicalJsonValue>, create_event: &PduEvent,
 		origin: &ServerName, room_id: &RoomId,
-	) -> Result<Option<Vec<u8>>> {
+	) -> Result<Option<RawPduId>> {
 		// Skip the PDU if we already have it as a timeline event
 		if let Ok(pduid) = self
 			.services
@@ -496,7 +499,7 @@ impl Service {
 			.get_pdu_id(&incoming_pdu.event_id)
 			.await
 		{
-			return Ok(Some(pduid.to_vec()));
+			return Ok(Some(pduid));
 		}
 
 		if self
