@@ -2,14 +2,14 @@ use std::fmt::Debug;
 
 use super::Result;
 
-pub trait MapExpect<T> {
+pub trait MapExpect<'a, T> {
 	/// Calls expect(msg) on the mapped Result value. This is similar to
 	/// map(Result::unwrap) but composes an expect call and message without
 	/// requiring a closure.
-	fn map_expect(self, msg: &str) -> Option<T>;
+	fn map_expect(self, msg: &'a str) -> T;
 }
 
-impl<T, E: Debug> MapExpect<T> for Option<Result<T, E>> {
+impl<'a, T, E: Debug> MapExpect<'a, Option<T>> for Option<Result<T, E>> {
 	#[inline]
-	fn map_expect(self, msg: &str) -> Option<T> { self.map(|result| result.expect(msg)) }
+	fn map_expect(self, msg: &'a str) -> Option<T> { self.map(|result| result.expect(msg)) }
 }
