@@ -96,6 +96,7 @@ dockerTools.buildImage {
     Env = [
       "SSL_CERT_FILE=/complement/ca/ca.crt"
       "CONDUWUIT_CONFIG=${./config.toml}"
+      "RUST_BACKTRACE=full"
     ];
 
     ExposedPorts = {

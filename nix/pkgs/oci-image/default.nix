@@ -24,5 +24,8 @@ dockerTools.buildLayeredImage {
     Cmd = [
       "${lib.getExe main}"
     ];
+    Env = [
+      "RUST_BACKTRACE=full"
+    ];
   };
 }
