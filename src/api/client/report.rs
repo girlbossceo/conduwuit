@@ -33,9 +33,17 @@ pub(crate) async fn report_room_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	info!(
-		"Received room report by user {sender_user} for room {} with reason: {:?}",
-		body.room_id, body.reason
+		"Received room report by user {sender_user} for room {} with reason: \"{}\"",
+		body.room_id,
+		body.reason.as_deref().unwrap_or("")
 	);
+
+	if body.reason.as_ref().is_some_and(|s| s.len() > 750) {
+		return Err(Error::BadRequest(
+			ErrorKind::InvalidParam,
+			"Reason too long, should be 750 characters or fewer",
+		));
+	};
 
 	delay_response().await;
 
@@ -49,13 +57,6 @@ pub(crate) async fn report_room_route(
 			"Room does not exist to us, no local users have joined at all"
 		)));
 	}
-
-	if body.reason.as_ref().is_some_and(|s| s.len() > 750) {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Reason too long, should be 750 characters or fewer",
-		));
-	};
 
 	// send admin room message that we received the report with an @room ping for
 	// urgency
@@ -85,8 +86,10 @@ pub(crate) async fn report_event_route(
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	info!(
-		"Received event report by user {sender_user} for room {} and event ID {}, with reason: {:?}",
-		body.room_id, body.event_id, body.reason
+		"Received event report by user {sender_user} for room {} and event ID {}, with reason: \"{}\"",
+		body.room_id,
+		body.event_id,
+		body.reason.as_deref().unwrap_or("")
 	);
 
 	delay_response().await;

@@ -100,8 +100,8 @@ pub(crate) async fn register_route(
 	if !services.globals.allow_registration() && body.appservice_info.is_none() {
 		info!(
 			"Registration disabled and request not from known appservice, rejecting registration attempt for username \
-			 {:?}",
-			body.username
+			 \"{}\"",
+			body.username.as_deref().unwrap_or("")
 		);
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration has been disabled."));
 	}
@@ -114,8 +114,8 @@ pub(crate) async fn register_route(
 	{
 		info!(
 			"Guest registration disabled / registration enabled with token configured, rejecting guest registration \
-			 attempt, initial device name: {:?}",
-			body.initial_device_display_name
+			 attempt, initial device name: \"{}\"",
+			body.initial_device_display_name.as_deref().unwrap_or("")
 		);
 		return Err(Error::BadRequest(
 			ErrorKind::GuestAccessForbidden,
@@ -128,8 +128,8 @@ pub(crate) async fn register_route(
 	if is_guest && services.users.count().await < 2 {
 		warn!(
 			"Guest account attempted to register before a real admin user has been registered, rejecting \
-			 registration. Guest's initial device name: {:?}",
-			body.initial_device_display_name
+			 registration. Guest's initial device name: \"{}\"",
+			body.initial_device_display_name.as_deref().unwrap_or("")
 		);
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration temporarily disabled."));
 	}
@@ -312,12 +312,14 @@ pub(crate) async fn register_route(
 
 	debug_info!(%user_id, %device_id, "User account was created");
 
-	let device_display_name = body.initial_device_display_name.clone().unwrap_or_default();
+	let device_display_name = body.initial_device_display_name.as_deref().unwrap_or("");
 
 	// log in conduit admin channel if a non-guest user registered
 	if body.appservice_info.is_none() && !is_guest {
 		if !device_display_name.is_empty() {
-			info!("New user \"{user_id}\" registered on this server with device display name: {device_display_name}");
+			info!(
+				"New user \"{user_id}\" registered on this server with device display name: \"{device_display_name}\""
+			);
 
 			if services.globals.config.admin_room_notices {
 				services
