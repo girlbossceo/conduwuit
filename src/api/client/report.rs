@@ -180,7 +180,7 @@ async fn is_event_report_valid(
 /// random delay sending a response per spec suggestion regarding
 /// enumerating for potential events existing in our server.
 async fn delay_response() {
-	let time_to_wait = rand::thread_rng().gen_range(3..10);
+	let time_to_wait = rand::thread_rng().gen_range(2..5);
 	debug_info!("Got successful /report request, waiting {time_to_wait} seconds before sending successful response.");
 	sleep(Duration::from_secs(time_to_wait)).await;
 }
