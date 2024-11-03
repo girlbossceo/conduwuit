@@ -4,7 +4,7 @@ mod panic;
 mod response;
 mod serde;
 
-use std::{any::Any, borrow::Cow, convert::Infallible, fmt};
+use std::{any::Any, borrow::Cow, convert::Infallible, fmt, sync::PoisonError};
 
 pub use self::log::*;
 use crate::error;
@@ -59,6 +59,8 @@ pub enum Error {
 	JsTryFromInt(#[from] ruma::JsTryFromIntError), // js_int re-export
 	#[error(transparent)]
 	Path(#[from] axum::extract::rejection::PathRejection),
+	#[error("Mutex poisoned: {0}")]
+	Poison(Cow<'static, str>),
 	#[error("Regex error: {0}")]
 	Regex(#[from] regex::Error),
 	#[error("Request error: {0}")]
@@ -182,6 +184,12 @@ impl Error {
 
 impl fmt::Debug for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.message()) }
+}
+
+impl<T> From<PoisonError<T>> for Error {
+	#[cold]
+	#[inline(never)]
+	fn from(e: PoisonError<T>) -> Self { Self::Poison(e.to_string().into()) }
 }
 
 #[allow(clippy::fallible_impl_from)]

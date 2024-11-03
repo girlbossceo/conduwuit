@@ -26,6 +26,7 @@ impl axum::response::IntoResponse for Error {
 }
 
 impl From<Error> for UiaaResponse {
+	#[inline]
 	fn from(error: Error) -> Self {
 		if let Error::Uiaa(uiaainfo) = error {
 			return Self::AuthResponse(uiaainfo);

@@ -2001,6 +2001,7 @@ fn default_rocksdb_stats_level() -> u8 { 1 }
 
 // I know, it's a great name
 #[must_use]
+#[inline]
 pub fn default_default_room_version() -> RoomVersionId { RoomVersionId::V10 }
 
 fn default_ip_range_denylist() -> Vec<String> {

@@ -137,6 +137,7 @@ macro_rules! err_log {
 		let visit = &mut |vs: ValueSet<'_>| {
 			struct Visitor<'a>(&'a mut String);
 			impl Visit for Visitor<'_> {
+				#[inline]
 				fn record_debug(&mut self, field: &Field, val: &dyn fmt::Debug) {
 					if field.name() == "message" {
 						write!(self.0, "{:?}", val).expect("stream error");
