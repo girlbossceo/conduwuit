@@ -48,10 +48,19 @@ pub(crate) async fn get_register_available_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_username_availability::v3::Request>,
 ) -> Result<get_username_availability::v3::Response> {
+	// workaround for https://github.com/matrix-org/matrix-appservice-irc/issues/1780 due to inactivity of fixing the issue
+	let is_matrix_appservice_irc = body.appservice_info.as_ref().is_some_and(|appservice| {
+		appservice.registration.id == "irc"
+			|| appservice.registration.id.contains("matrix-appservice-irc")
+			|| appservice.registration.id.contains("matrix_appservice_irc")
+	});
+
 	// Validate user id
 	let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), services.globals.server_name())
 		.ok()
-		.filter(|user_id| !user_id.is_historical() && services.globals.user_is_local(user_id))
+		.filter(|user_id| {
+			(!user_id.is_historical() || is_matrix_appservice_irc) && services.globals.user_is_local(user_id)
+		})
 		.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 	// Check if username is creative enough
@@ -134,12 +143,22 @@ pub(crate) async fn register_route(
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration temporarily disabled."));
 	}
 
+	// workaround for https://github.com/matrix-org/matrix-appservice-irc/issues/1780 due to inactivity of fixing the issue
+	let is_matrix_appservice_irc = body.appservice_info.as_ref().is_some_and(|appservice| {
+		appservice.registration.id == "irc"
+			|| appservice.registration.id.contains("matrix-appservice-irc")
+			|| appservice.registration.id.contains("matrix_appservice_irc")
+	});
+
 	let user_id = match (&body.username, is_guest) {
 		(Some(username), false) => {
 			let proposed_user_id =
 				UserId::parse_with_server_name(username.to_lowercase(), services.globals.server_name())
 					.ok()
-					.filter(|user_id| !user_id.is_historical() && services.globals.user_is_local(user_id))
+					.filter(|user_id| {
+						(!user_id.is_historical() || is_matrix_appservice_irc)
+							&& services.globals.user_is_local(user_id)
+					})
 					.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 			if services.users.exists(&proposed_user_id).await {
