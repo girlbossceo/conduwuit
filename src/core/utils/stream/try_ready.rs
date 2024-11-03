@@ -24,7 +24,7 @@ where
 		self, f: F,
 	) -> TryForEach<Self, Ready<Result<(), E>>, impl FnMut(S::Ok) -> Ready<Result<(), E>>>
 	where
-		F: Fn(S::Ok) -> Result<(), E>;
+		F: FnMut(S::Ok) -> Result<(), E>;
 }
 
 impl<T, E, S> TryReadyExt<T, E, S> for S
@@ -42,10 +42,10 @@ where
 
 	#[inline]
 	fn ready_try_for_each<F>(
-		self, f: F,
+		self, mut f: F,
 	) -> TryForEach<Self, Ready<Result<(), E>>, impl FnMut(S::Ok) -> Ready<Result<(), E>>>
 	where
-		F: Fn(S::Ok) -> Result<(), E>,
+		F: FnMut(S::Ok) -> Result<(), E>,
 	{
 		self.try_for_each(move |t| ready(f(t)))
 	}
