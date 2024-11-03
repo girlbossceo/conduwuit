@@ -398,23 +398,28 @@ pub(crate) async fn register_route(
 		&& (services.globals.allow_guests_auto_join_rooms() || !is_guest)
 	{
 		for room in &services.globals.config.auto_join_rooms {
+			let Ok(room_id) = services.rooms.alias.resolve(room).await else {
+				error!("Failed to resolve room alias to room ID when attempting to auto join {room}, skipping");
+				continue;
+			};
+
 			if !services
 				.rooms
 				.state_cache
-				.server_in_room(services.globals.server_name(), room)
+				.server_in_room(services.globals.server_name(), &room_id)
 				.await
 			{
 				warn!("Skipping room {room} to automatically join as we have never joined before.");
 				continue;
 			}
 
-			if let Some(room_id_server_name) = room.server_name() {
+			if let Some(room_server_name) = room.server_name() {
 				if let Err(e) = join_room_by_id_helper(
 					&services,
 					&user_id,
-					room,
+					&room_id,
 					Some("Automatically joining this room upon registration".to_owned()),
-					&[room_id_server_name.to_owned(), services.globals.server_name().to_owned()],
+					&[services.globals.server_name().to_owned(), room_server_name.to_owned()],
 					None,
 					&body.appservice_info,
 				)

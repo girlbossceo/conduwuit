@@ -108,24 +108,29 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 
 	if !self.services.globals.config.auto_join_rooms.is_empty() {
 		for room in &self.services.globals.config.auto_join_rooms {
+			let Ok(room_id) = self.services.rooms.alias.resolve(room).await else {
+				error!(%user_id, "Failed to resolve room alias to room ID when attempting to auto join {room}, skipping");
+				continue;
+			};
+
 			if !self
 				.services
 				.rooms
 				.state_cache
-				.server_in_room(self.services.globals.server_name(), room)
+				.server_in_room(self.services.globals.server_name(), &room_id)
 				.await
 			{
 				warn!("Skipping room {room} to automatically join as we have never joined before.");
 				continue;
 			}
 
-			if let Some(room_id_server_name) = room.server_name() {
+			if let Some(room_server_name) = room.server_name() {
 				match join_room_by_id_helper(
 					self.services,
 					&user_id,
-					room,
+					&room_id,
 					Some("Automatically joining this room upon registration".to_owned()),
-					&[room_id_server_name.to_owned(), self.services.globals.server_name().to_owned()],
+					&[self.services.globals.server_name().to_owned(), room_server_name.to_owned()],
 					None,
 					&None,
 				)
@@ -135,6 +140,13 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 						info!("Automatically joined room {room} for user {user_id}");
 					},
 					Err(e) => {
+						self.services
+							.admin
+							.send_message(RoomMessageEventContent::text_plain(format!(
+								"Failed to automatically join room {room} for user {user_id}: {e}"
+							)))
+							.await
+							.ok();
 						// don't return this error so we don't fail registrations
 						error!("Failed to automatically join room {room} for user {user_id}: {e}");
 					},

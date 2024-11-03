@@ -18,7 +18,8 @@ pub use figment::{value::Value as FigmentValue, Figment};
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{
-	api::client::discovery::discover_support::ContactRole, OwnedRoomId, OwnedServerName, OwnedUserId, RoomVersionId,
+	api::client::discovery::discover_support::ContactRole, OwnedRoomOrAliasId, OwnedServerName, OwnedUserId,
+	RoomVersionId,
 };
 use serde::{de::IgnoredAny, Deserialize};
 use url::Url;
@@ -653,13 +654,13 @@ pub struct Config {
 	#[serde(default = "default_turn_ttl")]
 	pub turn_ttl: u64,
 
-	/// List/vector of room **IDs** that conduwuit will make newly registered
-	/// users join. The room IDs specified must be rooms that you have joined
-	/// at least once on the server, and must be public.
+	/// List/vector of room IDs or room aliases that conduwuit will make newly
+	/// registered users join. The rooms specified must be rooms that you
+	/// have joined at least once on the server, and must be public.
 	///
 	/// No default.
 	#[serde(default = "Vec::new")]
-	pub auto_join_rooms: Vec<OwnedRoomId>,
+	pub auto_join_rooms: Vec<OwnedRoomOrAliasId>,
 
 	/// Config option to automatically deactivate the account of any user who
 	/// attempts to join a:
