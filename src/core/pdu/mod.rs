@@ -2,8 +2,8 @@ mod builder;
 mod content;
 mod count;
 mod event;
+mod event_id;
 mod filter;
-mod id;
 mod redact;
 mod strip;
 mod unsigned;
@@ -20,7 +20,7 @@ pub use self::{
 	builder::{Builder, Builder as PduBuilder},
 	count::PduCount,
 	event::Event,
-	id::*,
+	event_id::*,
 };
 use crate::Result;
 
