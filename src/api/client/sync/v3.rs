@@ -28,7 +28,7 @@ use ruma::{
 	events::{
 		presence::PresenceEvent,
 		room::member::{MembershipState, RoomMemberEventContent},
-		AnyRawAccountDataEvent, StateEventType,
+		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType,
 		TimelineEventType::*,
 	},
 	serde::Raw,
@@ -983,19 +983,21 @@ async fn load_joined_room(
 		.collect()
 		.await;
 
-	let mut edus: Vec<_> = services
+	let edus: HashMap<OwnedUserId, Raw<AnySyncEphemeralRoomEvent>> = services
 		.rooms
 		.read_receipt
 		.readreceipts_since(room_id, since)
-		.filter_map(|(read_user, _, v)| async move {
-			(!services
+		.filter_map(|(read_user, _, edu)| async move {
+			services
 				.users
 				.user_is_ignored(&read_user, sender_user)
-				.await)
-				.then_some(v)
+				.await
+				.or_some((read_user, edu))
 		})
 		.collect()
 		.await;
+
+	let mut edus: Vec<Raw<AnySyncEphemeralRoomEvent>> = edus.into_values().collect();
 
 	if services.rooms.typing.last_typing_update(room_id).await? > since {
 		edus.push(
