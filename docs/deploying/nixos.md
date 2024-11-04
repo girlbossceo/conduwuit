@@ -39,6 +39,15 @@ The `flake.nix` and `default.nix` do not currently provide a NixOS module (contr
 welcome!), so [`services.matrix-conduit`][module] from Nixpkgs can be used to configure
 conduwuit.
 
+### Conduit NixOS Config Module and SQLite
+
+Beware! The [`services.matrix-conduit`][module] module defaults to SQLite as a database backend.
+Conduwuit dropped SQLite support in favor of exclusively supporting the much faster RocksDB.
+Make sure that you are using the RocksDB backend before migrating!
+
+There is a [tool to  migrate a Conduit SQLite database to
+RocksDB](https://github.com/ShadowJonathan/conduit_toolbox/).
+
 If you want to run the latest code, you should get conduwuit from the `flake.nix`
 or `default.nix` and set [`services.matrix-conduit.package`][package]
 appropriately to use conduwuit instead of Conduit.
