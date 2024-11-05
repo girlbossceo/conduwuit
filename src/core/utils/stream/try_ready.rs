@@ -3,7 +3,7 @@
 
 use futures::{
 	future::{ready, Ready},
-	stream::{AndThen, TryForEach, TryStream, TryStreamExt},
+	stream::{AndThen, TryFold, TryForEach, TryStream, TryStreamExt},
 };
 
 use crate::Result;
@@ -25,6 +25,19 @@ where
 	) -> TryForEach<Self, Ready<Result<(), E>>, impl FnMut(S::Ok) -> Ready<Result<(), E>>>
 	where
 		F: FnMut(S::Ok) -> Result<(), E>;
+
+	fn ready_try_fold<U, F>(
+		self, init: U, f: F,
+	) -> TryFold<Self, Ready<Result<U, E>>, U, impl FnMut(U, S::Ok) -> Ready<Result<U, E>>>
+	where
+		F: Fn(U, S::Ok) -> Result<U, E>;
+
+	fn ready_try_fold_default<U, F>(
+		self, f: F,
+	) -> TryFold<Self, Ready<Result<U, E>>, U, impl FnMut(U, S::Ok) -> Ready<Result<U, E>>>
+	where
+		F: Fn(U, S::Ok) -> Result<U, E>,
+		U: Default;
 }
 
 impl<T, E, S> TryReadyExt<T, E, S> for S
@@ -48,5 +61,26 @@ where
 		F: FnMut(S::Ok) -> Result<(), E>,
 	{
 		self.try_for_each(move |t| ready(f(t)))
+	}
+
+	#[inline]
+	fn ready_try_fold<U, F>(
+		self, init: U, f: F,
+	) -> TryFold<Self, Ready<Result<U, E>>, U, impl FnMut(U, S::Ok) -> Ready<Result<U, E>>>
+	where
+		F: Fn(U, S::Ok) -> Result<U, E>,
+	{
+		self.try_fold(init, move |a, t| ready(f(a, t)))
+	}
+
+	#[inline]
+	fn ready_try_fold_default<U, F>(
+		self, f: F,
+	) -> TryFold<Self, Ready<Result<U, E>>, U, impl FnMut(U, S::Ok) -> Ready<Result<U, E>>>
+	where
+		F: Fn(U, S::Ok) -> Result<U, E>,
+		U: Default,
+	{
+		self.ready_try_fold(U::default(), f)
 	}
 }

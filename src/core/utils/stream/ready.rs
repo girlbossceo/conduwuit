@@ -32,6 +32,11 @@ where
 	where
 		F: Fn(T, Item) -> T;
 
+	fn ready_fold_default<T, F>(self, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
+	where
+		F: Fn(T, Item) -> T,
+		T: Default;
+
 	fn ready_for_each<F>(self, f: F) -> ForEach<Self, Ready<()>, impl FnMut(Item) -> Ready<()>>
 	where
 		F: FnMut(Item);
@@ -94,6 +99,15 @@ where
 	}
 
 	#[inline]
+	fn ready_fold_default<T, F>(self, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
+	where
+		F: Fn(T, Item) -> T,
+		T: Default,
+	{
+		self.ready_fold(T::default(), f)
+	}
+
+	#[inline]
 	#[allow(clippy::unit_arg)]
 	fn ready_for_each<F>(self, mut f: F) -> ForEach<Self, Ready<()>, impl FnMut(Item) -> Ready<()>>
 	where
@@ -120,6 +134,7 @@ where
 		self.scan(init, move |s, t| ready(f(s, t)))
 	}
 
+	#[inline]
 	fn ready_scan_each<T, F>(
 		self, init: T, f: F,
 	) -> Scan<Self, T, Ready<Option<Item>>, impl FnMut(&mut T, Item) -> Ready<Option<Item>>>

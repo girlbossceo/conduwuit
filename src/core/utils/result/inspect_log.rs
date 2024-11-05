@@ -11,6 +11,7 @@ where
 {
 	fn log_err(self, level: Level) -> Self;
 
+	#[inline]
 	fn err_log(self) -> Self
 	where
 		Self: Sized,
@@ -25,6 +26,7 @@ where
 {
 	fn log_err_debug(self, level: Level) -> Self;
 
+	#[inline]
 	fn err_debug_log(self) -> Self
 	where
 		Self: Sized,
