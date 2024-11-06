@@ -51,7 +51,7 @@ pub(crate) async fn get_backfill_route(
 	let pdus = services
 		.rooms
 		.timeline
-		.pdus_until(user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)
+		.pdus_rev(user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)
 		.await?
 		.take(limit)
 		.filter_map(|(_, pdu)| async move {

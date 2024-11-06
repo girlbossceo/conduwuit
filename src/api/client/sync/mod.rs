@@ -24,7 +24,7 @@ async fn load_timeline(
 	let mut non_timeline_pdus = services
 		.rooms
 		.timeline
-		.pdus_until(sender_user, room_id, PduCount::max())
+		.pdus_rev(sender_user, room_id, PduCount::max())
 		.await?
 		.ready_take_while(|(pducount, _)| *pducount > roomsincecount);
 

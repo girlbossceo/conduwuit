@@ -62,7 +62,7 @@ impl Data {
 		{
 			hash_map::Entry::Occupied(o) => Ok(*o.get()),
 			hash_map::Entry::Vacant(v) => Ok(self
-				.pdus_until(sender_user, room_id, PduCount::max())
+				.pdus_rev(sender_user, room_id, PduCount::max())
 				.await?
 				.next()
 				.await
@@ -201,10 +201,10 @@ impl Data {
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
-	pub(super) async fn pdus_until<'a>(
+	pub(super) async fn pdus_rev<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		let current = self.count_to_id(room_id, until, true).await?;
+		let current = self.count_to_id(room_id, until).await?;
 		let prefix = current.shortroomid();
 		let stream = self
 			.pduid_pdu
@@ -216,10 +216,10 @@ impl Data {
 		Ok(stream)
 	}
 
-	pub(super) async fn pdus_after<'a>(
+	pub(super) async fn pdus<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, from: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		let current = self.count_to_id(room_id, from, false).await?;
+		let current = self.count_to_id(room_id, from).await?;
 		let prefix = current.shortroomid();
 		let stream = self
 			.pduid_pdu
@@ -266,7 +266,7 @@ impl Data {
 		}
 	}
 
-	async fn count_to_id(&self, room_id: &RoomId, count: PduCount, subtract: bool) -> Result<RawPduId> {
+	async fn count_to_id(&self, room_id: &RoomId, shorteventid: PduCount) -> Result<RawPduId> {
 		let shortroomid: ShortRoomId = self
 			.services
 			.short
@@ -277,11 +277,7 @@ impl Data {
 		// +1 so we don't send the base event
 		let pdu_id = PduId {
 			shortroomid,
-			shorteventid: if subtract {
-				count.checked_sub(1)?
-			} else {
-				count.checked_add(1)?
-			},
+			shorteventid,
 		};
 
 		Ok(pdu_id.into())

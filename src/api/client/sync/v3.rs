@@ -6,7 +6,7 @@ use std::{
 
 use axum::extract::State;
 use conduit::{
-	err, error, extract_variant, is_equal_to,
+	at, err, error, extract_variant, is_equal_to,
 	result::FlatOk,
 	utils::{math::ruma_from_u64, BoolExt, IterStream, ReadyExt, TryFutureExtExt},
 	PduCount,
@@ -945,15 +945,10 @@ async fn load_joined_room(
 
 	let prev_batch = timeline_pdus
 		.first()
-		.map_or(Ok::<_, Error>(None), |(pdu_count, _)| {
-			Ok(Some(match pdu_count {
-				PduCount::Backfilled(_) => {
-					error!("timeline in backfill state?!");
-					"0".to_owned()
-				},
-				PduCount::Normal(c) => c.to_string(),
-			}))
-		})?;
+		.map(at!(0))
+		.map(|count| count.saturating_sub(1))
+		.as_ref()
+		.map(ToString::to_string);
 
 	let room_events: Vec<_> = timeline_pdus
 		.iter()

@@ -100,14 +100,14 @@ pub(crate) async fn get_message_events_route(
 		Direction::Forward => services
 			.rooms
 			.timeline
-			.pdus_after(sender_user, room_id, from)
+			.pdus(sender_user, room_id, from)
 			.await?
 			.boxed(),
 
 		Direction::Backward => services
 			.rooms
 			.timeline
-			.pdus_until(sender_user, room_id, from)
+			.pdus_rev(sender_user, room_id, from)
 			.await?
 			.boxed(),
 	};
@@ -136,7 +136,12 @@ pub(crate) async fn get_message_events_route(
 		.collect()
 		.await;
 
-	let next_token = events.last().map(|(count, _)| count).copied();
+	let start_token = events.first().map(at!(0)).unwrap_or(from);
+
+	let next_token = events
+		.last()
+		.map(at!(0))
+		.map(|count| count.saturating_inc(body.dir));
 
 	if !cfg!(feature = "element_hacks") {
 		if let Some(next_token) = next_token {
@@ -154,8 +159,8 @@ pub(crate) async fn get_message_events_route(
 		.collect();
 
 	Ok(get_message_events::v3::Response {
-		start: from.to_string(),
-		end: next_token.as_ref().map(PduCount::to_string),
+		start: start_token.to_string(),
+		end: next_token.as_ref().map(ToString::to_string),
 		chunk,
 		state,
 	})

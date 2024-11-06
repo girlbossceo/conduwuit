@@ -2,6 +2,8 @@
 
 use std::{cmp::Ordering, fmt, fmt::Display, str::FromStr};
 
+use ruma::api::Direction;
+
 use crate::{err, Error, Result};
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -55,6 +57,14 @@ impl PduCount {
 	}
 
 	#[inline]
+	pub fn checked_inc(self, dir: Direction) -> Result<Self, Error> {
+		match dir {
+			Direction::Forward => self.checked_add(1),
+			Direction::Backward => self.checked_sub(1),
+		}
+	}
+
+	#[inline]
 	pub fn checked_add(self, add: u64) -> Result<Self, Error> {
 		Ok(match self {
 			Self::Normal(i) => Self::Normal(
@@ -80,6 +90,15 @@ impl PduCount {
 					.ok_or_else(|| err!(Arithmetic("PduCount::Backfilled underflow")))?,
 			),
 		})
+	}
+
+	#[inline]
+	#[must_use]
+	pub fn saturating_inc(self, dir: Direction) -> Self {
+		match dir {
+			Direction::Forward => self.saturating_add(1),
+			Direction::Backward => self.saturating_sub(1),
+		}
 	}
 
 	#[inline]

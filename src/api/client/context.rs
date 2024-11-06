@@ -2,7 +2,7 @@ use std::iter::once;
 
 use axum::extract::State;
 use conduit::{
-	err, error,
+	at, err, error,
 	utils::{future::TryExtExt, stream::ReadyExt, IterStream},
 	Err, Result,
 };
@@ -82,7 +82,7 @@ pub(crate) async fn get_context_route(
 	let events_before: Vec<_> = services
 		.rooms
 		.timeline
-		.pdus_until(sender_user, room_id, base_token)
+		.pdus_rev(sender_user, room_id, base_token.saturating_sub(1))
 		.await?
 		.ready_filter_map(|item| event_filter(item, filter))
 		.filter_map(|item| ignored_filter(&services, item, sender_user))
@@ -94,7 +94,7 @@ pub(crate) async fn get_context_route(
 	let events_after: Vec<_> = services
 		.rooms
 		.timeline
-		.pdus_after(sender_user, room_id, base_token)
+		.pdus(sender_user, room_id, base_token.saturating_add(1))
 		.await?
 		.ready_filter_map(|item| event_filter(item, filter))
 		.filter_map(|item| ignored_filter(&services, item, sender_user))
@@ -168,22 +168,28 @@ pub(crate) async fn get_context_route(
 
 		start: events_before
 			.last()
-			.map_or_else(|| base_token.to_string(), |(count, _)| count.to_string())
-			.into(),
+			.map(at!(0))
+			.map(|count| count.saturating_sub(1))
+			.as_ref()
+			.map(ToString::to_string),
 
 		end: events_after
 			.last()
-			.map_or_else(|| base_token.to_string(), |(count, _)| count.to_string())
-			.into(),
+			.map(at!(0))
+			.map(|count| count.saturating_add(1))
+			.as_ref()
+			.map(ToString::to_string),
 
 		events_before: events_before
 			.into_iter()
-			.map(|(_, pdu)| pdu.to_room_event())
+			.map(at!(1))
+			.map(|pdu| pdu.to_room_event())
 			.collect(),
 
 		events_after: events_after
 			.into_iter()
-			.map(|(_, pdu)| pdu.to_room_event())
+			.map(at!(1))
+			.map(|pdu| pdu.to_room_event())
 			.collect(),
 
 		state,

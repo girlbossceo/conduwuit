@@ -177,7 +177,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
-		self.pdus_until(user_id!("@placeholder:conduwuit.placeholder"), room_id, PduCount::max())
+		self.pdus_rev(user_id!("@placeholder:conduwuit.placeholder"), room_id, PduCount::max())
 			.await?
 			.next()
 			.await
@@ -976,26 +976,23 @@ impl Service {
 	pub async fn all_pdus<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.pdus_after(user_id, room_id, PduCount::min()).await
+		self.pdus(user_id, room_id, PduCount::min()).await
 	}
 
-	/// Returns an iterator over all events and their tokens in a room that
-	/// happened before the event with id `until` in reverse-chronological
-	/// order.
+	/// Reverse iteration starting at from.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn pdus_until<'a>(
+	pub async fn pdus_rev<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.db.pdus_until(user_id, room_id, until).await
+		self.db.pdus_rev(user_id, room_id, until).await
 	}
 
-	/// Returns an iterator over all events and their token in a room that
-	/// happened after the event with id `from` in chronological order.
+	/// Forward iteration starting at from.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn pdus_after<'a>(
+	pub async fn pdus<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId, from: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.db.pdus_after(user_id, room_id, from).await
+		self.db.pdus(user_id, room_id, from).await
 	}
 
 	/// Replace a PDU with the redacted form.

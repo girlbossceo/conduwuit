@@ -150,10 +150,7 @@ async fn paginate_relations_with_filter(
 		Direction::Backward => events.first(),
 	}
 	.map(at!(0))
-	.map(|count| match dir {
-		Direction::Forward => count.saturating_add(1),
-		Direction::Backward => count.saturating_sub(1),
-	})
+	.map(|count| count.saturating_inc(dir))
 	.as_ref()
 	.map(ToString::to_string);
 
