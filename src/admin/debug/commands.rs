@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduit::{debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
@@ -246,6 +246,7 @@ pub(super) async fn get_remote_pdu(
 				.rooms
 				.timeline
 				.backfill_pdu(&server, response.pdu)
+				.boxed()
 				.await?;
 
 			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");

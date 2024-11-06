@@ -1,3 +1,5 @@
+#![allow(clippy::toplevel_ref_arg)]
+
 pub mod client;
 pub mod router;
 pub mod server;

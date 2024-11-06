@@ -374,7 +374,9 @@ pub(crate) async fn invite_user_route(
 			return Ok(invite_user::v3::Response {});
 		}
 
-		invite_helper(&services, sender_user, user_id, &body.room_id, body.reason.clone(), false).await?;
+		invite_helper(&services, sender_user, user_id, &body.room_id, body.reason.clone(), false)
+			.boxed()
+			.await?;
 		Ok(invite_user::v3::Response {})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))

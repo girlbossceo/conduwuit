@@ -244,6 +244,11 @@ impl Service {
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
 	pub async fn get_pdu(&self, event_id: &EventId) -> Result<Arc<PduEvent>> { self.db.get_pdu(event_id).await }
 
+	/// Returns the pdu.
+	///
+	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+	pub async fn get_pdu_owned(&self, event_id: &EventId) -> Result<PduEvent> { self.db.get_pdu_owned(event_id).await }
+
 	/// Checks if pdu exists
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
@@ -885,6 +890,7 @@ impl Service {
 				vec![(*pdu.event_id).to_owned()],
 				state_lock,
 			)
+			.boxed()
 			.await?;
 
 		// We set the room state after inserting the pdu, so that we never have a moment
@@ -1104,7 +1110,7 @@ impl Service {
 			match response {
 				Ok(response) => {
 					for pdu in response.pdus {
-						if let Err(e) = self.backfill_pdu(backfill_server, pdu).await {
+						if let Err(e) = self.backfill_pdu(backfill_server, pdu).boxed().await {
 							warn!("Failed to add backfilled pdu in room {room_id}: {e}");
 						}
 					}

@@ -123,15 +123,18 @@ impl Data {
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
 	pub(super) async fn get_pdu(&self, event_id: &EventId) -> Result<Arc<PduEvent>> {
+		self.get_pdu_owned(event_id).await.map(Arc::new)
+	}
+
+	/// Returns the pdu.
+	///
+	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+	pub(super) async fn get_pdu_owned(&self, event_id: &EventId) -> Result<PduEvent> {
 		if let Ok(pdu) = self.get_non_outlier_pdu(event_id).await {
-			return Ok(Arc::new(pdu));
+			return Ok(pdu);
 		}
 
-		self.eventid_outlierpdu
-			.get(event_id)
-			.await
-			.deserialized()
-			.map(Arc::new)
+		self.eventid_outlierpdu.get(event_id).await.deserialized()
 	}
 
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and

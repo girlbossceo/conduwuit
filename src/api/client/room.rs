@@ -2,7 +2,7 @@ use std::{cmp::max, collections::BTreeMap};
 
 use axum::extract::State;
 use conduit::{debug_info, debug_warn, err, Err};
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -486,34 +486,28 @@ pub(crate) async fn create_room_route(
 /// - You have to currently be joined to the room (TODO: Respect history
 ///   visibility)
 pub(crate) async fn get_room_event_route(
-	State(services): State<crate::State>, body: Ruma<get_room_event::v3::Request>,
+	State(services): State<crate::State>, ref body: Ruma<get_room_event::v3::Request>,
 ) -> Result<get_room_event::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	let event = services
-		.rooms
-		.timeline
-		.get_pdu(&body.event_id)
-		.await
-		.map_err(|_| err!(Request(NotFound("Event {} not found.", &body.event_id))))?;
-
-	if !services
-		.rooms
-		.state_accessor
-		.user_can_see_event(sender_user, &event.room_id, &body.event_id)
-		.await
-	{
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"You don't have permission to view this event.",
-		));
-	}
-
-	let mut event = (*event).clone();
-	event.add_age()?;
-
 	Ok(get_room_event::v3::Response {
-		event: event.to_room_event(),
+		event: services
+			.rooms
+			.timeline
+			.get_pdu_owned(&body.event_id)
+			.map_err(|_| err!(Request(NotFound("Event {} not found.", &body.event_id))))
+			.and_then(|event| async move {
+				services
+					.rooms
+					.state_accessor
+					.user_can_see_event(body.sender_user(), &event.room_id, &body.event_id)
+					.await
+					.then_some(event)
+					.ok_or_else(|| err!(Request(Forbidden("You don't have permission to view this event."))))
+			})
+			.map_ok(|mut event| {
+				event.add_age().ok();
+				event.to_room_event()
+			})
+			.await?,
 	})
 }
 
