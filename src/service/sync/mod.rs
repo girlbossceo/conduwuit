@@ -85,6 +85,17 @@ impl crate::Service for Service {
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
+fn list_or_sticky<T: Clone>(target: &mut Vec<T>, cached: &Vec<T>) {
+	if target.is_empty() {
+		target.clone_from(cached);
+	}
+}
+fn some_or_sticky<T>(target: &mut Option<T>, cached: Option<T>) {
+	if target.is_none() {
+		*target = cached;
+	}
+}
+
 impl Service {
 	pub fn remembered(
 		&self,
@@ -136,57 +147,27 @@ impl Service {
 
 		for (list_id, list) in &mut request.lists {
 			if let Some(cached_list) = cached.lists.get(list_id) {
-				if list.sort.is_empty() {
-					list.sort.clone_from(&cached_list.sort);
-				};
-				if list.room_details.required_state.is_empty() {
-					list.room_details
-						.required_state
-						.clone_from(&cached_list.room_details.required_state);
-				};
-				list.room_details.timeline_limit = list
-					.room_details
-					.timeline_limit
-					.or(cached_list.room_details.timeline_limit);
-				list.include_old_rooms = list
-					.include_old_rooms
-					.clone()
-					.or_else(|| cached_list.include_old_rooms.clone());
+				list_or_sticky(&mut list.sort, &cached_list.sort);
+				list_or_sticky(&mut list.room_details.required_state, &cached_list.room_details.required_state);
+				some_or_sticky(&mut list.room_details.timeline_limit, cached_list.room_details.timeline_limit);
+				some_or_sticky(&mut list.include_old_rooms, cached_list.include_old_rooms.clone());
 				match (&mut list.filters, cached_list.filters.clone()) {
-					| (Some(list_filters), Some(cached_filters)) => {
-						list_filters.is_dm = list_filters.is_dm.or(cached_filters.is_dm);
-						if list_filters.spaces.is_empty() {
-							list_filters.spaces = cached_filters.spaces;
-						}
-						list_filters.is_encrypted =
-							list_filters.is_encrypted.or(cached_filters.is_encrypted);
-						list_filters.is_invite =
-							list_filters.is_invite.or(cached_filters.is_invite);
-						if list_filters.room_types.is_empty() {
-							list_filters.room_types = cached_filters.room_types;
-						}
-						if list_filters.not_room_types.is_empty() {
-							list_filters.not_room_types = cached_filters.not_room_types;
-						}
-						list_filters.room_name_like = list_filters
-							.room_name_like
-							.clone()
-							.or(cached_filters.room_name_like);
-						if list_filters.tags.is_empty() {
-							list_filters.tags = cached_filters.tags;
-						}
-						if list_filters.not_tags.is_empty() {
-							list_filters.not_tags = cached_filters.not_tags;
-						}
+					(Some(list_filters), Some(cached_filters)) => {
+						some_or_sticky(&mut list_filters.is_dm, cached_filters.is_dm);
+						list_or_sticky(&mut list_filters.spaces, &cached_filters.spaces);
+						some_or_sticky(&mut list_filters.is_encrypted, cached_filters.is_encrypted);
+						some_or_sticky(&mut list_filters.is_invite, cached_filters.is_invite);
+						list_or_sticky(&mut list_filters.room_types, &cached_filters.room_types);
+						list_or_sticky(&mut list_filters.not_room_types, &cached_filters.not_room_types);
+						some_or_sticky(&mut list_filters.room_name_like, cached_filters.room_name_like);
+						list_or_sticky(&mut list_filters.tags, &cached_filters.tags);
+						list_or_sticky(&mut list_filters.not_tags, &cached_filters.not_tags);
 					},
 					| (_, Some(cached_filters)) => list.filters = Some(cached_filters),
 					| (Some(list_filters), _) => list.filters = Some(list_filters.clone()),
 					| (..) => {},
 				}
-				if list.bump_event_types.is_empty() {
-					list.bump_event_types
-						.clone_from(&cached_list.bump_event_types);
-				};
+				list_or_sticky(&mut list.bump_event_types, &cached_list.bump_event_types);
 			}
 			cached.lists.insert(list_id.clone(), list.clone());
 		}
@@ -241,16 +222,18 @@ impl Service {
 		subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
 	) {
 		let mut cache = self.connections.lock().expect("locked");
-		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(
-			|| {
-				Arc::new(Mutex::new(SlidingSyncCache {
-					lists: BTreeMap::new(),
-					subscriptions: BTreeMap::new(),
-					known_rooms: BTreeMap::new(),
-					extensions: ExtensionsConfig::default(),
-				}))
-			},
-		));
+		let cached = Arc::clone(
+			cache
+				.entry((user_id, device_id, conn_id))
+				.or_insert_with(|| {
+					Arc::new(Mutex::new(SlidingSyncCache {
+						lists: BTreeMap::new(),
+						subscriptions: BTreeMap::new(),
+						known_rooms: BTreeMap::new(),
+						extensions: ExtensionsConfig::default(),
+					}))
+				}),
+		);
 		let cached = &mut cached.lock().expect("locked");
 		drop(cache);
 
@@ -258,25 +241,22 @@ impl Service {
 	}
 
 	pub fn update_sync_known_rooms(
-		&self,
-		user_id: OwnedUserId,
-		device_id: OwnedDeviceId,
-		conn_id: String,
-		list_id: String,
-		new_cached_rooms: BTreeSet<OwnedRoomId>,
-		globalsince: u64,
+		&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String, list_id: String,
+		new_cached_rooms: BTreeSet<OwnedRoomId>, globalsince: u64,
 	) {
 		let mut cache = self.connections.lock().expect("locked");
-		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(
-			|| {
-				Arc::new(Mutex::new(SlidingSyncCache {
-					lists: BTreeMap::new(),
-					subscriptions: BTreeMap::new(),
-					known_rooms: BTreeMap::new(),
-					extensions: ExtensionsConfig::default(),
-				}))
-			},
-		));
+		let cached = Arc::clone(
+			cache
+				.entry((user_id, device_id, conn_id))
+				.or_insert_with(|| {
+					Arc::new(Mutex::new(SlidingSyncCache {
+						lists: BTreeMap::new(),
+						subscriptions: BTreeMap::new(),
+						known_rooms: BTreeMap::new(),
+						extensions: ExtensionsConfig::default(),
+					}))
+				}),
+		);
 		let cached = &mut cached.lock().expect("locked");
 		drop(cache);
 
