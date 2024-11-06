@@ -12,7 +12,7 @@ use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
-	api::client::discovery::discover_support::ContactRole, DeviceId, OwnedEventId, OwnedRoomAliasId, OwnedServerName,
+	api::client::discovery::discover_support::ContactRole, OwnedEventId, OwnedRoomAliasId, OwnedServerName,
 	OwnedUserId, RoomAliasId, RoomVersionId, ServerName, UserId,
 };
 use tokio::sync::Mutex;
@@ -162,10 +162,6 @@ impl Service {
 
 	#[inline]
 	pub fn current_count(&self) -> Result<u64> { Ok(self.db.current_count()) }
-
-	pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result<()> {
-		self.db.watch(user_id, device_id).await
-	}
 
 	#[inline]
 	pub fn server_name(&self) -> &ServerName { self.config.server_name.as_ref() }

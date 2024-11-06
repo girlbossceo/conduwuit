@@ -1,9 +1,12 @@
+mod watch;
+
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	sync::{Arc, Mutex, Mutex as StdMutex},
 };
 
-use conduit::Result;
+use conduit::{Result, Server};
+use database::Map;
 use ruma::{
 	api::client::sync::sync_events::{
 		self,
@@ -12,8 +15,33 @@ use ruma::{
 	OwnedDeviceId, OwnedRoomId, OwnedUserId,
 };
 
+use crate::{rooms, Dep};
+
 pub struct Service {
+	db: Data,
+	services: Services,
 	connections: DbConnections,
+}
+
+pub struct Data {
+	todeviceid_events: Arc<Map>,
+	userroomid_joined: Arc<Map>,
+	userroomid_invitestate: Arc<Map>,
+	userroomid_leftstate: Arc<Map>,
+	userroomid_notificationcount: Arc<Map>,
+	userroomid_highlightcount: Arc<Map>,
+	pduid_pdu: Arc<Map>,
+	keychangeid_userid: Arc<Map>,
+	roomusertype_roomuserdataid: Arc<Map>,
+	readreceiptid_readreceipt: Arc<Map>,
+	userid_lastonetimekeyupdate: Arc<Map>,
+}
+
+struct Services {
+	server: Arc<Server>,
+	short: Dep<rooms::short::Service>,
+	state_cache: Dep<rooms::state_cache::Service>,
+	typing: Dep<rooms::typing::Service>,
 }
 
 struct SlidingSyncCache {
@@ -28,8 +56,27 @@ type DbConnectionsKey = (OwnedUserId, OwnedDeviceId, String);
 type DbConnectionsVal = Arc<Mutex<SlidingSyncCache>>;
 
 impl crate::Service for Service {
-	fn build(_args: crate::Args<'_>) -> Result<Arc<Self>> {
+	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			db: Data {
+				todeviceid_events: args.db["todeviceid_events"].clone(),
+				userroomid_joined: args.db["userroomid_joined"].clone(),
+				userroomid_invitestate: args.db["userroomid_invitestate"].clone(),
+				userroomid_leftstate: args.db["userroomid_leftstate"].clone(),
+				userroomid_notificationcount: args.db["userroomid_notificationcount"].clone(),
+				userroomid_highlightcount: args.db["userroomid_highlightcount"].clone(),
+				pduid_pdu: args.db["pduid_pdu"].clone(),
+				keychangeid_userid: args.db["keychangeid_userid"].clone(),
+				roomusertype_roomuserdataid: args.db["roomusertype_roomuserdataid"].clone(),
+				readreceiptid_readreceipt: args.db["readreceiptid_readreceipt"].clone(),
+				userid_lastonetimekeyupdate: args.db["userid_lastonetimekeyupdate"].clone(),
+			},
+			services: Services {
+				server: args.server.clone(),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
+				typing: args.depend::<rooms::typing::Service>("rooms::typing"),
+			},
 			connections: StdMutex::new(BTreeMap::new()),
 		}))
 	}

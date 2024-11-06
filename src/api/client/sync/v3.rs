@@ -93,7 +93,7 @@ pub(crate) async fn sync_events_route(
 	}
 
 	// Setup watchers, so if there's no response, we can wait for them
-	let watcher = services.globals.watch(&sender_user, &sender_device);
+	let watcher = services.sync.watch(&sender_user, &sender_device);
 
 	let next_batch = services.globals.current_count()?;
 	let next_batchcount = PduCount::Normal(next_batch);
