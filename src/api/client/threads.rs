@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{PduCount, PduEvent};
+use conduit::{at, PduCount, PduEvent};
 use futures::StreamExt;
 use ruma::{api::client::threads::get_threads, uint};
 
@@ -44,12 +44,16 @@ pub(crate) async fn get_threads_route(
 	Ok(get_threads::v1::Response {
 		next_batch: threads
 			.last()
-			.map(|(count, _)| count)
+			.filter(|_| threads.len() >= limit)
+			.map(at!(0))
+			.map(|count| count.saturating_sub(1))
+			.as_ref()
 			.map(ToString::to_string),
 
 		chunk: threads
 			.into_iter()
-			.map(|(_, pdu)| pdu.to_room_event())
+			.map(at!(1))
+			.map(|pdu| pdu.to_room_event())
 			.collect(),
 	})
 }

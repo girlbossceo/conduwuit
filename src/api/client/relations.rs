@@ -97,7 +97,7 @@ async fn paginate_relations_with_filter(
 	filter_event_type: Option<TimelineEventType>, filter_rel_type: Option<RelationType>, from: Option<&str>,
 	to: Option<&str>, limit: Option<UInt>, recurse: bool, dir: Direction,
 ) -> Result<get_relating_events::v1::Response> {
-	let from: PduCount = from
+	let start: PduCount = from
 		.map(str::parse)
 		.transpose()?
 		.unwrap_or_else(|| match dir {
@@ -124,7 +124,7 @@ async fn paginate_relations_with_filter(
 	let events: Vec<PdusIterItem> = services
 		.rooms
 		.pdu_metadata
-		.get_relations(sender_user, room_id, target, from, limit, depth, dir)
+		.get_relations(sender_user, room_id, target, start, limit, depth, dir)
 		.await
 		.into_iter()
 		.filter(|(_, pdu)| {
@@ -146,16 +146,20 @@ async fn paginate_relations_with_filter(
 		.await;
 
 	let next_batch = match dir {
-		Direction::Backward => events.first(),
 		Direction::Forward => events.last(),
+		Direction::Backward => events.first(),
 	}
 	.map(at!(0))
+	.map(|count| match dir {
+		Direction::Forward => count.saturating_add(1),
+		Direction::Backward => count.saturating_sub(1),
+	})
 	.as_ref()
 	.map(ToString::to_string);
 
 	Ok(get_relating_events::v1::Response {
 		next_batch,
-		prev_batch: Some(from.to_string()),
+		prev_batch: from.map(Into::into),
 		recursion_depth: recurse.then_some(depth.into()),
 		chunk: events
 			.into_iter()

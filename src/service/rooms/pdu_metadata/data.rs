@@ -1,5 +1,6 @@
 use std::{mem::size_of, sync::Arc};
 
+use arrayvec::ArrayVec;
 use conduit::{
 	result::LogErr,
 	utils::{stream::TryIgnore, u64_from_u8, ReadyExt},
@@ -54,15 +55,13 @@ impl Data {
 	pub(super) fn get_relations<'a>(
 		&'a self, user_id: &'a UserId, shortroomid: ShortRoomId, target: ShortEventId, from: PduCount, dir: Direction,
 	) -> impl Stream<Item = PdusIterItem> + Send + '_ {
-		let current: RawPduId = PduId {
-			shortroomid,
-			shorteventid: from,
-		}
-		.into();
-
+		let mut current = ArrayVec::<u8, 16>::new();
+		current.extend(target.to_be_bytes());
+		current.extend(from.into_unsigned().to_be_bytes());
+		let current = current.as_slice();
 		match dir {
-			Direction::Forward => self.tofrom_relation.raw_keys_from(&current).boxed(),
-			Direction::Backward => self.tofrom_relation.rev_raw_keys_from(&current).boxed(),
+			Direction::Forward => self.tofrom_relation.raw_keys_from(current).boxed(),
+			Direction::Backward => self.tofrom_relation.rev_raw_keys_from(current).boxed(),
 		}
 		.ignore_err()
 		.ready_take_while(move |key| key.starts_with(&target.to_be_bytes()))

@@ -1,34 +1,44 @@
-mod data;
-
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{err, PduCount, PduEvent, Result};
-use data::Data;
-use futures::Stream;
+use conduit::{
+	err,
+	utils::{stream::TryIgnore, ReadyExt},
+	PduCount, PduEvent, PduId, RawPduId, Result,
+};
+use database::{Deserialized, Map};
+use futures::{Stream, StreamExt};
 use ruma::{
 	api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint, CanonicalJsonValue,
-	EventId, RoomId, UserId,
+	EventId, OwnedUserId, RoomId, UserId,
 };
 use serde_json::json;
 
-use crate::{rooms, Dep};
+use crate::{rooms, rooms::short::ShortRoomId, Dep};
 
 pub struct Service {
-	services: Services,
 	db: Data,
+	services: Services,
 }
 
 struct Services {
+	short: Dep<rooms::short::Service>,
 	timeline: Dep<rooms::timeline::Service>,
+}
+
+pub(super) struct Data {
+	threadid_userids: Arc<Map>,
 }
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
+			db: Data {
+				threadid_userids: args.db["threadid_userids"].clone(),
+			},
 			services: Services {
+				short: args.depend::<rooms::short::Service>("rooms::short"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 			},
-			db: Data::new(&args),
 		}))
 	}
 
@@ -36,14 +46,6 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub async fn threads_until<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount, include: &'a IncludeThreads,
-	) -> Result<impl Stream<Item = (PduCount, PduEvent)> + Send + 'a> {
-		self.db
-			.threads_until(user_id, room_id, until, include)
-			.await
-	}
-
 	pub async fn add_to_thread(&self, root_event_id: &EventId, pdu: &PduEvent) -> Result<()> {
 		let root_id = self
 			.services
@@ -113,13 +115,61 @@ impl Service {
 		}
 
 		let mut users = Vec::new();
-		if let Ok(userids) = self.db.get_participants(&root_id).await {
+		if let Ok(userids) = self.get_participants(&root_id).await {
 			users.extend_from_slice(&userids);
 		} else {
 			users.push(root_pdu.sender);
 		}
 		users.push(pdu.sender.clone());
 
-		self.db.update_participants(&root_id, &users)
+		self.update_participants(&root_id, &users)
+	}
+
+	pub async fn threads_until<'a>(
+		&'a self, user_id: &'a UserId, room_id: &'a RoomId, shorteventid: PduCount, _inc: &'a IncludeThreads,
+	) -> Result<impl Stream<Item = (PduCount, PduEvent)> + Send + 'a> {
+		let shortroomid: ShortRoomId = self.services.short.get_shortroomid(room_id).await?;
+
+		let current: RawPduId = PduId {
+			shortroomid,
+			shorteventid,
+		}
+		.into();
+
+		let stream = self
+			.db
+			.threadid_userids
+			.rev_raw_keys_from(&current)
+			.ignore_err()
+			.map(RawPduId::from)
+			.ready_take_while(move |pdu_id| pdu_id.shortroomid() == shortroomid.to_be_bytes())
+			.filter_map(move |pdu_id| async move {
+				let mut pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await.ok()?;
+				let pdu_id: PduId = pdu_id.into();
+
+				if pdu.sender != user_id {
+					pdu.remove_transaction_id().ok();
+				}
+
+				Some((pdu_id.shorteventid, pdu))
+			});
+
+		Ok(stream)
+	}
+
+	pub(super) fn update_participants(&self, root_id: &RawPduId, participants: &[OwnedUserId]) -> Result {
+		let users = participants
+			.iter()
+			.map(|user| user.as_bytes())
+			.collect::<Vec<_>>()
+			.join(&[0xFF][..]);
+
+		self.db.threadid_userids.insert(root_id, &users);
+
+		Ok(())
+	}
+
+	pub(super) async fn get_participants(&self, root_id: &RawPduId) -> Result<Vec<OwnedUserId>> {
+		self.db.threadid_userids.get(root_id).await.deserialized()
 	}
 }
