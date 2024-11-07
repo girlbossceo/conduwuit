@@ -1,4 +1,5 @@
 use std::{
+	borrow::Borrow,
 	collections::{hash_map, HashMap},
 	sync::Arc,
 };
@@ -53,7 +54,7 @@ impl Data {
 		}
 	}
 
-	pub(super) async fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
+	pub(super) async fn last_timeline_count(&self, sender_user: Option<&UserId>, room_id: &RoomId) -> Result<PduCount> {
 		match self
 			.lasttimelinecount_cache
 			.lock()
@@ -202,7 +203,7 @@ impl Data {
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
 	pub(super) async fn pdus_rev<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount,
+		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, until: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
 		let current = self.count_to_id(room_id, until).await?;
 		let prefix = current.shortroomid();
@@ -211,13 +212,13 @@ impl Data {
 			.rev_raw_stream_from(&current)
 			.ignore_err()
 			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
-			.map(|item| Self::each_pdu(item, user_id));
+			.map(move |item| Self::each_pdu(item, user_id));
 
 		Ok(stream)
 	}
 
 	pub(super) async fn pdus<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, from: PduCount,
+		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, from: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
 		let current = self.count_to_id(room_id, from).await?;
 		let prefix = current.shortroomid();
@@ -231,13 +232,13 @@ impl Data {
 		Ok(stream)
 	}
 
-	fn each_pdu((pdu_id, pdu): KeyVal<'_>, user_id: &UserId) -> PdusIterItem {
+	fn each_pdu((pdu_id, pdu): KeyVal<'_>, user_id: Option<&UserId>) -> PdusIterItem {
 		let pdu_id: RawPduId = pdu_id.into();
 
 		let mut pdu =
 			serde_json::from_slice::<PduEvent>(pdu).expect("PduEvent in pduid_pdu database column is invalid JSON");
 
-		if pdu.sender != user_id {
+		if Some(pdu.sender.borrow()) != user_id {
 			pdu.remove_transaction_id().log_err().ok();
 		}
 

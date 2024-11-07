@@ -100,14 +100,14 @@ pub(crate) async fn get_message_events_route(
 		Direction::Forward => services
 			.rooms
 			.timeline
-			.pdus(sender_user, room_id, from)
+			.pdus(Some(sender_user), room_id, Some(from))
 			.await?
 			.boxed(),
 
 		Direction::Backward => services
 			.rooms
 			.timeline
-			.pdus_rev(sender_user, room_id, from)
+			.pdus_rev(Some(sender_user), room_id, Some(from))
 			.await?
 			.boxed(),
 	};

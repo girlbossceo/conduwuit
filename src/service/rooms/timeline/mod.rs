@@ -177,7 +177,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
-		self.pdus_rev(user_id!("@placeholder:conduwuit.placeholder"), room_id, PduCount::max())
+		self.pdus_rev(None, room_id, None)
 			.await?
 			.next()
 			.await
@@ -186,7 +186,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn last_timeline_count(&self, sender_user: &UserId, room_id: &RoomId) -> Result<PduCount> {
+	pub async fn last_timeline_count(&self, sender_user: Option<&UserId>, room_id: &RoomId) -> Result<PduCount> {
 		self.db.last_timeline_count(sender_user, room_id).await
 	}
 
@@ -976,23 +976,27 @@ impl Service {
 	pub async fn all_pdus<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.pdus(user_id, room_id, PduCount::min()).await
+		self.pdus(Some(user_id), room_id, None).await
 	}
 
 	/// Reverse iteration starting at from.
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn pdus_rev<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, until: PduCount,
+		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, until: Option<PduCount>,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.db.pdus_rev(user_id, room_id, until).await
+		self.db
+			.pdus_rev(user_id, room_id, until.unwrap_or_else(PduCount::max))
+			.await
 	}
 
 	/// Forward iteration starting at from.
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn pdus<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, from: PduCount,
+		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, from: Option<PduCount>,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.db.pdus(user_id, room_id, from).await
+		self.db
+			.pdus(user_id, room_id, from.unwrap_or_else(PduCount::min))
+			.await
 	}
 
 	/// Replace a PDU with the redacted form.

@@ -82,7 +82,7 @@ pub(crate) async fn get_context_route(
 	let events_before: Vec<_> = services
 		.rooms
 		.timeline
-		.pdus_rev(sender_user, room_id, base_token.saturating_sub(1))
+		.pdus_rev(Some(sender_user), room_id, Some(base_token.saturating_sub(1)))
 		.await?
 		.ready_filter_map(|item| event_filter(item, filter))
 		.filter_map(|item| ignored_filter(&services, item, sender_user))
@@ -94,7 +94,7 @@ pub(crate) async fn get_context_route(
 	let events_after: Vec<_> = services
 		.rooms
 		.timeline
-		.pdus(sender_user, room_id, base_token.saturating_add(1))
+		.pdus(Some(sender_user), room_id, Some(base_token.saturating_add(1)))
 		.await?
 		.ready_filter_map(|item| event_filter(item, filter))
 		.filter_map(|item| ignored_filter(&services, item, sender_user))

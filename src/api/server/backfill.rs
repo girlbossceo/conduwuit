@@ -6,7 +6,7 @@ use conduit::{
 	PduCount, Result,
 };
 use futures::{FutureExt, StreamExt};
-use ruma::{api::federation::backfill::get_backfill, uint, user_id, MilliSecondsSinceUnixEpoch};
+use ruma::{api::federation::backfill::get_backfill, uint, MilliSecondsSinceUnixEpoch};
 
 use super::AccessCheck;
 use crate::Ruma;
@@ -51,7 +51,7 @@ pub(crate) async fn get_backfill_route(
 	let pdus = services
 		.rooms
 		.timeline
-		.pdus_rev(user_id!("@doesntmatter:conduit.rs"), &body.room_id, until)
+		.pdus_rev(None, &body.room_id, Some(until))
 		.await?
 		.take(limit)
 		.filter_map(|(_, pdu)| async move {
