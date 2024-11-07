@@ -52,13 +52,7 @@ impl crate::Service for Service {
 pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> ShortEventId {
 	const BUFSIZE: usize = size_of::<ShortEventId>();
 
-	if let Ok(shorteventid) = self
-		.db
-		.eventid_shorteventid
-		.get(event_id)
-		.await
-		.deserialized()
-	{
+	if let Ok(shorteventid) = self.get_shorteventid(event_id).await {
 		return shorteventid;
 	}
 
@@ -105,11 +99,10 @@ pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> 
 }
 
 #[implement(Service)]
-pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<ShortStateKey> {
-	let key = (event_type, state_key);
+pub async fn get_shorteventid(&self, event_id: &EventId) -> Result<ShortEventId> {
 	self.db
-		.statekey_shortstatekey
-		.qry(&key)
+		.eventid_shorteventid
+		.get(event_id)
 		.await
 		.deserialized()
 }
@@ -118,17 +111,11 @@ pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &s
 pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> ShortStateKey {
 	const BUFSIZE: usize = size_of::<ShortStateKey>();
 
-	let key = (event_type, state_key);
-	if let Ok(shortstatekey) = self
-		.db
-		.statekey_shortstatekey
-		.qry(&key)
-		.await
-		.deserialized()
-	{
+	if let Ok(shortstatekey) = self.get_shortstatekey(event_type, state_key).await {
 		return shortstatekey;
 	}
 
+	let key = (event_type, state_key);
 	let shortstatekey = self.services.globals.next_count().unwrap();
 	debug_assert!(size_of_val(&shortstatekey) == BUFSIZE, "buffer requirement changed");
 
@@ -141,6 +128,16 @@ pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, sta
 		.aput_put::<BUFSIZE, _, _>(shortstatekey, key);
 
 	shortstatekey
+}
+
+#[implement(Service)]
+pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<ShortStateKey> {
+	let key = (event_type, state_key);
+	self.db
+		.statekey_shortstatekey
+		.qry(&key)
+		.await
+		.deserialized()
 }
 
 #[implement(Service)]
