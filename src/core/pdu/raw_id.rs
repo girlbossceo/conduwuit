@@ -1,27 +1,27 @@
 use arrayvec::ArrayVec;
 
-use super::{PduCount, PduId, ShortEventId, ShortId, ShortRoomId};
+use super::{Count, Id, ShortEventId, ShortId, ShortRoomId};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum RawPduId {
-	Normal(RawPduIdNormal),
-	Backfilled(RawPduIdBackfilled),
+pub enum RawId {
+	Normal(RawIdNormal),
+	Backfilled(RawIdBackfilled),
 }
 
-type RawPduIdNormal = [u8; RawPduId::NORMAL_LEN];
-type RawPduIdBackfilled = [u8; RawPduId::BACKFILLED_LEN];
+type RawIdNormal = [u8; RawId::NORMAL_LEN];
+type RawIdBackfilled = [u8; RawId::BACKFILLED_LEN];
 
 const INT_LEN: usize = size_of::<ShortId>();
 
-impl RawPduId {
+impl RawId {
 	const BACKFILLED_LEN: usize = size_of::<ShortRoomId>() + INT_LEN + size_of::<ShortEventId>();
 	const MAX_LEN: usize = Self::BACKFILLED_LEN;
 	const NORMAL_LEN: usize = size_of::<ShortRoomId>() + size_of::<ShortEventId>();
 
 	#[inline]
 	#[must_use]
-	pub fn pdu_count(&self) -> PduCount {
-		let id: PduId = (*self).into();
+	pub fn pdu_count(&self) -> Count {
+		let id: Id = (*self).into();
 		id.shorteventid
 	}
 
@@ -61,55 +61,51 @@ impl RawPduId {
 	}
 }
 
-impl AsRef<[u8]> for RawPduId {
+impl AsRef<[u8]> for RawId {
 	#[inline]
 	fn as_ref(&self) -> &[u8] { self.as_bytes() }
 }
 
-impl From<&[u8]> for RawPduId {
+impl From<&[u8]> for RawId {
 	#[inline]
 	fn from(id: &[u8]) -> Self {
 		match id.len() {
 			Self::NORMAL_LEN => Self::Normal(
 				id[0..Self::NORMAL_LEN]
 					.try_into()
-					.expect("normal RawPduId from [u8]"),
+					.expect("normal RawId from [u8]"),
 			),
 			Self::BACKFILLED_LEN => Self::Backfilled(
 				id[0..Self::BACKFILLED_LEN]
 					.try_into()
-					.expect("backfilled RawPduId from [u8]"),
+					.expect("backfilled RawId from [u8]"),
 			),
-			_ => unimplemented!("unrecognized RawPduId length"),
+			_ => unimplemented!("unrecognized RawId length"),
 		}
 	}
 }
 
-impl From<PduId> for RawPduId {
+impl From<Id> for RawId {
 	#[inline]
-	fn from(id: PduId) -> Self {
-		const MAX_LEN: usize = RawPduId::MAX_LEN;
+	fn from(id: Id) -> Self {
+		const MAX_LEN: usize = RawId::MAX_LEN;
 		type RawVec = ArrayVec<u8, MAX_LEN>;
 
 		let mut vec = RawVec::new();
 		vec.extend(id.shortroomid.to_be_bytes());
 		id.shorteventid.debug_assert_valid();
 		match id.shorteventid {
-			PduCount::Normal(shorteventid) => {
+			Count::Normal(shorteventid) => {
 				vec.extend(shorteventid.to_be_bytes());
-				Self::Normal(
-					vec.as_ref()
-						.try_into()
-						.expect("RawVec into RawPduId::Normal"),
-				)
+				Self::Normal(vec.as_ref().try_into().expect("RawVec into RawId::Normal"))
 			},
-			PduCount::Backfilled(shorteventid) => {
+			Count::Backfilled(shorteventid) => {
 				vec.extend(0_u64.to_be_bytes());
 				vec.extend(shorteventid.to_be_bytes());
 				Self::Backfilled(
 					vec.as_ref()
 						.try_into()
-						.expect("RawVec into RawPduId::Backfilled"),
+						.expect("RawVec into RawId::Backfilled"),
 				)
 			},
 		}

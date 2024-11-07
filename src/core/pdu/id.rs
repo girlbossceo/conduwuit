@@ -1,4 +1,4 @@
-use super::{PduCount, RawPduId};
+use super::{Count, RawId};
 use crate::utils::u64_from_u8x8;
 
 pub type ShortRoomId = ShortId;
@@ -6,17 +6,17 @@ pub type ShortEventId = ShortId;
 pub type ShortId = u64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct PduId {
+pub struct Id {
 	pub shortroomid: ShortRoomId,
-	pub shorteventid: PduCount,
+	pub shorteventid: Count,
 }
 
-impl From<RawPduId> for PduId {
+impl From<RawId> for Id {
 	#[inline]
-	fn from(raw: RawPduId) -> Self {
+	fn from(raw: RawId) -> Self {
 		Self {
 			shortroomid: u64_from_u8x8(raw.shortroomid()),
-			shorteventid: PduCount::from_unsigned(u64_from_u8x8(raw.shorteventid())),
+			shorteventid: Count::from_unsigned(u64_from_u8x8(raw.shorteventid())),
 		}
 	}
 }

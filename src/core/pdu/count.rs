@@ -7,12 +7,12 @@ use ruma::api::Direction;
 use crate::{err, Error, Result};
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub enum PduCount {
+pub enum Count {
 	Normal(u64),
 	Backfilled(i64),
 }
 
-impl PduCount {
+impl Count {
 	#[inline]
 	#[must_use]
 	pub fn from_unsigned(unsigned: u64) -> Self { Self::from_signed(unsigned as i64) }
@@ -69,11 +69,11 @@ impl PduCount {
 		Ok(match self {
 			Self::Normal(i) => Self::Normal(
 				i.checked_add(add)
-					.ok_or_else(|| err!(Arithmetic("PduCount::Normal overflow")))?,
+					.ok_or_else(|| err!(Arithmetic("Count::Normal overflow")))?,
 			),
 			Self::Backfilled(i) => Self::Backfilled(
 				i.checked_add(add as i64)
-					.ok_or_else(|| err!(Arithmetic("PduCount::Backfilled overflow")))?,
+					.ok_or_else(|| err!(Arithmetic("Count::Backfilled overflow")))?,
 			),
 		})
 	}
@@ -83,11 +83,11 @@ impl PduCount {
 		Ok(match self {
 			Self::Normal(i) => Self::Normal(
 				i.checked_sub(sub)
-					.ok_or_else(|| err!(Arithmetic("PduCount::Normal underflow")))?,
+					.ok_or_else(|| err!(Arithmetic("Count::Normal underflow")))?,
 			),
 			Self::Backfilled(i) => Self::Backfilled(
 				i.checked_sub(sub as i64)
-					.ok_or_else(|| err!(Arithmetic("PduCount::Backfilled underflow")))?,
+					.ok_or_else(|| err!(Arithmetic("Count::Backfilled underflow")))?,
 			),
 		})
 	}
@@ -121,11 +121,11 @@ impl PduCount {
 
 	#[inline]
 	#[must_use]
-	pub fn min() -> Self { Self::Backfilled(i64::MIN) }
+	pub const fn min() -> Self { Self::Backfilled(i64::MIN) }
 
 	#[inline]
 	#[must_use]
-	pub fn max() -> Self { Self::Normal(i64::MAX as u64) }
+	pub const fn max() -> Self { Self::Normal(i64::MAX as u64) }
 
 	#[inline]
 	pub(crate) fn debug_assert_valid(&self) {
@@ -135,7 +135,7 @@ impl PduCount {
 	}
 }
 
-impl Display for PduCount {
+impl Display for Count {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
 		self.debug_assert_valid();
 		match self {
@@ -145,20 +145,30 @@ impl Display for PduCount {
 	}
 }
 
-impl FromStr for PduCount {
+impl From<i64> for Count {
+	#[inline]
+	fn from(signed: i64) -> Self { Self::from_signed(signed) }
+}
+
+impl From<u64> for Count {
+	#[inline]
+	fn from(unsigned: u64) -> Self { Self::from_unsigned(unsigned) }
+}
+
+impl FromStr for Count {
 	type Err = Error;
 
 	fn from_str(token: &str) -> Result<Self, Self::Err> { Ok(Self::from_signed(token.parse()?)) }
 }
 
-impl PartialOrd for PduCount {
+impl PartialOrd for Count {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl Ord for PduCount {
+impl Ord for Count {
 	fn cmp(&self, other: &Self) -> Ordering { self.into_signed().cmp(&other.into_signed()) }
 }
 
-impl Default for PduCount {
+impl Default for Count {
 	fn default() -> Self { Self::Normal(0) }
 }

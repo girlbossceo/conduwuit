@@ -13,7 +13,7 @@ struct ExtractRelatesToEventId {
 	relates_to: ExtractRelType,
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[must_use]
 pub fn relation_type_equal(&self, rel_type: &RelationType) -> bool {
 	self.get_content()

@@ -4,9 +4,9 @@ pub use ruma::state_res::Event;
 use ruma::{events::TimelineEventType, EventId, MilliSecondsSinceUnixEpoch, RoomId, UserId};
 use serde_json::value::RawValue as RawJsonValue;
 
-use super::PduEvent;
+use super::Pdu;
 
-impl Event for PduEvent {
+impl Event for Pdu {
 	type Id = Arc<EventId>;
 
 	fn event_id(&self) -> &Self::Id { &self.event_id }

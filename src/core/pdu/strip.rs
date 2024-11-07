@@ -10,7 +10,7 @@ use serde_json::{json, value::Value as JsonValue};
 
 use crate::{implement, warn};
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_sync_room_event(&self) -> Raw<AnySyncTimelineEvent> {
 	let (redacts, content) = self.copy_redacts();
@@ -36,7 +36,7 @@ pub fn to_sync_room_event(&self) -> Raw<AnySyncTimelineEvent> {
 }
 
 /// This only works for events that are also AnyRoomEvents.
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_any_event(&self) -> Raw<AnyEphemeralRoomEvent> {
 	let (redacts, content) = self.copy_redacts();
@@ -62,7 +62,7 @@ pub fn to_any_event(&self) -> Raw<AnyEphemeralRoomEvent> {
 	serde_json::from_value(json).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_room_event(&self) -> Raw<AnyTimelineEvent> {
 	let (redacts, content) = self.copy_redacts();
@@ -88,7 +88,7 @@ pub fn to_room_event(&self) -> Raw<AnyTimelineEvent> {
 	serde_json::from_value(json).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_message_like_event(&self) -> Raw<AnyMessageLikeEvent> {
 	let (redacts, content) = self.copy_redacts();
@@ -114,7 +114,7 @@ pub fn to_message_like_event(&self) -> Raw<AnyMessageLikeEvent> {
 	serde_json::from_value(json).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[must_use]
 pub fn to_state_event_value(&self) -> JsonValue {
 	let mut json = json!({
@@ -134,13 +134,13 @@ pub fn to_state_event_value(&self) -> JsonValue {
 	json
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
 	serde_json::from_value(self.to_state_event_value()).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_sync_state_event(&self) -> Raw<AnySyncStateEvent> {
 	let mut json = json!({
@@ -159,7 +159,7 @@ pub fn to_sync_state_event(&self) -> Raw<AnySyncStateEvent> {
 	serde_json::from_value(json).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_stripped_state_event(&self) -> Raw<AnyStrippedStateEvent> {
 	let json = json!({
@@ -172,7 +172,7 @@ pub fn to_stripped_state_event(&self) -> Raw<AnyStrippedStateEvent> {
 	serde_json::from_value(json).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_stripped_spacechild_state_event(&self) -> Raw<HierarchySpaceChildEvent> {
 	let json = json!({
@@ -186,7 +186,7 @@ pub fn to_stripped_spacechild_state_event(&self) -> Raw<HierarchySpaceChildEvent
 	serde_json::from_value(json).expect("Raw::from_value always works")
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn to_member_event(&self) -> Raw<StateEvent<RoomMemberEventContent>> {
 	let mut json = json!({

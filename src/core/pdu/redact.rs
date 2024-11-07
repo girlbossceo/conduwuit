@@ -18,9 +18,9 @@ struct ExtractRedactedBecause {
 	redacted_because: Option<serde::de::IgnoredAny>,
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[tracing::instrument(skip(self), level = "debug")]
-pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> Result<()> {
+pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> Result {
 	self.unsigned = None;
 
 	let mut content =
@@ -31,7 +31,7 @@ pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> Resul
 
 	self.unsigned = Some(
 		to_raw_value(&json!({
-			"redacted_because": serde_json::to_value(reason).expect("to_value(PduEvent) always works")
+			"redacted_because": serde_json::to_value(reason).expect("to_value(Pdu) always works")
 		}))
 		.expect("to string always works"),
 	);
@@ -41,7 +41,7 @@ pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> Resul
 	Ok(())
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[must_use]
 pub fn is_redacted(&self) -> bool {
 	let Some(unsigned) = &self.unsigned else {
@@ -72,7 +72,7 @@ pub fn is_redacted(&self) -> bool {
 /// > to the content of m.room.redaction events in older room versions when
 /// > serving
 /// > such events over the Client-Server API.
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[must_use]
 pub fn copy_redacts(&self) -> (Option<Arc<EventId>>, Box<RawJsonValue>) {
 	if self.kind == TimelineEventType::RoomRedaction {

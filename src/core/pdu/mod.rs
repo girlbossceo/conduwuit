@@ -22,17 +22,18 @@ use serde_json::value::RawValue as RawJsonValue;
 
 pub use self::{
 	builder::{Builder, Builder as PduBuilder},
-	count::PduCount,
+	count::Count,
 	event::Event,
 	event_id::*,
 	id::*,
 	raw_id::*,
+	Count as PduCount, Id as PduId, Pdu as PduEvent, RawId as RawPduId,
 };
 use crate::Result;
 
 /// Persistent Data Unit (Event)
 #[derive(Clone, Deserialize, Serialize, Debug)]
-pub struct PduEvent {
+pub struct Pdu {
 	pub event_id: Arc<EventId>,
 	pub room_id: OwnedRoomId,
 	pub sender: OwnedUserId,
@@ -64,7 +65,7 @@ pub struct EventHash {
 	pub sha256: String,
 }
 
-impl PduEvent {
+impl Pdu {
 	pub fn from_id_val(event_id: &EventId, mut json: CanonicalJsonObject) -> Result<Self> {
 		let event_id = CanonicalJsonValue::String(event_id.into());
 		json.insert("event_id".into(), event_id);
@@ -75,19 +76,19 @@ impl PduEvent {
 }
 
 /// Prevent derived equality which wouldn't limit itself to event_id
-impl Eq for PduEvent {}
+impl Eq for Pdu {}
 
 /// Equality determined by the Pdu's ID, not the memory representations.
-impl PartialEq for PduEvent {
+impl PartialEq for Pdu {
 	fn eq(&self, other: &Self) -> bool { self.event_id == other.event_id }
 }
 
 /// Ordering determined by the Pdu's ID, not the memory representations.
-impl PartialOrd for PduEvent {
+impl PartialOrd for Pdu {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
 /// Ordering determined by the Pdu's ID, not the memory representations.
-impl Ord for PduEvent {
+impl Ord for Pdu {
 	fn cmp(&self, other: &Self) -> Ordering { self.event_id.cmp(&other.event_id) }
 }

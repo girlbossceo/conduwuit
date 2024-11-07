@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::{implement, is_equal_to};
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 #[must_use]
 pub fn matches(&self, filter: &RoomEventFilter) -> bool {
 	if !self.matches_sender(filter) {
@@ -25,7 +25,7 @@ pub fn matches(&self, filter: &RoomEventFilter) -> bool {
 	true
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 fn matches_room(&self, filter: &RoomEventFilter) -> bool {
 	if filter.not_rooms.contains(&self.room_id) {
 		return false;
@@ -40,7 +40,7 @@ fn matches_room(&self, filter: &RoomEventFilter) -> bool {
 	true
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 fn matches_sender(&self, filter: &RoomEventFilter) -> bool {
 	if filter.not_senders.contains(&self.sender) {
 		return false;
@@ -55,7 +55,7 @@ fn matches_sender(&self, filter: &RoomEventFilter) -> bool {
 	true
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 fn matches_type(&self, filter: &RoomEventFilter) -> bool {
 	let event_type = &self.kind.to_cow_str();
 	if filter.not_types.iter().any(is_equal_to!(event_type)) {
@@ -71,7 +71,7 @@ fn matches_type(&self, filter: &RoomEventFilter) -> bool {
 	true
 }
 
-#[implement(super::PduEvent)]
+#[implement(super::Pdu)]
 fn matches_url(&self, filter: &RoomEventFilter) -> bool {
 	let Some(url_filter) = filter.url_filter.as_ref() else {
 		return true;

@@ -4,10 +4,11 @@ use ruma::MilliSecondsSinceUnixEpoch;
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue, Value as JsonValue};
 
+use super::Pdu;
 use crate::{err, implement, is_true, Result};
 
-#[implement(super::PduEvent)]
-pub fn remove_transaction_id(&mut self) -> Result<()> {
+#[implement(Pdu)]
+pub fn remove_transaction_id(&mut self) -> Result {
 	let Some(unsigned) = &self.unsigned else {
 		return Ok(());
 	};
@@ -23,8 +24,8 @@ pub fn remove_transaction_id(&mut self) -> Result<()> {
 	Ok(())
 }
 
-#[implement(super::PduEvent)]
-pub fn add_age(&mut self) -> Result<()> {
+#[implement(Pdu)]
+pub fn add_age(&mut self) -> Result {
 	let mut unsigned: BTreeMap<String, Box<RawJsonValue>> = self
 		.unsigned
 		.as_ref()
@@ -44,7 +45,33 @@ pub fn add_age(&mut self) -> Result<()> {
 	Ok(())
 }
 
-#[implement(super::PduEvent)]
+#[implement(Pdu)]
+pub fn add_relation(&mut self, name: &str, pdu: &Pdu) -> Result {
+	let mut unsigned: BTreeMap<String, JsonValue> = self
+		.unsigned
+		.as_ref()
+		.map_or_else(|| Ok(BTreeMap::new()), |u| serde_json::from_str(u.get()))
+		.map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?;
+
+	let relations: &mut JsonValue = unsigned.entry("m.relations".into()).or_default();
+	if relations.as_object_mut().is_none() {
+		let mut object = serde_json::Map::<String, JsonValue>::new();
+		_ = relations.as_object_mut().insert(&mut object);
+	}
+
+	relations
+		.as_object_mut()
+		.expect("we just created it")
+		.insert(name.to_owned(), serde_json::to_value(pdu)?);
+
+	self.unsigned = to_raw_value(&unsigned)
+		.map(Some)
+		.expect("unsigned is valid");
+
+	Ok(())
+}
+
+#[implement(Pdu)]
 pub fn contains_unsigned_property<F>(&self, property: &str, is_type: F) -> bool
 where
 	F: FnOnce(&JsonValue) -> bool,
@@ -55,7 +82,7 @@ where
 		.is_some_and(is_true!())
 }
 
-#[implement(super::PduEvent)]
+#[implement(Pdu)]
 pub fn get_unsigned_property<T>(&self, property: &str) -> Result<T>
 where
 	T: for<'de> Deserialize<'de>,
@@ -68,11 +95,11 @@ where
 		.map_err(|e| err!(Database("Failed to deserialize unsigned.{property} into type: {e}")))
 }
 
-#[implement(super::PduEvent)]
+#[implement(Pdu)]
 #[must_use]
 pub fn get_unsigned_as_value(&self) -> JsonValue { self.get_unsigned::<JsonValue>().unwrap_or_default() }
 
-#[implement(super::PduEvent)]
+#[implement(Pdu)]
 pub fn get_unsigned<T>(&self) -> Result<JsonValue> {
 	self.unsigned
 		.as_ref()
