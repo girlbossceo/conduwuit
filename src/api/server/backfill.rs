@@ -16,7 +16,7 @@ use crate::Ruma;
 /// Retrieves events from before the sender joined the room, if the room's
 /// history visibility allows.
 pub(crate) async fn get_backfill_route(
-	State(services): State<crate::State>, body: Ruma<get_backfill::v1::Request>,
+	State(services): State<crate::State>, ref body: Ruma<get_backfill::v1::Request>,
 ) -> Result<get_backfill::v1::Response> {
 	AccessCheck {
 		services: &services,
@@ -27,7 +27,13 @@ pub(crate) async fn get_backfill_route(
 	.check()
 	.await?;
 
-	let until = body
+	let limit = body
+		.limit
+		.min(uint!(100))
+		.try_into()
+		.expect("UInt could not be converted to usize");
+
+	let from = body
 		.v
 		.iter()
 		.stream()
@@ -38,46 +44,38 @@ pub(crate) async fn get_backfill_route(
 				.get_pdu_count(event_id)
 				.map(Result::ok)
 		})
-		.ready_fold(PduCount::Backfilled(0), cmp::max)
-		.await;
-
-	let limit = body
-		.limit
-		.min(uint!(100))
-		.try_into()
-		.expect("UInt could not be converted to usize");
-
-	let origin = body.origin();
-	let pdus = services
-		.rooms
-		.timeline
-		.pdus_rev(None, &body.room_id, Some(until))
-		.await?
-		.take(limit)
-		.filter_map(|(_, pdu)| async move {
-			if !services
-				.rooms
-				.state_accessor
-				.server_can_see_event(origin, &pdu.room_id, &pdu.event_id)
-				.await
-			{
-				return None;
-			}
-
-			services
-				.rooms
-				.timeline
-				.get_pdu_json(&pdu.event_id)
-				.await
-				.ok()
-		})
-		.then(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-		.collect()
+		.ready_fold(PduCount::min(), cmp::max)
 		.await;
 
 	Ok(get_backfill::v1::Response {
-		origin: services.globals.server_name().to_owned(),
 		origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-		pdus,
+
+		origin: services.globals.server_name().to_owned(),
+
+		pdus: services
+			.rooms
+			.timeline
+			.pdus_rev(None, &body.room_id, Some(from))
+			.await?
+			.take(limit)
+			.filter_map(|(_, pdu)| async move {
+				services
+					.rooms
+					.state_accessor
+					.server_can_see_event(body.origin(), &pdu.room_id, &pdu.event_id)
+					.await
+					.then_some(pdu)
+			})
+			.filter_map(|pdu| async move {
+				services
+					.rooms
+					.timeline
+					.get_pdu_json(&pdu.event_id)
+					.await
+					.ok()
+			})
+			.then(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
+			.collect()
+			.await,
 	})
 }
