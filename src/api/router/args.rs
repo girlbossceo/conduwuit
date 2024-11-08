@@ -1,8 +1,8 @@
 use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
-use bytes::{BufMut, BytesMut};
-use conduit::{debug, err, trace, utils::string::EMPTY, Error, Result};
+use bytes::{BufMut, Bytes, BytesMut};
+use conduit::{debug, err, utils::string::EMPTY, Error, Result};
 use ruma::{
 	api::IncomingRequest, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName, OwnedUserId, ServerName, UserId,
 };
@@ -103,7 +103,32 @@ fn make_body<T>(
 where
 	T: IncomingRequest + Send + Sync + 'static,
 {
-	let body = if let Some(CanonicalJsonValue::Object(json_body)) = json_body {
+	let body = take_body(services, request, json_body, auth);
+	let http_request = into_http_request(request, body);
+	T::try_from_http_request(http_request, &request.path).map_err(|e| err!(Request(BadJson(debug_warn!("{e}")))))
+}
+
+fn into_http_request(request: &Request, body: Bytes) -> hyper::Request<Bytes> {
+	let mut http_request = hyper::Request::builder()
+		.uri(request.parts.uri.clone())
+		.method(request.parts.method.clone());
+
+	*http_request.headers_mut().expect("mutable http headers") = request.parts.headers.clone();
+
+	let http_request = http_request.body(body).expect("http request body");
+
+	let headers = http_request.headers();
+	let method = http_request.method();
+	let uri = http_request.uri();
+	debug!("{method:?} {uri:?} {headers:?}");
+
+	http_request
+}
+
+fn take_body(
+	services: &Services, request: &mut Request, json_body: &mut Option<CanonicalJsonValue>, auth: &Auth,
+) -> Bytes {
+	if let Some(CanonicalJsonValue::Object(json_body)) = json_body {
 		let user_id = auth.sender_user.clone().unwrap_or_else(|| {
 			let server_name = services.globals.server_name();
 			UserId::parse_with_server_name(EMPTY, server_name).expect("valid user_id")
@@ -131,19 +156,5 @@ where
 		buf.into_inner().freeze()
 	} else {
 		mem::take(&mut request.body)
-	};
-
-	let mut http_request = hyper::Request::builder()
-		.uri(request.parts.uri.clone())
-		.method(request.parts.method.clone());
-	*http_request.headers_mut().expect("mutable http headers") = request.parts.headers.clone();
-	let http_request = http_request.body(body).expect("http request body");
-
-	let headers = http_request.headers();
-	let method = http_request.method();
-	let uri = http_request.uri();
-	debug!("{method:?} {uri:?} {headers:?}");
-	trace!("{method:?} {uri:?} {json_body:?}");
-
-	T::try_from_http_request(http_request, &request.path).map_err(|e| err!(Request(BadJson(debug_warn!("{e}")))))
+	}
 }
