@@ -877,6 +877,7 @@ async fn join_room_by_id_helper_remote(
 		.await;
 
 	info!("Going through send_join response room_state");
+	let cork = services.db.cork_and_flush();
 	let mut state = HashMap::new();
 	for result in send_join_response.room_state.state.iter().map(|pdu| {
 		services
@@ -902,8 +903,10 @@ async fn join_room_by_id_helper_remote(
 			state.insert(shortstatekey, pdu.event_id.clone());
 		}
 	}
+	drop(cork);
 
 	info!("Going through send_join response auth_chain");
+	let cork = services.db.cork_and_flush();
 	for result in send_join_response.room_state.auth_chain.iter().map(|pdu| {
 		services
 			.server_keys
@@ -915,6 +918,7 @@ async fn join_room_by_id_helper_remote(
 
 		services.rooms.outlier.add_pdu_outlier(&event_id, &value);
 	}
+	drop(cork);
 
 	debug!("Running send_join auth check");
 	let fetch_state = &state;
