@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Debug};
 
-use conduit::{implement, Err, Result};
+use conduit::{debug, implement, Err, Result};
 use ruma::{
 	api::federation::discovery::{
 		get_remote_server_keys,
@@ -25,34 +25,57 @@ where
 		minimum_valid_until_ts: Some(self.minimum_valid_ts()),
 	};
 
-	let mut server_keys = RumaBatch::new();
-	for (server, key_ids) in batch {
-		let entry = server_keys.entry(server.into()).or_default();
-		for key_id in key_ids {
-			entry.insert(key_id.into(), criteria.clone());
-		}
-	}
+	let mut server_keys = batch.fold(RumaBatch::new(), |mut batch, (server, key_ids)| {
+		batch
+			.entry(server.into())
+			.or_default()
+			.extend(key_ids.map(|key_id| (key_id.into(), criteria.clone())));
+
+		batch
+	});
 
 	debug_assert!(!server_keys.is_empty(), "empty batch request to notary");
-	let request = Request {
-		server_keys,
-	};
 
-	self.services
-		.sending
-		.send_federation_request(notary, request)
-		.await
-		.map(|response| response.server_keys)
-		.map(|keys| {
-			keys.into_iter()
-				.map(|key| key.deserialize())
-				.filter_map(Result::ok)
-				.collect()
-		})
+	let mut results = Vec::new();
+	while let Some(batch) = server_keys
+		.keys()
+		.rev()
+		.take(self.services.server.config.trusted_server_batch_size)
+		.last()
+		.cloned()
+	{
+		let request = Request {
+			server_keys: server_keys.split_off(&batch),
+		};
+
+		debug!(
+			?notary,
+			?batch,
+			remaining = %server_keys.len(),
+			requesting = ?request.server_keys.keys(),
+			"notary request"
+		);
+
+		let response = self
+			.services
+			.sending
+			.send_synapse_request(notary, request)
+			.await?
+			.server_keys
+			.into_iter()
+			.map(|key| key.deserialize())
+			.filter_map(Result::ok);
+
+		results.extend(response);
+	}
+
+	Ok(results)
 }
 
 #[implement(super::Service)]
-pub async fn notary_request(&self, notary: &ServerName, target: &ServerName) -> Result<Vec<ServerSigningKeys>> {
+pub async fn notary_request(
+	&self, notary: &ServerName, target: &ServerName,
+) -> Result<impl Iterator<Item = ServerSigningKeys> + Clone + Debug + Send> {
 	use get_remote_server_keys::v2::Request;
 
 	let request = Request {
@@ -60,17 +83,17 @@ pub async fn notary_request(&self, notary: &ServerName, target: &ServerName) -> 
 		minimum_valid_until_ts: self.minimum_valid_ts(),
 	};
 
-	self.services
+	let response = self
+		.services
 		.sending
 		.send_federation_request(notary, request)
-		.await
-		.map(|response| response.server_keys)
-		.map(|keys| {
-			keys.into_iter()
-				.map(|key| key.deserialize())
-				.filter_map(Result::ok)
-				.collect()
-		})
+		.await?
+		.server_keys
+		.into_iter()
+		.map(|key| key.deserialize())
+		.filter_map(Result::ok);
+
+	Ok(response)
 }
 
 #[implement(super::Service)]

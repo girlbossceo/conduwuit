@@ -582,6 +582,12 @@ pub struct Config {
 	#[serde(default)]
 	pub only_query_trusted_key_servers: bool,
 
+	/// Maximum number of keys to request in each trusted server query.
+	///
+	/// default: 1024
+	#[serde(default = "default_trusted_server_batch_size")]
+	pub trusted_server_batch_size: usize,
+
 	/// max log level for conduwuit. allows debug, info, warn, or error
 	/// see also: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
 	/// **Caveat**:
@@ -2062,3 +2068,5 @@ fn parallelism_scaled_u32(val: u32) -> u32 {
 }
 
 fn parallelism_scaled(val: usize) -> usize { val.saturating_mul(sys::available_parallelism()) }
+
+fn default_trusted_server_batch_size() -> usize { 256 }

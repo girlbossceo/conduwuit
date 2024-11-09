@@ -89,8 +89,8 @@ pub async fn get_verify_key(&self, origin: &ServerName, key_id: &ServerSigningKe
 async fn get_verify_key_from_notaries(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
 	for notary in self.services.globals.trusted_servers() {
 		if let Ok(server_keys) = self.notary_request(notary, origin).await {
-			for server_key in &server_keys {
-				self.add_signing_keys(server_key.clone()).await;
+			for server_key in server_keys.clone() {
+				self.add_signing_keys(server_key).await;
 			}
 
 			for server_key in server_keys {

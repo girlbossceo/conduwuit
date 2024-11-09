@@ -110,6 +110,10 @@ where
 			 {requested_servers} total servers; some events may not be verifiable"
 		);
 	}
+
+	for (server, key_ids) in missing {
+		debug_warn!(?server, ?key_ids, "missing");
+	}
 }
 
 #[implement(super::Service)]

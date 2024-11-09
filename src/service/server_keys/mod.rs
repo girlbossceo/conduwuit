@@ -7,7 +7,7 @@ mod verify;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use conduit::{implement, utils::time::timepoint_from_now, Result, Server};
+use conduit::{implement, utils::timepoint_from_now, Result, Server};
 use database::{Deserialized, Json, Map};
 use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
