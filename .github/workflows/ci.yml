@@ -65,7 +65,7 @@ permissions:
 jobs:
     tests:
         name: Test
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - name: Free Disk Space (Ubuntu)
               uses: jlumbroso/free-disk-space@main
@@ -231,7 +231,7 @@ jobs:
 
     build:
         name: Build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: tests
         strategy:
             matrix:
@@ -245,7 +245,7 @@ jobs:
             - name: Sync repository
               uses: actions/checkout@v4
 
-            - uses: nixbuild/nix-quick-install-action@v28
+            - uses: nixbuild/nix-quick-install-action@master
 
             - name: Restore and cache Nix store
               uses: nix-community/cache-nix-action@v5.1.0
@@ -508,7 +508,7 @@ jobs:
 
     docker:
         name: Docker publish
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: build
         if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
         env:
