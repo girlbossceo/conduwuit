@@ -1306,7 +1306,7 @@ pub(crate) async fn invite_helper(
 	services: &Services, sender_user: &UserId, user_id: &UserId, room_id: &RoomId, reason: Option<String>,
 	is_direct: bool,
 ) -> Result<()> {
-	if !services.users.is_admin(user_id).await && services.globals.block_non_admin_invites() {
+	if !services.users.is_admin(sender_user).await && services.globals.block_non_admin_invites() {
 		info!("User {sender_user} is not an admin and attempted to send an invite to room {room_id}");
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),
