@@ -1,5 +1,4 @@
 use std::{
-	collections::BTreeMap,
 	mem::take,
 	time::{Duration, SystemTime},
 };
@@ -12,7 +11,7 @@ use ruma::{
 		OutgoingResponse,
 	},
 	serde::Raw,
-	MilliSecondsSinceUnixEpoch,
+	MilliSecondsSinceUnixEpoch, Signatures,
 };
 
 /// # `GET /_matrix/key/v2/server`
@@ -42,7 +41,7 @@ pub(crate) async fn get_server_keys_route(State(services): State<crate::State>) 
 		old_verify_keys,
 		server_name: server_name.to_owned(),
 		valid_until_ts: valid_until_ts(),
-		signatures: BTreeMap::new(),
+		signatures: Signatures::new(),
 	};
 
 	let server_key = Raw::new(&server_key)?;

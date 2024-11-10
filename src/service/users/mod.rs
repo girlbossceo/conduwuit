@@ -12,8 +12,8 @@ use ruma::{
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
 	events::{ignored_user_list::IgnoredUserListEvent, AnyToDeviceEvent, GlobalAccountDataEventType},
 	serde::Raw,
-	DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId, OwnedDeviceKeyId,
-	OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
+	DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId, OneTimeKeyName, OwnedDeviceId,
+	OwnedKeyId, OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
 };
 use serde_json::json;
 
@@ -341,9 +341,9 @@ impl Service {
 	}
 
 	pub async fn add_one_time_key(
-		&self, user_id: &UserId, device_id: &DeviceId, one_time_key_key: &DeviceKeyId,
+		&self, user_id: &UserId, device_id: &DeviceId, one_time_key_key: &KeyId<OneTimeKeyAlgorithm, OneTimeKeyName>,
 		one_time_key_value: &Raw<OneTimeKey>,
-	) -> Result<()> {
+	) -> Result {
 		// All devices have metadata
 		// Only existing devices should be able to call this, but we shouldn't assert
 		// either...
@@ -388,8 +388,8 @@ impl Service {
 	}
 
 	pub async fn take_one_time_key(
-		&self, user_id: &UserId, device_id: &DeviceId, key_algorithm: &DeviceKeyAlgorithm,
-	) -> Result<(OwnedDeviceKeyId, Raw<OneTimeKey>)> {
+		&self, user_id: &UserId, device_id: &DeviceId, key_algorithm: &OneTimeKeyAlgorithm,
+	) -> Result<(OwnedKeyId<OneTimeKeyAlgorithm, OneTimeKeyName>, Raw<OneTimeKey>)> {
 		let count = self.services.globals.next_count()?.to_be_bytes();
 		self.db.userid_lastonetimekeyupdate.insert(user_id, count);
 
@@ -433,23 +433,23 @@ impl Service {
 
 	pub async fn count_one_time_keys(
 		&self, user_id: &UserId, device_id: &DeviceId,
-	) -> BTreeMap<DeviceKeyAlgorithm, UInt> {
+	) -> BTreeMap<OneTimeKeyAlgorithm, UInt> {
 		type KeyVal<'a> = ((Ignore, Ignore, &'a Unquoted), Ignore);
 
-		let mut algorithm_counts = BTreeMap::<DeviceKeyAlgorithm, UInt>::new();
+		let mut algorithm_counts = BTreeMap::<OneTimeKeyAlgorithm, _>::new();
 		let query = (user_id, device_id);
 		self.db
 			.onetimekeyid_onetimekeys
 			.stream_prefix(&query)
 			.ignore_err()
 			.ready_for_each(|((Ignore, Ignore, device_key_id), Ignore): KeyVal<'_>| {
-				let device_key_id: &DeviceKeyId = device_key_id
+				let one_time_key_id: &OneTimeKeyId = device_key_id
 					.as_str()
 					.try_into()
 					.expect("Invalid DeviceKeyID in database");
 
 				let count: &mut UInt = algorithm_counts
-					.entry(device_key_id.algorithm())
+					.entry(one_time_key_id.algorithm())
 					.or_default();
 
 				*count = count.saturating_add(1_u32.into());

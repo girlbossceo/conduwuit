@@ -16,7 +16,7 @@ use ruma::{
 		federation,
 	},
 	serde::Raw,
-	DeviceKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
+	OneTimeKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
 use serde_json::json;
 
@@ -36,13 +36,12 @@ use crate::{
 pub(crate) async fn upload_keys_route(
 	State(services): State<crate::State>, body: Ruma<upload_keys::v3::Request>,
 ) -> Result<upload_keys::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+	let (sender_user, sender_device) = body.sender();
 
-	for (key_key, key_value) in &body.one_time_keys {
+	for (key_id, one_time_key) in &body.one_time_keys {
 		services
 			.users
-			.add_one_time_key(sender_user, sender_device, key_key, key_value)
+			.add_one_time_key(sender_user, sender_device, key_id, one_time_key)
 			.await?;
 	}
 
@@ -400,16 +399,16 @@ where
 
 	while let Some((server, response)) = futures.next().await {
 		if let Ok(Ok(response)) = response {
-			for (user, masterkey) in response.master_keys {
-				let (master_key_id, mut master_key) = parse_master_key(&user, &masterkey)?;
+			for (user, master_key) in response.master_keys {
+				let (master_key_id, mut master_key) = parse_master_key(&user, &master_key)?;
 
 				if let Ok(our_master_key) = services
 					.users
 					.get_key(&master_key_id, sender_user, &user, &allowed_signatures)
 					.await
 				{
-					let (_, our_master_key) = parse_master_key(&user, &our_master_key)?;
-					master_key.signatures.extend(our_master_key.signatures);
+					let (_, mut our_master_key) = parse_master_key(&user, &our_master_key)?;
+					master_key.signatures.append(&mut our_master_key.signatures);
 				}
 				let json = serde_json::to_value(master_key).expect("to_value always works");
 				let raw = serde_json::from_value(json).expect("Raw::from_value always works");
@@ -467,7 +466,7 @@ fn add_unsigned_device_display_name(
 }
 
 pub(crate) async fn claim_keys_helper(
-	services: &Services, one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, DeviceKeyAlgorithm>>,
+	services: &Services, one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, OneTimeKeyAlgorithm>>,
 ) -> Result<claim_keys::v3::Response> {
 	let mut one_time_keys = BTreeMap::new();
 
