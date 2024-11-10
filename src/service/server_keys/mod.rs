@@ -7,13 +7,19 @@ mod verify;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use conduit::{implement, utils::timepoint_from_now, Result, Server};
+use conduit::{
+	implement,
+	utils::{timepoint_from_now, IterStream},
+	Result, Server,
+};
 use database::{Deserialized, Json, Map};
+use futures::StreamExt;
 use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
 	serde::Raw,
 	signatures::{Ed25519KeyPair, PublicKeyMap, PublicKeySet},
-	MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId,
+	CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, RoomVersionId, ServerName,
+	ServerSigningKeyId,
 };
 use serde_json::value::RawValue as RawJsonValue;
 
@@ -107,7 +113,23 @@ async fn add_signing_keys(&self, new_keys: ServerSigningKeys) {
 }
 
 #[implement(Service)]
-async fn verify_key_exists(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> bool {
+pub async fn required_keys_exist(&self, object: &CanonicalJsonObject, version: &RoomVersionId) -> bool {
+	use ruma::signatures::required_keys;
+
+	let Ok(required_keys) = required_keys(object, version) else {
+		return false;
+	};
+
+	required_keys
+		.iter()
+		.flat_map(|(server, key_ids)| key_ids.iter().map(move |key_id| (server, key_id)))
+		.stream()
+		.all(|(server, key_id)| self.verify_key_exists(server, key_id))
+		.await
+}
+
+#[implement(Service)]
+pub async fn verify_key_exists(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> bool {
 	type KeysMap<'a> = BTreeMap<&'a ServerSigningKeyId, &'a RawJsonValue>;
 
 	let Ok(keys) = self

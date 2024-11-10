@@ -878,46 +878,59 @@ async fn join_room_by_id_helper_remote(
 
 	info!("Going through send_join response room_state");
 	let cork = services.db.cork_and_flush();
-	let mut state = HashMap::new();
-	for result in send_join_response.room_state.state.iter().map(|pdu| {
-		services
-			.server_keys
-			.validate_and_add_event_id(pdu, &room_version_id)
-	}) {
-		let Ok((event_id, value)) = result.await else {
-			continue;
-		};
+	let state = send_join_response
+		.room_state
+		.state
+		.iter()
+		.stream()
+		.then(|pdu| {
+			services
+				.server_keys
+				.validate_and_add_event_id_no_fetch(pdu, &room_version_id)
+		})
+		.ready_filter_map(Result::ok)
+		.fold(HashMap::new(), |mut state, (event_id, value)| async move {
+			let pdu = match PduEvent::from_id_val(&event_id, value.clone()) {
+				Ok(pdu) => pdu,
+				Err(e) => {
+					debug_warn!("Invalid PDU in send_join response: {e:?}: {value:#?}");
+					return state;
+				},
+			};
 
-		let pdu = PduEvent::from_id_val(&event_id, value.clone()).map_err(|e| {
-			debug_warn!("Invalid PDU in send_join response: {value:#?}");
-			err!(BadServerResponse("Invalid PDU in send_join response: {e:?}"))
-		})?;
+			services.rooms.outlier.add_pdu_outlier(&event_id, &value);
+			if let Some(state_key) = &pdu.state_key {
+				let shortstatekey = services
+					.rooms
+					.short
+					.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)
+					.await;
 
-		services.rooms.outlier.add_pdu_outlier(&event_id, &value);
-		if let Some(state_key) = &pdu.state_key {
-			let shortstatekey = services
-				.rooms
-				.short
-				.get_or_create_shortstatekey(&pdu.kind.to_string().into(), state_key)
-				.await;
-			state.insert(shortstatekey, pdu.event_id.clone());
-		}
-	}
+				state.insert(shortstatekey, pdu.event_id.clone());
+			}
+
+			state
+		})
+		.await;
+
 	drop(cork);
 
 	info!("Going through send_join response auth_chain");
 	let cork = services.db.cork_and_flush();
-	for result in send_join_response.room_state.auth_chain.iter().map(|pdu| {
-		services
-			.server_keys
-			.validate_and_add_event_id(pdu, &room_version_id)
-	}) {
-		let Ok((event_id, value)) = result.await else {
-			continue;
-		};
+	send_join_response
+		.room_state
+		.auth_chain
+		.iter()
+		.stream()
+		.then(|pdu| {
+			services
+				.server_keys
+				.validate_and_add_event_id_no_fetch(pdu, &room_version_id)
+		})
+		.ready_filter_map(Result::ok)
+		.ready_for_each(|(event_id, value)| services.rooms.outlier.add_pdu_outlier(&event_id, &value))
+		.await;
 
-		services.rooms.outlier.add_pdu_outlier(&event_id, &value);
-	}
 	drop(cork);
 
 	debug!("Running send_join auth check");
