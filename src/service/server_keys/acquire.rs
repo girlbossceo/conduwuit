@@ -4,7 +4,7 @@ use std::{
 	time::Duration,
 };
 
-use conduit::{debug, debug_error, debug_warn, error, implement, result::FlatOk, trace, warn};
+use conduit::{debug, debug_error, debug_warn, error, implement, info, result::FlatOk, trace, warn};
 use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::discovery::ServerSigningKeys, serde::Raw, CanonicalJsonObject, OwnedServerName,
@@ -69,7 +69,7 @@ where
 		return;
 	}
 
-	debug!("missing {missing_keys} keys for {missing_servers} servers locally");
+	info!("{missing_keys} keys for {missing_servers} servers will be acquired");
 
 	if notary_first_always || notary_first_on_join {
 		missing = self.acquire_notary(missing.into_iter()).await;
@@ -79,7 +79,7 @@ where
 			return;
 		}
 
-		debug_warn!("missing {missing_keys} keys for {missing_servers} servers from all notaries first");
+		warn!("missing {missing_keys} keys for {missing_servers} servers from all notaries first");
 	}
 
 	if !notary_only {
@@ -107,7 +107,7 @@ where
 	if missing_keys > 0 {
 		warn!(
 			"did not obtain {missing_keys} keys for {missing_servers} servers out of {requested_keys} total keys for \
-			 {requested_servers} total servers; some events may not be verifiable"
+			 {requested_servers} total servers."
 		);
 	}
 
