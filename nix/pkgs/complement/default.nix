@@ -25,6 +25,7 @@ let
         "tokio_console"
         # sentry telemetry isn't useful for complement, disabled by default anyways
         "sentry_telemetry"
+        "perf_measurements"
         # the containers don't use or need systemd signal support
         "systemd"
         # this is non-functional on nix for some reason
