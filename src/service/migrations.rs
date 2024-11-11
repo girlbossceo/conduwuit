@@ -59,7 +59,6 @@ pub(crate) async fn migrations(services: &Services) -> Result<()> {
 
 async fn fresh(services: &Services) -> Result<()> {
 	let db = &services.db;
-	let config = &services.server.config;
 
 	services
 		.globals
@@ -73,10 +72,7 @@ async fn fresh(services: &Services) -> Result<()> {
 	// Create the admin room and server user on first run
 	crate::admin::create_admin_room(services).boxed().await?;
 
-	warn!(
-		"Created new {} database with version {DATABASE_VERSION}",
-		config.database_backend,
-	);
+	warn!("Created new RocksDB database with version {DATABASE_VERSION}");
 
 	Ok(())
 }
@@ -201,10 +197,7 @@ async fn migrate(services: &Services) -> Result<()> {
 		}
 	}
 
-	info!(
-		"Loaded {} database with schema version {DATABASE_VERSION}",
-		config.database_backend,
-	);
+	info!("Loaded RocksDB database with schema version {DATABASE_VERSION}");
 
 	Ok(())
 }
