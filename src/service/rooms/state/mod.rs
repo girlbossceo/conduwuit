@@ -295,20 +295,22 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip_all, level = "debug")]
-	pub async fn summary_stripped(&self, invite: &PduEvent) -> Vec<Raw<AnyStrippedStateEvent>> {
+	pub async fn summary_stripped(&self, event: &PduEvent) -> Vec<Raw<AnyStrippedStateEvent>> {
 		let cells = [
 			(&StateEventType::RoomCreate, ""),
 			(&StateEventType::RoomJoinRules, ""),
 			(&StateEventType::RoomCanonicalAlias, ""),
 			(&StateEventType::RoomName, ""),
 			(&StateEventType::RoomAvatar, ""),
-			(&StateEventType::RoomMember, invite.sender.as_str()), // Add recommended events
+			(&StateEventType::RoomMember, event.sender.as_str()), // Add recommended events
+			(&StateEventType::RoomEncryption, ""),
+			(&StateEventType::RoomTopic, ""),
 		];
 
 		let fetches = cells.iter().map(|(event_type, state_key)| {
 			self.services
 				.state_accessor
-				.room_state_get(&invite.room_id, event_type, state_key)
+				.room_state_get(&event.room_id, event_type, state_key)
 		});
 
 		join_all(fetches)
@@ -316,7 +318,7 @@ impl Service {
 			.into_iter()
 			.filter_map(Result::ok)
 			.map(|e| e.to_stripped_state_event())
-			.chain(once(invite.to_stripped_state_event()))
+			.chain(once(event.to_stripped_state_event()))
 			.collect()
 	}
 

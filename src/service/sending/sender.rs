@@ -235,13 +235,15 @@ impl Service {
 	fn select_events_current(&self, dest: Destination, statuses: &mut CurTransactionStatus) -> Result<(bool, bool)> {
 		let (mut allow, mut retry) = (true, false);
 		statuses
-			.entry(dest)
+			.entry(dest.clone()) // TODO: can we avoid cloning?
 			.and_modify(|e| match e {
 				TransactionStatus::Failed(tries, time) => {
 					// Fail if a request has failed recently (exponential backoff)
 					let min = self.server.config.sender_timeout;
 					let max = self.server.config.sender_retry_backoff_limit;
-					if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries) {
+					if continue_exponential_backoff_secs(min, max, time.elapsed(), *tries)
+						&& !matches!(dest, Destination::Appservice(_))
+					{
 						allow = false;
 					} else {
 						retry = true;

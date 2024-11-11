@@ -157,7 +157,5 @@ async fn create_leave_event(
 		.room_servers(room_id)
 		.ready_filter(|server| !services.globals.server_is_ours(server));
 
-	services.sending.send_pdu_servers(servers, &pdu_id).await?;
-
-	Ok(())
+	services.sending.send_pdu_servers(servers, &pdu_id).await
 }

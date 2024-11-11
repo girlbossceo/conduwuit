@@ -39,7 +39,7 @@ impl super::Service {
 			.forbidden_remote_server_names
 			.contains(dest)
 		{
-			return Err!(Request(Forbidden(debug_warn!("Federation with this {dest} is not allowed."))));
+			return Err!(Request(Forbidden(debug_warn!("Federation with {dest} is not allowed."))));
 		}
 
 		let actual = self.services.resolver.get_actual_dest(dest).await?;

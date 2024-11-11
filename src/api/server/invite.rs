@@ -1,5 +1,6 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
+use base64::{engine::general_purpose, Engine as _};
 use conduit::{err, utils, warn, Err, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
@@ -125,8 +126,10 @@ pub(crate) async fn create_invite_route(
 
 	invite_state.push(pdu.to_stripped_state_event());
 
-	// If we are active in the room, the remote server will notify us about the join
-	// via /send
+	// If we are active in the room, the remote server will notify us about the
+	// join/invite through /send. If we are not in the room, we need to manually
+	// record the invited state for client /sync through update_membership(), and
+	// send the invite PDU to the relevant appservices.
 	if !services
 		.rooms
 		.state_cache
@@ -146,6 +149,25 @@ pub(crate) async fn create_invite_route(
 				true,
 			)
 			.await?;
+	}
+
+	for appservice in services.appservice.read().await.values() {
+		if appservice.is_user_match(&invited_user) {
+			services
+				.sending
+				.send_appservice_request(
+					appservice.registration.clone(),
+					ruma::api::appservice::event::push_events::v1::Request {
+						events: vec![pdu.to_room_event()],
+						txn_id: general_purpose::URL_SAFE_NO_PAD
+							.encode(utils::calculate_hash(&[pdu.event_id.as_bytes()]))
+							.into(),
+						ephemeral: Vec::new(),
+						to_device: Vec::new(),
+					},
+				)
+				.await?;
+		}
 	}
 
 	Ok(create_invite::v2::Response {

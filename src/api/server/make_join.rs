@@ -80,6 +80,14 @@ pub(crate) async fn create_join_event_template_route(
 	}
 
 	let room_version_id = services.rooms.state.get_room_version(&body.room_id).await?;
+	if !body.ver.contains(&room_version_id) {
+		return Err(Error::BadRequest(
+			ErrorKind::IncompatibleRoomVersion {
+				room_version: room_version_id,
+			},
+			"Room version not supported.",
+		));
+	}
 
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
@@ -117,16 +125,6 @@ pub(crate) async fn create_join_event_template_route(
 	} else {
 		None
 	};
-
-	let room_version_id = services.rooms.state.get_room_version(&body.room_id).await?;
-	if !body.ver.contains(&room_version_id) {
-		return Err(Error::BadRequest(
-			ErrorKind::IncompatibleRoomVersion {
-				room_version: room_version_id,
-			},
-			"Room version not supported.",
-		));
-	}
 
 	let (_pdu, mut pdu_json) = services
 		.rooms

@@ -13,6 +13,7 @@ use ruma::{
 			profile::{get_avatar_url, get_display_name, get_profile, get_profile_key, get_timezone_key},
 			voip::get_turn_server_info,
 		},
+		federation::openid::get_openid_userinfo,
 		AuthScheme, IncomingRequest, Metadata,
 	},
 	server_util::authorization::XMatrix,
@@ -102,26 +103,6 @@ pub(super) async fn auth(
 	}
 
 	match (metadata.authentication, token) {
-		(_, Token::Invalid) => {
-			// OpenID endpoint uses a query param with the same name, drop this once query
-			// params for user auth are removed from the spec. This is required to make
-			// integration manager work.
-			if request.query.access_token.is_some() && request.parts.uri.path().contains("/openid/") {
-				Ok(Auth {
-					origin: None,
-					sender_user: None,
-					sender_device: None,
-					appservice_info: None,
-				})
-			} else {
-				Err(Error::BadRequest(
-					ErrorKind::UnknownToken {
-						soft_logout: false,
-					},
-					"Unknown access token.",
-				))
-			}
-		},
 		(AuthScheme::AccessToken, Token::Appservice(info)) => Ok(auth_appservice(services, request, info).await?),
 		(AuthScheme::None | AuthScheme::AccessTokenOptional | AuthScheme::AppserviceToken, Token::Appservice(info)) => {
 			Ok(Auth {
@@ -132,7 +113,6 @@ pub(super) async fn auth(
 			})
 		},
 		(AuthScheme::AccessToken, Token::None) => match metadata {
-			// TODO: can we check this better?
 			&get_turn_server_info::v3::Request::METADATA => {
 				if services.globals.config.turn_allow_guests {
 					Ok(Auth {
@@ -170,6 +150,32 @@ pub(super) async fn auth(
 		(AuthScheme::AppserviceToken, Token::User(_)) => Err(Error::BadRequest(
 			ErrorKind::Unauthorized,
 			"Only appservice access tokens should be used on this endpoint.",
+		)),
+		(AuthScheme::None, Token::Invalid) => {
+			// OpenID federation endpoint uses a query param with the same name, drop this
+			// once query params for user auth are removed from the spec. This is
+			// required to make integration manager work.
+			if request.query.access_token.is_some() && metadata == &get_openid_userinfo::v1::Request::METADATA {
+				Ok(Auth {
+					origin: None,
+					sender_user: None,
+					sender_device: None,
+					appservice_info: None,
+				})
+			} else {
+				Err(Error::BadRequest(
+					ErrorKind::UnknownToken {
+						soft_logout: false,
+					},
+					"Unknown access token.",
+				))
+			}
+		},
+		(_, Token::Invalid) => Err(Error::BadRequest(
+			ErrorKind::UnknownToken {
+				soft_logout: false,
+			},
+			"Unknown access token.",
 		)),
 	}
 }

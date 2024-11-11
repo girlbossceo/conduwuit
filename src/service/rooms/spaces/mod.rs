@@ -8,7 +8,7 @@ use std::{
 };
 
 use conduit::{
-	checked, debug, debug_info, err,
+	checked, debug_info, err,
 	utils::{math::usize_from_f64, IterStream},
 	Error, Result,
 };
@@ -234,27 +234,25 @@ impl Service {
 			});
 		}
 
-		Ok(
-			if let Some(children_pdus) = self.get_stripped_space_child_events(current_room).await? {
-				let summary = self
-					.get_room_summary(current_room, children_pdus, &identifier)
-					.await;
-				if let Ok(summary) = summary {
-					self.roomid_spacehierarchy_cache.lock().await.insert(
-						current_room.clone(),
-						Some(CachedSpaceHierarchySummary {
-							summary: summary.clone(),
-						}),
-					);
+		if let Some(children_pdus) = self.get_stripped_space_child_events(current_room).await? {
+			let summary = self
+				.get_room_summary(current_room, children_pdus, &identifier)
+				.await;
+			if let Ok(summary) = summary {
+				self.roomid_spacehierarchy_cache.lock().await.insert(
+					current_room.clone(),
+					Some(CachedSpaceHierarchySummary {
+						summary: summary.clone(),
+					}),
+				);
 
-					Some(SummaryAccessibility::Accessible(Box::new(summary)))
-				} else {
-					None
-				}
+				Ok(Some(SummaryAccessibility::Accessible(Box::new(summary))))
 			} else {
-				None
-			},
-		)
+				Ok(None)
+			}
+		} else {
+			Ok(None)
+		}
 	}
 
 	/// Gets the summary of a space using solely federation
@@ -393,7 +391,7 @@ impl Service {
 			.is_accessible_child(current_room, &join_rule.clone().into(), identifier, &allowed_room_ids)
 			.await
 		{
-			debug!("User is not allowed to see room {room_id}");
+			debug_info!("User is not allowed to see room {room_id}");
 			// This error will be caught later
 			return Err(Error::BadRequest(ErrorKind::forbidden(), "User is not allowed to see the room"));
 		}
@@ -615,16 +613,13 @@ impl Service {
 		&self, current_room: &OwnedRoomId, join_rule: &SpaceRoomJoinRule, identifier: &Identifier<'_>,
 		allowed_room_ids: &Vec<OwnedRoomId>,
 	) -> bool {
-		// Note: unwrap_or_default for bool means false
 		match identifier {
 			Identifier::ServerName(server_name) => {
-				let room_id: &RoomId = current_room;
-
 				// Checks if ACLs allow for the server to participate
 				if self
 					.services
 					.event_handler
-					.acl_check(server_name, room_id)
+					.acl_check(server_name, current_room)
 					.await
 					.is_err()
 				{
@@ -645,8 +640,9 @@ impl Service {
 					return true;
 				}
 			},
-		} // Takes care of join rules
-		match join_rule {
+		}
+		match &join_rule {
+			SpaceRoomJoinRule::Public | SpaceRoomJoinRule::Knock | SpaceRoomJoinRule::KnockRestricted => true,
 			SpaceRoomJoinRule::Restricted => {
 				for room in allowed_room_ids {
 					match identifier {
@@ -664,7 +660,6 @@ impl Service {
 				}
 				false
 			},
-			SpaceRoomJoinRule::Public | SpaceRoomJoinRule::Knock | SpaceRoomJoinRule::KnockRestricted => true,
 			// Invite only, Private, or Custom join rule
 			_ => false,
 		}

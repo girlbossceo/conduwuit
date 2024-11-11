@@ -1240,8 +1240,8 @@ async fn make_join_request(
 ) -> Result<(federation::membership::prepare_join_event::v1::Response, OwnedServerName)> {
 	let mut make_join_response_and_server = Err!(BadServerResponse("No server available to assist in joining."));
 
-	let mut make_join_counter: u16 = 0;
-	let mut incompatible_room_version_count: u8 = 0;
+	let mut make_join_counter: usize = 0;
+	let mut incompatible_room_version_count: usize = 0;
 
 	for remote_server in servers {
 		if services.globals.server_is_ours(remote_server) {
@@ -1264,28 +1264,25 @@ async fn make_join_request(
 		make_join_counter = make_join_counter.saturating_add(1);
 
 		if let Err(ref e) = make_join_response {
-			trace!("make_join ErrorKind string: {:?}", e.kind().to_string());
-
-			// converting to a string is necessary (i think) because ruma is forcing us to
-			// fill in the struct for M_INCOMPATIBLE_ROOM_VERSION
-			if e.kind().to_string().contains("M_INCOMPATIBLE_ROOM_VERSION")
-				|| e.kind().to_string().contains("M_UNSUPPORTED_ROOM_VERSION")
-			{
+			if matches!(
+				e.kind(),
+				ErrorKind::IncompatibleRoomVersion { .. } | ErrorKind::UnsupportedRoomVersion
+			) {
 				incompatible_room_version_count = incompatible_room_version_count.saturating_add(1);
 			}
 
 			if incompatible_room_version_count > 15 {
 				info!(
 					"15 servers have responded with M_INCOMPATIBLE_ROOM_VERSION or M_UNSUPPORTED_ROOM_VERSION, \
-					 assuming that Conduwuit does not support the room {room_id}: {e}"
+					 assuming that conduwuit does not support the room {room_id}: {e}"
 				);
 				make_join_response_and_server = Err!(BadServerResponse("Room version is not supported by Conduwuit"));
 				return make_join_response_and_server;
 			}
 
-			if make_join_counter > 50 {
+			if make_join_counter > 40 {
 				warn!(
-					"50 servers failed to provide valid make_join response, assuming no server can assist in joining."
+					"40 servers failed to provide valid make_join response, assuming no server can assist in joining."
 				);
 				make_join_response_and_server = Err!(BadServerResponse("No server available to assist in joining."));
 				return make_join_response_and_server;

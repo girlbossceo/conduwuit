@@ -10,7 +10,7 @@ use conduit::{
 	err, error,
 	pdu::PduBuilder,
 	utils::{math::usize_from_f64, ReadyExt},
-	Error, PduEvent, Result,
+	Err, Error, Event, PduEvent, Result,
 };
 use futures::StreamExt;
 use lru_cache::LruCache;
@@ -29,7 +29,7 @@ use ruma::{
 			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 			topic::RoomTopicEventContent,
 		},
-		StateEventType,
+		StateEventType, TimelineEventType,
 	},
 	room::RoomType,
 	space::SpaceRoomJoinRule,
@@ -408,34 +408,41 @@ impl Service {
 	pub async fn user_can_redact(
 		&self, redacts: &EventId, sender: &UserId, room_id: &RoomId, federation: bool,
 	) -> Result<bool> {
-		if let Ok(event) = self
+		let redacting_event = self.services.timeline.get_pdu(redacts).await;
+
+		if redacting_event
+			.as_ref()
+			.is_ok_and(|event| event.event_type() == &TimelineEventType::RoomCreate)
+		{
+			return Err!(Request(Forbidden("Redacting m.room.create is not safe, forbidding.")));
+		}
+
+		if let Ok(pl_event_content) = self
 			.room_state_get_content::<RoomPowerLevelsEventContent>(room_id, &StateEventType::RoomPowerLevels, "")
 			.await
 		{
-			let event: RoomPowerLevels = event.into();
-			Ok(event.user_can_redact_event_of_other(sender)
-				|| event.user_can_redact_own_event(sender)
-					&& if let Ok(pdu) = self.services.timeline.get_pdu(redacts).await {
+			let pl_event: RoomPowerLevels = pl_event_content.into();
+			Ok(pl_event.user_can_redact_event_of_other(sender)
+				|| pl_event.user_can_redact_own_event(sender)
+					&& if let Ok(redacting_event) = redacting_event {
 						if federation {
-							pdu.sender.server_name() == sender.server_name()
+							redacting_event.sender.server_name() == sender.server_name()
 						} else {
-							pdu.sender == sender
+							redacting_event.sender == sender
 						}
 					} else {
 						false
 					})
 		} else {
 			// Falling back on m.room.create to judge power level
-			if let Ok(pdu) = self
+			if let Ok(room_create) = self
 				.room_state_get(room_id, &StateEventType::RoomCreate, "")
 				.await
 			{
-				Ok(pdu.sender == sender
-					|| if let Ok(pdu) = self.services.timeline.get_pdu(redacts).await {
-						pdu.sender == sender
-					} else {
-						false
-					})
+				Ok(room_create.sender == sender
+					|| redacting_event
+						.as_ref()
+						.is_ok_and(|redacting_event| redacting_event.sender == sender))
 			} else {
 				Err(Error::bad_database(
 					"No m.room.power_levels or m.room.create events in database for room",
@@ -454,7 +461,7 @@ impl Service {
 
 	/// Returns an empty vec if not a restricted room
 	pub fn allowed_room_ids(&self, join_rule: JoinRule) -> Vec<OwnedRoomId> {
-		let mut room_ids = vec![];
+		let mut room_ids = Vec::with_capacity(1);
 		if let JoinRule::Restricted(r) | JoinRule::KnockRestricted(r) = join_rule {
 			for rule in r.allow {
 				if let AllowRule::RoomMembership(RoomMembership {
