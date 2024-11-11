@@ -40,7 +40,6 @@ When you have the image you can simply run it with
 docker run -d -p 8448:6167 \
     -v db:/var/lib/conduwuit/ \
     -e CONDUWUIT_SERVER_NAME="your.server.name" \
-    -e CONDUWUIT_DATABASE_BACKEND="rocksdb" \
     -e CONDUWUIT_ALLOW_REGISTRATION=false \
     --name conduit $LINK
 ```

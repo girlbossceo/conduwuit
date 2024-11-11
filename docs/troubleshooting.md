@@ -47,10 +47,11 @@ and communicate with your host's DNS servers (host's `/etc/resolv.conf`)
 
 Some filesystems may not like RocksDB using [Direct
 IO](https://github.com/facebook/rocksdb/wiki/Direct-IO). Direct IO is for
-non-buffered I/O which improves conduwuit performance, but at least FUSE is a
-filesystem potentially known to not like this. See the [example
-config](configuration/examples.md) for disabling it if needed. Issues from
-Direct IO on unsupported filesystems are usually shown as startup errors.
+non-buffered I/O which improves conduwuit performance and reduces system CPU
+usage, but at least FUSE and possibly ZFS are filesystems potentially known
+to not like this. See the [example config](configuration/examples.md) for
+disabling it if needed. Issues from Direct IO on unsupported filesystems are
+usually shown as startup errors.
 
 #### Database corruption
 

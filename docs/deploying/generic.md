@@ -42,6 +42,9 @@ replace the binary / container image / etc.
 this will **NOT** work on conduwuit and you must configure delegation manually.
 This is not a mistake and no support for this feature will be added.
 
+If you are using SQLite, you **MUST** migrate to RocksDB. You can use this
+tool to migrate from SQLite to RocksDB: <https://github.com/ShadowJonathan/conduit_toolbox/>
+
 See the `[global.well_known]` config section, or configure your web server
 appropriately to send the delegation responses.
 
@@ -137,10 +140,19 @@ You will need to reverse proxy everything under following routes:
 
 You can optionally reverse proxy the following individual routes:
 - `/.well-known/matrix/client` and `/.well-known/matrix/server` if using
-conduwuit to perform delegation
+conduwuit to perform delegation (see the `[global.well_known]` config section)
 - `/.well-known/matrix/support` if using conduwuit to send the homeserver admin
 contact and support page (formerly known as MSC1929)
 - `/` if you would like to see `hewwo from conduwuit woof!` at the root
+
+See the following spec pages for more details on these files:
+- [`/.well-known/matrix/server`](https://spec.matrix.org/latest/client-server-api/#getwell-knownmatrixserver)
+- [`/.well-known/matrix/client`](https://spec.matrix.org/latest/client-server-api/#getwell-knownmatrixclient)
+- [`/.well-known/matrix/support`](https://spec.matrix.org/latest/client-server-api/#getwell-knownmatrixsupport)
+
+Examples of delegation:
+- <https://puppygock.gay/.well-known/matrix/server>
+- <https://puppygock.gay/.well-known/matrix/client>
 
 ### Caddy
 
