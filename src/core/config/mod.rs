@@ -606,6 +606,12 @@ pub struct Config {
 	#[serde(default = "true_fn", alias = "log_colours")]
 	pub log_colors: bool,
 
+	/// configures the span events which will be outputted with the log
+	///
+	/// default: "none"
+	#[serde(default = "default_log_span_events")]
+	pub log_span_events: String,
+
 	/// OpenID token expiration/TTL in seconds
 	///
 	/// These are the OpenID tokens that are primarily used for Matrix account
@@ -1957,6 +1963,9 @@ pub fn default_log() -> String {
 		.unwrap_or("info")
 		.to_owned()
 }
+
+#[must_use]
+pub fn default_log_span_events() -> String { "none".into() }
 
 fn default_notification_push_path() -> String { "/_matrix/push/v1/notify".to_owned() }
 

@@ -3,7 +3,8 @@ use std::sync::Arc;
 use conduit::{
 	config::Config,
 	debug_warn, err,
-	log::{capture, LogLevelReloadHandles},
+	log::{capture, fmt_span, LogLevelReloadHandles},
+	result::UnwrapOrErr,
 	Result,
 };
 use tracing_subscriber::{layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
@@ -18,7 +19,10 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 	let reload_handles = LogLevelReloadHandles::default();
 
 	let console_filter = EnvFilter::try_new(&config.log).map_err(|e| err!(Config("log", "{e}.")))?;
-	let console_layer = tracing_subscriber::fmt::Layer::new().with_ansi(config.log_colors);
+	let console_span_events = fmt_span::from_str(&config.log_span_events).unwrap_or_err();
+	let console_layer = tracing_subscriber::fmt::Layer::new()
+		.with_ansi(config.log_colors)
+		.with_span_events(console_span_events);
 	let (console_reload_filter, console_reload_handle) = reload::Layer::new(console_filter.clone());
 	reload_handles.add("console", Box::new(console_reload_handle));
 
