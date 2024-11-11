@@ -1,6 +1,7 @@
 pub mod capture;
 pub mod color;
 pub mod fmt;
+pub mod fmt_span;
 mod reload;
 mod suppress;
 
