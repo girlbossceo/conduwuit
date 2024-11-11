@@ -192,6 +192,10 @@ pub(crate) async fn update_lazy(
 		return lazy;
 	}
 
+	if lazy.contains(event.sender()) {
+		return lazy;
+	}
+
 	if !services
 		.rooms
 		.lazy_loading
