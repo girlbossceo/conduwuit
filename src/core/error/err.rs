@@ -111,12 +111,8 @@ macro_rules! err {
 #[macro_export]
 macro_rules! err_log {
 	($out:ident, $level:ident, $($fields:tt)+) => {{
-		use std::{fmt, fmt::Write};
-
 		use $crate::tracing::{
-			callsite, callsite2, level_enabled, metadata, valueset, Callsite, Event, __macro_support,
-			__tracing_log,
-			field::{Field, ValueSet, Visit},
+			callsite, callsite2, metadata, valueset, Callsite,
 			Level,
 		};
 
@@ -134,34 +130,7 @@ macro_rules! err_log {
 			fields: $($fields)+,
 		};
 
-		let visit = &mut |vs: ValueSet<'_>| {
-			struct Visitor<'a>(&'a mut String);
-			impl Visit for Visitor<'_> {
-				#[inline]
-				fn record_debug(&mut self, field: &Field, val: &dyn fmt::Debug) {
-					if field.name() == "message" {
-						write!(self.0, "{:?}", val).expect("stream error");
-					} else {
-						write!(self.0, " {}={:?}", field.name(), val).expect("stream error");
-					}
-				}
-			}
-
-			let meta = __CALLSITE.metadata();
-			let enabled = level_enabled!(LEVEL) && {
-				let interest = __CALLSITE.interest();
-				!interest.is_never() && __macro_support::__is_enabled(meta, interest)
-			};
-
-			if enabled {
-				Event::dispatch(meta, &vs);
-			}
-
-			__tracing_log!(LEVEL, __CALLSITE, &vs);
-			vs.record(&mut Visitor(&mut $out));
-		};
-
-		(visit)(valueset!(__CALLSITE.metadata().fields(), $($fields)+));
+		($crate::error::visit)(&mut $out, LEVEL, &__CALLSITE, &mut valueset!(__CALLSITE.metadata().fields(), $($fields)+));
 		($out).into()
 	}}
 }
@@ -191,4 +160,41 @@ macro_rules! err_lev {
 	(error) => {
 		$crate::tracing::Level::ERROR
 	};
+}
+
+use std::{fmt, fmt::Write};
+
+use tracing::{
+	level_enabled, Callsite, Event, __macro_support, __tracing_log,
+	callsite::DefaultCallsite,
+	field::{Field, ValueSet, Visit},
+	Level,
+};
+
+struct Visitor<'a>(&'a mut String);
+
+impl Visit for Visitor<'_> {
+	#[inline]
+	fn record_debug(&mut self, field: &Field, val: &dyn fmt::Debug) {
+		if field.name() == "message" {
+			write!(self.0, "{val:?}").expect("stream error");
+		} else {
+			write!(self.0, " {}={val:?}", field.name()).expect("stream error");
+		}
+	}
+}
+
+pub fn visit(out: &mut String, level: Level, __callsite: &'static DefaultCallsite, vs: &mut ValueSet<'_>) {
+	let meta = __callsite.metadata();
+	let enabled = level_enabled!(level) && {
+		let interest = __callsite.interest();
+		!interest.is_never() && __macro_support::__is_enabled(meta, interest)
+	};
+
+	if enabled {
+		Event::dispatch(meta, vs);
+	}
+
+	__tracing_log!(level, __callsite, vs);
+	vs.record(&mut Visitor(out));
 }

@@ -6,8 +6,7 @@ mod serde;
 
 use std::{any::Any, borrow::Cow, convert::Infallible, fmt, sync::PoisonError};
 
-pub use self::log::*;
-use crate::error;
+pub use self::{err::visit, log::*};
 
 #[derive(thiserror::Error)]
 pub enum Error {
