@@ -13,7 +13,7 @@ use conduit::{
 };
 use database::{Database, Deserialized, Json, KeyVal, Map};
 use futures::{Stream, StreamExt};
-use ruma::{CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
+use ruma::{api::Direction, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use tokio::sync::Mutex;
 
 use super::{PduId, RawPduId};
@@ -205,7 +205,9 @@ impl Data {
 	pub(super) async fn pdus_rev<'a>(
 		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, until: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		let current = self.count_to_id(room_id, until).await?;
+		let current = self
+			.count_to_id(room_id, until, Direction::Backward)
+			.await?;
 		let prefix = current.shortroomid();
 		let stream = self
 			.pduid_pdu
@@ -220,7 +222,7 @@ impl Data {
 	pub(super) async fn pdus<'a>(
 		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, from: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		let current = self.count_to_id(room_id, from).await?;
+		let current = self.count_to_id(room_id, from, Direction::Forward).await?;
 		let prefix = current.shortroomid();
 		let stream = self
 			.pduid_pdu
@@ -267,7 +269,7 @@ impl Data {
 		}
 	}
 
-	async fn count_to_id(&self, room_id: &RoomId, shorteventid: PduCount) -> Result<RawPduId> {
+	async fn count_to_id(&self, room_id: &RoomId, shorteventid: PduCount, dir: Direction) -> Result<RawPduId> {
 		let shortroomid: ShortRoomId = self
 			.services
 			.short
@@ -278,7 +280,7 @@ impl Data {
 		// +1 so we don't send the base event
 		let pdu_id = PduId {
 			shortroomid,
-			shorteventid,
+			shorteventid: shorteventid.saturating_inc(dir),
 		};
 
 		Ok(pdu_id.into())

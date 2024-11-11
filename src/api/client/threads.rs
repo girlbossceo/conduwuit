@@ -46,7 +46,6 @@ pub(crate) async fn get_threads_route(
 			.last()
 			.filter(|_| threads.len() >= limit)
 			.map(at!(0))
-			.map(|count| count.saturating_sub(1))
 			.as_ref()
 			.map(ToString::to_string),
 

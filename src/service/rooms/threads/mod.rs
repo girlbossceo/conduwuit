@@ -132,7 +132,7 @@ impl Service {
 
 		let current: RawPduId = PduId {
 			shortroomid,
-			shorteventid,
+			shorteventid: shorteventid.saturating_sub(1),
 		}
 		.into();
 

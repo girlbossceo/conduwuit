@@ -138,10 +138,7 @@ pub(crate) async fn get_message_events_route(
 
 	let start_token = events.first().map(at!(0)).unwrap_or(from);
 
-	let next_token = events
-		.last()
-		.map(at!(0))
-		.map(|count| count.saturating_inc(body.dir));
+	let next_token = events.last().map(at!(0));
 
 	if !cfg!(feature = "element_hacks") {
 		if let Some(next_token) = next_token {

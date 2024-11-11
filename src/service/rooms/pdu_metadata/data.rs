@@ -57,7 +57,7 @@ impl Data {
 	) -> impl Stream<Item = PdusIterItem> + Send + '_ {
 		let mut current = ArrayVec::<u8, 16>::new();
 		current.extend(target.to_be_bytes());
-		current.extend(from.into_unsigned().to_be_bytes());
+		current.extend(from.saturating_inc(dir).into_unsigned().to_be_bytes());
 		let current = current.as_slice();
 		match dir {
 			Direction::Forward => self.tofrom_relation.raw_keys_from(current).boxed(),

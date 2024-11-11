@@ -55,7 +55,7 @@ pub(crate) async fn get_backfill_route(
 		pdus: services
 			.rooms
 			.timeline
-			.pdus_rev(None, &body.room_id, Some(from))
+			.pdus_rev(None, &body.room_id, Some(from.saturating_add(1)))
 			.await?
 			.take(limit)
 			.filter_map(|(_, pdu)| async move {
