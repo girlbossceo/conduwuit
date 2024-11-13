@@ -10,7 +10,7 @@ use conduit::{
 	warn, Result,
 };
 use database::{serialize_to_vec, Deserialized, Ignore, Interfix, Json, Map};
-use futures::{stream::iter, Stream, StreamExt};
+use futures::{future::join4, stream::iter, Stream, StreamExt};
 use itertools::Itertools;
 use ruma::{
 	events::{
@@ -564,6 +564,24 @@ impl Service {
 	pub async fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> bool {
 		let key = (user_id, room_id);
 		self.db.userroomid_leftstate.qry(&key).await.is_ok()
+	}
+
+	pub async fn user_membership(&self, user_id: &UserId, room_id: &RoomId) -> Option<MembershipState> {
+		let states = join4(
+			self.is_joined(user_id, room_id),
+			self.is_left(user_id, room_id),
+			self.is_invited(user_id, room_id),
+			self.once_joined(user_id, room_id),
+		)
+		.await;
+
+		match states {
+			(true, ..) => Some(MembershipState::Join),
+			(_, true, ..) => Some(MembershipState::Leave),
+			(_, _, true, ..) => Some(MembershipState::Invite),
+			(false, false, false, true) => Some(MembershipState::Ban),
+			_ => None,
+		}
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
