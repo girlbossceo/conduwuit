@@ -277,7 +277,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
 	fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let input = self.record_next();
-		let out = string::str_from_bytes(input)?;
+		let out = deserialize_str(input)?;
 		visitor.visit_borrowed_str(out)
 	}
 
@@ -359,4 +359,19 @@ impl<'a, 'de: 'a> de::MapAccess<'de> for &'a mut Deserializer<'de> {
 	{
 		seed.deserialize(&mut **self)
 	}
+}
+
+// activate when stable; too soon now
+//#[cfg(debug_assertions)]
+#[inline]
+fn deserialize_str(input: &[u8]) -> Result<&str> { string::str_from_bytes(input) }
+
+//#[cfg(not(debug_assertions))]
+#[cfg(disable)]
+#[inline]
+fn deserialize_str(input: &[u8]) -> Result<&str> {
+	// SAFETY: Strings were written by the serializer to the database. Assuming no
+	// database corruption, the string will be valid. Database corruption is
+	// detected via rocksdb checksums.
+	unsafe { std::str::from_utf8_unchecked(input) }
 }
