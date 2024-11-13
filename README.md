@@ -10,7 +10,7 @@ Artifacts](https://github.com/girlbossceo/conduwuit/actions/workflows/ci.yml/bad
 <!-- ANCHOR_END: catchphrase -->
 
 Visit the [conduwuit documentation](https://conduwuit.puppyirl.gay/) for more
-information.
+information and how to deploy/setup conduwuit.
 
 <!-- ANCHOR: body -->
 
@@ -63,7 +63,9 @@ and we have no plans in stopping or slowing down any time soon!
 
 conduwuit is a complete drop-in replacement for Conduit. As long as you are using RocksDB,
 the only "migration" you need to do is replace the binary or container image. There
-is no harm or additional steps required for using conduwuit.
+is no harm or additional steps required for using conduwuit. See the
+[Migrating from Conduit](https://conduwuit.puppyirl.gay/deploying/generic.html#migrating-from-conduit) section
+on the generic deploying guide.
 
 <!-- ANCHOR_END: body -->
 
