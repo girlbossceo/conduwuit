@@ -1,18 +1,22 @@
 use std::{
-	collections::HashSet,
+	collections::{HashMap, HashSet},
 	fmt::Write,
 	mem::size_of,
 	sync::{Arc, Mutex},
 };
 
-use conduit::{checked, err, expected, utils, utils::math::usize_from_f64, Result};
+use conduit::{
+	at, checked, err, expected, utils,
+	utils::{bytes, math::usize_from_f64},
+	Result,
+};
 use database::Map;
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
 use crate::{
 	rooms,
-	rooms::short::{ShortStateHash, ShortStateKey},
+	rooms::short::{ShortId, ShortStateHash, ShortStateKey},
 	Dep,
 };
 
@@ -53,11 +57,12 @@ pub struct HashSetCompressStateEvent {
 	pub removed: Arc<CompressedState>,
 }
 
-pub(crate) type CompressedState = HashSet<CompressedStateEvent>;
-pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<u64>()];
 type StateInfoLruCache = LruCache<ShortStateHash, ShortStateInfoVec>;
 type ShortStateInfoVec = Vec<ShortStateInfo>;
 type ParentStatesVec = Vec<ShortStateInfo>;
+
+pub(crate) type CompressedState = HashSet<CompressedStateEvent>;
+pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<ShortId>()];
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -75,9 +80,28 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
-		let stateinfo_cache = self.stateinfo_cache.lock().expect("locked").len();
-		writeln!(out, "stateinfo_cache: {stateinfo_cache}")?;
+	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+		let (cache_len, ents) = {
+			let cache = self.stateinfo_cache.lock().expect("locked");
+			let ents = cache
+				.iter()
+				.map(at!(1))
+				.flat_map(|vec| vec.iter())
+				.fold(HashMap::new(), |mut ents, ssi| {
+					ents.insert(Arc::as_ptr(&ssi.added), compressed_state_size(&ssi.added));
+					ents.insert(Arc::as_ptr(&ssi.removed), compressed_state_size(&ssi.removed));
+					ents.insert(Arc::as_ptr(&ssi.full_state), compressed_state_size(&ssi.full_state));
+					ents
+				});
+
+			(cache.len(), ents)
+		};
+
+		let ents_len = ents.len();
+		let bytes = ents.values().copied().fold(0_usize, usize::saturating_add);
+
+		let bytes = bytes::pretty(bytes);
+		writeln!(out, "stateinfo_cache: {cache_len} {ents_len} ({bytes})")?;
 
 		Ok(())
 	}
@@ -434,4 +458,12 @@ impl Service {
 			.shortstatehash_statediff
 			.insert(&shortstatehash.to_be_bytes(), &value);
 	}
+}
+
+#[inline]
+fn compressed_state_size(compressed_state: &CompressedState) -> usize {
+	compressed_state
+		.len()
+		.checked_mul(size_of::<CompressedStateEvent>())
+		.expect("CompressedState size overflow")
 }
