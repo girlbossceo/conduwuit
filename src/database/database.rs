@@ -38,11 +38,11 @@ impl Database {
 
 	#[inline]
 	#[must_use]
-	pub fn is_read_only(&self) -> bool { self.db.secondary || self.db.read_only }
+	pub fn is_read_only(&self) -> bool { self.db.is_read_only() }
 
 	#[inline]
 	#[must_use]
-	pub fn is_secondary(&self) -> bool { self.db.secondary }
+	pub fn is_secondary(&self) -> bool { self.db.is_secondary() }
 }
 
 impl Index<&str> for Database {

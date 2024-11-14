@@ -274,6 +274,14 @@ impl Engine {
 		result(self.db.property_value_cf(cf, name))
 			.and_then(|val| val.map_or_else(|| Err!("Property {name:?} not found."), Ok))
 	}
+
+	#[inline]
+	#[must_use]
+	pub fn is_read_only(&self) -> bool { self.secondary || self.read_only }
+
+	#[inline]
+	#[must_use]
+	pub fn is_secondary(&self) -> bool { self.secondary }
 }
 
 pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
