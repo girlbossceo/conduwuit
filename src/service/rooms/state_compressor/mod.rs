@@ -5,6 +5,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
+use arrayvec::ArrayVec;
 use conduit::{
 	at, checked, err, expected, utils,
 	utils::{bytes, math::usize_from_f64},
@@ -37,7 +38,7 @@ struct Data {
 
 #[derive(Clone)]
 struct StateDiff {
-	parent: Option<u64>,
+	parent: Option<ShortStateHash>,
 	added: Arc<CompressedState>,
 	removed: Arc<CompressedState>,
 }
@@ -165,17 +166,20 @@ impl Service {
 	}
 
 	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
-		let mut v = shortstatekey.to_be_bytes().to_vec();
-		v.extend_from_slice(
-			&self
-				.services
-				.short
-				.get_or_create_shorteventid(event_id)
-				.await
-				.to_be_bytes(),
-		);
+		const SIZE: usize = size_of::<CompressedStateEvent>();
 
-		v.try_into().expect("we checked the size above")
+		let shorteventid = self
+			.services
+			.short
+			.get_or_create_shorteventid(event_id)
+			.await;
+
+		let mut v = ArrayVec::<u8, SIZE>::new();
+		v.extend(shortstatekey.to_be_bytes());
+		v.extend(shorteventid.to_be_bytes());
+		v.as_ref()
+			.try_into()
+			.expect("failed to create CompressedStateEvent")
 	}
 
 	/// Returns shortstatekey, event id
@@ -185,11 +189,12 @@ impl Service {
 	) -> Result<(ShortStateKey, Arc<EventId>)> {
 		use utils::u64_from_u8;
 
-		let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<u64>()]);
+		let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<ShortStateKey>()]);
+		let shorteventid = u64_from_u8(&compressed_event[size_of::<ShortStateKey>()..]);
 		let event_id = self
 			.services
 			.short
-			.get_eventid_from_short(u64_from_u8(&compressed_event[size_of::<u64>()..]))
+			.get_eventid_from_short(shorteventid)
 			.await?;
 
 		Ok((shortstatekey, event_id))
@@ -415,9 +420,12 @@ impl Service {
 			.ok()
 			.take_if(|parent| *parent != 0);
 
+		debug_assert!(value.len() % STRIDE == 0, "value not aligned to stride");
+		let num_values = value.len() / STRIDE;
+
 		let mut add_mode = true;
-		let mut added = HashSet::new();
-		let mut removed = HashSet::new();
+		let mut added = HashSet::with_capacity(num_values);
+		let mut removed = HashSet::with_capacity(num_values);
 
 		let mut i = STRIDE;
 		while let Some(v) = value.get(i..expected!(i + 2 * STRIDE)) {
@@ -434,6 +442,8 @@ impl Service {
 			i = expected!(i + 2 * STRIDE);
 		}
 
+		added.shrink_to_fit();
+		removed.shrink_to_fit();
 		Ok(StateDiff {
 			parent,
 			added: Arc::new(added),
@@ -442,7 +452,15 @@ impl Service {
 	}
 
 	fn save_statediff(&self, shortstatehash: ShortStateHash, diff: &StateDiff) {
-		let mut value = diff.parent.unwrap_or(0).to_be_bytes().to_vec();
+		let mut value = Vec::<u8>::with_capacity(
+			2_usize
+				.saturating_add(diff.added.len())
+				.saturating_add(diff.removed.len()),
+		);
+
+		let parent = diff.parent.unwrap_or(0_u64);
+		value.extend_from_slice(&parent.to_be_bytes());
+
 		for new in diff.added.iter() {
 			value.extend_from_slice(&new[..]);
 		}
