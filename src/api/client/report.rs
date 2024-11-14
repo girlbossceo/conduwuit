@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{utils::ReadyExt, Err};
+use conduit::{info, utils::ReadyExt, Err};
 use rand::Rng;
 use ruma::{
 	api::client::{
@@ -13,7 +13,6 @@ use ruma::{
 	int, EventId, RoomId, UserId,
 };
 use tokio::time::sleep;
-use tracing::info;
 
 use crate::{
 	debug_info,

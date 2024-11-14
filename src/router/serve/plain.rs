@@ -5,9 +5,8 @@ use std::{
 
 use axum::Router;
 use axum_server::{bind, Handle as ServerHandle};
-use conduit::{debug_info, Result, Server};
+use conduit::{debug_info, info, Result, Server};
 use tokio::task::JoinSet;
-use tracing::info;
 
 pub(super) async fn serve(
 	server: &Arc<Server>, app: Router, handle: ServerHandle, addrs: Vec<SocketAddr>,

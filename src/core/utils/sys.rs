@@ -1,6 +1,4 @@
-use tracing::debug;
-
-use crate::Result;
+use crate::{debug, Result};
 
 /// This is needed for opening lots of file descriptors, which tends to
 /// happen more often when using RocksDB and making lots of federation

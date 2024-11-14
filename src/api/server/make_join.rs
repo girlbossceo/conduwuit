@@ -1,5 +1,8 @@
 use axum::extract::State;
-use conduit::utils::{IterStream, ReadyExt};
+use conduit::{
+	utils::{IterStream, ReadyExt},
+	warn,
+};
 use futures::StreamExt;
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_join_event},
@@ -13,7 +16,6 @@ use ruma::{
 	CanonicalJsonObject, RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::to_raw_value;
-use tracing::warn;
 
 use crate::{
 	service::{pdu::PduBuilder, Services},

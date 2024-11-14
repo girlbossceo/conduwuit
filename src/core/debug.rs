@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_macros)]
+
 use std::{any::Any, panic};
 
 // Export debug proc_macros

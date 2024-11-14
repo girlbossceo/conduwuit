@@ -5,3 +5,11 @@ future-size-threshold = 7745                # TODO reduce me ALARA
 stack-size-threshold = 196608               # reduce me ALARA
 too-many-lines-threshold = 700              # TODO reduce me to <= 100
 type-complexity-threshold = 250             # reduce me to ~200
+
+disallowed-macros = [
+	{ path = "log::error", reason = "use conduit_core::error" },
+	{ path = "log::warn", reason = "use conduit_core::warn" },
+	{ path = "log::info", reason = "use conduit_core::info" },
+	{ path = "log::debug", reason = "use conduit_core::debug" },
+	{ path = "log::trace", reason = "use conduit_core::trace" },
+]
