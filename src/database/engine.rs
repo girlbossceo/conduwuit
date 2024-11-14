@@ -17,6 +17,7 @@ use rocksdb::{
 use crate::{
 	opts::{cf_options, db_options},
 	or_else, result,
+	util::map_err,
 };
 
 pub struct Engine {
@@ -183,19 +184,20 @@ impl Engine {
 	}
 
 	#[tracing::instrument(skip(self))]
-	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> {
+	pub fn backup(&self) -> Result {
 		let config = &self.server.config;
 		let path = config.database_backup_path.as_ref();
 		if path.is_none() || path.is_some_and(|path| path.as_os_str().is_empty()) {
 			return Ok(());
 		}
 
-		let options = BackupEngineOptions::new(path.expect("valid database backup path"))?;
-		let mut engine = BackupEngine::open(&options, &self.env)?;
+		let options = BackupEngineOptions::new(path.expect("valid database backup path")).map_err(map_err)?;
+		let mut engine = BackupEngine::open(&options, &self.env).map_err(map_err)?;
 		if config.database_backups_to_keep > 0 {
-			if let Err(e) = engine.create_new_backup_flush(&self.db, true) {
-				return Err(Box::new(e));
-			}
+			let flush = !self.is_read_only();
+			engine
+				.create_new_backup_flush(&self.db, flush)
+				.map_err(map_err)?;
 
 			let engine_info = engine.get_backup_info();
 			let info = &engine_info.last().expect("backup engine info is not empty");

@@ -107,7 +107,7 @@ pub(super) async fn backup_database(&self) -> Result<RoomMessageEventContent> {
 		.runtime()
 		.spawn_blocking(move || match globals.db.backup() {
 			Ok(()) => String::new(),
-			Err(e) => (*e).to_string(),
+			Err(e) => e.to_string(),
 		})
 		.await?;
 

@@ -73,7 +73,7 @@ impl Data {
 	}
 
 	#[inline]
-	pub fn backup(&self) -> Result<(), Box<dyn std::error::Error>> { self.db.db.backup() }
+	pub fn backup(&self) -> Result { self.db.db.backup() }
 
 	#[inline]
 	pub fn backup_list(&self) -> Result<String> { self.db.db.backup_list() }
