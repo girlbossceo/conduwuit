@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{err, utils, warn, Err, Error, PduEvent, Result};
+use conduit::{err, utils, utils::hash::sha256, warn, Err, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
@@ -160,7 +160,7 @@ pub(crate) async fn create_invite_route(
 					ruma::api::appservice::event::push_events::v1::Request {
 						events: vec![pdu.to_room_event()],
 						txn_id: general_purpose::URL_SAFE_NO_PAD
-							.encode(utils::calculate_hash(&[pdu.event_id.as_bytes()]))
+							.encode(sha256::hash(pdu.event_id.as_bytes()))
 							.into(),
 						ephemeral: Vec::new(),
 						to_device: Vec::new(),

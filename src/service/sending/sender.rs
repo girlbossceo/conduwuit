@@ -539,16 +539,13 @@ impl Service {
 			}
 		}
 
-		let txn_id = &*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
-			&events
-				.iter()
-				.map(|e| match e {
-					SendingEvent::Edu(b) => &**b,
-					SendingEvent::Pdu(b) => b.as_ref(),
-					SendingEvent::Flush => &[],
-				})
-				.collect::<Vec<_>>(),
-		));
+		let txn_hash = calculate_hash(events.iter().filter_map(|e| match e {
+			SendingEvent::Edu(b) => Some(&**b),
+			SendingEvent::Pdu(b) => Some(b.as_ref()),
+			SendingEvent::Flush => None,
+		}));
+
+		let txn_id = &*general_purpose::URL_SAFE_NO_PAD.encode(txn_hash);
 
 		//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
 		// transaction");
@@ -664,23 +661,21 @@ impl Service {
 
 		//debug_assert!(pdu_jsons.len() + edu_jsons.len() > 0, "sending empty
 		// transaction");
-		let transaction_id = &*general_purpose::URL_SAFE_NO_PAD.encode(calculate_hash(
-			&events
-				.iter()
-				.map(|e| match e {
-					SendingEvent::Edu(b) => &**b,
-					SendingEvent::Pdu(b) => b.as_ref(),
-					SendingEvent::Flush => &[],
-				})
-				.collect::<Vec<_>>(),
-		));
+
+		let txn_hash = calculate_hash(events.iter().filter_map(|e| match e {
+			SendingEvent::Edu(b) => Some(&**b),
+			SendingEvent::Pdu(b) => Some(b.as_ref()),
+			SendingEvent::Flush => None,
+		}));
+
+		let txn_id = &*general_purpose::URL_SAFE_NO_PAD.encode(txn_hash);
 
 		let request = send_transaction_message::v1::Request {
 			origin: self.server.config.server_name.clone(),
 			pdus: pdu_jsons,
 			edus: edu_jsons,
 			origin_server_ts: MilliSecondsSinceUnixEpoch::now(),
-			transaction_id: transaction_id.into(),
+			transaction_id: txn_id.into(),
 		};
 
 		let client = &self.services.client.sender;
@@ -692,7 +687,7 @@ impl Service {
 					.iter()
 					.filter(|(_, res)| res.is_err())
 					.for_each(
-						|(pdu_id, res)| warn!(%transaction_id, %server, "error sending PDU {pdu_id} to remote server: {res:?}"),
+						|(pdu_id, res)| warn!(%txn_id, %server, "error sending PDU {pdu_id} to remote server: {res:?}"),
 					);
 			})
 			.map(|_| dest.clone())

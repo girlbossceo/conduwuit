@@ -352,12 +352,7 @@ impl Service {
 			.await
 			.ok();
 
-		let state_hash = utils::calculate_hash(
-			&new_state_ids_compressed
-				.iter()
-				.map(|bytes| &bytes[..])
-				.collect::<Vec<_>>(),
-		);
+		let state_hash = utils::calculate_hash(new_state_ids_compressed.iter().map(|bytes| &bytes[..]));
 
 		let (new_shortstatehash, already_existed) = self
 			.services

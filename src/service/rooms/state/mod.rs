@@ -157,12 +157,7 @@ impl Service {
 
 		let previous_shortstatehash = self.get_room_shortstatehash(room_id).await;
 
-		let state_hash = calculate_hash(
-			&state_ids_compressed
-				.iter()
-				.map(|s| &s[..])
-				.collect::<Vec<_>>(),
-		);
+		let state_hash = calculate_hash(state_ids_compressed.iter().map(|s| &s[..]));
 
 		let (shortstatehash, already_existed) = self
 			.services
