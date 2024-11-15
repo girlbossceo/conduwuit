@@ -1524,7 +1524,7 @@ pub struct WellKnownConfig {
 	/// The server URL that the client well-known file will serve. This should
 	/// not contain a port, and should just be a valid HTTPS URL.
 	///
-	/// example: "https://matrix.example.com"
+	/// example: "<https://matrix.example.com>"
 	pub client: Option<Url>,
 	pub support_page: Option<Url>,
 	pub support_role: Option<ContactRole>,
