@@ -23,8 +23,14 @@ use ruma::{
 	EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
 };
 
-use super::state_compressor::CompressedStateEvent;
-use crate::{globals, rooms, Dep};
+use crate::{
+	globals, rooms,
+	rooms::{
+		short::{ShortEventId, ShortStateHash},
+		state_compressor::CompressedStateEvent,
+	},
+	Dep,
+};
 
 pub struct Service {
 	pub mutex: RoomMutexMap,
@@ -146,8 +152,9 @@ impl Service {
 	#[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
 	pub async fn set_event_state(
 		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
-	) -> Result<u64> {
-		const BUFSIZE: usize = size_of::<u64>();
+	) -> Result<ShortStateHash> {
+		const KEY_LEN: usize = size_of::<ShortEventId>();
+		const VAL_LEN: usize = size_of::<ShortStateHash>();
 
 		let shorteventid = self
 			.services
@@ -202,7 +209,7 @@ impl Service {
 
 		self.db
 			.shorteventid_shortstatehash
-			.aput::<BUFSIZE, BUFSIZE, _, _>(shorteventid, shortstatehash);
+			.aput::<KEY_LEN, VAL_LEN, _, _>(shorteventid, shortstatehash);
 
 		Ok(shortstatehash)
 	}
@@ -343,7 +350,7 @@ impl Service {
 			.map_err(|e| err!(Request(NotFound("No create event found: {e:?}"))))
 	}
 
-	pub async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<u64> {
+	pub async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<ShortStateHash> {
 		self.db
 			.roomid_shortstatehash
 			.get(room_id)

@@ -89,9 +89,10 @@ impl crate::Service for Service {
 				.map(at!(1))
 				.flat_map(|vec| vec.iter())
 				.fold(HashMap::new(), |mut ents, ssi| {
-					ents.insert(Arc::as_ptr(&ssi.added), compressed_state_size(&ssi.added));
-					ents.insert(Arc::as_ptr(&ssi.removed), compressed_state_size(&ssi.removed));
-					ents.insert(Arc::as_ptr(&ssi.full_state), compressed_state_size(&ssi.full_state));
+					for cs in &[&ssi.added, &ssi.removed, &ssi.full_state] {
+						ents.insert(Arc::as_ptr(cs), compressed_state_size(cs));
+					}
+
 					ents
 				});
 
@@ -125,51 +126,57 @@ impl Service {
 			return Ok(r.clone());
 		}
 
-		let StateDiff {
-			parent,
-			added,
-			removed,
-		} = self.get_statediff(shortstatehash).await?;
-
-		let response = if let Some(parent) = parent {
-			let mut response = Box::pin(self.load_shortstatehash_info(parent)).await?;
-			let mut state = (*response.last().expect("at least one response").full_state).clone();
-			state.extend(added.iter().copied());
-			let removed = (*removed).clone();
-			for r in &removed {
-				state.remove(r);
-			}
-
-			response.push(ShortStateInfo {
-				shortstatehash,
-				full_state: Arc::new(state),
-				added,
-				removed: Arc::new(removed),
-			});
-
-			response
-		} else {
-			vec![ShortStateInfo {
-				shortstatehash,
-				full_state: added.clone(),
-				added,
-				removed,
-			}]
-		};
+		let stack = self.new_shortstatehash_info(shortstatehash).await?;
 
 		debug!(
-			?parent,
 			?shortstatehash,
-			vec_len = %response.len(),
+			len = %stack.len(),
 			"cache update"
 		);
 
 		self.stateinfo_cache
 			.lock()
 			.expect("locked")
-			.insert(shortstatehash, response.clone());
+			.insert(shortstatehash, stack.clone());
 
-		Ok(response)
+		Ok(stack)
+	}
+
+	async fn new_shortstatehash_info(&self, shortstatehash: ShortStateHash) -> Result<ShortStateInfoVec> {
+		let StateDiff {
+			parent,
+			added,
+			removed,
+		} = self.get_statediff(shortstatehash).await?;
+
+		let Some(parent) = parent else {
+			return Ok(vec![ShortStateInfo {
+				shortstatehash,
+				full_state: added.clone(),
+				added,
+				removed,
+			}]);
+		};
+
+		let mut stack = Box::pin(self.load_shortstatehash_info(parent)).await?;
+		let top = stack.last().expect("at least one frame");
+
+		let mut full_state = (*top.full_state).clone();
+		full_state.extend(added.iter().copied());
+
+		let removed = (*removed).clone();
+		for r in &removed {
+			full_state.remove(r);
+		}
+
+		stack.push(ShortStateInfo {
+			shortstatehash,
+			added,
+			removed: Arc::new(removed),
+			full_state: Arc::new(full_state),
+		});
+
+		Ok(stack)
 	}
 
 	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
