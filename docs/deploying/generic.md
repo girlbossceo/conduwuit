@@ -68,12 +68,24 @@ sudo useradd -r --shell /usr/bin/nologin --no-create-home conduwuit
 
 ## Forwarding ports in the firewall or the router
 
-conduwuit uses the ports 443 and 8448 both of which need to be open in the
-firewall.
+Matrix's default federation port is port 8448, and clients must be using port 443.
+If you would like to use only port 443, or a different port, you will need to setup
+delegation. conduwuit has config options for doing delegation, or you can configure
+your reverse proxy to manually serve the necessary JSON files to do delegation
+(see the `[global.well_known]` config section).
 
 If conduwuit runs behind a router or in a container and has a different public
 IP address than the host system these public ports need to be forwarded directly
 or indirectly to the port mentioned in the config.
+
+Note for NAT users; if you have trouble connecting to your server from the inside
+of your network, you need to research your router and see if it supports "NAT
+hairpinning" or "NAT loopback".
+
+If your router does not support this feature, you need to research doing local
+DNS overrides and force your Matrix DNS records to use your local IP internally.
+This can be done at the host level using `/etc/hosts`. If you need this to be
+on the network level, consider something like NextDNS or Pi-Hole.
 
 ## Setting up a systemd service
 
