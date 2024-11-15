@@ -241,8 +241,7 @@ both new users and power users
 - Fixed every single clippy (default lints) and rustc warnings, including some
 that were performance related or potential safety issues / unsoundness
 - Add a **lot** of other clippy and rustc lints and a rustfmt.toml file
-- Repo uses [Renovate](https://docs.renovatebot.com/),
-[Trivy](https://github.com/aquasecurity/trivy-action), and keeps ALL
+- Repo uses [Renovate](https://docs.renovatebot.com/) and keeps ALL
 dependencies as up to date as possible
 - Purge unmaintained/irrelevant/broken database backends (heed, sled, persy) and
 other unnecessary code or overhead
