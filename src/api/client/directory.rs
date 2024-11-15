@@ -407,7 +407,8 @@ async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> Public
 			.room_state_get_content(&room_id, &StateEventType::RoomJoinRules, "")
 			.map_ok(|c: RoomJoinRulesEventContent| match c.join_rule {
 				JoinRule::Public => PublicRoomJoinRule::Public,
-				JoinRule::Knock => PublicRoomJoinRule::Knock,
+				JoinRule::Knock => "knock".into(),
+				JoinRule::KnockRestricted(_) => "knock_restricted".into(),
 				_ => "invite".into(),
 			})
 			.await
