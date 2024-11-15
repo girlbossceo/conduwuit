@@ -4,6 +4,7 @@ use std::{
 	cmp,
 	collections::{BTreeMap, HashSet},
 	fmt::Write,
+	iter::once,
 	sync::Arc,
 };
 
@@ -1076,9 +1077,20 @@ impl Service {
 			}
 		});
 
+		let canonical_room_alias_server = once(
+			self.services
+				.state_accessor
+				.get_canonical_alias(room_id)
+				.await,
+		)
+		.filter_map(Result::ok)
+		.map(|alias| alias.server_name().to_owned())
+		.stream();
+
 		let mut servers = room_mods
 			.stream()
 			.map(ToOwned::to_owned)
+			.chain(canonical_room_alias_server)
 			.chain(
 				self.services
 					.server
