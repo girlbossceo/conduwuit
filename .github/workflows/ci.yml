@@ -67,6 +67,10 @@ jobs:
         name: Test
         runs-on: ubuntu-24.04
         steps:
+            - name: Install liburing
+              run: |
+                  sudo apt install liburing-dev -y
+
             - name: Sync repository
               uses: actions/checkout@v4
 
