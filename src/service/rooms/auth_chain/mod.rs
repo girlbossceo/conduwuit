@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduit::{debug, debug_error, trace, utils::IterStream, validated, warn, Err, Result};
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use ruma::{EventId, RoomId};
 
 use self::data::Data;
@@ -69,15 +69,15 @@ impl Service {
 		const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
 
 		let started = std::time::Instant::now();
-		let mut buckets = [BUCKET; NUM_BUCKETS];
-		for (i, &short) in self
+		let mut starting_ids = self
 			.services
 			.short
 			.multi_get_or_create_shorteventid(starting_events)
-			.await
-			.iter()
 			.enumerate()
-		{
+			.boxed();
+
+		let mut buckets = [BUCKET; NUM_BUCKETS];
+		while let Some((i, short)) = starting_ids.next().await {
 			let bucket: usize = short.try_into()?;
 			let bucket: usize = validated!(bucket % NUM_BUCKETS);
 			buckets[bucket].insert((short, starting_events[i]));

@@ -3,6 +3,7 @@ use std::{mem::size_of_val, sync::Arc};
 pub use conduit::pdu::{ShortEventId, ShortId, ShortRoomId};
 use conduit::{err, implement, utils, Result};
 use database::{Deserialized, Map};
+use futures::{Stream, StreamExt};
 use ruma::{events::StateEventType, EventId, RoomId};
 
 use crate::{globals, Dep};
@@ -71,11 +72,12 @@ pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> ShortEvent
 }
 
 #[implement(Service)]
-pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> Vec<ShortEventId> {
+pub fn multi_get_or_create_shorteventid<'a>(
+	&'a self, event_ids: &'a [&EventId],
+) -> impl Stream<Item = ShortEventId> + Send + 'a {
 	self.db
 		.eventid_shorteventid
-		.get_batch_blocking(event_ids.iter())
-		.into_iter()
+		.get_batch(event_ids.iter())
 		.enumerate()
 		.map(|(i, result)| match result {
 			Ok(ref short) => utils::u64_from_u8(short),
@@ -95,7 +97,6 @@ pub async fn multi_get_or_create_shorteventid(&self, event_ids: &[&EventId]) -> 
 				short
 			},
 		})
-		.collect()
 }
 
 #[implement(Service)]
@@ -163,10 +164,10 @@ pub async fn multi_get_eventid_from_short(&self, shorteventid: &[ShortEventId]) 
 
 	self.db
 		.shorteventid_eventid
-		.get_batch_blocking(keys.iter())
-		.into_iter()
+		.get_batch(keys.iter())
 		.map(Deserialized::deserialized)
 		.collect()
+		.await
 }
 
 #[implement(Service)]

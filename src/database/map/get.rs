@@ -1,8 +1,8 @@
 use std::{convert::AsRef, fmt::Debug, future::Future, io::Write};
 
 use arrayvec::ArrayVec;
-use conduit::{err, implement, Result};
-use futures::future::ready;
+use conduit::{err, implement, utils::IterStream, Result};
+use futures::{future::ready, Stream};
 use rocksdb::DBPinnableSlice;
 use serde::Serialize;
 
@@ -50,6 +50,7 @@ where
 /// Fetch a value from the database into cache, returning a reference-handle
 /// asynchronously. The key is referenced directly to perform the query.
 #[implement(super::Map)]
+#[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
 pub fn get<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: AsRef<[u8]> + ?Sized + Debug,
@@ -61,10 +62,9 @@ where
 /// The key is referenced directly to perform the query. This is a thread-
 /// blocking call.
 #[implement(super::Map)]
-#[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
 pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>
 where
-	K: AsRef<[u8]> + ?Sized + Debug,
+	K: AsRef<[u8]> + ?Sized,
 {
 	let res = self
 		.db
@@ -76,10 +76,19 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), fields(%self), level = "trace")]
-pub fn get_batch_blocking<'a, I, K>(&self, keys: I) -> Vec<Result<Handle<'_>>>
+pub fn get_batch<'a, I, K>(&self, keys: I) -> impl Stream<Item = Result<Handle<'_>>>
 where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Send + Debug,
-	K: AsRef<[u8]> + Sized + Debug + 'a,
+	K: AsRef<[u8]> + Send + Sync + Sized + Debug + 'a,
+{
+	self.get_batch_blocking(keys).stream()
+}
+
+#[implement(super::Map)]
+pub fn get_batch_blocking<'a, I, K>(&self, keys: I) -> impl Iterator<Item = Result<Handle<'_>>>
+where
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
+	K: AsRef<[u8]> + Sized + 'a,
 {
 	// Optimization can be `true` if key vector is pre-sorted **by the column
 	// comparator**.
@@ -91,7 +100,6 @@ where
 		.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, read_options)
 		.into_iter()
 		.map(into_result_handle)
-		.collect()
 }
 
 fn into_result_handle(result: RocksdbResult<'_>) -> Result<Handle<'_>> {
