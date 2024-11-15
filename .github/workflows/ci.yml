@@ -67,21 +67,6 @@ jobs:
         name: Test
         runs-on: ubuntu-24.04
         steps:
-            - name: Free Disk Space (Ubuntu)
-              uses: jlumbroso/free-disk-space@main
-
-            - name: Free up more runner space
-              run: |
-                set +o pipefail
-                # large docker images
-                sudo docker image prune --all --force || true
-                # large packages
-                sudo apt-get purge -y 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-cloud-cli google-chrome-stable firefox powershell microsoft-edge-stable || true
-                sudo apt-get clean
-                # large folders
-                sudo rm -rf /var/lib/apt/lists/* /usr/local/games /usr/local/sqlpackage /usr/local/share/powershell /usr/local/share/edge_driver /usr/local/share/gecko_driver /usr/local/share/chromium /usr/local/share/chromedriver-linux64 /usr/local/share/vcpkg /usr/local/julia* /opt/mssql-tools /usr/share/vim /usr/share/postgresql /usr/share/apache-maven-* /usr/share/R /usr/share/alsa /usr/share/miniconda /usr/share/grub /usr/share/gradle-* /usr/share/locale /usr/share/texinfo /usr/share/kotlinc /usr/share/swift /usr/share/sbt /usr/share/ri /usr/share/icons /usr/share/java /usr/share/fonts /usr/lib/google-cloud-sdk /usr/lib/jvm /usr/lib/mono /usr/lib/R /usr/lib/postgresql /usr/lib/heroku
-                set -o pipefail
-
             - name: Sync repository
               uses: actions/checkout@v4
 
@@ -238,9 +223,6 @@ jobs:
                     - target: aarch64-linux-musl
                     - target: x86_64-linux-musl
         steps:
-            - name: Free Disk Space (Ubuntu)
-              uses: jlumbroso/free-disk-space@main
-
             - name: Sync repository
               uses: actions/checkout@v4
 
@@ -449,6 +431,7 @@ jobs:
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
+
             - name: Tag comparison check
               if: ${{ startsWith(github.ref, 'refs/tags/v') && !endsWith(github.ref, '-rc') }}
               run: |
@@ -459,14 +442,17 @@ jobs:
                     echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.' >> $GITHUB_STEP_SUMMARY
                     exit 1
                   fi
+
             # use sccache for Rust
             - name: Run sccache-cache
               if: (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]')
               uses: mozilla-actions/sccache-action@main
+
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
               with:
                 cache-all-crates: "true"
+
             # Nix can't do portable macOS builds yet
             - name: Build macOS x86_64 binary
               if: ${{ matrix.os == 'macos-13' }}
@@ -474,22 +460,26 @@ jobs:
                   CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short HEAD)" cargo build --release
                   cp -v -f target/release/conduit conduwuit-macos-x86_64
                   otool -L conduwuit-macos-x86_64
+
             # quick smoke test of the x86_64 macOS binary
             - name: Run x86_64 macOS release binary
               if: ${{ matrix.os == 'macos-13' }}
               run: |
                   ./conduwuit-macos-x86_64 --version
+
             - name: Build macOS arm64 binary
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
                   CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short HEAD)" cargo build --release
                   cp -v -f target/release/conduit conduwuit-macos-arm64
                   otool -L conduwuit-macos-arm64
+
             # quick smoke test of the arm64 macOS binary
             - name: Run arm64 macOS release binary
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
                   ./conduwuit-macos-arm64 --version
+
             - name: Upload macOS x86_64 binary
               if: ${{ matrix.os == 'macos-13' }}
               uses: actions/upload-artifact@v4
@@ -497,6 +487,7 @@ jobs:
                   name: conduwuit-macos-x86_64
                   path: conduwuit-macos-x86_64
                   if-no-files-found: error
+
             - name: Upload macOS arm64 binary
               if: ${{ matrix.os == 'macos-latest' }}
               uses: actions/upload-artifact@v4
