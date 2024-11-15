@@ -46,20 +46,20 @@ default-features = false
 features = ["parse"]
 
 [workspace.dependencies.sanitize-filename]
-version = "0.5.0"
+version = "0.6.0"
 
 [workspace.dependencies.jsonwebtoken]
 version = "9.3.0"
+default-features = false
 
 [workspace.dependencies.base64]
 version = "0.22.1"
+default-features = false
 
 # used for TURN server authentication
 [workspace.dependencies.hmac]
 version = "0.12.1"
-
-[workspace.dependencies.sha-1]
-version = "0.10.1"
+default-features = false
 
 # used for checking if an IP is in specific subnets / CIDR ranges easier
 [workspace.dependencies.ipaddress]
@@ -70,16 +70,16 @@ version = "0.8.5"
 
 # Used for the http request / response body type for Ruma endpoints used with reqwest
 [workspace.dependencies.bytes]
-version = "1.7.2"
+version = "1.8.0"
 
 [workspace.dependencies.http-body-util]
-version = "0.1.1"
+version = "0.1.2"
 
 [workspace.dependencies.http]
 version = "1.1.0"
 
 [workspace.dependencies.regex]
-version = "1.10.6"
+version = "1.11.1"
 
 [workspace.dependencies.axum]
 version = "0.7.5"
@@ -95,7 +95,7 @@ features = [
 ]
 
 [workspace.dependencies.axum-extra]
-version = "0.9.3"
+version = "0.9.4"
 default-features = false
 features = ["typed-header", "tracing"]
 
@@ -116,7 +116,7 @@ default-features = false
 features = ["util"]
 
 [workspace.dependencies.tower-http]
-version = "0.6.0"
+version = "0.6.1"
 default-features = false
 features = [
     "add-extension",
@@ -130,6 +130,8 @@ features = [
 
 [workspace.dependencies.rustls]
 version = "0.23.16"
+default-features = false
+features = ["aws_lc_rs"]
 
 [workspace.dependencies.reqwest]
 version = "0.12.9"
@@ -147,7 +149,7 @@ default-features = false
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
-version = "1.0.124"
+version = "1.0.132"
 default-features = false
 features = ["raw_value"]
 
@@ -189,9 +191,11 @@ version = "0.1.40"
 default-features = false
 [workspace.dependencies.tracing-subscriber]
 version = "0.3.18"
-features = ["env-filter"]
+default-features = false
+features = ["env-filter", "std", "tracing", "tracing-log", "ansi", "fmt"]
 [workspace.dependencies.tracing-core]
 version = "0.1.32"
+default-features = false
 
 # for URL previews
 [workspace.dependencies.webpage]
@@ -200,12 +204,14 @@ default-features = false
 
 # used for conduit's CLI and admin room command parsing
 [workspace.dependencies.clap]
-version = "4.5.20"
+version = "4.5.21"
 default-features = false
 features = [
 	"std",
 	"derive",
 	"help",
+	#"color", Do we need these?
+	#"unicode",
 	"usage",
 	"error-context",
 	"string",
@@ -217,7 +223,7 @@ default-features = false
 features = ["std", "async-await"]
 
 [workspace.dependencies.tokio]
-version = "1.40.0"
+version = "1.41.1"
 default-features = false
 features = [
 	"fs",
@@ -238,7 +244,7 @@ version = "0.8.5"
 
 # Validating urls in config, was already a transitive dependency
 [workspace.dependencies.url]
-version = "2.5.0"
+version = "2.5.3"
 default-features = false
 features = ["serde"]
 
@@ -258,26 +264,23 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-# 0.1.9 and above causes DNS issues
-version = "=0.1.8"
+version = "0.1.10"
 default-features = false
 features = [
-	"client",
 	"server-auto",
 	"server-graceful",
-	"service",
 	"tokio",
 ]
 
 # to support multiple variations of setting a config option
 [workspace.dependencies.either]
-version = "1.11.0"
+version = "1.13.0"
 default-features = false
 features = ["serde"]
 
 # Used for reading the configuration from conduwuit.toml & environment variables
 [workspace.dependencies.figment]
-version = "0.10.18"
+version = "0.10.19"
 default-features = false
 features = ["env", "toml"]
 
@@ -287,11 +290,13 @@ default-features = false
 
 # Used for conduit::Error type
 [workspace.dependencies.thiserror]
-version = "1.0.63"
+version = "2.0.3"
+default-features = false
 
 # Used when hashing the state
 [workspace.dependencies.ring]
 version = "0.17.8"
+default-features = false
 
 # Used to make working with iterators easier, was already a transitive depdendency
 [workspace.dependencies.itertools]
@@ -307,7 +312,7 @@ version = "2.1.1"
 version = "0.4.0"
 
 [workspace.dependencies.async-trait]
-version = "0.1.81"
+version = "0.1.83"
 
 [workspace.dependencies.lru-cache]
 version = "0.1.2"
@@ -363,9 +368,13 @@ features = [
 	"bzip2",
 ]
 
-# optional SHA256 media keys feature
 [workspace.dependencies.sha2]
 version = "0.10.8"
+default-features = false
+
+[workspace.dependencies.sha1]
+version = "0.10.6"
+default-features = false
 
 # optional opentelemetry, performance measurements, flamegraphs, etc for performance measurements and monitoring
 [workspace.dependencies.opentelemetry]
@@ -433,7 +442,8 @@ default-features = false
 features = ["resource"]
 
 [workspace.dependencies.sd-notify]
-version = "0.4.1"
+version = "0.4.3"
+default-features = false
 
 [workspace.dependencies.hardened_malloc-rs]
 version = "0.1.2"
@@ -456,12 +466,12 @@ default-features = false
 version = "0.1"
 
 [workspace.dependencies.syn]
-version = "2.0.76"
+version = "2.0.87"
 default-features = false
 features = ["full", "extra-traits"]
 
 [workspace.dependencies.quote]
-version = "1.0.36"
+version = "1.0.37"
 
 [workspace.dependencies.proc-macro2]
 version = "1.0.89"
