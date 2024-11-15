@@ -7,7 +7,7 @@ use std::{
 
 use arrayvec::ArrayVec;
 use conduit::{
-	at, checked, err, expected, utils,
+	at, checked, debug, err, expected, utils,
 	utils::{bytes, math::usize_from_f64},
 	Result,
 };
@@ -157,6 +157,13 @@ impl Service {
 			}]
 		};
 
+		debug!(
+			?parent,
+			?shortstatehash,
+			vec_len = %response.len(),
+			"cache update"
+		);
+
 		self.stateinfo_cache
 			.lock()
 			.expect("locked")
@@ -218,7 +225,6 @@ impl Service {
 	///   for this layer
 	/// * `parent_states` - A stack with info on shortstatehash, full state,
 	///   added diff and removed diff for each parent layer
-	#[tracing::instrument(skip_all, level = "debug")]
 	pub fn save_state_from_diff(
 		&self, shortstatehash: ShortStateHash, statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		statediffremoved: Arc<HashSet<CompressedStateEvent>>, diff_to_sibling: usize,
@@ -335,6 +341,7 @@ impl Service {
 
 	/// Returns the new shortstatehash, and the state diff from the previous
 	/// room state
+	#[tracing::instrument(skip(self, new_state_ids_compressed), level = "debug")]
 	pub async fn save_state(
 		&self, room_id: &RoomId, new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<HashSetCompressStateEvent> {
@@ -405,6 +412,7 @@ impl Service {
 		})
 	}
 
+	#[tracing::instrument(skip(self), level = "debug", name = "get")]
 	async fn get_statediff(&self, shortstatehash: ShortStateHash) -> Result<StateDiff> {
 		const BUFSIZE: usize = size_of::<ShortStateHash>();
 		const STRIDE: usize = size_of::<ShortStateHash>();
