@@ -1481,7 +1481,7 @@ pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId,
 		.await
 	{
 		if let Err(e) = remote_leave_room(services, user_id, room_id).await {
-			warn!("Failed to leave room {user_id} remotely: {e}");
+			warn!(%user_id, "Failed to leave room {room_id} remotely: {e}");
 			// Don't tell the client about this error
 		}
 

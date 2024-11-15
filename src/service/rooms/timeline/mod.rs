@@ -1033,6 +1033,22 @@ impl Service {
 
 	#[tracing::instrument(skip(self))]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
+		if self
+			.services
+			.state_cache
+			.room_joined_count(room_id)
+			.await
+			.is_ok_and(|count| count <= 1)
+			&& !self
+				.services
+				.state_accessor
+				.is_world_readable(room_id)
+				.await
+		{
+			// Room is empty (1 user or none), there is no one that can backfill
+			return Ok(());
+		}
+
 		let first_pdu = self
 			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
 			.await?
@@ -1060,20 +1076,8 @@ impl Service {
 			}
 		});
 
-		let room_alias_servers = self
-			.services
-			.alias
-			.local_aliases_for_room(room_id)
-			.ready_filter_map(|alias| {
-				self.services
-					.globals
-					.server_is_ours(alias.server_name())
-					.then_some(alias.server_name())
-			});
-
 		let mut servers = room_mods
 			.stream()
-			.chain(room_alias_servers)
 			.map(ToOwned::to_owned)
 			.chain(
 				self.services
