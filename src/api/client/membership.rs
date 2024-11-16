@@ -702,17 +702,19 @@ async fn join_room_by_id_helper_remote(
 
 	info!("make_join finished");
 
-	let room_version_id = match make_join_response.room_version {
-		Some(room_version)
-			if services
-				.globals
-				.supported_room_versions()
-				.contains(&room_version) =>
-		{
-			room_version
-		},
-		_ => return Err!(BadServerResponse("Room version is not supported")),
+	let Some(room_version_id) = make_join_response.room_version else {
+		return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
 	};
+
+	if !services
+		.globals
+		.supported_room_versions()
+		.contains(&room_version_id)
+	{
+		return Err!(BadServerResponse(
+			"Remote room version {room_version_id} is not supported by conduwuit"
+		));
+	}
 
 	let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
 		.map_err(|e| err!(BadServerResponse("Invalid make_join event json received from server: {e:?}")))?;
@@ -1116,17 +1118,20 @@ async fn join_room_by_id_helper_local(
 		warn!("We couldn't do the join locally, maybe federation can help to satisfy the restricted join requirements");
 		let (make_join_response, remote_server) = make_join_request(services, sender_user, room_id, servers).await?;
 
-		let room_version_id = match make_join_response.room_version {
-			Some(room_version_id)
-				if services
-					.globals
-					.supported_room_versions()
-					.contains(&room_version_id) =>
-			{
-				room_version_id
-			},
-			_ => return Err!(BadServerResponse("Room version is not supported")),
+		let Some(room_version_id) = make_join_response.room_version else {
+			return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
 		};
+
+		if !services
+			.globals
+			.supported_room_versions()
+			.contains(&room_version_id)
+		{
+			return Err!(BadServerResponse(
+				"Remote room version {room_version_id} is not supported by conduwuit"
+			));
+		}
+
 		let mut join_event_stub: CanonicalJsonObject = serde_json::from_str(make_join_response.event.get())
 			.map_err(|e| err!(BadServerResponse("Invalid make_join event json received from server: {e:?}")))?;
 		let join_authorized_via_users_server = join_event_stub
@@ -1274,7 +1279,7 @@ async fn make_join_request(
 			if incompatible_room_version_count > 15 {
 				info!(
 					"15 servers have responded with M_INCOMPATIBLE_ROOM_VERSION or M_UNSUPPORTED_ROOM_VERSION, \
-					 assuming that conduwuit does not support the room {room_id}: {e}"
+					 assuming that conduwuit does not support the room version {room_id}: {e}"
 				);
 				make_join_response_and_server = Err!(BadServerResponse("Room version is not supported by Conduwuit"));
 				return make_join_response_and_server;
@@ -1607,17 +1612,19 @@ async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &Room
 
 	let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
-	let room_version_id = match make_leave_response.room_version {
-		Some(version)
-			if services
-				.globals
-				.supported_room_versions()
-				.contains(&version) =>
-		{
-			version
-		},
-		_ => return Err!(BadServerResponse("Room version is not supported")),
+	let Some(room_version_id) = make_leave_response.room_version else {
+		return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
 	};
+
+	if !services
+		.globals
+		.supported_room_versions()
+		.contains(&room_version_id)
+	{
+		return Err!(BadServerResponse(
+			"Remote room version {room_version_id} is not supported by conduwuit"
+		));
+	}
 
 	let mut leave_event_stub = serde_json::from_str::<CanonicalJsonObject>(make_leave_response.event.get())
 		.map_err(|e| err!(BadServerResponse("Invalid make_leave event json received from server: {e:?}")))?;
