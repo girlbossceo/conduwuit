@@ -118,7 +118,7 @@ impl Service {
 
 		// Insert any pdus we found
 		if !new_events.is_empty() {
-			self.db.mark_as_active(&new_events);
+			self.db.mark_as_active(new_events.iter());
 
 			let new_events_vec = new_events.into_iter().map(|(_, event)| event).collect();
 			futures.push(self.send_events(dest.clone(), new_events_vec).boxed());
@@ -213,7 +213,7 @@ impl Service {
 		// Compose the next transaction
 		let _cork = self.db.db.cork();
 		if !new_events.is_empty() {
-			self.db.mark_as_active(&new_events);
+			self.db.mark_as_active(new_events.iter());
 			for (_, e) in new_events {
 				events.push(e);
 			}

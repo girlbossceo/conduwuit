@@ -4,7 +4,7 @@ mod dest;
 mod send;
 mod sender;
 
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, iter::once, sync::Arc};
 
 use async_trait::async_trait;
 use conduit::{
@@ -117,7 +117,7 @@ impl Service {
 		let dest = Destination::Push(user.to_owned(), pushkey);
 		let event = SendingEvent::Pdu(*pdu_id);
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(&[(&event, &dest)]);
+		let keys = self.db.queue_requests(once((&event, &dest)));
 		self.dispatch(Msg {
 			dest,
 			event,
@@ -130,7 +130,7 @@ impl Service {
 		let dest = Destination::Appservice(appservice_id);
 		let event = SendingEvent::Pdu(pdu_id);
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(&[(&event, &dest)]);
+		let keys = self.db.queue_requests(once((&event, &dest)));
 		self.dispatch(Msg {
 			dest,
 			event,
@@ -160,9 +160,7 @@ impl Service {
 			.collect::<Vec<_>>()
 			.await;
 
-		let keys = self
-			.db
-			.queue_requests(&requests.iter().map(|(o, e)| (e, o)).collect::<Vec<_>>());
+		let keys = self.db.queue_requests(requests.iter().map(|(o, e)| (e, o)));
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
 			self.dispatch(Msg {
@@ -180,7 +178,7 @@ impl Service {
 		let dest = Destination::Normal(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
 		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(&[(&event, &dest)]);
+		let keys = self.db.queue_requests(once((&event, &dest)));
 		self.dispatch(Msg {
 			dest,
 			event,
@@ -210,9 +208,7 @@ impl Service {
 			.collect::<Vec<_>>()
 			.await;
 
-		let keys = self
-			.db
-			.queue_requests(&requests.iter().map(|(o, e)| (e, o)).collect::<Vec<_>>());
+		let keys = self.db.queue_requests(requests.iter().map(|(o, e)| (e, o)));
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
 			self.dispatch(Msg {

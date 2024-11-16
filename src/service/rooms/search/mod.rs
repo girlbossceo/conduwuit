@@ -73,11 +73,13 @@ pub fn index_pdu(&self, shortroomid: ShortRoomId, pdu_id: &RawPduId, message_bod
 			key.extend_from_slice(word.as_bytes());
 			key.push(0xFF);
 			key.extend_from_slice(pdu_id.as_ref()); // TODO: currently we save the room id a second time here
-			(key, Vec::<u8>::new())
+			key
 		})
 		.collect::<Vec<_>>();
 
-	self.db.tokenids.insert_batch(batch.iter());
+	self.db
+		.tokenids
+		.insert_batch(batch.iter().map(|k| (k.as_slice(), &[])));
 }
 
 #[implement(Service)]
