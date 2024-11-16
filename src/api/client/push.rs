@@ -5,7 +5,7 @@ use ruma::{
 		error::ErrorKind,
 		push::{
 			delete_pushrule, get_pushers, get_pushrule, get_pushrule_actions, get_pushrule_enabled, get_pushrules_all,
-			set_pusher, set_pushrule, set_pushrule_actions, set_pushrule_enabled,
+			get_pushrules_global_scope, set_pusher, set_pushrule, set_pushrule_actions, set_pushrule_enabled,
 		},
 	},
 	events::{
@@ -63,6 +63,73 @@ pub(crate) async fn get_pushrules_all_route(
 	};
 
 	Ok(get_pushrules_all::v3::Response {
+		global: global_ruleset,
+	})
+}
+
+/// # `GET /_matrix/client/r0/pushrules/global/`
+///
+/// Retrieves the push rules event for this user.
+///
+/// This appears to be the exact same as `GET /_matrix/client/r0/pushrules/`.
+pub(crate) async fn get_pushrules_global_route(
+	State(services): State<crate::State>, body: Ruma<get_pushrules_global_scope::v3::Request>,
+) -> Result<get_pushrules_global_scope::v3::Response> {
+	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+
+	let Some(content_value) = services
+		.account_data
+		.get_global::<CanonicalJsonObject>(sender_user, GlobalAccountDataEventType::PushRules)
+		.await
+		.ok()
+		.and_then(|event| event.get("content").cloned())
+		.filter(CanonicalJsonValue::is_object)
+	else {
+		// user somehow has non-existent push rule event. recreate it and return server
+		// default silently
+		services
+			.account_data
+			.update(
+				None,
+				sender_user,
+				GlobalAccountDataEventType::PushRules.to_string().into(),
+				&serde_json::to_value(PushRulesEvent {
+					content: PushRulesEventContent {
+						global: Ruleset::server_default(sender_user),
+					},
+				})
+				.expect("to json always works"),
+			)
+			.await?;
+
+		return Ok(get_pushrules_global_scope::v3::Response {
+			global: Ruleset::server_default(sender_user),
+		});
+	};
+
+	let account_data_content = serde_json::from_value::<PushRulesEventContent>(content_value.into())
+		.map_err(|e| err!(Database(warn!("Invalid push rules account data event in database: {e}"))))?;
+
+	let mut global_ruleset = account_data_content.global;
+
+	// remove old deprecated mentions push rules as per MSC4210
+	#[allow(deprecated)]
+	{
+		use ruma::push::RuleKind::*;
+
+		global_ruleset
+			.remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
+			.ok();
+		global_ruleset
+			.remove(Override, PredefinedOverrideRuleId::RoomNotif)
+			.ok();
+
+		global_ruleset
+			.remove(Content, PredefinedContentRuleId::ContainsUserName)
+			.ok();
+	};
+
+	Ok(get_pushrules_global_scope::v3::Response {
 		global: global_ruleset,
 	})
 }

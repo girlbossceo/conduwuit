@@ -45,6 +45,7 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		.ruma_route(&client::check_registration_token_validity)
 		.ruma_route(&client::get_capabilities_route)
 		.ruma_route(&client::get_pushrules_all_route)
+		.ruma_route(&client::get_pushrules_global_route)
 		.ruma_route(&client::set_pushrule_route)
 		.ruma_route(&client::get_pushrule_route)
 		.ruma_route(&client::set_pushrule_enabled_route)
