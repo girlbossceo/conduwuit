@@ -63,7 +63,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup GitHub Pages
-        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request') && (github.event.pull_request.user.login == 'girlbossceo')
+        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request')
         uses: actions/configure-pages@v5
 
       - uses: nixbuild/nix-quick-install-action@master
@@ -145,12 +145,12 @@ jobs:
           compression-level: 0
 
       - name: Upload generated documentation (book) as GitHub Pages artifact
-        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request') && (github.event.pull_request.user.login == 'girlbossceo')
+        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request')
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
 
       - name: Deploy to GitHub Pages
-        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request') && (github.event.pull_request.user.login == 'girlbossceo')
+        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request')
         id: deployment
         uses: actions/deploy-pages@v4
