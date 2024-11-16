@@ -264,7 +264,8 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-version = "0.1.10"
+# hyper-util >=0.1.9 seems to have DNS issues
+version = "=0.1.8"
 default-features = false
 features = [
 	"server-auto",
