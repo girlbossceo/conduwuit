@@ -17,7 +17,7 @@ use ruma::{EventId, RoomId};
 
 use crate::{
 	rooms,
-	rooms::short::{ShortId, ShortStateHash, ShortStateKey},
+	rooms::short::{ShortEventId, ShortId, ShortStateHash, ShortStateKey},
 	Dep,
 };
 
@@ -194,24 +194,6 @@ impl Service {
 		v.as_ref()
 			.try_into()
 			.expect("failed to create CompressedStateEvent")
-	}
-
-	/// Returns shortstatekey, event id
-	#[inline]
-	pub async fn parse_compressed_state_event(
-		&self, compressed_event: CompressedStateEvent,
-	) -> Result<(ShortStateKey, Arc<EventId>)> {
-		use utils::u64_from_u8;
-
-		let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<ShortStateKey>()]);
-		let shorteventid = u64_from_u8(&compressed_event[size_of::<ShortStateKey>()..]);
-		let event_id = self
-			.services
-			.short
-			.get_eventid_from_short(shorteventid)
-			.await?;
-
-		Ok((shortstatekey, event_id))
 	}
 
 	/// Creates a new shortstatehash that often is just a diff to an already
@@ -486,6 +468,17 @@ impl Service {
 			.shortstatehash_statediff
 			.insert(&shortstatehash.to_be_bytes(), &value);
 	}
+}
+
+#[inline]
+#[must_use]
+pub fn parse_compressed_state_event(compressed_event: CompressedStateEvent) -> (ShortStateKey, ShortEventId) {
+	use utils::u64_from_u8;
+
+	let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<ShortStateKey>()]);
+	let shorteventid = u64_from_u8(&compressed_event[size_of::<ShortStateKey>()..]);
+
+	(shortstatekey, shorteventid)
 }
 
 #[inline]

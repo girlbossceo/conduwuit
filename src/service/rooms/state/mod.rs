@@ -27,7 +27,7 @@ use crate::{
 	globals, rooms,
 	rooms::{
 		short::{ShortEventId, ShortStateHash},
-		state_compressor::CompressedStateEvent,
+		state_compressor::{parse_compressed_state_event, CompressedStateEvent},
 	},
 	Dep,
 };
@@ -98,12 +98,12 @@ impl Service {
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result {
-		let event_ids = statediffnew.iter().stream().filter_map(|new| {
-			self.services
-				.state_compressor
-				.parse_compressed_state_event(*new)
-				.map_ok_or_else(|_| None, |(_, event_id)| Some(event_id))
-		});
+		let event_ids = statediffnew
+			.iter()
+			.stream()
+			.map(|&new| parse_compressed_state_event(new).1)
+			.then(|shorteventid| self.services.short.get_eventid_from_short(shorteventid))
+			.ignore_err();
 
 		pin_mut!(event_ids);
 		while let Some(event_id) = event_ids.next().await {
@@ -428,17 +428,19 @@ impl Service {
 			.full_state;
 
 		let mut ret = HashMap::new();
-		for compressed in full_state.iter() {
-			let Ok((shortstatekey, event_id)) = self
-				.services
-				.state_compressor
-				.parse_compressed_state_event(*compressed)
-				.await
-			else {
+		for &compressed in full_state.iter() {
+			let (shortstatekey, shorteventid) = parse_compressed_state_event(compressed);
+
+			let Some((ty, state_key)) = sauthevents.remove(&shortstatekey) else {
 				continue;
 			};
 
-			let Some((ty, state_key)) = sauthevents.remove(&shortstatekey) else {
+			let Ok(event_id) = self
+				.services
+				.short
+				.get_eventid_from_short(shorteventid)
+				.await
+			else {
 				continue;
 			};
 

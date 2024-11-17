@@ -1,11 +1,22 @@
 use std::{collections::HashMap, sync::Arc};
 
-use conduit::{err, PduEvent, Result};
+use conduit::{
+	err,
+	utils::{future::TryExtExt, IterStream},
+	PduEvent, Result,
+};
 use database::{Deserialized, Map};
-use futures::TryFutureExt;
+use futures::{StreamExt, TryFutureExt};
 use ruma::{events::StateEventType, EventId, RoomId};
 
-use crate::{rooms, rooms::short::ShortStateHash, Dep};
+use crate::{
+	rooms,
+	rooms::{
+		short::{ShortEventId, ShortStateHash, ShortStateKey},
+		state_compressor::parse_compressed_state_event,
+	},
+	Dep,
+};
 
 pub(super) struct Data {
 	eventid_shorteventid: Arc<Map>,
@@ -35,9 +46,55 @@ impl Data {
 		}
 	}
 
-	#[allow(unused_qualifications)] // async traits
+	pub(super) async fn state_full(
+		&self, shortstatehash: ShortStateHash,
+	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+		Ok(self
+			.state_full_pdus(shortstatehash)
+			.await?
+			.into_iter()
+			.filter_map(|pdu| Some(((pdu.kind.to_string().into(), pdu.state_key.clone()?), pdu)))
+			.collect())
+	}
+
+	pub(super) async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<Arc<PduEvent>>> {
+		Ok(self
+			.state_full_shortids(shortstatehash)
+			.await?
+			.iter()
+			.stream()
+			.filter_map(|(_, shorteventid)| {
+				self.services
+					.short
+					.get_eventid_from_short(*shorteventid)
+					.ok()
+			})
+			.filter_map(|eventid| async move { self.services.timeline.get_pdu(&eventid).await.ok() })
+			.collect()
+			.await)
+	}
+
 	pub(super) async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
-		let full_state = self
+		Ok(self
+			.state_full_shortids(shortstatehash)
+			.await?
+			.iter()
+			.stream()
+			.filter_map(|(shortstatekey, shorteventid)| {
+				self.services
+					.short
+					.get_eventid_from_short(*shorteventid)
+					.map_ok(move |eventid| (*shortstatekey, eventid))
+					.ok()
+			})
+			.collect()
+			.await)
+	}
+
+	pub(super) async fn state_full_shortids(
+		&self, shortstatehash: ShortStateHash,
+	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
+		Ok(self
 			.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)
@@ -45,63 +102,11 @@ impl Data {
 			.map_err(|e| err!(Database("Missing state IDs: {e}")))?
 			.pop()
 			.expect("there is always one layer")
-			.full_state;
-
-		let mut result = HashMap::new();
-		let mut i: u8 = 0;
-		for compressed in full_state.iter() {
-			let parsed = self
-				.services
-				.state_compressor
-				.parse_compressed_state_event(*compressed)
-				.await?;
-
-			result.insert(parsed.0, parsed.1);
-
-			i = i.wrapping_add(1);
-			if i % 100 == 0 {
-				tokio::task::yield_now().await;
-			}
-		}
-
-		Ok(result)
-	}
-
-	#[allow(unused_qualifications)] // async traits
-	pub(super) async fn state_full(
-		&self, shortstatehash: ShortStateHash,
-	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
-		let full_state = self
-			.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
-			.await?
-			.pop()
-			.expect("there is always one layer")
-			.full_state;
-
-		let mut result = HashMap::new();
-		let mut i: u8 = 0;
-		for compressed in full_state.iter() {
-			let (_, eventid) = self
-				.services
-				.state_compressor
-				.parse_compressed_state_event(*compressed)
-				.await?;
-
-			if let Ok(pdu) = self.services.timeline.get_pdu(&eventid).await {
-				if let Some(state_key) = pdu.state_key.as_ref() {
-					result.insert((pdu.kind.to_string().into(), state_key.clone()), pdu);
-				}
-			}
-
-			i = i.wrapping_add(1);
-			if i % 100 == 0 {
-				tokio::task::yield_now().await;
-			}
-		}
-
-		Ok(result)
+			.full_state
+			.iter()
+			.copied()
+			.map(parse_compressed_state_event)
+			.collect())
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
@@ -130,18 +135,11 @@ impl Data {
 			.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
 			.ok_or(err!(Database("No shortstatekey in compressed state")))?;
 
+		let (_, shorteventid) = parse_compressed_state_event(*compressed);
+
 		self.services
-			.state_compressor
-			.parse_compressed_state_event(*compressed)
-			.map_ok(|(_, id)| id)
-			.map_err(|e| {
-				err!(Database(error!(
-					?event_type,
-					?state_key,
-					?shortstatekey,
-					"Failed to parse compressed: {e:?}"
-				)))
-			})
+			.short
+			.get_eventid_from_short(shorteventid)
 			.await
 	}
 
@@ -173,6 +171,17 @@ impl Data {
 			.get_room_shortstatehash(room_id)
 			.and_then(|shortstatehash| self.state_full(shortstatehash))
 			.map_err(|e| err!(Database("Missing state for {room_id:?}: {e:?}")))
+			.await
+	}
+
+	/// Returns the full room state's pdus.
+	#[allow(unused_qualifications)] // async traits
+	pub(super) async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<Arc<PduEvent>>> {
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.and_then(|shortstatehash| self.state_full_pdus(shortstatehash))
+			.map_err(|e| err!(Database("Missing state pdus for {room_id:?}: {e:?}")))
 			.await
 	}
 

@@ -301,6 +301,12 @@ impl Service {
 		self.db.room_state_full(room_id).await
 	}
 
+	/// Returns the full room state pdus
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<Arc<PduEvent>>> {
+		self.db.room_state_full_pdus(room_id).await
+	}
+
 	/// Returns a single PDU from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
