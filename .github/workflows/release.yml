@@ -1,0 +1,74 @@
+name: Upload Release Assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        type: string
+      action_id:
+        description: 'Action ID of the CI run'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: get latest ci id
+      id: get_ci_id
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]
+        then
+          id="${{ github.event.inputs.action_id }}"
+          tag="${{ github.event.inputs.tag }}"
+        else
+          # get all runs of the ci workflow
+          json=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs")
+
+          # find first run that is github sha and status is completed
+          id=$(echo "$json" | jq ".workflow_runs[] | select(.head_sha == \"${{ github.sha }}\" and .status == \"completed\") | .id" | head -n 1)
+          if [ ! "$id" ]; then
+            echo "No completed runs found"
+            echo "ci_id=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          tag="${{ github.event.release.tag_name }}"
+        fi
+
+        echo "ci_id=$id" >> "$GITHUB_OUTPUT"
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+    - name: get latest ci artifacts
+      if: steps.get_ci_id.outputs.ci_id != 0
+      uses: actions/download-artifact@v4
+      env:
+        GH_TOKEN: ${{ github.token }}
+      with:
+        merge-multiple: true
+        run-id: ${{ steps.get_ci_id.outputs.ci_id }}
+        github-token: ${{ github.token }}
+
+    - run: |
+        ls
+
+    - name: upload release assets
+      if: steps.get_ci_id.outputs.ci_id != 0
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ steps.get_ci_id.outputs.tag }}
+      run: |
+        for file in $(find . -type f); do
+          echo "Uploading $file..."
+          gh release upload $TAG "$file" --clobber --repo="${{github.repository}}" || echo "Something went wrong, skipping."
+        done
