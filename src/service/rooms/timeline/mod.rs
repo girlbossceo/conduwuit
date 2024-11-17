@@ -9,7 +9,7 @@ use std::{
 };
 
 use conduit::{
-	debug, err, error, implement, info,
+	debug, debug_warn, err, error, implement, info,
 	pdu::{EventHash, PduBuilder, PduCount, PduEvent},
 	utils,
 	utils::{stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
@@ -1128,7 +1128,7 @@ impl Service {
 				Ok(response) => {
 					for pdu in response.pdus {
 						if let Err(e) = self.backfill_pdu(backfill_server, pdu).boxed().await {
-							warn!("Failed to add backfilled pdu in room {room_id}: {e}");
+							debug_warn!("Failed to add backfilled pdu in room {room_id}: {e}");
 						}
 					}
 					return Ok(());
