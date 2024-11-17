@@ -54,13 +54,13 @@ While conduwuit can run as any user it is better to use dedicated users for
 different services. This also allows you to make sure that the file permissions
 are correctly set up.
 
-In Debian or Fedora/RHEL, you can use this command to create a conduwuit user:
+In Debian, you can use this command to create a conduwuit user:
 
 ```bash
 sudo adduser --system conduwuit --group --disabled-login --no-create-home
 ```
 
-For distros without `adduser`:
+For distros without `adduser` (or where it's a symlink to `useradd`):
 
 ```bash
 sudo useradd -r --shell /usr/bin/nologin --no-create-home conduwuit
@@ -142,8 +142,8 @@ If using Nginx, you need to give conduwuit the request URI using `$request_uri`,
 - `proxy_pass http://127.0.0.1:6167$request_uri;`
 - `proxy_pass http://127.0.0.1:6167;`
 
-Nginx users may need to set `proxy_buffering off;` if there are issues with
-uploading media like images. This is due to Nginx storing the entire POST content in-memory (`/tmp`) and running out of memory if on low memory hardware.
+Nginx users need to increase `client_max_body_size` (default is 1M) to match
+`max_request_size` defined in conduwuit.toml.
 
 You will need to reverse proxy everything under following routes:
 - `/_matrix/` - core Matrix C-S and S-S APIs
