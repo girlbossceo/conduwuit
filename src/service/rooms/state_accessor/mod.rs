@@ -287,7 +287,11 @@ impl Service {
 				c.history_visibility
 			});
 
-		history_visibility == HistoryVisibility::WorldReadable
+		match history_visibility {
+			HistoryVisibility::Invited => self.services.state_cache.is_invited(user_id, room_id).await,
+			HistoryVisibility::WorldReadable => true,
+			_ => false,
+		}
 	}
 
 	/// Returns the state hash for this pdu.
