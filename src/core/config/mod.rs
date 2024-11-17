@@ -2048,7 +2048,7 @@ fn default_server_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(50
 
 fn default_user_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
-fn default_stateinfo_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
+fn default_stateinfo_cache_capacity() -> u32 { parallelism_scaled_u32(100) }
 
 fn default_roomid_spacehierarchy_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
