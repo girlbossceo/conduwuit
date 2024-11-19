@@ -757,7 +757,6 @@ async fn load_joined_room(
 						};
 
 						delta_state_events.push(pdu);
-						tokio::task::yield_now().await;
 					}
 				}
 			}

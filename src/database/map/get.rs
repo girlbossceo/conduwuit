@@ -2,9 +2,10 @@ use std::{convert::AsRef, fmt::Debug, future::Future, io::Write};
 
 use arrayvec::ArrayVec;
 use conduit::{err, implement, utils::IterStream, Result};
-use futures::{future::ready, Stream};
+use futures::{FutureExt, Stream};
 use rocksdb::DBPinnableSlice;
 use serde::Serialize;
+use tokio::task;
 
 use crate::{ser, util, Handle};
 
@@ -55,7 +56,8 @@ pub fn get<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: AsRef<[u8]> + ?Sized + Debug,
 {
-	ready(self.get_blocking(key))
+	let result = self.get_blocking(key);
+	task::consume_budget().map(move |()| result)
 }
 
 /// Fetch a value from the database into cache, returning a reference-handle.
