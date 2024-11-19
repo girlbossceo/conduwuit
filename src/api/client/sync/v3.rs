@@ -275,10 +275,9 @@ pub(crate) async fn sync_events_route(
 			events: services
 				.account_data
 				.changes_since(None, &sender_user, since)
-				.await?
-				.into_iter()
-				.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
-				.collect(),
+				.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
+				.collect()
+				.await,
 		},
 		device_lists: DeviceLists {
 			changed: device_list_updates.into_iter().collect(),
@@ -1023,10 +1022,9 @@ async fn load_joined_room(
 			events: services
 				.account_data
 				.changes_since(Some(room_id), sender_user, since)
-				.await?
-				.into_iter()
-				.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
-				.collect(),
+				.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
+				.collect()
+				.await,
 		},
 		summary: RoomSummary {
 			heroes,

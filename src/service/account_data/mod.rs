@@ -1,12 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use conduit::{
-	implement,
-	utils::{stream::TryIgnore, ReadyExt},
-	Err, Error, Result,
+	err, implement,
+	utils::{result::LogErr, stream::TryIgnore, ReadyExt},
+	Err, Result,
 };
-use database::{Deserialized, Handle, Json, Map};
-use futures::{StreamExt, TryFutureExt};
+use database::{Deserialized, Handle, Interfix, Json, Map};
+use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
 	events::{
 		AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent, GlobalAccountDataEventType,
@@ -112,46 +112,27 @@ pub async fn get_raw(&self, room_id: Option<&RoomId>, user_id: &UserId, kind: &s
 
 /// Returns all changes to the account data that happened after `since`.
 #[implement(Service)]
-pub async fn changes_since(
-	&self, room_id: Option<&RoomId>, user_id: &UserId, since: u64,
-) -> Result<Vec<AnyRawAccountDataEvent>> {
-	let mut userdata = HashMap::new();
-
-	let mut prefix = room_id
-		.map(ToString::to_string)
-		.unwrap_or_default()
-		.as_bytes()
-		.to_vec();
-	prefix.push(0xFF);
-	prefix.extend_from_slice(user_id.as_bytes());
-	prefix.push(0xFF);
+pub fn changes_since<'a>(
+	&'a self, room_id: Option<&'a RoomId>, user_id: &'a UserId, since: u64,
+) -> impl Stream<Item = AnyRawAccountDataEvent> + Send + 'a {
+	let prefix = (room_id, user_id, Interfix);
+	let prefix = database::serialize_to_vec(prefix).expect("failed to serialize prefix");
 
 	// Skip the data that's exactly at since, because we sent that last time
-	let mut first_possible = prefix.clone();
-	first_possible.extend_from_slice(&(since.saturating_add(1)).to_be_bytes());
+	let first_possible = (room_id, user_id, since.saturating_add(1));
 
 	self.db
 		.roomuserdataid_accountdata
-		.raw_stream_from(&first_possible)
+		.stream_from_raw(&first_possible)
 		.ignore_err()
 		.ready_take_while(move |(k, _)| k.starts_with(&prefix))
-		.map(|(k, v)| {
-			let v = match room_id {
-				None => serde_json::from_slice::<Raw<AnyGlobalAccountDataEvent>>(v)
-					.map(AnyRawAccountDataEvent::Global)
-					.map_err(|_| Error::bad_database("Database contains invalid account data."))?,
-				Some(_) => serde_json::from_slice::<Raw<AnyRoomAccountDataEvent>>(v)
-					.map(AnyRawAccountDataEvent::Room)
-					.map_err(|_| Error::bad_database("Database contains invalid account data."))?,
-			};
-
-			Ok((k.to_owned(), v))
+		.map(move |(_, v)| {
+			match room_id {
+				Some(_) => serde_json::from_slice::<Raw<AnyRoomAccountDataEvent>>(v).map(AnyRawAccountDataEvent::Room),
+				None => serde_json::from_slice::<Raw<AnyGlobalAccountDataEvent>>(v).map(AnyRawAccountDataEvent::Global),
+			}
+			.map_err(|e| err!(Database("Database contains invalid account data: {e}")))
+			.log_err()
 		})
 		.ignore_err()
-		.ready_for_each(|(kind, data)| {
-			userdata.insert(kind, data);
-		})
-		.await;
-
-	Ok(userdata.into_values().collect())
 }
