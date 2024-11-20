@@ -11,8 +11,7 @@ use std::{
 use conduit::{
 	debug, debug_warn, err, error, implement, info,
 	pdu::{EventHash, PduBuilder, PduCount, PduEvent},
-	utils,
-	utils::{stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
+	utils::{self, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	validated, warn, Err, Error, Result, Server,
 };
 pub use conduit::{PduId, RawPduId};
@@ -386,16 +385,18 @@ impl Service {
 
 		let sync_pdu = pdu.to_sync_room_event();
 
-		let mut notifies = Vec::new();
-		let mut highlights = Vec::new();
-
 		let mut push_target: HashSet<_> = self
 			.services
 			.state_cache
 			.active_local_users_in_room(&pdu.room_id)
+			// Don't notify the sender of their own events
+			.ready_filter(|user| user != &pdu.sender)
 			.map(ToOwned::to_owned)
 			.collect()
 			.await;
+
+		let mut notifies = Vec::with_capacity(push_target.len().saturating_add(1));
+		let mut highlights = Vec::with_capacity(push_target.len().saturating_add(1));
 
 		if pdu.kind == TimelineEventType::RoomMember {
 			if let Some(state_key) = &pdu.state_key {
@@ -408,11 +409,6 @@ impl Service {
 		}
 
 		for user in &push_target {
-			// Don't notify the user of their own events
-			if user == &pdu.sender {
-				continue;
-			}
-
 			let rules_for_user = self
 				.services
 				.account_data
@@ -436,6 +432,11 @@ impl Service {
 					},
 					_ => {},
 				};
+
+				// Break early if both conditions are true
+				if notify && highlight {
+					break;
+				}
 			}
 
 			if notify {
