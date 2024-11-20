@@ -55,15 +55,31 @@ appropriately to use conduwuit instead of Conduit.
 ### UNIX sockets
 
 Due to the lack of a conduwuit NixOS module, when using the `services.matrix-conduit` module
-it is not possible to use UNIX sockets. This is because the UNIX socket option does not exist
-in Conduit, and their module forces listening on `[::1]:6167` by default if unspecified.
+a workaround like the one below is necessary to use UNIX sockets. This is because the UNIX
+socket option does not exist in Conduit, and the module forcibly sets the `address` and 
+`port` config options.
+
+```nix
+options.services.matrix-conduit.settings = lib.mkOption {
+  apply = old: old // (
+    if (old.global ? "unix_socket_path")
+    then { global = builtins.removeAttrs old.global [ "address" "port" ]; }
+    else {  }
+  );
+};
+
+```
 
 Additionally, the [`matrix-conduit` systemd unit][systemd-unit] in the module does not allow
 the `AF_UNIX` socket address family in their systemd unit's `RestrictAddressFamilies=` which
-disallows the namespace from accessing or creating UNIX sockets.
+disallows the namespace from accessing or creating UNIX sockets and has to be enabled like so:
 
-There is no known workaround these. A conduwuit NixOS configuration module must be developed and
-published by the community.
+```nix
+systemd.services.conduit.serviceConfig.RestrictAddressFamilies = [ "AF_UNIX" ];
+```
+
+Even though those workarounds are feasible a conduwuit NixOS configuration module, developed and
+published by the community, would be appreciated.
 
 ### jemalloc and hardened profile
 
