@@ -473,7 +473,7 @@ pub(crate) async fn sync_events_v4_route(
 			(timeline_pdus, limited) = (Vec::new(), true);
 		} else {
 			(timeline_pdus, limited) =
-				match load_timeline(&services, sender_user, room_id, roomsincecount, *timeline_limit).await {
+				match load_timeline(&services, sender_user, room_id, roomsincecount, None, *timeline_limit).await {
 					Ok(value) => value,
 					Err(err) => {
 						warn!("Encountered missing timeline in {}, error {}", room_id, err);

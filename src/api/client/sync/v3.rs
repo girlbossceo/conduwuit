@@ -540,7 +540,8 @@ async fn load_joined_room(
 	let insert_lock = services.rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
-	let (timeline_pdus, limited) = load_timeline(services, sender_user, room_id, sincecount, 10_usize).await?;
+	let (timeline_pdus, limited) =
+		load_timeline(services, sender_user, room_id, sincecount, Some(next_batchcount), 10_usize).await?;
 
 	let send_notification_counts = !timeline_pdus.is_empty()
 		|| services
