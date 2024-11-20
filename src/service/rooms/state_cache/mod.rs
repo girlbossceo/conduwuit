@@ -10,7 +10,7 @@ use conduit::{
 	warn, Result,
 };
 use database::{serialize_to_vec, Deserialized, Ignore, Interfix, Json, Map};
-use futures::{future::join4, stream::iter, Stream, StreamExt};
+use futures::{future::join4, pin_mut, stream::iter, Stream, StreamExt};
 use itertools::Itertools;
 use ruma::{
 	events::{
@@ -385,16 +385,21 @@ impl Service {
 	/// Returns true if user_a and user_b share at least one room.
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> bool {
-		// Minimize number of point-queries by iterating user with least nr rooms
-		let (a, b) = if self.rooms_joined(user_a).count().await < self.rooms_joined(user_b).count().await {
-			(user_a, user_b)
-		} else {
-			(user_b, user_a)
-		};
+		let get_shared_rooms = self.get_shared_rooms(user_a, user_b);
 
-		self.rooms_joined(a)
-			.any(|room_id| self.is_joined(b, room_id))
-			.await
+		pin_mut!(get_shared_rooms);
+		get_shared_rooms.next().await.is_some()
+	}
+
+	/// List the rooms common between two users
+	pub fn get_shared_rooms<'a>(
+		&'a self, user_a: &'a UserId, user_b: &'a UserId,
+	) -> impl Stream<Item = &RoomId> + Send + 'a {
+		use conduit::utils::set;
+
+		let a = self.rooms_joined(user_a);
+		let b = self.rooms_joined(user_b);
+		set::intersection_sorted_stream2(a, b)
 	}
 
 	/// Returns an iterator of all joined members of a room.

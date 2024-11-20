@@ -52,7 +52,7 @@ async fn share_encrypted_room(
 ) -> bool {
 	services
 		.rooms
-		.user
+		.state_cache
 		.get_shared_rooms(sender_user, user_id)
 		.ready_filter(|&room_id| Some(room_id) != ignore_room)
 		.any(|other_room_id| {

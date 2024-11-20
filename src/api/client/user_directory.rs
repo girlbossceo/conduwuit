@@ -71,8 +71,8 @@ pub(crate) async fn search_users_route(
 		} else {
 			let user_is_in_shared_rooms = services
 				.rooms
-				.user
-				.has_shared_rooms(sender_user, &user.user_id)
+				.state_cache
+				.user_sees_user(sender_user, &user.user_id)
 				.await;
 
 			if user_is_in_shared_rooms {
