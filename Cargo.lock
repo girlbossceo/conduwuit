@@ -191,9 +191,9 @@ dependencies = [
 
 [[package]]
 name = "axum"
-version = "0.7.8"
+version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49c41b948da08fb481a94546cd874843adc1142278b0af4badf9b1b78599d68d"
+checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -257,9 +257,9 @@ dependencies = [
 
 [[package]]
 name = "axum-extra"
-version = "0.9.5"
+version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37634d71e9f3c35cfb1c30c87c7cba500d55892f04c2dbe6a99383c664b820b0"
+checksum = "c794b30c904f0a1c2fb7740f7df7f7972dfaa14ef6f57cb6178dc63e5dca2f04"
 dependencies = [
  "axum",
  "axum-core",
@@ -1048,9 +1048,9 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edb49164822f3ee45b17acd4a208cfc1251410cf0cad9a833234c9890774dd9f"
+checksum = "32a2785755761f3ddc1492979ce1e48d2c00d09311c39e4466429188f3dd6501"
 dependencies = [
  "quote",
  "syn 2.0.87",
@@ -1699,9 +1699,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "1.5.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbbff0a806a4728c99295b254c8838933b5b082d75e3cb70c8dab21fdfbcfa9a"
+checksum = "97818827ef4f364230e16705d4706e2897df2bb60617d6ca15d598025a3c481f"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -3128,7 +3128,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.10.1"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "assign",
  "js_int",
@@ -3150,7 +3150,7 @@ dependencies = [
 [[package]]
 name = "ruma-appservice-api"
 version = "0.10.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3162,7 +3162,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.18.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "as_variant",
  "assign",
@@ -3185,7 +3185,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "as_variant",
  "base64 0.22.1",
@@ -3215,7 +3215,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.28.1"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "as_variant",
  "indexmap 2.6.0",
@@ -3239,7 +3239,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "bytes",
  "http",
@@ -3257,7 +3257,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.9.5"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "js_int",
  "thiserror 2.0.3",
@@ -3266,7 +3266,7 @@ dependencies = [
 [[package]]
 name = "ruma-identity-service-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3276,7 +3276,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.13.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -3292,7 +3292,7 @@ dependencies = [
 [[package]]
 name = "ruma-push-gateway-api"
 version = "0.9.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -3304,7 +3304,7 @@ dependencies = [
 [[package]]
 name = "ruma-server-util"
 version = "0.3.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "headers",
  "http",
@@ -3317,7 +3317,7 @@ dependencies = [
 [[package]]
 name = "ruma-signatures"
 version = "0.15.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -3333,7 +3333,7 @@ dependencies = [
 [[package]]
 name = "ruma-state-res"
 version = "0.11.0"
-source = "git+https://github.com/girlbossceo/ruwuma?rev=2ab432fba19eb8862c594d24af39d8f9f6b4eac6#2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+source = "git+https://github.com/girlbossceo/ruwuma?rev=97e2fb6df13f65532d33fc2f0f097ad5a449dd70#97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 dependencies = [
  "futures-util",
  "itertools 0.13.0",
@@ -3502,16 +3502,16 @@ checksum = "0e819f2bc632f285be6d7cd36e25940d45b2391dd6d9b939e79de557f7014248"
 [[package]]
 name = "rustyline-async"
 version = "0.4.3"
-source = "git+https://github.com/girlbossceo/rustyline-async?rev=9654cc84e19241f6e19021eb8e677892656f5071#9654cc84e19241f6e19021eb8e677892656f5071"
+source = "git+https://github.com/girlbossceo/rustyline-async?rev=deaeb0694e2083f53d363b648da06e10fc13900c#deaeb0694e2083f53d363b648da06e10fc13900c"
 dependencies = [
  "crossterm",
  "futures-channel",
  "futures-util",
  "pin-project",
  "thingbuf",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "unicode-segmentation",
- "unicode-width",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]
@@ -3749,9 +3749,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
  "itoa",
  "memchr",
@@ -4056,9 +4056,9 @@ dependencies = [
 
 [[package]]
 name = "termimad"
-version = "0.31.0"
+version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cda3a7471f9978706978454c45ef8dda67e9f8f3cdb9319eb2e9323deb6ae62"
+checksum = "ea6a5d4cf55d9f1cb04fcda48f725772d0733ae34e030dfc4dd36e738a5965f4"
 dependencies = [
  "coolor",
  "crokey",
@@ -4067,7 +4067,7 @@ dependencies = [
  "minimad",
  "serde",
  "thiserror 1.0.69",
- "unicode-width",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]
@@ -4425,9 +4425,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8437150ab6bbc8c5f0f519e3d5ed4aa883a83dd4cdd3d1b21f9482936046cb97"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
 dependencies = [
  "async-compression",
  "bitflags 2.6.0",
@@ -4627,6 +4627,12 @@ name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+
+[[package]]
+name = "unicode-width"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fc81956842c57dac11422a97c3b8195a1ff727f06e85c84ed2e8aa277c9a0fd"
 
 [[package]]
 name = "unsafe-libyaml"
