@@ -17,6 +17,7 @@ media_compat_file_link = false
 media_startup_check = false
 rocksdb_direct_io = false
 log_colors = false
+admin_room_notices = false
 
 [global.tls]
 certs = "/certificate.crt"
