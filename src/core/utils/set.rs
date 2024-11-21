@@ -1,4 +1,10 @@
-use std::cmp::{Eq, Ord};
+use std::{
+	cmp::{Eq, Ord},
+	pin::Pin,
+	sync::Arc,
+};
+
+use futures::{Stream, StreamExt};
 
 use crate::{is_equal_to, is_less_than};
 
@@ -44,4 +50,28 @@ where
 			})
 		})
 	})
+}
+
+/// Intersection of sets
+///
+/// Outputs the set of elements common to both streams. Streams must be sorted.
+pub fn intersection_sorted_stream2<Item, S>(a: S, b: S) -> impl Stream<Item = Item> + Send
+where
+	S: Stream<Item = Item> + Send + Unpin,
+	Item: Eq + PartialOrd + Send + Sync,
+{
+	use tokio::sync::Mutex;
+
+	let b = Arc::new(Mutex::new(b.peekable()));
+	a.map(move |ai| (ai, b.clone()))
+		.filter_map(|(ai, b)| async move {
+			let mut lock = b.lock().await;
+			while let Some(bi) = Pin::new(&mut *lock).next_if(|bi| *bi <= ai).await.as_ref() {
+				if ai == *bi {
+					return Some(ai);
+				}
+			}
+
+			None
+		})
 }
