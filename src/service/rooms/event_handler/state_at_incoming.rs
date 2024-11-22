@@ -139,7 +139,7 @@ pub(super) async fn state_at_incoming_resolved(
 		let auth_chain: HashSet<Arc<EventId>> = self
 			.services
 			.auth_chain
-			.get_event_ids(room_id, &starting_events)
+			.get_event_ids(room_id, starting_events.into_iter())
 			.await?
 			.into_iter()
 			.collect();

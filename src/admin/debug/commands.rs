@@ -1,6 +1,7 @@
 use std::{
 	collections::HashMap,
 	fmt::Write,
+	iter::once,
 	sync::Arc,
 	time::{Instant, SystemTime},
 };
@@ -43,7 +44,7 @@ pub(super) async fn get_auth_chain(&self, event_id: Box<EventId>) -> Result<Room
 		.services
 		.rooms
 		.auth_chain
-		.event_ids_iter(room_id, &[&event_id])
+		.event_ids_iter(room_id, once(event_id.as_ref()))
 		.await?
 		.count()
 		.await;

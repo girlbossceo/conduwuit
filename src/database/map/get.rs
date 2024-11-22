@@ -80,8 +80,8 @@ where
 #[tracing::instrument(skip(self, keys), fields(%self), level = "trace")]
 pub fn get_batch<'a, I, K>(&self, keys: I) -> impl Stream<Item = Result<Handle<'_>>>
 where
-	I: Iterator<Item = &'a K> + ExactSizeIterator + Send + Debug,
-	K: AsRef<[u8]> + Send + Sync + Sized + Debug + 'a,
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,
+	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
 {
 	self.get_batch_blocking(keys).stream()
 }
@@ -89,8 +89,8 @@ where
 #[implement(super::Map)]
 pub fn get_batch_blocking<'a, I, K>(&self, keys: I) -> impl Iterator<Item = Result<Handle<'_>>>
 where
-	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
-	K: AsRef<[u8]> + Sized + 'a,
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,
+	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
 {
 	// Optimization can be `true` if key vector is pre-sorted **by the column
 	// comparator**.
