@@ -42,16 +42,14 @@ impl Data {
 	}
 
 	pub(super) async fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) {
-		type KeyVal<'a> = (&'a RoomId, u64, &'a UserId);
-
 		// Remove old entry
 		let last_possible_key = (room_id, u64::MAX);
 		self.readreceiptid_readreceipt
-			.rev_keys_from(&last_possible_key)
+			.rev_keys_from_raw(&last_possible_key)
 			.ignore_err()
-			.ready_take_while(|(r, ..): &KeyVal<'_>| *r == room_id)
-			.ready_filter_map(|(r, c, u): KeyVal<'_>| (u == user_id).then_some((r, c, u)))
-			.ready_for_each(|old: KeyVal<'_>| self.readreceiptid_readreceipt.del(old))
+			.ready_take_while(|key| key.starts_with(room_id.as_bytes()))
+			.ready_filter_map(|key| key.ends_with(user_id.as_bytes()).then_some(key))
+			.ready_for_each(|key| self.readreceiptid_readreceipt.del(key))
 			.await;
 
 		let count = self.services.globals.next_count().unwrap();
