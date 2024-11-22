@@ -199,6 +199,10 @@ pub struct Config {
 	pub eventidshort_cache_capacity: u32,
 
 	/// default: varies by system
+	#[serde(default = "default_eventid_pdu_cache_capacity")]
+	pub eventid_pdu_cache_capacity: u32,
+
+	/// default: varies by system
 	#[serde(default = "default_shortstatekey_cache_capacity")]
 	pub shortstatekey_cache_capacity: u32,
 
@@ -2039,6 +2043,8 @@ fn default_auth_chain_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).s
 fn default_shorteventid_cache_capacity() -> u32 { parallelism_scaled_u32(50_000).saturating_add(100_000) }
 
 fn default_eventidshort_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
+
+fn default_eventid_pdu_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
 
 fn default_shortstatekey_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
 
