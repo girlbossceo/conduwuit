@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use conduit::{
-	err,
-	utils::{future::TryExtExt, IterStream},
+	at, err,
+	utils::stream::{IterStream, ReadyExt},
 	PduEvent, Result,
 };
 use database::{Deserialized, Map};
@@ -49,52 +49,63 @@ impl Data {
 	pub(super) async fn state_full(
 		&self, shortstatehash: ShortStateHash,
 	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
-		Ok(self
+		let state = self
 			.state_full_pdus(shortstatehash)
 			.await?
 			.into_iter()
 			.filter_map(|pdu| Some(((pdu.kind.to_string().into(), pdu.state_key.clone()?), pdu)))
-			.collect())
+			.collect();
+
+		Ok(state)
 	}
 
 	pub(super) async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<Arc<PduEvent>>> {
-		Ok(self
+		let short_ids = self
 			.state_full_shortids(shortstatehash)
 			.await?
-			.iter()
+			.into_iter()
+			.map(at!(1));
+
+		let event_ids = self
+			.services
+			.short
+			.multi_get_eventid_from_short(short_ids)
+			.await;
+
+		let full_pdus = event_ids
+			.into_iter()
 			.stream()
-			.filter_map(|(_, shorteventid)| {
-				self.services
-					.short
-					.get_eventid_from_short(*shorteventid)
-					.ok()
-			})
-			.filter_map(|eventid| async move { self.services.timeline.get_pdu(&eventid).await.ok() })
+			.ready_filter_map(Result::ok)
+			.filter_map(|event_id| async move { self.services.timeline.get_pdu(&event_id).await.ok() })
 			.collect()
-			.await)
+			.await;
+
+		Ok(full_pdus)
 	}
 
 	pub(super) async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
-		Ok(self
-			.state_full_shortids(shortstatehash)
-			.await?
-			.iter()
-			.stream()
-			.filter_map(|(shortstatekey, shorteventid)| {
-				self.services
-					.short
-					.get_eventid_from_short(*shorteventid)
-					.map_ok(move |eventid| (*shortstatekey, eventid))
-					.ok()
-			})
-			.collect()
-			.await)
+		let short_ids = self.state_full_shortids(shortstatehash).await?;
+
+		let event_ids = self
+			.services
+			.short
+			.multi_get_eventid_from_short(short_ids.iter().map(at!(1)))
+			.await;
+
+		let full_ids = short_ids
+			.into_iter()
+			.map(at!(0))
+			.zip(event_ids.into_iter())
+			.filter_map(|(shortstatekey, event_id)| Some((shortstatekey, event_id.ok()?)))
+			.collect();
+
+		Ok(full_ids)
 	}
 
 	pub(super) async fn state_full_shortids(
 		&self, shortstatehash: ShortStateHash,
 	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
-		Ok(self
+		let shortids = self
 			.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)
@@ -106,7 +117,9 @@ impl Data {
 			.iter()
 			.copied()
 			.map(parse_compressed_state_event)
-			.collect())
+			.collect();
+
+		Ok(shortids)
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).

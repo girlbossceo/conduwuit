@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduit::{
-	err,
+	at, err,
 	result::FlatOk,
 	utils::{calculate_hash, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	warn, PduEvent, Result,
@@ -398,59 +398,52 @@ impl Service {
 			return Ok(HashMap::new());
 		};
 
-		let auth_events = state_res::auth_types_for_event(kind, sender, state_key, content)?;
-
-		let mut sauthevents: HashMap<_, _> = auth_events
+		let mut sauthevents: HashMap<_, _> = state_res::auth_types_for_event(kind, sender, state_key, content)?
 			.iter()
 			.stream()
 			.filter_map(|(event_type, state_key)| {
 				self.services
 					.short
 					.get_shortstatekey(event_type, state_key)
-					.map_ok(move |s| (s, (event_type, state_key)))
+					.map_ok(move |ssk| (ssk, (event_type, state_key)))
 					.map(Result::ok)
 			})
+			.map(|(ssk, (event_type, state_key))| (ssk, (event_type.to_owned(), state_key.to_owned())))
 			.collect()
 			.await;
 
-		let full_state = self
+		let auth_state: Vec<_> = self
 			.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
+			.state_accessor
+			.state_full_shortids(shortstatehash)
 			.await
-			.map_err(|e| {
-				err!(Database(
-					"Missing shortstatehash info for {room_id:?} at {shortstatehash:?}: {e:?}"
-				))
-			})?
-			.pop()
-			.expect("there is always one layer")
-			.full_state;
+			.map_err(|e| err!(Database(error!(?room_id, ?shortstatehash, "{e:?}"))))?
+			.into_iter()
+			.filter_map(|(shortstatekey, shorteventid)| {
+				sauthevents
+					.remove(&shortstatekey)
+					.map(|(event_type, state_key)| ((event_type, state_key), shorteventid))
+			})
+			.collect();
 
-		let mut ret = HashMap::new();
-		for &compressed in full_state.iter() {
-			let (shortstatekey, shorteventid) = parse_compressed_state_event(compressed);
+		let auth_pdus: Vec<_> = self
+			.services
+			.short
+			.multi_get_eventid_from_short(auth_state.iter().map(at!(1)))
+			.await
+			.into_iter()
+			.stream()
+			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
+			.collect()
+			.await;
 
-			let Some((ty, state_key)) = sauthevents.remove(&shortstatekey) else {
-				continue;
-			};
+		let auth_pdus = auth_state
+			.into_iter()
+			.map(at!(0))
+			.zip(auth_pdus.into_iter())
+			.filter_map(|((event_type, state_key), pdu)| Some(((event_type, state_key), pdu.ok()?)))
+			.collect();
 
-			let Ok(event_id) = self
-				.services
-				.short
-				.get_eventid_from_short(shorteventid)
-				.await
-			else {
-				continue;
-			};
-
-			let Ok(pdu) = self.services.timeline.get_pdu(&event_id).await else {
-				continue;
-			};
-
-			ret.insert((ty.to_owned(), state_key.to_owned()), pdu);
-		}
-
-		Ok(ret)
+		Ok(auth_pdus)
 	}
 }

@@ -41,7 +41,10 @@ use serde::Deserialize;
 use self::data::Data;
 use crate::{
 	rooms,
-	rooms::{short::ShortStateHash, state::RoomMutexGuard},
+	rooms::{
+		short::{ShortEventId, ShortStateHash, ShortStateKey},
+		state::RoomMutexGuard,
+	},
 	Dep,
 };
 
@@ -100,6 +103,13 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
 		self.db.state_full_ids(shortstatehash).await
+	}
+
+	#[inline]
+	pub async fn state_full_shortids(
+		&self, shortstatehash: ShortStateHash,
+	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
+		self.db.state_full_shortids(shortstatehash).await
 	}
 
 	pub async fn state_full(
