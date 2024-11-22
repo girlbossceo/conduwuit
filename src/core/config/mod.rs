@@ -1516,6 +1516,7 @@ pub struct TlsConfig {
 	pub dual_protocol: bool,
 }
 
+#[allow(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
 #[derive(Clone, Debug, Deserialize, Default)]
 #[config_example_generator(filename = "conduwuit-example.toml", section = "global.well_known")]
 pub struct WellKnownConfig {
@@ -1528,7 +1529,7 @@ pub struct WellKnownConfig {
 	/// The server URL that the client well-known file will serve. This should
 	/// not contain a port, and should just be a valid HTTPS URL.
 	///
-	/// example: "<https://matrix.example.com>"
+	/// example: "https://matrix.example.com"
 	pub client: Option<Url>,
 	pub support_page: Option<Url>,
 	pub support_role: Option<ContactRole>,
