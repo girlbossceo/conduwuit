@@ -2,9 +2,9 @@ use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
 use conduit::{
-	debug_error, err, trace,
+	debug_warn, err, trace,
 	utils::{stream::TryIgnore, string_from_bytes},
-	Err, PduEvent, Result,
+	warn, Err, PduEvent, Result,
 };
 use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::{Stream, StreamExt};
@@ -65,17 +65,29 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) {
+	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result {
 		match pusher {
 			set_pusher::v3::PusherAction::Post(data) => {
-				let key = (sender, &data.pusher.ids.pushkey);
+				let pushkey = data.pusher.ids.pushkey.as_str();
+
+				if pushkey.len() > 512 {
+					return Err!(Request(InvalidParam("Push key length cannot be greater than 512 bytes.")));
+				}
+
+				if data.pusher.ids.app_id.as_str().len() > 64 {
+					return Err!(Request(InvalidParam("App ID length cannot be greater than 64 bytes.")));
+				}
+
+				let key = (sender, data.pusher.ids.pushkey.as_str());
 				self.db.senderkey_pusher.put(key, Json(pusher));
 			},
 			set_pusher::v3::PusherAction::Delete(ids) => {
-				let key = (sender, &ids.pushkey);
+				let key = (sender, ids.pushkey.as_str());
 				self.db.senderkey_pusher.del(key);
 			},
 		}
+
+		Ok(())
 	}
 
 	pub async fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Pusher> {
@@ -166,8 +178,8 @@ impl Service {
 				let body = response.bytes().await?; // TODO: handle timeout
 
 				if !status.is_success() {
-					debug_error!("Push gateway response body: {:?}", string_from_bytes(&body));
-					return Err!(BadServerResponse(error!(
+					debug_warn!("Push gateway response body: {:?}", string_from_bytes(&body));
+					return Err!(BadServerResponse(warn!(
 						"Push gateway {dest} returned unsuccessful HTTP response: {status}"
 					)));
 				}
@@ -178,10 +190,10 @@ impl Service {
 						.expect("reqwest body is valid http body"),
 				);
 				response
-					.map_err(|e| err!(BadServerResponse(error!("Push gateway {dest} returned invalid response: {e}"))))
+					.map_err(|e| err!(BadServerResponse(warn!("Push gateway {dest} returned invalid response: {e}"))))
 			},
 			Err(e) => {
-				debug_error!("Could not send request to pusher {dest}: {e}");
+				warn!("Could not send request to pusher {dest}: {e}");
 				Err(e.into())
 			},
 		}
@@ -278,11 +290,7 @@ impl Service {
 		// TODO: email
 		match &pusher.kind {
 			PusherKind::Http(http) => {
-				// TODO:
-				// Two problems with this
-				// 1. if "event_id_only" is the only format kind it seems we should never add
-				//    more info
-				// 2. can pusher/devices have conflicting formats
+				// TODO (timo): can pusher/devices have conflicting formats
 				let event_id_only = http.format == Some(PushFormat::EventIdOnly);
 
 				let mut device = Device::new(pusher.ids.app_id.clone(), pusher.ids.pushkey.clone());
@@ -297,24 +305,24 @@ impl Service {
 				let d = vec![device];
 				let mut notifi = Notification::new(d);
 
-				notifi.prio = NotificationPriority::Low;
 				notifi.event_id = Some((*event.event_id).to_owned());
 				notifi.room_id = Some((*event.room_id).to_owned());
 				// TODO: missed calls
 				notifi.counts = NotificationCounts::new(unread, uint!(0));
 
-				if event.kind == TimelineEventType::RoomEncrypted
-					|| tweaks
-						.iter()
-						.any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
-				{
-					notifi.prio = NotificationPriority::High;
-				}
-
 				if event_id_only {
 					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
 						.await?;
 				} else {
+					if event.kind == TimelineEventType::RoomEncrypted
+						|| tweaks
+							.iter()
+							.any(|t| matches!(t, Tweak::Highlight(true) | Tweak::Sound(_)))
+					{
+						notifi.prio = NotificationPriority::High;
+					} else {
+						notifi.prio = NotificationPriority::Low;
+					}
 					notifi.sender = Some(event.sender.clone());
 					notifi.event_type = Some(event.kind.clone());
 					notifi.content = serde_json::value::to_raw_value(&event.content).ok();
