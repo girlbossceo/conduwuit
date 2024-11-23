@@ -243,7 +243,7 @@ version = "0.8.5"
 
 # Validating urls in config, was already a transitive dependency
 [workspace.dependencies.url]
-version = "2.5.3"
+version = "2.5.4"
 default-features = false
 features = ["serde"]
 
