@@ -1,6 +1,38 @@
-use syn::{parse_str, Expr, Generics, Lit, Meta};
+use std::collections::HashMap;
+
+use syn::{parse_str, Expr, ExprLit, Generics, Lit, Meta, MetaNameValue};
 
 use crate::Result;
+
+pub(crate) fn get_simple_settings(args: &[Meta]) -> HashMap<String, String> {
+	args.iter().fold(HashMap::new(), |mut map, arg| {
+		let Meta::NameValue(MetaNameValue {
+			path,
+			value,
+			..
+		}) = arg
+		else {
+			return map;
+		};
+
+		let Expr::Lit(
+			ExprLit {
+				lit: Lit::Str(str),
+				..
+			},
+			..,
+		) = value
+		else {
+			return map;
+		};
+
+		if let Some(key) = path.segments.iter().next().map(|s| s.ident.clone()) {
+			map.insert(key.to_string(), str.value());
+		}
+
+		map
+	})
+}
 
 pub(crate) fn is_cargo_build() -> bool {
 	std::env::args()
