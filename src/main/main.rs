@@ -9,12 +9,11 @@ mod tracing;
 extern crate conduit_core as conduit;
 
 use std::{
-	cmp,
 	sync::{atomic::Ordering, Arc},
 	time::Duration,
 };
 
-use conduit::{debug_info, error, rustc_flags_capture, utils::available_parallelism, Error, Result};
+use conduit::{debug_info, error, rustc_flags_capture, Error, Result};
 use server::Server;
 use tokio::runtime;
 
@@ -30,7 +29,7 @@ fn main() -> Result<(), Error> {
 		.enable_io()
 		.enable_time()
 		.thread_name(WORKER_NAME)
-		.worker_threads(cmp::max(WORKER_MIN, available_parallelism()))
+		.worker_threads(args.worker_threads.max(WORKER_MIN))
 		.thread_keep_alive(Duration::from_secs(WORKER_KEEPALIVE))
 		.build()
 		.expect("built runtime");

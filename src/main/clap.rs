@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use clap::Parser;
 use conduit::{
 	config::{Figment, FigmentValue},
-	err, toml, Err, Result,
+	err, toml,
+	utils::available_parallelism,
+	Err, Result,
 };
 
 /// Commandline arguments
@@ -32,6 +34,10 @@ pub(crate) struct Args {
 	/// Set functional testing modes if available. Ex '--test=smoke'
 	#[arg(long, hide(true))]
 	pub(crate) test: Vec<String>,
+
+	/// Override the tokio worker_thread count.
+	#[arg(long, hide(true), env = "TOKIO_WORKER_THREADS", default_value = available_parallelism().to_string())]
+	pub(crate) worker_threads: usize,
 }
 
 /// Parse commandline arguments into structured data
