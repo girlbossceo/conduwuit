@@ -26,7 +26,7 @@ use ruma::{
 	uint, RoomId, UInt, UserId,
 };
 
-use crate::{client, globals, rooms, users, Dep};
+use crate::{client, globals, rooms, sending, users, Dep};
 
 pub struct Service {
 	db: Data,
@@ -39,6 +39,7 @@ struct Services {
 	state_accessor: Dep<rooms::state_accessor::Service>,
 	state_cache: Dep<rooms::state_cache::Service>,
 	users: Dep<users::Service>,
+	sending: Dep<sending::Service>,
 }
 
 struct Data {
@@ -57,6 +58,7 @@ impl crate::Service for Service {
 				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 				users: args.depend::<users::Service>("users"),
+				sending: args.depend::<sending::Service>("sending"),
 			},
 		}))
 	}
@@ -65,7 +67,7 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result {
+	pub async fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result {
 		match pusher {
 			set_pusher::v3::PusherAction::Post(data) => {
 				let pushkey = data.pusher.ids.pushkey.as_str();
@@ -84,6 +86,12 @@ impl Service {
 			set_pusher::v3::PusherAction::Delete(ids) => {
 				let key = (sender, ids.pushkey.as_str());
 				self.db.senderkey_pusher.del(key);
+
+				self.services
+					.sending
+					.cleanup_events(None, Some(sender), Some(ids.pushkey.as_str()))
+					.await
+					.ok();
 			},
 		}
 

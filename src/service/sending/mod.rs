@@ -8,7 +8,7 @@ use std::{fmt::Debug, iter::once, sync::Arc};
 
 use async_trait::async_trait;
 use conduit::{
-	err,
+	debug_warn, err,
 	utils::{ReadyExt, TryReadyExt},
 	warn, Result, Server,
 };
@@ -285,13 +285,34 @@ impl Service {
 		appservice::send_request(client, registration, request).await
 	}
 
-	/// Cleanup event data
-	/// Used for instance after we remove an appservice registration
+	/// Clean up queued sending event data
+	///
+	/// Used after we remove an appservice registration or a user deletes a push
+	/// key
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn cleanup_events(&self, appservice_id: String) {
-		self.db
-			.delete_all_requests_for(&Destination::Appservice(appservice_id))
-			.await;
+	pub async fn cleanup_events(
+		&self, appservice_id: Option<&str>, user_id: Option<&UserId>, push_key: Option<&str>,
+	) -> Result {
+		match (appservice_id, user_id, push_key) {
+			(None, Some(user_id), Some(push_key)) => {
+				self.db
+					.delete_all_requests_for(&Destination::Push(user_id.to_owned(), push_key.to_owned()))
+					.await;
+
+				Ok(())
+			},
+			(Some(appservice_id), None, None) => {
+				self.db
+					.delete_all_requests_for(&Destination::Appservice(appservice_id.to_owned()))
+					.await;
+
+				Ok(())
+			},
+			_ => {
+				debug_warn!("cleanup_events called with too many or too few arguments");
+				Ok(())
+			},
+		}
 	}
 
 	fn dispatch(&self, msg: Msg) -> Result<()> {
