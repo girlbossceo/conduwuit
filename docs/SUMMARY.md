@@ -8,6 +8,7 @@
   - [Generic](deploying/generic.md)
   - [NixOS](deploying/nixos.md)
   - [Docker](deploying/docker.md)
+  - [Kubernetes](deploying/kubernetes.md)
   - [Arch Linux](deploying/arch-linux.md)
   - [Debian](deploying/debian.md)
   - [FreeBSD](deploying/freebsd.md)

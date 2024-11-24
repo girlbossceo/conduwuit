@@ -131,7 +131,8 @@ allowed to be licenced under the Apache-2.0 licence and all of your conduct is
 in line with the Contributor's Covenant, and conduwuit's Code of Conduct.
 
 Contribution by users who violate either of these code of conducts will not have
-their contributions accepted.
+their contributions accepted. This includes users who have been banned from
+conduwuit Matrix rooms for Code of Conduct violations.
 
 [issues]: https://github.com/girlbossceo/conduwuit/issues
 [conduwuit-matrix]: https://matrix.to/#/#conduwuit:puppygock.gay

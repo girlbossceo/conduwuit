@@ -1,17 +1,22 @@
 # conduwuit for Debian
 
-Information about downloading and deploying the Debian package. This may also be referenced for other `apt`-based distros such as Ubuntu.
+Information about downloading and deploying the Debian package. This may also be
+referenced for other `apt`-based distros such as Ubuntu.
 
 ### Installation
 
-It is recommended to see the [generic deployment guide](../deploying/generic.md) for further information if needed as usage of the Debian package is generally related.
+It is recommended to see the [generic deployment guide](../deploying/generic.md)
+for further information if needed as usage of the Debian package is generally
+related.
 
 ### Configuration
 
-When installed, the example config is placed at `/etc/conduwuit/conduwuit.toml` as the default config. At the minimum, you will need to change your `server_name` here.
+When installed, the example config is placed at `/etc/conduwuit/conduwuit.toml`
+as the default config. The config mentions things required to be changed before
+starting.
 
-You can tweak more detailed settings by uncommenting and setting the config options
-in `/etc/conduwuit/conduwuit.toml`.
+You can tweak more detailed settings by uncommenting and setting the config
+options in `/etc/conduwuit/conduwuit.toml`.
 
 ### Running
 

@@ -106,24 +106,46 @@ Various debug commands can be found in `!admin debug`.
 
 #### Debug/Trace log level
 
-conduwuit builds without debug or trace log levels by default for at least
-performance reasons. This may change in the future and/or binaries providing
-such configurations may be provided. If you need to access debug/trace log
-levels, you will need to build without the `release_max_log_level` feature.
+conduwuit builds without debug or trace log levels at compile time by default
+for substantial performance gains in CPU usage and improved compile times. If
+you need to access debug/trace log levels, you will need to build without the
+`release_max_log_level` feature or use our provided static debug binaries.
 
 #### Changing log level dynamically
 
 conduwuit supports changing the tracing log environment filter on-the-fly using
-the admin command `!admin debug change-log-level`. This accepts a string
-**without quotes** the same format as the `log` config option.
+the admin command `!admin debug change-log-level <log env filter>`. This accepts
+a string **without quotes** the same format as the `log` config option.
+
+Example: `!admin debug change-log-level debug`
+
+This can also accept complex filters such as:
+`!admin debug change-log-level info,conduit_service[{dest="example.com"}]=trace,ruma_state_res=trace`
+`!admin debug change-log-level info,conduit_service[{dest="example.com"}]=trace,conduit_service[send{dest="example.org"}]=trace`
+
+And to reset the log level to the one that was set at startup / last config
+load, simply pass the `--reset` flag.
+
+`!admin debug change-log-level --reset`
 
 #### Pinging servers
 
-conduwuit can ping other servers using `!admin debug ping`. This takes a server
-name and goes through the server discovery process and queries
+conduwuit can ping other servers using `!admin debug ping <server>`. This takes
+a server name and goes through the server discovery process and queries
 `/_matrix/federation/v1/version`. Errors are outputted.
+
+While it does measure the latency of the request, it is not indicative of
+server performance on either side as that endpoint is completely unauthenticated
+and simply fetches a string on a static JSON endpoint. It is very low cost both
+bandwidth and computationally.
 
 #### Allocator memory stats
 
-When using jemalloc with jemallocator's `stats` feature, you can see conduwuit's
-jemalloc memory stats by using `!admin debug memory-stats`
+When using jemalloc with jemallocator's `stats` feature (`--enable-stats`), you
+can see conduwuit's high-level allocator stats by using
+`!admin server memory-usage` at the bottom.
+
+If you are a developer, you can also view the raw jemalloc statistics with
+`!admin debug memory-stats`. Please note that this output is extremely large
+which may only be visible in the conduwuit console CLI due to PDU size limits,
+and is not easy for non-developers to understand.

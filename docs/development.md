@@ -75,21 +75,21 @@ development (unresponsive or slow upstream), conduwuit-specific usecases, or
 lack of time to upstream some things.
 
 - [ruma/ruma][1]: <https://github.com/girlbossceo/ruwuma> - various performance
-improvements, more features, faster-paced development, client/server interop
+improvements, more features, faster-paced development, better client/server interop
 hacks upstream won't accept, etc
 - [facebook/rocksdb][2]: <https://github.com/girlbossceo/rocksdb> - liburing
-build fixes, GCC build fix, and logging callback C API for Rust tracing
-integration
+build fixes and GCC debug build fix
 - [tikv/jemallocator][3]: <https://github.com/girlbossceo/jemallocator> - musl
-builds seem to be broken on upstream
+builds seem to be broken on upstream, fixes some broken/suspicious code in
+places, additional safety measures, and support redzones for Valgrind
 - [zyansheep/rustyline-async][4]:
 <https://github.com/girlbossceo/rustyline-async> - tab completion callback and
-`CTRL+\` signal quit event for CLI
+`CTRL+\` signal quit event for conduwuit console CLI
 - [rust-rocksdb/rust-rocksdb][5]:
-<https://github.com/girlbossceo/rust-rocksdb-zaidoon1> - [`@zaidoon1`'s][8] fork
-has quicker updates, more up to date dependencies. Our changes fix musl build
-issues, Rust part of the logging callback C API, removes unnecessary `gtest`
-include, and uses our RocksDB and jemallocator
+<https://github.com/girlbossceo/rust-rocksdb-zaidoon1> - [`@zaidoon1`][8]'s fork
+has quicker updates, more up to date dependencies, etc. Our fork fixes musl build
+issues, removes unnecessary `gtest` include, and uses our RocksDB and jemallocator
+forks.
 - [tokio-rs/tracing][6]: <https://github.com/girlbossceo/tracing> - Implements
 `Clone` for `EnvFilter` to support dynamically changing tracing envfilter's
 alongside other logging/metrics things
@@ -103,11 +103,15 @@ tokio_unstable` flag to enable experimental tokio APIs. A build might look like
 this:
 
 ```bash
-RUSTFLAGS="--cfg tokio_unstable" cargo build \
+RUSTFLAGS="--cfg tokio_unstable" cargo +nightly build \
     --release \
     --no-default-features \
     --features=systemd,element_hacks,gzip_compression,brotli_compression,zstd_compression,tokio_console
 ```
+
+You will also need to enable the `tokio_console` config option in conduwuit when
+starting it. This was due to tokio-console causing gradual memory leak/usage
+if left enabled.
 
 [1]: https://github.com/ruma/ruma/
 [2]: https://github.com/facebook/rocksdb/
