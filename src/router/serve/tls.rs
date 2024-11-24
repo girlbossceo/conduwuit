@@ -6,17 +6,20 @@ use axum_server_dual_protocol::{
 	axum_server::{bind_rustls, tls_rustls::RustlsConfig},
 	ServerExt,
 };
-use conduit::{Result, Server};
+use conduit::{err, Result, Server};
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 
-pub(super) async fn serve(
-	server: &Arc<Server>, app: Router, handle: ServerHandle, addrs: Vec<SocketAddr>,
-) -> Result<()> {
-	let config = &server.config;
-	let tls = config.tls.as_ref().expect("TLS configuration");
-	let certs = &tls.certs;
-	let key = &tls.key;
+pub(super) async fn serve(server: &Arc<Server>, app: Router, handle: ServerHandle, addrs: Vec<SocketAddr>) -> Result {
+	let tls = &server.config.tls;
+	let certs = tls
+		.certs
+		.as_ref()
+		.ok_or(err!(Config("tls.certs", "Missing required value in tls config section")))?;
+	let key = tls
+		.key
+		.as_ref()
+		.ok_or(err!(Config("tls.key", "Missing required value in tls config section")))?;
 
 	// we use ring for ruma and hashing state, but aws-lc-rs is the new default.
 	// without this, TLS mode will panic.

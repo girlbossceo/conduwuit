@@ -23,7 +23,7 @@ pub(super) async fn serve(
 
 	if cfg!(unix) && config.unix_socket_path.is_some() {
 		unix::serve(server, app, shutdown).await
-	} else if config.tls.is_some() {
+	} else if config.tls.certs.is_some() {
 		#[cfg(feature = "direct_tls")]
 		return tls::serve(server, app, handle, addrs).await;
 
