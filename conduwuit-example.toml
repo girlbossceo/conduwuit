@@ -160,6 +160,10 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
+#eventid_pdu_cache_capacity = varies by system
+
+# This item is undocumented. Please contribute documentation for it.
+#
 #shortstatekey_cache_capacity = varies by system
 
 # This item is undocumented. Please contribute documentation for it.
@@ -1350,6 +1354,13 @@
 
 [global.well_known]
 
+# The server URL that the client well-known file will serve. This should
+# not contain a port, and should just be a valid HTTPS URL.
+#
+# example: "https://matrix.example.com"
+#
+#client =
+
 # The server base domain of the URL with a specific port that the server
 # well-known file will serve. This should contain a port at the end, and
 # should not be a URL.
@@ -1357,13 +1368,6 @@
 # example: "matrix.example.com:443"
 #
 #server =
-
-# The server URL that the client well-known file will serve. This should
-# not contain a port, and should just be a valid HTTPS URL.
-#
-# example: "https://matrix.example.com"
-#
-#client =
 
 # This item is undocumented. Please contribute documentation for it.
 #
