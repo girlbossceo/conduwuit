@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "admin", version = env!("CARGO_PKG_VERSION"))]
+#[command(name = "conduwuit", version = conduit::version())]
 pub(super) enum AdminCommand {
 	#[command(subcommand)]
 	/// - Commands for managing appservices

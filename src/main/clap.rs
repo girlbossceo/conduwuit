@@ -10,7 +10,7 @@ use conduit::{
 
 /// Commandline arguments
 #[derive(Parser, Debug)]
-#[clap(version = conduit::version(), about, long_about = None)]
+#[clap(version = conduit::version(), about, long_about = None, name = "conduwuit")]
 pub(crate) struct Args {
 	#[arg(short, long)]
 	/// Path to the config TOML file (optional)
