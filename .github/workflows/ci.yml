@@ -23,7 +23,7 @@ on:
 
 concurrency:
     group: ${{ github.head_ref || github.ref_name }}
-    cancel-in-progress: false
+    cancel-in-progress: true
 
 env:
     # sccache only on main repo
