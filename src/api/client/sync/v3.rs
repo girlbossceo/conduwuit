@@ -945,7 +945,6 @@ async fn load_joined_room(
 	let prev_batch = timeline_pdus
 		.first()
 		.map(at!(0))
-		.map(|count| count.saturating_sub(1))
 		.as_ref()
 		.map(ToString::to_string);
 

@@ -169,12 +169,14 @@ pub(crate) async fn get_context_route(
 		start: events_before
 			.last()
 			.map(at!(0))
+			.or(Some(base_token))
 			.as_ref()
 			.map(ToString::to_string),
 
 		end: events_after
 			.last()
 			.map(at!(0))
+			.or(Some(base_token))
 			.as_ref()
 			.map(ToString::to_string),
 
