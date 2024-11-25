@@ -13,6 +13,15 @@ where
 	T: Stream<Item = Result<Item>> + TryStream + Send + 'a,
 	Item: Send + 'a,
 {
+	#[cfg(debug_assertions)]
+	#[inline]
+	fn ignore_err(self: T) -> impl Stream<Item = Item> + Send + 'a {
+		use super::TryExpect;
+
+		self.expect_ok()
+	}
+
+	#[cfg(not(debug_assertions))]
 	#[inline]
 	fn ignore_err(self: T) -> impl Stream<Item = Item> + Send + 'a { self.filter_map(|res| ready(res.ok())) }
 
