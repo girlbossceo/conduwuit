@@ -197,10 +197,6 @@ async fn auth_appservice(services: &Services, request: &Request, info: Box<Regis
 		return Err!(Request(Exclusive("User is not in namespace.")));
 	}
 
-	if !services.users.exists(&user_id).await {
-		return Err!(Request(Forbidden("User does not exist.")));
-	}
-
 	Ok(Auth {
 		origin: None,
 		sender_user: Some(user_id),
