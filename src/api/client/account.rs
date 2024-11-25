@@ -55,8 +55,15 @@ pub(crate) async fn get_register_available_route(
 			|| appservice.registration.id.contains("matrix_appservice_irc")
 	});
 
+	// don't force the username lowercase if it's from matrix-appservice-irc
+	let body_username = if is_matrix_appservice_irc {
+		body.username.clone()
+	} else {
+		body.username.to_lowercase()
+	};
+
 	// Validate user id
-	let user_id = UserId::parse_with_server_name(body.username.to_lowercase(), services.globals.server_name())
+	let user_id = UserId::parse_with_server_name(body_username, services.globals.server_name())
 		.ok()
 		.filter(|user_id| {
 			(!user_id.is_historical() || is_matrix_appservice_irc) && services.globals.user_is_local(user_id)
@@ -143,23 +150,28 @@ pub(crate) async fn register_route(
 		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration temporarily disabled."));
 	}
 
-	// workaround for https://github.com/matrix-org/matrix-appservice-irc/issues/1780 due to inactivity of fixing the issue
-	let is_matrix_appservice_irc = body.appservice_info.as_ref().is_some_and(|appservice| {
-		appservice.registration.id == "irc"
-			|| appservice.registration.id.contains("matrix-appservice-irc")
-			|| appservice.registration.id.contains("matrix_appservice_irc")
-	});
-
 	let user_id = match (&body.username, is_guest) {
 		(Some(username), false) => {
-			let proposed_user_id =
-				UserId::parse_with_server_name(username.to_lowercase(), services.globals.server_name())
-					.ok()
-					.filter(|user_id| {
-						(!user_id.is_historical() || is_matrix_appservice_irc)
-							&& services.globals.user_is_local(user_id)
-					})
-					.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+			// workaround for https://github.com/matrix-org/matrix-appservice-irc/issues/1780 due to inactivity of fixing the issue
+			let is_matrix_appservice_irc = body.appservice_info.as_ref().is_some_and(|appservice| {
+				appservice.registration.id == "irc"
+					|| appservice.registration.id.contains("matrix-appservice-irc")
+					|| appservice.registration.id.contains("matrix_appservice_irc")
+			});
+
+			// don't force the username lowercase if it's from matrix-appservice-irc
+			let body_username = if is_matrix_appservice_irc {
+				username.clone()
+			} else {
+				username.to_lowercase()
+			};
+
+			let proposed_user_id = UserId::parse_with_server_name(body_username, services.globals.server_name())
+				.ok()
+				.filter(|user_id| {
+					(!user_id.is_historical() || is_matrix_appservice_irc) && services.globals.user_is_local(user_id)
+				})
+				.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
 
 			if services.users.exists(&proposed_user_id).await {
 				return Err(Error::BadRequest(ErrorKind::UserInUse, "Desired user ID is already taken."));
