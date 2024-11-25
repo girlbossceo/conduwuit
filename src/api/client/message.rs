@@ -25,8 +25,8 @@ use crate::Ruma;
 
 pub(crate) type LazySet = HashSet<OwnedUserId>;
 
-/// list of safe and common non-state events to ignore
-const IGNORED_MESSAGE_TYPES: &[TimelineEventType] = &[
+/// list of safe and common non-state events to ignore if the user is ignored
+const IGNORED_MESSAGE_TYPES: &[TimelineEventType; 16] = &[
 	RoomMessage,
 	Sticker,
 	CallInvite,
@@ -206,19 +206,19 @@ pub(crate) async fn update_lazy(
 pub(crate) async fn ignored_filter(services: &Services, item: PdusIterItem, user_id: &UserId) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
 
+	// exclude Synapse's dummy events from bloating up response bodies. clients
+	// don't need to see this.
 	if pdu.kind.to_cow_str() == "org.matrix.dummy_event" {
 		return None;
 	}
 
-	if !IGNORED_MESSAGE_TYPES.iter().any(is_equal_to!(&pdu.kind)) {
-		return Some(item);
+	if IGNORED_MESSAGE_TYPES.iter().any(is_equal_to!(&pdu.kind))
+		&& services.users.user_is_ignored(&pdu.sender, user_id).await
+	{
+		return None;
 	}
 
-	if !services.users.user_is_ignored(&pdu.sender, user_id).await {
-		return Some(item);
-	}
-
-	None
+	Some(item)
 }
 
 pub(crate) async fn visibility_filter(

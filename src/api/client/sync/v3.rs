@@ -38,6 +38,7 @@ use tracing::{Instrument as _, Span};
 
 use super::{load_timeline, share_encrypted_room};
 use crate::{
+	client::ignored_filter,
 	service::{pdu::EventHash, Services},
 	utils, Error, PduEvent, Result, Ruma, RumaResponse,
 };
@@ -949,28 +950,8 @@ async fn load_joined_room(
 	let room_events: Vec<_> = timeline_pdus
 		.iter()
 		.stream()
-		.filter_map(|(_, pdu)| async move {
-			// list of safe and common non-state events to ignore
-			if matches!(
-				&pdu.kind,
-				RoomMessage
-					| Sticker | CallInvite
-					| CallNotify | RoomEncrypted
-					| Image | File | Audio
-					| Voice | Video | UnstablePollStart
-					| PollStart | KeyVerificationStart
-					| Reaction | Emote
-					| Location
-			) && services
-				.users
-				.user_is_ignored(&pdu.sender, sender_user)
-				.await
-			{
-				return None;
-			}
-
-			Some(pdu.to_sync_room_event())
-		})
+		.filter_map(|item| ignored_filter(services, item.clone(), sender_user))
+		.map(|(_, pdu)| pdu.to_sync_room_event())
 		.collect()
 		.await;
 

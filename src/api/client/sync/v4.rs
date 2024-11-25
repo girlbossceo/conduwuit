@@ -35,7 +35,7 @@ use ruma::{
 use service::{rooms::read_receipt::pack_receipts, Services};
 
 use super::{load_timeline, share_encrypted_room};
-use crate::Ruma;
+use crate::{client::ignored_filter, Ruma};
 
 const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
 const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
@@ -539,27 +539,8 @@ pub(crate) async fn sync_events_v4_route(
 		let room_events: Vec<_> = timeline_pdus
 			.iter()
 			.stream()
-			.filter_map(|(_, pdu)| async move {
-				// list of safe and common non-state events to ignore
-				if matches!(
-					&pdu.kind,
-					RoomMessage
-						| Sticker | CallInvite
-						| CallNotify | RoomEncrypted
-						| Image | File | Audio
-						| Voice | Video | UnstablePollStart
-						| PollStart | KeyVerificationStart
-						| Reaction | Emote | Location
-				) && services
-					.users
-					.user_is_ignored(&pdu.sender, sender_user)
-					.await
-				{
-					return None;
-				}
-
-				Some(pdu.to_sync_room_event())
-			})
+			.filter_map(|item| ignored_filter(&services, item.clone(), sender_user))
+			.map(|(_, pdu)| pdu.to_sync_room_event())
 			.collect()
 			.await;
 
