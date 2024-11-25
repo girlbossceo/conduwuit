@@ -103,8 +103,9 @@ impl Data {
 	pub fn active_requests_for(&self, destination: &Destination) -> impl Stream<Item = SendingItem> + Send + '_ {
 		let prefix = destination.get_prefix();
 		self.servercurrentevent_data
-			.stream_prefix_raw(&prefix)
+			.raw_stream_from(&prefix)
 			.ignore_err()
+			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
 			.map(|(key, val)| {
 				let (_, event) = parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
 
@@ -152,8 +153,9 @@ impl Data {
 	pub fn queued_requests(&self, destination: &Destination) -> impl Stream<Item = QueueItem> + Send + '_ {
 		let prefix = destination.get_prefix();
 		self.servernameevent_data
-			.stream_prefix_raw(&prefix)
+			.raw_stream_from(&prefix)
 			.ignore_err()
+			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
 			.map(|(key, val)| {
 				let (_, event) = parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
 
