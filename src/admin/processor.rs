@@ -157,10 +157,7 @@ fn parse<'a>(
 			let message = error
 				.to_string()
 				.replace("server.name", services.globals.server_name().as_str());
-			Err(reply(
-				RoomMessageEventContent::notice_markdown(message),
-				input.reply_id.as_deref(),
-			))
+			Err(reply(RoomMessageEventContent::notice_plain(message), input.reply_id.as_deref()))
 		},
 	}
 }
