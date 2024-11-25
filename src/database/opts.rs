@@ -170,6 +170,15 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024)?,
 		),
 
+		"servernameevent_data" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			cache_size(cfg, cfg.servernameevent_data_cache_capacity, 128)?, /* Raw average value size = 102, key
+			                                                                 * size = 34 */
+		),
+
 		"eventid_outlierpdu" => {
 			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.pdu_cache_capacity, 1536)?);
 		},
