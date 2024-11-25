@@ -61,18 +61,18 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Registers an appservice and returns the ID to the caller
-	pub async fn register_appservice(&self, yaml: Registration) -> Result<String> {
+	pub async fn register_appservice(&self, registration: &Registration, appservice_config_body: &str) -> Result {
 		//TODO: Check for collisions between exclusive appservice namespaces
 		self.registration_info
 			.write()
 			.await
-			.insert(yaml.id.clone(), yaml.clone().try_into()?);
+			.insert(registration.id.clone(), registration.clone().try_into()?);
 
-		let id = yaml.id.as_str();
-		let yaml = serde_yaml::to_string(&yaml)?;
-		self.db.id_appserviceregistrations.insert(id, yaml);
+		self.db
+			.id_appserviceregistrations
+			.insert(&registration.id, appservice_config_body);
 
-		Ok(id.to_owned())
+		Ok(())
 	}
 
 	/// Remove an appservice registration

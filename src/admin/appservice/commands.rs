@@ -11,19 +11,25 @@ pub(super) async fn register(&self) -> Result<RoomMessageEventContent> {
 		));
 	}
 
-	let appservice_config = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
-	let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config);
+	let appservice_config_body = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
+	let parsed_config = serde_yaml::from_str::<Registration>(&appservice_config_body);
 	match parsed_config {
-		Ok(yaml) => match self.services.appservice.register_appservice(yaml).await {
-			Ok(id) => Ok(RoomMessageEventContent::text_plain(format!(
-				"Appservice registered with ID: {id}."
+		Ok(registration) => match self
+			.services
+			.appservice
+			.register_appservice(&registration, &appservice_config_body)
+			.await
+		{
+			Ok(()) => Ok(RoomMessageEventContent::text_plain(format!(
+				"Appservice registered with ID: {}",
+				registration.id
 			))),
 			Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 				"Failed to register appservice: {e}"
 			))),
 		},
 		Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
-			"Could not parse appservice config: {e}"
+			"Could not parse appservice config as YAML: {e}"
 		))),
 	}
 }
