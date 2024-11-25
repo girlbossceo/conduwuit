@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use crate::{keyval, keyval::Key, ser, stream};
 
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn keys_from<'a, K, P>(&'a self, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
@@ -18,7 +17,7 @@ where
 }
 
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self), level = "trace")]
 pub fn keys_from_raw<P>(&self, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
@@ -28,7 +27,6 @@ where
 }
 
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn keys_raw_from<'a, K, P>(&'a self, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
@@ -39,7 +37,7 @@ where
 }
 
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self, from), fields(%self), level = "trace")]
 pub fn raw_keys_from<P>(&self, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug,

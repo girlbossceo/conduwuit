@@ -25,7 +25,7 @@ where
 }
 
 #[implement(super::Map)]
-#[tracing::instrument(skip(self, buf), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self, buf), level = "trace")]
 pub fn bdel<K, B>(&self, key: K, buf: &mut B)
 where
 	K: Serialize + Debug,

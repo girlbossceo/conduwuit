@@ -8,7 +8,6 @@ use crate::{keyval, keyval::KeyVal, stream};
 ///
 /// - Result is deserialized
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn stream<'a, K, V>(&'a self) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
 where
 	K: Deserialize<'a> + Send,

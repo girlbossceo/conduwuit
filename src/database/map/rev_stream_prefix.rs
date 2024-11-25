@@ -15,7 +15,6 @@ use crate::{keyval, keyval::KeyVal, ser};
 /// - Query is serialized
 /// - Result is deserialized
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn rev_stream_prefix<'a, K, V, P>(&'a self, prefix: &P) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
@@ -31,7 +30,7 @@ where
 /// - Query is serialized
 /// - Result is raw
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self), level = "trace")]
 pub fn rev_stream_prefix_raw<P>(&self, prefix: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
@@ -46,7 +45,6 @@ where
 /// - Query is raw
 /// - Result is deserialized
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn rev_stream_raw_prefix<'a, K, V, P>(
 	&'a self, prefix: &'a P,
 ) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send + 'a
@@ -64,7 +62,6 @@ where
 /// - Query is raw
 /// - Result is raw
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn rev_raw_stream_prefix<'a, P>(&'a self, prefix: &'a P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send + 'a
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync + 'a,

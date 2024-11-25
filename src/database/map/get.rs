@@ -38,7 +38,7 @@ where
 /// Fetch a value from the database into cache, returning a reference-handle
 /// asynchronously. The key is serialized into a user-supplied Writer.
 #[implement(super::Map)]
-#[tracing::instrument(skip(self, buf), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self, buf), level = "trace")]
 pub fn bqry<K, B>(&self, key: &K, buf: &mut B) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: Serialize + ?Sized + Debug,

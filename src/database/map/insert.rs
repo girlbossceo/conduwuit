@@ -149,6 +149,7 @@ where
 /// - Key is serialized to supplied buffer
 /// - Val is raw
 #[implement(super::Map)]
+#[tracing::instrument(skip(self, val, buf), level = "trace")]
 pub fn bput_raw<K, V, Bk>(&self, key: K, val: V, mut buf: Bk)
 where
 	K: Serialize + Debug,

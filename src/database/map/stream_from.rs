@@ -11,7 +11,6 @@ use crate::{keyval, keyval::KeyVal, ser, stream};
 /// - Query is serialized
 /// - Result is deserialized
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn stream_from<'a, K, V, P>(&'a self, from: &P) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
@@ -27,7 +26,7 @@ where
 /// - Query is serialized
 /// - Result is raw
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self), level = "trace")]
 pub fn stream_from_raw<P>(&self, from: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
@@ -41,7 +40,6 @@ where
 /// - Query is raw
 /// - Result is deserialized
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn stream_raw_from<'a, K, V, P>(&'a self, from: &P) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
@@ -57,7 +55,7 @@ where
 /// - Query is raw
 /// - Result is raw
 #[implement(super::Map)]
-#[tracing::instrument(skip(self), fields(%self), level = "trace")]
+#[tracing::instrument(skip(self, from), fields(%self), level = "trace")]
 pub fn raw_stream_from<P>(&self, from: &P) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug,
