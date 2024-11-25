@@ -35,6 +35,8 @@ pub enum Error {
 
 	// third-party
 	#[error(transparent)]
+	CapacityError(#[from] arrayvec::CapacityError),
+	#[error(transparent)]
 	CargoToml(#[from] cargo_toml::Error),
 	#[error(transparent)]
 	Clap(#[from] clap::error::Error),

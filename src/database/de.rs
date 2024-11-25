@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use conduit::{checked, debug::DebugInspect, err, utils::string, Error, Result};
 use serde::{
 	de,
@@ -52,7 +53,7 @@ impl<'de> Deserializer<'de> {
 		let len = self.buf.len();
 		let parsed = &self.buf[0..pos];
 		let unparsed = &self.buf[pos..];
-		let remain = checked!(len - pos)?;
+		let remain = self.remaining()?;
 		let trailing_sep = remain == 1 && unparsed[0] == Self::SEP;
 		(remain == 0 || trailing_sep)
 			.then_some(())
@@ -138,6 +139,14 @@ impl<'de> Deserializer<'de> {
 	fn inc_pos(&mut self, n: usize) {
 		self.pos = self.pos.saturating_add(n);
 		debug_assert!(self.pos <= self.buf.len(), "pos out of range");
+	}
+
+	/// Unconsumed input bytes.
+	#[inline]
+	fn remaining(&self) -> Result<usize> {
+		let pos = self.pos;
+		let len = self.buf.len();
+		checked!(len - pos)
 	}
 }
 
@@ -240,8 +249,13 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-		let bytes: [u8; size_of::<i64>()] = self.buf[self.pos..].try_into()?;
-		self.inc_pos(size_of::<i64>());
+		const BYTES: usize = size_of::<i64>();
+
+		let end = self.pos.saturating_add(BYTES);
+		let bytes: ArrayVec<u8, BYTES> = self.buf[self.pos..end].try_into()?;
+		let bytes = bytes.into_inner().expect("array size matches i64");
+
+		self.inc_pos(BYTES);
 		visitor.visit_i64(i64::from_be_bytes(bytes))
 	}
 
@@ -258,8 +272,13 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-		let bytes: [u8; size_of::<u64>()] = self.buf[self.pos..].try_into()?;
-		self.inc_pos(size_of::<u64>());
+		const BYTES: usize = size_of::<u64>();
+
+		let end = self.pos.saturating_add(BYTES);
+		let bytes: ArrayVec<u8, BYTES> = self.buf[self.pos..end].try_into()?;
+		let bytes = bytes.into_inner().expect("array size matches u64");
+
+		self.inc_pos(BYTES);
 		visitor.visit_u64(u64::from_be_bytes(bytes))
 	}
 
