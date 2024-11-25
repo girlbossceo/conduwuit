@@ -1,6 +1,6 @@
 use std::{
 	collections::{HashMap, HashSet},
-	fmt::Write,
+	fmt::{Debug, Write},
 	mem::size_of,
 	sync::{Arc, Mutex},
 };
@@ -8,10 +8,11 @@ use std::{
 use arrayvec::ArrayVec;
 use conduit::{
 	at, checked, debug, err, expected, utils,
-	utils::{bytes, math::usize_from_f64},
+	utils::{bytes, math::usize_from_f64, stream::IterStream},
 	Result,
 };
 use database::Map;
+use futures::{Stream, StreamExt};
 use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
@@ -179,21 +180,32 @@ impl Service {
 		Ok(stack)
 	}
 
-	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
-		const SIZE: usize = size_of::<CompressedStateEvent>();
+	pub fn compress_state_events<'a, I>(&'a self, state: I) -> impl Stream<Item = CompressedStateEvent> + Send + 'a
+	where
+		I: Iterator<Item = (&'a ShortStateKey, &'a EventId)> + Clone + Debug + ExactSizeIterator + Send + 'a,
+	{
+		let event_ids = state.clone().map(at!(1));
 
+		let short_event_ids = self
+			.services
+			.short
+			.multi_get_or_create_shorteventid(event_ids);
+
+		state
+			.stream()
+			.map(at!(0))
+			.zip(short_event_ids)
+			.map(|(shortstatekey, shorteventid)| compress_state_event(*shortstatekey, shorteventid))
+	}
+
+	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
 		let shorteventid = self
 			.services
 			.short
 			.get_or_create_shorteventid(event_id)
 			.await;
 
-		let mut v = ArrayVec::<u8, SIZE>::new();
-		v.extend(shortstatekey.to_be_bytes());
-		v.extend(shorteventid.to_be_bytes());
-		v.as_ref()
-			.try_into()
-			.expect("failed to create CompressedStateEvent")
+		compress_state_event(shortstatekey, shorteventid)
 	}
 
 	/// Creates a new shortstatehash that often is just a diff to an already
@@ -468,6 +480,19 @@ impl Service {
 			.shortstatehash_statediff
 			.insert(&shortstatehash.to_be_bytes(), &value);
 	}
+}
+
+#[inline]
+#[must_use]
+fn compress_state_event(shortstatekey: ShortStateKey, shorteventid: ShortEventId) -> CompressedStateEvent {
+	const SIZE: usize = size_of::<CompressedStateEvent>();
+
+	let mut v = ArrayVec::<u8, SIZE>::new();
+	v.extend(shortstatekey.to_be_bytes());
+	v.extend(shorteventid.to_be_bytes());
+	v.as_ref()
+		.try_into()
+		.expect("failed to create CompressedStateEvent")
 }
 
 #[inline]

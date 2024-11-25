@@ -79,23 +79,30 @@ pub async fn resolve_state(
 
 	drop(lock);
 
-	debug!("State resolution done. Compressing state");
-	let mut new_room_state = HashSet::new();
-	for ((event_type, state_key), event_id) in state {
-		let shortstatekey = self
-			.services
-			.short
-			.get_or_create_shortstatekey(&event_type.to_string().into(), &state_key)
-			.await;
+	debug!("State resolution done.");
+	let state_events: Vec<_> = state
+		.iter()
+		.stream()
+		.then(|((event_type, state_key), event_id)| {
+			self.services
+				.short
+				.get_or_create_shortstatekey(event_type, state_key)
+				.map(move |shortstatekey| (shortstatekey, event_id))
+		})
+		.collect()
+		.await;
 
-		let compressed = self
-			.services
-			.state_compressor
-			.compress_state_event(shortstatekey, &event_id)
-			.await;
-
-		new_room_state.insert(compressed);
-	}
+	debug!("Compressing state...");
+	let new_room_state: HashSet<_> = self
+		.services
+		.state_compressor
+		.compress_state_events(
+			state_events
+				.iter()
+				.map(|(ref ssk, eid)| (ssk, (*eid).borrow())),
+		)
+		.collect()
+		.await;
 
 	Ok(Arc::new(new_room_state))
 }

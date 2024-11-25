@@ -1,4 +1,5 @@
 use std::{
+	borrow::Borrow,
 	collections::{BTreeMap, HashSet},
 	sync::Arc,
 	time::Instant,
@@ -193,15 +194,16 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 	extremities.retain(|id| retained.contains(id));
 	debug!("Retained {} extremities. Compressing state", extremities.len());
 
-	let mut state_ids_compressed = HashSet::new();
-	for (shortstatekey, id) in &state_at_incoming_event {
-		state_ids_compressed.insert(
-			self.services
-				.state_compressor
-				.compress_state_event(*shortstatekey, id)
-				.await,
-		);
-	}
+	let state_ids_compressed: HashSet<_> = self
+		.services
+		.state_compressor
+		.compress_state_events(
+			state_at_incoming_event
+				.iter()
+				.map(|(ssk, eid)| (ssk, eid.borrow())),
+		)
+		.collect()
+		.await;
 
 	let state_ids_compressed = Arc::new(state_ids_compressed);
 
