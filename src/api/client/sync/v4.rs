@@ -495,11 +495,11 @@ pub(crate) async fn sync_events_v4_route(
 			.read_receipt
 			.readreceipts_since(room_id, *roomsince)
 			.filter_map(|(read_user, ts, v)| async move {
-				(!services
+				services
 					.users
-					.user_is_ignored(&read_user, sender_user)
-					.await)
-					.then_some((read_user, ts, v))
+					.user_is_ignored(read_user, sender_user)
+					.await
+					.or_some((read_user.to_owned(), ts, v))
 			})
 			.collect()
 			.await;

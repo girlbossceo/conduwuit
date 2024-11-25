@@ -559,8 +559,6 @@ async fn load_joined_room(
 		.lazy_loading
 		.lazy_load_confirm_delivery(sender_user, sender_device, room_id, sincecount);
 
-	// Database queries:
-
 	let current_shortstatehash = services
 		.rooms
 		.state
@@ -983,9 +981,9 @@ async fn load_joined_room(
 		.filter_map(|(read_user, _, edu)| async move {
 			services
 				.users
-				.user_is_ignored(&read_user, sender_user)
+				.user_is_ignored(read_user, sender_user)
 				.await
-				.or_some((read_user, edu))
+				.or_some((read_user.to_owned(), edu))
 		})
 		.collect()
 		.await;

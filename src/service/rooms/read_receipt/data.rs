@@ -1,16 +1,15 @@
-use std::{mem::size_of, sync::Arc};
+use std::sync::Arc;
 
 use conduit::{
-	utils,
 	utils::{stream::TryIgnore, ReadyExt},
-	Error, Result,
+	Result,
 };
 use database::{Deserialized, Json, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
 	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
 	serde::Raw,
-	CanonicalJsonObject, OwnedUserId, RoomId, UserId,
+	CanonicalJsonObject, RoomId, UserId,
 };
 
 use crate::{globals, Dep};
@@ -26,7 +25,7 @@ struct Services {
 	globals: Dep<globals::Service>,
 }
 
-pub(super) type ReceiptItem = (OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>);
+pub(super) type ReceiptItem<'a> = (&'a UserId, u64, Raw<AnySyncEphemeralRoomEvent>);
 
 impl Data {
 	pub(super) fn new(args: &crate::Args<'_>) -> Self {
@@ -59,39 +58,23 @@ impl Data {
 
 	pub(super) fn readreceipts_since<'a>(
 		&'a self, room_id: &'a RoomId, since: u64,
-	) -> impl Stream<Item = ReceiptItem> + Send + 'a {
+	) -> impl Stream<Item = ReceiptItem<'_>> + Send + 'a {
+		type Key<'a> = (&'a RoomId, u64, &'a UserId);
+		type KeyVal<'a> = (Key<'a>, CanonicalJsonObject);
+
 		let after_since = since.saturating_add(1); // +1 so we don't send the event at since
 		let first_possible_edu = (room_id, after_since);
 
-		let mut prefix = room_id.as_bytes().to_vec();
-		prefix.push(0xFF);
-		let prefix2 = prefix.clone();
-
 		self.readreceiptid_readreceipt
-			.stream_from_raw(&first_possible_edu)
+			.stream_from(&first_possible_edu)
 			.ignore_err()
-			.ready_take_while(move |(k, _)| k.starts_with(&prefix2))
-			.map(move |(k, v)| {
-				let count_offset = prefix.len().saturating_add(size_of::<u64>());
-				let user_id_offset = count_offset.saturating_add(1);
-
-				let count = utils::u64_from_bytes(&k[prefix.len()..count_offset])
-					.map_err(|_| Error::bad_database("Invalid readreceiptid count in db."))?;
-
-				let user_id_str = utils::string_from_bytes(&k[user_id_offset..])
-					.map_err(|_| Error::bad_database("Invalid readreceiptid userid bytes in db."))?;
-
-				let user_id = UserId::parse(user_id_str)
-					.map_err(|_| Error::bad_database("Invalid readreceiptid userid in db."))?;
-
-				let mut json = serde_json::from_slice::<CanonicalJsonObject>(v)
-					.map_err(|_| Error::bad_database("Read receipt in roomlatestid_roomlatest is invalid json."))?;
-
+			.ready_take_while(move |((r, ..), _): &KeyVal<'_>| *r == room_id)
+			.map(move |((_, count, user_id), mut json): KeyVal<'_>| {
 				json.remove("room_id");
 
-				let event = Raw::from_json(serde_json::value::to_raw_value(&json)?);
+				let event = serde_json::value::to_raw_value(&json)?;
 
-				Ok((user_id, count, event))
+				Ok((user_id, count, Raw::from_json(event)))
 			})
 			.ignore_err()
 	}

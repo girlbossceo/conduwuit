@@ -376,7 +376,7 @@ impl Service {
 		let mut read = BTreeMap::<OwnedUserId, ReceiptData>::new();
 		while let Some((user_id, count, read_receipt)) = receipts.next().await {
 			*max_edu_count = cmp::max(count, *max_edu_count);
-			if !self.services.globals.user_is_local(&user_id) {
+			if !self.services.globals.user_is_local(user_id) {
 				continue;
 			}
 
@@ -400,7 +400,7 @@ impl Service {
 			let receipt = receipt
 				.remove(&ReceiptType::Read)
 				.expect("our read receipts always set this")
-				.remove(&user_id)
+				.remove(user_id)
 				.expect("our read receipts always have the user here");
 
 			let receipt_data = ReceiptData {
@@ -408,7 +408,7 @@ impl Service {
 				event_ids: vec![event_id.clone()],
 			};
 
-			if read.insert(user_id, receipt_data).is_none() {
+			if read.insert(user_id.to_owned(), receipt_data).is_none() {
 				*num = num.saturating_add(1);
 				if *num >= SELECT_RECEIPT_LIMIT {
 					break;

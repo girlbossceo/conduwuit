@@ -7,10 +7,10 @@ use futures::Stream;
 use ruma::{
 	events::{
 		receipt::{ReceiptEvent, ReceiptEventContent},
-		SyncEphemeralRoomEvent,
+		AnySyncEphemeralRoomEvent, SyncEphemeralRoomEvent,
 	},
 	serde::Raw,
-	RoomId, UserId,
+	OwnedUserId, RoomId, UserId,
 };
 
 use self::data::{Data, ReceiptItem};
@@ -55,7 +55,7 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn readreceipts_since<'a>(
 		&'a self, room_id: &'a RoomId, since: u64,
-	) -> impl Stream<Item = ReceiptItem> + Send + 'a {
+	) -> impl Stream<Item = ReceiptItem<'_>> + Send + 'a {
 		self.db.readreceipts_since(room_id, since)
 	}
 
@@ -83,7 +83,7 @@ impl Service {
 #[must_use]
 pub fn pack_receipts<I>(receipts: I) -> Raw<SyncEphemeralRoomEvent<ReceiptEventContent>>
 where
-	I: Iterator<Item = ReceiptItem>,
+	I: Iterator<Item = (OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>,
 {
 	let mut json = BTreeMap::new();
 	for (_, _, value) in receipts {
