@@ -19,7 +19,6 @@ use crate::{
 };
 
 pub(super) struct Data {
-	eventid_shorteventid: Arc<Map>,
 	shorteventid_shortstatehash: Arc<Map>,
 	services: Services,
 }
@@ -35,7 +34,6 @@ impl Data {
 	pub(super) fn new(args: &crate::Args<'_>) -> Self {
 		let db = &args.db;
 		Self {
-			eventid_shorteventid: db["eventid_shorteventid"].clone(),
 			shorteventid_shortstatehash: db["shorteventid_shortstatehash"].clone(),
 			services: Services {
 				short: args.depend::<rooms::short::Service>("rooms::short"),
@@ -167,9 +165,15 @@ impl Data {
 
 	/// Returns the state hash for this pdu.
 	pub(super) async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<ShortStateHash> {
-		self.eventid_shorteventid
-			.get(event_id)
-			.and_then(|shorteventid| self.shorteventid_shortstatehash.get(&shorteventid))
+		const BUFSIZE: usize = size_of::<ShortEventId>();
+
+		self.services
+			.short
+			.get_shorteventid(event_id)
+			.and_then(|shorteventid| {
+				self.shorteventid_shortstatehash
+					.aqry::<BUFSIZE, _>(&shorteventid)
+			})
 			.await
 			.deserialized()
 	}
