@@ -633,7 +633,6 @@ opt-level = 0
 panic = "unwind"
 debug-assertions = true
 incremental = true
-codegen-units = 64
 #rustflags = [
 #	'--cfg', 'conduit_mods',
 #	'-Ztime-passes',
@@ -675,7 +674,6 @@ incremental = false
 
 [profile.dev.package.conduit]
 inherits = "dev"
-incremental = false
 #rustflags = [
 #	'--cfg', 'conduit_mods',
 #	'-Ztime-passes',
