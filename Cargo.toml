@@ -236,7 +236,7 @@ features = [
 ]
 
 [workspace.dependencies.tokio-metrics]
-version = "0.3.1"
+version = "0.4.0"
 
 [workspace.dependencies.libloading]
 version = "0.8.5"
