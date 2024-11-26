@@ -102,7 +102,11 @@ impl Service {
 			.iter()
 			.stream()
 			.map(|&new| parse_compressed_state_event(new).1)
-			.then(|shorteventid| self.services.short.get_eventid_from_short(shorteventid))
+			.then(|shorteventid| {
+				self.services
+					.short
+					.get_eventid_from_short::<Box<_>>(shorteventid)
+			})
 			.ignore_err();
 
 		pin_mut!(event_ids);
@@ -433,7 +437,7 @@ impl Service {
 			.await
 			.into_iter()
 			.stream()
-			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
+			.and_then(|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await })
 			.collect()
 			.await;
 

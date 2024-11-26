@@ -1,10 +1,11 @@
-use std::{fmt::Debug, mem::size_of_val, sync::Arc};
+use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
 pub use conduit::pdu::{ShortEventId, ShortId, ShortRoomId};
 use conduit::{err, implement, utils, utils::stream::ReadyExt, Result};
 use database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{events::StateEventType, EventId, RoomId};
+use serde::Deserialize;
 
 use crate::{globals, Dep};
 
@@ -136,7 +137,11 @@ pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &s
 }
 
 #[implement(Service)]
-pub async fn get_eventid_from_short(&self, shorteventid: ShortEventId) -> Result<Arc<EventId>> {
+pub async fn get_eventid_from_short<Id>(&self, shorteventid: ShortEventId) -> Result<Id>
+where
+	Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+	<Id as ToOwned>::Owned: Borrow<EventId>,
+{
 	const BUFSIZE: usize = size_of::<ShortEventId>();
 
 	self.db
@@ -148,8 +153,10 @@ pub async fn get_eventid_from_short(&self, shorteventid: ShortEventId) -> Result
 }
 
 #[implement(Service)]
-pub async fn multi_get_eventid_from_short<I>(&self, shorteventid: I) -> Vec<Result<Arc<EventId>>>
+pub async fn multi_get_eventid_from_short<Id, I>(&self, shorteventid: I) -> Vec<Result<Id>>
 where
+	Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+	<Id as ToOwned>::Owned: Borrow<EventId>,
 	I: Iterator<Item = ShortEventId> + Send,
 {
 	const BUFSIZE: usize = size_of::<ShortEventId>();

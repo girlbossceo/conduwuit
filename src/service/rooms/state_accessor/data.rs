@@ -7,7 +7,7 @@ use conduit::{
 };
 use database::{Deserialized, Map};
 use futures::{StreamExt, TryFutureExt};
-use ruma::{events::StateEventType, EventId, RoomId};
+use ruma::{events::StateEventType, EventId, OwnedEventId, RoomId};
 
 use crate::{
 	rooms,
@@ -74,7 +74,7 @@ impl Data {
 			.into_iter()
 			.stream()
 			.ready_filter_map(Result::ok)
-			.filter_map(|event_id| async move { self.services.timeline.get_pdu(&event_id).await.ok() })
+			.filter_map(|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await.ok() })
 			.collect()
 			.await;
 
