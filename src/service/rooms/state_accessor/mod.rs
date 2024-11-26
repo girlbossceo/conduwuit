@@ -41,7 +41,10 @@ use serde::Deserialize;
 use self::data::Data;
 use crate::{
 	rooms,
-	rooms::{short::ShortStateHash, state::RoomMutexGuard},
+	rooms::{
+		short::{ShortEventId, ShortStateHash, ShortStateKey},
+		state::RoomMutexGuard,
+	},
 	Dep,
 };
 
@@ -100,6 +103,13 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
 		self.db.state_full_ids(shortstatehash).await
+	}
+
+	#[inline]
+	pub async fn state_full_shortids(
+		&self, shortstatehash: ShortStateHash,
+	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
+		self.db.state_full_shortids(shortstatehash).await
 	}
 
 	pub async fn state_full(
@@ -287,7 +297,11 @@ impl Service {
 				c.history_visibility
 			});
 
-		history_visibility == HistoryVisibility::WorldReadable
+		match history_visibility {
+			HistoryVisibility::Invited => self.services.state_cache.is_invited(user_id, room_id).await,
+			HistoryVisibility::WorldReadable => true,
+			_ => false,
+		}
 	}
 
 	/// Returns the state hash for this pdu.
@@ -299,6 +313,12 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
 		self.db.room_state_full(room_id).await
+	}
+
+	/// Returns the full room state pdus
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<Arc<PduEvent>>> {
+		self.db.room_state_full_pdus(room_id).await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,

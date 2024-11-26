@@ -11,9 +11,9 @@ OCI images for conduwuit are available in the registries listed below.
 
 | Registry        | Image                                                           | Size                          | Notes                  |
 | --------------- | --------------------------------------------------------------- | ----------------------------- | ---------------------- |
-| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:latest][gh] | ![Image Size][shield-latest]  | Stable tagged image.          |
-| GitLab Registry | [registry.gitlab.com/conduwuit/conduwuit:latest][gl] | ![Image Size][shield-latest]  | Stable tagged image.          |
-| Docker Hub      | [docker.io/girlbossceo/conduwuit:latest][dh]             | ![Image Size][shield-latest]  | Stable tagged image.          |
+| GitHub Registry | [ghcr.io/girlbossceo/conduwuit:latest][gh] | ![Image Size][shield-latest]  | Stable latest tagged image.          |
+| GitLab Registry | [registry.gitlab.com/conduwuit/conduwuit:latest][gl] | ![Image Size][shield-latest]  | Stable latest tagged image.          |
+| Docker Hub      | [docker.io/girlbossceo/conduwuit:latest][dh]             | ![Image Size][shield-latest]  | Stable latest tagged image.          |
 | GitHub Registry | [ghcr.io/girlbossceo/conduwuit:main][gh]   | ![Image Size][shield-main]    | Stable main branch.   |
 | GitLab Registry | [registry.gitlab.com/conduwuit/conduwuit:main][gl]   | ![Image Size][shield-main]    | Stable main branch.   |
 | Docker Hub      | [docker.io/girlbossceo/conduwuit:main][dh]               | ![Image Size][shield-main]    | Stable main branch.   |
@@ -92,16 +92,28 @@ Additional info about deploying conduwuit can be found [here](generic.md).
 
 ### Build
 
-To build the conduwuit image with docker-compose, you first need to open and
-modify the `docker-compose.yml` file. There you need to comment the `image:`
-option and uncomment the `build:` option. Then call docker compose with:
+Official conduwuit images are built using Nix's
+[`buildLayeredImage`][nix-buildlayeredimage]. This ensures all OCI images are
+repeatable and reproducible by anyone, keeps the images lightweight, and can be
+built offline.
 
-```bash
-docker compose up
-```
+This also ensures portability of our images because `buildLayeredImage` builds
+OCI images, not Docker images, and works with other container software.
 
-This will also start the container right afterwards, so if want it to run in
-detached mode, you also should use the `-d` flag.
+The OCI images are OS-less with only a very minimal environment of the `tini`
+init system, CA certificates, and the conduwuit binary. This does mean there is
+not a shell, but in theory you can get a shell by adding the necessary layers
+to the layered image. However it's very unlikely you will need a shell for any
+real troubleshooting.
+
+The flake file for the OCI image definition is at [`nix/pkgs/oci-image/default.nix`][oci-image-def].
+
+To build an OCI image using Nix, the following outputs can be built:
+- `nix build -L .#oci-image` (default features, x86_64 glibc)
+- `nix build -L .#oci-image-x86_64-linux-musl` (default features, x86_64 musl)
+- `nix build -L .#oci-image-aarch64-linux-musl` (default features, aarch64 musl)
+- `nix build -L .#oci-image-x86_64-linux-musl-all-features` (all features, x86_64 musl)
+- `nix build -L .#oci-image-aarch64-linux-musl-all-features` (all features, aarch64 musl)
 
 ### Run
 
@@ -136,3 +148,6 @@ those two files.
 ## Voice communication
 
 See the [TURN](../turn.md) page.
+
+[nix-buildlayeredimage]: https://ryantm.github.io/nixpkgs/builders/images/dockertools/#ssec-pkgs-dockerTools-buildLayeredImage
+[oci-image-def]: https://github.com/girlbossceo/conduwuit/blob/main/nix/pkgs/oci-image/default.nix

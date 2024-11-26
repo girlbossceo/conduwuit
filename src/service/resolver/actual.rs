@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, debug_error, debug_info, debug_warn, err, trace, Err, Result};
+use conduit::{debug, debug_error, debug_info, debug_warn, err, error, trace, Err, Result};
 use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
 use ipaddress::IPAddress;
 use ruma::ServerName;
@@ -313,7 +313,6 @@ impl super::Service {
 		Ok(None)
 	}
 
-	#[allow(clippy::single_match_else)]
 	fn handle_resolve_error(e: &ResolveError) -> Result<()> {
 		use hickory_resolver::error::ResolveErrorKind;
 
@@ -322,10 +321,21 @@ impl super::Service {
 				..
 			} => {
 				// Raise to debug_warn if we can find out the result wasn't from cache
-				debug!("{e}");
+				debug!("No DNS records found: {e}");
 				Ok(())
 			},
-			_ => Err!(error!("DNS {e}")),
+			ResolveErrorKind::Timeout => {
+				Err!(warn!("DNS {e}"))
+			},
+			ResolveErrorKind::NoConnections => {
+				error!(
+					"Your DNS server is overloaded and has ran out of connections. It is strongly recommended you \
+					 remediate this issue to ensure proper federation connectivity."
+				);
+
+				Err!(error!("DNS error: {e}"))
+			},
+			_ => Err!(error!("DNS error: {e}")),
 		}
 	}
 

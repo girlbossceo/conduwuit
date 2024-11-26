@@ -37,6 +37,7 @@ pub(super) mod unstable;
 pub(super) mod unversioned;
 pub(super) mod user_directory;
 pub(super) mod voip;
+pub(super) mod well_known;
 
 pub use account::full_user_deactivate;
 pub(super) use account::*;
@@ -80,6 +81,7 @@ pub(super) use unstable::*;
 pub(super) use unversioned::*;
 pub(super) use user_directory::*;
 pub(super) use voip::*;
+pub(super) use well_known::*;
 
 /// generated device ID length
 const DEVICE_ID_LENGTH: usize = 10;

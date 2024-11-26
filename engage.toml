@@ -188,6 +188,16 @@ cargo test \
     --color=always
 """
 
+# Checks if the generated example config differs from the checked in repo's
+# example config.
+[[task]]
+name = "example-config"
+group = "tests"
+depends = ["cargo/default"]
+script = """
+git diff --exit-code conduwuit-example.toml
+"""
+
 # Ensure that the flake's default output can build and run without crashing
 #
 # This is a dynamically-linked jemalloc build, which is a case not covered by

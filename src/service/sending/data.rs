@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use conduit::{
-	utils,
+	at, utils,
 	utils::{stream::TryIgnore, ReadyExt},
 	Error, Result,
 };
@@ -69,20 +69,22 @@ impl Data {
 			.await;
 	}
 
-	pub(super) fn mark_as_active(&self, events: &[QueueItem]) {
-		for (key, e) in events {
-			if key.is_empty() {
-				continue;
-			}
+	pub(super) fn mark_as_active<'a, I>(&self, events: I)
+	where
+		I: Iterator<Item = &'a QueueItem>,
+	{
+		events
+			.filter(|(key, _)| !key.is_empty())
+			.for_each(|(key, val)| {
+				let val = if let SendingEvent::Edu(val) = &val {
+					&**val
+				} else {
+					&[]
+				};
 
-			let value = if let SendingEvent::Edu(value) = &e {
-				&**value
-			} else {
-				&[]
-			};
-			self.servercurrentevent_data.insert(key, value);
-			self.servernameevent_data.remove(key);
-		}
+				self.servercurrentevent_data.insert(key, val);
+				self.servernameevent_data.remove(key);
+			});
 	}
 
 	#[inline]
@@ -110,26 +112,40 @@ impl Data {
 			})
 	}
 
-	pub(super) fn queue_requests(&self, requests: &[(&SendingEvent, &Destination)]) -> Vec<Vec<u8>> {
-		let mut batch = Vec::new();
-		let mut keys = Vec::new();
-		for (event, destination) in requests {
-			let mut key = destination.get_prefix();
-			if let SendingEvent::Pdu(value) = event {
-				key.extend(value.as_ref());
-			} else {
-				key.extend(&self.services.globals.next_count().unwrap().to_be_bytes());
-			}
-			let value = if let SendingEvent::Edu(value) = &event {
-				&**value
-			} else {
-				&[]
-			};
-			batch.push((key.clone(), value.to_owned()));
-			keys.push(key);
-		}
+	pub(super) fn queue_requests<'a, I>(&self, requests: I) -> Vec<Vec<u8>>
+	where
+		I: Iterator<Item = (&'a SendingEvent, &'a Destination)> + Clone + Debug + Send,
+	{
+		let keys: Vec<_> = requests
+			.clone()
+			.map(|(event, dest)| {
+				let mut key = dest.get_prefix();
+				if let SendingEvent::Pdu(value) = event {
+					key.extend(value.as_ref());
+				} else {
+					let count = self.services.globals.next_count().unwrap();
+					key.extend(&count.to_be_bytes());
+				}
 
-		self.servernameevent_data.insert_batch(batch.iter());
+				key
+			})
+			.collect();
+
+		self.servernameevent_data.insert_batch(
+			keys.iter()
+				.map(Vec::as_slice)
+				.zip(requests.map(at!(0)))
+				.map(|(key, event)| {
+					let value = if let SendingEvent::Edu(value) = &event {
+						&**value
+					} else {
+						&[]
+					};
+
+					(key, value)
+				}),
+		);
+
 		keys
 	}
 

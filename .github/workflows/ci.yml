@@ -3,15 +3,10 @@ name: CI and Artifacts
 on:
     pull_request:
     push:
-        # documentation workflow deals with this or is not relevant for this workflow
         paths-ignore:
-          - '*.md'
-          - 'conduwuit-example.toml'
-          - 'book.toml'
           - '.gitlab-ci.yml'
           - '.gitignore'
           - 'renovate.json'
-          - 'docs/**'
           - 'debian/**'
           - 'docker/**'
         branches:
@@ -23,7 +18,7 @@ on:
 
 concurrency:
     group: ${{ github.head_ref || github.ref_name }}
-    cancel-in-progress: false
+    cancel-in-progress: true
 
 env:
     # sccache only on main repo

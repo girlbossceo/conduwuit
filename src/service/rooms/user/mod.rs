@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use conduit::{implement, Result};
 use database::{Deserialized, Map};
-use futures::{pin_mut, Stream, StreamExt};
 use ruma::{RoomId, UserId};
 
 use crate::{globals, rooms, rooms::short::ShortStateHash, Dep};
@@ -22,7 +21,6 @@ struct Data {
 struct Services {
 	globals: Dep<globals::Service>,
 	short: Dep<rooms::short::Service>,
-	state_cache: Dep<rooms::state_cache::Service>,
 }
 
 impl crate::Service for Service {
@@ -38,7 +36,6 @@ impl crate::Service for Service {
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				short: args.depend::<rooms::short::Service>("rooms::short"),
-				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 			},
 		}))
 	}
@@ -117,23 +114,4 @@ pub async fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Re
 		.qry(key)
 		.await
 		.deserialized()
-}
-
-#[implement(Service)]
-pub async fn has_shared_rooms<'a>(&'a self, user_a: &'a UserId, user_b: &'a UserId) -> bool {
-	let get_shared_rooms = self.get_shared_rooms(user_a, user_b);
-
-	pin_mut!(get_shared_rooms);
-	get_shared_rooms.next().await.is_some()
-}
-
-//TODO: optimize; replace point-queries with dual iteration
-#[implement(Service)]
-pub fn get_shared_rooms<'a>(
-	&'a self, user_a: &'a UserId, user_b: &'a UserId,
-) -> impl Stream<Item = &RoomId> + Send + 'a {
-	self.services
-		.state_cache
-		.rooms_joined(user_a)
-		.filter(|room_id| self.services.state_cache.is_joined(user_b, room_id))
 }

@@ -2,9 +2,10 @@ use std::{convert::AsRef, fmt::Debug, future::Future, io::Write};
 
 use arrayvec::ArrayVec;
 use conduit::{err, implement, utils::IterStream, Result};
-use futures::{future::ready, Stream};
+use futures::{FutureExt, Stream};
 use rocksdb::DBPinnableSlice;
 use serde::Serialize;
+use tokio::task;
 
 use crate::{ser, util, Handle};
 
@@ -55,7 +56,8 @@ pub fn get<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: AsRef<[u8]> + ?Sized + Debug,
 {
-	ready(self.get_blocking(key))
+	let result = self.get_blocking(key);
+	task::consume_budget().map(move |()| result)
 }
 
 /// Fetch a value from the database into cache, returning a reference-handle.
@@ -78,8 +80,8 @@ where
 #[tracing::instrument(skip(self, keys), fields(%self), level = "trace")]
 pub fn get_batch<'a, I, K>(&self, keys: I) -> impl Stream<Item = Result<Handle<'_>>>
 where
-	I: Iterator<Item = &'a K> + ExactSizeIterator + Send + Debug,
-	K: AsRef<[u8]> + Send + Sync + Sized + Debug + 'a,
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,
+	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
 {
 	self.get_batch_blocking(keys).stream()
 }
@@ -87,8 +89,8 @@ where
 #[implement(super::Map)]
 pub fn get_batch_blocking<'a, I, K>(&self, keys: I) -> impl Iterator<Item = Result<Handle<'_>>>
 where
-	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
-	K: AsRef<[u8]> + Sized + 'a,
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,
+	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
 {
 	// Optimization can be `true` if key vector is pre-sorted **by the column
 	// comparator**.

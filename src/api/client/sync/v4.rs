@@ -136,10 +136,9 @@ pub(crate) async fn sync_events_v4_route(
 		account_data.global = services
 			.account_data
 			.changes_since(None, sender_user, globalsince)
-			.await?
-			.into_iter()
-			.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
-			.collect();
+			.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
+			.collect()
+			.await;
 
 		if let Some(rooms) = body.extensions.account_data.rooms {
 			for room in rooms {
@@ -148,10 +147,9 @@ pub(crate) async fn sync_events_v4_route(
 					services
 						.account_data
 						.changes_since(Some(&room), sender_user, globalsince)
-						.await?
-						.into_iter()
-						.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
-						.collect(),
+						.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
+						.collect()
+						.await,
 				);
 			}
 		}
@@ -473,7 +471,7 @@ pub(crate) async fn sync_events_v4_route(
 			(timeline_pdus, limited) = (Vec::new(), true);
 		} else {
 			(timeline_pdus, limited) =
-				match load_timeline(&services, sender_user, room_id, roomsincecount, *timeline_limit).await {
+				match load_timeline(&services, sender_user, room_id, roomsincecount, None, *timeline_limit).await {
 					Ok(value) => value,
 					Err(err) => {
 						warn!("Encountered missing timeline in {}, error {}", room_id, err);
@@ -487,10 +485,9 @@ pub(crate) async fn sync_events_v4_route(
 			services
 				.account_data
 				.changes_since(Some(room_id), sender_user, *roomsince)
-				.await?
-				.into_iter()
-				.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
-				.collect(),
+				.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
+				.collect()
+				.await,
 		);
 
 		let vector: Vec<_> = services

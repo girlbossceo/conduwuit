@@ -441,9 +441,12 @@ pub(crate) async fn set_pushers_route(
 ) -> Result<set_pusher::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	services.pusher.set_pusher(sender_user, &body.action);
+	services
+		.pusher
+		.set_pusher(sender_user, &body.action)
+		.await?;
 
-	Ok(set_pusher::v3::Response::default())
+	Ok(set_pusher::v3::Response::new())
 }
 
 /// user somehow has bad push rules, these must always exist per spec.

@@ -1,5 +1,6 @@
 use clap::Subcommand;
 use conduit::Result;
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, UserId};
 
 use crate::Command;
@@ -39,10 +40,11 @@ pub(super) async fn process(subcommand: AccountDataCommand, context: &Command<'_
 			room_id,
 		} => {
 			let timer = tokio::time::Instant::now();
-			let results = services
+			let results: Vec<_> = services
 				.account_data
 				.changes_since(room_id.as_deref(), &user_id, since)
-				.await?;
+				.collect()
+				.await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

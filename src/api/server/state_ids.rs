@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, iter::once};
 
 use axum::extract::State;
 use conduit::{err, Result};
@@ -44,7 +44,7 @@ pub(crate) async fn get_room_state_ids_route(
 	let auth_chain_ids = services
 		.rooms
 		.auth_chain
-		.event_ids_iter(&body.room_id, &[body.event_id.borrow()])
+		.event_ids_iter(&body.room_id, once(body.event_id.borrow()))
 		.await?
 		.map(|id| (*id).to_owned())
 		.collect()

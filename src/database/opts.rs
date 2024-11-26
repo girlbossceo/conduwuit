@@ -136,6 +136,14 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.eventidshort_cache_capacity, 64)?,
 		),
 
+		"eventid_pduid" => set_table_with_new_cache(
+			&mut opts,
+			cfg,
+			cache,
+			name,
+			cache_size(cfg, cfg.eventid_pdu_cache_capacity, 64)?,
+		),
+
 		"shorteventid_authchain" => {
 			set_table_with_new_cache(
 				&mut opts,

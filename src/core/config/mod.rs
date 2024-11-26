@@ -87,7 +87,8 @@ pub struct Config {
 	port: ListeningPort,
 
 	// external structure; separate section
-	pub tls: Option<TlsConfig>,
+	#[serde(default)]
+	pub tls: TlsConfig,
 
 	/// Uncomment unix_socket_path to listen on a UNIX socket at the specified
 	/// path. If listening on a UNIX socket, you MUST remove/comment the
@@ -197,6 +198,10 @@ pub struct Config {
 	/// default: varies by system
 	#[serde(default = "default_eventidshort_cache_capacity")]
 	pub eventidshort_cache_capacity: u32,
+
+	/// default: varies by system
+	#[serde(default = "default_eventid_pdu_cache_capacity")]
+	pub eventid_pdu_cache_capacity: u32,
 
 	/// default: varies by system
 	#[serde(default = "default_shortstatekey_cache_capacity")]
@@ -1496,39 +1501,47 @@ pub struct Config {
 	catchall: BTreeMap<String, IgnoredAny>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Default)]
 #[config_example_generator(filename = "conduwuit-example.toml", section = "global.tls")]
 pub struct TlsConfig {
 	/// Path to a valid TLS certificate file.
 	///
 	/// example: "/path/to/my/certificate.crt"
-	pub certs: String,
+	pub certs: Option<String>,
+
 	/// Path to a valid TLS certificate private key.
 	///
 	/// example: "/path/to/my/certificate.key"
-	pub key: String,
+	pub key: Option<String>,
+
 	/// Whether to listen and allow for HTTP and HTTPS connections (insecure!)
 	#[serde(default)]
 	pub dual_protocol: bool,
 }
 
+#[allow(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
 #[derive(Clone, Debug, Deserialize, Default)]
 #[config_example_generator(filename = "conduwuit-example.toml", section = "global.well_known")]
 pub struct WellKnownConfig {
+	/// The server URL that the client well-known file will serve. This should
+	/// not contain a port, and should just be a valid HTTPS URL.
+	///
+	/// example: "https://matrix.example.com"
+	pub client: Option<Url>,
+
 	/// The server base domain of the URL with a specific port that the server
 	/// well-known file will serve. This should contain a port at the end, and
 	/// should not be a URL.
 	///
 	/// example: "matrix.example.com:443"
 	pub server: Option<OwnedServerName>,
-	/// The server URL that the client well-known file will serve. This should
-	/// not contain a port, and should just be a valid HTTPS URL.
-	///
-	/// example: "<https://matrix.example.com>"
-	pub client: Option<Url>,
+
 	pub support_page: Option<Url>,
+
 	pub support_role: Option<ContactRole>,
+
 	pub support_email: Option<String>,
+
 	pub support_mxid: Option<OwnedUserId>,
 }
 
@@ -2040,6 +2053,8 @@ fn default_shorteventid_cache_capacity() -> u32 { parallelism_scaled_u32(50_000)
 
 fn default_eventidshort_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
 
+fn default_eventid_pdu_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
+
 fn default_shortstatekey_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
 
 fn default_statekeyshort_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
@@ -2048,7 +2063,7 @@ fn default_server_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(50
 
 fn default_user_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
-fn default_stateinfo_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
+fn default_stateinfo_cache_capacity() -> u32 { parallelism_scaled_u32(100) }
 
 fn default_roomid_spacehierarchy_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 

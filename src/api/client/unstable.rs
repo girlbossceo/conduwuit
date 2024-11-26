@@ -55,7 +55,7 @@ pub(crate) async fn get_mutual_rooms_route(
 
 	let mutual_rooms: Vec<OwnedRoomId> = services
 		.rooms
-		.user
+		.state_cache
 		.get_shared_rooms(sender_user, &body.user_id)
 		.map(ToOwned::to_owned)
 		.collect()

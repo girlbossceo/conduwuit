@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduit::{
-	err,
+	at, err,
 	result::FlatOk,
 	utils::{calculate_hash, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	warn, PduEvent, Result,
@@ -23,8 +23,14 @@ use ruma::{
 	EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
 };
 
-use super::state_compressor::CompressedStateEvent;
-use crate::{globals, rooms, Dep};
+use crate::{
+	globals, rooms,
+	rooms::{
+		short::{ShortEventId, ShortStateHash},
+		state_compressor::{parse_compressed_state_event, CompressedStateEvent},
+	},
+	Dep,
+};
 
 pub struct Service {
 	pub mutex: RoomMutexMap,
@@ -92,12 +98,12 @@ impl Service {
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
 		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
 	) -> Result {
-		let event_ids = statediffnew.iter().stream().filter_map(|new| {
-			self.services
-				.state_compressor
-				.parse_compressed_state_event(*new)
-				.map_ok_or_else(|_| None, |(_, event_id)| Some(event_id))
-		});
+		let event_ids = statediffnew
+			.iter()
+			.stream()
+			.map(|&new| parse_compressed_state_event(new).1)
+			.then(|shorteventid| self.services.short.get_eventid_from_short(shorteventid))
+			.ignore_err();
 
 		pin_mut!(event_ids);
 		while let Some(event_id) = event_ids.next().await {
@@ -146,8 +152,9 @@ impl Service {
 	#[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
 	pub async fn set_event_state(
 		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
-	) -> Result<u64> {
-		const BUFSIZE: usize = size_of::<u64>();
+	) -> Result<ShortStateHash> {
+		const KEY_LEN: usize = size_of::<ShortEventId>();
+		const VAL_LEN: usize = size_of::<ShortStateHash>();
 
 		let shorteventid = self
 			.services
@@ -202,7 +209,7 @@ impl Service {
 
 		self.db
 			.shorteventid_shortstatehash
-			.aput::<BUFSIZE, BUFSIZE, _, _>(shorteventid, shortstatehash);
+			.aput::<KEY_LEN, VAL_LEN, _, _>(shorteventid, shortstatehash);
 
 		Ok(shortstatehash)
 	}
@@ -343,7 +350,7 @@ impl Service {
 			.map_err(|e| err!(Request(NotFound("No create event found: {e:?}"))))
 	}
 
-	pub async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<u64> {
+	pub async fn get_room_shortstatehash(&self, room_id: &RoomId) -> Result<ShortStateHash> {
 		self.db
 			.roomid_shortstatehash
 			.get(room_id)
@@ -391,57 +398,52 @@ impl Service {
 			return Ok(HashMap::new());
 		};
 
-		let auth_events = state_res::auth_types_for_event(kind, sender, state_key, content)?;
-
-		let mut sauthevents: HashMap<_, _> = auth_events
+		let mut sauthevents: HashMap<_, _> = state_res::auth_types_for_event(kind, sender, state_key, content)?
 			.iter()
 			.stream()
 			.filter_map(|(event_type, state_key)| {
 				self.services
 					.short
 					.get_shortstatekey(event_type, state_key)
-					.map_ok(move |s| (s, (event_type, state_key)))
+					.map_ok(move |ssk| (ssk, (event_type, state_key)))
 					.map(Result::ok)
 			})
+			.map(|(ssk, (event_type, state_key))| (ssk, (event_type.to_owned(), state_key.to_owned())))
 			.collect()
 			.await;
 
-		let full_state = self
+		let auth_state: Vec<_> = self
 			.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
+			.state_accessor
+			.state_full_shortids(shortstatehash)
 			.await
-			.map_err(|e| {
-				err!(Database(
-					"Missing shortstatehash info for {room_id:?} at {shortstatehash:?}: {e:?}"
-				))
-			})?
-			.pop()
-			.expect("there is always one layer")
-			.full_state;
+			.map_err(|e| err!(Database(error!(?room_id, ?shortstatehash, "{e:?}"))))?
+			.into_iter()
+			.filter_map(|(shortstatekey, shorteventid)| {
+				sauthevents
+					.remove(&shortstatekey)
+					.map(|(event_type, state_key)| ((event_type, state_key), shorteventid))
+			})
+			.collect();
 
-		let mut ret = HashMap::new();
-		for compressed in full_state.iter() {
-			let Ok((shortstatekey, event_id)) = self
-				.services
-				.state_compressor
-				.parse_compressed_state_event(*compressed)
-				.await
-			else {
-				continue;
-			};
+		let auth_pdus: Vec<_> = self
+			.services
+			.short
+			.multi_get_eventid_from_short(auth_state.iter().map(at!(1)))
+			.await
+			.into_iter()
+			.stream()
+			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
+			.collect()
+			.await;
 
-			let Some((ty, state_key)) = sauthevents.remove(&shortstatekey) else {
-				continue;
-			};
+		let auth_pdus = auth_state
+			.into_iter()
+			.map(at!(0))
+			.zip(auth_pdus.into_iter())
+			.filter_map(|((event_type, state_key), pdu)| Some(((event_type, state_key), pdu.ok()?)))
+			.collect();
 
-			let Ok(pdu) = self.services.timeline.get_pdu(&event_id).await else {
-				continue;
-			};
-
-			ret.insert((ty.to_owned(), state_key.to_owned()), pdu);
-		}
-
-		Ok(ret)
+		Ok(auth_pdus)
 	}
 }

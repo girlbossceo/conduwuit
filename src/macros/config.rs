@@ -1,9 +1,4 @@
-use std::{
-	collections::{HashMap, HashSet},
-	fmt::Write as _,
-	fs::OpenOptions,
-	io::Write as _,
-};
+use std::{collections::HashSet, fmt::Write as _, fs::OpenOptions, io::Write as _};
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -13,7 +8,10 @@ use syn::{
 	ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, TypePath,
 };
 
-use crate::{utils::is_cargo_build, Result};
+use crate::{
+	utils::{get_simple_settings, is_cargo_build},
+	Result,
+};
 
 const UNDOCUMENTED: &str = "# This item is undocumented. Please contribute documentation for it.";
 
@@ -29,7 +27,7 @@ pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<Toke
 #[allow(clippy::needless_pass_by_value)]
 #[allow(unused_variables)]
 fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
-	let settings = get_settings(args);
+	let settings = get_simple_settings(args);
 
 	let filename = settings
 		.get("filename")
@@ -118,39 +116,6 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 	}
 
 	Ok(())
-}
-
-fn get_settings(args: &[Meta]) -> HashMap<String, String> {
-	let mut map = HashMap::new();
-	for arg in args {
-		let Meta::NameValue(MetaNameValue {
-			path,
-			value,
-			..
-		}) = arg
-		else {
-			continue;
-		};
-
-		let Expr::Lit(
-			ExprLit {
-				lit: Lit::Str(str),
-				..
-			},
-			..,
-		) = value
-		else {
-			continue;
-		};
-
-		let Some(key) = path.segments.iter().next().map(|s| s.ident.clone()) else {
-			continue;
-		};
-
-		map.insert(key.to_string(), str.value());
-	}
-
-	map
 }
 
 fn get_default(field: &Field) -> Option<String> {

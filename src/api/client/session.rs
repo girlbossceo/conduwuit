@@ -198,8 +198,10 @@ pub(crate) async fn login_route(
 
 	// send client well-known if specified so the client knows to reconfigure itself
 	let client_discovery_info: Option<DiscoveryInfo> = services
-		.globals
-		.well_known_client()
+		.server
+		.config
+		.well_known
+		.client
 		.as_ref()
 		.map(|server| DiscoveryInfo::new(HomeserverInfo::new(server.to_string())));
 

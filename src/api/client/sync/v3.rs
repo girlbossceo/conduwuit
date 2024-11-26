@@ -275,10 +275,9 @@ pub(crate) async fn sync_events_route(
 			events: services
 				.account_data
 				.changes_since(None, &sender_user, since)
-				.await?
-				.into_iter()
-				.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
-				.collect(),
+				.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
+				.collect()
+				.await,
 		},
 		device_lists: DeviceLists {
 			changed: device_list_updates.into_iter().collect(),
@@ -540,7 +539,8 @@ async fn load_joined_room(
 	let insert_lock = services.rooms.timeline.mutex_insert.lock(room_id).await;
 	drop(insert_lock);
 
-	let (timeline_pdus, limited) = load_timeline(services, sender_user, room_id, sincecount, 10_usize).await?;
+	let (timeline_pdus, limited) =
+		load_timeline(services, sender_user, room_id, sincecount, Some(next_batchcount), 10_usize).await?;
 
 	let send_notification_counts = !timeline_pdus.is_empty()
 		|| services
@@ -757,7 +757,6 @@ async fn load_joined_room(
 						};
 
 						delta_state_events.push(pdu);
-						tokio::task::yield_now().await;
 					}
 				}
 			}
@@ -946,7 +945,6 @@ async fn load_joined_room(
 	let prev_batch = timeline_pdus
 		.first()
 		.map(at!(0))
-		.map(|count| count.saturating_sub(1))
 		.as_ref()
 		.map(ToString::to_string);
 
@@ -1023,10 +1021,9 @@ async fn load_joined_room(
 			events: services
 				.account_data
 				.changes_since(Some(room_id), sender_user, since)
-				.await?
-				.into_iter()
-				.filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
-				.collect(),
+				.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
+				.collect()
+				.await,
 		},
 		summary: RoomSummary {
 			heroes,

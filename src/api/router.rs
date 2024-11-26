@@ -183,8 +183,7 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		.ruma_route(&client::well_known_support)
 		.ruma_route(&client::well_known_client)
 		.route("/_conduwuit/server_version", get(client::conduwuit_server_version))
-		.route("/_matrix/client/r0/rooms/:room_id/initialSync", get(initial_sync))
-		.route("/_matrix/client/v3/rooms/:room_id/initialSync", get(initial_sync))
+		.ruma_route(&client::room_initial_sync_route)
 		.route("/client/server.json", get(client::syncv3_client_server_json));
 
 	if config.allow_federation {
@@ -283,10 +282,6 @@ async fn redirect_legacy_preview(uri: Uri) -> impl IntoResponse {
 		.to_string();
 
 	Redirect::temporary(&uri)
-}
-
-async fn initial_sync(_uri: Uri) -> impl IntoResponse {
-	err!(Request(GuestAccessForbidden("Guest access not implemented")))
 }
 
 async fn legacy_media_disabled() -> impl IntoResponse { err!(Request(Forbidden("Unauthenticated media is disabled."))) }

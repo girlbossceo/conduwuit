@@ -237,3 +237,42 @@ fn set_intersection_sorted_all() {
 	let r = intersection_sorted(i.into_iter());
 	assert!(r.eq(["bar", "baz", "foo"].iter()));
 }
+
+#[tokio::test]
+async fn set_intersection_sorted_stream2() {
+	use futures::StreamExt;
+	use utils::{set::intersection_sorted_stream2, IterStream};
+
+	let a = ["bar"];
+	let b = ["bar", "foo"];
+	let r = intersection_sorted_stream2(a.iter().stream(), b.iter().stream())
+		.collect::<Vec<&str>>()
+		.await;
+	assert!(r.eq(&["bar"]));
+
+	let r = intersection_sorted_stream2(b.iter().stream(), a.iter().stream())
+		.collect::<Vec<&str>>()
+		.await;
+	assert!(r.eq(&["bar"]));
+
+	let a = ["aaa", "ccc", "xxx", "yyy"];
+	let b = ["hhh", "iii", "jjj", "zzz"];
+	let r = intersection_sorted_stream2(a.iter().stream(), b.iter().stream())
+		.collect::<Vec<&str>>()
+		.await;
+	assert!(r.is_empty());
+
+	let a = ["aaa", "ccc", "eee", "ggg"];
+	let b = ["aaa", "bbb", "ccc", "ddd", "eee"];
+	let r = intersection_sorted_stream2(a.iter().stream(), b.iter().stream())
+		.collect::<Vec<&str>>()
+		.await;
+	assert!(r.eq(&["aaa", "ccc", "eee"]));
+
+	let a = ["aaa", "ccc", "eee", "ggg", "hhh", "iii"];
+	let b = ["bbb", "ccc", "ddd", "fff", "ggg", "iii"];
+	let r = intersection_sorted_stream2(a.iter().stream(), b.iter().stream())
+		.collect::<Vec<&str>>()
+		.await;
+	assert!(r.eq(&["ccc", "ggg", "iii"]));
+}

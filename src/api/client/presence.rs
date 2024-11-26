@@ -52,8 +52,8 @@ pub(crate) async fn get_presence_route(
 
 	let has_shared_rooms = services
 		.rooms
-		.user
-		.has_shared_rooms(sender_user, &body.user_id)
+		.state_cache
+		.user_sees_user(sender_user, &body.user_id)
 		.await;
 
 	if has_shared_rooms {

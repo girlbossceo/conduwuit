@@ -35,12 +35,12 @@ pub async fn resolve_state(
 	let fork_states = [current_state_ids, incoming_state];
 	let mut auth_chain_sets = Vec::with_capacity(fork_states.len());
 	for state in &fork_states {
-		let starting_events: Vec<&EventId> = state.values().map(Borrow::borrow).collect();
+		let starting_events = state.values().map(Borrow::borrow);
 
 		let auth_chain: HashSet<Arc<EventId>> = self
 			.services
 			.auth_chain
-			.get_event_ids(room_id, &starting_events)
+			.get_event_ids(room_id, starting_events)
 			.await?
 			.into_iter()
 			.collect();

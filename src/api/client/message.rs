@@ -136,8 +136,6 @@ pub(crate) async fn get_message_events_route(
 		.collect()
 		.await;
 
-	let start_token = events.first().map(at!(0)).unwrap_or(from);
-
 	let next_token = events.last().map(at!(0));
 
 	if !cfg!(feature = "element_hacks") {
@@ -156,7 +154,7 @@ pub(crate) async fn get_message_events_route(
 		.collect();
 
 	Ok(get_message_events::v3::Response {
-		start: start_token.to_string(),
+		start: from.to_string(),
 		end: next_token.as_ref().map(ToString::to_string),
 		chunk,
 		state,

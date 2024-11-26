@@ -33,7 +33,7 @@ features = ["std", "serde"]
 version = "0.5.7"
 
 [workspace.dependencies.ctor]
-version = "0.2.8"
+version = "0.2.9"
 
 [workspace.dependencies.cargo_toml]
 version = "0.20"
@@ -82,7 +82,7 @@ version = "1.1.0"
 version = "1.11.1"
 
 [workspace.dependencies.axum]
-version = "0.7.5"
+version = "0.7.9"
 default-features = false
 features = [
 	"form",
@@ -95,7 +95,7 @@ features = [
 ]
 
 [workspace.dependencies.axum-extra]
-version = "0.9.4"
+version = "0.9.6"
 default-features = false
 features = ["typed-header", "tracing"]
 
@@ -116,7 +116,7 @@ default-features = false
 features = ["util"]
 
 [workspace.dependencies.tower-http]
-version = "0.6.1"
+version = "0.6.2"
 default-features = false
 features = [
     "add-extension",
@@ -149,7 +149,7 @@ default-features = false
 features = ["rc"]
 
 [workspace.dependencies.serde_json]
-version = "1.0.132"
+version = "1.0.133"
 default-features = false
 features = ["raw_value"]
 
@@ -207,14 +207,13 @@ default-features = false
 version = "4.5.21"
 default-features = false
 features = [
-	"std",
 	"derive",
-	"help",
-	#"color", Do we need these?
-	#"unicode",
-	"usage",
+	"env",
 	"error-context",
+	"help",
+	"std",
 	"string",
+	"usage",
 ]
 
 [workspace.dependencies.futures]
@@ -244,7 +243,7 @@ version = "0.8.5"
 
 # Validating urls in config, was already a transitive dependency
 [workspace.dependencies.url]
-version = "2.5.3"
+version = "2.5.4"
 default-features = false
 features = ["serde"]
 
@@ -255,7 +254,7 @@ features = ["alloc", "std"]
 default-features = false
 
 [workspace.dependencies.hyper]
-version = "1.5.0"
+version = "1.5.1"
 default-features = false
 features = [
 	"server",
@@ -322,7 +321,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "2ab432fba19eb8862c594d24af39d8f9f6b4eac6"
+rev = "97e2fb6df13f65532d33fc2f0f097ad5a449dd70"
 features = [
     "compat",
     "rand",
@@ -335,6 +334,7 @@ features = [
     "server-util",
     "unstable-exhaustive-types",
     "ring-compat",
+    "compat-upload-signatures",
     "identifiers-validation",
     "unstable-unspecified",
     "unstable-msc2409",
@@ -460,7 +460,7 @@ version = "0.4.3"
 default-features = false
 
 [workspace.dependencies.termimad]
-version = "0.31.0"
+version = "0.31.1"
 default-features = false
 
 [workspace.dependencies.checked_ops]
@@ -504,7 +504,7 @@ rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
 # adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
 [patch.crates-io.rustyline-async]
 git = "https://github.com/girlbossceo/rustyline-async"
-rev = "9654cc84e19241f6e19021eb8e677892656f5071"
+rev = "deaeb0694e2083f53d363b648da06e10fc13900c"
 
 #
 # Our crates

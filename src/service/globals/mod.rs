@@ -12,11 +12,9 @@ use data::Data;
 use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
-	api::client::discovery::discover_support::ContactRole, OwnedEventId, OwnedRoomAliasId, OwnedServerName,
-	OwnedUserId, RoomAliasId, RoomVersionId, ServerName, UserId,
+	OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, RoomVersionId, ServerName, UserId,
 };
 use tokio::sync::Mutex;
-use url::Url;
 
 use crate::service;
 
@@ -243,14 +241,6 @@ impl Service {
 
 	pub fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
 
-	pub fn well_known_support_page(&self) -> &Option<Url> { &self.config.well_known.support_page }
-
-	pub fn well_known_support_role(&self) -> &Option<ContactRole> { &self.config.well_known.support_role }
-
-	pub fn well_known_support_email(&self) -> &Option<String> { &self.config.well_known.support_email }
-
-	pub fn well_known_support_mxid(&self) -> &Option<OwnedUserId> { &self.config.well_known.support_mxid }
-
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
 
 	pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
@@ -264,10 +254,6 @@ impl Service {
 			self.stable_room_versions.clone()
 		}
 	}
-
-	pub fn well_known_client(&self) -> &Option<Url> { &self.config.well_known.client }
-
-	pub fn well_known_server(&self) -> &Option<OwnedServerName> { &self.config.well_known.server }
 
 	#[inline]
 	pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {

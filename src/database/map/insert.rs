@@ -203,7 +203,7 @@ where
 #[tracing::instrument(skip(self, iter), fields(%self), level = "trace")]
 pub fn insert_batch<'a, I, K, V>(&'a self, iter: I)
 where
-	I: Iterator<Item = &'a (K, V)> + Send + Debug,
+	I: Iterator<Item = (K, V)> + Send + Debug,
 	K: AsRef<[u8]> + Sized + Debug + 'a,
 	V: AsRef<[u8]> + Sized + 'a,
 {

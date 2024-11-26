@@ -79,26 +79,24 @@ impl Service {
 	///
 	/// # Arguments
 	///
-	/// * `service_name` - the name you send to register the service previously
-	pub async fn unregister_appservice(&self, service_name: &str) -> Result<()> {
+	/// * `service_name` - the registration ID of the appservice
+	pub async fn unregister_appservice(&self, appservice_id: &str) -> Result<()> {
 		// removes the appservice registration info
 		self.registration_info
 			.write()
 			.await
-			.remove(service_name)
+			.remove(appservice_id)
 			.ok_or(err!("Appservice not found"))?;
 
 		// remove the appservice from the database
-		self.db.id_appserviceregistrations.remove(service_name);
+		self.db.id_appserviceregistrations.del(appservice_id);
 
 		// deletes all active requests for the appservice if there are any so we stop
 		// sending to the URL
 		self.services
 			.sending
-			.cleanup_events(service_name.to_owned())
-			.await;
-
-		Ok(())
+			.cleanup_events(Some(appservice_id), None, None)
+			.await
 	}
 
 	pub async fn get_registration(&self, id: &str) -> Option<Registration> {

@@ -5,8 +5,8 @@
 Have a look at [Complement's repository][complement] for an explanation of what
 it is.
 
-To test against Complement, with Nix (or [Lix](https://lix.systems) and direnv installed
-and set up, you can:
+To test against Complement, with Nix (or [Lix](https://lix.systems) and direnv
+installed and set up, you can:
 
 * Run `./bin/complement "$COMPLEMENT_SRC" ./path/to/logs.jsonl
 ./path/to/results.jsonl` to build a Complement image, run the tests, and output
