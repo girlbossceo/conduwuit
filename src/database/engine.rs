@@ -16,7 +16,9 @@ use rocksdb::{
 
 use crate::{
 	opts::{cf_options, db_options},
-	or_else, result,
+	or_else, pool,
+	pool::Pool,
+	result,
 	util::map_err,
 };
 
@@ -31,6 +33,7 @@ pub struct Engine {
 	corks: AtomicU32,
 	pub(super) read_only: bool,
 	pub(super) secondary: bool,
+	pub(crate) pool: Arc<Pool>,
 }
 
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
@@ -111,6 +114,7 @@ impl Engine {
 			corks: AtomicU32::new(0),
 			read_only: config.rocksdb_read_only,
 			secondary: config.rocksdb_secondary,
+			pool: Pool::new(&pool::Opts::default())?,
 		}))
 	}
 
@@ -315,6 +319,9 @@ impl Drop for Engine {
 	#[cold]
 	fn drop(&mut self) {
 		const BLOCKING: bool = true;
+
+		debug!("Joining request threads...");
+		self.pool.close();
 
 		debug!("Waiting for background tasks to finish...");
 		self.db.cancel_all_background_work(BLOCKING);

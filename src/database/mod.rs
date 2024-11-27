@@ -8,6 +8,7 @@ pub mod keyval;
 mod map;
 pub mod maps;
 mod opts;
+mod pool;
 mod ser;
 mod stream;
 mod tests;

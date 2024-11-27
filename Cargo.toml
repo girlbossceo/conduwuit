@@ -307,9 +307,13 @@ version = "0.13.0"
 [workspace.dependencies.cyborgtime]
 version = "2.1.1"
 
-# used to replace the channels of the tokio runtime
+# used for MPSC channels
 [workspace.dependencies.loole]
 version = "0.4.0"
+
+# used for MPMC channels
+[workspace.dependencies.async-channel]
+version = "2.3.1"
 
 [workspace.dependencies.async-trait]
 version = "0.1.83"

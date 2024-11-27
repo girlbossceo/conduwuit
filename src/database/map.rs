@@ -27,7 +27,7 @@ use std::{
 };
 
 use conduit::Result;
-use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, WriteOptions};
+use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, ReadTier, WriteOptions};
 
 use crate::{watchers::Watchers, Engine};
 
@@ -38,6 +38,7 @@ pub struct Map {
 	watchers: Watchers,
 	write_options: WriteOptions,
 	read_options: ReadOptions,
+	cache_read_options: ReadOptions,
 }
 
 impl Map {
@@ -49,6 +50,7 @@ impl Map {
 			watchers: Watchers::default(),
 			write_options: write_options_default(),
 			read_options: read_options_default(),
+			cache_read_options: cache_read_options_default(),
 		}))
 	}
 
@@ -110,6 +112,13 @@ fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
 		Arc::increment_strong_count(cf_ptr);
 		Arc::from_raw(cf_ptr)
 	})
+}
+
+#[inline]
+fn cache_read_options_default() -> ReadOptions {
+	let mut read_options = read_options_default();
+	read_options.set_read_tier(ReadTier::BlockCache);
+	read_options
 }
 
 #[inline]

@@ -1,5 +1,5 @@
 use conduit::{err, Result};
-use rocksdb::{Direction, IteratorMode};
+use rocksdb::{Direction, ErrorKind, IteratorMode};
 
 //#[cfg(debug_assertions)]
 macro_rules! unhandled {
@@ -44,6 +44,9 @@ pub(crate) fn result<T>(r: std::result::Result<T, rocksdb::Error>) -> Result<T, 
 pub(crate) fn and_then<T>(t: T) -> Result<T, conduit::Error> { Ok(t) }
 
 pub(crate) fn or_else<T>(e: rocksdb::Error) -> Result<T, conduit::Error> { Err(map_err(e)) }
+
+#[inline]
+pub(crate) fn is_incomplete(e: &rocksdb::Error) -> bool { e.kind() == ErrorKind::Incomplete }
 
 pub(crate) fn map_err(e: rocksdb::Error) -> conduit::Error {
 	let string = e.into_string();

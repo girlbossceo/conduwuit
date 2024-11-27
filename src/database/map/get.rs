@@ -1,13 +1,16 @@
-use std::{convert::AsRef, fmt::Debug, future::Future, io::Write};
+use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
-use conduit::{err, implement, utils::IterStream, Result};
-use futures::{FutureExt, Stream};
+use conduit::{err, implement, utils::IterStream, Err, Result};
+use futures::{future, Future, FutureExt, Stream};
 use rocksdb::DBPinnableSlice;
 use serde::Serialize;
-use tokio::task;
 
-use crate::{ser, util, Handle};
+use crate::{
+	ser,
+	util::{is_incomplete, map_err, or_else},
+	Handle,
+};
 
 type RocksdbResult<'a> = Result<Option<DBPinnableSlice<'a>>, rocksdb::Error>;
 
@@ -15,7 +18,7 @@ type RocksdbResult<'a> = Result<Option<DBPinnableSlice<'a>>, rocksdb::Error>;
 /// asynchronously. The key is serialized into an allocated buffer to perform
 /// the query.
 #[implement(super::Map)]
-pub fn qry<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
+pub fn qry<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -27,7 +30,7 @@ where
 /// asynchronously. The key is serialized into a fixed-sized buffer to perform
 /// the query. The maximum size is supplied as const generic parameter.
 #[implement(super::Map)]
-pub fn aqry<const MAX: usize, K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
+pub fn aqry<const MAX: usize, K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -39,7 +42,7 @@ where
 /// asynchronously. The key is serialized into a user-supplied Writer.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, buf), level = "trace")]
-pub fn bqry<K, B>(&self, key: &K, buf: &mut B) -> impl Future<Output = Result<Handle<'_>>> + Send
+pub fn bqry<K, B>(self: &Arc<Self>, key: &K, buf: &mut B) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: Serialize + ?Sized + Debug,
 	B: Write + AsRef<[u8]>,
@@ -52,28 +55,28 @@ where
 /// asynchronously. The key is referenced directly to perform the query.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
-pub fn get<K>(&self, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
+pub fn get<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
-	K: AsRef<[u8]> + ?Sized + Debug,
+	K: AsRef<[u8]> + Debug + ?Sized,
 {
-	let result = self.get_blocking(key);
-	task::consume_budget().map(move |()| result)
-}
+	use crate::pool::{Cmd, Get};
 
-/// Fetch a value from the database into cache, returning a reference-handle.
-/// The key is referenced directly to perform the query. This is a thread-
-/// blocking call.
-#[implement(super::Map)]
-pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>
-where
-	K: AsRef<[u8]> + ?Sized,
-{
-	let res = self
-		.db
-		.db
-		.get_pinned_cf_opt(&self.cf(), key, &self.read_options);
+	let cached = self.get_cached(key);
+	if matches!(cached, Err(_) | Ok(Some(_))) {
+		return future::ready(cached.map(|res| res.expect("Option is Some"))).boxed();
+	}
 
-	into_result_handle(res)
+	debug_assert!(matches!(cached, Ok(None)), "expected status Incomplete");
+	let cmd = Cmd::Get(Get {
+		map: self.clone(),
+		res: None,
+		key: key
+			.as_ref()
+			.try_into()
+			.expect("failed to copy key into buffer"),
+	});
+
+	self.db.pool.execute(cmd).boxed()
 }
 
 #[implement(super::Map)]
@@ -104,9 +107,52 @@ where
 		.map(into_result_handle)
 }
 
+/// Fetch a value from the database into cache, returning a reference-handle.
+/// The key is referenced directly to perform the query. This is a thread-
+/// blocking call.
+#[implement(super::Map)]
+pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>
+where
+	K: AsRef<[u8]> + ?Sized,
+{
+	let res = self
+		.db
+		.db
+		.get_pinned_cf_opt(&self.cf(), key, &self.read_options);
+
+	into_result_handle(res)
+}
+
+/// Fetch a value from the cache without I/O.
+#[implement(super::Map)]
+#[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
+pub(crate) fn get_cached<K>(&self, key: &K) -> Result<Option<Handle<'_>>>
+where
+	K: AsRef<[u8]> + Debug + ?Sized,
+{
+	let res = self
+		.db
+		.db
+		.get_pinned_cf_opt(&self.cf(), key, &self.cache_read_options);
+
+	match res {
+		// cache hit; not found
+		Ok(None) => Err!(Request(NotFound("Not found in database"))),
+
+		// cache hit; value found
+		Ok(Some(res)) => Ok(Some(Handle::from(res))),
+
+		// cache miss; unknown
+		Err(e) if is_incomplete(&e) => Ok(None),
+
+		// some other error occurred
+		Err(e) => or_else(e),
+	}
+}
+
 fn into_result_handle(result: RocksdbResult<'_>) -> Result<Handle<'_>> {
 	result
-		.map_err(util::map_err)?
+		.map_err(map_err)?
 		.map(Handle::from)
 		.ok_or(err!(Request(NotFound("Not found in database"))))
 }
