@@ -296,7 +296,7 @@ pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
 	Ok(())
 }
 
-#[tracing::instrument(skip_all, name = "rocksdb")]
+#[tracing::instrument(skip_all, name = "rocksdb", level = "debug")]
 pub(crate) fn handle_log(level: LogLevel, msg: &str) {
 	let msg = msg.trim();
 	if msg.starts_with("Options") {

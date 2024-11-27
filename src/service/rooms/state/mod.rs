@@ -393,7 +393,7 @@ impl Service {
 	}
 
 	/// This fetches auth events from the current state.
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self, content), level = "debug")]
 	pub async fn get_auth_events(
 		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
 		content: &serde_json::value::RawValue,

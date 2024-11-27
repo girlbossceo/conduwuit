@@ -209,20 +209,23 @@ impl Service {
 		self.db.get_cached_eventid_authchain(key).await
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip_all, level = "debug")]
 	pub fn cache_auth_chain(&self, key: Vec<u64>, auth_chain: &HashSet<ShortEventId>) {
-		let val = auth_chain.iter().copied().collect::<Arc<[ShortEventId]>>();
+		let val: Arc<[ShortEventId]> = auth_chain.iter().copied().collect();
+
 		self.db.cache_auth_chain(key, val);
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &Vec<ShortEventId>) {
-		let val = auth_chain.iter().copied().collect::<Arc<[ShortEventId]>>();
+	#[tracing::instrument(skip_all, level = "debug")]
+	pub fn cache_auth_chain_vec(&self, key: Vec<u64>, auth_chain: &[ShortEventId]) {
+		let val: Arc<[ShortEventId]> = auth_chain.iter().copied().collect();
+
 		self.db.cache_auth_chain(key, val);
 	}
 
 	pub fn get_cache_usage(&self) -> (usize, usize) {
 		let cache = self.db.auth_chain_cache.lock().expect("locked");
+
 		(cache.len(), cache.capacity())
 	}
 
