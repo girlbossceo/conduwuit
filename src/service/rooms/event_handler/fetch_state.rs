@@ -22,7 +22,7 @@ pub(super) async fn fetch_state(
 	let res = self
 		.services
 		.sending
-		.send_synapse_request(
+		.send_federation_request(
 			origin,
 			get_room_state_ids::v1::Request {
 				room_id: room_id.to_owned(),
