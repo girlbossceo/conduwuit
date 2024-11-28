@@ -5,12 +5,11 @@ use std::{
 	thread::JoinHandle,
 };
 
-use arrayvec::ArrayVec;
 use async_channel::{bounded, Receiver, Sender};
 use conduit::{debug, defer, err, implement, Result};
 use futures::channel::oneshot;
 
-use crate::{Handle, Map};
+use crate::{keyval::KeyBuf, Handle, Map};
 
 pub(crate) struct Pool {
 	workers: Mutex<Vec<JoinHandle<()>>>,
@@ -27,7 +26,6 @@ pub(crate) struct Opts {
 const WORKER_THREAD_NAME: &str = "conduwuit:db";
 const DEFAULT_QUEUE_SIZE: usize = 1024;
 const DEFAULT_WORKER_NUM: usize = 32;
-const KEY_MAX_BYTES: usize = 384;
 
 #[derive(Debug)]
 pub(crate) enum Cmd {
@@ -37,9 +35,11 @@ pub(crate) enum Cmd {
 #[derive(Debug)]
 pub(crate) struct Get {
 	pub(crate) map: Arc<Map>,
-	pub(crate) key: ArrayVec<u8, KEY_MAX_BYTES>,
-	pub(crate) res: Option<oneshot::Sender<Result<Handle<'static>>>>,
+	pub(crate) key: KeyBuf,
+	pub(crate) res: Option<ResultSender>,
 }
+
+type ResultSender = oneshot::Sender<Result<Handle<'static>>>;
 
 #[implement(Pool)]
 pub(crate) fn new(opts: &Opts) -> Result<Arc<Self>> {
@@ -92,7 +92,6 @@ pub(crate) fn close(self: &Arc<Self>) {
 		receivers = %self.send.receiver_count(),
 		"Closing pool channel"
 	);
-
 	let closing = self.send.close();
 	debug_assert!(closing, "channel is not closing");
 
@@ -116,11 +115,7 @@ pub(crate) fn close(self: &Arc<Self>) {
 #[tracing::instrument(skip(self, cmd), level = "trace")]
 pub(crate) async fn execute(&self, mut cmd: Cmd) -> Result<Handle<'_>> {
 	let (send, recv) = oneshot::channel();
-	match &mut cmd {
-		Cmd::Get(ref mut cmd) => {
-			_ = cmd.res.insert(send);
-		},
-	};
+	Self::prepare(&mut cmd, send);
 
 	self.send
 		.send(cmd)
@@ -130,6 +125,15 @@ pub(crate) async fn execute(&self, mut cmd: Cmd) -> Result<Handle<'_>> {
 	recv.await
 		.map(into_recv_result)
 		.map_err(|e| err!(error!("recv failed {e:?}")))?
+}
+
+#[implement(Pool)]
+fn prepare(cmd: &mut Cmd, send: ResultSender) {
+	match cmd {
+		Cmd::Get(ref mut cmd) => {
+			_ = cmd.res.insert(send);
+		},
+	};
 }
 
 #[implement(Pool)]
@@ -157,25 +161,35 @@ fn handle(&self, id: usize, cmd: &mut Cmd) {
 #[implement(Pool)]
 #[tracing::instrument(skip(self, cmd), fields(%cmd.map), level = "trace")]
 fn handle_get(&self, id: usize, cmd: &mut Get) {
+	debug_assert!(!cmd.key.is_empty(), "querying for empty key");
+
+	// Obtain the result channel.
 	let chan = cmd.res.take().expect("missing result channel");
 
-	// If the future was dropped while the command was queued then we can bail
-	// without any query. This makes it more efficient to use select() variants and
-	// pessimistic parallel queries.
+	// It is worth checking if the future was dropped while the command was queued
+	// so we can bail without paying for any query.
 	if chan.is_canceled() {
 		return;
 	}
 
+	// Perform the actual database query. We reuse our database::Map interface but
+	// limited to the blocking calls, rather than creating another surface directly
+	// with rocksdb here.
 	let result = cmd.map.get_blocking(&cmd.key);
-	let _sent = chan.send(into_send_result(result)).is_ok();
+
+	// Send the result back to the submitter.
+	let chan_result = chan.send(into_send_result(result));
+
+	// If the future was dropped during the query this will fail acceptably.
+	let _chan_sent = chan_result.is_ok();
 }
 
 fn into_send_result(result: Result<Handle<'_>>) -> Result<Handle<'static>> {
 	// SAFETY: Necessary to send the Handle (rust_rocksdb::PinnableSlice) through
 	// the channel. The lifetime on the handle is a device by rust-rocksdb to
-	// associate a database lifetime with its assets, not a function of rocksdb or
-	// the asset. The Handle must be dropped before the database is dropped. The
-	// handle must pass through recv_handle() on the other end of the channel.
+	// associate a database lifetime with its assets. The Handle must be dropped
+	// before the database is dropped. The handle must pass through recv_handle() on
+	// the other end of the channel.
 	unsafe { std::mem::transmute(result) }
 }
 

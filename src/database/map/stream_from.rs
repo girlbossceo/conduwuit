@@ -4,7 +4,10 @@ use conduit::{implement, Result};
 use futures::stream::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 
-use crate::{keyval, keyval::KeyVal, ser, stream};
+use crate::{
+	keyval::{result_deserialize, serialize_key, KeyVal},
+	stream,
+};
 
 /// Iterate key-value entries in the map starting from lower-bound.
 ///
@@ -17,8 +20,7 @@ where
 	K: Deserialize<'a> + Send,
 	V: Deserialize<'a> + Send,
 {
-	self.stream_from_raw(from)
-		.map(keyval::result_deserialize::<K, V>)
+	self.stream_from_raw(from).map(result_deserialize::<K, V>)
 }
 
 /// Iterate key-value entries in the map starting from lower-bound.
@@ -31,7 +33,7 @@ pub fn stream_from_raw<P>(&self, from: &P) -> impl Stream<Item = Result<KeyVal<'
 where
 	P: Serialize + ?Sized + Debug,
 {
-	let key = ser::serialize_to_vec(from).expect("failed to serialize query key");
+	let key = serialize_key(from).expect("failed to serialize query key");
 	self.raw_stream_from(&key)
 }
 
@@ -46,8 +48,7 @@ where
 	K: Deserialize<'a> + Send,
 	V: Deserialize<'a> + Send,
 {
-	self.raw_stream_from(from)
-		.map(keyval::result_deserialize::<K, V>)
+	self.raw_stream_from(from).map(result_deserialize::<K, V>)
 }
 
 /// Iterate key-value entries in the map starting from lower-bound.

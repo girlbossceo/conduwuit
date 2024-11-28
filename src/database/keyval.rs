@@ -1,13 +1,42 @@
 use conduit::Result;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
-use crate::de;
+use crate::{de, ser};
 
 pub type KeyVal<'a, K = &'a Slice, V = &'a Slice> = (Key<'a, K>, Val<'a, V>);
 pub type Key<'a, T = &'a Slice> = T;
 pub type Val<'a, T = &'a Slice> = T;
 
-pub type Slice = [u8];
+pub type KeyBuf = KeyBuffer;
+pub type ValBuf = ValBuffer;
+
+pub type KeyBuffer<const CAP: usize = KEY_STACK_CAP> = Buffer<CAP>;
+pub type ValBuffer<const CAP: usize = VAL_STACK_CAP> = Buffer<CAP>;
+pub type Buffer<const CAP: usize = DEF_STACK_CAP> = SmallVec<[Byte; CAP]>;
+
+pub type Slice = [Byte];
+pub type Byte = u8;
+
+pub const KEY_STACK_CAP: usize = 128;
+pub const VAL_STACK_CAP: usize = 512;
+pub const DEF_STACK_CAP: usize = KEY_STACK_CAP;
+
+#[inline]
+pub fn serialize_key<T>(val: T) -> Result<KeyBuf>
+where
+	T: Serialize,
+{
+	ser::serialize_to::<KeyBuf, _>(val)
+}
+
+#[inline]
+pub fn serialize_val<T>(val: T) -> Result<ValBuf>
+where
+	T: Serialize,
+{
+	ser::serialize_to::<ValBuf, _>(val)
+}
 
 #[inline]
 pub(crate) fn _expect_deserialize<'a, K, V>(kv: Result<KeyVal<'a>>) -> KeyVal<'a, K, V>

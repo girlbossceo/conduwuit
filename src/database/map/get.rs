@@ -7,6 +7,7 @@ use rocksdb::DBPinnableSlice;
 use serde::Serialize;
 
 use crate::{
+	keyval::KeyBuf,
 	ser,
 	util::{is_incomplete, map_err, or_else},
 	Handle,
@@ -18,11 +19,12 @@ type RocksdbResult<'a> = Result<Option<DBPinnableSlice<'a>>, rocksdb::Error>;
 /// asynchronously. The key is serialized into an allocated buffer to perform
 /// the query.
 #[implement(super::Map)]
+#[inline]
 pub fn qry<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: Serialize + ?Sized + Debug,
 {
-	let mut buf = Vec::<u8>::with_capacity(64);
+	let mut buf = KeyBuf::new();
 	self.bqry(key, &mut buf)
 }
 
@@ -30,6 +32,7 @@ where
 /// asynchronously. The key is serialized into a fixed-sized buffer to perform
 /// the query. The maximum size is supplied as const generic parameter.
 #[implement(super::Map)]
+#[inline]
 pub fn aqry<const MAX: usize, K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
 where
 	K: Serialize + ?Sized + Debug,
@@ -69,11 +72,8 @@ where
 	debug_assert!(matches!(cached, Ok(None)), "expected status Incomplete");
 	let cmd = Cmd::Get(Get {
 		map: self.clone(),
+		key: key.as_ref().into(),
 		res: None,
-		key: key
-			.as_ref()
-			.try_into()
-			.expect("failed to copy key into buffer"),
 	});
 
 	self.db.pool.execute(cmd).boxed()

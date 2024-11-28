@@ -1,28 +1,20 @@
 use std::io::Write;
 
-use arrayvec::ArrayVec;
 use conduit::{debug::type_name, err, result::DebugInspect, utils::exchange, Error, Result};
 use serde::{ser, Serialize};
 
 use crate::util::unhandled;
 
 #[inline]
-pub fn serialize_to_array<const MAX: usize, T>(val: T) -> Result<ArrayVec<u8, MAX>>
-where
-	T: Serialize,
-{
-	let mut buf = ArrayVec::<u8, MAX>::new();
-	serialize(&mut buf, val)?;
-
-	Ok(buf)
-}
+pub fn serialize_to_vec<T: Serialize>(val: T) -> Result<Vec<u8>> { serialize_to::<Vec<u8>, T>(val) }
 
 #[inline]
-pub fn serialize_to_vec<T>(val: T) -> Result<Vec<u8>>
+pub fn serialize_to<B, T>(val: T) -> Result<B>
 where
+	B: Default + Write + AsRef<[u8]>,
 	T: Serialize,
 {
-	let mut buf = Vec::with_capacity(64);
+	let mut buf = B::default();
 	serialize(&mut buf, val)?;
 
 	Ok(buf)

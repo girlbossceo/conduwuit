@@ -4,18 +4,20 @@ use arrayvec::ArrayVec;
 use conduit::implement;
 use serde::Serialize;
 
-use crate::{ser, util::or_else};
+use crate::{keyval::KeyBuf, ser, util::or_else};
 
 #[implement(super::Map)]
+#[inline]
 pub fn del<K>(&self, key: K)
 where
 	K: Serialize + Debug,
 {
-	let mut buf = Vec::<u8>::with_capacity(64);
+	let mut buf = KeyBuf::new();
 	self.bdel(key, &mut buf);
 }
 
 #[implement(super::Map)]
+#[inline]
 pub fn adel<const MAX: usize, K>(&self, key: K)
 where
 	K: Serialize + Debug,

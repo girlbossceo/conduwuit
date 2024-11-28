@@ -8,7 +8,7 @@ use futures::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{keyval, keyval::Key, ser};
+use crate::keyval::{result_deserialize_key, serialize_key, Key};
 
 #[implement(super::Map)]
 pub fn keys_prefix<'a, K, P>(&'a self, prefix: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
@@ -17,7 +17,7 @@ where
 	K: Deserialize<'a> + Send,
 {
 	self.keys_prefix_raw(prefix)
-		.map(keyval::result_deserialize_key::<K>)
+		.map(result_deserialize_key::<K>)
 }
 
 #[implement(super::Map)]
@@ -26,7 +26,7 @@ pub fn keys_prefix_raw<P>(&self, prefix: &P) -> impl Stream<Item = Result<Key<'_
 where
 	P: Serialize + ?Sized + Debug,
 {
-	let key = ser::serialize_to_vec(prefix).expect("failed to serialize query key");
+	let key = serialize_key(prefix).expect("failed to serialize query key");
 	self.raw_keys_from(&key)
 		.try_take_while(move |k: &Key<'_>| future::ok(k.starts_with(&key)))
 }
@@ -38,7 +38,7 @@ where
 	K: Deserialize<'a> + Send + 'a,
 {
 	self.raw_keys_prefix(prefix)
-		.map(keyval::result_deserialize_key::<K>)
+		.map(result_deserialize_key::<K>)
 }
 
 #[implement(super::Map)]

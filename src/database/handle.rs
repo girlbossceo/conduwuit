@@ -58,6 +58,7 @@ impl<'a> Deserialized for Result<&'a Handle<'a>> {
 }
 
 impl<'a> Deserialized for &'a Handle<'a> {
+	#[inline]
 	fn map_de<T, U, F>(self, f: F) -> Result<U>
 	where
 		F: FnOnce(T) -> U,

@@ -116,7 +116,7 @@ pub fn changes_since<'a>(
 	&'a self, room_id: Option<&'a RoomId>, user_id: &'a UserId, since: u64,
 ) -> impl Stream<Item = AnyRawAccountDataEvent> + Send + 'a {
 	let prefix = (room_id, user_id, Interfix);
-	let prefix = database::serialize_to_vec(prefix).expect("failed to serialize prefix");
+	let prefix = database::serialize_key(prefix).expect("failed to serialize prefix");
 
 	// Skip the data that's exactly at since, because we sent that last time
 	let first_possible = (room_id, user_id, since.saturating_add(1));

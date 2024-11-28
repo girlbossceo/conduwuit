@@ -9,7 +9,7 @@ use conduit::{
 	utils::{stream::TryIgnore, ReadyExt, StreamTools},
 	warn, Result,
 };
-use database::{serialize_to_vec, Deserialized, Ignore, Interfix, Json, Map};
+use database::{serialize_key, Deserialized, Ignore, Interfix, Json, Map};
 use futures::{future::join4, pin_mut, stream::iter, Stream, StreamExt};
 use itertools::Itertools;
 use ruma::{
@@ -289,10 +289,10 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn mark_as_joined(&self, user_id: &UserId, room_id: &RoomId) {
 		let userroom_id = (user_id, room_id);
-		let userroom_id = serialize_to_vec(userroom_id).expect("failed to serialize userroom_id");
+		let userroom_id = serialize_key(userroom_id).expect("failed to serialize userroom_id");
 
 		let roomuser_id = (room_id, user_id);
-		let roomuser_id = serialize_to_vec(roomuser_id).expect("failed to serialize roomuser_id");
+		let roomuser_id = serialize_key(roomuser_id).expect("failed to serialize roomuser_id");
 
 		self.db.userroomid_joined.insert(&userroom_id, []);
 		self.db.roomuserid_joined.insert(&roomuser_id, []);
@@ -312,10 +312,10 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn mark_as_left(&self, user_id: &UserId, room_id: &RoomId) {
 		let userroom_id = (user_id, room_id);
-		let userroom_id = serialize_to_vec(userroom_id).expect("failed to serialize userroom_id");
+		let userroom_id = serialize_key(userroom_id).expect("failed to serialize userroom_id");
 
 		let roomuser_id = (room_id, user_id);
-		let roomuser_id = serialize_to_vec(roomuser_id).expect("failed to serialize roomuser_id");
+		let roomuser_id = serialize_key(roomuser_id).expect("failed to serialize roomuser_id");
 
 		// (timo) TODO
 		let leftstate = Vec::<Raw<AnySyncStateEvent>>::new();
@@ -716,10 +716,10 @@ impl Service {
 		invite_via: Option<Vec<OwnedServerName>>,
 	) {
 		let roomuser_id = (room_id, user_id);
-		let roomuser_id = serialize_to_vec(roomuser_id).expect("failed to serialize roomuser_id");
+		let roomuser_id = serialize_key(roomuser_id).expect("failed to serialize roomuser_id");
 
 		let userroom_id = (user_id, room_id);
-		let userroom_id = serialize_to_vec(userroom_id).expect("failed to serialize userroom_id");
+		let userroom_id = serialize_key(userroom_id).expect("failed to serialize userroom_id");
 
 		self.db
 			.userroomid_invitestate

@@ -9,23 +9,25 @@ use conduit::{
 use futures::FutureExt;
 use serde::Serialize;
 
-use crate::ser;
+use crate::{keyval::KeyBuf, ser};
 
 /// Returns true if the map contains the key.
 /// - key is serialized into allocated buffer
 /// - harder errors may not be reported
+#[inline]
 #[implement(super::Map)]
 pub fn contains<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = bool> + Send + '_
 where
 	K: Serialize + ?Sized + Debug,
 {
-	let mut buf = Vec::<u8>::with_capacity(64);
+	let mut buf = KeyBuf::new();
 	self.bcontains(key, &mut buf)
 }
 
 /// Returns true if the map contains the key.
 /// - key is serialized into stack-buffer
 /// - harder errors will panic
+#[inline]
 #[implement(super::Map)]
 pub fn acontains<const MAX: usize, K>(self: &Arc<Self>, key: &K) -> impl Future<Output = bool> + Send + '_
 where
@@ -51,6 +53,7 @@ where
 
 /// Returns Ok if the map contains the key.
 /// - key is raw
+#[inline]
 #[implement(super::Map)]
 pub fn exists<'a, K>(self: &'a Arc<Self>, key: &K) -> impl Future<Output = Result> + Send + 'a
 where

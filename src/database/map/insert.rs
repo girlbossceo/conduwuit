@@ -10,20 +10,25 @@ use conduit::implement;
 use rocksdb::WriteBatchWithTransaction;
 use serde::Serialize;
 
-use crate::{ser, util::or_else};
+use crate::{
+	keyval::{KeyBuf, ValBuf},
+	ser,
+	util::or_else,
+};
 
 /// Insert Key/Value
 ///
 /// - Key is serialized
 /// - Val is serialized
 #[implement(super::Map)]
+#[inline]
 pub fn put<K, V>(&self, key: K, val: V)
 where
 	K: Serialize + Debug,
 	V: Serialize,
 {
-	let mut key_buf = Vec::new();
-	let mut val_buf = Vec::new();
+	let mut key_buf = KeyBuf::new();
+	let mut val_buf = ValBuf::new();
 	self.bput(key, val, (&mut key_buf, &mut val_buf));
 }
 
@@ -32,12 +37,13 @@ where
 /// - Key is serialized
 /// - Val is raw
 #[implement(super::Map)]
+#[inline]
 pub fn put_raw<K, V>(&self, key: K, val: V)
 where
 	K: Serialize + Debug,
 	V: AsRef<[u8]>,
 {
-	let mut key_buf = Vec::new();
+	let mut key_buf = KeyBuf::new();
 	self.bput_raw(key, val, &mut key_buf);
 }
 
@@ -46,12 +52,13 @@ where
 /// - Key is raw
 /// - Val is serialized
 #[implement(super::Map)]
+#[inline]
 pub fn raw_put<K, V>(&self, key: K, val: V)
 where
 	K: AsRef<[u8]>,
 	V: Serialize,
 {
-	let mut val_buf = Vec::new();
+	let mut val_buf = ValBuf::new();
 	self.raw_bput(key, val, &mut val_buf);
 }
 
@@ -60,12 +67,13 @@ where
 /// - Key is serialized
 /// - Val is serialized to stack-buffer
 #[implement(super::Map)]
+#[inline]
 pub fn put_aput<const VMAX: usize, K, V>(&self, key: K, val: V)
 where
 	K: Serialize + Debug,
 	V: Serialize,
 {
-	let mut key_buf = Vec::new();
+	let mut key_buf = KeyBuf::new();
 	let mut val_buf = ArrayVec::<u8, VMAX>::new();
 	self.bput(key, val, (&mut key_buf, &mut val_buf));
 }
@@ -75,13 +83,14 @@ where
 /// - Key is serialized to stack-buffer
 /// - Val is serialized
 #[implement(super::Map)]
+#[inline]
 pub fn aput_put<const KMAX: usize, K, V>(&self, key: K, val: V)
 where
 	K: Serialize + Debug,
 	V: Serialize,
 {
 	let mut key_buf = ArrayVec::<u8, KMAX>::new();
-	let mut val_buf = Vec::new();
+	let mut val_buf = ValBuf::new();
 	self.bput(key, val, (&mut key_buf, &mut val_buf));
 }
 
@@ -90,6 +99,7 @@ where
 /// - Key is serialized to stack-buffer
 /// - Val is serialized to stack-buffer
 #[implement(super::Map)]
+#[inline]
 pub fn aput<const KMAX: usize, const VMAX: usize, K, V>(&self, key: K, val: V)
 where
 	K: Serialize + Debug,
@@ -105,6 +115,7 @@ where
 /// - Key is serialized to stack-buffer
 /// - Val is raw
 #[implement(super::Map)]
+#[inline]
 pub fn aput_raw<const KMAX: usize, K, V>(&self, key: K, val: V)
 where
 	K: Serialize + Debug,
@@ -119,6 +130,7 @@ where
 /// - Key is raw
 /// - Val is serialized to stack-buffer
 #[implement(super::Map)]
+#[inline]
 pub fn raw_aput<const VMAX: usize, K, V>(&self, key: K, val: V)
 where
 	K: AsRef<[u8]>,

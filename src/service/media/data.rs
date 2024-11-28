@@ -39,14 +39,14 @@ impl Data {
 	) -> Result<Vec<u8>> {
 		let dim: &[u32] = &[dim.width, dim.height];
 		let key = (mxc, dim, content_disposition, content_type);
-		let key = database::serialize_to_vec(key)?;
+		let key = database::serialize_key(key)?;
 		self.mediaid_file.insert(&key, []);
 		if let Some(user) = user {
 			let key = (mxc, user);
 			self.mediaid_user.put_raw(key, user);
 		}
 
-		Ok(key)
+		Ok(key.to_vec())
 	}
 
 	pub(super) async fn delete_file_mxc(&self, mxc: &Mxc<'_>) {

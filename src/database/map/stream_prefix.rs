@@ -8,7 +8,7 @@ use futures::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{keyval, keyval::KeyVal, ser};
+use crate::keyval::{result_deserialize, serialize_key, KeyVal};
 
 /// Iterate key-value entries in the map where the key matches a prefix.
 ///
@@ -22,7 +22,7 @@ where
 	V: Deserialize<'a> + Send,
 {
 	self.stream_prefix_raw(prefix)
-		.map(keyval::result_deserialize::<K, V>)
+		.map(result_deserialize::<K, V>)
 }
 
 /// Iterate key-value entries in the map where the key matches a prefix.
@@ -35,7 +35,7 @@ pub fn stream_prefix_raw<P>(&self, prefix: &P) -> impl Stream<Item = Result<KeyV
 where
 	P: Serialize + ?Sized + Debug,
 {
-	let key = ser::serialize_to_vec(prefix).expect("failed to serialize query key");
+	let key = serialize_key(prefix).expect("failed to serialize query key");
 	self.raw_stream_from(&key)
 		.try_take_while(move |(k, _): &KeyVal<'_>| future::ok(k.starts_with(&key)))
 }
@@ -54,7 +54,7 @@ where
 	V: Deserialize<'a> + Send + 'a,
 {
 	self.raw_stream_prefix(prefix)
-		.map(keyval::result_deserialize::<K, V>)
+		.map(result_deserialize::<K, V>)
 }
 
 /// Iterate key-value entries in the map where the key matches a prefix.
