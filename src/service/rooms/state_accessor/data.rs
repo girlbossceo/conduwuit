@@ -179,7 +179,6 @@ impl Data {
 	}
 
 	/// Returns the full room state.
-	#[allow(unused_qualifications)] // async traits
 	pub(super) async fn room_state_full(
 		&self, room_id: &RoomId,
 	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {

@@ -54,7 +54,7 @@ impl LogLevelReloadHandles {
 			.lock()
 			.expect("locked")
 			.iter()
-			.filter(|(name, _)| names.map_or(false, |names| names.contains(&name.as_str())))
+			.filter(|(name, _)| names.is_some_and(|names| names.contains(&name.as_str())))
 			.for_each(|(_, handle)| {
 				_ = handle.reload(new_value.clone()).or_else(error::else_log);
 			});

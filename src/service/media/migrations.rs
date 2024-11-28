@@ -112,7 +112,7 @@ async fn handle_media_check(
 	let old_is_symlink = || async {
 		tokio::fs::symlink_metadata(old_path)
 			.await
-			.map_or(false, |md| md.is_symlink())
+			.is_ok_and(|md| md.is_symlink())
 	};
 
 	if config.prune_missing_media && !old_exists && !new_exists {

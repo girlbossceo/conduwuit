@@ -24,10 +24,7 @@ pub(super) fn get_prefix(&self) -> Vec<u8> {
 		},
 		Self::Appservice(server) => {
 			let sigil = b"+";
-			let len = sigil
-				.len()
-				.saturating_add(server.as_bytes().len())
-				.saturating_add(1);
+			let len = sigil.len().saturating_add(server.len()).saturating_add(1);
 
 			let mut p = Vec::with_capacity(len);
 			p.extend_from_slice(sigil);
@@ -41,7 +38,7 @@ pub(super) fn get_prefix(&self) -> Vec<u8> {
 				.len()
 				.saturating_add(user.as_bytes().len())
 				.saturating_add(1)
-				.saturating_add(pushkey.as_bytes().len())
+				.saturating_add(pushkey.len())
 				.saturating_add(1);
 
 			let mut p = Vec::with_capacity(len);

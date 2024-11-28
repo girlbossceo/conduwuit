@@ -58,8 +58,5 @@ pub unsafe fn current_exe() -> Result<std::path::PathBuf> {
 /// accurate on all platforms; defaults to false.
 #[must_use]
 pub fn current_exe_deleted() -> bool {
-	std::env::current_exe().map_or(false, |exe| {
-		exe.to_str()
-			.map_or(false, |exe| exe.ends_with(" (deleted)"))
-	})
+	std::env::current_exe().is_ok_and(|exe| exe.to_str().is_some_and(|exe| exe.ends_with(" (deleted)")))
 }

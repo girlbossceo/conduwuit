@@ -757,7 +757,7 @@ fn get_parent_children_via(
 fn next_room_to_traverse(
 	stack: &mut Vec<Vec<(OwnedRoomId, Vec<OwnedServerName>)>>, parents: &mut VecDeque<OwnedRoomId>,
 ) -> Option<(OwnedRoomId, Vec<OwnedServerName>)> {
-	while stack.last().map_or(false, Vec::is_empty) {
+	while stack.last().is_some_and(Vec::is_empty) {
 		stack.pop();
 		parents.pop_back();
 	}

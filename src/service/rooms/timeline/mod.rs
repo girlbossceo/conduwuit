@@ -616,7 +616,7 @@ impl Service {
 						&& pdu
 							.state_key
 							.as_ref()
-							.map_or(false, |state_key| users.is_match(state_key))
+							.is_some_and(|state_key| users.is_match(state_key))
 			};
 			let matching_aliases = |aliases: NamespaceRegex| {
 				self.services

@@ -413,7 +413,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 					.rooms
 					.state_accessor
 					.get_member(room_id, user_id)
-					.map(|member| member.map_or(false, |member| member.membership == MembershipState::Join))
+					.map(|member| member.is_ok_and(|member| member.membership == MembershipState::Join))
 			})
 			.collect::<Vec<_>>()
 			.await;
@@ -426,7 +426,7 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 					.rooms
 					.state_accessor
 					.get_member(room_id, user_id)
-					.map(|member| member.map_or(false, |member| member.membership == MembershipState::Join))
+					.map(|member| member.is_ok_and(|member| member.membership == MembershipState::Join))
 			})
 			.collect::<Vec<_>>()
 			.await;

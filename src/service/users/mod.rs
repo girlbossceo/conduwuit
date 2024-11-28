@@ -101,7 +101,7 @@ impl Service {
 			.account_data
 			.get_global(recipient_user, GlobalAccountDataEventType::IgnoredUserList)
 			.await
-			.map_or(false, |ignored: IgnoredUserListEvent| {
+			.is_ok_and(|ignored: IgnoredUserListEvent| {
 				ignored
 					.content
 					.ignored_users
