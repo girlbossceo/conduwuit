@@ -17,15 +17,14 @@ pub(crate) struct Pool {
 	send: Sender<Cmd>,
 }
 
-#[derive(Default)]
 pub(crate) struct Opts {
-	queue_size: Option<usize>,
-	worker_num: Option<usize>,
+	pub(crate) queue_size: usize,
+	pub(crate) worker_num: usize,
 }
 
+const QUEUE_LIMIT: (usize, usize) = (1, 8192);
+const WORKER_LIMIT: (usize, usize) = (1, 512);
 const WORKER_THREAD_NAME: &str = "conduwuit:db";
-const DEFAULT_QUEUE_SIZE: usize = 1024;
-const DEFAULT_WORKER_NUM: usize = 32;
 
 #[derive(Debug)]
 pub(crate) enum Cmd {
@@ -43,7 +42,7 @@ type ResultSender = oneshot::Sender<Result<Handle<'static>>>;
 
 #[implement(Pool)]
 pub(crate) fn new(opts: &Opts) -> Result<Arc<Self>> {
-	let queue_size = opts.queue_size.unwrap_or(DEFAULT_QUEUE_SIZE);
+	let queue_size = opts.queue_size.clamp(QUEUE_LIMIT.0, QUEUE_LIMIT.1);
 
 	let (send, recv) = bounded(queue_size);
 	let pool = Arc::new(Self {
@@ -52,7 +51,7 @@ pub(crate) fn new(opts: &Opts) -> Result<Arc<Self>> {
 		send,
 	});
 
-	let worker_num = opts.worker_num.unwrap_or(DEFAULT_WORKER_NUM);
+	let worker_num = opts.worker_num.clamp(WORKER_LIMIT.0, WORKER_LIMIT.1);
 	pool.spawn_until(worker_num)?;
 
 	Ok(pool)
@@ -147,12 +146,12 @@ fn worker(self: Arc<Self>, id: usize) {
 #[implement(Pool)]
 fn worker_loop(&self, id: usize) {
 	while let Ok(mut cmd) = self.recv.recv_blocking() {
-		self.handle(id, &mut cmd);
+		self.worker_handle(id, &mut cmd);
 	}
 }
 
 #[implement(Pool)]
-fn handle(&self, id: usize, cmd: &mut Cmd) {
+fn worker_handle(&self, id: usize, cmd: &mut Cmd) {
 	match cmd {
 		Cmd::Get(get) => self.handle_get(id, get),
 	}

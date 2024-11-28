@@ -103,6 +103,11 @@ impl Engine {
 			"Opened database."
 		);
 
+		let pool_opts = pool::Opts {
+			queue_size: config.db_pool_queue_size,
+			worker_num: config.db_pool_workers,
+		};
+
 		Ok(Arc::new(Self {
 			server: server.clone(),
 			row_cache,
@@ -114,7 +119,7 @@ impl Engine {
 			corks: AtomicU32::new(0),
 			read_only: config.rocksdb_read_only,
 			secondary: config.rocksdb_secondary,
-			pool: Pool::new(&pool::Opts::default())?,
+			pool: Pool::new(&pool_opts)?,
 		}))
 	}
 

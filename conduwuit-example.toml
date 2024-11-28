@@ -1338,6 +1338,18 @@
 #
 #admin_room_notices = true
 
+# Sets the number of worker threads in the frontend-pool of the database.
+# This number should reflect the I/O capabilities of the system,
+# specifically the queue-depth or the number of simultaneous requests in
+# flight. Defaults to 32 or number of CPU cores, whichever is greater.
+#
+#db_pool_workers = 32
+
+# Size of the queue feeding the database's frontend-pool. Defaults to 256
+# or eight times the number of CPU cores, whichever is greater.
+#
+#db_pool_queue_size = 256
+
 [global.tls]
 
 # Path to a valid TLS certificate file.

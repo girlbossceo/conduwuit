@@ -1500,6 +1500,20 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub admin_room_notices: bool,
 
+	/// Sets the number of worker threads in the frontend-pool of the database.
+	/// This number should reflect the I/O capabilities of the system,
+	/// specifically the queue-depth or the number of simultaneous requests in
+	/// flight. Defaults to 32 or number of CPU cores, whichever is greater.
+	/// default: 32
+	#[serde(default = "default_db_pool_workers")]
+	pub db_pool_workers: usize,
+
+	/// Size of the queue feeding the database's frontend-pool. Defaults to 256
+	/// or eight times the number of CPU cores, whichever is greater.
+	/// default: 256
+	#[serde(default = "default_db_pool_queue_size")]
+	pub db_pool_queue_size: usize,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
 	catchall: BTreeMap<String, IgnoredAny>,
@@ -2265,3 +2279,7 @@ fn parallelism_scaled_u32(val: u32) -> u32 {
 fn parallelism_scaled(val: usize) -> usize { val.saturating_mul(sys::available_parallelism()) }
 
 fn default_trusted_server_batch_size() -> usize { 256 }
+
+fn default_db_pool_workers() -> usize { sys::available_parallelism().max(32) }
+
+fn default_db_pool_queue_size() -> usize { sys::available_parallelism().saturating_mul(8).max(256) }
