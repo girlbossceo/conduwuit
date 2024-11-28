@@ -184,17 +184,17 @@ features = [
 
 # logging
 [workspace.dependencies.log]
-version = "0.4.21"
+version = "0.4.22"
 default-features = false
 [workspace.dependencies.tracing]
-version = "0.1.40"
+version = "0.1.41"
 default-features = false
 [workspace.dependencies.tracing-subscriber]
 version = "0.3.18"
 default-features = false
 features = ["env-filter", "std", "tracing", "tracing-log", "ansi", "fmt"]
 [workspace.dependencies.tracing-core]
-version = "0.1.32"
+version = "0.1.33"
 default-features = false
 
 # for URL previews
@@ -493,16 +493,16 @@ version = "1.3.0"
 # https://github.com/girlbossceo/tracing/commit/b348dca742af641c47bc390261f60711c2af573c
 [patch.crates-io.tracing-subscriber]
 git = "https://github.com/girlbossceo/tracing"
-rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
+rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
 [patch.crates-io.tracing]
 git = "https://github.com/girlbossceo/tracing"
-rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
+rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
 [patch.crates-io.tracing-core]
 git = "https://github.com/girlbossceo/tracing"
-rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
+rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
 [patch.crates-io.tracing-log]
 git = "https://github.com/girlbossceo/tracing"
-rev = "4d78a14a5e03f539b8c6b475aefa08bb14e4de91"
+rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
 
 # adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
 # adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
