@@ -1021,7 +1021,7 @@ async fn load_joined_room(
 		state: RoomState {
 			events: state_events
 				.iter()
-				.map(|pdu| pdu.to_sync_state_event())
+				.map(PduEvent::to_sync_state_event)
 				.collect(),
 		},
 		ephemeral: Ephemeral {

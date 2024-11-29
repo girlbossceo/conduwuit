@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduit::{debug, debug_info, err, implement, trace, warn, Err, Error, PduEvent, Result};
-use futures::future::ready;
+use futures::{future::ready, TryFutureExt};
 use ruma::{
 	api::client::error::ErrorKind,
 	events::StateEventType,
@@ -94,7 +94,7 @@ pub(super) async fn handle_outlier_pdu<'a>(
 	// Build map of auth events
 	let mut auth_events = HashMap::with_capacity(incoming_pdu.auth_events.len());
 	for id in &incoming_pdu.auth_events {
-		let Ok(auth_event) = self.services.timeline.get_pdu(id).await else {
+		let Ok(auth_event) = self.services.timeline.get_pdu(id).map_ok(Arc::new).await else {
 			warn!("Could not find auth event {id}");
 			continue;
 		};

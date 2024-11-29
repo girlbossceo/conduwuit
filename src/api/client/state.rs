@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use conduit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, Result};
+use conduit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, PduEvent, Result};
 use ruma::{
 	api::client::{
 		error::ErrorKind,
@@ -97,7 +97,7 @@ pub(crate) async fn get_state_events_route(
 			.room_state_full(&body.room_id)
 			.await?
 			.values()
-			.map(|pdu| pdu.to_state_event())
+			.map(PduEvent::to_state_event)
 			.collect(),
 	})
 }

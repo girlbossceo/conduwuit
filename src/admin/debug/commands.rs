@@ -266,15 +266,15 @@ pub(super) async fn get_remote_pdu(
 #[admin_command]
 pub(super) async fn get_room_state(&self, room: OwnedRoomOrAliasId) -> Result<RoomMessageEventContent> {
 	let room_id = self.services.rooms.alias.resolve(&room).await?;
-	let room_state = self
+	let room_state: Vec<_> = self
 		.services
 		.rooms
 		.state_accessor
 		.room_state_full(&room_id)
 		.await?
 		.values()
-		.map(|pdu| pdu.to_state_event())
-		.collect::<Vec<_>>();
+		.map(PduEvent::to_state_event)
+		.collect();
 
 	if room_state.is_empty() {
 		return Ok(RoomMessageEventContent::text_plain(

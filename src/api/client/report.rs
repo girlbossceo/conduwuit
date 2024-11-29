@@ -137,7 +137,7 @@ pub(crate) async fn report_event_route(
 /// check if reporting user is in the reporting room
 async fn is_event_report_valid(
 	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: Option<&String>,
-	score: Option<ruma::Int>, pdu: &std::sync::Arc<PduEvent>,
+	score: Option<ruma::Int>, pdu: &PduEvent,
 ) -> Result<()> {
 	debug_info!("Checking if report from user {sender_user} for event {event_id} in room {room_id} is valid");
 

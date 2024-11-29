@@ -17,7 +17,11 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{utils::MutexMap, Err, PduEvent, Result, Server};
+use conduit::{
+	utils::{MutexMap, TryFutureExtExt},
+	Err, PduEvent, Result, Server,
+};
+use futures::TryFutureExt;
 use ruma::{
 	events::room::create::RoomCreateEventContent, state_res::RoomVersion, EventId, OwnedEventId, OwnedRoomId, RoomId,
 	RoomVersionId,
@@ -94,7 +98,12 @@ impl Service {
 	async fn event_exists(&self, event_id: Arc<EventId>) -> bool { self.services.timeline.pdu_exists(&event_id).await }
 
 	async fn event_fetch(&self, event_id: Arc<EventId>) -> Option<Arc<PduEvent>> {
-		self.services.timeline.get_pdu(&event_id).await.ok()
+		self.services
+			.timeline
+			.get_pdu(&event_id)
+			.map_ok(Arc::new)
+			.ok()
+			.await
 	}
 }
 

@@ -242,12 +242,7 @@ impl Service {
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	pub async fn get_pdu(&self, event_id: &EventId) -> Result<Arc<PduEvent>> { self.db.get_pdu(event_id).await }
-
-	/// Returns the pdu.
-	///
-	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	pub async fn get_pdu_owned(&self, event_id: &EventId) -> Result<PduEvent> { self.db.get_pdu_owned(event_id).await }
+	pub async fn get_pdu(&self, event_id: &EventId) -> Result<PduEvent> { self.db.get_pdu(event_id).await }
 
 	/// Checks if pdu exists
 	///
@@ -327,11 +322,11 @@ impl Service {
 						);
 						unsigned.insert(
 							String::from("prev_sender"),
-							CanonicalJsonValue::String(prev_state.sender.clone().to_string()),
+							CanonicalJsonValue::String(prev_state.sender.to_string()),
 						);
 						unsigned.insert(
 							String::from("replaces_state"),
-							CanonicalJsonValue::String(prev_state.event_id.clone().to_string()),
+							CanonicalJsonValue::String(prev_state.event_id.to_string()),
 						);
 					}
 				}

@@ -1,10 +1,11 @@
 use std::{
 	collections::{hash_map, BTreeMap},
+	sync::Arc,
 	time::Instant,
 };
 
 use conduit::{debug, err, implement, warn, Error, Result};
-use futures::FutureExt;
+use futures::{FutureExt, TryFutureExt};
 use ruma::{
 	api::client::error::ErrorKind, events::StateEventType, CanonicalJsonValue, EventId, RoomId, ServerName, UserId,
 };
@@ -79,6 +80,7 @@ pub async fn handle_incoming_pdu<'a>(
 		.services
 		.state_accessor
 		.room_state_get(room_id, &StateEventType::RoomCreate, "")
+		.map_ok(Arc::new)
 		.await?;
 
 	// Procure the room version

@@ -18,7 +18,7 @@ pub(crate) async fn get_room_event_route(
 		event: services
 			.rooms
 			.timeline
-			.get_pdu_owned(&body.event_id)
+			.get_pdu(&body.event_id)
 			.map_err(|_| err!(Request(NotFound("Event {} not found.", &body.event_id))))
 			.and_then(|event| async move {
 				services

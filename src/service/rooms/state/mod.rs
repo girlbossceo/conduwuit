@@ -445,7 +445,7 @@ impl Service {
 			.into_iter()
 			.map(at!(0))
 			.zip(auth_pdus.into_iter())
-			.filter_map(|((event_type, state_key), pdu)| Some(((event_type, state_key), pdu.ok()?)))
+			.filter_map(|((event_type, state_key), pdu)| Some(((event_type, state_key), pdu.ok()?.into())))
 			.collect();
 
 		Ok(auth_pdus)

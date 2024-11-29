@@ -114,7 +114,7 @@ impl Service {
 
 	pub async fn state_full(
 		&self, shortstatehash: ShortStateHash,
-	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		self.db.state_full(shortstatehash).await
 	}
 
@@ -134,7 +134,7 @@ impl Service {
 	#[inline]
 	pub async fn state_get(
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<PduEvent>> {
+	) -> Result<PduEvent> {
 		self.db
 			.state_get(shortstatehash, event_type, state_key)
 			.await
@@ -311,13 +311,13 @@ impl Service {
 
 	/// Returns the full room state.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	pub async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		self.db.room_state_full(room_id).await
 	}
 
 	/// Returns the full room state pdus
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<Arc<PduEvent>>> {
+	pub async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<PduEvent>> {
 		self.db.room_state_full_pdus(room_id).await
 	}
 
@@ -337,7 +337,7 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<PduEvent>> {
+	) -> Result<PduEvent> {
 		self.db.room_state_get(room_id, event_type, state_key).await
 	}
 

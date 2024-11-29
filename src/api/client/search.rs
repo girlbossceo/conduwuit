@@ -181,11 +181,7 @@ async fn procure_room_state(services: &Services, room_id: &RoomId) -> Result<Roo
 		.room_state_full(room_id)
 		.await?;
 
-	let state_events = state_map
-		.values()
-		.map(AsRef::as_ref)
-		.map(PduEvent::to_state_event)
-		.collect();
+	let state_events = state_map.values().map(PduEvent::to_state_event).collect();
 
 	Ok(state_events)
 }

@@ -7,6 +7,7 @@ use std::{
 use conduit::{
 	debug, debug_error, implement, info, pdu, trace, utils::math::continue_exponential_backoff_secs, warn, PduEvent,
 };
+use futures::TryFutureExt;
 use ruma::{api::federation::event::get_event, CanonicalJsonValue, EventId, RoomId, RoomVersionId, ServerName};
 
 /// Find the event and auth it. Once the event is validated (steps 1 - 8)
@@ -42,7 +43,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 		// a. Look in the main timeline (pduid_pdu tree)
 		// b. Look at outlier pdu tree
 		// (get_pdu_json checks both)
-		if let Ok(local_pdu) = self.services.timeline.get_pdu(id).await {
+		if let Ok(local_pdu) = self.services.timeline.get_pdu(id).map_ok(Arc::new).await {
 			trace!("Found {id} in db");
 			events_with_auth_events.push((id, Some(local_pdu), vec![]));
 			continue;

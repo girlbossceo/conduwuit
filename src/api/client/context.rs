@@ -103,7 +103,7 @@ pub(crate) async fn get_context_route(
 		.collect()
 		.await;
 
-	let lazy = once(&(base_token, (*base_event).clone()))
+	let lazy = once(&(base_token, base_event.clone()))
 		.chain(events_before.iter())
 		.chain(events_after.iter())
 		.stream()

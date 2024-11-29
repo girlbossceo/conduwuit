@@ -126,14 +126,7 @@ impl Data {
 	/// Returns the pdu.
 	///
 	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	pub(super) async fn get_pdu(&self, event_id: &EventId) -> Result<Arc<PduEvent>> {
-		self.get_pdu_owned(event_id).await.map(Arc::new)
-	}
-
-	/// Returns the pdu.
-	///
-	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	pub(super) async fn get_pdu_owned(&self, event_id: &EventId) -> Result<PduEvent> {
+	pub(super) async fn get_pdu(&self, event_id: &EventId) -> Result<PduEvent> {
 		let accepted = self.get_non_outlier_pdu(event_id).boxed();
 		let outlier = self
 			.eventid_outlierpdu

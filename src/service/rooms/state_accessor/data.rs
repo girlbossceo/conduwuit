@@ -46,7 +46,7 @@ impl Data {
 
 	pub(super) async fn state_full(
 		&self, shortstatehash: ShortStateHash,
-	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		let state = self
 			.state_full_pdus(shortstatehash)
 			.await?
@@ -57,24 +57,27 @@ impl Data {
 		Ok(state)
 	}
 
-	pub(super) async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<Arc<PduEvent>>> {
+	pub(super) async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<PduEvent>> {
 		let short_ids = self
 			.state_full_shortids(shortstatehash)
 			.await?
 			.into_iter()
 			.map(at!(1));
 
-		let event_ids = self
+		let event_ids: Vec<OwnedEventId> = self
 			.services
 			.short
 			.multi_get_eventid_from_short(short_ids)
-			.await;
+			.await
+			.into_iter()
+			.filter_map(Result::ok)
+			.collect();
 
 		let full_pdus = event_ids
-			.into_iter()
+			.iter()
 			.stream()
+			.then(|event_id| self.services.timeline.get_pdu(event_id))
 			.ready_filter_map(Result::ok)
-			.filter_map(|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await.ok() })
 			.collect()
 			.await;
 
@@ -157,7 +160,7 @@ impl Data {
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub(super) async fn state_get(
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<PduEvent>> {
+	) -> Result<PduEvent> {
 		self.state_get_id(shortstatehash, event_type, state_key)
 			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
 			.await
@@ -181,7 +184,7 @@ impl Data {
 	/// Returns the full room state.
 	pub(super) async fn room_state_full(
 		&self, room_id: &RoomId,
-	) -> Result<HashMap<(StateEventType, String), Arc<PduEvent>>> {
+	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		self.services
 			.state
 			.get_room_shortstatehash(room_id)
@@ -192,7 +195,7 @@ impl Data {
 
 	/// Returns the full room state's pdus.
 	#[allow(unused_qualifications)] // async traits
-	pub(super) async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<Arc<PduEvent>>> {
+	pub(super) async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<PduEvent>> {
 		self.services
 			.state
 			.get_room_shortstatehash(room_id)
@@ -215,7 +218,7 @@ impl Data {
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub(super) async fn room_state_get(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<PduEvent>> {
+	) -> Result<PduEvent> {
 		self.services
 			.state
 			.get_room_shortstatehash(room_id)
