@@ -32,7 +32,7 @@ use ruma::{
 		TimelineEventType::*,
 	},
 	serde::Raw,
-	uint, DeviceId, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
+	uint, DeviceId, EventId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use tracing::{Instrument as _, Span};
 
@@ -398,7 +398,7 @@ async fn handle_left_room(
 		Err(_) => HashMap::new(),
 	};
 
-	let Ok(left_event_id) = services
+	let Ok(left_event_id): Result<OwnedEventId> = services
 		.rooms
 		.state_accessor
 		.room_state_get_id(room_id, &StateEventType::RoomMember, sender_user.as_str())
@@ -666,7 +666,7 @@ async fn load_joined_room(
 
 			let (joined_member_count, invited_member_count, heroes) = calculate_counts().await?;
 
-			let current_state_ids = services
+			let current_state_ids: HashMap<_, OwnedEventId> = services
 				.rooms
 				.state_accessor
 				.state_full_ids(current_shortstatehash)
@@ -736,7 +736,7 @@ async fn load_joined_room(
 			let mut delta_state_events = Vec::new();
 
 			if since_shortstatehash != current_shortstatehash {
-				let current_state_ids = services
+				let current_state_ids: HashMap<_, OwnedEventId> = services
 					.rooms
 					.state_accessor
 					.state_full_ids(current_shortstatehash)

@@ -1,6 +1,7 @@
 mod data;
 
 use std::{
+	borrow::Borrow,
 	collections::HashMap,
 	fmt::Write,
 	sync::{Arc, Mutex as StdMutex, Mutex},
@@ -101,8 +102,12 @@ impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
-		self.db.state_full_ids(shortstatehash).await
+	pub async fn state_full_ids<Id>(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Id>>
+	where
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
+		self.db.state_full_ids::<Id>(shortstatehash).await
 	}
 
 	#[inline]
@@ -118,12 +123,16 @@ impl Service {
 		self.db.state_full(shortstatehash).await
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
+	/// Returns a single EventId from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_get_id(
+	pub async fn state_get_id<Id>(
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<EventId>> {
+	) -> Result<Id>
+	where
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
 		self.db
 			.state_get_id(shortstatehash, event_type, state_key)
 			.await
@@ -321,12 +330,16 @@ impl Service {
 		self.db.room_state_full_pdus(room_id).await
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
+	/// Returns a single EventId from `room_id` with key (`event_type`,
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_get_id(
+	pub async fn room_state_get_id<Id>(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<EventId>> {
+	) -> Result<Id>
+	where
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
 		self.db
 			.room_state_get_id(room_id, event_type, state_key)
 			.await

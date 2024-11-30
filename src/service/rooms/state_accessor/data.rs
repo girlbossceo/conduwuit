@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 use conduit::{
 	at, err,
@@ -8,6 +8,7 @@ use conduit::{
 use database::{Deserialized, Map};
 use futures::{StreamExt, TryFutureExt};
 use ruma::{events::StateEventType, EventId, OwnedEventId, RoomId};
+use serde::Deserialize;
 
 use crate::{
 	rooms,
@@ -84,7 +85,11 @@ impl Data {
 		Ok(full_pdus)
 	}
 
-	pub(super) async fn state_full_ids(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Arc<EventId>>> {
+	pub(super) async fn state_full_ids<Id>(&self, shortstatehash: ShortStateHash) -> Result<HashMap<ShortStateKey, Id>>
+	where
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
 		let short_ids = self.state_full_shortids(shortstatehash).await?;
 
 		let event_ids = self
@@ -123,11 +128,15 @@ impl Data {
 		Ok(shortids)
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
-	#[allow(clippy::unused_self)]
-	pub(super) async fn state_get_id(
+	/// Returns a single EventId from `room_id` with key
+	/// (`event_type`,`state_key`).
+	pub(super) async fn state_get_id<Id>(
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<EventId>> {
+	) -> Result<Id>
+	where
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
 		let shortstatekey = self
 			.services
 			.short
@@ -162,7 +171,7 @@ impl Data {
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<PduEvent> {
 		self.state_get_id(shortstatehash, event_type, state_key)
-			.and_then(|event_id| async move { self.services.timeline.get_pdu(&event_id).await })
+			.and_then(|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await })
 			.await
 	}
 
@@ -204,10 +213,15 @@ impl Data {
 			.await
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
-	pub(super) async fn room_state_get_id(
+	/// Returns a single EventId from `room_id` with key
+	/// (`event_type`,`state_key`).
+	pub(super) async fn room_state_get_id<Id>(
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
-	) -> Result<Arc<EventId>> {
+	) -> Result<Id>
+	where
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
 		self.services
 			.state
 			.get_room_shortstatehash(room_id)

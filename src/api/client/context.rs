@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::{collections::HashMap, iter::once};
 
 use axum::extract::State;
 use conduit::{
@@ -10,7 +10,7 @@ use futures::{future::try_join, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{context::get_context, filter::LazyLoadOptions},
 	events::StateEventType,
-	UserId,
+	OwnedEventId, UserId,
 };
 
 use crate::{
@@ -124,7 +124,7 @@ pub(crate) async fn get_context_route(
 		.await
 		.map_err(|e| err!(Database("State hash not found: {e}")))?;
 
-	let state_ids = services
+	let state_ids: HashMap<_, OwnedEventId> = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)

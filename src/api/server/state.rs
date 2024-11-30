@@ -3,7 +3,7 @@ use std::{borrow::Borrow, iter::once};
 use axum::extract::State;
 use conduit::{err, result::LogErr, utils::IterStream, Result};
 use futures::{FutureExt, StreamExt, TryStreamExt};
-use ruma::api::federation::event::get_room_state;
+use ruma::{api::federation::event::get_room_state, OwnedEventId};
 
 use super::AccessCheck;
 use crate::Ruma;
@@ -30,14 +30,18 @@ pub(crate) async fn get_room_state_route(
 		.await
 		.map_err(|_| err!(Request(NotFound("PDU state not found."))))?;
 
-	let pdus = services
+	let state_ids: Vec<OwnedEventId> = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
 		.await
 		.log_err()
 		.map_err(|_| err!(Request(NotFound("PDU state IDs not found."))))?
-		.values()
+		.into_values()
+		.collect();
+
+	let pdus = state_ids
+		.iter()
 		.try_stream()
 		.and_then(|id| services.rooms.timeline.get_pdu_json(id))
 		.and_then(|pdu| {

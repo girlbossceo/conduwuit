@@ -1,6 +1,6 @@
 use std::{
 	cmp::{self, Ordering},
-	collections::{BTreeMap, BTreeSet, HashSet},
+	collections::{BTreeMap, BTreeSet, HashMap, HashSet},
 	time::Duration,
 };
 
@@ -30,7 +30,7 @@ use ruma::{
 		TimelineEventType::{self, *},
 	},
 	state_res::Event,
-	uint, MilliSecondsSinceUnixEpoch, OwnedRoomId, UInt, UserId,
+	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, UInt, UserId,
 };
 use service::{rooms::read_receipt::pack_receipts, Services};
 
@@ -211,7 +211,7 @@ pub(crate) async fn sync_events_v4_route(
 				let new_encrypted_room = encrypted_room && since_encryption.is_err();
 
 				if encrypted_room {
-					let current_state_ids = services
+					let current_state_ids: HashMap<_, OwnedEventId> = services
 						.rooms
 						.state_accessor
 						.state_full_ids(current_shortstatehash)

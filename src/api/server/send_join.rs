@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::HashMap};
 
 use axum::extract::State;
 use conduit::{err, pdu::gen_event_id_canonical_json, utils::IterStream, warn, Error, Result};
@@ -11,7 +11,7 @@ use ruma::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	CanonicalJsonValue, OwnedServerName, OwnedUserId, RoomId, ServerName,
+	CanonicalJsonValue, OwnedEventId, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::Services;
@@ -165,7 +165,7 @@ async fn create_join_event(
 
 	drop(mutex_lock);
 
-	let state_ids = services
+	let state_ids: HashMap<_, OwnedEventId> = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)

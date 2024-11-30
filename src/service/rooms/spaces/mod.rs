@@ -1,7 +1,7 @@
 mod tests;
 
 use std::{
-	collections::VecDeque,
+	collections::{HashMap, VecDeque},
 	fmt::{Display, Formatter},
 	str::FromStr,
 	sync::Arc,
@@ -572,7 +572,7 @@ impl Service {
 			return Ok(None);
 		};
 
-		let state = self
+		let state: HashMap<_, Arc<_>> = self
 			.services
 			.state_accessor
 			.state_full_ids(current_shortstatehash)
