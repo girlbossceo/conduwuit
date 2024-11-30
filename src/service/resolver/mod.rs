@@ -7,7 +7,6 @@ mod tests;
 use std::{fmt::Write, sync::Arc};
 
 use conduit::{Result, Server};
-use hickory_resolver::TokioAsyncResolver;
 
 use self::{cache::Cache, dns::Resolver};
 use crate::{client, globals, Dep};
@@ -70,10 +69,4 @@ impl crate::Service for Service {
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
-}
-
-impl Service {
-	#[inline]
-	#[must_use]
-	pub fn raw(&self) -> Arc<TokioAsyncResolver> { self.resolver.resolver.clone() }
 }

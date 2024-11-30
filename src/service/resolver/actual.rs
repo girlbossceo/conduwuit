@@ -1,11 +1,10 @@
 use std::{
 	fmt::Debug,
 	net::{IpAddr, SocketAddr},
-	sync::Arc,
 };
 
 use conduit::{debug, debug_error, debug_info, debug_warn, err, error, trace, Err, Result};
-use hickory_resolver::{error::ResolveError, lookup::SrvLookup};
+use hickory_resolver::error::ResolveError;
 use ipaddress::IPAddress;
 use ruma::ServerName;
 
@@ -258,7 +257,7 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "ip")]
 	async fn query_and_cache_override(&self, overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
-		match self.raw().lookup_ip(hostname.to_owned()).await {
+		match self.resolver.resolver.lookup_ip(hostname.to_owned()).await {
 			Err(e) => Self::handle_resolve_error(&e),
 			Ok(override_ip) => {
 				if hostname != overname {
@@ -281,32 +280,24 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "srv")]
 	async fn query_srv_record(&self, hostname: &'_ str) -> Result<Option<FedDest>> {
-		fn handle_successful_srv(srv: &SrvLookup) -> Option<FedDest> {
-			srv.iter().next().map(|result| {
-				FedDest::Named(
-					result.target().to_string().trim_end_matches('.').to_owned(),
-					format!(":{}", result.port())
-						.as_str()
-						.try_into()
-						.unwrap_or_else(|_| FedDest::default_port()),
-				)
-			})
-		}
-
-		async fn lookup_srv(
-			resolver: Arc<super::TokioAsyncResolver>, hostname: &str,
-		) -> Result<SrvLookup, ResolveError> {
-			debug!("querying SRV for {hostname:?}");
-			let hostname = hostname.trim_end_matches('.');
-			resolver.srv_lookup(hostname.to_owned()).await
-		}
-
 		let hostnames = [format!("_matrix-fed._tcp.{hostname}."), format!("_matrix._tcp.{hostname}.")];
 
 		for hostname in hostnames {
-			match lookup_srv(self.raw(), &hostname).await {
-				Ok(result) => return Ok(handle_successful_srv(&result)),
+			debug!("querying SRV for {hostname:?}");
+			let hostname = hostname.trim_end_matches('.');
+			match self.resolver.resolver.srv_lookup(hostname).await {
 				Err(e) => Self::handle_resolve_error(&e)?,
+				Ok(result) => {
+					return Ok(result.iter().next().map(|result| {
+						FedDest::Named(
+							result.target().to_string().trim_end_matches('.').to_owned(),
+							format!(":{}", result.port())
+								.as_str()
+								.try_into()
+								.unwrap_or_else(|_| FedDest::default_port()),
+						)
+					}))
+				},
 			}
 		}
 
