@@ -23,7 +23,7 @@ use crate::{
 };
 
 pub struct Engine {
-	server: Arc<Server>,
+	pub(crate) server: Arc<Server>,
 	row_cache: Cache,
 	col_cache: RwLock<HashMap<String, Cache>>,
 	opts: Options,
@@ -40,7 +40,7 @@ pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
 
 impl Engine {
 	#[tracing::instrument(skip_all)]
-	pub(crate) fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
+	pub(crate) async fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
 		let config = &server.config;
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
 
@@ -119,7 +119,7 @@ impl Engine {
 			corks: AtomicU32::new(0),
 			read_only: config.rocksdb_read_only,
 			secondary: config.rocksdb_secondary,
-			pool: Pool::new(&pool_opts)?,
+			pool: Pool::new(server, &pool_opts).await?,
 		}))
 	}
 
@@ -305,7 +305,7 @@ pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
 	Ok(())
 }
 
-#[tracing::instrument(skip_all, name = "rocksdb", level = "debug")]
+#[tracing::instrument(skip(msg), name = "rocksdb", level = "trace")]
 pub(crate) fn handle_log(level: LogLevel, msg: &str) {
 	let msg = msg.trim();
 	if msg.starts_with("Options") {
@@ -325,7 +325,7 @@ impl Drop for Engine {
 	fn drop(&mut self) {
 		const BLOCKING: bool = true;
 
-		debug!("Joining request threads...");
+		debug!("Shutting down request pool...");
 		self.pool.close();
 
 		debug!("Waiting for background tasks to finish...");

@@ -16,7 +16,7 @@ pub struct Database {
 impl Database {
 	/// Load an existing database or create a new one.
 	pub async fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
-		let db = Engine::open(server)?;
+		let db = Engine::open(server).await?;
 		Ok(Arc::new(Self {
 			db: db.clone(),
 			maps: maps::open(&db)?,

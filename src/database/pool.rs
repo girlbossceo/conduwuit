@@ -1,30 +1,31 @@
 use std::{
-	convert::identity,
 	mem::take,
-	sync::{Arc, Mutex},
-	thread::JoinHandle,
+	sync::{
+		atomic::{AtomicUsize, Ordering},
+		Arc,
+	},
 };
 
-use async_channel::{bounded, Receiver, Sender};
-use conduit::{debug, defer, err, implement, Result};
+use async_channel::{bounded, Receiver, RecvError, Sender};
+use conduit::{debug, debug_warn, defer, err, implement, result::DebugInspect, Result, Server};
 use futures::channel::oneshot;
+use tokio::{sync::Mutex, task::JoinSet};
 
 use crate::{keyval::KeyBuf, Handle, Map};
 
 pub(crate) struct Pool {
-	workers: Mutex<Vec<JoinHandle<()>>>,
-	recv: Receiver<Cmd>,
-	send: Sender<Cmd>,
+	server: Arc<Server>,
+	workers: Mutex<JoinSet<()>>,
+	queue: Sender<Cmd>,
+	busy: AtomicUsize,
+	busy_max: AtomicUsize,
+	queued_max: AtomicUsize,
 }
 
 pub(crate) struct Opts {
 	pub(crate) queue_size: usize,
 	pub(crate) worker_num: usize,
 }
-
-const QUEUE_LIMIT: (usize, usize) = (1, 8192);
-const WORKER_LIMIT: (usize, usize) = (1, 512);
-const WORKER_THREAD_NAME: &str = "conduwuit:db";
 
 #[derive(Debug)]
 pub(crate) enum Cmd {
@@ -40,83 +41,111 @@ pub(crate) struct Get {
 
 type ResultSender = oneshot::Sender<Result<Handle<'static>>>;
 
-#[implement(Pool)]
-pub(crate) fn new(opts: &Opts) -> Result<Arc<Self>> {
-	let queue_size = opts.queue_size.clamp(QUEUE_LIMIT.0, QUEUE_LIMIT.1);
+const QUEUE_LIMIT: (usize, usize) = (1, 3072);
+const WORKER_LIMIT: (usize, usize) = (1, 512);
 
+impl Drop for Pool {
+	fn drop(&mut self) {
+		debug_assert!(self.queue.is_empty(), "channel must be empty on drop");
+		debug_assert!(self.queue.is_closed(), "channel should be closed on drop");
+	}
+}
+
+#[implement(Pool)]
+pub(crate) async fn new(server: &Arc<Server>, opts: &Opts) -> Result<Arc<Self>> {
+	let queue_size = opts.queue_size.clamp(QUEUE_LIMIT.0, QUEUE_LIMIT.1);
 	let (send, recv) = bounded(queue_size);
 	let pool = Arc::new(Self {
-		workers: Vec::new().into(),
-		recv,
-		send,
+		server: server.clone(),
+		workers: JoinSet::new().into(),
+		queue: send,
+		busy: AtomicUsize::default(),
+		busy_max: AtomicUsize::default(),
+		queued_max: AtomicUsize::default(),
 	});
 
 	let worker_num = opts.worker_num.clamp(WORKER_LIMIT.0, WORKER_LIMIT.1);
-	pool.spawn_until(worker_num)?;
+	pool.spawn_until(recv, worker_num).await?;
 
 	Ok(pool)
 }
 
 #[implement(Pool)]
-fn spawn_until(self: &Arc<Self>, max: usize) -> Result {
-	let mut workers = self.workers.lock()?;
+pub(crate) async fn _shutdown(self: &Arc<Self>) {
+	if !self.queue.is_closed() {
+		self.close();
+	}
 
+	let workers = take(&mut *self.workers.lock().await);
+	debug!(workers = workers.len(), "Waiting for workers to join...");
+
+	workers.join_all().await;
+	debug_assert!(self.queue.is_empty(), "channel is not empty");
+}
+
+#[implement(Pool)]
+pub(crate) fn close(&self) {
+	debug_assert!(!self.queue.is_closed(), "channel already closed");
+	debug!(
+		senders = self.queue.sender_count(),
+		receivers = self.queue.receiver_count(),
+		"Closing pool channel"
+	);
+
+	let closing = self.queue.close();
+	debug_assert!(closing, "channel is not closing");
+}
+
+#[implement(Pool)]
+async fn spawn_until(self: &Arc<Self>, recv: Receiver<Cmd>, max: usize) -> Result {
+	let mut workers = self.workers.lock().await;
 	while workers.len() < max {
-		self.clone().spawn_one(&mut workers)?;
+		self.spawn_one(&mut workers, recv.clone())?;
 	}
 
 	Ok(())
 }
 
 #[implement(Pool)]
-fn spawn_one(self: Arc<Self>, workers: &mut Vec<JoinHandle<()>>) -> Result<usize> {
-	use std::thread::Builder;
-
+fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: Receiver<Cmd>) -> Result {
 	let id = workers.len();
 
-	debug!(?id, "spawning {WORKER_THREAD_NAME}...");
-	let thread = Builder::new()
-		.name(WORKER_THREAD_NAME.into())
-		.spawn(move || self.worker(id))?;
+	debug!(?id, "spawning");
+	let self_ = self.clone();
+	let _abort = workers.spawn_blocking_on(move || self_.worker(id, recv), self.server.runtime());
 
-	workers.push(thread);
-
-	Ok(id)
+	Ok(())
 }
 
 #[implement(Pool)]
-pub(crate) fn close(self: &Arc<Self>) {
-	debug!(
-		senders = %self.send.sender_count(),
-		receivers = %self.send.receiver_count(),
-		"Closing pool channel"
-	);
-	let closing = self.send.close();
-	debug_assert!(closing, "channel is not closing");
-
-	debug!("Shutting down pool...");
-	let mut workers = self.workers.lock().expect("locked");
-
-	debug!(
-		workers = %workers.len(),
-		"Waiting for workers to join..."
-	);
-	take(&mut *workers)
-		.into_iter()
-		.map(JoinHandle::join)
-		.try_for_each(identity)
-		.expect("failed to join worker threads");
-
-	debug_assert!(self.send.is_empty(), "channel is not empty");
-}
-
-#[implement(Pool)]
-#[tracing::instrument(skip(self, cmd), level = "trace")]
+#[tracing::instrument(
+	level = "trace"
+	skip(self, cmd),
+	fields(
+		task = ?tokio::task::try_id(),
+		receivers = self.queue.receiver_count(),
+		senders = self.queue.sender_count(),
+		queued = self.queue.len(),
+		queued_max = self.queued_max.load(Ordering::Relaxed),
+	),
+)]
 pub(crate) async fn execute(&self, mut cmd: Cmd) -> Result<Handle<'_>> {
 	let (send, recv) = oneshot::channel();
 	Self::prepare(&mut cmd, send);
 
-	self.send
+	if cfg!(debug_assertions) {
+		self.queued_max
+			.fetch_max(self.queue.len(), Ordering::Relaxed);
+	}
+
+	if self.queue.is_full() {
+		debug_warn!(
+			capacity = ?self.queue.capacity(),
+			"pool queue is full"
+		);
+	}
+
+	self.queue
 		.send(cmd)
 		.await
 		.map_err(|e| err!(error!("send failed {e:?}")))?;
@@ -136,30 +165,61 @@ fn prepare(cmd: &mut Cmd, send: ResultSender) {
 }
 
 #[implement(Pool)]
-#[tracing::instrument(skip(self))]
-fn worker(self: Arc<Self>, id: usize) {
-	debug!(?id, "worker spawned");
-	defer! {{ debug!(?id, "worker finished"); }}
-	self.worker_loop(id);
+#[tracing::instrument(skip(self, recv))]
+fn worker(self: Arc<Self>, id: usize, recv: Receiver<Cmd>) {
+	debug!("worker spawned");
+	defer! {{ debug!("worker finished"); }}
+
+	self.worker_loop(&recv);
 }
 
 #[implement(Pool)]
-fn worker_loop(&self, id: usize) {
-	while let Ok(mut cmd) = self.recv.recv_blocking() {
-		self.worker_handle(id, &mut cmd);
+fn worker_loop(&self, recv: &Receiver<Cmd>) {
+	// initial +1 needed prior to entering wait
+	self.busy.fetch_add(1, Ordering::Relaxed);
+
+	while let Ok(mut cmd) = self.worker_wait(recv) {
+		self.worker_handle(&mut cmd);
 	}
 }
 
 #[implement(Pool)]
-fn worker_handle(&self, id: usize, cmd: &mut Cmd) {
+#[tracing::instrument(
+	name = "wait",
+	level = "trace",
+	skip_all,
+	fields(
+		receivers = recv.receiver_count(),
+		senders = recv.sender_count(),
+		queued = recv.len(),
+		busy = self.busy.load(Ordering::Relaxed),
+		busy_max = self.busy_max.fetch_max(
+			self.busy.fetch_sub(1, Ordering::Relaxed),
+			Ordering::Relaxed
+		),
+	),
+)]
+fn worker_wait(&self, recv: &Receiver<Cmd>) -> Result<Cmd, RecvError> {
+	recv.recv_blocking().debug_inspect(|_| {
+		self.busy.fetch_add(1, Ordering::Relaxed);
+	})
+}
+
+#[implement(Pool)]
+fn worker_handle(&self, cmd: &mut Cmd) {
 	match cmd {
-		Cmd::Get(get) => self.handle_get(id, get),
+		Cmd::Get(cmd) => self.handle_get(cmd),
 	}
 }
 
 #[implement(Pool)]
-#[tracing::instrument(skip(self, cmd), fields(%cmd.map), level = "trace")]
-fn handle_get(&self, id: usize, cmd: &mut Get) {
+#[tracing::instrument(
+	name = "get",
+	level = "trace",
+	skip_all,
+	fields(%cmd.map),
+)]
+fn handle_get(&self, cmd: &mut Get) {
 	debug_assert!(!cmd.key.is_empty(), "querying for empty key");
 
 	// Obtain the result channel.
