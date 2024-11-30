@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduit::{debug, info, warn, Result};
+use conduit::{debug, info, warn, Result, Server};
 use database::{Deserialized, Map};
 use ruma::events::room::message::RoomMessageEventContent;
 use serde::Deserialize;
@@ -23,6 +23,7 @@ struct Services {
 	admin: Dep<admin::Service>,
 	client: Dep<client::Service>,
 	globals: Dep<globals::Service>,
+	server: Arc<Server>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,11 +53,12 @@ impl crate::Service for Service {
 				globals: args.depend::<globals::Service>("globals"),
 				admin: args.depend::<admin::Service>("admin"),
 				client: args.depend::<client::Service>("client"),
+				server: args.server.clone(),
 			},
 		}))
 	}
 
-	#[tracing::instrument(skip_all, name = "updates", level = "trace")]
+	#[tracing::instrument(skip_all, name = "updates", level = "debug")]
 	async fn worker(self: Arc<Self>) -> Result<()> {
 		if !self.services.globals.allow_check_for_updates() {
 			debug!("Disabling update check");
@@ -65,6 +67,7 @@ impl crate::Service for Service {
 
 		let mut i = interval(self.interval);
 		i.set_missed_tick_behavior(MissedTickBehavior::Delay);
+		i.reset_after(self.interval);
 		loop {
 			tokio::select! {
 				() = self.interrupt.notified() => break,
@@ -85,8 +88,10 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	#[tracing::instrument(skip_all, level = "trace")]
+	#[tracing::instrument(skip_all)]
 	async fn check(&self) -> Result<()> {
+		debug_assert!(self.services.server.running(), "server must not be shutting down");
+
 		let response = self
 			.services
 			.client
@@ -108,6 +113,7 @@ impl Service {
 		Ok(())
 	}
 
+	#[tracing::instrument(skip_all)]
 	async fn handle(&self, update: &CheckForUpdatesResponseEntry) {
 		info!("{} {:#}", update.date, update.message);
 		self.services
