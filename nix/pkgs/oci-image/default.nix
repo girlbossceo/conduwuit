@@ -14,6 +14,7 @@ dockerTools.buildLayeredImage {
   created = "@${toString inputs.self.lastModified}";
   contents = [
     dockerTools.caCertificates
+    main
   ];
   config = {
     Entrypoint = if !stdenv.hostPlatform.isDarwin
