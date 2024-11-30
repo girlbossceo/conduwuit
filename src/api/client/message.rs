@@ -5,6 +5,7 @@ use conduit::{
 	at, is_equal_to,
 	utils::{
 		result::{FlatOk, LogErr},
+		stream::{BroadbandExt, WidebandExt},
 		IterStream, ReadyExt,
 	},
 	Event, PduCount, Result,
@@ -115,8 +116,8 @@ pub(crate) async fn get_message_events_route(
 	let events: Vec<_> = it
 		.ready_take_while(|(count, _)| Some(*count) != to)
 		.ready_filter_map(|item| event_filter(item, filter))
-		.filter_map(|item| ignored_filter(&services, item, sender_user))
-		.filter_map(|item| visibility_filter(&services, item, sender_user))
+		.wide_filter_map(|item| ignored_filter(&services, item, sender_user))
+		.wide_filter_map(|item| visibility_filter(&services, item, sender_user))
 		.take(limit)
 		.collect()
 		.await;
@@ -132,7 +133,7 @@ pub(crate) async fn get_message_events_route(
 	let state = lazy
 		.iter()
 		.stream()
-		.filter_map(|user_id| get_member_event(&services, room_id, user_id))
+		.broad_filter_map(|user_id| get_member_event(&services, room_id, user_id))
 		.collect()
 		.await;
 

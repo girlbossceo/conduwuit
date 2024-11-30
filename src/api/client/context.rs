@@ -1,9 +1,13 @@
-use std::{collections::HashMap, iter::once};
+use std::iter::once;
 
 use axum::extract::State;
 use conduit::{
-	at, err, error,
-	utils::{future::TryExtExt, stream::ReadyExt, IterStream},
+	at, err,
+	utils::{
+		future::TryExtExt,
+		stream::{BroadbandExt, ReadyExt, WidebandExt},
+		IterStream,
+	},
 	Err, Result,
 };
 use futures::{future::try_join, StreamExt, TryFutureExt};
@@ -85,8 +89,8 @@ pub(crate) async fn get_context_route(
 		.pdus_rev(Some(sender_user), room_id, Some(base_token))
 		.await?
 		.ready_filter_map(|item| event_filter(item, filter))
-		.filter_map(|item| ignored_filter(&services, item, sender_user))
-		.filter_map(|item| visibility_filter(&services, item, sender_user))
+		.wide_filter_map(|item| ignored_filter(&services, item, sender_user))
+		.wide_filter_map(|item| visibility_filter(&services, item, sender_user))
 		.take(limit / 2)
 		.collect()
 		.await;
@@ -97,8 +101,8 @@ pub(crate) async fn get_context_route(
 		.pdus(Some(sender_user), room_id, Some(base_token))
 		.await?
 		.ready_filter_map(|item| event_filter(item, filter))
-		.filter_map(|item| ignored_filter(&services, item, sender_user))
-		.filter_map(|item| visibility_filter(&services, item, sender_user))
+		.wide_filter_map(|item| ignored_filter(&services, item, sender_user))
+		.wide_filter_map(|item| visibility_filter(&services, item, sender_user))
 		.take(limit / 2)
 		.collect()
 		.await;
@@ -124,7 +128,7 @@ pub(crate) async fn get_context_route(
 		.await
 		.map_err(|e| err!(Database("State hash not found: {e}")))?;
 
-	let state_ids: HashMap<_, OwnedEventId> = services
+	let state_ids = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
@@ -133,17 +137,17 @@ pub(crate) async fn get_context_route(
 
 	let lazy = &lazy;
 	let state: Vec<_> = state_ids
-		.iter()
+		.into_iter()
 		.stream()
-		.filter_map(|(shortstatekey, event_id)| {
+		.broad_filter_map(|(shortstatekey, event_id)| {
 			services
 				.rooms
 				.short
-				.get_statekey_from_short(*shortstatekey)
+				.get_statekey_from_short(shortstatekey)
 				.map_ok(move |(event_type, state_key)| (event_type, state_key, event_id))
 				.ok()
 		})
-		.filter_map(|(event_type, state_key, event_id)| async move {
+		.ready_filter_map(|(event_type, state_key, event_id)| {
 			if lazy_load_enabled && event_type == StateEventType::RoomMember {
 				let user_id: &UserId = state_key.as_str().try_into().ok()?;
 				if !lazy.contains(user_id) {
@@ -151,15 +155,10 @@ pub(crate) async fn get_context_route(
 				}
 			}
 
-			services
-				.rooms
-				.timeline
-				.get_pdu(event_id)
-				.await
-				.inspect_err(|_| error!("Pdu in state not found: {event_id}"))
-				.map(|pdu| pdu.to_state_event())
-				.ok()
+			Some(event_id)
 		})
+		.broad_filter_map(|event_id: OwnedEventId| async move { services.rooms.timeline.get_pdu(&event_id).await.ok() })
+		.map(|pdu| pdu.to_state_event())
 		.collect()
 		.await;
 

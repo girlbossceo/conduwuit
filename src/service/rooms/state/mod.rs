@@ -8,7 +8,11 @@ use std::{
 use conduit::{
 	at, err,
 	result::FlatOk,
-	utils::{calculate_hash, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
+	utils::{
+		calculate_hash,
+		stream::{BroadbandExt, TryIgnore},
+		IterStream, MutexMap, MutexMapGuard, ReadyExt,
+	},
 	warn, PduEvent, Result,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
@@ -405,7 +409,7 @@ impl Service {
 		let mut sauthevents: HashMap<_, _> = state_res::auth_types_for_event(kind, sender, state_key, content)?
 			.iter()
 			.stream()
-			.filter_map(|(event_type, state_key)| {
+			.broad_filter_map(|(event_type, state_key)| {
 				self.services
 					.short
 					.get_shortstatekey(event_type, state_key)
@@ -430,23 +434,26 @@ impl Service {
 			})
 			.collect();
 
-		let auth_pdus: Vec<_> = self
+		let auth_pdus = self
 			.services
 			.short
 			.multi_get_eventid_from_short(auth_state.iter().map(at!(1)))
 			.await
 			.into_iter()
 			.stream()
-			.and_then(|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await })
+			.zip(auth_state.into_iter().stream().map(at!(0)))
+			.ready_filter_map(|(event_id, tsk)| Some((tsk, event_id.ok()?)))
+			.broad_filter_map(|(tsk, event_id): (_, OwnedEventId)| async move {
+				self.services
+					.timeline
+					.get_pdu(&event_id)
+					.await
+					.map(Arc::new)
+					.map(move |pdu| (tsk, pdu))
+					.ok()
+			})
 			.collect()
 			.await;
-
-		let auth_pdus = auth_state
-			.into_iter()
-			.map(at!(0))
-			.zip(auth_pdus.into_iter())
-			.filter_map(|((event_type, state_key), pdu)| Some(((event_type, state_key), pdu.ok()?.into())))
-			.collect();
 
 		Ok(auth_pdus)
 	}

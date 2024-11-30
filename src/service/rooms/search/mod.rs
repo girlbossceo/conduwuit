@@ -3,7 +3,11 @@ use std::sync::Arc;
 use arrayvec::ArrayVec;
 use conduit::{
 	implement,
-	utils::{set, stream::TryIgnore, ArrayVecExt, IterStream, ReadyExt},
+	utils::{
+		set,
+		stream::{TryIgnore, WidebandExt},
+		ArrayVecExt, IterStream, ReadyExt,
+	},
 	PduCount, PduEvent, Result,
 };
 use database::{keyval::Val, Map};
@@ -107,7 +111,7 @@ pub async fn search_pdus<'a>(
 	let pdus = pdu_ids
 		.into_iter()
 		.stream()
-		.filter_map(move |result_pdu_id: RawPduId| async move {
+		.wide_filter_map(move |result_pdu_id: RawPduId| async move {
 			self.services
 				.timeline
 				.get_pdu_from_id(&result_pdu_id)
@@ -116,7 +120,7 @@ pub async fn search_pdus<'a>(
 		})
 		.ready_filter(|pdu| !pdu.is_redacted())
 		.ready_filter(|pdu| pdu.matches(&query.criteria.filter))
-		.filter_map(move |pdu| async move {
+		.wide_filter_map(move |pdu| async move {
 			self.services
 				.state_accessor
 				.user_can_see_event(query.user_id?, &pdu.room_id, &pdu.event_id)
@@ -146,7 +150,7 @@ pub async fn search_pdu_ids(&self, query: &RoomQuery<'_>) -> Result<impl Stream<
 async fn search_pdu_ids_query_room(&self, query: &RoomQuery<'_>, shortroomid: ShortRoomId) -> Vec<Vec<RawPduId>> {
 	tokenize(&query.criteria.search_term)
 		.stream()
-		.then(|word| async move {
+		.wide_then(|word| async move {
 			self.search_pdu_ids_query_words(shortroomid, &word)
 				.collect::<Vec<_>>()
 				.await

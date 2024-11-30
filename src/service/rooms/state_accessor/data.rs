@@ -2,7 +2,7 @@ use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 use conduit::{
 	at, err,
-	utils::stream::{IterStream, ReadyExt},
+	utils::stream::{BroadbandExt, IterStream},
 	PduEvent, Result,
 };
 use database::{Deserialized, Map};
@@ -65,20 +65,20 @@ impl Data {
 			.into_iter()
 			.map(at!(1));
 
-		let event_ids: Vec<OwnedEventId> = self
+		let event_ids = self
 			.services
 			.short
 			.multi_get_eventid_from_short(short_ids)
 			.await
 			.into_iter()
-			.filter_map(Result::ok)
-			.collect();
+			.filter_map(Result::ok);
 
 		let full_pdus = event_ids
-			.iter()
+			.into_iter()
 			.stream()
-			.then(|event_id| self.services.timeline.get_pdu(event_id))
-			.ready_filter_map(Result::ok)
+			.broad_filter_map(
+				|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await.ok() },
+			)
 			.collect()
 			.await;
 
