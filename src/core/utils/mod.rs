@@ -118,8 +118,8 @@ macro_rules! is_matching {
 		|x| matches!(x, $val)
 	};
 
-	($val:expr) => {
-		|x| matches!(x, $val)
+	($($val:tt)+) => {
+		|x| matches!(x, $($val)+)
 	};
 }
 
