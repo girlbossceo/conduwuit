@@ -8,17 +8,18 @@ use std::{
 
 use async_channel::{bounded, Receiver, RecvError, Sender};
 use conduit::{debug, debug_warn, defer, err, implement, result::DebugInspect, Result, Server};
-use futures::channel::oneshot;
+use futures::{channel::oneshot, TryFutureExt};
+use oneshot::Sender as ResultSender;
+use rocksdb::Direction;
 use tokio::{sync::Mutex, task::JoinSet};
 
-use crate::{keyval::KeyBuf, Handle, Map};
+use crate::{keyval::KeyBuf, stream, Handle, Map};
 
 pub(crate) struct Pool {
 	server: Arc<Server>,
 	workers: Mutex<JoinSet<()>>,
 	queue: Sender<Cmd>,
 	busy: AtomicUsize,
-	busy_max: AtomicUsize,
 	queued_max: AtomicUsize,
 }
 
@@ -27,19 +28,24 @@ pub(crate) struct Opts {
 	pub(crate) worker_num: usize,
 }
 
-#[derive(Debug)]
 pub(crate) enum Cmd {
 	Get(Get),
+	Iter(Seek),
 }
 
-#[derive(Debug)]
 pub(crate) struct Get {
 	pub(crate) map: Arc<Map>,
 	pub(crate) key: KeyBuf,
-	pub(crate) res: Option<ResultSender>,
+	pub(crate) res: Option<ResultSender<Result<Handle<'static>>>>,
 }
 
-type ResultSender = oneshot::Sender<Result<Handle<'static>>>;
+pub(crate) struct Seek {
+	pub(crate) map: Arc<Map>,
+	pub(crate) state: stream::State<'static>,
+	pub(crate) dir: Direction,
+	pub(crate) key: Option<KeyBuf>,
+	pub(crate) res: Option<ResultSender<stream::State<'static>>>,
+}
 
 const QUEUE_LIMIT: (usize, usize) = (1, 3072);
 const WORKER_LIMIT: (usize, usize) = (1, 512);
@@ -60,7 +66,6 @@ pub(crate) async fn new(server: &Arc<Server>, opts: &Opts) -> Result<Arc<Self>> 
 		workers: JoinSet::new().into(),
 		queue: send,
 		busy: AtomicUsize::default(),
-		busy_max: AtomicUsize::default(),
 		queued_max: AtomicUsize::default(),
 	});
 
@@ -94,6 +99,8 @@ pub(crate) fn close(&self) {
 
 	let closing = self.queue.close();
 	debug_assert!(closing, "channel is not closing");
+
+	std::thread::yield_now();
 }
 
 #[implement(Pool)]
@@ -118,21 +125,44 @@ fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: Receiver<Cmd>) -
 }
 
 #[implement(Pool)]
+#[tracing::instrument(level = "trace", name = "get", skip(self, cmd))]
+pub(crate) async fn execute_get(&self, mut cmd: Get) -> Result<Handle<'_>> {
+	let (send, recv) = oneshot::channel();
+	_ = cmd.res.insert(send);
+	self.execute(Cmd::Get(cmd))
+		.and_then(|()| {
+			recv.map_ok(into_recv_get_result)
+				.map_err(|e| err!(error!("recv failed {e:?}")))
+		})
+		.await?
+}
+
+#[implement(Pool)]
+#[tracing::instrument(level = "trace", name = "iter", skip(self, cmd))]
+pub(crate) async fn execute_iter(&self, mut cmd: Seek) -> Result<stream::State<'_>> {
+	let (send, recv) = oneshot::channel();
+	_ = cmd.res.insert(send);
+	self.execute(Cmd::Iter(cmd))
+		.and_then(|()| {
+			recv.map_ok(into_recv_seek)
+				.map_err(|e| err!(error!("recv failed {e:?}")))
+		})
+		.await
+}
+
+#[implement(Pool)]
 #[tracing::instrument(
-	level = "trace"
+	level = "trace",
+	name = "execute",
 	skip(self, cmd),
 	fields(
 		task = ?tokio::task::try_id(),
 		receivers = self.queue.receiver_count(),
-		senders = self.queue.sender_count(),
 		queued = self.queue.len(),
 		queued_max = self.queued_max.load(Ordering::Relaxed),
 	),
 )]
-pub(crate) async fn execute(&self, mut cmd: Cmd) -> Result<Handle<'_>> {
-	let (send, recv) = oneshot::channel();
-	Self::prepare(&mut cmd, send);
-
+async fn execute(&self, cmd: Cmd) -> Result {
 	if cfg!(debug_assertions) {
 		self.queued_max
 			.fetch_max(self.queue.len(), Ordering::Relaxed);
@@ -148,20 +178,7 @@ pub(crate) async fn execute(&self, mut cmd: Cmd) -> Result<Handle<'_>> {
 	self.queue
 		.send(cmd)
 		.await
-		.map_err(|e| err!(error!("send failed {e:?}")))?;
-
-	recv.await
-		.map(into_recv_result)
-		.map_err(|e| err!(error!("recv failed {e:?}")))?
-}
-
-#[implement(Pool)]
-fn prepare(cmd: &mut Cmd, send: ResultSender) {
-	match cmd {
-		Cmd::Get(ref mut cmd) => {
-			_ = cmd.res.insert(send);
-		},
-	};
+		.map_err(|e| err!(error!("send failed {e:?}")))
 }
 
 #[implement(Pool)]
@@ -178,8 +195,8 @@ fn worker_loop(&self, recv: &Receiver<Cmd>) {
 	// initial +1 needed prior to entering wait
 	self.busy.fetch_add(1, Ordering::Relaxed);
 
-	while let Ok(mut cmd) = self.worker_wait(recv) {
-		self.worker_handle(&mut cmd);
+	while let Ok(cmd) = self.worker_wait(recv) {
+		self.worker_handle(cmd);
 	}
 }
 
@@ -190,13 +207,8 @@ fn worker_loop(&self, recv: &Receiver<Cmd>) {
 	skip_all,
 	fields(
 		receivers = recv.receiver_count(),
-		senders = recv.sender_count(),
 		queued = recv.len(),
-		busy = self.busy.load(Ordering::Relaxed),
-		busy_max = self.busy_max.fetch_max(
-			self.busy.fetch_sub(1, Ordering::Relaxed),
-			Ordering::Relaxed
-		),
+		busy = self.busy.fetch_sub(1, Ordering::Relaxed) - 1,
 	),
 )]
 fn worker_wait(&self, recv: &Receiver<Cmd>) -> Result<Cmd, RecvError> {
@@ -206,10 +218,58 @@ fn worker_wait(&self, recv: &Receiver<Cmd>) -> Result<Cmd, RecvError> {
 }
 
 #[implement(Pool)]
-fn worker_handle(&self, cmd: &mut Cmd) {
+fn worker_handle(&self, cmd: Cmd) {
 	match cmd {
 		Cmd::Get(cmd) => self.handle_get(cmd),
+		Cmd::Iter(cmd) => self.handle_iter(cmd),
 	}
+}
+
+#[implement(Pool)]
+#[tracing::instrument(
+	name = "iter",
+	level = "trace",
+	skip_all,
+	fields(%cmd.map),
+)]
+fn handle_iter(&self, mut cmd: Seek) {
+	let chan = cmd.res.take().expect("missing result channel");
+
+	if chan.is_canceled() {
+		return;
+	}
+
+	let from = cmd.key.as_deref().map(Into::into);
+	let result = match cmd.dir {
+		Direction::Forward => cmd.state.init_fwd(from),
+		Direction::Reverse => cmd.state.init_rev(from),
+	};
+
+	let chan_result = chan.send(into_send_seek(result));
+	let _chan_sent = chan_result.is_ok();
+}
+
+#[implement(Pool)]
+#[tracing::instrument(
+	name = "seek",
+	level = "trace",
+	skip_all,
+	fields(%cmd.map),
+)]
+fn _handle_seek(&self, mut cmd: Seek) {
+	let chan = cmd.res.take().expect("missing result channel");
+
+	if chan.is_canceled() {
+		return;
+	}
+
+	match cmd.dir {
+		Direction::Forward => cmd.state.seek_fwd(),
+		Direction::Reverse => cmd.state.seek_rev(),
+	};
+
+	let chan_result = chan.send(into_send_seek(cmd.state));
+	let _chan_sent = chan_result.is_ok();
 }
 
 #[implement(Pool)]
@@ -219,7 +279,7 @@ fn worker_handle(&self, cmd: &mut Cmd) {
 	skip_all,
 	fields(%cmd.map),
 )]
-fn handle_get(&self, cmd: &mut Get) {
+fn handle_get(&self, mut cmd: Get) {
 	debug_assert!(!cmd.key.is_empty(), "querying for empty key");
 
 	// Obtain the result channel.
@@ -237,23 +297,31 @@ fn handle_get(&self, cmd: &mut Get) {
 	let result = cmd.map.get_blocking(&cmd.key);
 
 	// Send the result back to the submitter.
-	let chan_result = chan.send(into_send_result(result));
+	let chan_result = chan.send(into_send_get_result(result));
 
 	// If the future was dropped during the query this will fail acceptably.
 	let _chan_sent = chan_result.is_ok();
 }
 
-fn into_send_result(result: Result<Handle<'_>>) -> Result<Handle<'static>> {
+fn into_send_get_result(result: Result<Handle<'_>>) -> Result<Handle<'static>> {
 	// SAFETY: Necessary to send the Handle (rust_rocksdb::PinnableSlice) through
 	// the channel. The lifetime on the handle is a device by rust-rocksdb to
 	// associate a database lifetime with its assets. The Handle must be dropped
-	// before the database is dropped. The handle must pass through recv_handle() on
-	// the other end of the channel.
+	// before the database is dropped.
 	unsafe { std::mem::transmute(result) }
 }
 
-fn into_recv_result(result: Result<Handle<'static>>) -> Result<Handle<'_>> {
-	// SAFETY: This is to receive the Handle from the channel. Previously it had
-	// passed through send_handle().
+fn into_recv_get_result(result: Result<Handle<'static>>) -> Result<Handle<'_>> {
+	// SAFETY: This is to receive the Handle from the channel.
+	unsafe { std::mem::transmute(result) }
+}
+
+pub(crate) fn into_send_seek(result: stream::State<'_>) -> stream::State<'static> {
+	// SAFETY: Necessary to send the State through the channel; see above.
+	unsafe { std::mem::transmute(result) }
+}
+
+fn into_recv_seek(result: stream::State<'static>) -> stream::State<'_> {
+	// SAFETY: This is to receive the State from the channel; see above.
 	unsafe { std::mem::transmute(result) }
 }

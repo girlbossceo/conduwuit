@@ -1,7 +1,8 @@
-use std::{convert::AsRef, fmt::Debug};
+use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
 use conduit::{implement, Result};
-use futures::{Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
+use rocksdb::Direction;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
 };
 
 #[implement(super::Map)]
-pub fn keys_from<'a, K, P>(&'a self, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn keys_from<'a, K, P>(self: &'a Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
@@ -20,7 +21,7 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), level = "trace")]
-pub fn keys_from_raw<P>(&self, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
+pub fn keys_from_raw<P>(self: &Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -29,7 +30,7 @@ where
 }
 
 #[implement(super::Map)]
-pub fn keys_raw_from<'a, K, P>(&'a self, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn keys_raw_from<'a, K, P>(self: &'a Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
 	K: Deserialize<'a> + Send,
@@ -39,10 +40,27 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, from), fields(%self), level = "trace")]
-pub fn raw_keys_from<P>(&self, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
+pub fn raw_keys_from<P>(self: &Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug,
 {
+	use crate::pool::Seek;
+
 	let opts = super::read_options_default();
-	stream::Keys::new(&self.db, &self.cf, opts, Some(from.as_ref()))
+	let state = stream::State::new(&self.db, &self.cf, opts);
+	let seek = Seek {
+		map: self.clone(),
+		dir: Direction::Forward,
+		key: Some(from.as_ref().into()),
+		state: crate::pool::into_send_seek(state),
+		res: None,
+	};
+
+	self.db
+		.pool
+		.execute_iter(seek)
+		.ok_into::<stream::Keys<'_>>()
+		.into_stream()
+		.try_flatten()
+		.boxed()
 }

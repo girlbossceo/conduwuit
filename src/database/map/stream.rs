@@ -2,7 +2,7 @@ use conduit::{implement, Result};
 use futures::stream::{Stream, StreamExt};
 use serde::Deserialize;
 
-use crate::{keyval, keyval::KeyVal, stream};
+use crate::{keyval, keyval::KeyVal, stream, stream::Cursor};
 
 /// Iterate key-value entries in the map from the beginning.
 ///
@@ -23,5 +23,5 @@ where
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn raw_stream(&self) -> impl Stream<Item = Result<KeyVal<'_>>> + Send {
 	let opts = super::read_options_default();
-	stream::Items::new(&self.db, &self.cf, opts, None)
+	stream::Items::new(&self.db, &self.cf, opts).init(None)
 }

@@ -1,7 +1,11 @@
 use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
-use conduit::{err, implement, utils::IterStream, Err, Result};
+use conduit::{
+	err, implement,
+	utils::{result::MapExpect, IterStream},
+	Err, Result,
+};
 use futures::{future, Future, FutureExt, Stream, StreamExt};
 use rocksdb::DBPinnableSlice;
 use serde::Serialize;
@@ -74,21 +78,21 @@ pub fn get<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'
 where
 	K: AsRef<[u8]> + Debug + ?Sized,
 {
-	use crate::pool::{Cmd, Get};
+	use crate::pool::Get;
 
 	let cached = self.get_cached(key);
 	if matches!(cached, Err(_) | Ok(Some(_))) {
-		return future::ready(cached.map(|res| res.expect("Option is Some"))).boxed();
+		return future::ready(cached.map_expect("data found in cache")).boxed();
 	}
 
 	debug_assert!(matches!(cached, Ok(None)), "expected status Incomplete");
-	let cmd = Cmd::Get(Get {
+	let cmd = Get {
 		map: self.clone(),
 		key: key.as_ref().into(),
 		res: None,
-	});
+	};
 
-	self.db.pool.execute(cmd).boxed()
+	self.db.pool.execute_get(cmd).boxed()
 }
 
 #[implement(super::Map)]

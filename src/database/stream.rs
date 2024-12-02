@@ -16,18 +16,20 @@ use crate::{
 	Engine, Slice,
 };
 
-struct State<'a> {
+pub(crate) struct State<'a> {
 	inner: Inner<'a>,
 	seek: bool,
 	init: bool,
 }
 
-trait Cursor<'a, T> {
+pub(crate) trait Cursor<'a, T> {
 	fn state(&self) -> &State<'a>;
 
 	fn fetch(&self) -> Option<T>;
 
 	fn seek(&mut self);
+
+	fn init(self, from: From<'a>) -> Self;
 
 	fn get(&self) -> Option<Result<T>> {
 		self.fetch()
@@ -45,7 +47,7 @@ type Inner<'a> = DBRawIteratorWithThreadMode<'a, Db>;
 type From<'a> = Option<Key<'a>>;
 
 impl<'a> State<'a> {
-	fn new(db: &'a Arc<Engine>, cf: &'a Arc<ColumnFamily>, opts: ReadOptions) -> Self {
+	pub(super) fn new(db: &'a Arc<Engine>, cf: &'a Arc<ColumnFamily>, opts: ReadOptions) -> Self {
 		Self {
 			inner: db.db.raw_iterator_cf_opt(&**cf, opts),
 			init: true,
@@ -53,7 +55,7 @@ impl<'a> State<'a> {
 		}
 	}
 
-	fn init_fwd(mut self, from: From<'_>) -> Self {
+	pub(super) fn init_fwd(mut self, from: From<'_>) -> Self {
 		if let Some(key) = from {
 			self.inner.seek(key);
 			self.seek = true;
@@ -62,7 +64,7 @@ impl<'a> State<'a> {
 		self
 	}
 
-	fn init_rev(mut self, from: From<'_>) -> Self {
+	pub(super) fn init_rev(mut self, from: From<'_>) -> Self {
 		if let Some(key) = from {
 			self.inner.seek_for_prev(key);
 			self.seek = true;
@@ -72,7 +74,7 @@ impl<'a> State<'a> {
 	}
 
 	#[inline]
-	fn seek_fwd(&mut self) {
+	pub(super) fn seek_fwd(&mut self) {
 		if !exchange(&mut self.init, false) {
 			self.inner.next();
 		} else if !self.seek {
@@ -81,7 +83,7 @@ impl<'a> State<'a> {
 	}
 
 	#[inline]
-	fn seek_rev(&mut self) {
+	pub(super) fn seek_rev(&mut self) {
 		if !exchange(&mut self.init, false) {
 			self.inner.prev();
 		} else if !self.seek {

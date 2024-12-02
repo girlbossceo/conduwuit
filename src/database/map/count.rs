@@ -1,4 +1,4 @@
-use std::{fmt::Debug, future::Future};
+use std::{fmt::Debug, future::Future, sync::Arc};
 
 use conduit::implement;
 use futures::stream::StreamExt;
@@ -14,7 +14,7 @@ pub fn count(&self) -> impl Future<Output = usize> + Send + '_ { self.raw_keys()
 /// - From is a structured key
 #[implement(super::Map)]
 #[inline]
-pub fn count_from<'a, P>(&'a self, from: &P) -> impl Future<Output = usize> + Send + 'a
+pub fn count_from<'a, P>(self: &'a Arc<Self>, from: &P) -> impl Future<Output = usize> + Send + 'a
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {
@@ -26,7 +26,7 @@ where
 /// - From is a raw
 #[implement(super::Map)]
 #[inline]
-pub fn raw_count_from<'a, P>(&'a self, from: &'a P) -> impl Future<Output = usize> + Send + 'a
+pub fn raw_count_from<'a, P>(self: &'a Arc<Self>, from: &'a P) -> impl Future<Output = usize> + Send + 'a
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync + 'a,
 {
@@ -38,7 +38,7 @@ where
 /// - Prefix is structured key
 #[implement(super::Map)]
 #[inline]
-pub fn count_prefix<'a, P>(&'a self, prefix: &P) -> impl Future<Output = usize> + Send + 'a
+pub fn count_prefix<'a, P>(self: &'a Arc<Self>, prefix: &P) -> impl Future<Output = usize> + Send + 'a
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {
@@ -50,7 +50,7 @@ where
 /// - Prefix is raw
 #[implement(super::Map)]
 #[inline]
-pub fn raw_count_prefix<'a, P>(&'a self, prefix: &'a P) -> impl Future<Output = usize> + Send + 'a
+pub fn raw_count_prefix<'a, P>(self: &'a Arc<Self>, prefix: &'a P) -> impl Future<Output = usize> + Send + 'a
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync + 'a,
 {
