@@ -79,6 +79,13 @@ macro_rules! at {
 	};
 }
 
+#[macro_export]
+macro_rules! ref_at {
+	($idx:tt) => {
+		|ref t| &t.$idx
+	};
+}
+
 /// Functor for equality i.e. .is_some_and(is_equal!(2))
 #[macro_export]
 macro_rules! is_equal_to {
