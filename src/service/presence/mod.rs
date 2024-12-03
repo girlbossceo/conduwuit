@@ -137,7 +137,9 @@ impl Service {
 			.set_presence(user_id, presence_state, currently_active, last_active_ago, status_msg)
 			.await?;
 
-		if self.timeout_remote_users || self.services.globals.user_is_local(user_id) {
+		if (self.timeout_remote_users || self.services.globals.user_is_local(user_id))
+			&& user_id != self.services.globals.server_user
+		{
 			let timeout = match presence_state {
 				PresenceState::Online => self.services.server.config.presence_idle_timeout_s,
 				_ => self.services.server.config.presence_offline_timeout_s,
