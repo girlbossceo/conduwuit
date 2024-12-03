@@ -358,7 +358,7 @@ impl super::Service {
 	}
 
 	pub(crate) fn validate_ip(&self, ip: &IPAddress) -> Result<()> {
-		if !self.services.globals.valid_cidr_range(ip) {
+		if !self.services.client.valid_cidr_range(ip) {
 			return Err!(BadServerResponse("Not allowed to send requests to this IP"));
 		}
 

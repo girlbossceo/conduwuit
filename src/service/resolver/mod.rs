@@ -9,7 +9,7 @@ use std::{fmt::Write, sync::Arc};
 use conduit::{Result, Server};
 
 use self::{cache::Cache, dns::Resolver};
-use crate::{client, globals, Dep};
+use crate::{client, Dep};
 
 pub struct Service {
 	pub cache: Arc<Cache>,
@@ -20,7 +20,6 @@ pub struct Service {
 struct Services {
 	server: Arc<Server>,
 	client: Dep<client::Service>,
-	globals: Dep<globals::Service>,
 }
 
 impl crate::Service for Service {
@@ -33,7 +32,6 @@ impl crate::Service for Service {
 			services: Services {
 				server: args.server.clone(),
 				client: args.depend::<client::Service>("client"),
-				globals: args.depend::<globals::Service>("globals"),
 			},
 		}))
 	}

@@ -87,7 +87,7 @@ pub async fn get_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 #[implement(Service)]
 async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 	if let Ok(ip) = IPAddress::parse(url.host_str().expect("URL previously validated")) {
-		if !self.services.globals.valid_cidr_range(&ip) {
+		if !self.services.client.valid_cidr_range(&ip) {
 			return Err!(BadServerResponse("Requesting from this address is forbidden"));
 		}
 	}
@@ -97,7 +97,7 @@ async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 
 	if let Some(remote_addr) = response.remote_addr() {
 		if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
-			if !self.services.globals.valid_cidr_range(&ip) {
+			if !self.services.client.valid_cidr_range(&ip) {
 				return Err!(BadServerResponse("Requesting from this address is forbidden"));
 			}
 		}

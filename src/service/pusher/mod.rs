@@ -151,7 +151,7 @@ impl Service {
 		if let Some(url_host) = reqwest_request.url().host_str() {
 			trace!("Checking request URL for IP");
 			if let Ok(ip) = IPAddress::parse(url_host) {
-				if !self.services.globals.valid_cidr_range(&ip) {
+				if !self.services.client.valid_cidr_range(&ip) {
 					return Err!(BadServerResponse("Not allowed to send requests to this IP"));
 				}
 			}
@@ -166,7 +166,7 @@ impl Service {
 				trace!("Checking response destination's IP");
 				if let Some(remote_addr) = response.remote_addr() {
 					if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
-						if !self.services.globals.valid_cidr_range(&ip) {
+						if !self.services.client.valid_cidr_range(&ip) {
 							return Err!(BadServerResponse("Not allowed to send requests to this IP"));
 						}
 					}

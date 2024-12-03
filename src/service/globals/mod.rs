@@ -7,9 +7,8 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{err, error, trace, Config, Result};
+use conduit::{error, Config, Result};
 use data::Data;
-use ipaddress::IPAddress;
 use regex::RegexSet;
 use ruma::{
 	OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, RoomVersionId, ServerName, UserId,
@@ -22,7 +21,6 @@ pub struct Service {
 	pub db: Data,
 
 	pub config: Config,
-	pub cidr_range_denylist: Vec<IPAddress>,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
 	pub stable_room_versions: Vec<RoomVersionId>,
 	pub unstable_room_versions: Vec<RoomVersionId>,
@@ -59,14 +57,6 @@ impl crate::Service for Service {
 		// Experimental, partially supported room versions
 		let unstable_room_versions = vec![RoomVersionId::V2, RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
-		let cidr_range_denylist: Vec<_> = config
-			.ip_range_denylist
-			.iter()
-			.map(IPAddress::parse)
-			.inspect(|cidr| trace!("Denied CIDR range: {cidr:?}"))
-			.collect::<Result<_, String>>()
-			.map_err(|e| err!(Config("ip_range_denylist", e)))?;
-
 		let turn_secret = config
 			.turn_secret_file
 			.as_ref()
@@ -95,7 +85,6 @@ impl crate::Service for Service {
 		let mut s = Self {
 			db,
 			config: config.clone(),
-			cidr_range_denylist,
 			jwt_decoding_key,
 			stable_room_versions,
 			unstable_room_versions,
@@ -253,17 +242,6 @@ impl Service {
 		} else {
 			self.stable_room_versions.clone()
 		}
-	}
-
-	#[inline]
-	pub fn valid_cidr_range(&self, ip: &IPAddress) -> bool {
-		for cidr in &self.cidr_range_denylist {
-			if cidr.includes(ip) {
-				return false;
-			}
-		}
-
-		true
 	}
 
 	/// checks if `user_id` is local to us via server_name comparison
