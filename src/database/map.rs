@@ -1,6 +1,7 @@
 mod contains;
 mod count;
 mod get;
+mod get_batch;
 mod insert;
 mod keys;
 mod keys_from;

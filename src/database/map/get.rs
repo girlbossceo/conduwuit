@@ -1,13 +1,8 @@
 use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
-use conduit::{
-	err, implement,
-	utils::{result::MapExpect, IterStream},
-	Err, Result,
-};
-use futures::{future, Future, FutureExt, Stream, StreamExt};
-use rocksdb::DBPinnableSlice;
+use conduit::{err, implement, utils::result::MapExpect, Err, Result};
+use futures::{future, Future, FutureExt};
 use serde::Serialize;
 
 use crate::{
@@ -16,8 +11,6 @@ use crate::{
 	util::{is_incomplete, map_err, or_else},
 	Handle,
 };
-
-type RocksdbResult<'a> = Result<Option<DBPinnableSlice<'a>>, rocksdb::Error>;
 
 /// Fetch a value from the database into cache, returning a reference-handle
 /// asynchronously. The key is serialized into an allocated buffer to perform
@@ -58,18 +51,6 @@ where
 	self.get(key)
 }
 
-#[implement(super::Map)]
-#[tracing::instrument(skip(self, keys), fields(%self), level = "trace")]
-pub fn get_batch<'a, I, K>(self: &'a Arc<Self>, keys: I) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a
-where
-	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send + 'a,
-	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
-{
-	keys.stream()
-		.map(move |key| self.get(key))
-		.buffered(self.db.server.config.db_pool_workers.saturating_mul(2))
-}
-
 /// Fetch a value from the database into cache, returning a reference-handle
 /// asynchronously. The key is referenced directly to perform the query.
 #[implement(super::Map)]
@@ -95,25 +76,6 @@ where
 	self.db.pool.execute_get(cmd).boxed()
 }
 
-#[implement(super::Map)]
-#[tracing::instrument(skip(self, keys), name = "batch_blocking", level = "trace")]
-pub(crate) fn get_batch_blocking<'a, I, K>(&self, keys: I) -> impl Iterator<Item = Result<Handle<'_>>> + Send
-where
-	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,
-	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
-{
-	// Optimization can be `true` if key vector is pre-sorted **by the column
-	// comparator**.
-	const SORTED: bool = false;
-
-	let read_options = &self.read_options;
-	self.db
-		.db
-		.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, read_options)
-		.into_iter()
-		.map(into_result_handle)
-}
-
 /// Fetch a value from the database into cache, returning a reference-handle.
 /// The key is referenced directly to perform the query. This is a thread-
 /// blocking call.
@@ -123,12 +85,12 @@ pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>
 where
 	K: AsRef<[u8]> + ?Sized,
 {
-	let res = self
+	self.db
 		.db
-		.db
-		.get_pinned_cf_opt(&self.cf(), key, &self.read_options);
-
-	into_result_handle(res)
+		.get_pinned_cf_opt(&self.cf(), key, &self.read_options)
+		.map_err(map_err)?
+		.map(Handle::from)
+		.ok_or(err!(Request(NotFound("Not found in database"))))
 }
 
 /// Fetch a value from the cache without I/O.
@@ -156,11 +118,4 @@ where
 		// some other error occurred
 		Err(e) => or_else(e),
 	}
-}
-
-fn into_result_handle(result: RocksdbResult<'_>) -> Result<Handle<'_>> {
-	result
-		.map_err(map_err)?
-		.map(Handle::from)
-		.ok_or(err!(Request(NotFound("Not found in database"))))
 }
