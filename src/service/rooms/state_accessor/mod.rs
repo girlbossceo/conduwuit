@@ -102,7 +102,7 @@ impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_full_ids<Id>(&self, shortstatehash: ShortStateHash) -> Result<HashMap<u64, Id>>
+	pub async fn state_full_ids<Id>(&self, shortstatehash: ShortStateHash) -> Result<HashMap<ShortStateKey, Id>>
 	where
 		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
@@ -130,7 +130,7 @@ impl Service {
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<Id>
 	where
-		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
 	{
 		self.db
@@ -154,7 +154,7 @@ impl Service {
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<T>
 	where
-		T: for<'de> Deserialize<'de> + Send,
+		T: for<'de> Deserialize<'de>,
 	{
 		self.state_get(shortstatehash, event_type, state_key)
 			.await
@@ -337,7 +337,7 @@ impl Service {
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Id>
 	where
-		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
 	{
 		self.db
@@ -359,7 +359,7 @@ impl Service {
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<T>
 	where
-		T: for<'de> Deserialize<'de> + Send,
+		T: for<'de> Deserialize<'de>,
 	{
 		self.room_state_get(room_id, event_type, state_key)
 			.await

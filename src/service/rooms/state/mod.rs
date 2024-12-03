@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduit::{
-	at, err,
+	err,
 	result::FlatOk,
 	utils::{
 		calculate_hash,
@@ -420,7 +420,7 @@ impl Service {
 			.collect()
 			.await;
 
-		let auth_state: Vec<_> = self
+		let (state_keys, event_ids): (Vec<_>, Vec<_>) = self
 			.services
 			.state_accessor
 			.state_full_shortids(shortstatehash)
@@ -432,16 +432,13 @@ impl Service {
 					.remove(&shortstatekey)
 					.map(|(event_type, state_key)| ((event_type, state_key), shorteventid))
 			})
-			.collect();
+			.unzip();
 
 		let auth_pdus = self
 			.services
 			.short
-			.multi_get_eventid_from_short(auth_state.iter().map(at!(1)))
-			.await
-			.into_iter()
-			.stream()
-			.zip(auth_state.into_iter().stream().map(at!(0)))
+			.multi_get_eventid_from_short(event_ids.iter())
+			.zip(state_keys.into_iter().stream())
 			.ready_filter_map(|(event_id, tsk)| Some((tsk, event_id.ok()?)))
 			.broad_filter_map(|(tsk, event_id): (_, OwnedEventId)| async move {
 				self.services

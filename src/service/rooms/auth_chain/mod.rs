@@ -6,7 +6,11 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, debug_error, trace, utils::IterStream, validated, warn, Err, Result};
+use conduit::{
+	debug, debug_error, trace,
+	utils::{stream::ReadyExt, IterStream},
+	validated, warn, Err, Result,
+};
 use futures::{Stream, StreamExt};
 use ruma::{EventId, RoomId};
 
@@ -61,11 +65,10 @@ impl Service {
 		let event_ids = self
 			.services
 			.short
-			.multi_get_eventid_from_short(chain.into_iter())
-			.await
-			.into_iter()
-			.filter_map(Result::ok)
-			.collect();
+			.multi_get_eventid_from_short(chain.iter())
+			.ready_filter_map(Result::ok)
+			.collect()
+			.await;
 
 		Ok(event_ids)
 	}

@@ -139,7 +139,7 @@ pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &s
 #[implement(Service)]
 pub async fn get_eventid_from_short<Id>(&self, shorteventid: ShortEventId) -> Result<Id>
 where
-	Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+	Id: for<'de> Deserialize<'de> + Sized + ToOwned,
 	<Id as ToOwned>::Owned: Borrow<EventId>,
 {
 	const BUFSIZE: usize = size_of::<ShortEventId>();
@@ -153,22 +153,18 @@ where
 }
 
 #[implement(Service)]
-pub async fn multi_get_eventid_from_short<Id, I>(&self, shorteventid: I) -> Vec<Result<Id>>
+pub fn multi_get_eventid_from_short<'a, Id, I>(&'a self, shorteventid: I) -> impl Stream<Item = Result<Id>> + Send + 'a
 where
-	Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+	I: Iterator<Item = &'a ShortEventId> + Send + 'a,
+	Id: for<'de> Deserialize<'de> + Sized + ToOwned + 'a,
 	<Id as ToOwned>::Owned: Borrow<EventId>,
-	I: Iterator<Item = ShortEventId> + Send,
 {
 	const BUFSIZE: usize = size_of::<ShortEventId>();
 
-	let keys: Vec<[u8; BUFSIZE]> = shorteventid.map(u64::to_be_bytes).collect();
-
 	self.db
 		.shorteventid_eventid
-		.get_batch(keys.iter())
+		.aqry_batch::<BUFSIZE, _, _>(shorteventid)
 		.map(Deserialized::deserialized)
-		.collect()
-		.await
 }
 
 #[implement(Service)]

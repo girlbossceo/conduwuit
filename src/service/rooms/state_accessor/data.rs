@@ -1,12 +1,12 @@
 use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 use conduit::{
-	at, err,
-	utils::stream::{BroadbandExt, IterStream},
+	at, err, ref_at,
+	utils::stream::{BroadbandExt, IterStream, ReadyExt},
 	PduEvent, Result,
 };
 use database::{Deserialized, Map};
-use futures::{StreamExt, TryFutureExt};
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{events::StateEventType, EventId, OwnedEventId, RoomId};
 use serde::Deserialize;
 
@@ -59,23 +59,13 @@ impl Data {
 	}
 
 	pub(super) async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<PduEvent>> {
-		let short_ids = self
-			.state_full_shortids(shortstatehash)
-			.await?
-			.into_iter()
-			.map(at!(1));
+		let short_ids = self.state_full_shortids(shortstatehash).await?;
 
-		let event_ids = self
+		let full_pdus = self
 			.services
 			.short
-			.multi_get_eventid_from_short(short_ids)
-			.await
-			.into_iter()
-			.filter_map(Result::ok);
-
-		let full_pdus = event_ids
-			.into_iter()
-			.stream()
+			.multi_get_eventid_from_short(short_ids.iter().map(ref_at!(1)))
+			.ready_filter_map(Result::ok)
 			.broad_filter_map(
 				|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await.ok() },
 			)
@@ -92,18 +82,15 @@ impl Data {
 	{
 		let short_ids = self.state_full_shortids(shortstatehash).await?;
 
-		let event_ids = self
+		let full_ids = self
 			.services
 			.short
-			.multi_get_eventid_from_short(short_ids.iter().map(at!(1)))
+			.multi_get_eventid_from_short(short_ids.iter().map(ref_at!(1)))
+			.zip(short_ids.iter().stream().map(at!(0)))
+			.ready_filter_map(|(event_id, shortstatekey)| Some((shortstatekey, event_id.ok()?)))
+			.collect()
+			.boxed()
 			.await;
-
-		let full_ids = short_ids
-			.into_iter()
-			.map(at!(0))
-			.zip(event_ids.into_iter())
-			.filter_map(|(shortstatekey, event_id)| Some((shortstatekey, event_id.ok()?)))
-			.collect();
 
 		Ok(full_ids)
 	}
@@ -134,7 +121,7 @@ impl Data {
 		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
 	) -> Result<Id>
 	where
-		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
 	{
 		let shortstatekey = self
@@ -219,7 +206,7 @@ impl Data {
 		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
 	) -> Result<Id>
 	where
-		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
 	{
 		self.services
