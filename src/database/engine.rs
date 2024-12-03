@@ -148,6 +148,8 @@ impl Engine {
 			.expect("column was created and exists")
 	}
 
+	pub async fn shutdown_pool(&self) { self.pool.shutdown().await; }
+
 	pub fn flush(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, false)) }
 
 	pub fn sync(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, true)) }
@@ -325,8 +327,7 @@ impl Drop for Engine {
 	fn drop(&mut self) {
 		const BLOCKING: bool = true;
 
-		debug!("Shutting down request pool...");
-		self.pool.close();
+		debug_assert!(!self.pool.close(), "request pool was not closed");
 
 		debug!("Waiting for background tasks to finish...");
 		self.db.cancel_all_background_work(BLOCKING);

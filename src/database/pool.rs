@@ -76,10 +76,8 @@ pub(crate) async fn new(server: &Arc<Server>, opts: &Opts) -> Result<Arc<Self>> 
 }
 
 #[implement(Pool)]
-pub(crate) async fn _shutdown(self: &Arc<Self>) {
-	if !self.queue.is_closed() {
-		self.close();
-	}
+pub(crate) async fn shutdown(self: &Arc<Self>) {
+	self.close();
 
 	let workers = take(&mut *self.workers.lock().await);
 	debug!(workers = workers.len(), "Waiting for workers to join...");
@@ -89,18 +87,19 @@ pub(crate) async fn _shutdown(self: &Arc<Self>) {
 }
 
 #[implement(Pool)]
-pub(crate) fn close(&self) {
-	debug_assert!(!self.queue.is_closed(), "channel already closed");
+pub(crate) fn close(&self) -> bool {
+	if !self.queue.close() {
+		return false;
+	}
+
+	std::thread::yield_now();
 	debug!(
 		senders = self.queue.sender_count(),
 		receivers = self.queue.receiver_count(),
-		"Closing pool channel"
+		"Closed pool channel"
 	);
 
-	let closing = self.queue.close();
-	debug_assert!(closing, "channel is not closing");
-
-	std::thread::yield_now();
+	true
 }
 
 #[implement(Pool)]

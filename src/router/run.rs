@@ -78,6 +78,11 @@ pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 	// unload and explode.
 	services.stop().await;
 
+	// Check that Services and Database will drop as expected, The complex of Arc's
+	// used for various components can easily lead to references being held
+	// somewhere improperly; this can hang shutdowns.
+	debug!("Cleaning up...");
+	let db = Arc::downgrade(&services.db);
 	if let Err(services) = Arc::try_unwrap(services) {
 		debug_error!(
 			"{} dangling references to Services after shutdown",
@@ -85,7 +90,12 @@ pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 		);
 	}
 
-	debug!("Cleaning up...");
+	// The db threadpool requires async join if we use tokio/spawn_blocking to
+	// manage the threads. Without async-drop we have to wait here; for symmetry
+	// with Services construction it can't be done in services.stop().
+	if let Some(db) = db.upgrade() {
+		db.db.shutdown_pool().await;
+	}
 
 	#[cfg(feature = "systemd")]
 	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]).expect("failed to notify systemd of stopping state");
