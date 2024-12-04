@@ -3,7 +3,7 @@
 
 use futures::{
 	future::{ready, Ready},
-	stream::{Any, Filter, FilterMap, Fold, ForEach, Scan, SkipWhile, Stream, StreamExt, TakeWhile},
+	stream::{All, Any, Filter, FilterMap, Fold, ForEach, Scan, SkipWhile, Stream, StreamExt, TakeWhile},
 };
 
 /// Synchronous combinators to augment futures::StreamExt. Most Stream
@@ -16,6 +16,10 @@ pub trait ReadyExt<Item>
 where
 	Self: Stream<Item = Item> + Send + Sized,
 {
+	fn ready_all<F>(self, f: F) -> All<Self, Ready<bool>, impl FnMut(Item) -> Ready<bool>>
+	where
+		F: Fn(Item) -> bool;
+
 	fn ready_any<F>(self, f: F) -> Any<Self, Ready<bool>, impl FnMut(Item) -> Ready<bool>>
 	where
 		F: Fn(Item) -> bool;
@@ -66,6 +70,14 @@ impl<Item, S> ReadyExt<Item> for S
 where
 	S: Stream<Item = Item> + Send + Sized,
 {
+	#[inline]
+	fn ready_all<F>(self, f: F) -> All<Self, Ready<bool>, impl FnMut(Item) -> Ready<bool>>
+	where
+		F: Fn(Item) -> bool,
+	{
+		self.all(move |t| ready(f(t)))
+	}
+
 	#[inline]
 	fn ready_any<F>(self, f: F) -> Any<Self, Ready<bool>, impl FnMut(Item) -> Ready<bool>>
 	where

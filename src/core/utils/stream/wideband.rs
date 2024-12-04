@@ -1,5 +1,4 @@
 //! Wideband stream combinator extensions to futures::Stream
-#![allow(clippy::type_complexity)]
 
 use std::convert::identity;
 

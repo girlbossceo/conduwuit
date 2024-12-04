@@ -1,5 +1,4 @@
 //! Broadband stream combinator extensions to futures::Stream
-#![allow(clippy::type_complexity)]
 
 use std::convert::identity;
 
@@ -18,6 +17,18 @@ pub trait BroadbandExt<Item>
 where
 	Self: Stream<Item = Item> + Send + Sized,
 {
+	fn broadn_all<F, Fut, N>(self, n: N, f: F) -> impl Future<Output = bool> + Send
+	where
+		N: Into<Option<usize>>,
+		F: Fn(Item) -> Fut + Send,
+		Fut: Future<Output = bool> + Send;
+
+	fn broadn_any<F, Fut, N>(self, n: N, f: F) -> impl Future<Output = bool> + Send
+	where
+		N: Into<Option<usize>>,
+		F: Fn(Item) -> Fut + Send,
+		Fut: Future<Output = bool> + Send;
+
 	/// Concurrent filter_map(); unordered results
 	fn broadn_filter_map<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
 	where
@@ -32,6 +43,24 @@ where
 		F: Fn(Item) -> Fut + Send,
 		Fut: Future<Output = U> + Send,
 		U: Send;
+
+	#[inline]
+	fn broad_all<F, Fut>(self, f: F) -> impl Future<Output = bool> + Send
+	where
+		F: Fn(Item) -> Fut + Send,
+		Fut: Future<Output = bool> + Send,
+	{
+		self.broadn_all(None, f)
+	}
+
+	#[inline]
+	fn broad_any<F, Fut>(self, f: F) -> impl Future<Output = bool> + Send
+	where
+		F: Fn(Item) -> Fut + Send,
+		Fut: Future<Output = bool> + Send,
+	{
+		self.broadn_any(None, f)
+	}
 
 	#[inline]
 	fn broad_filter_map<F, Fut, U>(self, f: F) -> impl Stream<Item = U> + Send
@@ -58,6 +87,30 @@ impl<Item, S> BroadbandExt<Item> for S
 where
 	S: Stream<Item = Item> + Send + Sized,
 {
+	#[inline]
+	fn broadn_all<F, Fut, N>(self, n: N, f: F) -> impl Future<Output = bool> + Send
+	where
+		N: Into<Option<usize>>,
+		F: Fn(Item) -> Fut + Send,
+		Fut: Future<Output = bool> + Send,
+	{
+		self.map(f)
+			.buffer_unordered(n.into().unwrap_or(WIDTH))
+			.ready_all(identity)
+	}
+
+	#[inline]
+	fn broadn_any<F, Fut, N>(self, n: N, f: F) -> impl Future<Output = bool> + Send
+	where
+		N: Into<Option<usize>>,
+		F: Fn(Item) -> Fut + Send,
+		Fut: Future<Output = bool> + Send,
+	{
+		self.map(f)
+			.buffer_unordered(n.into().unwrap_or(WIDTH))
+			.ready_any(identity)
+	}
+
 	#[inline]
 	fn broadn_filter_map<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
 	where
