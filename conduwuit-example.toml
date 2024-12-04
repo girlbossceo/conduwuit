@@ -1341,7 +1341,8 @@
 # Sets the number of worker threads in the frontend-pool of the database.
 # This number should reflect the I/O capabilities of the system,
 # specifically the queue-depth or the number of simultaneous requests in
-# flight. Defaults to 32 or number of CPU cores, whichever is greater.
+# flight. Defaults to 32 or four times the number of CPU cores, whichever
+# is greater.
 #
 #db_pool_workers = 32
 

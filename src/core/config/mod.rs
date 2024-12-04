@@ -1503,7 +1503,8 @@ pub struct Config {
 	/// Sets the number of worker threads in the frontend-pool of the database.
 	/// This number should reflect the I/O capabilities of the system,
 	/// specifically the queue-depth or the number of simultaneous requests in
-	/// flight. Defaults to 32 or number of CPU cores, whichever is greater.
+	/// flight. Defaults to 32 or four times the number of CPU cores, whichever
+	/// is greater.
 	/// default: 32
 	#[serde(default = "default_db_pool_workers")]
 	pub db_pool_workers: usize,
@@ -2280,6 +2281,6 @@ fn parallelism_scaled(val: usize) -> usize { val.saturating_mul(sys::available_p
 
 fn default_trusted_server_batch_size() -> usize { 256 }
 
-fn default_db_pool_workers() -> usize { sys::available_parallelism().max(32) }
+fn default_db_pool_workers() -> usize { sys::available_parallelism().saturating_mul(4).max(32) }
 
 fn default_db_pool_queue_size() -> usize { sys::available_parallelism().saturating_mul(8).max(256) }
