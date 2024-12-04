@@ -65,7 +65,6 @@ pub async fn resolve_state(
 				.collect()
 		})
 		.collect()
-		.boxed()
 		.await;
 
 	debug!("Resolving state");
@@ -74,6 +73,7 @@ pub async fn resolve_state(
 	let event_fetch = |event_id| self.event_fetch(event_id);
 	let event_exists = |event_id| self.event_exists(event_id);
 	let state = state_res::resolve(room_version_id, &fork_states, &auth_chain_sets, &event_fetch, &event_exists)
+		.boxed()
 		.await
 		.map_err(|e| err!(Database(error!("State resolution failed: {e:?}"))))?;
 

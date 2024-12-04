@@ -153,6 +153,7 @@ pub(super) async fn state_at_incoming_resolved(
 	let event_fetch = |event_id| self.event_fetch(event_id);
 	let event_exists = |event_id| self.event_exists(event_id);
 	let result = state_res::resolve(room_version_id, &fork_states, &auth_chain_sets, &event_fetch, &event_exists)
+		.boxed()
 		.await
 		.map_err(|e| err!(Database(warn!(?e, "State resolution on prev events failed."))));
 
