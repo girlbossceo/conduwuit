@@ -4,7 +4,12 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, err, implement, result::LogErr, utils::IterStream, PduEvent, Result};
+use conduit::{
+	debug, err, implement,
+	result::LogErr,
+	utils::stream::{BroadbandExt, IterStream},
+	PduEvent, Result,
+};
 use futures::{FutureExt, StreamExt};
 use ruma::{
 	state_res::{self, StateMap},
@@ -166,7 +171,7 @@ pub(super) async fn state_at_incoming_resolved(
 	new_state
 		.iter()
 		.stream()
-		.then(|((event_type, state_key), event_id)| {
+		.broad_then(|((event_type, state_key), event_id)| {
 			self.services
 				.short
 				.get_or_create_shortstatekey(event_type, state_key)

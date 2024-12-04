@@ -3,7 +3,12 @@
 use std::{borrow::Borrow, collections::HashMap};
 
 use axum::extract::State;
-use conduit::{err, pdu::gen_event_id_canonical_json, utils::IterStream, warn, Error, Result};
+use conduit::{
+	err,
+	pdu::gen_event_id_canonical_json,
+	utils::stream::{IterStream, TryBroadbandExt},
+	warn, Error, Result,
+};
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_join_event},
@@ -160,6 +165,7 @@ async fn create_join_event(
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(&origin, room_id, &event_id, value.clone(), true)
+		.boxed()
 		.await?
 		.ok_or_else(|| err!(Request(InvalidParam("Could not accept as timeline event."))))?;
 
@@ -172,16 +178,17 @@ async fn create_join_event(
 		.await?;
 
 	let state = state_ids
-		.iter()
+		.values()
 		.try_stream()
-		.and_then(|(_, event_id)| services.rooms.timeline.get_pdu_json(event_id))
-		.and_then(|pdu| {
+		.broad_and_then(|event_id| services.rooms.timeline.get_pdu_json(event_id))
+		.broad_and_then(|pdu| {
 			services
 				.sending
 				.convert_to_outgoing_federation_event(pdu)
 				.map(Ok)
 		})
 		.try_collect()
+		.boxed()
 		.await?;
 
 	let starting_events = state_ids.values().map(Borrow::borrow);
@@ -191,14 +198,15 @@ async fn create_join_event(
 		.event_ids_iter(room_id, starting_events)
 		.await?
 		.map(Ok)
-		.and_then(|event_id| async move { services.rooms.timeline.get_pdu_json(&event_id).await })
-		.and_then(|pdu| {
+		.broad_and_then(|event_id| async move { services.rooms.timeline.get_pdu_json(&event_id).await })
+		.broad_and_then(|pdu| {
 			services
 				.sending
 				.convert_to_outgoing_federation_event(pdu)
 				.map(Ok)
 		})
 		.try_collect()
+		.boxed()
 		.await?;
 
 	services.sending.send_pdu_room(room_id, &pdu_id).await?;

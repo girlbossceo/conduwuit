@@ -2,7 +2,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use conduit::{
 	err,
-	utils::{stream::TryIgnore, ReadyExt},
+	utils::{
+		stream::{TryIgnore, WidebandExt},
+		ReadyExt,
+	},
 	PduCount, PduEvent, PduId, RawPduId, Result,
 };
 use database::{Deserialized, Map};
@@ -143,7 +146,7 @@ impl Service {
 			.ignore_err()
 			.map(RawPduId::from)
 			.ready_take_while(move |pdu_id| pdu_id.shortroomid() == shortroomid.to_be_bytes())
-			.filter_map(move |pdu_id| async move {
+			.wide_filter_map(move |pdu_id| async move {
 				let mut pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await.ok()?;
 				let pdu_id: PduId = pdu_id.into();
 

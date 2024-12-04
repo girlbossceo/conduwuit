@@ -4,7 +4,11 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, err, implement, utils::IterStream, Result};
+use conduit::{
+	debug, err, implement,
+	utils::stream::{IterStream, WidebandExt},
+	Result,
+};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	state_res::{self, StateMap},
@@ -52,11 +56,11 @@ pub async fn resolve_state(
 	let fork_states: Vec<StateMap<Arc<EventId>>> = fork_states
 		.into_iter()
 		.stream()
-		.then(|fork_state| {
+		.wide_then(|fork_state| {
 			fork_state
 				.into_iter()
 				.stream()
-				.filter_map(|(k, id)| {
+				.wide_filter_map(|(k, id)| {
 					self.services
 						.short
 						.get_statekey_from_short(k)
@@ -83,7 +87,7 @@ pub async fn resolve_state(
 	let state_events: Vec<_> = state
 		.iter()
 		.stream()
-		.then(|((event_type, state_key), event_id)| {
+		.wide_then(|((event_type, state_key), event_id)| {
 			self.services
 				.short
 				.get_or_create_shortstatekey(event_type, state_key)

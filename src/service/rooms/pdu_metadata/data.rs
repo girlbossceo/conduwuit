@@ -3,7 +3,10 @@ use std::{mem::size_of, sync::Arc};
 use arrayvec::ArrayVec;
 use conduit::{
 	result::LogErr,
-	utils::{stream::TryIgnore, u64_from_u8, ReadyExt},
+	utils::{
+		stream::{TryIgnore, WidebandExt},
+		u64_from_u8, ReadyExt,
+	},
 	PduCount, PduEvent,
 };
 use database::Map;
@@ -67,7 +70,7 @@ impl Data {
 		.ready_take_while(move |key| key.starts_with(&target.to_be_bytes()))
 		.map(|to_from| u64_from_u8(&to_from[8..16]))
 		.map(PduCount::from_unsigned)
-		.filter_map(move |shorteventid| async move {
+		.wide_filter_map(move |shorteventid| async move {
 			let pdu_id: RawPduId = PduId {
 				shortroomid,
 				shorteventid,

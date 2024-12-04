@@ -1,7 +1,10 @@
 mod v3;
 mod v4;
 
-use conduit::{utils::ReadyExt, PduCount};
+use conduit::{
+	utils::stream::{BroadbandExt, ReadyExt},
+	PduCount,
+};
 use futures::StreamExt;
 use ruma::{RoomId, UserId};
 
@@ -55,7 +58,7 @@ async fn share_encrypted_room(
 		.state_cache
 		.get_shared_rooms(sender_user, user_id)
 		.ready_filter(|&room_id| Some(room_id) != ignore_room)
-		.any(|other_room_id| {
+		.broad_any(|other_room_id| {
 			services
 				.rooms
 				.state_accessor

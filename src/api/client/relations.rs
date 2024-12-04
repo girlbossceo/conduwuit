@@ -1,10 +1,10 @@
 use axum::extract::State;
 use conduit::{
 	at,
-	utils::{result::FlatOk, IterStream, ReadyExt},
+	utils::{result::FlatOk, stream::WidebandExt, IterStream, ReadyExt},
 	PduCount, Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use ruma::{
 	api::{
 		client::relations::{
@@ -138,11 +138,10 @@ async fn paginate_relations_with_filter(
 				.is_none_or(|rel_type| pdu.relation_type_equal(rel_type))
 		})
 		.stream()
-		.filter_map(|item| visibility_filter(services, sender_user, item))
 		.ready_take_while(|(count, _)| Some(*count) != to)
+		.wide_filter_map(|item| visibility_filter(services, sender_user, item))
 		.take(limit)
 		.collect()
-		.boxed()
 		.await;
 
 	let next_batch = match dir {
