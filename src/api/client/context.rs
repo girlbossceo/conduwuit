@@ -79,11 +79,15 @@ pub(crate) async fn get_context_route(
 
 	let (base_token, base_event, visible) = try_join!(base_token, base_event, visible)?;
 
-	if base_event.room_id != body.room_id {
+	if base_event.room_id != body.room_id || base_event.event_id != body.event_id {
 		return Err!(Request(NotFound("Base event not found.")));
 	}
 
-	if !visible {
+	if !visible
+		|| ignored_filter(&services, (base_token, base_event.clone()), sender_user)
+			.await
+			.is_none()
+	{
 		return Err!(Request(Forbidden("You don't have permission to view this event.")));
 	}
 
