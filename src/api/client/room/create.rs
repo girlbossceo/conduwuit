@@ -116,11 +116,7 @@ pub(crate) async fn create_room_route(
 
 	let room_version = match body.room_version.clone() {
 		Some(room_version) => {
-			if services
-				.globals
-				.supported_room_versions()
-				.contains(&room_version)
-			{
+			if services.server.supported_room_version(&room_version) {
 				room_version
 			} else {
 				return Err(Error::BadRequest(
@@ -129,7 +125,7 @@ pub(crate) async fn create_room_route(
 				));
 			}
 		},
-		None => services.globals.default_room_version(),
+		None => services.server.config.default_room_version.clone(),
 	};
 
 	let create_content = match &body.creation_content {

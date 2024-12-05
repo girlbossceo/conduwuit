@@ -706,11 +706,7 @@ async fn join_room_by_id_helper_remote(
 		return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
 	};
 
-	if !services
-		.globals
-		.supported_room_versions()
-		.contains(&room_version_id)
-	{
+	if !services.server.supported_room_version(&room_version_id) {
 		return Err!(BadServerResponse(
 			"Remote room version {room_version_id} is not supported by conduwuit"
 		));
@@ -1122,11 +1118,7 @@ async fn join_room_by_id_helper_local(
 			return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
 		};
 
-		if !services
-			.globals
-			.supported_room_versions()
-			.contains(&room_version_id)
-		{
+		if !services.server.supported_room_version(&room_version_id) {
 			return Err!(BadServerResponse(
 				"Remote room version {room_version_id} is not supported by conduwuit"
 			));
@@ -1260,7 +1252,7 @@ async fn make_join_request(
 				federation::membership::prepare_join_event::v1::Request {
 					room_id: room_id.to_owned(),
 					user_id: sender_user.to_owned(),
-					ver: services.globals.supported_room_versions(),
+					ver: services.server.supported_room_versions().collect(),
 				},
 			)
 			.await;
@@ -1616,11 +1608,7 @@ async fn remote_leave_room(services: &Services, user_id: &UserId, room_id: &Room
 		return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
 	};
 
-	if !services
-		.globals
-		.supported_room_versions()
-		.contains(&room_version_id)
-	{
+	if !services.server.supported_room_version(&room_version_id) {
 		return Err!(BadServerResponse(
 			"Remote room version {room_version_id} is not supported by conduwuit"
 		));

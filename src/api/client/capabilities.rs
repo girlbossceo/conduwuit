@@ -19,23 +19,11 @@ use crate::{Result, Ruma};
 pub(crate) async fn get_capabilities_route(
 	State(services): State<crate::State>, _body: Ruma<get_capabilities::v3::Request>,
 ) -> Result<get_capabilities::v3::Response> {
-	let available: BTreeMap<RoomVersionId, RoomVersionStability> = services
-		.globals
-		.unstable_room_versions
-		.iter()
-		.map(|unstable_room_version| (unstable_room_version.clone(), RoomVersionStability::Unstable))
-		.chain(
-			services
-				.globals
-				.stable_room_versions
-				.iter()
-				.map(|stable_room_version| (stable_room_version.clone(), RoomVersionStability::Stable)),
-		)
-		.collect();
+	let available: BTreeMap<RoomVersionId, RoomVersionStability> = services.server.available_room_versions().collect();
 
 	let mut capabilities = Capabilities::default();
 	capabilities.room_versions = RoomVersionsCapability {
-		default: services.globals.default_room_version(),
+		default: services.server.config.default_room_version.clone(),
 		available,
 	};
 

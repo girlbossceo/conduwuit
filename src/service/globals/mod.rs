@@ -10,9 +10,7 @@ use std::{
 use conduit::{error, Config, Result};
 use data::Data;
 use regex::RegexSet;
-use ruma::{
-	OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, RoomVersionId, ServerName, UserId,
-};
+use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, ServerName, UserId};
 use tokio::sync::Mutex;
 
 use crate::service;
@@ -22,8 +20,6 @@ pub struct Service {
 
 	pub config: Config,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
-	pub stable_room_versions: Vec<RoomVersionId>,
-	pub unstable_room_versions: Vec<RoomVersionId>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
@@ -44,18 +40,6 @@ impl crate::Service for Service {
 			.jwt_secret
 			.as_ref()
 			.map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
-
-		// Supported and stable room versions
-		let stable_room_versions = vec![
-			RoomVersionId::V6,
-			RoomVersionId::V7,
-			RoomVersionId::V8,
-			RoomVersionId::V9,
-			RoomVersionId::V10,
-			RoomVersionId::V11,
-		];
-		// Experimental, partially supported room versions
-		let unstable_room_versions = vec![RoomVersionId::V2, RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
 		let turn_secret = config
 			.turn_secret_file
@@ -86,8 +70,6 @@ impl crate::Service for Service {
 			db,
 			config: config.clone(),
 			jwt_decoding_key,
-			stable_room_versions,
-			unstable_room_versions,
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			stateres_mutex: Arc::new(Mutex::new(())),
@@ -99,9 +81,9 @@ impl crate::Service for Service {
 			registration_token,
 		};
 
-		if !s
-			.supported_room_versions()
-			.contains(&s.config.default_room_version)
+		if !args
+			.server
+			.supported_room_version(&config.default_room_version)
 		{
 			error!(config=?s.config.default_room_version, fallback=?conduit::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
 			s.config.default_room_version = conduit::config::default_default_room_version();
@@ -173,11 +155,6 @@ impl Service {
 
 	pub fn allow_room_creation(&self) -> bool { self.config.allow_room_creation }
 
-	pub fn allow_unstable_room_versions(&self) -> bool { self.config.allow_unstable_room_versions }
-
-	#[inline]
-	pub fn default_room_version(&self) -> RoomVersionId { self.config.default_room_version.clone() }
-
 	pub fn new_user_displayname_suffix(&self) -> &String { &self.config.new_user_displayname_suffix }
 
 	pub fn allow_check_for_updates(&self) -> bool { self.config.allow_check_for_updates }
@@ -231,18 +208,6 @@ impl Service {
 	pub fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
 
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
-
-	pub fn supported_room_versions(&self) -> Vec<RoomVersionId> {
-		if self.config.allow_unstable_room_versions {
-			self.stable_room_versions
-				.clone()
-				.into_iter()
-				.chain(self.unstable_room_versions.clone())
-				.collect()
-		} else {
-			self.stable_room_versions.clone()
-		}
-	}
 
 	/// checks if `user_id` is local to us via server_name comparison
 	#[inline]

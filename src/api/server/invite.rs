@@ -26,11 +26,7 @@ pub(crate) async fn create_invite_route(
 		.acl_check(body.origin(), &body.room_id)
 		.await?;
 
-	if !services
-		.globals
-		.supported_room_versions()
-		.contains(&body.room_version)
-	{
+	if !services.server.supported_room_version(&body.room_version) {
 		return Err(Error::BadRequest(
 			ErrorKind::IncompatibleRoomVersion {
 				room_version: body.room_version.clone(),
