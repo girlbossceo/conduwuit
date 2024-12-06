@@ -609,7 +609,6 @@ async fn load_joined_room(
 				.rooms
 				.timeline
 				.all_pdus(sender_user, room_id)
-				.await?
 				.ready_filter(|(_, pdu)| pdu.kind == RoomMember)
 				.filter_map(|(_, pdu)| async move {
 					let content: RoomMemberEventContent = pdu.get_content().ok()?;
