@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use conduit::{implement, Result};
-use database::{Deserialized, Map};
+use database::{Database, Deserialized, Map};
 use ruma::{RoomId, UserId};
 
 use crate::{globals, rooms, rooms::short::ShortStateHash, Dep};
@@ -12,6 +12,7 @@ pub struct Service {
 }
 
 struct Data {
+	db: Arc<Database>,
 	userroomid_notificationcount: Arc<Map>,
 	userroomid_highlightcount: Arc<Map>,
 	roomuserid_lastnotificationread: Arc<Map>,
@@ -27,11 +28,12 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
 			db: Data {
-			userroomid_notificationcount: args.db["userroomid_notificationcount"].clone(),
-			userroomid_highlightcount: args.db["userroomid_highlightcount"].clone(),
-			roomuserid_lastnotificationread: args.db["userroomid_highlightcount"].clone(), //< NOTE: known bug from conduit
-			roomsynctoken_shortstatehash: args.db["roomsynctoken_shortstatehash"].clone(),
-		},
+				db: args.db.clone(),
+				userroomid_notificationcount: args.db["userroomid_notificationcount"].clone(),
+				userroomid_highlightcount: args.db["userroomid_highlightcount"].clone(),
+				roomuserid_lastnotificationread: args.db["userroomid_highlightcount"].clone(),
+				roomsynctoken_shortstatehash: args.db["roomsynctoken_shortstatehash"].clone(),
+			},
 
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
@@ -98,6 +100,7 @@ pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64,
 		.await
 		.expect("room exists");
 
+	let _cork = self.db.db.cork();
 	let key: &[u64] = &[shortroomid, token];
 	self.db
 		.roomsynctoken_shortstatehash

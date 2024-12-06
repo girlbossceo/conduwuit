@@ -89,7 +89,7 @@ impl Console {
 		}
 	}
 
-	#[tracing::instrument(skip_all, name = "console")]
+	#[tracing::instrument(skip_all, name = "console", level = "trace")]
 	async fn worker(self: Arc<Self>) {
 		debug!("session starting");
 		while self.server.running() {
