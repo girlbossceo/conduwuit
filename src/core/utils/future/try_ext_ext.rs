@@ -1,5 +1,8 @@
 //! Extended external extensions to futures::TryFutureExt
 #![allow(clippy::type_complexity)]
+// is_ok() has to consume *self rather than borrow. This extension is for a
+// caller only ever caring about result status while discarding all contents.
+#![allow(clippy::wrong_self_convention)]
 
 use futures::{
 	future::{MapOkOrElse, UnwrapOrElse},
@@ -11,12 +14,10 @@ pub trait TryExtExt<T, E>
 where
 	Self: TryFuture<Ok = T, Error = E> + Send,
 {
-	/// Resolves to a bool for whether the TryFuture (Future of a Result)
-	/// resolved to Ok or Err.
-	///
-	/// is_ok() has to consume *self rather than borrow. The intent of this
-	/// extension is therefor for a caller only ever caring about result status
-	/// while discarding all contents.
+	fn is_err(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
+	where
+		Self: Sized;
+
 	#[allow(clippy::wrong_self_convention)]
 	fn is_ok(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
 	where
@@ -44,6 +45,14 @@ impl<T, E, Fut> TryExtExt<T, E> for Fut
 where
 	Fut: TryFuture<Ok = T, Error = E> + Send,
 {
+	#[inline]
+	fn is_err(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
+	where
+		Self: Sized,
+	{
+		self.map_ok_or(true, |_| false)
+	}
+
 	#[inline]
 	fn is_ok(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
 	where

@@ -32,6 +32,12 @@ where
 	fn counts_with_cap<const CAP: usize>(self) -> impl Future<Output = HashMap<Item, usize>> + Send
 	where
 		<Self as Stream>::Item: Eq + Hash;
+
+	fn fold_default<T, F, Fut>(self, f: F) -> impl Future<Output = T> + Send
+	where
+		F: Fn(T, Item) -> Fut + Send,
+		Fut: Future<Output = T> + Send,
+		T: Default + Send;
 }
 
 impl<Item, S> Tools<Item> for S
@@ -76,5 +82,15 @@ where
 			*entry = expected!(value + 1);
 			counts
 		})
+	}
+
+	#[inline]
+	fn fold_default<T, F, Fut>(self, f: F) -> impl Future<Output = T> + Send
+	where
+		F: Fn(T, Item) -> Fut + Send,
+		Fut: Future<Output = T> + Send,
+		T: Default + Send,
+	{
+		self.fold(T::default(), f)
 	}
 }
