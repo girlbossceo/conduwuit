@@ -648,8 +648,8 @@ pub(crate) async fn deactivate_route(
 		.collect()
 		.await;
 
-	super::update_displayname(&services, sender_user, None, &all_joined_rooms).await?;
-	super::update_avatar_url(&services, sender_user, None, None, &all_joined_rooms).await?;
+	super::update_displayname(&services, sender_user, None, &all_joined_rooms).await;
+	super::update_avatar_url(&services, sender_user, None, None, &all_joined_rooms).await;
 
 	full_user_deactivate(&services, sender_user, &all_joined_rooms).await?;
 
@@ -744,9 +744,9 @@ pub(crate) async fn check_registration_token_validity(
 pub async fn full_user_deactivate(
 	services: &Services, user_id: &UserId, all_joined_rooms: &[OwnedRoomId],
 ) -> Result<()> {
-	services.users.deactivate_account(user_id).await?;
-	super::update_displayname(services, user_id, None, all_joined_rooms).await?;
-	super::update_avatar_url(services, user_id, None, None, all_joined_rooms).await?;
+	services.users.deactivate_account(user_id).await.ok();
+	super::update_displayname(services, user_id, None, all_joined_rooms).await;
+	super::update_avatar_url(services, user_id, None, None, all_joined_rooms).await;
 
 	services
 		.users
