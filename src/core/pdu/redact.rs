@@ -11,7 +11,7 @@ use serde_json::{
 	value::{to_raw_value, RawValue as RawJsonValue},
 };
 
-use crate::{implement, warn, Error, Result};
+use crate::{implement, Error, Result};
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {
@@ -19,14 +19,13 @@ struct ExtractRedactedBecause {
 }
 
 #[implement(super::Pdu)]
-#[tracing::instrument(skip(self), level = "debug")]
-pub fn redact(&mut self, room_version_id: RoomVersionId, reason: &Self) -> Result {
+pub fn redact(&mut self, room_version_id: &RoomVersionId, reason: &Self) -> Result {
 	self.unsigned = None;
 
 	let mut content =
 		serde_json::from_str(self.content.get()).map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
 
-	redact_content_in_place(&mut content, &room_version_id, self.kind.to_string())
+	redact_content_in_place(&mut content, room_version_id, self.kind.to_string())
 		.map_err(|e| Error::Redaction(self.sender.server_name().to_owned(), e))?;
 
 	self.unsigned = Some(

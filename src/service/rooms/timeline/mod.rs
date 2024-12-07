@@ -1024,7 +1024,7 @@ impl Service {
 
 		let room_version_id = self.services.state.get_room_version(&pdu.room_id).await?;
 
-		pdu.redact(room_version_id, reason)?;
+		pdu.redact(&room_version_id, reason)?;
 
 		let obj = utils::to_canonical_object(&pdu)
 			.map_err(|e| err!(Database(error!(?event_id, ?e, "Failed to convert PDU to canonical JSON"))))?;
