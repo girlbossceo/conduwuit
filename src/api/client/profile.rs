@@ -273,16 +273,22 @@ pub(crate) async fn get_profile_route(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Profile was not found."));
 	}
 
+	let mut custom_profile_fields: BTreeMap<String, serde_json::Value> = services
+		.users
+		.all_profile_keys(&body.user_id)
+		.collect()
+		.await;
+
+	// services.users.timezone will collect the MSC4175 timezone key if it exists
+	custom_profile_fields.remove("us.cloke.mscs4175.tz");
+	custom_profile_fields.remove("m.tz");
+
 	Ok(get_profile::v3::Response {
 		avatar_url: services.users.avatar_url(&body.user_id).await.ok(),
 		blurhash: services.users.blurhash(&body.user_id).await.ok(),
 		displayname: services.users.displayname(&body.user_id).await.ok(),
 		tz: services.users.timezone(&body.user_id).await.ok(),
-		custom_profile_fields: services
-			.users
-			.all_profile_keys(&body.user_id)
-			.collect()
-			.await,
+		custom_profile_fields,
 	})
 }
 

@@ -117,6 +117,10 @@ pub(crate) async fn get_profile_information_route(
 		},
 	}
 
+	// services.users.timezone will collect the MSC4175 timezone key if it exists
+	custom_profile_fields.remove("us.cloke.mscs4175.tz");
+	custom_profile_fields.remove("m.tz");
+
 	Ok(get_profile_information::v1::Response {
 		displayname,
 		avatar_url,
