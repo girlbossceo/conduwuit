@@ -14,7 +14,7 @@ use conduit::{
 	utils::{shuffle, IterStream, ReadyExt},
 	warn, Err, Error, PduEvent, Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{join, FutureExt, StreamExt};
 use ruma::{
 	api::{
 		client::{
@@ -158,7 +158,7 @@ pub(crate) async fn join_room_by_id_route(
 	State(services): State<crate::State>, InsecureClientIp(client_ip): InsecureClientIp,
 	body: Ruma<join_room_by_id::v3::Request>,
 ) -> Result<join_room_by_id::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	banned_room_check(
 		&services,
@@ -334,9 +334,7 @@ pub(crate) async fn join_room_by_id_or_alias_route(
 pub(crate) async fn leave_room_route(
 	State(services): State<crate::State>, body: Ruma<leave_room::v3::Request>,
 ) -> Result<leave_room::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
-	leave_room(&services, sender_user, &body.room_id, body.reason.clone()).await?;
+	leave_room(&services, body.sender_user(), &body.room_id, body.reason.clone()).await?;
 
 	Ok(leave_room::v3::Response::new())
 }
@@ -349,7 +347,7 @@ pub(crate) async fn invite_user_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<invite_user::v3::Request>,
 ) -> Result<invite_user::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if !services.users.is_admin(sender_user).await && services.globals.block_non_admin_invites() {
 		info!(
@@ -368,9 +366,17 @@ pub(crate) async fn invite_user_route(
 		user_id,
 	} = &body.recipient
 	{
-		if services.users.user_is_ignored(sender_user, user_id).await {
+		let sender_ignored_recipient = services.users.user_is_ignored(sender_user, user_id);
+		let recipient_ignored_by_sender = services.users.user_is_ignored(user_id, sender_user);
+
+		let (sender_ignored_recipient, recipient_ignored_by_sender) =
+			join!(sender_ignored_recipient, recipient_ignored_by_sender);
+
+		if sender_ignored_recipient {
 			return Err!(Request(Forbidden("You cannot invite users you have ignored to rooms.")));
-		} else if services.users.user_is_ignored(user_id, sender_user).await {
+		}
+
+		if recipient_ignored_by_sender {
 			// silently drop the invite to the recipient if they've been ignored by the
 			// sender, pretend it worked
 			return Ok(invite_user::v3::Response {});
@@ -379,6 +385,7 @@ pub(crate) async fn invite_user_route(
 		invite_helper(&services, sender_user, user_id, &body.room_id, body.reason.clone(), false)
 			.boxed()
 			.await?;
+
 		Ok(invite_user::v3::Response {})
 	} else {
 		Err(Error::BadRequest(ErrorKind::NotFound, "User not found."))
@@ -391,16 +398,18 @@ pub(crate) async fn invite_user_route(
 pub(crate) async fn kick_user_route(
 	State(services): State<crate::State>, body: Ruma<kick_user::v3::Request>,
 ) -> Result<kick_user::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let event: RoomMemberEventContent = services
+	let Ok(event) = services
 		.rooms
 		.state_accessor
-		.room_state_get_content(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
+		.get_member(&body.room_id, &body.user_id)
 		.await
-		.map_err(|_| err!(Request(BadState("Cannot kick member that's not in the room."))))?;
+	else {
+		// copy synapse's behaviour of returning 200 without any change to the state
+		// instead of erroring on left users
+		return Ok(kick_user::v3::Response::new());
+	};
 
 	services
 		.rooms
@@ -411,10 +420,13 @@ pub(crate) async fn kick_user_route(
 				&RoomMemberEventContent {
 					membership: MembershipState::Leave,
 					reason: body.reason.clone(),
+					is_direct: None,
+					join_authorized_via_users_server: None,
+					third_party_invite: None,
 					..event
 				},
 			),
-			sender_user,
+			body.sender_user(),
 			&body.room_id,
 			&state_lock,
 		)
@@ -431,39 +443,38 @@ pub(crate) async fn kick_user_route(
 pub(crate) async fn ban_user_route(
 	State(services): State<crate::State>, body: Ruma<ban_user::v3::Request>,
 ) -> Result<ban_user::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
+
+	if sender_user == body.user_id {
+		return Err!(Request(Forbidden("You cannot ban yourself.")));
+	}
 
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let blurhash = services.users.blurhash(&body.user_id).await.ok();
-
-	let event = services
+	let current_member_content = services
 		.rooms
 		.state_accessor
-		.room_state_get_content(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
+		.get_member(&body.room_id, &body.user_id)
 		.await
-		.map_or_else(
-			|_| RoomMemberEventContent {
-				blurhash: blurhash.clone(),
-				reason: body.reason.clone(),
-				..RoomMemberEventContent::new(MembershipState::Ban)
-			},
-			|event| RoomMemberEventContent {
-				membership: MembershipState::Ban,
-				displayname: None,
-				avatar_url: None,
-				blurhash: blurhash.clone(),
-				reason: body.reason.clone(),
-				join_authorized_via_users_server: None,
-				..event
-			},
-		);
+		.unwrap_or_else(|_| RoomMemberEventContent::new(MembershipState::Ban));
 
 	services
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(body.user_id.to_string(), &event),
+			PduBuilder::state(
+				body.user_id.to_string(),
+				&RoomMemberEventContent {
+					membership: MembershipState::Ban,
+					reason: body.reason.clone(),
+					displayname: None, // display name may be offensive
+					avatar_url: None,  // avatar may be offensive
+					is_direct: None,
+					join_authorized_via_users_server: None,
+					third_party_invite: None,
+					..current_member_content
+				},
+			),
 			sender_user,
 			&body.room_id,
 			&state_lock,
@@ -481,16 +492,21 @@ pub(crate) async fn ban_user_route(
 pub(crate) async fn unban_user_route(
 	State(services): State<crate::State>, body: Ruma<unban_user::v3::Request>,
 ) -> Result<unban_user::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
 	let state_lock = services.rooms.state.mutex.lock(&body.room_id).await;
 
-	let event: RoomMemberEventContent = services
+	let current_member_content = services
 		.rooms
 		.state_accessor
-		.room_state_get_content(&body.room_id, &StateEventType::RoomMember, body.user_id.as_ref())
+		.get_member(&body.room_id, &body.user_id)
 		.await
-		.map_err(|_| err!(Request(BadState("Cannot unban a user who is not banned."))))?;
+		.unwrap_or_else(|_| RoomMemberEventContent::new(MembershipState::Leave));
+
+	if current_member_content.membership != MembershipState::Ban {
+		return Err!(Request(Forbidden(
+			"Cannot ban a user who is not banned (current membership: {})",
+			current_member_content.membership
+		)));
+	}
 
 	services
 		.rooms
@@ -502,10 +518,12 @@ pub(crate) async fn unban_user_route(
 					membership: MembershipState::Leave,
 					reason: body.reason.clone(),
 					join_authorized_via_users_server: None,
-					..event
+					third_party_invite: None,
+					is_direct: None,
+					..current_member_content
 				},
 			),
-			sender_user,
+			body.sender_user(),
 			&body.room_id,
 			&state_lock,
 		)
@@ -528,7 +546,7 @@ pub(crate) async fn unban_user_route(
 pub(crate) async fn forget_room_route(
 	State(services): State<crate::State>, body: Ruma<forget_room::v3::Request>,
 ) -> Result<forget_room::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if services
 		.rooms
@@ -553,13 +571,11 @@ pub(crate) async fn forget_room_route(
 pub(crate) async fn joined_rooms_route(
 	State(services): State<crate::State>, body: Ruma<joined_rooms::v3::Request>,
 ) -> Result<joined_rooms::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
 	Ok(joined_rooms::v3::Response {
 		joined_rooms: services
 			.rooms
 			.state_cache
-			.rooms_joined(sender_user)
+			.rooms_joined(body.sender_user())
 			.map(ToOwned::to_owned)
 			.collect()
 			.await,
@@ -575,7 +591,7 @@ pub(crate) async fn joined_rooms_route(
 pub(crate) async fn get_member_events_route(
 	State(services): State<crate::State>, body: Ruma<get_member_events::v3::Request>,
 ) -> Result<get_member_events::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if !services
 		.rooms
@@ -608,7 +624,7 @@ pub(crate) async fn get_member_events_route(
 pub(crate) async fn joined_members_route(
 	State(services): State<crate::State>, body: Ruma<joined_members::v3::Request>,
 ) -> Result<joined_members::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if !services
 		.rooms
