@@ -56,87 +56,89 @@ use crate::{client::full_user_deactivate, Ruma};
 async fn banned_room_check(
 	services: &Services, user_id: &UserId, room_id: Option<&RoomId>, server_name: Option<&ServerName>,
 	client_ip: IpAddr,
-) -> Result<()> {
-	if !services.users.is_admin(user_id).await {
-		if let Some(room_id) = room_id {
-			if services.rooms.metadata.is_banned(room_id).await
-				|| services
-					.globals
-					.config
-					.forbidden_remote_server_names
-					.contains(&room_id.server_name().unwrap().to_owned())
-			{
-				warn!(
-					"User {user_id} who is not an admin attempted to send an invite for or attempted to join a banned \
-					 room or banned room server name: {room_id}"
-				);
+) -> Result {
+	if services.users.is_admin(user_id).await {
+		return Ok(());
+	}
 
-				if services.globals.config.auto_deactivate_banned_room_attempts {
-					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
-
-					if services.globals.config.admin_room_notices {
-						services
-							.admin
-							.send_message(RoomMessageEventContent::text_plain(format!(
-								"Automatically deactivating user {user_id} due to attempted banned room join from IP \
-								 {client_ip}"
-							)))
-							.await
-							.ok();
-					}
-
-					let all_joined_rooms: Vec<OwnedRoomId> = services
-						.rooms
-						.state_cache
-						.rooms_joined(user_id)
-						.map(Into::into)
-						.collect()
-						.await;
-
-					full_user_deactivate(services, user_id, &all_joined_rooms).await?;
-				}
-
-				return Err!(Request(Forbidden("This room is banned on this homeserver.")));
-			}
-		} else if let Some(server_name) = server_name {
-			if services
+	if let Some(room_id) = room_id {
+		if services.rooms.metadata.is_banned(room_id).await
+			|| services
 				.globals
 				.config
 				.forbidden_remote_server_names
-				.contains(&server_name.to_owned())
-			{
-				warn!(
-					"User {user_id} who is not an admin tried joining a room which has the server name {server_name} \
-					 that is globally forbidden. Rejecting.",
-				);
+				.contains(&room_id.server_name().unwrap().to_owned())
+		{
+			warn!(
+				"User {user_id} who is not an admin attempted to send an invite for or attempted to join a banned \
+				 room or banned room server name: {room_id}"
+			);
 
-				if services.globals.config.auto_deactivate_banned_room_attempts {
-					warn!("Automatically deactivating user {user_id} due to attempted banned room join");
+			if services.globals.config.auto_deactivate_banned_room_attempts {
+				warn!("Automatically deactivating user {user_id} due to attempted banned room join");
 
-					if services.globals.config.admin_room_notices {
-						services
-							.admin
-							.send_message(RoomMessageEventContent::text_plain(format!(
-								"Automatically deactivating user {user_id} due to attempted banned room join from IP \
-								 {client_ip}"
-							)))
-							.await
-							.ok();
-					}
-
-					let all_joined_rooms: Vec<OwnedRoomId> = services
-						.rooms
-						.state_cache
-						.rooms_joined(user_id)
-						.map(Into::into)
-						.collect()
-						.await;
-
-					full_user_deactivate(services, user_id, &all_joined_rooms).await?;
+				if services.globals.config.admin_room_notices {
+					services
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
+							 {client_ip}"
+						)))
+						.await
+						.ok();
 				}
 
-				return Err!(Request(Forbidden("This remote server is banned on this homeserver.")));
+				let all_joined_rooms: Vec<OwnedRoomId> = services
+					.rooms
+					.state_cache
+					.rooms_joined(user_id)
+					.map(Into::into)
+					.collect()
+					.await;
+
+				full_user_deactivate(services, user_id, &all_joined_rooms).await?;
 			}
+
+			return Err!(Request(Forbidden("This room is banned on this homeserver.")));
+		}
+	} else if let Some(server_name) = server_name {
+		if services
+			.globals
+			.config
+			.forbidden_remote_server_names
+			.contains(&server_name.to_owned())
+		{
+			warn!(
+				"User {user_id} who is not an admin tried joining a room which has the server name {server_name} that \
+				 is globally forbidden. Rejecting.",
+			);
+
+			if services.globals.config.auto_deactivate_banned_room_attempts {
+				warn!("Automatically deactivating user {user_id} due to attempted banned room join");
+
+				if services.globals.config.admin_room_notices {
+					services
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"Automatically deactivating user {user_id} due to attempted banned room join from IP \
+							 {client_ip}"
+						)))
+						.await
+						.ok();
+				}
+
+				let all_joined_rooms: Vec<OwnedRoomId> = services
+					.rooms
+					.state_cache
+					.rooms_joined(user_id)
+					.map(Into::into)
+					.collect()
+					.await;
+
+				full_user_deactivate(services, user_id, &all_joined_rooms).await?;
+			}
+
+			return Err!(Request(Forbidden("This remote server is banned on this homeserver.")));
 		}
 	}
 
