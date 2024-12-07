@@ -1250,6 +1250,16 @@ pub struct Config {
 	#[serde(default = "default_ip_range_denylist")]
 	pub ip_range_denylist: Vec<String>,
 
+	/// Optional interface to bind to with SO_BINDTODEVICE for URL previews.
+	/// If not set, it will not bind to a specific interface.
+	/// This uses [`reqwest::ClientBuilder::interface`] under the hood.
+	///
+	/// To list the interfaces on your system, use the command `ip link show`
+	///
+	/// Example: `"eth0"`
+	#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+	pub url_preview_bound_interface: Option<String>,
+
 	/// Vector list of domains allowed to send requests to for URL previews.
 	/// Defaults to none. Note: this is a *contains* match, not an explicit
 	/// match. Putting "google.com" will match "https://google.com" and
@@ -1960,6 +1970,15 @@ impl fmt::Display for Config {
 		line("Forbidden room aliases", {
 			&self.forbidden_alias_names.patterns().iter().join(", ")
 		});
+		#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+		line(
+			"URL preview bound interface",
+			if let Some(interface) = &self.url_preview_bound_interface {
+				interface
+			} else {
+				"not set"
+			},
+		);
 		line(
 			"URL preview domain contains allowlist",
 			&self.url_preview_domain_contains_allowlist.join(", "),

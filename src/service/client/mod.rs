@@ -25,15 +25,23 @@ impl crate::Service for Service {
 		let config = &args.server.config;
 		let resolver = args.require::<resolver::Service>("resolver");
 
+		let url_preview_builder = base(config)?
+			.dns_resolver(resolver.resolver.clone())
+			.redirect(redirect::Policy::limited(3));
+
+		#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+		let url_preview_builder = if let Some(interface) = &config.url_preview_bound_interface {
+			url_preview_builder.interface(interface)
+		} else {
+			url_preview_builder
+		};
+
 		Ok(Arc::new(Self {
 			default: base(config)?
 				.dns_resolver(resolver.resolver.clone())
 				.build()?,
 
-			url_preview: base(config)?
-				.dns_resolver(resolver.resolver.clone())
-				.redirect(redirect::Policy::limited(3))
-				.build()?,
+			url_preview: url_preview_builder.build()?,
 
 			extern_media: base(config)?
 				.dns_resolver(resolver.resolver.clone())

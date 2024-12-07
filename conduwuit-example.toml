@@ -1117,6 +1117,16 @@
 #
 #ip_range_denylist = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
 
+# Optional interface to bind to with SO_BINDTODEVICE for URL previews.
+# If not set, it will not bind to a specific interface.
+# This uses [`reqwest::ClientBuilder::interface`] under the hood.
+#
+# To list the interfaces on your system, use the command `ip link show`
+#
+# Example: `"eth0"`
+#
+#url_preview_bound_interface =
+
 # Vector list of domains allowed to send requests to for URL previews.
 # Defaults to none. Note: this is a *contains* match, not an explicit
 # match. Putting "google.com" will match "https://google.com" and
