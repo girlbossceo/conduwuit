@@ -698,6 +698,19 @@ pub struct Config {
 	#[serde(default = "default_log_span_events")]
 	pub log_span_events: String,
 
+	/// configures whether CONDUWUIT_LOG EnvFilter matches values using regular
+	/// expressions. See the tracing_subscriber documentation on Directives.
+	///
+	/// default: true
+	#[serde(default = "true_fn")]
+	pub log_filter_regex: bool,
+
+	/// toggles the display of ThreadId in tracing log output
+	///
+	/// default: false
+	#[serde(default)]
+	pub log_thread_ids: bool,
+
 	/// OpenID token expiration/TTL in seconds
 	///
 	/// These are the OpenID tokens that are primarily used for Matrix account

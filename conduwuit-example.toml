@@ -604,6 +604,15 @@
 #
 #log_span_events = "none"
 
+# configures whether CONDUWUIT_LOG EnvFilter matches values using regular
+# expressions. See the tracing_subscriber documentation on Directives.
+#
+#log_filter_regex = true
+
+# toggles the display of ThreadId in tracing log output
+#
+#log_thread_ids = false
+
 # OpenID token expiration/TTL in seconds
 #
 # These are the OpenID tokens that are primarily used for Matrix account
