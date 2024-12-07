@@ -213,8 +213,8 @@ pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> 
 			.await;
 
 		full_user_deactivate(self.services, &user_id, &all_joined_rooms).await?;
-		update_displayname(self.services, &user_id, None, &all_joined_rooms).await?;
-		update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms).await?;
+		update_displayname(self.services, &user_id, None, &all_joined_rooms).await;
+		update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms).await;
 		leave_all_rooms(self.services, &user_id).await;
 	}
 
@@ -327,12 +327,8 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 						.await;
 
 					full_user_deactivate(self.services, &user_id, &all_joined_rooms).await?;
-					update_displayname(self.services, &user_id, None, &all_joined_rooms)
-						.await
-						.ok();
-					update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms)
-						.await
-						.ok();
+					update_displayname(self.services, &user_id, None, &all_joined_rooms).await;
+					update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms).await;
 					leave_all_rooms(self.services, &user_id).await;
 				}
 			},
