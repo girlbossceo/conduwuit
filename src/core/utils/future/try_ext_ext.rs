@@ -39,6 +39,11 @@ where
 	fn unwrap_or(self, default: Self::Ok) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
 	where
 		Self: Sized;
+
+	fn unwrap_or_default(self) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
+	where
+		Self: Sized,
+		Self::Ok: Default;
 }
 
 impl<T, E, Fut> TryExtExt<T, E> for Fut
@@ -88,5 +93,14 @@ where
 		Self: Sized,
 	{
 		self.unwrap_or_else(move |_| default)
+	}
+
+	#[inline]
+	fn unwrap_or_default(self) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
+	where
+		Self: Sized,
+		Self::Ok: Default,
+	{
+		self.unwrap_or(Default::default())
 	}
 }
