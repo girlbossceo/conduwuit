@@ -145,24 +145,24 @@ pub(crate) async fn create_invite_route(
 				true,
 			)
 			.await?;
-	}
 
-	for appservice in services.appservice.read().await.values() {
-		if appservice.is_user_match(&invited_user) {
-			services
-				.sending
-				.send_appservice_request(
-					appservice.registration.clone(),
-					ruma::api::appservice::event::push_events::v1::Request {
-						events: vec![pdu.to_room_event()],
-						txn_id: general_purpose::URL_SAFE_NO_PAD
-							.encode(sha256::hash(pdu.event_id.as_bytes()))
-							.into(),
-						ephemeral: Vec::new(),
-						to_device: Vec::new(),
-					},
-				)
-				.await?;
+		for appservice in services.appservice.read().await.values() {
+			if appservice.is_user_match(&invited_user) {
+				services
+					.sending
+					.send_appservice_request(
+						appservice.registration.clone(),
+						ruma::api::appservice::event::push_events::v1::Request {
+							events: vec![pdu.to_room_event()],
+							txn_id: general_purpose::URL_SAFE_NO_PAD
+								.encode(sha256::hash(pdu.event_id.as_bytes()))
+								.into(),
+							ephemeral: Vec::new(),
+							to_device: Vec::new(),
+						},
+					)
+					.await?;
+			}
 		}
 	}
 

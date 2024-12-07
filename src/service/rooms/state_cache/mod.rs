@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduit::{
-	err, is_not_empty,
+	is_not_empty,
 	result::LogErr,
 	utils::{stream::TryIgnore, ReadyExt, StreamTools},
 	warn, Result,
@@ -600,11 +600,11 @@ impl Service {
 			.map(|(_, servers): KeyVal<'_>| *servers.last().expect("at least one server"))
 	}
 
-	/// Gets up to three servers that are likely to be in the room in the
+	/// Gets up to five servers that are likely to be in the room in the
 	/// distant future.
 	///
-	/// See <https://spec.matrix.org/v1.10/appendices/#routing>
-	#[tracing::instrument(skip(self))]
+	/// See <https://spec.matrix.org/latest/appendices/#routing>
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
 		let most_powerful_user_server = self
 			.services
@@ -618,8 +618,7 @@ impl Service {
 					.max_by_key(|(_, power)| *power)
 					.and_then(|x| (x.1 >= &int!(50)).then_some(x))
 					.map(|(user, _power)| user.server_name().to_owned())
-			})
-			.map_err(|e| err!(Database(error!(?e, "Invalid power levels event content in database."))))?;
+			});
 
 		let mut servers: Vec<OwnedServerName> = self
 			.room_members(room_id)
@@ -629,12 +628,12 @@ impl Service {
 			.sorted_by_key(|(_, users)| *users)
 			.map(|(server, _)| server)
 			.rev()
-			.take(3)
+			.take(5)
 			.collect();
 
-		if let Some(server) = most_powerful_user_server {
+		if let Ok(Some(server)) = most_powerful_user_server {
 			servers.insert(0, server);
-			servers.truncate(3);
+			servers.truncate(5);
 		}
 
 		Ok(servers)

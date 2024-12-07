@@ -21,7 +21,7 @@ pub(crate) async fn search_users_route(
 	State(services): State<crate::State>, body: Ruma<search_users::v3::Request>,
 ) -> Result<search_users::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let limit = usize::try_from(body.limit).unwrap_or(10); // default limit is 10
+	let limit = usize::try_from(body.limit).map_or(10, usize::from).min(100); // default limit is 10
 
 	let users = services.users.stream().filter_map(|user_id| async {
 		// Filter out buggy users (they should not exist, but you never know...)

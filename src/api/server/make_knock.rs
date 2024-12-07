@@ -18,14 +18,11 @@ pub(crate) async fn create_knock_event_template_route(
 	State(services): State<crate::State>, body: Ruma<create_knock_event_template::v1::Request>,
 ) -> Result<create_knock_event_template::v1::Response> {
 	if !services.rooms.metadata.exists(&body.room_id).await {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
+		return Err!(Request(NotFound("Room is unknown to this server.")));
 	}
 
 	if body.user_id.server_name() != body.origin() {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to knock on behalf of another server/user",
-		));
+		return Err!(Request(BadJson("Not allowed to knock on behalf of another server/user.")));
 	}
 
 	// ACL check origin server

@@ -417,7 +417,7 @@ impl Service {
 				.services
 				.pusher
 				.get_actions(user, &rules_for_user, &power_levels, &sync_pdu, &pdu.room_id)
-				.await?
+				.await
 			{
 				match action {
 					Action::Notify => notify = true,
@@ -769,10 +769,8 @@ impl Service {
 		}
 
 		// Hash and sign
-		let mut pdu_json = utils::to_canonical_object(&pdu).map_err(|e| {
-			error!("Failed to convert PDU to canonical JSON: {e}");
-			Error::bad_database("Failed to convert PDU to canonical JSON.")
-		})?;
+		let mut pdu_json = utils::to_canonical_object(&pdu)
+			.map_err(|e| err!(Request(BadJson(warn!("Failed to convert PDU to canonical JSON: {e}")))))?;
 
 		// room v3 and above removed the "event_id" field from remote PDU format
 		match room_version_id {
@@ -794,8 +792,10 @@ impl Service {
 			.hash_and_sign_event(&mut pdu_json, &room_version_id)
 		{
 			return match e {
-				Error::Signatures(ruma::signatures::Error::PduSize) => Err!(Request(TooLarge("Message is too long"))),
-				_ => Err!(Request(Unknown("Signing event failed"))),
+				Error::Signatures(ruma::signatures::Error::PduSize) => {
+					Err!(Request(TooLarge("Message/PDU is too long (exceeds 65535 bytes)")))
+				},
+				_ => Err!(Request(Unknown(warn!("Signing event failed: {e}")))),
 			};
 		}
 

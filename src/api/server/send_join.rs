@@ -7,16 +7,16 @@ use conduit::{
 	err,
 	pdu::gen_event_id_canonical_json,
 	utils::stream::{IterStream, TryBroadbandExt},
-	warn, Error, Result,
+	warn, Err, Result,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
-	api::{client::error::ErrorKind, federation::membership::create_join_event},
+	api::federation::membership::create_join_event,
 	events::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	CanonicalJsonValue, OwnedEventId, OwnedServerName, OwnedUserId, RoomId, ServerName,
+	CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::Services;
@@ -28,7 +28,7 @@ async fn create_join_event(
 	services: &Services, origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
 	if !services.rooms.metadata.exists(room_id).await {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
+		return Err!(Request(NotFound("Room is unknown to this server.")));
 	}
 
 	// ACL check origin server
@@ -45,7 +45,7 @@ async fn create_join_event(
 		.state
 		.get_room_shortstatehash(room_id)
 		.await
-		.map_err(|_| err!(Request(NotFound("Event state not found."))))?;
+		.map_err(|e| err!(Request(NotFound(error!("Room has no state: {e}")))))?;
 
 	// We do not add the event_id field to the pdu here because of signature and
 	// hashes checks
@@ -53,53 +53,62 @@ async fn create_join_event(
 
 	let Ok((event_id, mut value)) = gen_event_id_canonical_json(pdu, &room_version_id) else {
 		// Event could not be converted to canonical json
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Could not convert event to canonical json.",
-		));
+		return Err!(Request(BadJson("Could not convert event to canonical json.")));
 	};
+
+	let event_room_id: OwnedRoomId = serde_json::from_value(
+		serde_json::to_value(
+			value
+				.get("room_id")
+				.ok_or_else(|| err!(Request(BadJson("Event missing room_id property."))))?,
+		)
+		.expect("CanonicalJson is valid json value"),
+	)
+	.map_err(|e| err!(Request(BadJson(warn!("room_id field is not a valid room ID: {e}")))))?;
+
+	if event_room_id != room_id {
+		return Err!(Request(BadJson("Event room_id does not match request path room ID.")));
+	}
 
 	let event_type: StateEventType = serde_json::from_value(
 		value
 			.get("type")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing type property."))?
+			.ok_or_else(|| err!(Request(BadJson("Event missing type property."))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event has invalid event type."))?;
+	.map_err(|e| err!(Request(BadJson(warn!("Event has invalid state event type: {e}")))))?;
 
 	if event_type != StateEventType::RoomMember {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to send non-membership state event to join endpoint.",
-		));
+		return Err!(Request(BadJson(
+			"Not allowed to send non-membership state event to join endpoint."
+		)));
 	}
 
 	let content: RoomMemberEventContent = serde_json::from_value(
 		value
 			.get("content")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property"))?
+			.ok_or_else(|| err!(Request(BadJson("Event missing content property"))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event content is empty or invalid"))?;
+	.map_err(|e| err!(Request(BadJson(warn!("Event content is empty or invalid: {e}")))))?;
 
 	if content.membership != MembershipState::Join {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to send a non-join membership event to join endpoint.",
-		));
+		return Err!(Request(BadJson(
+			"Not allowed to send a non-join membership event to join endpoint."
+		)));
 	}
 
-	// ACL check sender server name
+	// ACL check sender user server name
 	let sender: OwnedUserId = serde_json::from_value(
 		value
 			.get("sender")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing sender property."))?
+			.ok_or_else(|| err!(Request(BadJson("Event missing sender property."))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "sender is not a valid user ID."))?;
+	.map_err(|e| err!(Request(BadJson(warn!("sender property is not a valid user ID: {e}")))))?;
 
 	services
 		.rooms
@@ -109,50 +118,71 @@ async fn create_join_event(
 
 	// check if origin server is trying to send for another server
 	if sender.server_name() != origin {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to join on behalf of another server.",
-		));
+		return Err!(Request(Forbidden("Not allowed to join on behalf of another server.")));
 	}
 
 	let state_key: OwnedUserId = serde_json::from_value(
 		value
 			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing state_key property."))?
+			.ok_or_else(|| err!(Request(BadJson("Event missing state_key property."))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "state_key is invalid or not a user ID."))?;
+	.map_err(|e| err!(Request(BadJson(warn!("State key is not a valid user ID: {e}")))))?;
 
 	if state_key != sender {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"State key does not match sender user",
-		));
+		return Err!(Request(BadJson("State key does not match sender user.")));
 	};
 
-	if content
-		.join_authorized_via_users_server
-		.is_some_and(|user| services.globals.user_is_local(&user))
-		&& super::user_can_perform_restricted_join(services, &sender, room_id, &room_version_id)
+	if let Some(authorising_user) = content.join_authorized_via_users_server {
+		use ruma::RoomVersionId::*;
+
+		if !matches!(room_version_id, V1 | V2 | V3 | V4 | V5 | V6 | V7) {
+			return Err!(Request(InvalidParam(
+				"Room version {room_version_id} does not support restricted rooms but \
+				 join_authorised_via_users_server ({authorising_user}) was found in the event."
+			)));
+		}
+
+		if !services.globals.user_is_local(&authorising_user) {
+			return Err!(Request(InvalidParam(
+				"Cannot authorise membership event through {authorising_user} as they do not belong to this homeserver"
+			)));
+		}
+
+		if !services
+			.rooms
+			.state_cache
+			.is_joined(&authorising_user, room_id)
 			.await
-			.unwrap_or_default()
-	{
-		services
-			.server_keys
-			.hash_and_sign_event(&mut value, &room_version_id)
-			.map_err(|e| err!(Request(InvalidParam("Failed to sign event: {e}"))))?;
+		{
+			return Err!(Request(InvalidParam(
+				"Authorising user {authorising_user} is not in the room you are trying to join, they cannot authorise \
+				 your join."
+			)));
+		}
+
+		if !super::user_can_perform_restricted_join(services, &state_key, room_id, &room_version_id).await? {
+			return Err!(Request(UnableToAuthorizeJoin(
+				"Joining user did not pass restricted room's rules."
+			)));
+		}
 	}
+
+	services
+		.server_keys
+		.hash_and_sign_event(&mut value, &room_version_id)
+		.map_err(|e| err!(Request(InvalidParam(warn!("Failed to sign send_join event: {e}")))))?;
 
 	let origin: OwnedServerName = serde_json::from_value(
 		serde_json::to_value(
 			value
 				.get("origin")
-				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing origin property."))?,
+				.ok_or_else(|| err!(Request(BadJson("Event missing origin property."))))?,
 		)
 		.expect("CanonicalJson is valid json value"),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
+	.map_err(|e| err!(Request(BadJson(warn!("origin field is not a valid server name: {e}")))))?;
 
 	let mutex_lock = services
 		.rooms
@@ -214,7 +244,6 @@ async fn create_join_event(
 	Ok(create_join_event::v1::RoomState {
 		auth_chain,
 		state,
-		// Event field is required if the room version supports restricted join rules.
 		event: to_raw_value(&CanonicalJsonValue::Object(value)).ok(),
 	})
 }
@@ -232,14 +261,12 @@ pub(crate) async fn create_join_event_v1_route(
 		.contains(body.origin())
 	{
 		warn!(
-			"Server {} tried joining room ID {} who has a server name that is globally forbidden. Rejecting.",
+			"Server {} tried joining room ID {} through us who has a server name that is globally forbidden. \
+			 Rejecting.",
 			body.origin(),
 			&body.room_id,
 		);
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Server is banned on this homeserver.",
-		));
+		return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 	}
 
 	if let Some(server) = body.room_id.server_name() {
@@ -250,14 +277,14 @@ pub(crate) async fn create_join_event_v1_route(
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Server {} tried joining room ID {} which has a server name that is globally forbidden. Rejecting.",
+				"Server {} tried joining room ID {} through us which has a server name that is globally forbidden. \
+				 Rejecting.",
 				body.origin(),
 				&body.room_id,
 			);
-			return Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"Server is banned on this homeserver.",
-			));
+			return Err!(Request(Forbidden(warn!(
+				"Room ID server name {server} is banned on this homeserver."
+			))));
 		}
 	}
 
@@ -282,10 +309,7 @@ pub(crate) async fn create_join_event_v2_route(
 		.forbidden_remote_server_names
 		.contains(body.origin())
 	{
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Server is banned on this homeserver.",
-		));
+		return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 	}
 
 	if let Some(server) = body.room_id.server_name() {
@@ -295,10 +319,15 @@ pub(crate) async fn create_join_event_v2_route(
 			.forbidden_remote_server_names
 			.contains(&server.to_owned())
 		{
-			return Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"Server is banned on this homeserver.",
-			));
+			warn!(
+				"Server {} tried joining room ID {} through us which has a server name that is globally forbidden. \
+				 Rejecting.",
+				body.origin(),
+				&body.room_id,
+			);
+			return Err!(Request(Forbidden(warn!(
+				"Room ID server name {server} is banned on this homeserver."
+			))));
 		}
 	}
 
