@@ -121,10 +121,7 @@ pub(crate) async fn create_knock_event_v1_route(
 
 	// check if origin server is trying to send for another server
 	if sender.server_name() != body.origin() {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to knock on behalf of another server.",
-		));
+		return Err!(Request(BadJson("Not allowed to knock on behalf of another server/user.")));
 	}
 
 	let state_key: OwnedUserId = serde_json::from_value(

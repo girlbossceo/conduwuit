@@ -1,7 +1,7 @@
 use axum::extract::State;
-use conduit::{Error, Result};
+use conduit::{Err, Result};
 use ruma::{
-	api::{client::error::ErrorKind, federation::membership::prepare_leave_event},
+	api::federation::membership::prepare_leave_event,
 	events::room::member::{MembershipState, RoomMemberEventContent},
 };
 use serde_json::value::to_raw_value;
@@ -16,14 +16,11 @@ pub(crate) async fn create_leave_event_template_route(
 	State(services): State<crate::State>, body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
 	if !services.rooms.metadata.exists(&body.room_id).await {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
+		return Err!(Request(NotFound("Room is unknown to this server.")));
 	}
 
 	if body.user_id.server_name() != body.origin() {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to leave on behalf of another server/user",
-		));
+		return Err!(Request(BadJson("Not allowed to leave on behalf of another server/user.")));
 	}
 
 	// ACL check origin
