@@ -20,6 +20,9 @@ use tokio::runtime;
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
+const GLOBAL_QUEUE_INTERVAL: u32 = 192;
+const SYSTEM_QUEUE_INTERVAL: u32 = 256;
+const SYSTEM_EVENTS_PER_TICK: usize = 512;
 
 rustc_flags_capture! {}
 
@@ -31,6 +34,9 @@ fn main() -> Result<(), Error> {
 		.thread_name(WORKER_NAME)
 		.worker_threads(args.worker_threads.max(WORKER_MIN))
 		.thread_keep_alive(Duration::from_secs(WORKER_KEEPALIVE))
+		.global_queue_interval(GLOBAL_QUEUE_INTERVAL)
+		.event_interval(SYSTEM_QUEUE_INTERVAL)
+		.max_io_events_per_tick(SYSTEM_EVENTS_PER_TICK)
 		.build()
 		.expect("built runtime");
 
