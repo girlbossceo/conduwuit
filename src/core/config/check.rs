@@ -20,10 +20,7 @@ pub fn check(config: &Config) -> Result<()> {
 	}
 
 	if cfg!(all(feature = "hardened_malloc", feature = "jemalloc")) {
-		warn!(
-			"hardened_malloc and jemalloc are both enabled, this causes jemalloc to be used. If using --all-features, \
-			 this is harmless."
-		);
+		info!("hardened_malloc and jemalloc compile-time features are both enabled, this causes jemalloc to be used.");
 	}
 
 	if cfg!(not(unix)) && config.unix_socket_path.is_some() {
@@ -34,7 +31,15 @@ pub fn check(config: &Config) -> Result<()> {
 		));
 	}
 
-	if cfg!(unix) && config.unix_socket_path.is_none() {
+	if config.unix_socket_path.is_none() && config.get_bind_hosts().is_empty() {
+		return Err!(Config("address", "No TCP addresses were specified to listen on"));
+	}
+
+	if config.unix_socket_path.is_none() && config.get_bind_ports().is_empty() {
+		return Err!(Config("port", "No ports were specified to listen on"));
+	}
+
+	if config.unix_socket_path.is_none() {
 		config.get_bind_addrs().iter().for_each(|addr| {
 			use std::path::Path;
 
@@ -50,18 +55,14 @@ pub fn check(config: &Config) -> Result<()> {
 						 host and guest, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
 						 you can ignore.",
 					);
-				}
-
-				if Path::new("/.dockerenv").exists() {
+				} else if Path::new("/.dockerenv").exists() {
 					error!(
 						"You are detected using Docker with a loopback/localhost listening address of {addr}. If you \
 						 are using a reverse proxy on the host and require communication to conduwuit in the Docker \
 						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
 						 If this is expected, you can ignore.",
 					);
-				}
-
-				if Path::new("/run/.containerenv").exists() {
+				} else if Path::new("/run/.containerenv").exists() {
 					error!(
 						"You are detected using Podman with a loopback/localhost listening address of {addr}. If you \
 						 are using a reverse proxy on the host and require communication to conduwuit in the Podman \
@@ -89,6 +90,13 @@ pub fn check(config: &Config) -> Result<()> {
 		));
 	}
 
+	if config.emergency_password == Some(String::from("F670$2CP@Hw8mG7RY1$%!#Ic7YA")) {
+		return Err!(Config(
+			"emergency_password",
+			"The public example emergency password is being used, this is insecure. Please change this."
+		));
+	}
+
 	// check if the user specified a registration token as `""`
 	if config.registration_token == Some(String::new()) {
 		return Err!(Config(
@@ -113,17 +121,20 @@ pub fn check(config: &Config) -> Result<()> {
 		));
 	}
 
-	if config.max_request_size < 5_120_000 {
+	if config.max_request_size < 10_000_000 {
 		return Err!(Config(
 			"max_request_size",
-			"Max request size is less than 5MB. Please increase it."
+			"Max request size is less than 10MB. Please increase it as this is too low for operable federation."
 		));
 	}
 
 	// check if user specified valid IP CIDR ranges on startup
 	for cidr in &config.ip_range_denylist {
 		if let Err(e) = ipaddress::IPAddress::parse(cidr) {
-			return Err!(Config("ip_range_denylist", "Parsing specified IP CIDR range from string: {e}."));
+			return Err!(Config(
+				"ip_range_denylist",
+				"Parsing specified IP CIDR range from string failed: {e}."
+			));
 		}
 	}
 
@@ -135,10 +146,10 @@ pub fn check(config: &Config) -> Result<()> {
 		return Err!(Config(
 			"registration_token",
 			"!! You have `allow_registration` enabled without a token configured in your config which means you are \
-			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token).\n
-If this is not the intended behaviour, please set a registration token.\n
-For security and safety reasons, conduwuit will shut down. If you are extra sure this is the desired behaviour you \
-			 want, please set the following config option to true:
+			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token). \
+			 If this is not the intended behaviour, please set a registration token. For security and safety reasons, \
+			 conduwuit will shut down. If you are extra sure this is the desired behaviour you want, please set the \
+			 following config option to true:
 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`"
 		));
 	}
@@ -151,15 +162,16 @@ For security and safety reasons, conduwuit will shut down. If you are extra sure
 		warn!(
 			"Open registration is enabled via setting \
 			 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to \
-			 true without a registration token configured. You are expected to be aware of the risks now.\n
-    If this is not the desired behaviour, please set a registration token."
+			 true without a registration token configured. You are expected to be aware of the risks now. If this is \
+			 not the desired behaviour, please set a registration token."
 		);
 	}
 
 	if config.allow_outgoing_presence && !config.allow_local_presence {
 		return Err!(Config(
 			"allow_local_presence",
-			"Outgoing presence requires allowing local presence. Please enable 'allow_local_presence'."
+			"Outgoing presence requires allowing local presence. Please enable 'allow_local_presence' or disable \
+			 outgoing presence."
 		));
 	}
 
