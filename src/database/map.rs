@@ -116,18 +116,24 @@ fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
 }
 
 #[inline]
-fn cache_read_options_default() -> ReadOptions {
+pub(crate) fn iter_options_default() -> ReadOptions {
+	let mut read_options = read_options_default();
+	read_options
+}
+
+#[inline]
+pub(crate) fn cache_read_options_default() -> ReadOptions {
 	let mut read_options = read_options_default();
 	read_options.set_read_tier(ReadTier::BlockCache);
 	read_options
 }
 
 #[inline]
-fn read_options_default() -> ReadOptions {
+pub(crate) fn read_options_default() -> ReadOptions {
 	let mut read_options = ReadOptions::default();
 	read_options.set_total_order_seek(true);
 	read_options
 }
 
 #[inline]
-fn write_options_default() -> WriteOptions { WriteOptions::default() }
+pub(crate) fn write_options_default() -> WriteOptions { WriteOptions::default() }
