@@ -1,10 +1,10 @@
 pub(crate) mod clap;
+mod logging;
 mod mods;
 mod restart;
 mod sentry;
 mod server;
 mod signal;
-mod tracing;
 
 extern crate conduit_core as conduit;
 
