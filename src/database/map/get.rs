@@ -2,8 +2,9 @@ use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
 use conduit::{err, implement, utils::result::MapExpect, Err, Result};
-use futures::{future, Future, FutureExt};
+use futures::{Future, FutureExt};
 use serde::Serialize;
+use tokio::task;
 
 use crate::{
 	keyval::KeyBuf,
@@ -63,7 +64,9 @@ where
 
 	let cached = self.get_cached(key);
 	if matches!(cached, Err(_) | Ok(Some(_))) {
-		return future::ready(cached.map_expect("data found in cache")).boxed();
+		return task::consume_budget()
+			.map(move |()| cached.map_expect("data found in cache"))
+			.boxed();
 	}
 
 	debug_assert!(matches!(cached, Ok(None)), "expected status Incomplete");
