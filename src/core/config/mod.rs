@@ -1250,15 +1250,19 @@ pub struct Config {
 	#[serde(default = "default_ip_range_denylist")]
 	pub ip_range_denylist: Vec<String>,
 
-	/// Optional interface to bind to with SO_BINDTODEVICE for URL previews.
-	/// If not set, it will not bind to a specific interface.
-	/// This uses [`reqwest::ClientBuilder::interface`] under the hood.
+	/// Optional IP address or network interface-name to bind as the source of
+	/// URL preview requests. If not set, it will not bind to a specific
+	/// address or interface.
 	///
-	/// To list the interfaces on your system, use the command `ip link show`
+	/// Interface names only supported on Linux, Android, and Fuchsia platforms;
+	/// all other platforms can specify the IP address. To list the interfaces
+	/// on your system, use the command `ip link show`.
 	///
-	/// Example: `"eth0"`
-	#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-	pub url_preview_bound_interface: Option<String>,
+	/// example: `"eth0"` or `"1.2.3.4"`
+	///
+	/// default:
+	#[serde(default, with = "either::serde_untagged_optional")]
+	pub url_preview_bound_interface: Option<Either<IpAddr, String>>,
 
 	/// Vector list of domains allowed to send requests to for URL previews.
 	/// Defaults to none. Note: this is a *contains* match, not an explicit
@@ -1970,14 +1974,15 @@ impl fmt::Display for Config {
 		line("Forbidden room aliases", {
 			&self.forbidden_alias_names.patterns().iter().join(", ")
 		});
-		#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
 		line(
 			"URL preview bound interface",
-			if let Some(interface) = &self.url_preview_bound_interface {
-				interface
-			} else {
-				"not set"
-			},
+			self.url_preview_bound_interface
+				.as_ref()
+				.map(Either::as_ref)
+				.map(|either| either.map_left(ToString::to_string))
+				.map(Either::either_into::<String>)
+				.unwrap_or_default()
+				.as_str(),
 		);
 		line(
 			"URL preview domain contains allowlist",

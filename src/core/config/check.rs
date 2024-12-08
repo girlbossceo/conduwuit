@@ -1,3 +1,6 @@
+use std::env::consts::OS;
+
+use either::Either;
 use figment::Figment;
 
 use super::DEPRECATED_KEYS;
@@ -189,6 +192,15 @@ For security and safety reasons, conduwuit will shut down. If you are extra sure
 			 opens up significant attack surface to your server. You are expected to be aware of the risks by doing \
 			 this."
 		);
+	}
+
+	if let Some(Either::Right(_)) = config.url_preview_bound_interface.as_ref() {
+		if !matches!(OS, "android" | "fuchsia" | "linux") {
+			return Err!(Config(
+				"url_preview_bound_interface",
+				"Not a valid IP address. Interface names not supported on {OS}."
+			));
+		}
 	}
 
 	Ok(())

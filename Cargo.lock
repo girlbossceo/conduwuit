@@ -824,6 +824,7 @@ dependencies = [
  "conduit_core",
  "conduit_database",
  "const-str",
+ "either",
  "futures",
  "hickory-resolver",
  "http",

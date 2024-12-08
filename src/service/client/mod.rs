@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use conduit::{err, implement, trace, Config, Result};
+use either::Either;
 use ipaddress::IPAddress;
 use reqwest::redirect;
 
@@ -25,23 +26,27 @@ impl crate::Service for Service {
 		let config = &args.server.config;
 		let resolver = args.require::<resolver::Service>("resolver");
 
-		let url_preview_builder = base(config)?
-			.dns_resolver(resolver.resolver.clone())
-			.redirect(redirect::Policy::limited(3));
+		let url_preview_bind_addr = config
+			.url_preview_bound_interface
+			.clone()
+			.and_then(Either::left);
 
-		#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-		let url_preview_builder = if let Some(interface) = &config.url_preview_bound_interface {
-			url_preview_builder.interface(interface)
-		} else {
-			url_preview_builder
-		};
+		let url_preview_bind_iface = config
+			.url_preview_bound_interface
+			.clone()
+			.and_then(Either::right);
 
 		Ok(Arc::new(Self {
 			default: base(config)?
 				.dns_resolver(resolver.resolver.clone())
 				.build()?,
 
-			url_preview: url_preview_builder.build()?,
+			url_preview: base(config)
+				.and_then(|builder| builder_interface(builder, url_preview_bind_iface.as_deref()))?
+				.local_address(url_preview_bind_addr)
+				.dns_resolver(resolver.resolver.clone())
+				.redirect(redirect::Policy::limited(3))
+				.build()?,
 
 			extern_media: base(config)?
 				.dns_resolver(resolver.resolver.clone())
@@ -167,6 +172,26 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 
 	if let Some(proxy) = config.proxy.to_proxy()? {
 		Ok(builder.proxy(proxy))
+	} else {
+		Ok(builder)
+	}
+}
+
+#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> Result<reqwest::ClientBuilder> {
+	if let Some(iface) = config {
+		Ok(builder.interface(iface))
+	} else {
+		Ok(builder)
+	}
+}
+
+#[cfg(not(any(target_os = "android", target_os = "fuchsia", target_os = "linux")))]
+fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> Result<reqwest::ClientBuilder> {
+	use conduit::Err;
+
+	if let Some(iface) = config {
+		Err!("Binding to network-interface {iface:?} by name is not supported on this platform.")
 	} else {
 		Ok(builder)
 	}

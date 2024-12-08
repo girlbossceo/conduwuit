@@ -47,6 +47,7 @@ bytes.workspace = true
 conduit-core.workspace = true
 conduit-database.workspace = true
 const-str.workspace = true
+either.workspace = true
 futures.workspace = true
 hickory-resolver.workspace = true
 http.workspace = true
