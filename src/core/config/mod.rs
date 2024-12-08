@@ -141,6 +141,8 @@ pub struct Config {
 	/// core count.
 	///
 	/// This defaults to 128.0 + (64.0 * CPU core count)
+	///
+	/// default: varies by system
 	#[serde(default = "default_db_cache_capacity_mb")]
 	pub db_cache_capacity_mb: f64,
 
@@ -151,9 +153,9 @@ pub struct Config {
 	///
 	/// The default is the trans pride flag.
 	///
-	/// example: "🏳️⚧️"
+	/// example: "🏳️‍⚧️"
 	///
-	/// default: "🏳️⚧️"
+	/// default: "🏳️‍⚧️"
 	#[serde(default = "default_new_user_displayname_suffix")]
 	pub new_user_displayname_suffix: String,
 
@@ -164,15 +166,14 @@ pub struct Config {
 	///
 	/// This is disabled by default as this is rarely used except for security
 	/// updates or major updates.
-	#[serde(default)]
+	#[serde(default, alias = "allow_announcements_check")]
 	pub allow_check_for_updates: bool,
 
 	/// Set this to any float value to multiply conduwuit's in-memory LRU caches
 	/// with such as "auth_chain_cache_capacity".
 	///
 	/// May be useful if you have significant memory to spare to increase
-	/// performance. This was previously called
-	/// `conduit_cache_capacity_modifier`.
+	/// performance.
 	///
 	/// If you have low memory, reducing this may be viable.
 	///
@@ -247,7 +248,7 @@ pub struct Config {
 	/// longer running Matrix). Only decrease this if you are using an external
 	/// DNS cache.
 	///
-	/// default_dns_min_ttl: 259200
+	/// default: 10800
 	#[serde(default = "default_dns_min_ttl")]
 	pub dns_min_ttl: u64,
 
@@ -262,7 +263,7 @@ pub struct Config {
 	#[serde(default = "default_dns_min_ttl_nxdomain")]
 	pub dns_min_ttl_nxdomain: u64,
 
-	/// Number of retries after a timeout.
+	/// Number of DNS nameserver retries after a timeout or error.
 	///
 	/// default: 10
 	#[serde(default = "default_dns_attempts")]
@@ -633,7 +634,7 @@ pub struct Config {
 	/// Currently, conduwuit doesn't support inbound batched key requests, so
 	/// this list should only contain other Synapse servers
 	///
-	/// example: ["matrix.org", "constellatory.net", "tchncs.de"]
+	/// example: ["matrix.org", "envs.net", "constellatory.net", "tchncs.de"]
 	///
 	/// default: ["matrix.org"]
 	#[serde(default = "default_trusted_servers")]
@@ -794,14 +795,14 @@ pub struct Config {
 	/// room invites) are ignored here.
 	///
 	/// Defaults to false as rooms can be banned for non-moderation-related
-	/// reasons
+	/// reasons and this performs a full user deactivation
 	#[serde(default)]
 	pub auto_deactivate_banned_room_attempts: bool,
 
 	/// RocksDB log level. This is not the same as conduwuit's log level. This
 	/// is the log level for the RocksDB engine/library which show up in your
 	/// database folder/path as `LOG` files. conduwuit will log RocksDB errors
-	/// as normal through tracing.
+	/// as normal through tracing or panics if severe for safety.
 	///
 	/// default: "error"
 	#[serde(default = "default_rocksdb_log_level")]
@@ -855,7 +856,7 @@ pub struct Config {
 	/// operatons such as cleanup, sync, flush, compaction, etc. Set to 0 to use
 	/// all your logical threads. Defaults to your CPU logical thread count.
 	///
-	/// default: 0
+	/// default: varies by system
 	#[serde(default = "default_rocksdb_parallelism_threads")]
 	pub rocksdb_parallelism_threads: usize,
 
@@ -954,6 +955,14 @@ pub struct Config {
 	/// default: 1
 	#[serde(default = "default_rocksdb_recovery_mode")]
 	pub rocksdb_recovery_mode: u8,
+
+	/// Enables or disables paranoid SST file checks. This can improve RocksDB
+	/// database consistency at a potential performance impact due to further
+	/// safety checks ran.
+	///
+	/// See https://github.com/facebook/rocksdb/wiki/Online-Verification#columnfamilyoptionsparanoid_file_checks for more information.
+	#[serde(default)]
+	pub rocksdb_paranoid_file_checks: bool,
 
 	/// Database repair mode (for RocksDB SST corruption)
 	///
@@ -1255,7 +1264,8 @@ pub struct Config {
 	///
 	/// To disable, set this to be an empty vector (`[]`).
 	///
-	/// default: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
+	/// Defaults to:
+	/// ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
 	/// "192.168.0.0/16", "100.64.0.0/10", "192.0.0.0/24", "169.254.0.0/16",
 	/// "192.88.99.0/24", "198.18.0.0/15", "192.0.2.0/24", "198.51.100.0/24",
 	/// "203.0.113.0/24", "224.0.0.0/4", "::1/128", "fe80::/10", "fc00::/7",
@@ -1328,9 +1338,9 @@ pub struct Config {
 	pub url_preview_url_contains_allowlist: Vec<String>,
 
 	/// Maximum amount of bytes allowed in a URL preview body size when
-	/// spidering. Defaults to 384KB in bytes.
+	/// spidering. Defaults to 256KB in bytes.
 	///
-	/// default: 384000
+	/// default: 256000
 	#[serde(default = "default_url_preview_max_spider_size")]
 	pub url_preview_max_spider_size: usize,
 
@@ -1465,7 +1475,7 @@ pub struct Config {
 
 	/// Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
 	/// This is NOT enabled by default. conduwuit's default Sentry reporting
-	/// endpoint is o4506996327251968.ingest.us.sentry.io
+	/// endpoint domain is o4506996327251968.ingest.us.sentry.io
 	#[serde(default)]
 	pub sentry: bool,
 
@@ -1532,12 +1542,14 @@ pub struct Config {
 	/// specifically the queue-depth or the number of simultaneous requests in
 	/// flight. Defaults to 32 or four times the number of CPU cores, whichever
 	/// is greater.
+	///
 	/// default: 32
 	#[serde(default = "default_db_pool_workers")]
 	pub db_pool_workers: usize,
 
 	/// Size of the queue feeding the database's frontend-pool. Defaults to 256
 	/// or eight times the number of CPU cores, whichever is greater.
+	///
 	/// default: 256
 	#[serde(default = "default_db_pool_queue_size")]
 	pub db_pool_queue_size: usize,
@@ -2282,7 +2294,7 @@ fn default_ip_range_denylist() -> Vec<String> {
 }
 
 fn default_url_preview_max_spider_size() -> usize {
-	384_000 // 384KB
+	256_000 // 256KB
 }
 
 fn default_new_user_displayname_suffix() -> String { "🏳️‍⚧️".to_owned() }

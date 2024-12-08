@@ -105,7 +105,7 @@
 #
 # This defaults to 128.0 + (64.0 * CPU core count)
 #
-#db_cache_capacity_mb =
+#db_cache_capacity_mb = varies by system
 
 # Option to control adding arbitrary text to the end of the user's
 # displayname upon registration with a space before the text. This was the
@@ -114,9 +114,9 @@
 #
 # The default is the trans pride flag.
 #
-# example: "🏳️⚧️"
+# example: "🏳️‍⚧️"
 #
-#new_user_displayname_suffix = "🏳️⚧️"
+#new_user_displayname_suffix = "🏳️‍⚧️"
 
 # If enabled, conduwuit will send a simple GET request periodically to
 # `https://pupbrain.dev/check-for-updates/stable` for any new
@@ -132,8 +132,7 @@
 # with such as "auth_chain_cache_capacity".
 #
 # May be useful if you have significant memory to spare to increase
-# performance. This was previously called
-# `conduit_cache_capacity_modifier`.
+# performance.
 #
 # If you have low memory, reducing this may be viable.
 #
@@ -204,9 +203,7 @@
 # longer running Matrix). Only decrease this if you are using an external
 # DNS cache.
 #
-# default_dns_min_ttl: 259200
-#
-#dns_min_ttl =
+#dns_min_ttl = 10800
 
 # Minimum time-to-live in seconds for NXDOMAIN entries in the DNS cache.
 # This value is critical for the server to federate efficiently.
@@ -217,7 +214,7 @@
 #
 #dns_min_ttl_nxdomain = 259200
 
-# Number of retries after a timeout.
+# Number of DNS nameserver retries after a timeout or error.
 #
 #dns_attempts = 10
 
@@ -547,7 +544,7 @@
 # Currently, conduwuit doesn't support inbound batched key requests, so
 # this list should only contain other Synapse servers
 #
-# example: ["matrix.org", "constellatory.net", "tchncs.de"]
+# example: ["matrix.org", "envs.net", "constellatory.net", "tchncs.de"]
 #
 #trusted_servers = ["matrix.org"]
 
@@ -689,14 +686,14 @@
 # room invites) are ignored here.
 #
 # Defaults to false as rooms can be banned for non-moderation-related
-# reasons
+# reasons and this performs a full user deactivation
 #
 #auto_deactivate_banned_room_attempts = false
 
 # RocksDB log level. This is not the same as conduwuit's log level. This
 # is the log level for the RocksDB engine/library which show up in your
 # database folder/path as `LOG` files. conduwuit will log RocksDB errors
-# as normal through tracing.
+# as normal through tracing or panics if severe for safety.
 #
 #rocksdb_log_level = "error"
 
@@ -745,7 +742,7 @@
 # operatons such as cleanup, sync, flush, compaction, etc. Set to 0 to use
 # all your logical threads. Defaults to your CPU logical thread count.
 #
-#rocksdb_parallelism_threads = 0
+#rocksdb_parallelism_threads = varies by system
 
 # Maximum number of LOG files RocksDB will keep. This must *not* be set to
 # 0. It must be at least 1. Defaults to 3 as these are not very useful
@@ -832,6 +829,14 @@
 # See https://conduwuit.puppyirl.gay/troubleshooting.html#database-corruption for more details on recovering a corrupt database.
 #
 #rocksdb_recovery_mode = 1
+
+# Enables or disables paranoid SST file checks. This can improve RocksDB
+# database consistency at a potential performance impact due to further
+# safety checks ran.
+#
+# See https://github.com/facebook/rocksdb/wiki/Online-Verification#columnfamilyoptionsparanoid_file_checks for more information.
+#
+#rocksdb_paranoid_file_checks = false
 
 # Database repair mode (for RocksDB SST corruption)
 #
@@ -1119,12 +1124,14 @@
 #
 # To disable, set this to be an empty vector (`[]`).
 #
+# Defaults to:
+# ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
 # "192.168.0.0/16", "100.64.0.0/10", "192.0.0.0/24", "169.254.0.0/16",
 # "192.88.99.0/24", "198.18.0.0/15", "192.0.2.0/24", "198.51.100.0/24",
 # "203.0.113.0/24", "224.0.0.0/4", "::1/128", "fe80::/10", "fc00::/7",
 # "2001:db8::/32", "ff00::/8", "fec0::/10"]
 #
-#ip_range_denylist = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
+#ip_range_denylist =
 
 # Optional IP address or network interface-name to bind as the source of
 # URL preview requests. If not set, it will not bind to a specific
@@ -1181,9 +1188,9 @@
 #url_preview_url_contains_allowlist = []
 
 # Maximum amount of bytes allowed in a URL preview body size when
-# spidering. Defaults to 384KB in bytes.
+# spidering. Defaults to 256KB in bytes.
 #
-#url_preview_max_spider_size = 384000
+#url_preview_max_spider_size = 256000
 
 # Option to decide whether you would like to run the domain allowlist
 # checks (contains and explicit) on the root domain or not. Does not apply
@@ -1302,7 +1309,7 @@
 
 # Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
 # This is NOT enabled by default. conduwuit's default Sentry reporting
-# endpoint is o4506996327251968.ingest.us.sentry.io
+# endpoint domain is o4506996327251968.ingest.us.sentry.io
 #
 #sentry = false
 

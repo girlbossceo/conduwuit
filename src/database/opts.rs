@@ -95,6 +95,8 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 		4_u8..=u8::MAX => unimplemented!(),
 	});
 
+	opts.set_paranoid_checks(config.rocksdb_paranoid_file_checks);
+
 	opts.set_env(env);
 	Ok(opts)
 }
