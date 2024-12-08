@@ -97,6 +97,14 @@ type PresenceUpdates = HashMap<OwnedUserId, PresenceEvent>;
 /// For left rooms:
 /// - If the user left after `since`: `prev_batch` token, empty state (TODO:
 ///   subset of the state at the point of the leave)
+#[tracing::instrument(
+	name = "sync",
+	level = "debug",
+	skip_all,
+	fields(
+		since = %body.body.since.as_deref().unwrap_or_default(),
+    )
+)]
 pub(crate) async fn sync_events_route(
 	State(services): State<crate::State>, body: Ruma<sync_events::v3::Request>,
 ) -> Result<sync_events::v3::Response, RumaResponse<UiaaResponse>> {
@@ -391,8 +399,17 @@ async fn process_presence_updates(services: &Services, since: u64, syncing_user:
 		.await
 }
 
+#[tracing::instrument(
+	name = "left",
+	level = "debug",
+	skip_all,
+	fields(
+		room_id = %room_id,
+		full = %full_state,
+		ll = %lazy_load_enabled,
+	),
+)]
 #[allow(clippy::too_many_arguments)]
-#[tracing::instrument(skip_all, fields(user_id = %sender_user, room_id = %room_id), name = "left_room")]
 async fn handle_left_room(
 	services: &Services, since: u64, room_id: OwnedRoomId, sender_user: &UserId, next_batch_string: &str,
 	full_state: bool, lazy_load_enabled: bool,

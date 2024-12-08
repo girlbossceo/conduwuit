@@ -184,7 +184,7 @@ impl Service {
 
 	/// Whether a server is allowed to see an event through federation, based on
 	/// the room's history_visibility at that event's state.
-	#[tracing::instrument(skip(self, origin, room_id, event_id))]
+	#[tracing::instrument(skip_all, level = "trace")]
 	pub async fn server_can_see_event(&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId) -> bool {
 		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
 			return true;
@@ -242,7 +242,7 @@ impl Service {
 
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
-	#[tracing::instrument(skip(self, user_id, room_id, event_id))]
+	#[tracing::instrument(skip_all, level = "trace")]
 	pub async fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> bool {
 		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
 			return true;
@@ -293,7 +293,7 @@ impl Service {
 
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
-	#[tracing::instrument(skip(self, user_id, room_id))]
+	#[tracing::instrument(skip_all, level = "trace")]
 	pub async fn user_can_see_state_events(&self, user_id: &UserId, room_id: &RoomId) -> bool {
 		if self.services.state_cache.is_joined(user_id, room_id).await {
 			return true;

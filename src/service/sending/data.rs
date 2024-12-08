@@ -176,7 +176,6 @@ impl Data {
 	}
 }
 
-#[tracing::instrument(skip(key), level = "debug")]
 fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, SendingEvent)> {
 	// Appservices start with a plus
 	Ok::<_, Error>(if key.starts_with(b"+") {

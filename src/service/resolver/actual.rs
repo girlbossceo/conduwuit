@@ -26,7 +26,7 @@ impl ActualDest {
 }
 
 impl super::Service {
-	#[tracing::instrument(skip_all, name = "resolve")]
+	#[tracing::instrument(skip_all, level = "debug", name = "resolve")]
 	pub(crate) async fn get_actual_dest(&self, server_name: &ServerName) -> Result<ActualDest> {
 		let (result, cached) = if let Some(result) = self.get_cached_destination(server_name) {
 			(result, true)

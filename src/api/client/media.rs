@@ -39,7 +39,12 @@ pub(crate) async fn get_media_config_route(
 ///
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
-#[tracing::instrument(skip_all, fields(%client), name = "media_upload")]
+#[tracing::instrument(
+	name = "media_upload",
+	level = "debug",
+	skip_all,
+	fields(%client),
+)]
 pub(crate) async fn create_content_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<create_content::v3::Request>,
@@ -67,7 +72,12 @@ pub(crate) async fn create_content_route(
 /// # `GET /_matrix/client/v1/media/thumbnail/{serverName}/{mediaId}`
 ///
 /// Load media thumbnail from our server or over federation.
-#[tracing::instrument(skip_all, fields(%client), name = "media_thumbnail_get")]
+#[tracing::instrument(
+	name = "media_thumbnail_get",
+	level = "debug",
+	skip_all,
+	fields(%client),
+)]
 pub(crate) async fn get_content_thumbnail_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_thumbnail::v1::Request>,
@@ -98,7 +108,12 @@ pub(crate) async fn get_content_thumbnail_route(
 /// # `GET /_matrix/client/v1/media/download/{serverName}/{mediaId}`
 ///
 /// Load media from our server or over federation.
-#[tracing::instrument(skip_all, fields(%client), name = "media_get")]
+#[tracing::instrument(
+	name = "media_get",
+	level = "debug",
+	skip_all,
+	fields(%client),
+)]
 pub(crate) async fn get_content_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content::v1::Request>,
@@ -128,7 +143,12 @@ pub(crate) async fn get_content_route(
 /// # `GET /_matrix/client/v1/media/download/{serverName}/{mediaId}/{fileName}`
 ///
 /// Load media from our server or over federation as fileName.
-#[tracing::instrument(skip_all, fields(%client), name = "media_get_af")]
+#[tracing::instrument(
+	name = "media_get_af",
+	level = "debug",
+	skip_all,
+	fields(%client),
+)]
 pub(crate) async fn get_content_as_filename_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_as_filename::v1::Request>,
@@ -158,7 +178,12 @@ pub(crate) async fn get_content_as_filename_route(
 /// # `GET /_matrix/client/v1/media/preview_url`
 ///
 /// Returns URL preview.
-#[tracing::instrument(skip_all, fields(%client), name = "url_preview")]
+#[tracing::instrument(
+	name = "url_preview",
+	level = "debug",
+	skip_all,
+	fields(%client),
+)]
 pub(crate) async fn get_media_preview_route(
 	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_media_preview::v1::Request>,

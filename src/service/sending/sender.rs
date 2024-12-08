@@ -62,7 +62,7 @@ pub const PDU_LIMIT: usize = 50;
 pub const EDU_LIMIT: usize = 100;
 
 impl Service {
-	#[tracing::instrument(skip_all, name = "sender")]
+	#[tracing::instrument(skip_all, level = "debug")]
 	pub(super) async fn sender(&self) -> Result<()> {
 		let mut statuses: CurTransactionStatus = CurTransactionStatus::new();
 		let mut futures: SendingFutures<'_> = FuturesUnordered::new();

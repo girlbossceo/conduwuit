@@ -155,6 +155,12 @@ impl Manager {
 /// should never error with a panic, and if so it should propagate, but it may
 /// error with an Abort which the manager should handle along with results to
 /// determine if the worker should be restarted.
+#[tracing::instrument(
+	parent = None,
+	level = "trace",
+	skip_all,
+	fields(service = %service.name()),
+)]
 async fn worker(service: Arc<dyn Service>) -> WorkerResult {
 	let service_ = Arc::clone(&service);
 	let result = AssertUnwindSafe(service_.worker())

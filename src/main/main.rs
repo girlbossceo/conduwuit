@@ -59,6 +59,11 @@ fn main() -> Result<(), Error> {
 /// Operate the server normally in release-mode static builds. This will start,
 /// run and stop the server within the asynchronous runtime.
 #[cfg(not(conduit_mods))]
+#[tracing::instrument(
+	name = "main",
+	parent = None,
+	skip_all
+)]
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	extern crate conduit_router as router;
 

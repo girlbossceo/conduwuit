@@ -10,7 +10,7 @@ pub(crate) type MapsKey = String;
 
 pub(crate) fn open(db: &Arc<Engine>) -> Result<Maps> { open_list(db, MAPS) }
 
-#[tracing::instrument(skip_all, level = "debug")]
+#[tracing::instrument(name = "maps", level = "debug", skip_all)]
 pub(crate) fn open_list(db: &Arc<Engine>, maps: &[&str]) -> Result<Maps> {
 	Ok(maps
 		.iter()
