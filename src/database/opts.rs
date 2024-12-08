@@ -3,7 +3,7 @@ use std::{cmp, collections::HashMap, convert::TryFrom};
 use conduit::{err, utils, Config, Result};
 use rocksdb::{
 	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env,
-	LogLevel, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
+	LogLevel, LruCacheOptions, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
 };
 
 /// Create database-wide options suitable for opening the database. This also
@@ -24,9 +24,9 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	set_logging_defaults(&mut opts, config);
 
 	// Processing
-	opts.set_enable_pipelined_write(true);
 	opts.set_max_background_jobs(num_threads::<i32>(config)?);
 	opts.set_max_subcompactions(num_threads::<u32>(config)?);
+	opts.set_avoid_unnecessary_blocking_io(true);
 	opts.set_max_file_opening_threads(0);
 	if config.rocksdb_compaction_prio_idle {
 		env.lower_thread_pool_cpu_priority();
@@ -34,6 +34,7 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 
 	// IO
 	opts.set_manual_wal_flush(true);
+	opts.set_enable_pipelined_write(true);
 	if config.rocksdb_direct_io {
 		opts.set_use_direct_reads(true);
 		opts.set_use_direct_io_for_flush_and_compaction(true);
@@ -60,6 +61,7 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	opts.set_min_write_buffer_number(1);
 
 	// Files
+	opts.set_table_cache_num_shard_bits(7);
 	opts.set_max_total_wal_size(96 * 1024 * 1024);
 	set_level_defaults(&mut opts, config);
 
@@ -328,10 +330,16 @@ fn uc_options(_config: &Config) -> UniversalCompactOptions {
 }
 
 fn set_table_with_new_cache(
-	opts: &mut Options, config: &Config, cache: &mut HashMap<String, Cache>, name: &str, size: usize,
+	opts: &mut Options, config: &Config, caches: &mut HashMap<String, Cache>, name: &str, size: usize,
 ) {
-	cache.insert(name.to_owned(), Cache::new_lru_cache(size));
-	set_table_with_shared_cache(opts, config, cache, name, name);
+	let mut cache_opts = LruCacheOptions::default();
+	cache_opts.set_capacity(size);
+	cache_opts.set_num_shard_bits(7);
+
+	let cache = Cache::new_lru_cache_opts(&cache_opts);
+	caches.insert(name.into(), cache);
+
+	set_table_with_shared_cache(opts, config, caches, name, name);
 }
 
 fn set_table_with_shared_cache(
@@ -343,6 +351,7 @@ fn set_table_with_shared_cache(
 			.get(cache_name)
 			.expect("existing cache to share with this column"),
 	);
+
 	opts.set_block_based_table_factory(&table);
 }
 
@@ -361,6 +370,7 @@ fn table_options(_config: &Config) -> BlockBasedOptions {
 	opts.set_block_size(4 * 1024);
 	opts.set_metadata_block_size(4 * 1024);
 
+	opts.set_use_delta_encoding(false);
 	opts.set_optimize_filters_for_memory(true);
 	opts.set_cache_index_and_filter_blocks(true);
 	opts.set_pin_top_level_index_and_filter(true);

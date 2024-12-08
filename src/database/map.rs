@@ -118,6 +118,8 @@ fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
 #[inline]
 pub(crate) fn iter_options_default() -> ReadOptions {
 	let mut read_options = read_options_default();
+	read_options.set_background_purge_on_iterator_cleanup(true);
+	//read_options.set_pin_data(true);
 	read_options
 }
 

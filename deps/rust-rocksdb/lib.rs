@@ -5,6 +5,7 @@ pub use rust_rocksdb::*;
 extern "C" {
 	pub fn rocksdb_list_column_families();
 	pub fn rocksdb_logger_create_stderr_logger();
+	pub fn rocksdb_logger_create_callback_logger();
 	pub fn rocksdb_options_set_info_log();
 	pub fn rocksdb_get_options_from_string();
 	pub fn rocksdb_writebatch_create();
