@@ -1,6 +1,5 @@
 { lib
 , pkgsBuildHost
-, pkgsBuildTarget
 , rust
 , stdenv
 }:
@@ -23,25 +22,13 @@ lib.optionalAttrs stdenv.hostPlatform.isStatic {
           [ "-C" "relocation-model=static" ]
         ++ lib.optionals
           (stdenv.buildPlatform.config != stdenv.hostPlatform.config)
-          [ "-l" "c" ]
-        ++ lib.optionals
-          # This check has to match the one [here][0]. We only need to set
-          # these flags when using a different linker. Don't ask me why,
-          # though, because I don't know. All I know is it breaks otherwise.
-          #
-          # [0]: https://github.com/NixOS/nixpkgs/blob/5cdb38bb16c6d0a38779db14fcc766bc1b2394d6/pkgs/build-support/rust/lib/default.nix#L37-L40
-          (
-            # Nixpkgs doesn't check for x86_64 here but we do, because I
-            # observed a failure building statically for x86_64 without
-            # including it here. Linkers are weird.
-            (stdenv.hostPlatform.isAarch64 || stdenv.hostPlatform.isx86_64)
-              && stdenv.hostPlatform.isStatic
-              && !stdenv.hostPlatform.isDarwin
-              && !stdenv.cc.bintools.isLLVM
-          )
           [
             "-l"
+            "c"
+
+            "-l"
             "stdc++"
+
             "-L"
             "${stdenv.cc.cc.lib}/${stdenv.hostPlatform.config}/lib"
           ]
@@ -58,7 +45,7 @@ lib.optionalAttrs stdenv.hostPlatform.isStatic {
 (
   let
     inherit (rust.lib) envVars;
-    shouldUseLLD = platform: platform.isAarch64 && platform.isStatic && !stdenv.hostPlatform.isDarwin;
+    #shouldUseLLD = platform: platform.isAarch64 && platform.isStatic && !stdenv.hostPlatform.isDarwin;
   in
   lib.optionalAttrs
     (stdenv.targetPlatform.rust.rustcTarget
@@ -66,30 +53,22 @@ lib.optionalAttrs stdenv.hostPlatform.isStatic {
     (
       let
         inherit (stdenv.targetPlatform.rust) cargoEnvVarTarget;
-        linkerForTarget = if shouldUseLLD stdenv.targetPlatform
-          && !stdenv.cc.bintools.isLLVM # whether stdenv's linker is lld already
-          then "${pkgsBuildTarget.llvmPackages.bintools}/bin/${stdenv.cc.targetPrefix}ld.lld"
-          else envVars.ccForTarget;
       in
       {
         "CC_${cargoEnvVarTarget}" = envVars.ccForTarget;
         "CXX_${cargoEnvVarTarget}" = envVars.cxxForTarget;
-        "CARGO_TARGET_${cargoEnvVarTarget}_LINKER" = linkerForTarget;
+        "CARGO_TARGET_${cargoEnvVarTarget}_LINKER" = envVars.ccForTarget;
       }
     )
   //
   (
     let
       inherit (stdenv.hostPlatform.rust) cargoEnvVarTarget rustcTarget;
-      linkerForHost = if shouldUseLLD stdenv.targetPlatform
-        && !stdenv.cc.bintools.isLLVM
-        then "${pkgsBuildHost.llvmPackages.bintools}/bin/${stdenv.cc.targetPrefix}ld.lld"
-        else envVars.ccForHost;
     in
     {
       "CC_${cargoEnvVarTarget}" = envVars.ccForHost;
       "CXX_${cargoEnvVarTarget}" = envVars.cxxForHost;
-      "CARGO_TARGET_${cargoEnvVarTarget}_LINKER" = linkerForHost;
+      "CARGO_TARGET_${cargoEnvVarTarget}_LINKER" = envVars.ccForHost;
       CARGO_BUILD_TARGET = rustcTarget;
     }
   )

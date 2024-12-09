@@ -6,7 +6,6 @@
 , libiconv
 , liburing
 , pkgsBuildHost
-, pkgsBuildTarget
 , rocksdb
 , removeReferencesTo
 , rust
@@ -96,7 +95,6 @@ buildDepsOnlyEnv =
     inherit
       lib
       pkgsBuildHost
-      pkgsBuildTarget
       rust
       stdenv;
   });
