@@ -18,7 +18,6 @@
     let
       pkgsHost = import inputs.nixpkgs{
         inherit system;
-        config.permittedInsecurePackages = [ "olm-3.2.16" ];
       };
       pkgsHostStatic = pkgsHost.pkgsStatic;
 
@@ -118,9 +117,9 @@
           # code.
           COMPLEMENT_SRC = inputs.complement.outPath;
 
-          # Needed for Complement
-          CGO_CFLAGS = "-I${scope.pkgs.olm}/include";
-          CGO_LDFLAGS = "-L${scope.pkgs.olm}/lib";
+          # Needed for Complement: <https://github.com/golang/go/issues/52690>
+          CGO_CFLAGS = "-Wl,--no-gc-sections";
+          CGO_LDFLAGS = "-Wl,--no-gc-sections";
         };
 
         # Development tools
