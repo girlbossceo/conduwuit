@@ -120,15 +120,15 @@
     "complement": {
       "flake": false,
       "locked": {
-        "lastModified": 1732612157,
-        "narHash": "sha256-uqQfVmwCUrsw7eHs9przqnhMoyx4r7WUU8AWfT2Buo4=",
-        "owner": "matrix-org",
+        "lastModified": 1733767359,
+        "narHash": "sha256-3ZBFqvmTSE5Rtbb0Co89aut7q4ERBAeP7HntLN6sFik=",
+        "owner": "girlbossceo",
         "repo": "complement",
-        "rev": "fc63446512261a496b794a7082a6598b6f98e925",
+        "rev": "6ec9a3a28fb2baec9afb4fc8b9974a5f5d6525fc",
         "type": "github"
       },
       "original": {
-        "owner": "matrix-org",
+        "owner": "girlbossceo",
         "ref": "main",
         "repo": "complement",
         "type": "github"
