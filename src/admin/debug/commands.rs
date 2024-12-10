@@ -773,7 +773,14 @@ pub(super) async fn memory_stats(&self) -> Result<RoomMessageEventContent> {
 pub(super) async fn runtime_metrics(&self) -> Result<RoomMessageEventContent> {
 	let out = self.services.server.metrics.runtime_metrics().map_or_else(
 		|| "Runtime metrics are not available.".to_owned(),
-		|metrics| format!("```rs\n{metrics:#?}\n```"),
+		|metrics| {
+			format!(
+				"```rs\nnum_workers: {}\nnum_alive_tasks: {}\nglobal_queue_depth: {}\n```",
+				metrics.num_workers(),
+				metrics.num_alive_tasks(),
+				metrics.global_queue_depth()
+			)
+		},
 	);
 
 	Ok(RoomMessageEventContent::text_markdown(out))
