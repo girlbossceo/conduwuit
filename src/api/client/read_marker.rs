@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::PduCount;
+use conduit::{err, Err, PduCount};
 use ruma::{
-	api::client::{error::ErrorKind, read_marker::set_read_marker, receipt::create_receipt},
+	api::client::{read_marker::set_read_marker, receipt::create_receipt},
 	events::{
 		receipt::{ReceiptThread, ReceiptType},
 		RoomAccountDataEventType,
@@ -11,7 +11,7 @@ use ruma::{
 	MilliSecondsSinceUnixEpoch,
 };
 
-use crate::{Error, Result, Ruma};
+use crate::{Result, Ruma};
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///
@@ -23,14 +23,15 @@ use crate::{Error, Result, Ruma};
 pub(crate) async fn set_read_marker_route(
 	State(services): State<crate::State>, body: Ruma<set_read_marker::v3::Request>,
 ) -> Result<set_read_marker::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
-	if let Some(fully_read) = &body.fully_read {
+	if let Some(event) = &body.fully_read {
 		let fully_read_event = ruma::events::fully_read::FullyReadEvent {
 			content: ruma::events::fully_read::FullyReadEventContent {
-				event_id: fully_read.clone(),
+				event_id: event.clone(),
 			},
 		};
+
 		services
 			.account_data
 			.update(
@@ -49,44 +50,20 @@ pub(crate) async fn set_read_marker_route(
 			.reset_notification_counts(sender_user, &body.room_id);
 	}
 
-	if let Some(event) = &body.private_read_receipt {
-		let count = services
-			.rooms
-			.timeline
-			.get_pdu_count(event)
-			.await
-			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event does not exist."))?;
-
-		let count = match count {
-			PduCount::Backfilled(_) => {
-				return Err(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Read receipt is in backfilled timeline",
-				))
-			},
-			PduCount::Normal(c) => c,
-		};
-		services
-			.rooms
-			.read_receipt
-			.private_read_set(&body.room_id, sender_user, count);
-	}
-
 	if let Some(event) = &body.read_receipt {
-		let mut user_receipts = BTreeMap::new();
-		user_receipts.insert(
-			sender_user.clone(),
-			ruma::events::receipt::Receipt {
-				ts: Some(MilliSecondsSinceUnixEpoch::now()),
-				thread: ReceiptThread::Unthreaded,
-			},
-		);
-
-		let mut receipts = BTreeMap::new();
-		receipts.insert(ReceiptType::Read, user_receipts);
-
-		let mut receipt_content = BTreeMap::new();
-		receipt_content.insert(event.to_owned(), receipts);
+		let receipt_content = BTreeMap::from_iter([(
+			event.to_owned(),
+			BTreeMap::from_iter([(
+				ReceiptType::Read,
+				BTreeMap::from_iter([(
+					sender_user.to_owned(),
+					ruma::events::receipt::Receipt {
+						ts: Some(MilliSecondsSinceUnixEpoch::now()),
+						thread: ReceiptThread::Unthreaded,
+					},
+				)]),
+			)]),
+		)]);
 
 		services
 			.rooms
@@ -102,6 +79,24 @@ pub(crate) async fn set_read_marker_route(
 			.await;
 	}
 
+	if let Some(event) = &body.private_read_receipt {
+		let count = services
+			.rooms
+			.timeline
+			.get_pdu_count(event)
+			.await
+			.map_err(|_| err!(Request(NotFound("Event not found."))))?;
+
+		let PduCount::Normal(count) = count else {
+			return Err!(Request(InvalidParam("Event is a backfilled PDU and cannot be marked as read.")));
+		};
+
+		services
+			.rooms
+			.read_receipt
+			.private_read_set(&body.room_id, sender_user, count);
+	}
+
 	Ok(set_read_marker::v3::Response {})
 }
 
@@ -111,7 +106,7 @@ pub(crate) async fn set_read_marker_route(
 pub(crate) async fn create_receipt_route(
 	State(services): State<crate::State>, body: Ruma<create_receipt::v3::Request>,
 ) -> Result<create_receipt::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if matches!(
 		&body.receipt_type,
@@ -141,19 +136,19 @@ pub(crate) async fn create_receipt_route(
 				.await?;
 		},
 		create_receipt::v3::ReceiptType::Read => {
-			let mut user_receipts = BTreeMap::new();
-			user_receipts.insert(
-				sender_user.clone(),
-				ruma::events::receipt::Receipt {
-					ts: Some(MilliSecondsSinceUnixEpoch::now()),
-					thread: ReceiptThread::Unthreaded,
-				},
-			);
-			let mut receipts = BTreeMap::new();
-			receipts.insert(ReceiptType::Read, user_receipts);
-
-			let mut receipt_content = BTreeMap::new();
-			receipt_content.insert(body.event_id.clone(), receipts);
+			let receipt_content = BTreeMap::from_iter([(
+				body.event_id.clone(),
+				BTreeMap::from_iter([(
+					ReceiptType::Read,
+					BTreeMap::from_iter([(
+						sender_user.to_owned(),
+						ruma::events::receipt::Receipt {
+							ts: Some(MilliSecondsSinceUnixEpoch::now()),
+							thread: ReceiptThread::Unthreaded,
+						},
+					)]),
+				)]),
+			)]);
 
 			services
 				.rooms
@@ -174,23 +169,23 @@ pub(crate) async fn create_receipt_route(
 				.timeline
 				.get_pdu_count(&body.event_id)
 				.await
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event does not exist."))?;
+				.map_err(|_| err!(Request(NotFound("Event not found."))))?;
 
-			let count = match count {
-				PduCount::Backfilled(_) => {
-					return Err(Error::BadRequest(
-						ErrorKind::InvalidParam,
-						"Read receipt is in backfilled timeline",
-					))
-				},
-				PduCount::Normal(c) => c,
+			let PduCount::Normal(count) = count else {
+				return Err!(Request(InvalidParam("Event is a backfilled PDU and cannot be marked as read.")));
 			};
+
 			services
 				.rooms
 				.read_receipt
 				.private_read_set(&body.room_id, sender_user, count);
 		},
-		_ => return Err(Error::bad_database("Unsupported receipt type")),
+		_ => {
+			return Err!(Request(InvalidParam(warn!(
+				"Received unknown read receipt type: {}",
+				&body.receipt_type
+			))))
+		},
 	}
 
 	Ok(create_receipt::v3::Response {})

@@ -2,19 +2,19 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{debug, Result};
-use futures::Stream;
+use conduit::{debug, err, warn, PduCount, PduId, RawPduId, Result};
+use futures::{try_join, Stream, TryFutureExt};
 use ruma::{
 	events::{
 		receipt::{ReceiptEvent, ReceiptEventContent},
 		AnySyncEphemeralRoomEvent, SyncEphemeralRoomEvent,
 	},
 	serde::Raw,
-	OwnedUserId, RoomId, UserId,
+	OwnedEventId, OwnedUserId, RoomId, UserId,
 };
 
 use self::data::{Data, ReceiptItem};
-use crate::{sending, Dep};
+use crate::{rooms, sending, Dep};
 
 pub struct Service {
 	services: Services,
@@ -23,6 +23,8 @@ pub struct Service {
 
 struct Services {
 	sending: Dep<sending::Service>,
+	short: Dep<rooms::short::Service>,
+	timeline: Dep<rooms::timeline::Service>,
 }
 
 impl crate::Service for Service {
@@ -30,6 +32,8 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			services: Services {
 				sending: args.depend::<sending::Service>("sending"),
+				short: args.depend::<rooms::short::Service>("rooms::short"),
+				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 			},
 			db: Data::new(&args),
 		}))
@@ -49,6 +53,48 @@ impl Service {
 			.expect("room flush failed");
 	}
 
+	/// Gets the latest private read receipt from the user in the room
+	pub async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Raw<AnySyncEphemeralRoomEvent>> {
+		let pdu_count = self
+			.private_read_get_count(room_id, user_id)
+			.map_err(|e| err!(Database(warn!("No private read receipt was set in {room_id}: {e}"))));
+		let shortroomid = self
+			.services
+			.short
+			.get_shortroomid(room_id)
+			.map_err(|e| err!(Database(warn!("Short room ID does not exist in database for {room_id}: {e}"))));
+		let (pdu_count, shortroomid) = try_join!(pdu_count, shortroomid)?;
+
+		let shorteventid = PduCount::Normal(pdu_count);
+		let pdu_id: RawPduId = PduId {
+			shortroomid,
+			shorteventid,
+		}
+		.into();
+
+		let pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await?;
+
+		let event_id: OwnedEventId = pdu.event_id.into();
+		let receipt_content = BTreeMap::from_iter([(
+			event_id,
+			BTreeMap::from_iter([(
+				ruma::events::receipt::ReceiptType::ReadPrivate,
+				BTreeMap::from_iter([(
+					user_id,
+					ruma::events::receipt::Receipt {
+						ts: None, // TODO: start storing the timestamp so we can return one
+						thread: ruma::events::receipt::ReceiptThread::Unthreaded,
+					},
+				)]),
+			)]),
+		)]);
+		//let receipt_json = Json
+
+		let event = serde_json::value::to_raw_value(&receipt_content).expect("receipt_content created manually");
+
+		Ok(Raw::from_json(event))
+	}
+
 	/// Returns an iterator over the most recent read_receipts in a room that
 	/// happened after the event with id `since`.
 	#[inline]
@@ -59,21 +105,21 @@ impl Service {
 		self.db.readreceipts_since(room_id, since)
 	}
 
-	/// Sets a private read marker at `count`.
+	/// Sets a private read marker at PDU `count`.
 	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) {
 		self.db.private_read_set(room_id, user_id, count);
 	}
 
-	/// Returns the private read marker.
+	/// Returns the private read marker PDU count.
 	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
-		self.db.private_read_get(room_id, user_id).await
+	pub async fn private_read_get_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
+		self.db.private_read_get_count(room_id, user_id).await
 	}
 
-	/// Returns the count of the last typing update in this room.
+	/// Returns the PDU count of the last typing update in this room.
 	#[inline]
 	pub async fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
 		self.db.last_privateread_update(user_id, room_id).await

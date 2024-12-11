@@ -9,8 +9,8 @@ use conduit::{
 	at, err, error, extract_variant, is_equal_to, is_false,
 	pdu::EventHash,
 	result::{FlatOk, LogDebugErr},
-	utils,
 	utils::{
+		self,
 		future::OptionExt,
 		math::ruma_from_u64,
 		stream::{BroadbandExt, Tools, WidebandExt},
@@ -740,9 +740,28 @@ async fn load_joined_room(
 	let (notification_count, highlight_count) = unread_notifications;
 
 	device_list_updates.extend(device_updates);
+
+	let last_privateread_update = services
+		.rooms
+		.read_receipt
+		.last_privateread_update(sender_user, room_id)
+		.await > since;
+
+	let private_read_event = if last_privateread_update {
+		services
+			.rooms
+			.read_receipt
+			.private_read_get(room_id, sender_user)
+			.await
+			.ok()
+	} else {
+		None
+	};
+
 	let edus: Vec<Raw<AnySyncEphemeralRoomEvent>> = receipt_events
 		.into_values()
 		.chain(typing_events.into_iter())
+		.chain(private_read_event.into_iter())
 		.collect();
 
 	// Save the state after this sync so we can send the correct state diff next
