@@ -546,9 +546,9 @@ async fn handle_left_room(
 			events: Vec::new(),
 		},
 		timeline: Timeline {
-			limited: false,
+			limited: true, // TODO: support left timeline events so we dont need to set this to true
 			prev_batch: Some(next_batch_string.to_owned()),
-			events: Vec::new(),
+			events: Vec::new(), // and so we dont need to set this to empty vec
 		},
 		state: RoomState {
 			events: left_state_events,
