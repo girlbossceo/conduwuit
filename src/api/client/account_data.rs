@@ -1,18 +1,20 @@
 use axum::extract::State;
-use conduit::err;
+use conduit::{err, Err};
 use ruma::{
-	api::client::{
-		config::{get_global_account_data, get_room_account_data, set_global_account_data, set_room_account_data},
-		error::ErrorKind,
+	api::client::config::{
+		get_global_account_data, get_room_account_data, set_global_account_data, set_room_account_data,
 	},
-	events::{AnyGlobalAccountDataEventContent, AnyRoomAccountDataEventContent},
+	events::{
+		AnyGlobalAccountDataEventContent, AnyRoomAccountDataEventContent, GlobalAccountDataEventType,
+		RoomAccountDataEventType,
+	},
 	serde::Raw,
-	OwnedUserId, RoomId,
+	RoomId, UserId,
 };
 use serde::Deserialize;
 use serde_json::{json, value::RawValue as RawJsonValue};
 
-use crate::{service::Services, Error, Result, Ruma};
+use crate::{service::Services, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///
@@ -20,14 +22,13 @@ use crate::{service::Services, Error, Result, Ruma};
 pub(crate) async fn set_global_account_data_route(
 	State(services): State<crate::State>, body: Ruma<set_global_account_data::v3::Request>,
 ) -> Result<set_global_account_data::v3::Response> {
-	set_account_data(
-		&services,
-		None,
-		body.sender_user.as_ref(),
-		&body.event_type.to_string(),
-		body.data.json(),
-	)
-	.await?;
+	let sender_user = body.sender_user();
+
+	if sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot set account data for other users.")));
+	}
+
+	set_account_data(&services, None, &body.user_id, &body.event_type.to_string(), body.data.json()).await?;
 
 	Ok(set_global_account_data::v3::Response {})
 }
@@ -38,10 +39,16 @@ pub(crate) async fn set_global_account_data_route(
 pub(crate) async fn set_room_account_data_route(
 	State(services): State<crate::State>, body: Ruma<set_room_account_data::v3::Request>,
 ) -> Result<set_room_account_data::v3::Response> {
+	let sender_user = body.sender_user();
+
+	if sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot set account data for other users.")));
+	}
+
 	set_account_data(
 		&services,
 		Some(&body.room_id),
-		body.sender_user.as_ref(),
+		&body.user_id,
 		&body.event_type.to_string(),
 		body.data.json(),
 	)
@@ -56,11 +63,15 @@ pub(crate) async fn set_room_account_data_route(
 pub(crate) async fn get_global_account_data_route(
 	State(services): State<crate::State>, body: Ruma<get_global_account_data::v3::Request>,
 ) -> Result<get_global_account_data::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
+
+	if sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot get account data of other users.")));
+	}
 
 	let account_data: ExtractGlobalEventContent = services
 		.account_data
-		.get_global(sender_user, body.event_type.clone())
+		.get_global(&body.user_id, body.event_type.clone())
 		.await
 		.map_err(|_| err!(Request(NotFound("Data not found."))))?;
 
@@ -75,11 +86,15 @@ pub(crate) async fn get_global_account_data_route(
 pub(crate) async fn get_room_account_data_route(
 	State(services): State<crate::State>, body: Ruma<get_room_account_data::v3::Request>,
 ) -> Result<get_room_account_data::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
+
+	if sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot get account data of other users.")));
+	}
 
 	let account_data: ExtractRoomEventContent = services
 		.account_data
-		.get_room(&body.room_id, sender_user, body.event_type.clone())
+		.get_room(&body.room_id, &body.user_id, body.event_type.clone())
 		.await
 		.map_err(|_| err!(Request(NotFound("Data not found."))))?;
 
@@ -89,28 +104,35 @@ pub(crate) async fn get_room_account_data_route(
 }
 
 async fn set_account_data(
-	services: &Services, room_id: Option<&RoomId>, sender_user: Option<&OwnedUserId>, event_type: &str,
-	data: &RawJsonValue,
-) -> Result<()> {
-	let sender_user = sender_user.as_ref().expect("user is authenticated");
+	services: &Services, room_id: Option<&RoomId>, sender_user: &UserId, event_type_s: &str, data: &RawJsonValue,
+) -> Result {
+	if event_type_s == RoomAccountDataEventType::FullyRead.to_cow_str() {
+		return Err!(Request(BadJson(
+			"This endpoint cannot be used for marking a room as fully read (setting m.fully_read)"
+		)));
+	}
+
+	if event_type_s == GlobalAccountDataEventType::PushRules.to_cow_str() {
+		return Err!(Request(BadJson(
+			"This endpoint cannot be used for setting/configuring push rules."
+		)));
+	}
 
 	let data: serde_json::Value =
-		serde_json::from_str(data.get()).map_err(|_| Error::BadRequest(ErrorKind::BadJson, "Data is invalid."))?;
+		serde_json::from_str(data.get()).map_err(|e| err!(Request(BadJson(warn!("Invalid JSON provided: {e}")))))?;
 
 	services
 		.account_data
 		.update(
 			room_id,
 			sender_user,
-			event_type.into(),
+			event_type_s.into(),
 			&json!({
-				"type": event_type,
+				"type": event_type_s,
 				"content": data,
 			}),
 		)
-		.await?;
-
-	Ok(())
+		.await
 }
 
 #[derive(Deserialize)]
