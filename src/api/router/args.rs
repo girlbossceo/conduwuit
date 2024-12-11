@@ -2,9 +2,10 @@ use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, Bytes, BytesMut};
-use conduit::{debug, err, utils::string::EMPTY, Error, Result};
+use conduit::{debug, debug_warn, err, trace, utils::string::EMPTY, Error, Result};
 use ruma::{
-	api::IncomingRequest, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName, OwnedUserId, ServerName, UserId,
+	api::IncomingRequest, CanonicalJsonObject, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName,
+	OwnedUserId, ServerName, UserId,
 };
 use service::Services;
 
@@ -85,6 +86,19 @@ where
 	async fn from_request(request: hyper::Request<Body>, services: &State) -> Result<Self, Self::Rejection> {
 		let mut request = request::from(services, request).await?;
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&request.body).ok();
+
+		// while very unusual and really shouldn't be recommended, Synapse accepts POST
+		// requests with a completely empty body. very old clients, libraries, and some
+		// appservices still call APIs like /join like this. so let's just default to
+		// empty object `{}` to copy synapse's behaviour
+		if json_body.is_none()
+			&& request.parts.method == http::Method::POST
+			&& !request.parts.uri.path().contains("/media/")
+		{
+			trace!("json_body from_request: {:?}", json_body.clone());
+			debug_warn!("received a POST request with an empty body, defaulting/assuming to {{}} like Synapse does");
+			json_body = Some(CanonicalJsonValue::Object(CanonicalJsonObject::new()));
+		}
 		let auth = auth::auth(services, &mut request, json_body.as_ref(), &T::METADATA).await?;
 		Ok(Self {
 			body: make_body::<T>(services, &mut request, json_body.as_mut(), &auth)?,
