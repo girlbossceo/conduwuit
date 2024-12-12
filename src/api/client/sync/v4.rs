@@ -490,7 +490,25 @@ pub(crate) async fn sync_events_v4_route(
 				.await,
 		);
 
-		let vector: Vec<_> = services
+		let last_privateread_update = services
+			.rooms
+			.read_receipt
+			.last_privateread_update(sender_user, room_id)
+			.await > *roomsince;
+
+		let private_read_event = if last_privateread_update {
+			services
+				.rooms
+				.read_receipt
+				.private_read_get(room_id, sender_user)
+				.await
+				.ok()
+				.map(|read_event| (sender_user.to_owned(), 0_u64, read_event))
+		} else {
+			None
+		};
+
+		let mut vector: Vec<_> = services
 			.rooms
 			.read_receipt
 			.readreceipts_since(room_id, *roomsince)
@@ -503,6 +521,10 @@ pub(crate) async fn sync_events_v4_route(
 			})
 			.collect()
 			.await;
+
+		if let Some(private_read_event) = private_read_event {
+			vector.push(private_read_event);
+		}
 
 		let receipt_size = vector.len();
 		receipts
