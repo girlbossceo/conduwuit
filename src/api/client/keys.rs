@@ -1,10 +1,7 @@
-use std::{
-	collections::{hash_map, BTreeMap, HashMap, HashSet},
-	time::Instant,
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::extract::State;
-use conduit::{err, utils, utils::math::continue_exponential_backoff_secs, Err, Error, Result};
+use conduit::{err, utils, Error, Result};
 use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{
@@ -345,41 +342,9 @@ where
 
 	let mut failures = BTreeMap::new();
 
-	let back_off = |id| async {
-		match services
-			.globals
-			.bad_query_ratelimiter
-			.write()
-			.expect("locked")
-			.entry(id)
-		{
-			hash_map::Entry::Vacant(e) => {
-				e.insert((Instant::now(), 1));
-			},
-			hash_map::Entry::Occupied(mut e) => {
-				*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
-			},
-		}
-	};
-
 	let mut futures: FuturesUnordered<_> = get_over_federation
 		.into_iter()
 		.map(|(server, vec)| async move {
-			if let Some((time, tries)) = services
-				.globals
-				.bad_query_ratelimiter
-				.read()
-				.expect("locked")
-				.get(server)
-			{
-				// Exponential backoff
-				const MIN: u64 = 5 * 60;
-				const MAX: u64 = 60 * 60 * 24;
-				if continue_exponential_backoff_secs(MIN, MAX, time.elapsed(), *tries) {
-					return (server, Err!(BadServerResponse("bad query from {server:?}, still backing off")));
-				}
-			}
-
 			let mut device_keys_input_fed = BTreeMap::new();
 			for (user_id, keys) in vec {
 				device_keys_input_fed.insert(user_id.to_owned(), keys.clone());
@@ -388,17 +353,18 @@ where
 			let request = federation::keys::get_keys::v1::Request {
 				device_keys: device_keys_input_fed,
 			};
+
 			let response = services
 				.sending
 				.send_federation_request(server, request)
 				.await;
 
-			(server, Ok(response))
+			(server, response)
 		})
 		.collect();
 
 	while let Some((server, response)) = futures.next().await {
-		if let Ok(Ok(response)) = response {
+		if let Ok(response) = response {
 			for (user, master_key) in response.master_keys {
 				let (master_key_id, mut master_key) = parse_master_key(&user, &master_key)?;
 
@@ -426,7 +392,6 @@ where
 			self_signing_keys.extend(response.self_signing_keys);
 			device_keys.extend(response.device_keys);
 		} else {
-			back_off(server.to_owned()).await;
 			failures.insert(server.to_string(), json!({}));
 		}
 	}

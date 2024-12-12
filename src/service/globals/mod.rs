@@ -21,7 +21,6 @@ pub struct Service {
 	pub config: Config,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
-	pub bad_query_ratelimiter: Arc<RwLock<HashMap<OwnedServerName, RateLimitState>>>,
 	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
@@ -71,7 +70,6 @@ impl crate::Service for Service {
 			config: config.clone(),
 			jwt_decoding_key,
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			bad_query_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
@@ -100,23 +98,11 @@ impl crate::Service for Service {
 			.len();
 		writeln!(out, "bad_event_ratelimiter: {bad_event_ratelimiter}")?;
 
-		let bad_query_ratelimiter = self
-			.bad_query_ratelimiter
-			.read()
-			.expect("locked for reading")
-			.len();
-		writeln!(out, "bad_query_ratelimiter: {bad_query_ratelimiter}")?;
-
 		Ok(())
 	}
 
 	fn clear_cache(&self) {
 		self.bad_event_ratelimiter
-			.write()
-			.expect("locked for writing")
-			.clear();
-
-		self.bad_query_ratelimiter
 			.write()
 			.expect("locked for writing")
 			.clear();
