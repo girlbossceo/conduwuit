@@ -300,6 +300,7 @@ impl Service {
 		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		self.db.userdeviceid_metadata.del(userdeviceid);
+		self.mark_device_key_update(user_id).await;
 	}
 
 	/// Returns an iterator over all device ids of this user.
