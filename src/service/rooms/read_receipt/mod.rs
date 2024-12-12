@@ -133,10 +133,10 @@ impl Service {
 #[must_use]
 pub fn pack_receipts<I>(receipts: I) -> Raw<SyncEphemeralRoomEvent<ReceiptEventContent>>
 where
-	I: Iterator<Item = (OwnedUserId, u64, Raw<AnySyncEphemeralRoomEvent>)>,
+	I: Iterator<Item = Raw<AnySyncEphemeralRoomEvent>>,
 {
 	let mut json = BTreeMap::new();
-	for (_, _, value) in receipts {
+	for value in receipts {
 		let receipt = serde_json::from_str::<SyncEphemeralRoomEvent<ReceiptEventContent>>(value.json().get());
 		if let Ok(value) = receipt {
 			for (event, receipt) in value.content {
