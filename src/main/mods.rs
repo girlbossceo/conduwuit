@@ -1,6 +1,6 @@
 #![cfg(conduit_mods)]
 
-#[no_link]
+#[unsafe(no_link)]
 extern crate conduit_service;
 
 use std::{

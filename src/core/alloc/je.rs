@@ -59,7 +59,7 @@ pub fn memory_stats() -> Option<String> {
 	Some(format!("<pre><code>{str}</code></pre>"))
 }
 
-extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
+unsafe extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
 	// SAFETY: we have to trust the opaque points to our String
 	let res: &mut String = unsafe { opaque.cast::<String>().as_mut().unwrap() };
 
