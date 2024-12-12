@@ -6,7 +6,7 @@ use conduit::{debug, err, warn, PduCount, PduId, RawPduId, Result};
 use futures::{try_join, Stream, TryFutureExt};
 use ruma::{
 	events::{
-		receipt::{ReceiptEvent, ReceiptEventContent},
+		receipt::{ReceiptEvent, ReceiptEventContent, Receipts},
 		AnySyncEphemeralRoomEvent, SyncEphemeralRoomEvent,
 	},
 	serde::Raw,
@@ -75,7 +75,8 @@ impl Service {
 		let pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await?;
 
 		let event_id: OwnedEventId = pdu.event_id.into();
-		let receipt_content = BTreeMap::from_iter([(
+		let user_id: OwnedUserId = user_id.to_owned();
+		let content: BTreeMap<OwnedEventId, Receipts> = BTreeMap::from_iter([(
 			event_id,
 			BTreeMap::from_iter([(
 				ruma::events::receipt::ReceiptType::ReadPrivate,
@@ -88,9 +89,12 @@ impl Service {
 				)]),
 			)]),
 		)]);
-		//let receipt_json = Json
+		let receipt_event_content = ReceiptEventContent(content);
+		let receipt_sync_event = SyncEphemeralRoomEvent {
+			content: receipt_event_content,
+		};
 
-		let event = serde_json::value::to_raw_value(&receipt_content).expect("receipt_content created manually");
+		let event = serde_json::value::to_raw_value(&receipt_sync_event).expect("receipt created manually");
 
 		Ok(Raw::from_json(event))
 	}
