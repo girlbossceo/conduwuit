@@ -258,7 +258,7 @@ impl super::Service {
 	#[tracing::instrument(skip_all, name = "ip")]
 	async fn query_and_cache_override(&self, overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
 		match self.resolver.resolver.lookup_ip(hostname.to_owned()).await {
-			Err(e) => Self::handle_resolve_error(&e),
+			Err(e) => Self::handle_resolve_error(&e, hostname),
 			Ok(override_ip) => {
 				if hostname != overname {
 					debug_info!("{overname:?} overriden by {hostname:?}");
@@ -286,7 +286,7 @@ impl super::Service {
 			debug!("querying SRV for {hostname:?}");
 			let hostname = hostname.trim_end_matches('.');
 			match self.resolver.resolver.srv_lookup(hostname).await {
-				Err(e) => Self::handle_resolve_error(&e)?,
+				Err(e) => Self::handle_resolve_error(&e, hostname)?,
 				Ok(result) => {
 					return Ok(result.iter().next().map(|result| {
 						FedDest::Named(
@@ -304,7 +304,7 @@ impl super::Service {
 		Ok(None)
 	}
 
-	fn handle_resolve_error(e: &ResolveError) -> Result<()> {
+	fn handle_resolve_error(e: &ResolveError, host: &'_ str) -> Result<()> {
 		use hickory_resolver::error::ResolveErrorKind;
 
 		match *e.kind() {
@@ -312,11 +312,11 @@ impl super::Service {
 				..
 			} => {
 				// Raise to debug_warn if we can find out the result wasn't from cache
-				debug!("No DNS records found: {e}");
+				debug!(%host, "No DNS records found: {e}");
 				Ok(())
 			},
 			ResolveErrorKind::Timeout => {
-				Err!(warn!("DNS {e}"))
+				Err!(warn!(%host, "DNS {e}"))
 			},
 			ResolveErrorKind::NoConnections => {
 				error!(
@@ -324,9 +324,9 @@ impl super::Service {
 					 remediate this issue to ensure proper federation connectivity."
 				);
 
-				Err!(error!("DNS error: {e}"))
+				Err!(error!(%host, "DNS error: {e}"))
 			},
-			_ => Err!(error!("DNS error: {e}")),
+			_ => Err!(error!(%host, "DNS error: {e}")),
 		}
 	}
 
