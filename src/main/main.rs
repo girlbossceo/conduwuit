@@ -1,10 +1,10 @@
 pub(crate) mod clap;
+mod logging;
 mod mods;
 mod restart;
 mod sentry;
 mod server;
 mod signal;
-mod tracing;
 
 extern crate conduit_core as conduit;
 
@@ -20,6 +20,9 @@ use tokio::runtime;
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
+const GLOBAL_QUEUE_INTERVAL: u32 = 192;
+const SYSTEM_QUEUE_INTERVAL: u32 = 256;
+const SYSTEM_EVENTS_PER_TICK: usize = 512;
 
 rustc_flags_capture! {}
 
@@ -31,6 +34,9 @@ fn main() -> Result<(), Error> {
 		.thread_name(WORKER_NAME)
 		.worker_threads(args.worker_threads.max(WORKER_MIN))
 		.thread_keep_alive(Duration::from_secs(WORKER_KEEPALIVE))
+		.global_queue_interval(GLOBAL_QUEUE_INTERVAL)
+		.event_interval(SYSTEM_QUEUE_INTERVAL)
+		.max_io_events_per_tick(SYSTEM_EVENTS_PER_TICK)
 		.build()
 		.expect("built runtime");
 
@@ -53,6 +59,11 @@ fn main() -> Result<(), Error> {
 /// Operate the server normally in release-mode static builds. This will start,
 /// run and stop the server within the asynchronous runtime.
 #[cfg(not(conduit_mods))]
+#[tracing::instrument(
+	name = "main",
+	parent = None,
+	skip_all
+)]
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	extern crate conduit_router as router;
 

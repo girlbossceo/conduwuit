@@ -25,6 +25,7 @@ use crate::Services;
 /// used to issue admin commands by talking to the server user inside it.
 pub async fn create_admin_room(services: &Services) -> Result<()> {
 	let room_id = RoomId::new(services.globals.server_name());
+	let room_version = &services.server.config.default_room_version;
 
 	let _short_id = services
 		.rooms
@@ -37,8 +38,6 @@ pub async fn create_admin_room(services: &Services) -> Result<()> {
 	// Create a user for the server
 	let server_user = &services.globals.server_user;
 	services.users.create(server_user, None)?;
-
-	let room_version = services.globals.default_room_version();
 
 	let create_content = {
 		use RoomVersionId::*;
@@ -58,7 +57,7 @@ pub async fn create_admin_room(services: &Services) -> Result<()> {
 				&RoomCreateEventContent {
 					federate: true,
 					predecessor: None,
-					room_version,
+					room_version: room_version.clone(),
 					..create_content
 				},
 			),

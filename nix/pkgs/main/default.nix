@@ -6,7 +6,6 @@
 , libiconv
 , liburing
 , pkgsBuildHost
-, pkgsBuildTarget
 , rocksdb
 , removeReferencesTo
 , rust
@@ -96,7 +95,6 @@ buildDepsOnlyEnv =
     inherit
       lib
       pkgsBuildHost
-      pkgsBuildTarget
       rust
       stdenv;
   });
@@ -176,7 +174,7 @@ commonAttrs = {
     #
     # <https://github.com/input-output-hk/haskell.nix/issues/829>
     postInstall = with pkgsBuildHost; ''
-        find "$out" -type f -exec remove-references-to -t ${stdenv.cc} -t ${gcc} -t ${libgcc} -t ${llvm} -t ${libllvm} -t ${rustc.unwrapped} -t ${rustc} -t ${libidn2} -t ${libunistring} '{}' +
+        find "$out" -type f -exec remove-references-to -t ${stdenv.cc} -t ${gcc} -t ${llvm} -t ${rustc.unwrapped} -t ${rustc} '{}' +
     '';
  };
 in

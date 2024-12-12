@@ -25,7 +25,7 @@ use crate::{Error, Result, Ruma};
 pub(crate) async fn get_pushrules_all_route(
 	State(services): State<crate::State>, body: Ruma<get_pushrules_all::v3::Request>,
 ) -> Result<get_pushrules_all::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	let Some(content_value) = services
 		.account_data
@@ -46,20 +46,47 @@ pub(crate) async fn get_pushrules_all_route(
 	let mut global_ruleset = account_data_content.global;
 
 	// remove old deprecated mentions push rules as per MSC4210
+	// and update the stored server default push rules
 	#[allow(deprecated)]
 	{
 		use ruma::push::RuleKind::*;
+		if global_ruleset
+			.get(Override, PredefinedOverrideRuleId::ContainsDisplayName.as_str())
+			.is_some()
+			|| global_ruleset
+				.get(Override, PredefinedOverrideRuleId::RoomNotif.as_str())
+				.is_some()
+			|| global_ruleset
+				.get(Content, PredefinedContentRuleId::ContainsUserName.as_str())
+				.is_some()
+		{
+			global_ruleset
+				.remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
+				.ok();
+			global_ruleset
+				.remove(Override, PredefinedOverrideRuleId::RoomNotif)
+				.ok();
+			global_ruleset
+				.remove(Content, PredefinedContentRuleId::ContainsUserName)
+				.ok();
 
-		global_ruleset
-			.remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
-			.ok();
-		global_ruleset
-			.remove(Override, PredefinedOverrideRuleId::RoomNotif)
-			.ok();
+			global_ruleset.update_with_server_default(Ruleset::server_default(sender_user));
 
-		global_ruleset
-			.remove(Content, PredefinedContentRuleId::ContainsUserName)
-			.ok();
+			services
+				.account_data
+				.update(
+					None,
+					sender_user,
+					GlobalAccountDataEventType::PushRules.to_string().into(),
+					&serde_json::to_value(PushRulesEvent {
+						content: PushRulesEventContent {
+							global: global_ruleset.clone(),
+						},
+					})
+					.expect("to json always works"),
+				)
+				.await?;
+		}
 	};
 
 	Ok(get_pushrules_all::v3::Response {
@@ -113,20 +140,47 @@ pub(crate) async fn get_pushrules_global_route(
 	let mut global_ruleset = account_data_content.global;
 
 	// remove old deprecated mentions push rules as per MSC4210
+	// and update the stored server default push rules
 	#[allow(deprecated)]
 	{
 		use ruma::push::RuleKind::*;
+		if global_ruleset
+			.get(Override, PredefinedOverrideRuleId::ContainsDisplayName.as_str())
+			.is_some()
+			|| global_ruleset
+				.get(Override, PredefinedOverrideRuleId::RoomNotif.as_str())
+				.is_some()
+			|| global_ruleset
+				.get(Content, PredefinedContentRuleId::ContainsUserName.as_str())
+				.is_some()
+		{
+			global_ruleset
+				.remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
+				.ok();
+			global_ruleset
+				.remove(Override, PredefinedOverrideRuleId::RoomNotif)
+				.ok();
+			global_ruleset
+				.remove(Content, PredefinedContentRuleId::ContainsUserName)
+				.ok();
 
-		global_ruleset
-			.remove(Override, PredefinedOverrideRuleId::ContainsDisplayName)
-			.ok();
-		global_ruleset
-			.remove(Override, PredefinedOverrideRuleId::RoomNotif)
-			.ok();
+			global_ruleset.update_with_server_default(Ruleset::server_default(sender_user));
 
-		global_ruleset
-			.remove(Content, PredefinedContentRuleId::ContainsUserName)
-			.ok();
+			services
+				.account_data
+				.update(
+					None,
+					sender_user,
+					GlobalAccountDataEventType::PushRules.to_string().into(),
+					&serde_json::to_value(PushRulesEvent {
+						content: PushRulesEventContent {
+							global: global_ruleset.clone(),
+						},
+					})
+					.expect("to json always works"),
+				)
+				.await?;
+		}
 	};
 
 	Ok(get_pushrules_global_scope::v3::Response {
@@ -259,7 +313,7 @@ pub(crate) async fn get_pushrule_actions_route(
 		.global
 		.get(body.kind.clone(), &body.rule_id)
 		.map(|rule| rule.actions().to_owned())
-		.ok_or(err!(Request(NotFound("Push rule not found."))))?;
+		.ok_or_else(|| err!(Request(NotFound("Push rule not found."))))?;
 
 	Ok(get_pushrule_actions::v3::Response {
 		actions,
@@ -332,7 +386,7 @@ pub(crate) async fn get_pushrule_enabled_route(
 		.global
 		.get(body.kind.clone(), &body.rule_id)
 		.map(ruma::push::AnyPushRuleRef::enabled)
-		.ok_or(err!(Request(NotFound("Push rule not found."))))?;
+		.ok_or_else(|| err!(Request(NotFound("Push rule not found."))))?;
 
 	Ok(get_pushrule_enabled::v3::Response {
 		enabled,

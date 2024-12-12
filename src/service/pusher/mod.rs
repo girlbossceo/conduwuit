@@ -227,7 +227,7 @@ impl Service {
 
 		for action in self
 			.get_actions(user, &ruleset, &power_levels, &pdu.to_sync_room_event(), &pdu.room_id)
-			.await?
+			.await
 		{
 			let n = match action {
 				Action::Notify => true,
@@ -259,7 +259,7 @@ impl Service {
 	pub async fn get_actions<'a>(
 		&self, user: &UserId, ruleset: &'a Ruleset, power_levels: &RoomPowerLevelsEventContent,
 		pdu: &Raw<AnySyncTimelineEvent>, room_id: &RoomId,
-	) -> Result<&'a [Action]> {
+	) -> &'a [Action] {
 		let power_levels = PushConditionPowerLevelsCtx {
 			users: power_levels.users.clone(),
 			users_default: power_levels.users_default,
@@ -290,7 +290,7 @@ impl Service {
 			power_levels: Some(power_levels),
 		};
 
-		Ok(ruleset.get_actions(pdu, &ctx))
+		ruleset.get_actions(pdu, &ctx)
 	}
 
 	#[tracing::instrument(skip(self, unread, pusher, tweaks, event))]

@@ -89,11 +89,25 @@ on the network level, consider something like NextDNS or Pi-Hole.
 
 ## Setting up a systemd service
 
-The systemd unit for conduwuit can be found
-[here](../configuration/examples.md#example-systemd-unit-file). You may need to
-change the `ExecStart=` path to where you placed the conduwuit binary.
+Two example systemd units for conduwuit can be found
+[on the configuration page](../configuration/examples.md#debian-systemd-unit-file).
+You may need to change the `ExecStart=` path to where you placed the conduwuit
+binary if it is not `/usr/bin/conduwuit`.
 
-On systems where rsyslog is used alongside journald (i.e. Red Hat-based distros and OpenSUSE), put `$EscapeControlCharactersOnReceive off` inside `/etc/rsyslog.conf` to allow color in logs.
+On systems where rsyslog is used alongside journald (i.e. Red Hat-based distros
+and OpenSUSE), put `$EscapeControlCharactersOnReceive off` inside
+`/etc/rsyslog.conf` to allow color in logs.
+
+If you are using a different `database_path` other than the systemd unit
+configured default `/var/lib/conduwuit`, you need to add your path to the
+systemd unit's `ReadWritePaths=`. This can be done by either directly editing
+`conduwuit.service` and reloading systemd, or running `systemctl edit conduwuit.service`
+and entering the following:
+
+```
+[Service]
+ReadWritePaths=/path/to/custom/database/path
+```
 
 ## Creating the conduwuit configuration file
 
@@ -101,7 +115,8 @@ Now we need to create the conduwuit's config file in
 `/etc/conduwuit/conduwuit.toml`. The example config can be found at
 [conduwuit-example.toml](../configuration/examples.md).
 
-**Please take a moment to read the config. You need to change at least the server name.**
+**Please take a moment to read the config. You need to change at least the
+server name.**
 
 RocksDB is the only supported database backend.
 

@@ -150,8 +150,8 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 
 fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max(server.config.max_request_size) }
 
+#[tracing::instrument(name = "panic", level = "error", skip_all)]
 #[allow(clippy::needless_pass_by_value)]
-#[tracing::instrument(skip_all, name = "panic")]
 fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
 	//TODO: XXX
 	/*
@@ -197,7 +197,7 @@ fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
 
 	let method = request.method();
 
-	tracing::info_span!("router:", %method, %path)
+	tracing::debug_span!(parent: None, "router", %method, %path)
 }
 
 fn truncated_matched_path(path: &MatchedPath) -> &str {

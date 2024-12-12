@@ -113,10 +113,14 @@ async fn spawn_until(self: &Arc<Self>, recv: Receiver<Cmd>, max: usize) -> Resul
 }
 
 #[implement(Pool)]
+#[tracing::instrument(
+	name = "spawn",
+	level = "trace",
+	skip_all,
+	fields(id = %workers.len())
+)]
 fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: Receiver<Cmd>) -> Result {
 	let id = workers.len();
-
-	debug!(?id, "spawning");
 	let self_ = self.clone();
 	let _abort = workers.spawn_blocking_on(move || self_.worker(id, recv), self.server.runtime());
 
@@ -181,7 +185,14 @@ async fn execute(&self, cmd: Cmd) -> Result {
 }
 
 #[implement(Pool)]
-#[tracing::instrument(skip(self, recv))]
+#[tracing::instrument(
+	parent = None,
+	level = "debug",
+	skip(self, recv),
+	fields(
+		tid = ?std::thread::current().id(),
+	),
+)]
 fn worker(self: Arc<Self>, id: usize, recv: Receiver<Cmd>) {
 	debug!("worker spawned");
 	defer! {{ debug!("worker finished"); }}

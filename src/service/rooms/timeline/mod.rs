@@ -15,7 +15,7 @@ use conduit::{
 	validated, warn, Err, Error, Result, Server,
 };
 pub use conduit::{PduId, RawPduId};
-use futures::{future, future::ready, Future, FutureExt, Stream, StreamExt, TryStreamExt};
+use futures::{future, future::ready, Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{
 	api::federation,
 	canonical_json::to_canonical_value,
@@ -168,7 +168,6 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
 		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
-			.await?
 			.next()
 			.await
 			.map(|(_, p)| Arc::new(p))
@@ -418,7 +417,7 @@ impl Service {
 				.services
 				.pusher
 				.get_actions(user, &rules_for_user, &power_levels, &sync_pdu, &pdu.room_id)
-				.await?
+				.await
 			{
 				match action {
 					Action::Notify => notify = true,
@@ -770,10 +769,8 @@ impl Service {
 		}
 
 		// Hash and sign
-		let mut pdu_json = utils::to_canonical_object(&pdu).map_err(|e| {
-			error!("Failed to convert PDU to canonical JSON: {e}");
-			Error::bad_database("Failed to convert PDU to canonical JSON.")
-		})?;
+		let mut pdu_json = utils::to_canonical_object(&pdu)
+			.map_err(|e| err!(Request(BadJson(warn!("Failed to convert PDU to canonical JSON: {e}")))))?;
 
 		// room v3 and above removed the "event_id" field from remote PDU format
 		match room_version_id {
@@ -795,8 +792,10 @@ impl Service {
 			.hash_and_sign_event(&mut pdu_json, &room_version_id)
 		{
 			return match e {
-				Error::Signatures(ruma::signatures::Error::PduSize) => Err!(Request(TooLarge("Message is too long"))),
-				_ => Err!(Request(Unknown("Signing event failed"))),
+				Error::Signatures(ruma::signatures::Error::PduSize) => {
+					Err!(Request(TooLarge("Message/PDU is too long (exceeds 65535 bytes)")))
+				},
+				_ => Err!(Request(Unknown(warn!("Signing event failed: {e}")))),
 			};
 		}
 
@@ -968,12 +967,17 @@ impl Service {
 		Ok(Some(pdu_id))
 	}
 
-	/// Returns an iterator over all PDUs in a room.
+	/// Returns an iterator over all PDUs in a room. Unknown rooms produce no
+	/// items.
 	#[inline]
-	pub async fn all_pdus<'a>(
+	pub fn all_pdus<'a>(
 		&'a self, user_id: &'a UserId, room_id: &'a RoomId,
-	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		self.pdus(Some(user_id), room_id, None).await
+	) -> impl Stream<Item = PdusIterItem> + Send + Unpin + 'a {
+		self.pdus(Some(user_id), room_id, None)
+			.map_ok(|stream| stream.map(Ok))
+			.try_flatten_stream()
+			.ignore_err()
+			.boxed()
 	}
 
 	/// Reverse iteration starting at from.
@@ -1020,7 +1024,7 @@ impl Service {
 
 		let room_version_id = self.services.state.get_room_version(&pdu.room_id).await?;
 
-		pdu.redact(room_version_id, reason)?;
+		pdu.redact(&room_version_id, reason)?;
 
 		let obj = utils::to_canonical_object(&pdu)
 			.map_err(|e| err!(Database(error!(?event_id, ?e, "Failed to convert PDU to canonical JSON"))))?;
@@ -1048,7 +1052,6 @@ impl Service {
 
 		let first_pdu = self
 			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
-			.await?
 			.next()
 			.await
 			.expect("Room is not empty");

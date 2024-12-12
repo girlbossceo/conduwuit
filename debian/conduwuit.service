@@ -1,7 +1,8 @@
 [Unit]
 Description=conduwuit Matrix homeserver
-Documentation=https://conduwuit.puppyirl.gay/
+Wants=network-online.target
 After=network-online.target
+Documentation=https://conduwuit.puppyirl.gay/
 
 [Service]
 DynamicUser=yes

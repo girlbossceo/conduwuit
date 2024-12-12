@@ -220,7 +220,7 @@ impl Data {
 
 	pub(super) async fn pdus<'a>(
 		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, from: PduCount,
-	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
+	) -> Result<impl Stream<Item = PdusIterItem> + Send + Unpin + 'a> {
 		let current = self.count_to_id(room_id, from, Direction::Forward).await?;
 		let prefix = current.shortroomid();
 		let stream = self

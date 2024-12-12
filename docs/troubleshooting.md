@@ -41,6 +41,54 @@ workarounds for this are:
 - Don't use Docker's default DNS setup and instead allow the container to use
 and communicate with your host's DNS servers (host's `/etc/resolv.conf`)
 
+#### DNS No connections available error message
+
+If you receive spurious amounts of error logs saying "DNS No connections
+available", this is due to your DNS server (servers from `/etc/resolv.conf`)
+being overloaded and unable to handle typical Matrix federation volume. Some
+users have reported that the upstream servers are rate-limiting them as well
+when they get this error (e.g. popular upstreams like Google DNS).
+
+Matrix federation is extremely heavy and sends wild amounts of DNS requests.
+Unfortunately this is by design and has only gotten worse with more
+server/destination resolution steps. Synapse also expects a very perfect DNS
+setup.
+
+There are some ways you can reduce the amount of DNS queries, but ultimately
+the best solution/fix is selfhosting a high quality caching DNS server like
+[Unbound][unbound-arch] without any upstream resolvers, and without DNSSEC
+validation enabled.
+
+DNSSEC validation is highly recommended to be **disabled** due to DNSSEC being
+very computationally expensive, and is extremely susceptible to denial of
+service, especially on Matrix. Many servers also strangely have broken DNSSEC
+setups and will result in non-functional federation.
+
+conduwuit cannot provide a "works-for-everyone" Unbound DNS setup guide, but
+the [official Unbound tuning guide][unbound-tuning] and the [Unbound Arch Linux wiki page][unbound-arch]
+may be of interest. Disabling DNSSEC on Unbound is commenting out trust-anchors
+config options and removing the `validator` module.
+
+**Avoid** using `systemd-resolved` as it does **not** perform very well under
+high load, and we have identified its DNS caching to not be very effective.
+
+dnsmasq can possibly work, but it does **not** support TCP fallback which can be
+problematic when receiving large DNS responses such as from large SRV records.
+If you still want to use dnsmasq, make sure you **disable** `dns_tcp_fallback`
+in conduwuit config.
+
+Raising `dns_cache_entries` in conduwuit config from the default can also assist
+in DNS caching, but a full-fledged external caching resolver is better and more
+reliable.
+
+If you don't have IPv6 connectivity, changing `ip_lookup_strategy` to match
+your setup can help reduce unnecessary AAAA queries
+(`1 - Ipv4Only (Only query for A records, no AAAA/IPv6)`).
+
+If your DNS server supports it, some users have reported enabling
+`query_over_tcp_only` to force only TCP querying by default has improved DNS
+reliability at a slight performance cost due to TCP overhead.
+
 ## RocksDB / database issues
 
 #### Direct IO
@@ -149,3 +197,6 @@ If you are a developer, you can also view the raw jemalloc statistics with
 `!admin debug memory-stats`. Please note that this output is extremely large
 which may only be visible in the conduwuit console CLI due to PDU size limits,
 and is not easy for non-developers to understand.
+
+[unbound-tuning]: https://unbound.docs.nlnetlabs.nl/en/latest/topics/core/performance.html
+[unbound-arch]: https://wiki.archlinux.org/title/Unbound

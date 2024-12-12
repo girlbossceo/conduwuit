@@ -8,7 +8,11 @@ use conduit::{debug, debug_error, debug_warn, defer, err, error, trace, Result};
 use conduit_service::Services;
 use http::{Method, StatusCode, Uri};
 
-#[tracing::instrument(skip_all, level = "debug")]
+#[tracing::instrument(
+	parent = None,
+	level = "trace",
+	skip_all,
+)]
 pub(crate) async fn spawn(
 	State(services): State<Arc<Services>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
@@ -34,7 +38,7 @@ pub(crate) async fn spawn(
 	task.await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-#[tracing::instrument(skip_all, name = "handle")]
+#[tracing::instrument(level = "debug", skip_all)]
 pub(crate) async fn handle(
 	State(services): State<Arc<Services>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {

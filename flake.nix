@@ -2,14 +2,14 @@
   inputs = {
     attic.url = "github:zhaofengli/attic?ref=main";
     cachix.url = "github:cachix/cachix?ref=master";
-    complement = { url = "github:matrix-org/complement?ref=main"; flake = false; };
+    complement = { url = "github:girlbossceo/complement?ref=main"; flake = false; };
     crane = { url = "github:ipetkov/crane?ref=master"; };
     fenix = { url = "github:nix-community/fenix?ref=main"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-compat = { url = "github:edolstra/flake-compat?ref=master"; flake = false; };
     flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-filter.url = "github:numtide/nix-filter?ref=main";
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
-    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.7.4"; flake = false; };
+    rocksdb = { url = "github:girlbossceo/rocksdb?ref=v9.8.4"; flake = false; };
     liburing = { url = "github:axboe/liburing?ref=master"; flake = false; };
   };
 
@@ -18,7 +18,6 @@
     let
       pkgsHost = import inputs.nixpkgs{
         inherit system;
-        config.permittedInsecurePackages = [ "olm-3.2.16" ];
       };
       pkgsHostStatic = pkgsHost.pkgsStatic;
 
@@ -118,9 +117,9 @@
           # code.
           COMPLEMENT_SRC = inputs.complement.outPath;
 
-          # Needed for Complement
-          CGO_CFLAGS = "-I${scope.pkgs.olm}/include";
-          CGO_LDFLAGS = "-L${scope.pkgs.olm}/lib";
+          # Needed for Complement: <https://github.com/golang/go/issues/52690>
+          CGO_CFLAGS = "-Wl,--no-gc-sections";
+          CGO_LDFLAGS = "-Wl,--no-gc-sections";
         };
 
         # Development tools

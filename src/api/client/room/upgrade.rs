@@ -47,11 +47,7 @@ pub(crate) async fn upgrade_room_route(
 ) -> Result<upgrade_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
-	if !services
-		.globals
-		.supported_room_versions()
-		.contains(&body.new_version)
-	{
+	if !services.server.supported_room_version(&body.new_version) {
 		return Err(Error::BadRequest(
 			ErrorKind::UnsupportedRoomVersion,
 			"This server does not support that room version.",

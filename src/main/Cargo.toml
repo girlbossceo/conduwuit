@@ -42,7 +42,6 @@ default = [
 	"gzip_compression",
 	"io_uring",
 	"jemalloc",
-	"jemalloc_stats",
 	"release_max_log_level",
 	"systemd",
 	"zstd_compression",

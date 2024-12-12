@@ -5,7 +5,7 @@ use conduit::{
 	utils::{stream::TryIgnore, string::Unquoted, ReadyExt},
 	Err, Error, Result, Server,
 };
-use database::{Deserialized, Ignore, Interfix, Json, Map};
+use database::{Database, Deserialized, Ignore, Interfix, Json, Map};
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
@@ -26,6 +26,7 @@ pub struct Service {
 
 struct Services {
 	server: Arc<Server>,
+	db: Arc<Database>,
 	account_data: Dep<account_data::Service>,
 	admin: Dep<admin::Service>,
 	globals: Dep<globals::Service>,
@@ -60,6 +61,7 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			services: Services {
 				server: args.server.clone(),
+				db: args.db.clone(),
 				account_data: args.depend::<account_data::Service>("account_data"),
 				admin: args.depend::<admin::Service>("admin"),
 				globals: args.depend::<globals::Service>("globals"),
@@ -298,6 +300,7 @@ impl Service {
 		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		self.db.userdeviceid_metadata.del(userdeviceid);
+		self.mark_device_key_update(user_id).await;
 	}
 
 	/// Returns an iterator over all device ids of this user.
@@ -721,6 +724,7 @@ impl Service {
 		let mut last = prefix.clone();
 		last.extend_from_slice(&until.to_be_bytes());
 
+		let _cork = self.services.db.cork_and_flush();
 		self.db
 			.todeviceid_events
 			.rev_raw_keys_from(&last) // this includes last

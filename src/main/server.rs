@@ -3,7 +3,7 @@ use std::sync::Arc;
 use conduit::{config::Config, info, log::Log, utils::sys, Error, Result};
 use tokio::{runtime, sync::Mutex};
 
-use crate::{clap::Args, tracing::TracingFlameGuard};
+use crate::{clap::Args, logging::TracingFlameGuard};
 
 /// Server runtime state; complete
 pub(crate) struct Server {
@@ -33,7 +33,7 @@ impl Server {
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = crate::sentry::init(&config);
 
-		let (tracing_reload_handle, tracing_flame_guard, capture) = crate::tracing::init(&config)?;
+		let (tracing_reload_handle, tracing_flame_guard, capture) = crate::logging::init(&config)?;
 
 		config.check()?;
 

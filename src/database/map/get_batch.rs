@@ -33,7 +33,7 @@ where
 }
 
 #[implement(super::Map)]
-#[tracing::instrument(skip(self, keys), name = "batch_blocking", level = "trace")]
+#[tracing::instrument(name = "batch_blocking", level = "trace", skip_all)]
 pub(crate) fn get_batch_blocking<'a, I, K>(&self, keys: I) -> impl Iterator<Item = Result<Handle<'_>>> + Send
 where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,

@@ -243,9 +243,6 @@ pub(crate) async fn logout_route(
 		.remove_device(sender_user, sender_device)
 		.await;
 
-	// send device list update for user after logout
-	services.users.mark_device_key_update(sender_user).await;
-
 	Ok(logout::v3::Response::new())
 }
 
@@ -274,9 +271,6 @@ pub(crate) async fn logout_all_route(
 		.all_device_ids(sender_user)
 		.for_each(|device_id| services.users.remove_device(sender_user, device_id))
 		.await;
-
-	// send device list update for user after logout
-	services.users.mark_device_key_update(sender_user).await;
 
 	Ok(logout_all::v3::Response::new())
 }

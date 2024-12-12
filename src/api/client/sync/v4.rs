@@ -26,9 +26,10 @@ use ruma::{
 	directory::RoomTypeFilter,
 	events::{
 		room::member::{MembershipState, RoomMemberEventContent},
-		AnyRawAccountDataEvent, StateEventType,
+		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType,
 		TimelineEventType::{self, *},
 	},
+	serde::Raw,
 	state_res::Event,
 	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, UInt, UserId,
 };
@@ -490,19 +491,40 @@ pub(crate) async fn sync_events_v4_route(
 				.await,
 		);
 
-		let vector: Vec<_> = services
+		let last_privateread_update = services
+			.rooms
+			.read_receipt
+			.last_privateread_update(sender_user, room_id)
+			.await > *roomsince;
+
+		let private_read_event = if last_privateread_update {
+			services
+				.rooms
+				.read_receipt
+				.private_read_get(room_id, sender_user)
+				.await
+				.ok()
+		} else {
+			None
+		};
+
+		let mut vector: Vec<Raw<AnySyncEphemeralRoomEvent>> = services
 			.rooms
 			.read_receipt
 			.readreceipts_since(room_id, *roomsince)
-			.filter_map(|(read_user, ts, v)| async move {
+			.filter_map(|(read_user, _ts, v)| async move {
 				services
 					.users
 					.user_is_ignored(read_user, sender_user)
 					.await
-					.or_some((read_user.to_owned(), ts, v))
+					.or_some(v)
 			})
 			.collect()
 			.await;
+
+		if let Some(private_read_event) = private_read_event {
+			vector.push(private_read_event);
+		}
 
 		let receipt_size = vector.len();
 		receipts

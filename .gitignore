@@ -30,7 +30,7 @@ modules.xml
 .nfs*
 
 # Rust
-/target/
+/target
 
 ### vscode ###
 .vscode/*

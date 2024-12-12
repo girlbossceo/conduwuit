@@ -24,7 +24,7 @@ use crate::{
 };
 
 impl super::Service {
-	#[tracing::instrument(skip(self, client, request), name = "send")]
+	#[tracing::instrument(skip_all, level = "debug")]
 	pub async fn send<T>(&self, client: &Client, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Send,

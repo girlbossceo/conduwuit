@@ -1,9 +1,9 @@
 pub(super) mod account;
+pub(super) mod account_data;
 pub(super) mod alias;
 pub(super) mod appservice;
 pub(super) mod backup;
 pub(super) mod capabilities;
-pub(super) mod config;
 pub(super) mod context;
 pub(super) mod device;
 pub(super) mod directory;
@@ -41,11 +41,11 @@ pub(super) mod well_known;
 
 pub use account::full_user_deactivate;
 pub(super) use account::*;
+pub(super) use account_data::*;
 pub(super) use alias::*;
 pub(super) use appservice::*;
 pub(super) use backup::*;
 pub(super) use capabilities::*;
-pub(super) use config::*;
 pub(super) use context::*;
 pub(super) use device::*;
 pub(super) use directory::*;

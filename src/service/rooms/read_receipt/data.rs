@@ -79,15 +79,15 @@ impl Data {
 			.ignore_err()
 	}
 
-	pub(super) fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, count: u64) {
+	pub(super) fn private_read_set(&self, room_id: &RoomId, user_id: &UserId, pdu_count: u64) {
 		let key = (room_id, user_id);
 		let next_count = self.services.globals.next_count().unwrap();
 
-		self.roomuserid_privateread.put(key, count);
+		self.roomuserid_privateread.put(key, pdu_count);
 		self.roomuserid_lastprivatereadupdate.put(key, next_count);
 	}
 
-	pub(super) async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
+	pub(super) async fn private_read_get_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
 		let key = (room_id, user_id);
 		self.roomuserid_privateread.qry(&key).await.deserialized()
 	}

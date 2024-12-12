@@ -15,6 +15,6 @@ where
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
 pub fn raw_keys(&self) -> impl Stream<Item = Result<Key<'_>>> + Send {
-	let opts = super::read_options_default();
+	let opts = super::iter_options_default();
 	stream::Keys::new(&self.db, &self.cf, opts).init(None)
 }

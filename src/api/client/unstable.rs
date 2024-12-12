@@ -294,7 +294,7 @@ pub(crate) async fn set_profile_key_route(
 			.collect()
 			.await;
 
-		update_displayname(&services, &body.user_id, Some(profile_key_value.to_string()), &all_joined_rooms).await?;
+		update_displayname(&services, &body.user_id, Some(profile_key_value.to_string()), &all_joined_rooms).await;
 	} else if body.key == "avatar_url" {
 		let mxc = ruma::OwnedMxcUri::from(profile_key_value.to_string());
 
@@ -306,7 +306,7 @@ pub(crate) async fn set_profile_key_route(
 			.collect()
 			.await;
 
-		update_avatar_url(&services, &body.user_id, Some(mxc), None, &all_joined_rooms).await?;
+		update_avatar_url(&services, &body.user_id, Some(mxc), None, &all_joined_rooms).await;
 	} else {
 		services
 			.users
@@ -352,7 +352,7 @@ pub(crate) async fn delete_profile_key_route(
 			.collect()
 			.await;
 
-		update_displayname(&services, &body.user_id, None, &all_joined_rooms).await?;
+		update_displayname(&services, &body.user_id, None, &all_joined_rooms).await;
 	} else if body.key == "avatar_url" {
 		let all_joined_rooms: Vec<OwnedRoomId> = services
 			.rooms
@@ -362,7 +362,7 @@ pub(crate) async fn delete_profile_key_route(
 			.collect()
 			.await;
 
-		update_avatar_url(&services, &body.user_id, None, None, &all_joined_rooms).await?;
+		update_avatar_url(&services, &body.user_id, None, None, &all_joined_rooms).await;
 	} else {
 		services
 			.users
