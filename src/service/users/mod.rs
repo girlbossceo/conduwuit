@@ -866,7 +866,7 @@ impl Service {
 		let key = (user_id, profile_key);
 
 		if let Some(value) = profile_key_value {
-			self.db.useridprofilekey_value.put(key, value);
+			self.db.useridprofilekey_value.put(key, Json(value));
 		} else {
 			self.db.useridprofilekey_value.del(key);
 		}
