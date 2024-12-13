@@ -45,7 +45,6 @@ lib.optionalAttrs stdenv.hostPlatform.isStatic {
 (
   let
     inherit (rust.lib) envVars;
-    #shouldUseLLD = platform: platform.isAarch64 && platform.isStatic && !stdenv.hostPlatform.isDarwin;
   in
   lib.optionalAttrs
     (stdenv.targetPlatform.rust.rustcTarget

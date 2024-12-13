@@ -302,7 +302,7 @@ jobs:
               with:
                 cache-all-crates: "true"
 
-            - name: Build static ${{ matrix.target }}
+            - name: Build static ${{ matrix.target }}-all-features
               run: |
                   if [[ ${{ matrix.target }} == "x86_64-linux-musl" ]]
                   then
@@ -325,15 +325,35 @@ jobs:
                   mv -v target/release/conduwuit static-${{ matrix.target }}
                   mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
+            - name: Build static x86_64-linux-musl-all-features-x86_64-haswell-optimised
+              if: ${{ matrix.target == "x86_64-linux-musl"}}
+              run: |
+                  CARGO_DEB_TARGET_TUPLE="x86_64-unknown-linux-musl"
+                  SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+
+                  bin/nix-build-and-cache just .#static-x86_64-linux-musl-all-features-x86_64-haswell-optimised
+
+                  mkdir -v -p target/release/
+                  mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
+                  cp -v -f result/bin/conduit target/release/conduwuit
+                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
+                  # -p conduit is the main crate name
+                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/x86_64-linux-musl-x86_64-haswell-optimised.deb
+                  mv -v target/release/conduwuit static-x86_64-linux-musl-x86_64-haswell-optimised
+                  mv -v target/release/x86_64-linux-musl-x86_64-haswell-optimised.deb x86_64-linux-musl-x86_64-haswell-optimised.deb
+
             # quick smoke test of the x86_64 static release binary
-            - name: Run x86_64 static release binary
+            - name: Quick smoke test the x86_64 static release binary
+              if: ${{ matrix.target == "x86_64-linux-musl"}}
               run: |
                   # GH actions default runners are x86_64 only
                   if file result/bin/conduit | grep x86-64; then
                     result/bin/conduit --version
+                    result/bin/conduit --help
+                    result/bin/conduit -Oserver_name="'$(date -u +%s).local'" -Odatabase_path="'/tmp/$(date -u +%s)'" --execute "server admin-notice awawawawawawawawawawa" --execute "server memory-usage" --execute "server shutdown"
                   fi
 
-            - name: Build static debug ${{ matrix.target }}
+            - name: Build static debug ${{ matrix.target }}-all-features
               run: |
                   if [[ ${{ matrix.target }} == "x86_64-linux-musl" ]]
                   then
@@ -376,14 +396,14 @@ jobs:
                   dpkg-deb --info ${{ matrix.target }}.deb
                   dpkg-deb --info ${{ matrix.target }}-debug.deb
 
-            - name: Upload static-${{ matrix.target }}
+            - name: Upload static-${{ matrix.target }}-all-features
               uses: actions/upload-artifact@v4
               with:
                   name: static-${{ matrix.target }}
                   path: static-${{ matrix.target }}
                   if-no-files-found: error
 
-            - name: Upload deb ${{ matrix.target }}
+            - name: Upload deb ${{ matrix.target }}-all-features
               uses: actions/upload-artifact@v4
               with:
                   name: deb-${{ matrix.target }}
@@ -391,14 +411,14 @@ jobs:
                   if-no-files-found: error
                   compression-level: 0
 
-            - name: Upload static-${{ matrix.target }}-debug
+            - name: Upload static-${{ matrix.target }}-debug-all-features
               uses: actions/upload-artifact@v4
               with:
                   name: static-${{ matrix.target }}-debug
                   path: static-${{ matrix.target }}-debug
                   if-no-files-found: error
 
-            - name: Upload deb ${{ matrix.target }}-debug
+            - name: Upload deb ${{ matrix.target }}-debug-all-features
               uses: actions/upload-artifact@v4
               with:
                   name: deb-${{ matrix.target }}-debug
@@ -406,19 +426,26 @@ jobs:
                   if-no-files-found: error
                   compression-level: 0
 
-            - name: Build OCI image ${{ matrix.target }}
+            - name: Build OCI image ${{ matrix.target }}-all-features
               run: |
                   bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features
 
                   cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
-            - name: Build debug OCI image ${{ matrix.target }}
+            - name: Build OCI image x86_64-linux-musl-all-features-x86_64-haswell-optimised
+              if: ${{ matrix.target == "x86_64-linux-musl"}}
+              run: |
+                  bin/nix-build-and-cache just .#oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised
+
+                  cp -v -f result oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
+
+            - name: Build debug OCI image ${{ matrix.target }}-all-features
               run: |
                   bin/nix-build-and-cache just .#oci-image-${{ matrix.target }}-all-features-debug
 
                   cp -v -f result oci-image-${{ matrix.target }}-debug.tar.gz
 
-            - name: Upload OCI image ${{ matrix.target }}
+            - name: Upload OCI image ${{ matrix.target }}-all-features
               uses: actions/upload-artifact@v4
               with:
                   name: oci-image-${{ matrix.target }}
@@ -426,7 +453,7 @@ jobs:
                   if-no-files-found: error
                   compression-level: 0
 
-            - name: Upload OCI image ${{ matrix.target }}-debug
+            - name: Upload OCI image ${{ matrix.target }}-debug-all-features
               uses: actions/upload-artifact@v4
               with:
                   name: oci-image-${{ matrix.target }}-debug

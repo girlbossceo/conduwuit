@@ -72,9 +72,14 @@
               "-DWITH_TESTS=1"
               # we use rust-rocksdb via C interface and dont need C++ RTTI
               "-DUSE_RTTI=1"
+              # this doesn't exist in RocksDB, and USE_SSE is deprecated for
+              # PORTABLE=$(march)
+              "-DFORCE_SSE42=1"
             ]
             old.cmakeFlags
             ++ [
+              # no real reason to have snappy, no one uses this
+              "-DWITH_SNAPPY=0"
               # we dont need to use ldb or sst_dump (core_tools)
               "-DWITH_CORE_TOOLS=0"
               # we dont need trace tools
@@ -272,6 +277,15 @@
                   value = scopeCrossStatic.main;
                 }
 
+                # An output for a statically-linked binary with x86_64 haswell
+                # target optimisations
+                {
+                  name = "${binaryName}-x86_64-haswell-optimised";
+                  value = scopeCrossStatic.main.override {
+                    x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
+                  };
+                }
+
                 # An output for a statically-linked unstripped debug ("dev") binary
                 {
                   name = "${binaryName}-debug";
@@ -306,6 +320,22 @@
                   };
                 }
 
+                # An output for a statically-linked binary with `--all-features` and with x86_64 haswell
+                # target optimisations
+                {
+                  name = "${binaryName}-all-features-x86_64-haswell-optimised";
+                  value = scopeCrossStatic.main.override {
+                    all_features = true;
+                    disable_features = [
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # dont include experimental features
+                        "experimental"
+                    ];
+                    x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
+                  };
+                }
+
                 # An output for a statically-linked unstripped debug ("dev") binary with `--all-features`
                 {
                   name = "${binaryName}-all-features-debug";
@@ -337,6 +367,17 @@
                   value = scopeCrossStatic.oci-image;
                 }
 
+                # An output for an OCI image based on that binary with x86_64 haswell
+                # target optimisations
+                {
+                  name = "oci-image-${crossSystem}-x86_64-haswell-optimised";
+                  value = scopeCrossStatic.oci-image.override {
+                    main = scopeCrossStatic.main.override {
+                      x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
+                    };
+                  };
+                }
+
                 # An output for an OCI image based on that unstripped debug ("dev") binary
                 {
                   name = "oci-image-${crossSystem}-debug";
@@ -365,21 +406,39 @@
                   };
                 }
 
+                # An output for an OCI image based on that binary with `--all-features` and with x86_64 haswell
+                # target optimisations
+                {
+                  name = "oci-image-${crossSystem}-all-features-x86_64-haswell-optimised";
+                  value = scopeCrossStatic.oci-image.override {
+                    main = scopeCrossStatic.main.override {
+                      all_features = true;
+                      disable_features = [
+                          # this is non-functional on nix for some reason
+                          "hardened_malloc"
+                          # dont include experimental features
+                          "experimental"
+                      ];
+                      x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
+                    };
+                  };
+                }
+
                 # An output for an OCI image based on that unstripped debug ("dev") binary with `--all-features`
                 {
                   name = "oci-image-${crossSystem}-all-features-debug";
                   value = scopeCrossStatic.oci-image.override {
                     main = scopeCrossStatic.main.override {
-                        profile = "dev";
-                        all_features = true;
-                        # debug build users expect full logs
-                        disable_release_max_log_level = true;
-                        disable_features = [
-                            # this is non-functional on nix for some reason
-                            "hardened_malloc"
-                            # dont include experimental features
-                            "experimental"
-                        ];
+                      profile = "dev";
+                      all_features = true;
+                      # debug build users expect full logs
+                      disable_release_max_log_level = true;
+                      disable_features = [
+                          # this is non-functional on nix for some reason
+                          "hardened_malloc"
+                          # dont include experimental features
+                          "experimental"
+                      ];
                     };
                   };
                 }

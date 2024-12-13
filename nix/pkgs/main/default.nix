@@ -13,12 +13,17 @@
 , stdenv
 
 # Options (keep sorted)
-, default_features ? true
-, disable_release_max_log_level ? false
 , all_features ? false
+, default_features ? true
 , disable_features ? []
+, disable_release_max_log_level ? false
 , features ? []
 , profile ? "release"
+# rocksdb compiled with -march=haswell and target-cpu=haswell rustflag
+# haswell is pretty much any x86 cpu made in the last 12 years, and
+# supports modern CPU extensions that rocksdb can make use of.
+# disable if trying to make a portable x86_64 build for very old hardware
+, x86_64_haswell_target_optimised ? false
 }:
 
 let
@@ -79,6 +84,15 @@ buildDepsOnlyEnv =
       enableLiburing = enableLiburing;
     }).overrideAttrs (old: {
       enableLiburing = enableLiburing;
+      cmakeFlags = lib.optional x86_64_haswell_target_optimised (lib.subtractLists [
+        # dont make a portable build if x86_64_haswell_target_optimised is enabled
+        "-DPORTABLE=1"
+      ]
+      old.cmakeFlags)
+      ++ lib.optionals x86_64_haswell_target_optimised [
+        "-DPORTABLE=haswell"
+      ]
+      ++ old.cmakeFlags;
     });
   in
   {
@@ -105,7 +119,9 @@ buildPackageEnv = {
   # Only needed in static stdenv because these are transitive dependencies of rocksdb
   CARGO_BUILD_RUSTFLAGS = buildDepsOnlyEnv.CARGO_BUILD_RUSTFLAGS
     + lib.optionalString (enableLiburing && stdenv.hostPlatform.isStatic)
-      " -L${lib.getLib liburing}/lib -luring";
+      " -L${lib.getLib liburing}/lib -luring"
+    + lib.optionalString x86_64_haswell_target_optimised
+      " -Ctarget-cpu=haswell";
 };
 
 
