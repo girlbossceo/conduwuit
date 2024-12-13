@@ -208,6 +208,10 @@
                 "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # jemalloc profiling/stats features are expensive and shouldn't
+                # be expected on non-debug builds.
+                "jemalloc_prof"
+                "jemalloc_stats"
             ];
         };
         all-features-debug = scopeHost.main.override {
@@ -233,6 +237,10 @@
                 "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # jemalloc profiling/stats features are expensive and shouldn't
+                # be expected on non-debug builds.
+                "jemalloc_prof"
+                "jemalloc_stats"
             ];
           };
         };
@@ -318,6 +326,10 @@
                         "hardened_malloc"
                         # dont include experimental features
                         "experimental"
+                        # jemalloc profiling/stats features are expensive and shouldn't
+                        # be expected on non-debug builds.
+                        "jemalloc_prof"
+                        "jemalloc_stats"
                     ];
                   };
                 }
@@ -333,6 +345,10 @@
                         "hardened_malloc"
                         # dont include experimental features
                         "experimental"
+                        # jemalloc profiling/stats features are expensive and shouldn't
+                        # be expected on non-debug builds.
+                        "jemalloc_prof"
+                        "jemalloc_stats"
                     ];
                     x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
                   };
@@ -403,6 +419,10 @@
                           "hardened_malloc"
                           # dont include experimental features
                           "experimental"
+                          # jemalloc profiling/stats features are expensive and shouldn't
+                          # be expected on non-debug builds.
+                          "jemalloc_prof"
+                          "jemalloc_stats"
                       ];
                     };
                   };
@@ -420,6 +440,10 @@
                           "hardened_malloc"
                           # dont include experimental features
                           "experimental"
+                          # jemalloc profiling/stats features are expensive and shouldn't
+                          # be expected on non-debug builds.
+                          "jemalloc_prof"
+                          "jemalloc_stats"
                       ];
                       x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
                     };
@@ -482,6 +506,10 @@
                 "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # jemalloc profiling/stats features are expensive and shouldn't
+                # be expected on non-debug builds.
+                "jemalloc_prof"
+                "jemalloc_stats"
             ];
         };
         }));
