@@ -52,6 +52,7 @@ env:
       accept-flake-config = true
     # complement uses libolm
     NIXPKGS_ALLOW_INSECURE: 1
+    WEB_UPLOAD_SSH_USERNAME: ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
 
 permissions:
     packages: write
@@ -62,6 +63,34 @@ jobs:
         name: Test
         runs-on: ubuntu-24.04
         steps:
+            - name: Setup SSH web publish
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  mkdir -p -v ~/.ssh
+
+                  echo "${{ secrets.WEB_UPLOAD_SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+                  echo "${{ secrets.WEB_UPLOAD_SSH_PRIVATE_KEY }}" >> ~/.ssh/id_ed25519
+
+                  chmod 600 ~/.ssh/id_ed25519
+
+                  cat >>~/.ssh/config <<END
+                  Host website
+                    HostName ${{ secrets.WEB_UPLOAD_SSH_HOSTNAME }}
+                    User ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
+                    IdentityFile ~/.ssh/id_ed25519
+                    StrictHostKeyChecking yes
+                    AddKeysToAgent no
+                    ForwardX11 no
+                    BatchMode yes
+                  END
+
+                  echo "Checking connection"
+                  ssh -q website "echo test"
+
+                  echo "Creating commit rev directory on web server"
+                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/"
+                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/"
+
             - name: Install liburing
               run: |
                   sudo apt install liburing-dev -y
@@ -183,6 +212,7 @@ jobs:
                 name: complement_oci_image.tar.gz
                 path: complement_oci_image.tar.gz
                 if-no-files-found: error
+                compression-level: 0
 
             - name: Upload Complement logs
               uses: actions/upload-artifact@v4
@@ -226,7 +256,6 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-24.04
-        needs: tests
         strategy:
             matrix:
                 include:
@@ -235,6 +264,30 @@ jobs:
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
+
+            - name: Setup SSH web publish
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  mkdir -p -v ~/.ssh
+
+                  echo "${{ secrets.WEB_UPLOAD_SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+                  echo "${{ secrets.WEB_UPLOAD_SSH_PRIVATE_KEY }}" >> ~/.ssh/id_ed25519
+
+                  chmod 600 ~/.ssh/id_ed25519
+
+                  cat >>~/.ssh/config <<END
+                  Host website
+                    HostName ${{ secrets.WEB_UPLOAD_SSH_HOSTNAME }}
+                    User ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
+                    IdentityFile ~/.ssh/id_ed25519
+                    StrictHostKeyChecking yes
+                    AddKeysToAgent no
+                    ForwardX11 no
+                    BatchMode yes
+                  END
+
+                  echo "Checking connection"
+                  ssh -q website "echo test"
 
             - uses: nixbuild/nix-quick-install-action@master
 
@@ -326,7 +379,7 @@ jobs:
                   mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
             - name: Build static x86_64-linux-musl-all-features-x86_64-haswell-optimised
-              if: ${{ matrix.target == "x86_64-linux-musl"}}
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   CARGO_DEB_TARGET_TUPLE="x86_64-unknown-linux-musl"
                   SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
@@ -344,7 +397,7 @@ jobs:
 
             # quick smoke test of the x86_64 static release binary
             - name: Quick smoke test the x86_64 static release binary
-              if: ${{ matrix.target == "x86_64-linux-musl"}}
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   # GH actions default runners are x86_64 only
                   if file result/bin/conduit | grep x86-64; then
@@ -396,14 +449,22 @@ jobs:
                   dpkg-deb --info ${{ matrix.target }}.deb
                   dpkg-deb --info ${{ matrix.target }}-debug.deb
 
-            - name: Upload static-${{ matrix.target }}-all-features
+            - name: Upload static-x86_64-linux-musl-all-features-x86_64-haswell-optimised to GitHub
+              uses: actions/upload-artifact@v4
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
+              with:
+                  name: static-x86_64-linux-musl-x86_64-haswell-optimised
+                  path: static-x86_64-linux-musl-x86_64-haswell-optimised
+                  if-no-files-found: error
+
+            - name: Upload static-${{ matrix.target }}-all-features to GitHub
               uses: actions/upload-artifact@v4
               with:
                   name: static-${{ matrix.target }}
                   path: static-${{ matrix.target }}
                   if-no-files-found: error
 
-            - name: Upload deb ${{ matrix.target }}-all-features
+            - name: Upload static deb ${{ matrix.target }}-all-features to GitHub
               uses: actions/upload-artifact@v4
               with:
                   name: deb-${{ matrix.target }}
@@ -411,20 +472,62 @@ jobs:
                   if-no-files-found: error
                   compression-level: 0
 
-            - name: Upload static-${{ matrix.target }}-debug-all-features
+            - name: Upload static-x86_64-linux-musl-all-features-x86_64-haswell-optimised to webserver
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp static-x86_64-linux-musl-x86_64-haswell-optimised website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/static-x86_64-linux-musl-x86_64-haswell-optimised
+                  fi
+
+            - name: Upload static-${{ matrix.target }}-all-features to webserver
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp static-${{ matrix.target }} website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/static-${{ matrix.target }}
+                  fi
+
+            - name: Upload static deb x86_64-linux-musl-all-features-x86_64-haswell-optimised to webserver
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp x86_64-linux-musl-x86_64-haswell-optimised.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/x86_64-linux-musl-x86_64-haswell-optimised.deb
+                  fi
+
+            - name: Upload static deb ${{ matrix.target }}-all-features to webserver
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp ${{ matrix.target }}.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/${{ matrix.target }}.deb
+                  fi
+
+            - name: Upload static-${{ matrix.target }}-debug-all-features to GitHub
               uses: actions/upload-artifact@v4
               with:
                   name: static-${{ matrix.target }}-debug
                   path: static-${{ matrix.target }}-debug
                   if-no-files-found: error
 
-            - name: Upload deb ${{ matrix.target }}-debug-all-features
+            - name: Upload static deb ${{ matrix.target }}-debug-all-features to GitHub
               uses: actions/upload-artifact@v4
               with:
                   name: deb-${{ matrix.target }}-debug
                   path: ${{ matrix.target }}-debug.deb
                   if-no-files-found: error
                   compression-level: 0
+
+            - name: Upload static-${{ matrix.target }}-debug-all-features to webserver
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp static-${{ matrix.target }}-debug website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/static-${{ matrix.target }}-debug
+                  fi
+
+            - name: Upload static deb ${{ matrix.target }}-debug-all-features to webserver
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp ${{ matrix.target }}-debug.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/${{ matrix.target }}-debug.deb
+                  fi
 
             - name: Build OCI image ${{ matrix.target }}-all-features
               run: |
@@ -433,7 +536,7 @@ jobs:
                   cp -v -f result oci-image-${{ matrix.target }}.tar.gz
 
             - name: Build OCI image x86_64-linux-musl-all-features-x86_64-haswell-optimised
-              if: ${{ matrix.target == "x86_64-linux-musl"}}
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   bin/nix-build-and-cache just .#oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised
 
@@ -445,7 +548,7 @@ jobs:
 
                   cp -v -f result oci-image-${{ matrix.target }}-debug.tar.gz
 
-            - name: Upload OCI image ${{ matrix.target }}-all-features
+            - name: Upload OCI image ${{ matrix.target }}-all-features to GitHub
               uses: actions/upload-artifact@v4
               with:
                   name: oci-image-${{ matrix.target }}
@@ -453,13 +556,34 @@ jobs:
                   if-no-files-found: error
                   compression-level: 0
 
-            - name: Upload OCI image ${{ matrix.target }}-debug-all-features
+            - name: Upload OCI image ${{ matrix.target }}-debug-all-features to GitHub
               uses: actions/upload-artifact@v4
               with:
                   name: oci-image-${{ matrix.target }}-debug
                   path: oci-image-${{ matrix.target }}-debug.tar.gz
                   if-no-files-found: error
                   compression-level: 0
+
+            - name: Upload OCI image x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz to webserver
+              if: ${{ matrix.target == 'x86_64-linux-musl' }}
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
+                  fi
+
+            - name: Upload OCI image ${{ matrix.target }}-all-features to webserver
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp oci-image-${{ matrix.target }}.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/oci-image-${{ matrix.target }}.tar.gz
+                  fi
+
+            - name: Upload OCI image ${{ matrix.target }}-debug-all-features to webserver
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp oci-image-${{ matrix.target }}-debug.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/oci-image-${{ matrix.target }}-debug.tar.gz
+                  fi
 
     build_mac_binaries:
         name: Build MacOS Binaries
@@ -470,6 +594,30 @@ jobs:
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
+
+            - name: Setup SSH web publish
+              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
+              run: |
+                  mkdir -p -v ~/.ssh
+
+                  echo "${{ secrets.WEB_UPLOAD_SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+                  echo "${{ secrets.WEB_UPLOAD_SSH_PRIVATE_KEY }}" >> ~/.ssh/id_ed25519
+
+                  chmod 600 ~/.ssh/id_ed25519
+
+                  cat >>~/.ssh/config <<END
+                  Host website
+                    HostName ${{ secrets.WEB_UPLOAD_SSH_HOSTNAME }}
+                    User ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
+                    IdentityFile ~/.ssh/id_ed25519
+                    StrictHostKeyChecking yes
+                    AddKeysToAgent no
+                    ForwardX11 no
+                    BatchMode yes
+                  END
+
+                  echo "Checking connection"
+                  ssh -q website "echo test"
 
             - name: Tag comparison check
               if: ${{ startsWith(github.ref, 'refs/tags/v') && !endsWith(github.ref, '-rc') }}
@@ -496,7 +644,7 @@ jobs:
             - name: Build macOS x86_64 binary
               if: ${{ matrix.os == 'macos-13' }}
               run: |
-                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short HEAD)" cargo build --release
+                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release
                   cp -v -f target/release/conduit conduwuit-macos-x86_64
                   otool -L conduwuit-macos-x86_64
 
@@ -509,7 +657,7 @@ jobs:
             - name: Build macOS arm64 binary
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
-                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short HEAD)" cargo build --release
+                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release
                   cp -v -f target/release/conduit conduwuit-macos-arm64
                   otool -L conduwuit-macos-arm64
 
@@ -518,6 +666,20 @@ jobs:
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
                   ./conduwuit-macos-arm64 --version
+
+            - name: Upload macOS x86_64 binary to webserver
+              if: ${{ matrix.os == 'macos-13' }}
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp conduwuit-macos-x86_64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/conduwuit-macos-x86_64
+                  fi
+
+            - name: Upload macOS arm64 binary to webserver
+              if: ${{ matrix.os == 'macos-latest' }}
+              run: |
+                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                    scp conduwuit-macos-arm64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/conduwuit-macos-arm64
+                  fi
 
             - name: Upload macOS x86_64 binary
               if: ${{ matrix.os == 'macos-13' }}

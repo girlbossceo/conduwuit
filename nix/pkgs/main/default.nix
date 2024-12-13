@@ -84,14 +84,12 @@ buildDepsOnlyEnv =
       enableLiburing = enableLiburing;
     }).overrideAttrs (old: {
       enableLiburing = enableLiburing;
-      cmakeFlags = lib.optional x86_64_haswell_target_optimised (lib.subtractLists [
+      cmakeFlags = (if x86_64_haswell_target_optimised then (lib.subtractLists [
         # dont make a portable build if x86_64_haswell_target_optimised is enabled
         "-DPORTABLE=1"
-      ]
-      old.cmakeFlags)
-      ++ lib.optionals x86_64_haswell_target_optimised [
-        "-DPORTABLE=haswell"
-      ]
+      ] old.cmakeFlags
+      ++ [ "-DPORTABLE=haswell" ]) else ([ "-DPORTABLE=1" ])
+      )
       ++ old.cmakeFlags;
     });
   in

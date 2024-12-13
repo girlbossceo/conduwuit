@@ -75,6 +75,8 @@
               # this doesn't exist in RocksDB, and USE_SSE is deprecated for
               # PORTABLE=$(march)
               "-DFORCE_SSE42=1"
+              # PORTABLE will get set in main/default.nix
+              "-DPORTABLE=1"
             ]
             old.cmakeFlags
             ++ [
