@@ -237,6 +237,17 @@ pub(crate) async fn ignored_filter(
 		return None;
 	}
 
+	if IGNORED_MESSAGE_TYPES.iter().any(is_equal_to!(&pdu.kind))
+		&& services
+			.server
+			.config
+			.forbidden_remote_server_names
+			.iter()
+			.any(is_equal_to!(pdu.sender().server_name()))
+	{
+		return None;
+	}
+
 	Some(item)
 }
 
