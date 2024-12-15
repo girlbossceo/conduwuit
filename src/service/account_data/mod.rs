@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{
+use conduwuit::{
 	err, implement,
 	utils::{result::LogErr, stream::TryIgnore, ReadyExt},
 	Err, Result,

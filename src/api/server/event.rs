@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{err, Result};
+use conduwuit::{err, Result};
 use ruma::{api::federation::event::get_event, MilliSecondsSinceUnixEpoch, RoomId};
 
 use super::AccessCheck;

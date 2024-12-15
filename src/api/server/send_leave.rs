@@ -1,7 +1,7 @@
 #![allow(deprecated)]
 
 use axum::extract::State;
-use conduit::{err, Err, Result};
+use conduwuit::{err, Err, Result};
 use ruma::{
 	api::federation::membership::create_leave_event,
 	events::{

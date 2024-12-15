@@ -7,7 +7,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
+use conduwuit::{
 	checked, debug_info, err,
 	utils::{math::usize_from_f64, IterStream},
 	Error, Result,

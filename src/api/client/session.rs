@@ -1,6 +1,6 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug, err, info, utils::ReadyExt, warn, Err};
+use conduwuit::{debug, err, info, utils::ReadyExt, warn, Err};
 use futures::StreamExt;
 use ruma::{
 	api::client::{

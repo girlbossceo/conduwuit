@@ -1,6 +1,6 @@
 use std::{fmt::Write, sync::Arc};
 
-use conduit::{info, utils::time, warn, Err, Result};
+use conduwuit::{info, utils::time, warn, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::admin_command;
@@ -73,7 +73,7 @@ pub(super) async fn list_features(
 pub(super) async fn memory_usage(&self) -> Result<RoomMessageEventContent> {
 	let services_usage = self.services.memory_usage().await?;
 	let database_usage = self.services.db.db.memory_usage()?;
-	let allocator_usage = conduit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
+	let allocator_usage = conduwuit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Services:\n{services_usage}\nDatabase:\n{database_usage}{allocator_usage}",
@@ -143,7 +143,7 @@ pub(super) async fn reload_mods(&self) -> Result<RoomMessageEventContent> {
 #[admin_command]
 #[cfg(unix)]
 pub(super) async fn restart(&self, force: bool) -> Result<RoomMessageEventContent> {
-	use conduit::utils::sys::current_exe_deleted;
+	use conduwuit::utils::sys::current_exe_deleted;
 
 	if !force && current_exe_deleted() {
 		return Err!(

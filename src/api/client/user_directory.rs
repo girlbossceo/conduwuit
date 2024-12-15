@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::utils::TryFutureExtExt;
+use conduwuit::utils::TryFutureExtExt;
 use futures::{pin_mut, StreamExt};
 use ruma::{
 	api::client::user_directory::search_users,

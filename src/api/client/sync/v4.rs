@@ -5,7 +5,7 @@ use std::{
 };
 
 use axum::extract::State;
-use conduit::{
+use conduwuit::{
 	debug, error, extract_variant,
 	utils::{
 		math::{ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},

@@ -23,7 +23,7 @@ rust-version = "1.83.0"
 version = "0.5.0"
 
 [workspace.metadata.crane]
-name = "conduit"
+name = "conduwuit"
 
 [workspace.dependencies.arrayvec]
 version = "0.7.4"
@@ -211,7 +211,7 @@ default-features = false
 version = "2.0.1"
 default-features = false
 
-# used for conduit's CLI and admin room command parsing
+# used for conduwuit's CLI and admin room command parsing
 [workspace.dependencies.clap]
 version = "4.5.23"
 default-features = false
@@ -297,9 +297,9 @@ features = ["env", "toml"]
 version = "0.24.2"
 default-features = false
 
-# Used for conduit::Error type
+# Used for conduwuit::Error type
 [workspace.dependencies.thiserror]
-version = "2.0.6"
+version = "2.0.7"
 default-features = false
 
 # Used when hashing the state
@@ -523,38 +523,38 @@ rev = "deaeb0694e2083f53d363b648da06e10fc13900c"
 # Our crates
 #
 
-[workspace.dependencies.conduit-router]
-package = "conduit_router"
+[workspace.dependencies.conduwuit-router]
+package = "conduwuit_router"
 path = "src/router"
 default-features = false
 
-[workspace.dependencies.conduit-admin]
-package = "conduit_admin"
+[workspace.dependencies.conduwuit-admin]
+package = "conduwuit_admin"
 path = "src/admin"
 default-features = false
 
-[workspace.dependencies.conduit-api]
-package = "conduit_api"
+[workspace.dependencies.conduwuit-api]
+package = "conduwuit_api"
 path = "src/api"
 default-features = false
 
-[workspace.dependencies.conduit-service]
-package = "conduit_service"
+[workspace.dependencies.conduwuit-service]
+package = "conduwuit_service"
 path = "src/service"
 default-features = false
 
-[workspace.dependencies.conduit-database]
-package = "conduit_database"
+[workspace.dependencies.conduwuit-database]
+package = "conduwuit_database"
 path = "src/database"
 default-features = false
 
-[workspace.dependencies.conduit-core]
-package = "conduit_core"
+[workspace.dependencies.conduwuit-core]
+package = "conduwuit_core"
 path = "src/core"
 default-features = false
 
-[workspace.dependencies.conduit-macros]
-package = "conduit_macros"
+[workspace.dependencies.conduwuit-macros]
+package = "conduwuit_macros"
 path = "src/macros"
 default-features = false
 
@@ -613,7 +613,7 @@ codegen-units = 32
 #	'-Clink-arg=-Wl,--no-gc-sections',
 #]
 
-[profile.release-max-perf.package.conduit_macros]
+[profile.release-max-perf.package.conduwuit_macros]
 inherits = "release-max-perf.build-override"
 #rustflags = [
 #	'-Crelocation-model=pic',
@@ -647,7 +647,7 @@ panic = "unwind"
 debug-assertions = true
 incremental = true
 #rustflags = [
-#	'--cfg', 'conduit_mods',
+#	'--cfg', 'conduwuit_mods',
 #	'-Ztime-passes',
 #	'-Zmir-opt-level=0',
 #	'-Zvalidate-mir=false',
@@ -664,11 +664,11 @@ incremental = true
 #	'-Clink-arg=-Wl,-z,lazy',
 #]
 
-[profile.dev.package.conduit_core]
+[profile.dev.package.conduwuit_core]
 inherits = "dev"
 incremental = false
 #rustflags = [
-#	'--cfg', 'conduit_mods',
+#	'--cfg', 'conduwuit_mods',
 #	'-Ztime-passes',
 #	'-Zmir-opt-level=0',
 #	'-Ztls-model=initial-exec',
@@ -685,10 +685,10 @@ incremental = false
 #	'-Clink-arg=-Wl,-z,nodelete',
 #]
 
-[profile.dev.package.conduit]
+[profile.dev.package.conduwuit]
 inherits = "dev"
 #rustflags = [
-#	'--cfg', 'conduit_mods',
+#	'--cfg', 'conduwuit_mods',
 #	'-Ztime-passes',
 #	'-Zmir-opt-level=0',
 #	'-Zvalidate-mir=false',
@@ -710,7 +710,7 @@ incremental = false
 codegen-units = 1
 opt-level = 'z'
 #rustflags = [
-#	'--cfg', 'conduit_mods',
+#	'--cfg', 'conduwuit_mods',
 #	'-Ztls-model=initial-exec',
 #	'-Cprefer-dynamic=true',
 #	'-Zstaticlib-prefer-dynamic=true',
@@ -731,7 +731,7 @@ incremental = false
 codegen-units = 1
 opt-level = 'z'
 #rustflags = [
-#	'--cfg', 'conduit_mods',
+#	'--cfg', 'conduwuit_mods',
 #	'-Ztls-model=global-dynamic',
 #	'-Cprefer-dynamic=true',
 #	'-Zstaticlib-prefer-dynamic=true',

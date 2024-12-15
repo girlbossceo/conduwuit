@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use conduit::{debug, debug_info, debug_warn, error, info, trace, utils::time::parse_timepoint_ago, Result};
-use conduit_service::media::Dim;
+use conduwuit::{debug, debug_info, debug_warn, error, info, trace, utils::time::parse_timepoint_ago, Result};
+use conduwuit_service::media::Dim;
 use ruma::{
 	events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, OwnedMxcUri, OwnedServerName, ServerName,
 };

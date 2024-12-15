@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{
+use conduwuit::{
 	implement,
 	utils::{stream::TryIgnore, ReadyExt},
 	PduCount, Result,

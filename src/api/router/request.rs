@@ -2,7 +2,7 @@ use std::str;
 
 use axum::{extract::Path, RequestExt, RequestPartsExt};
 use bytes::Bytes;
-use conduit::{err, Result};
+use conduwuit::{err, Result};
 use http::request::Parts;
 use serde::Deserialize;
 use service::Services;

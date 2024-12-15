@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduit::{debug, info, warn, Result, Server};
+use conduwuit::{debug, info, warn, Result, Server};
 use database::{Deserialized, Map};
 use ruma::events::room::message::RoomMessageEventContent;
 use serde::Deserialize;

@@ -1,4 +1,4 @@
-use conduit::{implement, trace, Result};
+use conduwuit::{implement, trace, Result};
 use futures::{pin_mut, stream::FuturesUnordered, FutureExt, StreamExt};
 use ruma::{DeviceId, UserId};
 

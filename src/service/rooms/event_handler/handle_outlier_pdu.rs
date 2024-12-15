@@ -3,7 +3,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, debug_info, err, implement, trace, warn, Err, Error, PduEvent, Result};
+use conduwuit::{debug, debug_info, err, implement, trace, warn, Err, Error, PduEvent, Result};
 use futures::{future::ready, TryFutureExt};
 use ruma::{
 	api::client::error::ErrorKind,

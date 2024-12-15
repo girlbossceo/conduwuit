@@ -4,7 +4,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{debug, implement, utils::math::continue_exponential_backoff_secs, Error, PduEvent, Result};
+use conduwuit::{debug, implement, utils::math::continue_exponential_backoff_secs, Error, PduEvent, Result};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonValue, EventId, RoomId, ServerName};
 
 #[implement(super::Service)]

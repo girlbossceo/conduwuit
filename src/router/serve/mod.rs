@@ -6,8 +6,8 @@ mod unix;
 use std::sync::Arc;
 
 use axum_server::Handle as ServerHandle;
-use conduit::Result;
-use conduit_service::Services;
+use conduwuit::Result;
+use conduwuit_service::Services;
 use tokio::sync::broadcast;
 
 use super::layers;
@@ -28,7 +28,7 @@ pub(super) async fn serve(
 		return tls::serve(server, app, handle, addrs).await;
 
 		#[cfg(not(feature = "direct_tls"))]
-		return conduit::Err!(Config(
+		return conduwuit::Err!(Config(
 			"tls",
 			"conduwuit was not built with direct TLS support (\"direct_tls\")"
 		));

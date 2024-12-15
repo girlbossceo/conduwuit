@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use conduit::{debug::type_name, err, result::DebugInspect, utils::exchange, Error, Result};
+use conduwuit::{debug::type_name, err, result::DebugInspect, utils::exchange, Error, Result};
 use serde::{ser, Serialize};
 
 use crate::util::unhandled;

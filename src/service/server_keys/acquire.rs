@@ -4,7 +4,7 @@ use std::{
 	time::Duration,
 };
 
-use conduit::{debug, debug_error, debug_warn, error, implement, info, result::FlatOk, trace, warn};
+use conduwuit::{debug, debug_error, debug_warn, error, implement, info, result::FlatOk, trace, warn};
 use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::federation::discovery::ServerSigningKeys, serde::Raw, CanonicalJsonObject, OwnedServerName,

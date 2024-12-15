@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use conduit::{err, implement, trace, Config, Result};
+use conduwuit::{err, implement, trace, Config, Result};
 use either::Either;
 use ipaddress::IPAddress;
 use reqwest::redirect;
@@ -124,7 +124,7 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 		.timeout(Duration::from_secs(config.request_total_timeout))
 		.pool_idle_timeout(Duration::from_secs(config.request_idle_timeout))
 		.pool_max_idle_per_host(config.request_idle_per_host.into())
-		.user_agent(conduit::version::user_agent())
+		.user_agent(conduwuit::version::user_agent())
 		.redirect(redirect::Policy::limited(6))
 		.connection_verbose(true);
 
@@ -188,7 +188,7 @@ fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> R
 
 #[cfg(not(any(target_os = "android", target_os = "fuchsia", target_os = "linux")))]
 fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> Result<reqwest::ClientBuilder> {
-	use conduit::Err;
+	use conduwuit::Err;
 
 	if let Some(iface) = config {
 		Err!("Binding to network-interface {iface:?} by name is not supported on this platform.")

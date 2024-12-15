@@ -1,4 +1,4 @@
-use conduit::Result;
+use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
 

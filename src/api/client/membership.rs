@@ -6,7 +6,7 @@ use std::{
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{
+use conduwuit::{
 	debug, debug_info, debug_warn, err, error, info,
 	pdu::{self, gen_event_id_canonical_json, PduBuilder},
 	result::FlatOk,
@@ -1457,7 +1457,7 @@ pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
 }
 
 pub async fn leave_room(services: &Services, user_id: &UserId, room_id: &RoomId, reason: Option<String>) -> Result<()> {
-	//use conduit::utils::stream::OptionStream;
+	//use conduwuit::utils::stream::OptionStream;
 	use futures::TryFutureExt;
 
 	// Ask a remote server if we don't have this room

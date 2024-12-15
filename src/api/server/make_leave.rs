@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{Err, Result};
+use conduwuit::{Err, Result};
 use ruma::{
 	api::federation::membership::prepare_leave_event,
 	events::room::member::{MembershipState, RoomMemberEventContent},

@@ -1,6 +1,6 @@
 use std::convert::identity;
 
-use conduit::Result;
+use conduwuit::Result;
 use serde::Deserialize;
 
 pub trait Deserialized {

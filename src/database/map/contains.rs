@@ -1,7 +1,7 @@
 use std::{convert::AsRef, fmt::Debug, future::Future, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
-use conduit::{
+use conduwuit::{
 	err, implement,
 	utils::{future::TryExtExt, result::FlatOk},
 	Result,

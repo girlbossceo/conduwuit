@@ -84,7 +84,7 @@ where
 
 /// Find the common prefix from a collection of strings and return a slice
 /// ```
-/// use conduit_core::utils::string::common_prefix;
+/// use conduwiit_core::utils::string::common_prefix;
 /// let input = ["conduwuit", "conduit", "construct"];
 /// common_prefix(&input) == "con";
 /// ```

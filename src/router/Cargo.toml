@@ -1,5 +1,5 @@
 [package]
-name = "conduit_router"
+name = "conduwuit_router"
 categories.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -55,10 +55,10 @@ axum-server-dual-protocol.optional = true
 axum-server.workspace = true
 axum.workspace = true
 bytes.workspace = true
-conduit-admin.workspace = true
-conduit-api.workspace = true
-conduit-core.workspace = true
-conduit-service.workspace = true
+conduwuit-admin.workspace = true
+conduwuit-api.workspace = true
+conduwuit-core.workspace = true
+conduwuit-service.workspace = true
 const-str.workspace = true
 futures.workspace = true
 http.workspace = true

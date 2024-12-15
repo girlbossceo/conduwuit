@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{
+use conduwuit::{
 	debug_info, trace,
 	utils::{self, IterStream},
 	Result, Server,

@@ -2,12 +2,12 @@
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{
+use conduwuit::{
 	err,
 	utils::{content_disposition::make_content_disposition, math::ruma_from_usize},
 	Err, Result,
 };
-use conduit_service::media::{Dim, FileMeta, CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN};
+use conduwuit_service::media::{Dim, FileMeta, CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN};
 use reqwest::Url;
 use ruma::{
 	api::client::media::{

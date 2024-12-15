@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
-pub use conduit::pdu::{ShortEventId, ShortId, ShortRoomId};
-use conduit::{err, implement, utils, utils::stream::ReadyExt, Result};
+pub use conduwuit::pdu::{ShortEventId, ShortId, ShortRoomId};
+use conduwuit::{err, implement, utils, utils::stream::ReadyExt, Result};
 use database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{events::StateEventType, EventId, RoomId};

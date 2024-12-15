@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
-use conduit::{
+use conduwuit::{
 	at, err, ref_at,
 	utils::stream::{BroadbandExt, IterStream, ReadyExt},
 	PduEvent, Result,

@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::err;
+use conduwuit::err;
 use ruma::api::client::filter::{create_filter, get_filter};
 
 use crate::{Result, Ruma};

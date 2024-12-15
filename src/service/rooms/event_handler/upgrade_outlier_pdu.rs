@@ -5,7 +5,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{debug, debug_info, err, implement, trace, warn, Err, Error, PduEvent, Result};
+use conduwuit::{debug, debug_info, err, implement, trace, warn, Err, Error, PduEvent, Result};
 use futures::{future::ready, StreamExt};
 use ruma::{
 	api::client::error::ErrorKind,

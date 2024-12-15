@@ -3,7 +3,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug, implement, warn, Err, Error, PduEvent, Result};
+use conduwuit::{debug, implement, warn, Err, Error, PduEvent, Result};
 use futures::FutureExt;
 use ruma::{
 	api::federation::event::get_room_state_ids, events::StateEventType, EventId, RoomId, RoomVersionId, ServerName,

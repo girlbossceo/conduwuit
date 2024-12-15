@@ -38,8 +38,8 @@ element () {
 		run cargo "$TOOLCHAIN" build $ELEMENT_OPTS --all-targets
 		run cargo "$TOOLCHAIN" test $ELEMENT_OPTS --all-targets
 		run cargo "$TOOLCHAIN" bench $ELEMENT_OPTS --all-targets
-		run cargo "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduit -- -V
-		run conduwuit "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduit
+		run cargo "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduwuit -- -V
+		run conduwuit "$TOOLCHAIN" run $ELEMENT_OPTS --bin conduwuit
 	fi
 }
 

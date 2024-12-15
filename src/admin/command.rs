@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use conduit_service::Services;
+use conduwuit_service::Services;
 use ruma::EventId;
 
 pub(crate) struct Command<'a> {

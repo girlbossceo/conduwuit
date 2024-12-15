@@ -1,6 +1,6 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduit::{err, implement, utils::IterStream, Result};
+use conduwuit::{err, implement, utils::IterStream, Result};
 use futures::{Stream, StreamExt};
 use serde::Serialize;
 

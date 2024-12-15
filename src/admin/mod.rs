@@ -18,12 +18,12 @@ pub(crate) mod room;
 pub(crate) mod server;
 pub(crate) mod user;
 
-extern crate conduit_api as api;
-extern crate conduit_core as conduit;
-extern crate conduit_service as service;
+extern crate conduwuit_api as api;
+extern crate conduwuit_core as conduwuit;
+extern crate conduwuit_service as service;
 
-pub(crate) use conduit::Result;
-pub(crate) use conduit_macros::{admin_command, admin_command_dispatch};
+pub(crate) use conduwuit::Result;
+pub(crate) use conduwuit_macros::{admin_command, admin_command_dispatch};
 
 pub(crate) use crate::{
 	command::Command,
@@ -32,9 +32,9 @@ pub(crate) use crate::{
 
 pub(crate) const PAGE_SIZE: usize = 100;
 
-conduit::mod_ctor! {}
-conduit::mod_dtor! {}
-conduit::rustc_flags_capture! {}
+conduwuit::mod_ctor! {}
+conduwuit::mod_dtor! {}
+conduwuit::rustc_flags_capture! {}
 
 /// Install the admin command processor
 pub async fn init(admin_service: &service::admin::Service) {

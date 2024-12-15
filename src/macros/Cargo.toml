@@ -1,5 +1,5 @@
 [package]
-name = "conduit_macros"
+name = "conduwuit_macros"
 categories.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 version.workspace = true
 
 [lib]
-name = "conduit_macros"
+name = "conduwuit_macros"
 path = "mod.rs"
 proc-macro = true
 

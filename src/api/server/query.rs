@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{err, Error, Result};
+use conduwuit::{err, Error, Result};
 use futures::StreamExt;
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;

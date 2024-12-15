@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 
-use conduit::{
+use conduwuit::{
 	at, utils,
 	utils::{stream::TryIgnore, ReadyExt},
 	Error, Result,

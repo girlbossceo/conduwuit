@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{config::Config, info, log::Log, utils::sys, Error, Result};
+use conduwuit::{config::Config, info, log::Log, utils::sys, Error, Result};
 use tokio::{runtime, sync::Mutex};
 
 use crate::{clap::Args, logging::TracingFlameGuard};
@@ -8,18 +8,18 @@ use crate::{clap::Args, logging::TracingFlameGuard};
 /// Server runtime state; complete
 pub(crate) struct Server {
 	/// Server runtime state; public portion
-	pub(crate) server: Arc<conduit::Server>,
+	pub(crate) server: Arc<conduwuit::Server>,
 
-	pub(crate) services: Mutex<Option<Arc<conduit_service::Services>>>,
+	pub(crate) services: Mutex<Option<Arc<conduwuit_service::Services>>>,
 
 	_tracing_flame_guard: TracingFlameGuard,
 
 	#[cfg(feature = "sentry_telemetry")]
 	_sentry_guard: Option<::sentry::ClientInitGuard>,
 
-	#[cfg(conduit_mods)]
+	#[cfg(conduwuit_mods)]
 	// Module instances; TODO: move to mods::loaded mgmt vector
-	pub(crate) mods: tokio::sync::RwLock<Vec<conduit::mods::Module>>,
+	pub(crate) mods: tokio::sync::RwLock<Vec<conduwuit::mods::Module>>,
 }
 
 impl Server {
@@ -45,11 +45,11 @@ impl Server {
 			database_path = ?config.database_path,
 			log_levels = %config.log,
 			"{}",
-			conduit::version(),
+			conduwuit::version(),
 		);
 
 		Ok(Arc::new(Self {
-			server: Arc::new(conduit::Server::new(
+			server: Arc::new(conduwuit::Server::new(
 				config,
 				runtime.cloned(),
 				Log {
@@ -65,7 +65,7 @@ impl Server {
 			#[cfg(feature = "sentry_telemetry")]
 			_sentry_guard: sentry_guard,
 
-			#[cfg(conduit_mods)]
+			#[cfg(conduwuit_mods)]
 			mods: tokio::sync::RwLock::new(Vec::new()),
 		}))
 	}

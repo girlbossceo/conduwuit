@@ -7,7 +7,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
-use conduit::{
+use conduwuit::{
 	err, error,
 	pdu::PduBuilder,
 	utils::{math::usize_from_f64, ReadyExt},

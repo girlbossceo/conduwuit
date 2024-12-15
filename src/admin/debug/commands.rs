@@ -6,7 +6,7 @@ use std::{
 	time::{Instant, SystemTime},
 };
 
-use conduit::{debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
+use conduwuit::{debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
 use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
@@ -754,7 +754,7 @@ pub(super) async fn resolve_true_destination(
 
 #[admin_command]
 pub(super) async fn memory_stats(&self) -> Result<RoomMessageEventContent> {
-	let html_body = conduit::alloc::memory_stats();
+	let html_body = conduwuit::alloc::memory_stats();
 
 	if html_body.is_none() {
 		return Ok(RoomMessageEventContent::text_plain(

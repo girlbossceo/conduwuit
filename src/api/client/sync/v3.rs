@@ -5,7 +5,7 @@ use std::{
 };
 
 use axum::extract::State;
-use conduit::{
+use conduwuit::{
 	at, err, error, extract_variant, is_equal_to, is_false,
 	pdu::EventHash,
 	result::{FlatOk, LogDebugErr},
@@ -18,7 +18,7 @@ use conduit::{
 	},
 	Error, PduCount, PduEvent, Result,
 };
-use conduit_service::{
+use conduwuit_service::{
 	rooms::short::{ShortStateHash, ShortStateKey},
 	Services,
 };

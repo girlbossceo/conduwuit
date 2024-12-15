@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{
+use conduwuit::{
 	err, implement,
 	utils::stream::{ReadyExt, TryIgnore},
 	Err, Result,

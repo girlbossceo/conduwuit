@@ -1,4 +1,4 @@
-use conduit::{utils, Error, Result};
+use conduwuit::{utils, Error, Result};
 use ruma::{
 	events::presence::{PresenceEvent, PresenceEventContent},
 	presence::PresenceState,

@@ -8,7 +8,7 @@ use std::{
 	path::PathBuf,
 };
 
-use conduit_macros::config_example_generator;
+use conduwuit_macros::config_example_generator;
 use either::{
 	Either,
 	Either::{Left, Right},

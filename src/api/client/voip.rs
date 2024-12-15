@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use axum::extract::State;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{utils, Err};
+use conduwuit::{utils, Err};
 use hmac::{Hmac, Mac};
 use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch, UserId};
 use sha1::Sha1;

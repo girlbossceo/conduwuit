@@ -6,7 +6,7 @@ use axum_server_dual_protocol::{
 	axum_server::{bind_rustls, tls_rustls::RustlsConfig},
 	ServerExt,
 };
-use conduit::{err, Result, Server};
+use conduwuit::{err, Result, Server};
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 

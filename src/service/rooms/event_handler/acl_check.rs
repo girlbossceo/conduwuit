@@ -1,4 +1,4 @@
-use conduit::{debug, implement, trace, warn, Err, Result};
+use conduwuit::{debug, implement, trace, warn, Err, Result};
 use ruma::{
 	events::{room::server_acl::RoomServerAclEventContent, StateEventType},
 	RoomId, ServerName,

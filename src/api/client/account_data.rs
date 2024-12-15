@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{err, Err};
+use conduwuit::{err, Err};
 use ruma::{
 	api::client::config::{
 		get_global_account_data, get_room_account_data, set_global_account_data, set_room_account_data,

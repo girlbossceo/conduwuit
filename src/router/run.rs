@@ -1,6 +1,6 @@
-extern crate conduit_admin as admin;
-extern crate conduit_core as conduit;
-extern crate conduit_service as service;
+extern crate conduwuit_admin as admin;
+extern crate conduwuit_core as conduwuit;
+extern crate conduwuit_service as service;
 
 use std::{
 	sync::{atomic::Ordering, Arc},
@@ -8,7 +8,7 @@ use std::{
 };
 
 use axum_server::Handle as ServerHandle;
-use conduit::{debug, debug_error, debug_info, error, info, Error, Result, Server};
+use conduwuit::{debug, debug_error, debug_info, error, info, Error, Result, Server};
 use service::Services;
 use tokio::{
 	sync::broadcast::{self, Sender},

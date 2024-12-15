@@ -1,7 +1,7 @@
 mod v3;
 mod v4;
 
-use conduit::{
+use conduwuit::{
 	utils::stream::{BroadbandExt, ReadyExt},
 	PduCount,
 };

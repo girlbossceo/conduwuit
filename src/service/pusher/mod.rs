@@ -1,7 +1,7 @@
 use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
-use conduit::{
+use conduwuit::{
 	debug_warn, err, trace,
 	utils::{stream::TryIgnore, string_from_bytes},
 	warn, Err, PduEvent, Result,

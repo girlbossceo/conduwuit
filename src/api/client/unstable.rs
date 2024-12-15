@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::Err;
+use conduwuit::Err;
 use futures::StreamExt;
 use ruma::{
 	api::{

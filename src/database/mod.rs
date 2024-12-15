@@ -20,7 +20,7 @@ pub(crate) use self::{
 	util::{or_else, result},
 };
 
-extern crate conduit_core as conduit;
+extern crate conduwuit_core as conduwuit;
 extern crate rust_rocksdb as rocksdb;
 
 pub use self::{
@@ -33,6 +33,6 @@ pub use self::{
 	ser::{serialize, serialize_to, serialize_to_vec, Interfix, Json, Separator, SEP},
 };
 
-conduit::mod_ctor! {}
-conduit::mod_dtor! {}
-conduit::rustc_flags_capture! {}
+conduwuit::mod_ctor! {}
+conduwuit::mod_dtor! {}
+conduwuit::rustc_flags_capture! {}

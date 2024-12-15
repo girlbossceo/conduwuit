@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{
+use conduwuit::{
 	at,
 	utils::{result::FlatOk, stream::WidebandExt, IterStream, ReadyExt},
 	PduCount, Result,

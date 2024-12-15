@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{err, utils, utils::math::usize_from_f64, Err, Result};
+use conduwuit::{err, utils, utils::math::usize_from_f64, Err, Result};
 use database::Map;
 use lru_cache::LruCache;
 

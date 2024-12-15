@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{debug_info, debug_warn, error, info, pdu::PduBuilder, warn, Err, Error, Result};
+use conduwuit::{debug_info, debug_warn, error, info, pdu::PduBuilder, warn, Err, Error, Result};
 use futures::FutureExt;
 use ruma::{
 	api::client::{

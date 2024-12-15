@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use clap::Subcommand;
-use conduit::{utils::time, Result};
+use conduwuit::{utils::time, Result};
 use ruma::{events::room::message::RoomMessageEventContent, OwnedServerName};
 
 use crate::{admin_command, admin_command_dispatch};

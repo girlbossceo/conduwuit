@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, mem, mem::size_of, sync::Arc};
 
-use conduit::{
+use conduwuit::{
 	debug_warn, err, utils,
 	utils::{stream::TryIgnore, string::Unquoted, ReadyExt},
 	Err, Error, Result, Server,

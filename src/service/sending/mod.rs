@@ -7,7 +7,7 @@ mod sender;
 use std::{fmt::Debug, iter::once, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{
+use conduwuit::{
 	debug_warn, err,
 	utils::{ReadyExt, TryReadyExt},
 	warn, Result, Server,

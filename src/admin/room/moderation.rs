@@ -1,6 +1,6 @@
 use api::client::leave_room;
 use clap::Subcommand;
-use conduit::{
+use conduwuit::{
 	debug, error, info,
 	utils::{IterStream, ReadyExt},
 	warn, Result,

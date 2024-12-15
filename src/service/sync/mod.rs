@@ -5,7 +5,7 @@ use std::{
 	sync::{Arc, Mutex, Mutex as StdMutex},
 };
 
-use conduit::{Result, Server};
+use conduwuit::{Result, Server};
 use database::Map;
 use ruma::{
 	api::client::sync::sync_events::{

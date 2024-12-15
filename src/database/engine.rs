@@ -6,7 +6,7 @@ use std::{
 	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
 };
 
-use conduit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, Result, Server};
+use conduwuit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, Result, Server};
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,

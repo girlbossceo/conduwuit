@@ -1,7 +1,7 @@
 mod data;
 use std::sync::Arc;
 
-use conduit::{PduCount, Result};
+use conduwuit::{PduCount, Result};
 use futures::StreamExt;
 use ruma::{api::Direction, EventId, RoomId, UserId};
 

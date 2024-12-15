@@ -1,6 +1,6 @@
 use std::{cmp, io::Cursor, num::Saturating as Sat};
 
-use conduit::{checked, err, Result};
+use conduwuit::{checked, err, Result};
 use image::{imageops::FilterType, DynamicImage};
 use ruma::{http_headers::ContentDisposition, media::Method, Mxc, UInt, UserId};
 use tokio::{

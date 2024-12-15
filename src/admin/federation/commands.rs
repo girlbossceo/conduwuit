@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use conduit::Result;
+use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
 

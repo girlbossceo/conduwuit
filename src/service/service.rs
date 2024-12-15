@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{err, error::inspect_log, utils::string::SplitInfallible, Err, Result, Server};
+use conduwuit::{err, error::inspect_log, utils::string::SplitInfallible, Err, Result, Server};
 use database::Database;
 
 /// Abstract interface for a Service

@@ -1,7 +1,7 @@
 use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
-use conduit::{err, implement, utils::result::MapExpect, Err, Result};
+use conduwuit::{err, implement, utils::result::MapExpect, Err, Result};
 use futures::{Future, FutureExt};
 use serde::Serialize;
 use tokio::task;

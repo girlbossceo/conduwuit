@@ -1,4 +1,4 @@
-use conduit::{implement, Result};
+use conduwuit::{implement, Result};
 use futures::stream::{Stream, StreamExt};
 use serde::Deserialize;
 

@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
+use conduwuit::{
 	debug, err, implement,
 	result::LogErr,
 	utils::stream::{BroadbandExt, IterStream},

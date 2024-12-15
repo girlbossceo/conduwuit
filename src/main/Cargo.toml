@@ -1,7 +1,6 @@
 [package]
-# TODO: when can we rename to conduwuit?
-name = "conduit"
-default-run = "conduit"
+name = "conduwuit"
+default-run = "conduwuit"
 authors.workspace = true
 categories.workspace = true
 description.workspace = true
@@ -48,49 +47,49 @@ default = [
 ]
 
 brotli_compression = [
-	"conduit-api/brotli_compression",
-	"conduit-core/brotli_compression",
-	"conduit-router/brotli_compression",
-	"conduit-service/brotli_compression",
+	"conduwuit-api/brotli_compression",
+	"conduwuit-core/brotli_compression",
+	"conduwuit-router/brotli_compression",
+	"conduwuit-service/brotli_compression",
 ]
 console = [
-	"conduit-service/console",
+	"conduwuit-service/console",
 ]
 #dev_release_log_level = [
-#	"conduit-admin/dev_release_log_level",
-#	"conduit-api/dev_release_log_level",
-#	"conduit-core/dev_release_log_level",
-#	"conduit-database/dev_release_log_level",
-#	"conduit-router/dev_release_log_level",
-#	"conduit-service/dev_release_log_level",
+#	"conduwuit-admin/dev_release_log_level",
+#	"conduwuit-api/dev_release_log_level",
+#	"conduwuit-core/dev_release_log_level",
+#	"conduwuit-database/dev_release_log_level",
+#	"conduwuit-router/dev_release_log_level",
+#	"conduwuit-service/dev_release_log_level",
 #]
 direct_tls = [
-    "conduit-router/direct_tls"
+    "conduwuit-router/direct_tls"
 ]
 element_hacks = [
-	"conduit-api/element_hacks",
-	"conduit-service/element_hacks",
+	"conduwuit-api/element_hacks",
+	"conduwuit-service/element_hacks",
 ]
 gzip_compression = [
-	"conduit-api/gzip_compression",
-	"conduit-router/gzip_compression",
-	"conduit-service/gzip_compression",
+	"conduwuit-api/gzip_compression",
+	"conduwuit-router/gzip_compression",
+	"conduwuit-service/gzip_compression",
 ]
 hardened_malloc = [
-	"conduit-core/hardened_malloc",
+	"conduwuit-core/hardened_malloc",
 ]
 io_uring = [
-	"conduit-database/io_uring",
+	"conduwuit-database/io_uring",
 ]
 jemalloc = [
-	"conduit-core/jemalloc",
-	"conduit-database/jemalloc",
+	"conduwuit-core/jemalloc",
+	"conduwuit-database/jemalloc",
 ]
 jemalloc_prof = [
-	"conduit-core/jemalloc_prof",
+	"conduwuit-core/jemalloc_prof",
 ]
 jemalloc_stats = [
-	"conduit-core/jemalloc_stats",
+	"conduwuit-core/jemalloc_stats",
 ]
 perf_measurements = [
 	"dep:opentelemetry",
@@ -98,8 +97,8 @@ perf_measurements = [
 	"dep:tracing-opentelemetry",
 	"dep:opentelemetry_sdk",
 	"dep:opentelemetry-jaeger",
-	"conduit-core/perf_measurements",
-	"conduit-core/sentry_telemetry",
+	"conduwuit-core/perf_measurements",
+	"conduwuit-core/sentry_telemetry",
 ]
 # increases performance, reduces build times, and reduces binary size by not compiling or
 # genreating code for log level filters that users will generally not use (debug and trace)
@@ -108,22 +107,22 @@ release_max_log_level = [
 	"tracing/release_max_level_info",
 	"log/max_level_trace",
 	"log/release_max_level_info",
-	"conduit-admin/release_max_log_level",
-	"conduit-api/release_max_log_level",
-	"conduit-core/release_max_log_level",
-	"conduit-database/release_max_log_level",
-	"conduit-router/release_max_log_level",
-	"conduit-service/release_max_log_level",
+	"conduwuit-admin/release_max_log_level",
+	"conduwuit-api/release_max_log_level",
+	"conduwuit-core/release_max_log_level",
+	"conduwuit-database/release_max_log_level",
+	"conduwuit-router/release_max_log_level",
+	"conduwuit-service/release_max_log_level",
 ]
 sentry_telemetry = [
 	"dep:sentry",
 	"dep:sentry-tracing",
 	"dep:sentry-tower",
-	"conduit-core/sentry_telemetry",
-	"conduit-router/sentry_telemetry",
+	"conduwuit-core/sentry_telemetry",
+	"conduwuit-router/sentry_telemetry",
 ]
 systemd = [
-	"conduit-router/systemd",
+	"conduwuit-router/systemd",
 ]
 # enable the tokio_console server ncompatible with release_max_log_level
 tokio_console = [
@@ -131,19 +130,19 @@ tokio_console = [
 	"tokio/tracing",
 ]
 zstd_compression = [
-    "conduit-api/zstd_compression",
-	"conduit-core/zstd_compression",
-	"conduit-database/zstd_compression",
-	"conduit-router/zstd_compression",
+    "conduwuit-api/zstd_compression",
+	"conduwuit-core/zstd_compression",
+	"conduwuit-database/zstd_compression",
+	"conduwuit-router/zstd_compression",
 ]
 
 [dependencies]
-conduit-admin.workspace = true
-conduit-api.workspace = true
-conduit-core.workspace = true
-conduit-database.workspace = true
-conduit-router.workspace = true
-conduit-service.workspace = true
+conduwuit-admin.workspace = true
+conduwuit-api.workspace = true
+conduwuit-core.workspace = true
+conduwuit-database.workspace = true
+conduwuit-router.workspace = true
+conduwuit-service.workspace = true
 
 tokio.workspace = true
 log.workspace = true
@@ -184,5 +183,5 @@ hardened_malloc-rs.optional = true
 workspace = true
 
 [[bin]]
-name = "conduit"
+name = "conduwuit"
 path = "main.rs"

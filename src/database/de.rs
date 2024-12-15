@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use conduit::{checked, debug::DebugInspect, err, utils::string, Error, Result};
+use conduwuit::{checked, debug::DebugInspect, err, utils::string, Error, Result};
 use serde::{
 	de,
 	de::{DeserializeSeed, Visitor},
@@ -331,7 +331,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
 	fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		debug_assert_eq!(
-			conduit::debug::type_name::<V>(),
+			conduwuit::debug::type_name::<V>(),
 			"serde_json::value::de::<impl serde::de::Deserialize for \
 			 serde_json::value::Value>::deserialize::ValueVisitor",
 			"deserialize_any: type not expected"

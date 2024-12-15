@@ -4,7 +4,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduit::{debug, defer, error, log, Server};
+use conduwuit::{debug, defer, error, log, Server};
 use futures::future::{AbortHandle, Abortable};
 use ruma::events::room::message::RoomMessageEventContent;
 use rustyline_async::{Readline, ReadlineError, ReadlineEvent};

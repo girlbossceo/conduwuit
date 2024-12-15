@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt::Debug};
 
-use conduit::{debug, implement, Err, Result};
+use conduwuit::{debug, implement, Err, Result};
 use ruma::{
 	api::federation::discovery::{
 		get_remote_server_keys,

@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug_info, error, info, is_equal_to, utils, utils::ReadyExt, warn, Error, PduBuilder, Result};
+use conduwuit::{debug_info, error, info, is_equal_to, utils, utils::ReadyExt, warn, Error, PduBuilder, Result};
 use futures::{FutureExt, StreamExt};
 use register::RegistrationKind;
 use ruma::{

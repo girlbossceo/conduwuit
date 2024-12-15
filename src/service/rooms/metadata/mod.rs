@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{implement, utils::stream::TryIgnore, Result};
+use conduwuit::{implement, utils::stream::TryIgnore, Result};
 use database::Map;
 use futures::{Stream, StreamExt};
 use ruma::RoomId;

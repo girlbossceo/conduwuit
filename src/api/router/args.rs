@@ -2,7 +2,7 @@ use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, Bytes, BytesMut};
-use conduit::{debug, debug_warn, err, trace, utils::string::EMPTY, Error, Result};
+use conduwuit::{debug, debug_warn, err, trace, utils::string::EMPTY, Error, Result};
 use ruma::{
 	api::IncomingRequest, CanonicalJsonObject, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName,
 	OwnedUserId, ServerName, UserId,

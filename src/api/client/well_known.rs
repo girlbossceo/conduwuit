@@ -100,6 +100,6 @@ pub(crate) async fn syncv3_client_server_json(State(services): State<crate::Stat
 
 	Ok(Json(serde_json::json!({
 		"server": server_url,
-		"version": conduit::version(),
+		"version": conduwuit::version(),
 	})))
 }

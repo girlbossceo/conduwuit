@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{at, utils::BoolExt, Err, Result};
+use conduwuit::{at, utils::BoolExt, Err, Result};
 use futures::StreamExt;
 use ruma::api::client::room::initial_sync::v3::{PaginationChunk, Request, Response};
 

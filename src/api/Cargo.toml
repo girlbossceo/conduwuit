@@ -1,5 +1,5 @@
 [package]
-name = "conduit_api"
+name = "conduwuit_api"
 categories.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -41,9 +41,9 @@ axum-extra.workspace = true
 axum.workspace = true
 base64.workspace = true
 bytes.workspace = true
-conduit-core.workspace = true
-conduit-database.workspace = true
-conduit-service.workspace = true
+conduwuit-core.workspace = true
+conduwuit-database.workspace = true
+conduwuit-service.workspace = true
 const-str.workspace = true
 futures.workspace = true
 hmac.workspace = true

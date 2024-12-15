@@ -7,7 +7,7 @@ mod verify;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use conduit::{
+use conduwuit::{
 	implement,
 	utils::{timepoint_from_now, IterStream},
 	Result, Server,

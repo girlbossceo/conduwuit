@@ -8,13 +8,13 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
+use conduwuit::{
 	debug, debug_warn, err, error, implement, info,
 	pdu::{EventHash, PduBuilder, PduCount, PduEvent},
 	utils::{self, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	validated, warn, Err, Error, Result, Server,
 };
-pub use conduit::{PduId, RawPduId};
+pub use conduwuit::{PduId, RawPduId};
 use futures::{future, future::ready, Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{
 	api::federation,

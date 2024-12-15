@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use conduit::{implement, Err, Result};
+use conduwuit::{implement, Err, Result};
 use ruma::{api::federation::discovery::VerifyKey, CanonicalJsonObject, RoomVersionId, ServerName, ServerSigningKeyId};
 
 use super::{extract_key, PubKeyMap, PubKeys};

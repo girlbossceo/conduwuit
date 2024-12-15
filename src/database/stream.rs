@@ -5,7 +5,7 @@ mod keys_rev;
 
 use std::sync::Arc;
 
-use conduit::{utils::exchange, Error, Result};
+use conduwuit::{utils::exchange, Error, Result};
 use rocksdb::{ColumnFamily, DBRawIteratorWithThreadMode, ReadOptions};
 
 pub(crate) use self::{items::Items, items_rev::ItemsRev, keys::Keys, keys_rev::KeysRev};

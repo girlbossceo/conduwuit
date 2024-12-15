@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{debug_info, utils::IterStream, warn, Err};
+use conduwuit::{debug_info, utils::IterStream, warn, Err};
 use futures::StreamExt;
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::prepare_join_event},

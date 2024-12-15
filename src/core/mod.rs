@@ -21,11 +21,11 @@ pub use pdu::{Event, PduBuilder, PduCount, PduEvent, PduId, RawPduId};
 pub use server::Server;
 pub use utils::{ctor, dtor, implement, result, result::Result};
 
-pub use crate as conduit_core;
+pub use crate as conduwuit_core;
 
 rustc_flags_capture! {}
 
-#[cfg(not(conduit_mods))]
+#[cfg(not(conduwuit_mods))]
 pub mod mods {
 	#[macro_export]
 	macro_rules! mod_ctor {

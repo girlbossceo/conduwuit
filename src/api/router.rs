@@ -12,7 +12,7 @@ use axum::{
 	routing::{any, get, post},
 	Router,
 };
-use conduit::{err, Server};
+use conduwuit::{err, Server};
 use http::{uri, Uri};
 
 use self::handler::RouterExt;

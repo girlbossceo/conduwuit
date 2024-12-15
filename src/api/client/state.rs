@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use conduit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, PduEvent, Result};
+use conduwuit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, PduEvent, Result};
 use ruma::{
 	api::client::{
 		error::ErrorKind,

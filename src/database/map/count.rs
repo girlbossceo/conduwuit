@@ -1,6 +1,6 @@
 use std::{fmt::Debug, future::Future, sync::Arc};
 
-use conduit::implement;
+use conduwuit::implement;
 use futures::stream::StreamExt;
 use serde::Serialize;
 

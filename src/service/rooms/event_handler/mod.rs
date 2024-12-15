@@ -17,7 +17,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{
+use conduwuit::{
 	utils::{MutexMap, TryFutureExtExt},
 	Err, PduEvent, Result, Server,
 };

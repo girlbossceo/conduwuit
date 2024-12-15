@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{err, Err, Event, Result};
+use conduwuit::{err, Err, Event, Result};
 use futures::{try_join, FutureExt, TryFutureExt};
 use ruma::api::client::room::get_room_event;
 

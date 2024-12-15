@@ -66,6 +66,12 @@ is no harm or additional steps required for using conduwuit. See the
 [Migrating from Conduit](https://conduwuit.puppyirl.gay/deploying/generic.html#migrating-from-conduit) section
 on the generic deploying guide.
 
+Note that as of conduwuit version 0.5.0, backwards compatibility with Conduit is
+no longer supported. We only support migrating *from* Conduit, not back to
+Conduit like before. If you are truly finding yourself wanting to migrate back
+to Conduit, we would appreciate all your feedback and if we can assist with
+any issues or concerns.
+
 <!-- ANCHOR_END: body -->
 
 <!-- ANCHOR: footer -->

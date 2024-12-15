@@ -1,6 +1,6 @@
 use std::{fmt::Debug, time::Duration};
 
-use conduit::{debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error, Result};
+use conduwuit::{debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error, Result};
 use http::header::{HeaderValue, CONTENT_DISPOSITION, CONTENT_TYPE};
 use ruma::{
 	api::{

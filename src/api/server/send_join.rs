@@ -3,7 +3,7 @@
 use std::{borrow::Borrow, collections::HashMap};
 
 use axum::extract::State;
-use conduit::{
+use conduwuit::{
 	err,
 	pdu::gen_event_id_canonical_json,
 	utils::stream::{IterStream, TryBroadbandExt},

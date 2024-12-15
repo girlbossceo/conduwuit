@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use clap::Subcommand;
-use conduit::Result;
+use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomAliasId, OwnedRoomId, RoomAliasId, RoomId};
 

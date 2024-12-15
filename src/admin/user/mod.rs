@@ -1,7 +1,7 @@
 mod commands;
 
 use clap::Subcommand;
-use conduit::Result;
+use conduwuit::Result;
 use ruma::{EventId, OwnedRoomOrAliasId, RoomId};
 
 use crate::admin_command_dispatch;

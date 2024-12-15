@@ -1,5 +1,5 @@
-use conduit::{implement, is_false, Err, Result};
-use conduit_service::Services;
+use conduwuit::{implement, is_false, Err, Result};
+use conduwuit_service::Services;
 use futures::{future::OptionFuture, join, FutureExt};
 use ruma::{EventId, RoomId, ServerName};
 

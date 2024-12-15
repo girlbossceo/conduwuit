@@ -1,7 +1,7 @@
 use std::{io::Cursor, time::SystemTime};
 
-use conduit::{debug, utils, Err, Result};
-use conduit_core::implement;
+use conduwuit::{debug, utils, Err, Result};
+use conduwuit_core::implement;
 use image::ImageReader as ImgReader;
 use ipaddress::IPAddress;
 use ruma::Mxc;

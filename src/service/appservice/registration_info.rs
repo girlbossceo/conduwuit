@@ -1,4 +1,4 @@
-use conduit::Result;
+use conduwuit::Result;
 use ruma::{api::appservice::Registration, UserId};
 
 use super::NamespaceRegex;

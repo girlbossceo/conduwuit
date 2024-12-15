@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{err, Err};
+use conduwuit::{err, Err};
 use ruma::{
 	api::client::{
 		error::ErrorKind,

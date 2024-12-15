@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{debug, debug_info, err, error, utils, utils::string_from_bytes, Result};
+use conduwuit::{debug, debug_info, err, error, utils, utils::string_from_bytes, Result};
 use database::Database;
 use ruma::{api::federation::discovery::VerifyKey, serde::Base64, signatures::Ed25519KeyPair};
 

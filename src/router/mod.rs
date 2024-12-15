@@ -4,17 +4,17 @@ mod router;
 mod run;
 mod serve;
 
-extern crate conduit_core as conduit;
+extern crate conduwuit_core as conduwuit;
 
 use std::{panic::AssertUnwindSafe, pin::Pin, sync::Arc};
 
-use conduit::{Error, Result, Server};
-use conduit_service::Services;
+use conduwuit::{Error, Result, Server};
+use conduwuit_service::Services;
 use futures::{Future, FutureExt, TryFutureExt};
 
-conduit::mod_ctor! {}
-conduit::mod_dtor! {}
-conduit::rustc_flags_capture! {}
+conduwuit::mod_ctor! {}
+conduwuit::mod_dtor! {}
+conduwuit::rustc_flags_capture! {}
 
 #[unsafe(no_mangle)]
 pub extern "Rust" fn start(server: &Arc<Server>) -> Pin<Box<dyn Future<Output = Result<Arc<Services>>> + Send>> {

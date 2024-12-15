@@ -41,7 +41,7 @@ docker run -d -p 8448:6167 \
     -v db:/var/lib/conduwuit/ \
     -e CONDUWUIT_SERVER_NAME="your.server.name" \
     -e CONDUWUIT_ALLOW_REGISTRATION=false \
-    --name conduit $LINK
+    --name conduwuit $LINK
 ```
 
 or you can use [docker compose](#docker-compose).

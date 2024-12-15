@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::Result;
+use conduwuit::Result;
 
 use crate::{Engine, Map};
 

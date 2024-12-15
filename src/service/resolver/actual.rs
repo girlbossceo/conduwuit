@@ -3,7 +3,7 @@ use std::{
 	net::{IpAddr, SocketAddr},
 };
 
-use conduit::{debug, debug_error, debug_info, debug_warn, err, error, trace, Err, Result};
+use conduwuit::{debug, debug_error, debug_info, debug_warn, err, error, trace, Err, Result};
 use hickory_resolver::error::ResolveError;
 use ipaddress::IPAddress;
 use ruma::ServerName;

@@ -42,7 +42,7 @@ The syntax of this is a standard admin command without the prefix such as
 
 An example output of a success is:
 ```
-INFO conduit_service::admin::startup: Startup command #0 completed:
+INFO conduwuit_service::admin::startup: Startup command #0 completed:
 Created user with user_id: @june:girlboss.ceo and password: `<redacted>`
 ```
 

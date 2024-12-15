@@ -4,7 +4,7 @@
 use std::fmt::Debug;
 
 use arrayvec::ArrayVec;
-use conduit::ruma::{serde::Raw, RoomId, UserId};
+use conduwuit::ruma::{serde::Raw, RoomId, UserId};
 use serde::Serialize;
 
 use crate::{
@@ -53,7 +53,7 @@ fn ser_overflow() {
 
 #[test]
 fn ser_complex() {
-	use conduit::ruma::Mxc;
+	use conduwuit::ruma::Mxc;
 
 	#[derive(Debug, Serialize)]
 	struct Dim {
@@ -90,7 +90,7 @@ fn ser_complex() {
 
 #[test]
 fn ser_json() {
-	use conduit::ruma::api::client::filter::FilterDefinition;
+	use conduwuit::ruma::api::client::filter::FilterDefinition;
 
 	let filter = FilterDefinition {
 		event_fields: Some(vec!["content.body".to_owned()]),
@@ -105,7 +105,7 @@ fn ser_json() {
 
 #[test]
 fn ser_json_value() {
-	use conduit::ruma::api::client::filter::FilterDefinition;
+	use conduwuit::ruma::api::client::filter::FilterDefinition;
 
 	let filter = FilterDefinition {
 		event_fields: Some(vec!["content.body".to_owned()]),
@@ -146,7 +146,7 @@ fn ser_json_macro() {
 #[test]
 #[should_panic(expected = "serializing string at the top-level")]
 fn ser_json_raw() {
-	use conduit::ruma::api::client::filter::FilterDefinition;
+	use conduwuit::ruma::api::client::filter::FilterDefinition;
 
 	let filter = FilterDefinition {
 		event_fields: Some(vec!["content.body".to_owned()]),
@@ -162,7 +162,7 @@ fn ser_json_raw() {
 #[test]
 #[should_panic(expected = "you can skip serialization instead")]
 fn ser_json_raw_json() {
-	use conduit::ruma::api::client::filter::FilterDefinition;
+	use conduwuit::ruma::api::client::filter::FilterDefinition;
 
 	let filter = FilterDefinition {
 		event_fields: Some(vec!["content.body".to_owned()]),

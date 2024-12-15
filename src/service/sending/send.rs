@@ -1,7 +1,7 @@
 use std::mem;
 
 use bytes::Bytes;
-use conduit::{
+use conduwuit::{
 	debug, debug_error, debug_warn, err, error::inspect_debug_log, implement, trace, utils::string::EMPTY, Err, Error,
 	Result,
 };

@@ -4,7 +4,7 @@ mod registration_info;
 use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use conduit::{err, utils::stream::TryIgnore, Result};
+use conduwuit::{err, utils::stream::TryIgnore, Result};
 use database::Map;
 use futures::{Future, StreamExt, TryStreamExt};
 use ruma::{api::appservice::Registration, RoomAliasId, RoomId, UserId};

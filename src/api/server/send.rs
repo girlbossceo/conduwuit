@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, net::IpAddr, time::Instant};
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{debug, debug_warn, err, error, result::LogErr, trace, utils::ReadyExt, warn, Err, Error, Result};
+use conduwuit::{debug, debug_warn, err, error, result::LogErr, trace, utils::ReadyExt, warn, Err, Error, Result};
 use futures::StreamExt;
 use ruma::{
 	api::{

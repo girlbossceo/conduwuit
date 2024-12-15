@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use conduit::{
+use conduwuit::{
 	config::{Figment, FigmentValue},
 	err, toml,
 	utils::available_parallelism,
@@ -12,7 +12,7 @@ use conduit::{
 
 /// Commandline arguments
 #[derive(Parser, Debug)]
-#[clap(version = conduit::version(), about, long_about = None, name = "conduwuit")]
+#[clap(version = conduwuit::version(), about, long_about = None, name = "conduwuit")]
 pub(crate) struct Args {
 	#[arg(short, long)]
 	/// Path to the config TOML file (optional)

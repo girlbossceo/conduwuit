@@ -5,7 +5,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
+use conduwuit::{
 	err,
 	result::FlatOk,
 	utils::{

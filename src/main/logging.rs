@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{
+use conduwuit::{
 	config::Config,
 	debug_warn, err,
 	log::{capture, fmt_span, LogLevelReloadHandles},

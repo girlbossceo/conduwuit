@@ -1,6 +1,6 @@
 use std::{cmp, collections::HashMap, convert::TryFrom};
 
-use conduit::{err, utils, Config, Result};
+use conduwuit::{err, utils, Config, Result};
 use rocksdb::{
 	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env,
 	LogLevel, LruCacheOptions, Options, UniversalCompactOptions, UniversalCompactionStopStyle,

@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{Error, Result};
+use conduwuit::{Error, Result};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::api::{
 	client::error::ErrorKind,

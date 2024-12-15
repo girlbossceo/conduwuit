@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{at, PduCount, PduEvent};
+use conduwuit::{at, PduCount, PduEvent};
 use futures::StreamExt;
 use ruma::{api::client::threads::get_threads, uint};
 

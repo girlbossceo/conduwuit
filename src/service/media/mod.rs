@@ -9,7 +9,7 @@ use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{
+use conduwuit::{
 	debug, debug_error, debug_info, debug_warn, err, error, trace,
 	utils::{self, MutexMap},
 	warn, Err, Result, Server,

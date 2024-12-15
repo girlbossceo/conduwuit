@@ -7,7 +7,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{error, Config, Result};
+use conduwuit::{error, Config, Result};
 use data::Data;
 use regex::RegexSet;
 use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, ServerName, UserId};
@@ -83,8 +83,8 @@ impl crate::Service for Service {
 			.server
 			.supported_room_version(&config.default_room_version)
 		{
-			error!(config=?s.config.default_room_version, fallback=?conduit::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
-			s.config.default_room_version = conduit::config::default_default_room_version();
+			error!(config=?s.config.default_room_version, fallback=?conduwuit::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
+			s.config.default_room_version = conduwuit::config::default_default_room_version();
 		};
 
 		Ok(Arc::new(s))

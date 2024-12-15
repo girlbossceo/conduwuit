@@ -3,7 +3,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{debug_warn, err, implement, PduEvent, Result};
+use conduwuit::{debug_warn, err, implement, PduEvent, Result};
 use futures::{future, FutureExt};
 use ruma::{
 	int,

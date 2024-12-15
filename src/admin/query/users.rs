@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use conduit::Result;
+use conduwuit::Result;
 use futures::stream::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedDeviceId, OwnedRoomId, OwnedUserId};
 

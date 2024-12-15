@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use conduit::{
+use conduwuit::{
 	err, error, implement, utils,
 	utils::{hash, string::EMPTY},
 	Error, Result,

@@ -6,14 +6,14 @@ mod sentry;
 mod server;
 mod signal;
 
-extern crate conduit_core as conduit;
+extern crate conduwuit_core as conduwuit;
 
 use std::{
 	sync::{atomic::Ordering, Arc},
 	time::Duration,
 };
 
-use conduit::{debug_info, error, rustc_flags_capture, Error, Result};
+use conduwuit::{debug_info, error, rustc_flags_capture, Error, Result};
 use server::Server;
 use tokio::runtime;
 
@@ -58,14 +58,14 @@ fn main() -> Result<(), Error> {
 
 /// Operate the server normally in release-mode static builds. This will start,
 /// run and stop the server within the asynchronous runtime.
-#[cfg(not(conduit_mods))]
+#[cfg(not(conduwuit_mods))]
 #[tracing::instrument(
 	name = "main",
 	parent = None,
 	skip_all
 )]
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
-	extern crate conduit_router as router;
+	extern crate conduwuit_router as router;
 
 	match router::start(&server.server).await {
 		Ok(services) => server.services.lock().await.insert(services),
@@ -110,7 +110,7 @@ async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 /// Operate the server in developer-mode dynamic builds. This will start, run,
 /// and hot-reload portions of the server as-needed before returning for an
 /// actual shutdown. This is not available in release-mode or static builds.
-#[cfg(conduit_mods)]
+#[cfg(conduwuit_mods)]
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	let mut starts = true;
 	let mut reloads = true;

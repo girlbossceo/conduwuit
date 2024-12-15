@@ -1,5 +1,5 @@
 [package]
-name = "conduit_database"
+name = "conduwuit_database"
 categories.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -37,7 +37,7 @@ zstd_compression = [
 [dependencies]
 arrayvec.workspace = true
 async-channel.workspace = true
-conduit-core.workspace = true
+conduwuit-core.workspace = true
 const-str.workspace = true
 futures.workspace = true
 log.workspace = true

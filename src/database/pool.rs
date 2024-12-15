@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_channel::{bounded, Receiver, RecvError, Sender};
-use conduit::{debug, debug_warn, defer, err, implement, result::DebugInspect, Result, Server};
+use conduwuit::{debug, debug_warn, defer, err, implement, result::DebugInspect, Result, Server};
 use futures::{channel::oneshot, TryFutureExt};
 use oneshot::Sender as ResultSender;
 use rocksdb::Direction;

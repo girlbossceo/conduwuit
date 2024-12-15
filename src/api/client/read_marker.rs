@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{err, Err, PduCount};
+use conduwuit::{err, Err, PduCount};
 use ruma::{
 	api::client::{read_marker::set_read_marker, receipt::create_receipt},
 	events::{

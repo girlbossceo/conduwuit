@@ -4,7 +4,7 @@ use axum_extra::{
 	typed_header::TypedHeaderRejectionReason,
 	TypedHeader,
 };
-use conduit::{debug_error, err, warn, Err, Error, Result};
+use conduwuit::{debug_error, err, warn, Err, Error, Result};
 use ruma::{
 	api::{
 		client::{

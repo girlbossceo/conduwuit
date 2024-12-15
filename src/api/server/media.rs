@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduit::{utils::content_disposition::make_content_disposition, Err, Result};
-use conduit_service::media::{Dim, FileMeta};
+use conduwuit::{utils::content_disposition::make_content_disposition, Err, Result};
+use conduwuit_service::media::{Dim, FileMeta};
 use ruma::{
 	api::federation::authenticated_media::{
 		get_content, get_content_thumbnail, Content, ContentMetadata, FileOrLocation,

@@ -5,9 +5,9 @@ use axum::{
 	Router,
 };
 use axum_client_ip::SecureClientIpSource;
-use conduit::{error, Result, Server};
-use conduit_api::router::state::Guard;
-use conduit_service::Services;
+use conduwuit::{error, Result, Server};
+use conduwuit_api::router::state::Guard;
+use conduwuit_service::Services;
 use http::{
 	header::{self, HeaderName},
 	HeaderValue, Method, StatusCode,
@@ -155,7 +155,7 @@ fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max
 fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
 	//TODO: XXX
 	/*
-		conduit_service::services()
+		conduwuit_service::services()
 			.server
 			.metrics
 			.requests_panic

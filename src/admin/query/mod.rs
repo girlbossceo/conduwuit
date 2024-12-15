@@ -10,7 +10,7 @@ mod sending;
 mod users;
 
 use clap::Subcommand;
-use conduit::Result;
+use conduwuit::Result;
 
 use self::{
 	account_data::AccountDataCommand, appservice::AppserviceCommand, globals::GlobalsCommand,

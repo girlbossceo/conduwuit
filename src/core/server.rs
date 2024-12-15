@@ -56,7 +56,7 @@ impl Server {
 	}
 
 	pub fn reload(&self) -> Result<()> {
-		if cfg!(not(conduit_mods)) {
+		if cfg!(not(conduwuit_mods)) {
 			return Err!("Reloading not enabled");
 		}
 

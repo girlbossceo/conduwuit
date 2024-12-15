@@ -1,4 +1,4 @@
-use conduit::{debug, debug_info, error, implement, info, Err, Result};
+use conduwuit::{debug, debug_info, error, implement, info, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 use tokio::time::{sleep, Duration};
 

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use conduit::implement;
+use conduwuit::implement;
 use ruma::{OwnedServerName, OwnedUserId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

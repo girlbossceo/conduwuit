@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduit::{
+use conduwuit::{
 	debug_warn, utils,
 	utils::{stream::TryIgnore, ReadyExt},
 	Result,

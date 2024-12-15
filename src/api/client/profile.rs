@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{
+use conduwuit::{
 	pdu::PduBuilder,
 	utils::{stream::TryIgnore, IterStream},
 	warn, Err, Error, Result,

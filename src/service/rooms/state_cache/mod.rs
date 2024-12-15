@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use conduit::{
+use conduwuit::{
 	is_not_empty,
 	result::LogErr,
 	utils::{stream::TryIgnore, ReadyExt, StreamTools},
@@ -395,7 +395,7 @@ impl Service {
 	pub fn get_shared_rooms<'a>(
 		&'a self, user_a: &'a UserId, user_b: &'a UserId,
 	) -> impl Stream<Item = &RoomId> + Send + 'a {
-		use conduit::utils::set;
+		use conduwuit::utils::set;
 
 		let a = self.rooms_joined(user_a);
 		let b = self.rooms_joined(user_b);

@@ -4,7 +4,7 @@ mod presence;
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduit::{checked, debug, error, result::LogErr, Error, Result, Server};
+use conduwuit::{checked, debug, error, result::LogErr, Error, Result, Server};
 use futures::{stream::FuturesUnordered, Stream, StreamExt, TryFutureExt};
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
 use tokio::{sync::Mutex, time::sleep};

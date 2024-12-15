@@ -1,12 +1,12 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{full_user_deactivate, join_room_by_id_helper, leave_room};
-use conduit::{
+use conduwuit::{
 	debug_warn, error, info, is_equal_to,
 	utils::{self, ReadyExt},
 	warn, PduBuilder, Result,
 };
-use conduit_api::client::{leave_all_rooms, update_avatar_url, update_displayname};
+use conduwuit_api::client::{leave_all_rooms, update_avatar_url, update_displayname};
 use futures::StreamExt;
 use ruma::{
 	events::{

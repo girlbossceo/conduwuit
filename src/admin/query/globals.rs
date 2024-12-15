@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use conduit::Result;
+use conduwuit::Result;
 use ruma::{events::room::message::RoomMessageEventContent, ServerName};
 
 use crate::Command;

@@ -1,5 +1,5 @@
 [package]
-name = "conduit_core"
+name = "conduwuit_core"
 categories.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -62,7 +62,7 @@ cargo_toml.workspace = true
 checked_ops.workspace = true
 chrono.workspace = true
 clap.workspace = true
-conduit-macros.workspace = true
+conduwuit-macros.workspace = true
 const-str.workspace = true
 ctor.workspace = true
 cyborgtime.workspace = true

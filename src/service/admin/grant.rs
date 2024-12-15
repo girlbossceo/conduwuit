@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use conduit::{error, implement, Result};
+use conduwuit::{error, implement, Result};
 use ruma::{
 	events::{
 		room::{
@@ -16,9 +16,9 @@ use ruma::{
 
 use crate::pdu::PduBuilder;
 
-/// Invite the user to the conduit admin room.
+/// Invite the user to the conduwuit admin room.
 ///
-/// In conduit, this is equivalent to granting admin privileges.
+/// This is equivalent to granting server admin privileges.
 #[implement(super::Service)]
 pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 	let Ok(room_id) = self.get_admin_room().await else {

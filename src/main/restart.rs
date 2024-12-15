@@ -2,7 +2,7 @@
 
 use std::{env, os::unix::process::CommandExt, process::Command};
 
-use conduit::{debug, info, utils};
+use conduwuit::{debug, info, utils};
 
 #[cold]
 pub(super) fn restart() -> ! {

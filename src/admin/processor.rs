@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::{CommandFactory, Parser};
-use conduit::{
+use conduwuit::{
 	debug, error,
 	log::{
 		capture,

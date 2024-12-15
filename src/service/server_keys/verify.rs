@@ -1,4 +1,4 @@
-use conduit::{implement, pdu::gen_event_id_canonical_json, Err, Result};
+use conduwuit::{implement, pdu::gen_event_id_canonical_json, Err, Result};
 use ruma::{signatures::Verified, CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, RoomVersionId};
 use serde_json::value::RawValue as RawJsonValue;
 

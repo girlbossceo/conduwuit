@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{Error, Result};
+use conduwuit::{Error, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_missing_events},
 	CanonicalJsonValue, EventId, RoomId,

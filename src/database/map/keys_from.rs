@@ -1,6 +1,6 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduit::{implement, Result};
+use conduwuit::{implement, Result};
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use rocksdb::Direction;
 use serde::{Deserialize, Serialize};

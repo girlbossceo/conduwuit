@@ -1,4 +1,4 @@
-use conduit::Result;
+use conduwuit::Result;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 

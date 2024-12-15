@@ -6,7 +6,7 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use conduit::{trace, utils::rand};
+use conduwuit::{trace, utils::rand};
 use ruma::{OwnedServerName, ServerName};
 
 use super::fed::FedDest;

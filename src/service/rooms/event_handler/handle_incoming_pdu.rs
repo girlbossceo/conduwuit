@@ -4,7 +4,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{debug, err, implement, warn, Error, Result};
+use conduwuit::{debug, err, implement, warn, Error, Result};
 use futures::{FutureExt, TryFutureExt};
 use ruma::{
 	api::client::error::ErrorKind, events::StateEventType, CanonicalJsonValue, EventId, RoomId, ServerName, UserId,

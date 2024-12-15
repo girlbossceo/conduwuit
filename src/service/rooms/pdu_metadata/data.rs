@@ -1,7 +1,7 @@
 use std::{mem::size_of, sync::Arc};
 
 use arrayvec::ArrayVec;
-use conduit::{
+use conduwuit::{
 	result::LogErr,
 	utils::{
 		stream::{TryIgnore, WidebandExt},

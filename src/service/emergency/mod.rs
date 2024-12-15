@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use conduit::{error, warn, Result};
+use conduwuit::{error, warn, Result};
 use ruma::{
 	events::{push_rules::PushRulesEventContent, GlobalAccountDataEvent, GlobalAccountDataEventType},
 	push::Ruleset,
@@ -38,7 +38,7 @@ impl crate::Service for Service {
 
 		self.set_emergency_access()
 			.await
-			.inspect_err(|e| error!("Could not set the configured emergency password for the conduit user: {e}"))?;
+			.inspect_err(|e| error!("Could not set the configured emergency password for the server user: {e}"))?;
 
 		Ok(())
 	}
@@ -47,17 +47,17 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	/// Sets the emergency password and push rules for the @conduit account in
-	/// case emergency password is set
+	/// Sets the emergency password and push rules for the server user account
+	/// in case emergency password is set
 	async fn set_emergency_access(&self) -> Result<bool> {
-		let conduit_user = &self.services.globals.server_user;
+		let server_user = &self.services.globals.server_user;
 
 		self.services
 			.users
-			.set_password(conduit_user, self.services.globals.emergency_password().as_deref())?;
+			.set_password(server_user, self.services.globals.emergency_password().as_deref())?;
 
 		let (ruleset, pwd_set) = match self.services.globals.emergency_password() {
-			Some(_) => (Ruleset::server_default(conduit_user), true),
+			Some(_) => (Ruleset::server_default(server_user), true),
 			None => (Ruleset::new(), false),
 		};
 
@@ -65,7 +65,7 @@ impl Service {
 			.account_data
 			.update(
 				None,
-				conduit_user,
+				server_user,
 				GlobalAccountDataEventType::PushRules.to_string().into(),
 				&serde_json::to_value(&GlobalAccountDataEvent {
 					content: PushRulesEventContent {
@@ -83,7 +83,7 @@ impl Service {
 			);
 		} else {
 			// logs out any users still in the server service account and removes sessions
-			self.services.users.deactivate_account(conduit_user).await?;
+			self.services.users.deactivate_account(server_user).await?;
 		}
 
 		Ok(pwd_set)

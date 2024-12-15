@@ -2,7 +2,7 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduit::{debug, err, warn, PduCount, PduId, RawPduId, Result};
+use conduwuit::{debug, err, warn, PduCount, PduId, RawPduId, Result};
 use futures::{try_join, Stream, TryFutureExt};
 use ruma::{
 	events::{

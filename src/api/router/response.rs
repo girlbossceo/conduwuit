@@ -1,6 +1,6 @@
 use axum::response::{IntoResponse, Response};
 use bytes::BytesMut;
-use conduit::{error, Error};
+use conduwuit::{error, Error};
 use http::StatusCode;
 use http_body_util::Full;
 use ruma::api::{client::uiaa::UiaaResponse, OutgoingResponse};

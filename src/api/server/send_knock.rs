@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{err, pdu::gen_event_id_canonical_json, warn, Err, Error, PduEvent, Result};
+use conduwuit::{err, pdu::gen_event_id_canonical_json, warn, Err, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::knock::send_knock},
 	events::{

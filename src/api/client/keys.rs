@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::extract::State;
-use conduit::{err, utils, Error, Result};
+use conduwuit::{err, utils, Error, Result};
 use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{

@@ -6,7 +6,7 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use conduit::{
+use conduwuit::{
 	at, checked, debug, err, expected, utils,
 	utils::{bytes, math::usize_from_f64, stream::IterStream},
 	Result,

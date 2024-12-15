@@ -1,4 +1,4 @@
-#![cfg(conduit_mods)]
+#![cfg(conduwuit_mods)]
 
 pub(crate) use libloading::os::unix::{Library, Symbol};
 

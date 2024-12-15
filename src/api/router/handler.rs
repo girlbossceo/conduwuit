@@ -4,7 +4,7 @@ use axum::{
 	routing::{on, MethodFilter},
 	Router,
 };
-use conduit::Result;
+use conduwuit::Result;
 use futures::{Future, TryFutureExt};
 use http::Method;
 use ruma::api::IncomingRequest;

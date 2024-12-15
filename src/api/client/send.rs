@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduit::{err, Err};
+use conduwuit::{err, Err};
 use ruma::{api::client::message::send_message_event, events::MessageLikeEventType};
 use serde_json::from_str;
 

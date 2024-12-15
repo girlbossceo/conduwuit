@@ -1,5 +1,5 @@
 use clap::Parser;
-use conduit::Result;
+use conduwuit::Result;
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "conduwuit", version = conduit::version())]
+#[command(name = "conduwuit", version = conduwuit::version())]
 pub(super) enum AdminCommand {
 	#[command(subcommand)]
 	/// - Commands for managing appservices

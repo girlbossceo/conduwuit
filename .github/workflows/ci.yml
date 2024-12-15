@@ -377,10 +377,9 @@ jobs:
 
                   mkdir -v -p target/release/
                   mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
-                  cp -v -f result/bin/conduit target/release/conduwuit
-                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
-                  # -p conduit is the main crate name
-                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}.deb
+                  cp -v -f result/bin/conduwuit target/release/conduwuit
+                  cp -v -f result/bin/conduwuit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
+                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduwuit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}.deb
                   mv -v target/release/conduwuit static-${{ matrix.target }}
                   mv -v target/release/${{ matrix.target }}.deb ${{ matrix.target }}.deb
 
@@ -394,10 +393,9 @@ jobs:
 
                   mkdir -v -p target/release/
                   mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
-                  cp -v -f result/bin/conduit target/release/conduwuit
-                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
-                  # -p conduit is the main crate name
-                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/x86_64-linux-musl-x86_64-haswell-optimised.deb
+                  cp -v -f result/bin/conduwuit target/release/conduwuit
+                  cp -v -f result/bin/conduwuit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
+                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduwuit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/x86_64-linux-musl-x86_64-haswell-optimised.deb
                   mv -v target/release/conduwuit static-x86_64-linux-musl-x86_64-haswell-optimised
                   mv -v target/release/x86_64-linux-musl-x86_64-haswell-optimised.deb x86_64-linux-musl-x86_64-haswell-optimised.deb
 
@@ -406,10 +404,10 @@ jobs:
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   # GH actions default runners are x86_64 only
-                  if file result/bin/conduit | grep x86-64; then
-                    result/bin/conduit --version
-                    result/bin/conduit --help
-                    result/bin/conduit -Oserver_name="'$(date -u +%s).local'" -Odatabase_path="'/tmp/$(date -u +%s)'" --execute "server admin-notice awawawawawawawawawawa" --execute "server memory-usage" --execute "server shutdown"
+                  if file result/bin/conduwuit | grep x86-64; then
+                    result/bin/conduwuit --version
+                    result/bin/conduwuit --help
+                    result/bin/conduwuit -Oserver_name="'$(date -u +%s).local'" -Odatabase_path="'/tmp/$(date -u +%s)'" --execute "server admin-notice awawawawawawawawawawa" --execute "server memory-usage" --execute "server shutdown"
                   fi
 
             - name: Build static debug ${{ matrix.target }}-all-features
@@ -430,10 +428,9 @@ jobs:
                   # so we need to coerce cargo-deb into thinking this is a release binary
                   mkdir -v -p target/release/
                   mkdir -v -p target/$CARGO_DEB_TARGET_TUPLE/release/
-                  cp -v -f result/bin/conduit target/release/conduwuit
-                  cp -v -f result/bin/conduit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
-                  # -p conduit is the main crate name
-                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}-debug.deb
+                  cp -v -f result/bin/conduwuit target/release/conduwuit
+                  cp -v -f result/bin/conduwuit target/$CARGO_DEB_TARGET_TUPLE/release/conduwuit
+                  direnv exec . cargo deb --verbose --no-build --no-strip -p conduwuit --target=$CARGO_DEB_TARGET_TUPLE --output target/release/${{ matrix.target }}-debug.deb
                   mv -v target/release/conduwuit static-${{ matrix.target }}-debug
                   mv -v target/release/${{ matrix.target }}-debug.deb ${{ matrix.target }}-debug.deb
 
@@ -441,8 +438,8 @@ jobs:
             - name: Run x86_64 static debug binary
               run: |
                   # GH actions default runners are x86_64 only
-                  if file result/bin/conduit | grep x86-64; then
-                    result/bin/conduit --version
+                  if file result/bin/conduwuit | grep x86-64; then
+                    result/bin/conduwuit --version
                   fi
 
             # check validity of produced deb package, invalid debs will error on these commands
@@ -654,7 +651,7 @@ jobs:
               if: ${{ matrix.os == 'macos-13' }}
               run: |
                   CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release
-                  cp -v -f target/release/conduit conduwuit-macos-x86_64
+                  cp -v -f target/release/conduwuit conduwuit-macos-x86_64
                   otool -L conduwuit-macos-x86_64
 
             # quick smoke test of the x86_64 macOS binary
@@ -667,7 +664,7 @@ jobs:
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
                   CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release
-                  cp -v -f target/release/conduit conduwuit-macos-arm64
+                  cp -v -f target/release/conduwuit conduwuit-macos-arm64
                   otool -L conduwuit-macos-arm64
 
             # quick smoke test of the arm64 macOS binary

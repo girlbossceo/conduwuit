@@ -1,4 +1,4 @@
-use conduit::Err;
+use conduwuit::Err;
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{admin_command, admin_command_dispatch, Result};

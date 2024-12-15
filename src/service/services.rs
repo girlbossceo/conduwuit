@@ -5,7 +5,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use conduit::{debug, debug_info, info, trace, Result, Server};
+use conduwuit::{debug, debug_info, info, trace, Result, Server};
 use database::Database;
 use tokio::sync::Mutex;
 

@@ -4,8 +4,8 @@ use axum::{
 	extract::State,
 	response::{IntoResponse, Response},
 };
-use conduit::{debug, debug_error, debug_warn, defer, err, error, trace, Result};
-use conduit_service::Services;
+use conduwuit::{debug, debug_error, debug_warn, defer, err, error, trace, Result};
+use conduwuit_service::Services;
 use http::{Method, StatusCode, Uri};
 
 #[tracing::instrument(

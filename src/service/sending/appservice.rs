@@ -1,7 +1,7 @@
 use std::{fmt::Debug, mem};
 
 use bytes::BytesMut;
-use conduit::{debug_error, err, trace, utils, warn, Err, Result};
+use conduwuit::{debug_error, err, trace, utils, warn, Err, Result};
 use reqwest::Client;
 use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
 

@@ -27,7 +27,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::Result;
+use conduwuit::Result;
 use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, ReadTier, WriteOptions};
 
 use crate::{watchers::Watchers, Engine};

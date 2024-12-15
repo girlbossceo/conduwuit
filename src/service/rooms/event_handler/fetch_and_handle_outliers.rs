@@ -4,7 +4,7 @@ use std::{
 	time::Instant,
 };
 
-use conduit::{
+use conduwuit::{
 	debug, debug_error, implement, info, pdu, trace, utils::math::continue_exponential_backoff_secs, warn, PduEvent,
 };
 use futures::TryFutureExt;

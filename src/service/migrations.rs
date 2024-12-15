@@ -1,6 +1,6 @@
 use std::cmp;
 
-use conduit::{
+use conduwuit::{
 	debug, debug_info, debug_warn, error, info,
 	result::NotFound,
 	utils::{
@@ -41,9 +41,9 @@ pub(crate) async fn migrations(services: &Services) -> Result<()> {
 	// Matrix resource ownership is based on the server name; changing it
 	// requires recreating the database from scratch.
 	if users_count > 0 {
-		let conduit_user = &services.globals.server_user;
-		if !services.users.exists(conduit_user).await {
-			error!("The {conduit_user} server user does not exist, and the database is not new.");
+		let server_user = &services.globals.server_user;
+		if !services.users.exists(server_user).await {
+			error!("The {server_user} server user does not exist, and the database is not new.");
 			return Err!(Database(
 				"Cannot reuse an existing database after changing the server name, please delete the old one first.",
 			));

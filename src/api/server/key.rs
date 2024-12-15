@@ -4,7 +4,7 @@ use std::{
 };
 
 use axum::{extract::State, response::IntoResponse, Json};
-use conduit::{utils::timepoint_from_now, Result};
+use conduwuit::{utils::timepoint_from_now, Result};
 use ruma::{
 	api::{
 		federation::discovery::{get_server_keys, OldVerifyKey, ServerSigningKeys},

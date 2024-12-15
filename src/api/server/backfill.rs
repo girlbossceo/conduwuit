@@ -1,7 +1,7 @@
 use std::cmp;
 
 use axum::extract::State;
-use conduit::{
+use conduwuit::{
 	utils::{IterStream, ReadyExt},
 	PduCount, Result,
 };

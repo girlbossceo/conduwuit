@@ -1,7 +1,7 @@
-#![cfg(conduit_mods)]
+#![cfg(conduwuit_mods)]
 
 #[unsafe(no_link)]
-extern crate conduit_service;
+extern crate conduwuit_service;
 
 use std::{
 	future::Future,
@@ -9,13 +9,13 @@ use std::{
 	sync::{atomic::Ordering, Arc},
 };
 
-use conduit::{debug, error, mods, Error, Result};
-use conduit_service::Services;
+use conduwuit::{debug, error, mods, Error, Result};
+use conduwuit_service::Services;
 
 use crate::Server;
 
 type StartFuncResult = Pin<Box<dyn Future<Output = Result<Arc<Services>>> + Send>>;
-type StartFuncProto = fn(&Arc<conduit::Server>) -> StartFuncResult;
+type StartFuncProto = fn(&Arc<conduwuit::Server>) -> StartFuncResult;
 
 type RunFuncResult = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 type RunFuncProto = fn(&Arc<Services>) -> RunFuncResult;
@@ -23,19 +23,19 @@ type RunFuncProto = fn(&Arc<Services>) -> RunFuncResult;
 type StopFuncResult = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 type StopFuncProto = fn(Arc<Services>) -> StopFuncResult;
 
-const RESTART_THRESH: &str = "conduit_service";
+const RESTART_THRESH: &str = "conduwuit_service";
 const MODULE_NAMES: &[&str] = &[
-	//"conduit_core",
-	"conduit_database",
-	"conduit_service",
-	"conduit_api",
-	"conduit_admin",
-	"conduit_router",
+	//"conduwuit_core",
+	"conduwuit_database",
+	"conduwuit_service",
+	"conduwuit_api",
+	"conduwuit_admin",
+	"conduwuit_router",
 ];
 
 #[cfg(panic_trap)]
-conduit::mod_init! {{
-	conduit::debug::set_panic_trap();
+conduwuit::mod_init! {{
+	conduwuit::debug::set_panic_trap();
 }}
 
 pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, bool), Error> {

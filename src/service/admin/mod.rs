@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduit::{debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server};
+use conduwuit::{debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server};
 pub use create::create_admin_room;
 use futures::{FutureExt, TryFutureExt};
 use loole::{Receiver, Sender};

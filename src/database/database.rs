@@ -1,6 +1,6 @@
 use std::{ops::Index, sync::Arc};
 
-use conduit::{err, Result, Server};
+use conduwuit::{err, Result, Server};
 
 use crate::{
 	maps,

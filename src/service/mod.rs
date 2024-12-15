@@ -25,14 +25,14 @@ pub mod uiaa;
 pub mod updates;
 pub mod users;
 
-extern crate conduit_core as conduit;
-extern crate conduit_database as database;
+extern crate conduwuit_core as conduwuit;
+extern crate conduwuit_database as database;
 
-pub use conduit::{pdu, PduBuilder, PduCount, PduEvent};
+pub use conduwuit::{pdu, PduBuilder, PduCount, PduEvent};
 pub(crate) use service::{Args, Dep, Service};
 
 pub use crate::services::Services;
 
-conduit::mod_ctor! {}
-conduit::mod_dtor! {}
-conduit::rustc_flags_capture! {}
+conduwuit::mod_ctor! {}
+conduwuit::mod_dtor! {}
+conduwuit::rustc_flags_capture! {}

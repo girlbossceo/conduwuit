@@ -6,7 +6,7 @@ mod tests;
 
 use std::{fmt::Write, sync::Arc};
 
-use conduit::{Result, Server};
+use conduwuit::{Result, Server};
 
 use self::{cache::Cache, dns::Resolver};
 use crate::{client, Dep};

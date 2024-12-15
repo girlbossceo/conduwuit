@@ -26,7 +26,7 @@ allows easy cross-compilation.
 You can run the `nix build -L .#static-x86_64-linux-musl-all-features` or
 `nix build -L .#static-aarch64-linux-musl-all-features` commands based
 on architecture to cross-compile the necessary static binary located at
-`result/bin/conduit`. This is reproducible with the static binaries produced in our CI.
+`result/bin/conduwuit`. This is reproducible with the static binaries produced in our CI.
 
 Otherwise, follow standard Rust project build guides (installing git and cloning
 the repo, getting the Rust toolchain via rustup, installing LLVM toolchain +
@@ -37,6 +37,12 @@ libclang for RocksDB, installing liburing for io_uring and RocksDB, etc).
 As mentioned in the README, there is little to no steps needed to migrate
 from Conduit. As long as you are using the RocksDB database backend, just
 replace the binary / container image / etc.
+
+**WARNING**: As of conduwuit 0.5.0, all database and backwards compatibility
+with Conduit is no longer supported. We only support migrating *from* Conduit,
+not back to Conduit like before. If you are truly finding yourself wanting to
+migrate back to Conduit, we would appreciate all your feedback and if we can
+assist with any issues or concerns.
 
 **Note**: If you are relying on Conduit's "automatic delegation" feature,
 this will **NOT** work on conduwuit and you must configure delegation manually.

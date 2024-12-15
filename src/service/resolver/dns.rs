@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use conduit::{err, Result, Server};
+use conduwuit::{err, Result, Server};
 use futures::FutureExt;
 use hickory_resolver::TokioAsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};

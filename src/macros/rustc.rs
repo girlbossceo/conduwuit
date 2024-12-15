@@ -5,7 +5,7 @@ pub(super) fn flags_capture(args: TokenStream) -> TokenStream {
 	let cargo_crate_name = std::env::var("CARGO_CRATE_NAME");
 	let crate_name = match cargo_crate_name.as_ref() {
 		Err(_) => return args,
-		Ok(crate_name) => crate_name.trim_start_matches("conduit_"),
+		Ok(crate_name) => crate_name.trim_start_matches("conduwuit_"),
 	};
 
 	let flag = std::env::args().collect::<Vec<_>>();
@@ -13,15 +13,15 @@ pub(super) fn flags_capture(args: TokenStream) -> TokenStream {
 	let ret = quote! {
 		pub static RUSTC_FLAGS: [&str; #flag_len] = [#( #flag ),*];
 
-		#[conduit_core::ctor]
+		#[conduwuit_core::ctor]
 		fn _set_rustc_flags() {
-			conduit_core::info::rustc::FLAGS.lock().expect("locked").insert(#crate_name, &RUSTC_FLAGS);
+			conduwuit_core::info::rustc::FLAGS.lock().expect("locked").insert(#crate_name, &RUSTC_FLAGS);
 		}
 
 		// static strings have to be yanked on module unload
-		#[conduit_core::dtor]
+		#[conduwuit_core::dtor]
 		fn _unset_rustc_flags() {
-			conduit_core::info::rustc::FLAGS.lock().expect("locked").remove(#crate_name);
+			conduwuit_core::info::rustc::FLAGS.lock().expect("locked").remove(#crate_name);
 		}
 	};
 

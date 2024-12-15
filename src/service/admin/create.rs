@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use conduit::{pdu::PduBuilder, Result};
+use conduwuit::{pdu::PduBuilder, Result};
 use ruma::{
 	events::room::{
 		canonical_alias::RoomCanonicalAliasEventContent,
@@ -67,7 +67,7 @@ pub async fn create_admin_room(services: &Services) -> Result<()> {
 		)
 		.await?;
 
-	// 2. Make conduit bot join
+	// 2. Make server user/bot join
 	services
 		.rooms
 		.timeline

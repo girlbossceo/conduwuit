@@ -6,7 +6,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
+use conduwuit::{
 	debug, debug_error, trace,
 	utils::{stream::ReadyExt, IterStream},
 	validated, warn, Err, Result,

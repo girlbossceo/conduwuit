@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use base64::{engine::general_purpose, Engine as _};
-use conduit::{err, utils, utils::hash::sha256, warn, Err, Error, PduEvent, Result};
+use conduwuit::{err, utils, utils::hash::sha256, warn, Err, Error, PduEvent, Result};
 use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},

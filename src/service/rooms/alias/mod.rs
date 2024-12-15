@@ -2,7 +2,7 @@ mod remote;
 
 use std::sync::Arc;
 
-use conduit::{
+use conduwuit::{
 	err,
 	utils::{stream::TryIgnore, ReadyExt},
 	Err, Error, Result,

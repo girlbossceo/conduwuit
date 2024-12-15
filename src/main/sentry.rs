@@ -5,7 +5,7 @@ use std::{
 	sync::{Arc, OnceLock},
 };
 
-use conduit::{config::Config, debug, trace};
+use conduwuit::{config::Config, debug, trace};
 use sentry::{
 	types::{
 		protocol::v7::{Context, Event},
@@ -43,7 +43,7 @@ fn options(config: &Config) -> ClientOptions {
 		traces_sample_rate: config.sentry_traces_sample_rate,
 		debug: cfg!(debug_assertions),
 		release: sentry::release_name!(),
-		user_agent: conduit::version::user_agent().into(),
+		user_agent: conduwuit::version::user_agent().into(),
 		attach_stacktrace: config.sentry_attach_stacktrace,
 		before_send: Some(Arc::new(before_send)),
 		before_breadcrumb: Some(Arc::new(before_breadcrumb)),

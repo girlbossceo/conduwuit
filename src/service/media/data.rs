@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use conduit::{
+use conduwuit::{
 	debug, debug_info, err,
 	utils::{str_from_bytes, stream::TryIgnore, string_from_bytes, ReadyExt},
 	Err, Error, Result,

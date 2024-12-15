@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 use axum::extract::State;
-use conduit::{err, info, pdu::PduBuilder, Error, Result};
+use conduwuit::{err, info, pdu::PduBuilder, Error, Result};
 use futures::StreamExt;
 use ruma::{
 	api::client::{error::ErrorKind, room::upgrade_room},

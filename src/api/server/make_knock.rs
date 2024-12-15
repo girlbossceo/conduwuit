@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::Err;
+use conduwuit::Err;
 use ruma::{
 	api::{client::error::ErrorKind, federation::knock::create_knock_event_template},
 	events::room::member::{MembershipState, RoomMemberEventContent},

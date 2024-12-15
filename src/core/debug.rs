@@ -3,7 +3,7 @@
 use std::{any::Any, panic};
 
 // Export debug proc_macros
-pub use conduit_macros::recursion_depth;
+pub use conduwuit_macros::recursion_depth;
 
 // Export all of the ancillary tools from here as well.
 pub use crate::{result::DebugInspect, utils::debug::*};

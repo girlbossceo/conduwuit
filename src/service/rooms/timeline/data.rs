@@ -4,7 +4,7 @@ use std::{
 	sync::Arc,
 };
 
-use conduit::{
+use conduwuit::{
 	at, err,
 	result::{LogErr, NotFound},
 	utils,

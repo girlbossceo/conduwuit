@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduit::{debug, Err, Result};
+use conduwuit::{debug, Err, Result};
 use futures::StreamExt;
 use rand::seq::SliceRandom;
 use ruma::{
