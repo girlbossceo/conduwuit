@@ -512,6 +512,16 @@ impl Service {
 			return Err!(Request(Forbidden("Redacting m.room.create is not safe, forbidding.")));
 		}
 
+		if redacting_event
+			.as_ref()
+			.is_ok_and(|pdu| pdu.kind == TimelineEventType::RoomServerAcl)
+		{
+			return Err!(Request(Forbidden(
+				"Redacting m.room.server_acl will result in the room being inaccessible for \
+				 everyone (empty allow key), forbidding."
+			)));
+		}
+
 		if let Ok(pl_event_content) = self
 			.room_state_get_content::<RoomPowerLevelsEventContent>(
 				room_id,
