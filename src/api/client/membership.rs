@@ -7,7 +7,7 @@ use std::{
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	debug, debug_info, debug_warn, err, error, info,
+	debug, debug_info, debug_warn, err, info,
 	pdu::{self, gen_event_id_canonical_json, PduBuilder},
 	result::FlatOk,
 	trace,
@@ -1621,7 +1621,9 @@ pub async fn leave_room(
 			.await
 		else {
 			// Fix for broken rooms
-			error!("Trying to leave a room you are not a member of.");
+			warn!(
+				"Trying to leave a room you are not a member of, marking room as left locally."
+			);
 
 			services
 				.rooms
@@ -1647,6 +1649,8 @@ pub async fn leave_room(
 				PduBuilder::state(user_id.to_string(), &RoomMemberEventContent {
 					membership: MembershipState::Leave,
 					reason,
+					join_authorized_via_users_server: None,
+					is_direct: None,
 					..event
 				}),
 				user_id,
