@@ -49,6 +49,14 @@ pub(crate) async fn set_read_marker_route(
 			.reset_notification_counts(sender_user, &body.room_id);
 	}
 
+	// ping presence
+	if services.globals.allow_local_presence() {
+		services
+			.presence
+			.ping_presence(sender_user, &ruma::presence::PresenceState::Online)
+			.await?;
+	}
+
 	if let Some(event) = &body.read_receipt {
 		let receipt_content = BTreeMap::from_iter([(
 			event.to_owned(),
@@ -115,6 +123,14 @@ pub(crate) async fn create_receipt_route(
 			.rooms
 			.user
 			.reset_notification_counts(sender_user, &body.room_id);
+	}
+
+	// ping presence
+	if services.globals.allow_local_presence() {
+		services
+			.presence
+			.ping_presence(sender_user, &ruma::presence::PresenceState::Online)
+			.await?;
 	}
 
 	match body.receipt_type {
