@@ -207,6 +207,11 @@ async fn allowed_to_send_state_event(
 	json: &Raw<AnyStateEventContent>,
 ) -> Result {
 	match event_type {
+		| StateEventType::RoomCreate => {
+			return Err!(Request(BadJson(
+				"You cannot update m.room.create after a room has been created."
+			)));
+		},
 		// Forbid m.room.encryption if encryption is disabled
 		| StateEventType::RoomEncryption =>
 			if !services.globals.allow_encryption() {
