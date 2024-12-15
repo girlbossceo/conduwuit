@@ -30,7 +30,6 @@ use ruma::{
 		TimelineEventType::{self, *},
 	},
 	serde::Raw,
-	state_res::Event,
 	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, UInt, UserId,
 };
 use service::{rooms::read_receipt::pack_receipts, Services};
@@ -39,8 +38,9 @@ use super::{load_timeline, share_encrypted_room};
 use crate::{client::ignored_filter, Ruma};
 
 const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
+
 const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
-	&[RoomMessage, RoomEncrypted, Sticker, CallInvite, PollStart, Beacon];
+	&[CallInvite, PollStart, Beacon, RoomEncrypted, RoomMessage, Sticker];
 
 /// POST `/_matrix/client/unstable/org.matrix.msc3575/sync`
 ///
@@ -49,6 +49,7 @@ pub(crate) async fn sync_events_v4_route(
 	State(services): State<crate::State>,
 	body: Ruma<sync_events::v4::Request>,
 ) -> Result<sync_events::v4::Response> {
+	debug_assert!(DEFAULT_BUMP_TYPES.is_sorted(), "DEFAULT_BUMP_TYPES is not sorted");
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.expect("user is authenticated");
 	let mut body = body.body;
@@ -595,7 +596,7 @@ pub(crate) async fn sync_events_v4_route(
 
 		for (_, pdu) in timeline_pdus {
 			let ts = MilliSecondsSinceUnixEpoch(pdu.origin_server_ts);
-			if DEFAULT_BUMP_TYPES.contains(pdu.event_type())
+			if DEFAULT_BUMP_TYPES.binary_search(&pdu.kind).is_ok()
 				&& timestamp.is_none_or(|time| time <= ts)
 			{
 				timestamp = Some(ts);

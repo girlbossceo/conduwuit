@@ -11,7 +11,7 @@ use conduwuit::{
 	err, error,
 	pdu::PduBuilder,
 	utils::{math::usize_from_f64, ReadyExt},
-	Err, Error, Event, PduEvent, Result,
+	Err, Error, PduEvent, Result,
 };
 use futures::StreamExt;
 use lru_cache::LruCache;
@@ -507,7 +507,7 @@ impl Service {
 
 		if redacting_event
 			.as_ref()
-			.is_ok_and(|event| event.event_type() == &TimelineEventType::RoomCreate)
+			.is_ok_and(|pdu| pdu.kind == TimelineEventType::RoomCreate)
 		{
 			return Err!(Request(Forbidden("Redacting m.room.create is not safe, forbidding.")));
 		}

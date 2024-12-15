@@ -1262,7 +1262,7 @@ impl Service {
 #[implement(Service)]
 #[tracing::instrument(skip_all, level = "debug")]
 async fn check_pdu_for_admin_room(&self, pdu: &PduEvent, sender: &UserId) -> Result<()> {
-	match pdu.event_type() {
+	match &pdu.kind {
 		| TimelineEventType::RoomEncryption => {
 			return Err!(Request(Forbidden(error!("Encryption not supported in admins room."))));
 		},

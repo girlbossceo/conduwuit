@@ -27,23 +27,24 @@ use crate::Ruma;
 pub(crate) type LazySet = HashSet<OwnedUserId>;
 
 /// list of safe and common non-state events to ignore if the user is ignored
-const IGNORED_MESSAGE_TYPES: &[TimelineEventType; 16] = &[
+const IGNORED_MESSAGE_TYPES: &[TimelineEventType; 17] = &[
+	Audio,
+	CallInvite,
+	Emote,
+	File,
+	Image,
+	KeyVerificationStart,
+	Location,
+	PollStart,
+	UnstablePollStart,
+	Beacon,
+	Reaction,
+	RoomEncrypted,
 	RoomMessage,
 	Sticker,
-	CallInvite,
-	CallNotify,
-	RoomEncrypted,
-	Image,
-	File,
-	Audio,
-	Voice,
 	Video,
-	UnstablePollStart,
-	PollStart,
-	KeyVerificationStart,
-	Reaction,
-	Emote,
-	Location,
+	Voice,
+	CallNotify,
 ];
 
 const LIMIT_MAX: usize = 100;
@@ -59,6 +60,7 @@ pub(crate) async fn get_message_events_route(
 	State(services): State<crate::State>,
 	body: Ruma<get_message_events::v3::Request>,
 ) -> Result<get_message_events::v3::Response> {
+	debug_assert!(IGNORED_MESSAGE_TYPES.is_sorted(), "IGNORED_MESSAGE_TYPES is not sorted");
 	let sender = body.sender();
 	let (sender_user, sender_device) = sender;
 	let room_id = &body.room_id;
@@ -193,7 +195,7 @@ pub(crate) async fn update_lazy(
 	let (_, event) = &item;
 	let (sender_user, sender_device) = sender;
 
-	/* TODO: Remove the not "element_hacks" check when these are resolved:
+	/* TODO: Remove the "element_hacks" check when these are resolved:
 	 * https://github.com/vector-im/element-android/issues/3417
 	 * https://github.com/vector-im/element-web/issues/21034
 	 */
@@ -231,19 +233,14 @@ pub(crate) async fn ignored_filter(
 		return None;
 	}
 
-	if IGNORED_MESSAGE_TYPES.iter().any(is_equal_to!(&pdu.kind))
-		&& services.users.user_is_ignored(&pdu.sender, user_id).await
-	{
-		return None;
-	}
-
-	if IGNORED_MESSAGE_TYPES.iter().any(is_equal_to!(&pdu.kind))
-		&& services
-			.server
-			.config
-			.forbidden_remote_server_names
-			.iter()
-			.any(is_equal_to!(pdu.sender().server_name()))
+	if IGNORED_MESSAGE_TYPES.binary_search(&pdu.kind).is_ok()
+		&& (services.users.user_is_ignored(&pdu.sender, user_id).await
+			|| services
+				.server
+				.config
+				.forbidden_remote_server_names
+				.iter()
+				.any(is_equal_to!(pdu.sender().server_name())))
 	{
 		return None;
 	}

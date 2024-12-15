@@ -40,7 +40,7 @@ struct CheckForUpdatesResponseEntry {
 
 const CHECK_FOR_UPDATES_URL: &str = "https://pupbrain.dev/check-for-updates/stable";
 const CHECK_FOR_UPDATES_INTERVAL: u64 = 7200; // 2 hours
-const LAST_CHECK_FOR_UPDATES_COUNT: &[u8] = b"u";
+const LAST_CHECK_FOR_UPDATES_COUNT: &[u8; 1] = b"u";
 
 #[async_trait]
 impl crate::Service for Service {
