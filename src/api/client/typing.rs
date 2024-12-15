@@ -1,7 +1,8 @@
 use axum::extract::State;
-use ruma::api::client::{error::ErrorKind, typing::create_typing_event};
+use conduwuit::Err;
+use ruma::api::client::typing::create_typing_event;
 
-use crate::{utils, Error, Result, Ruma};
+use crate::{utils, Result, Ruma};
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///
@@ -11,8 +12,11 @@ pub(crate) async fn create_typing_event_route(
 	body: Ruma<create_typing_event::v3::Request>,
 ) -> Result<create_typing_event::v3::Response> {
 	use create_typing_event::v3::Typing;
+	let sender_user = body.sender_user();
 
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	if sender_user != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(Forbidden("You cannot update typing status of other users.")));
+	}
 
 	if !services
 		.rooms
@@ -20,7 +24,7 @@ pub(crate) async fn create_typing_event_route(
 		.is_joined(sender_user, &body.room_id)
 		.await
 	{
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "You are not in this room."));
+		return Err!(Request(Forbidden("You are not in this room.")));
 	}
 
 	if let Typing::Yes(duration) = body.state {
@@ -55,6 +59,14 @@ pub(crate) async fn create_typing_event_route(
 			.rooms
 			.typing
 			.typing_remove(sender_user, &body.room_id)
+			.await?;
+	}
+
+	// ping presence
+	if services.globals.allow_local_presence() {
+		services
+			.presence
+			.ping_presence(&body.user_id, &ruma::presence::PresenceState::Online)
 			.await?;
 	}
 
