@@ -57,6 +57,7 @@ impl Resolver {
 		opts.attempts = config.dns_attempts as usize;
 		opts.try_tcp_on_error = config.dns_tcp_fallback;
 		opts.num_concurrent_reqs = 1;
+		opts.edns0 = true;
 		opts.shuffle_dns_servers = true;
 		opts.rotate = true;
 		opts.ip_strategy = match config.ip_lookup_strategy {
