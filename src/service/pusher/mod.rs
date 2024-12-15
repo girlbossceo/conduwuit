@@ -92,6 +92,36 @@ impl Service {
 					)));
 				}
 
+				// add some validation to the pusher URL
+				let pusher_kind = &data.pusher.kind;
+				if let PusherKind::Http(http) = pusher_kind {
+					let url = &http.url;
+					let url = url::Url::parse(&http.url).map_err(|e| {
+						err!(Request(InvalidParam(
+							warn!(%url, "HTTP pusher URL is not a valid URL: {e}")
+						)))
+					})?;
+
+					if ["http", "https"]
+						.iter()
+						.all(|&scheme| scheme != url.scheme().to_lowercase())
+					{
+						return Err!(Request(InvalidParam(
+							warn!(%url, "HTTP pusher URL is not a valid HTTP/HTTPS URL")
+						)));
+					}
+
+					if let Ok(ip) =
+						IPAddress::parse(url.host_str().expect("URL previously validated"))
+					{
+						if !self.services.client.valid_cidr_range(&ip) {
+							return Err!(Request(InvalidParam(
+								warn!(%url, "HTTP pusher URL is a forbidden remote address")
+							)));
+						}
+					}
+				}
+
 				let key = (sender, data.pusher.ids.pushkey.as_str());
 				self.db.senderkey_pusher.put(key, Json(pusher));
 			},
@@ -330,16 +360,42 @@ impl Service {
 		pusher: &Pusher,
 		tweaks: Vec<Tweak>,
 		event: &PduEvent,
-	) -> Result<()> {
+	) -> Result {
 		// TODO: email
 		match &pusher.kind {
 			| PusherKind::Http(http) => {
+				let url = &http.url;
+				let url = url::Url::parse(&http.url).map_err(|e| {
+					err!(Request(InvalidParam(
+						warn!(%url, "HTTP pusher URL is not a valid URL: {e}")
+					)))
+				})?;
+
+				if ["http", "https"]
+					.iter()
+					.all(|&scheme| scheme != url.scheme().to_lowercase())
+				{
+					return Err!(Request(InvalidParam(
+						warn!(%url, "HTTP pusher URL is not a valid HTTP/HTTPS URL")
+					)));
+				}
+
+				if let Ok(ip) =
+					IPAddress::parse(url.host_str().expect("URL previously validated"))
+				{
+					if !self.services.client.valid_cidr_range(&ip) {
+						return Err!(Request(InvalidParam(
+							warn!(%url, "HTTP pusher URL is a forbidden remote address")
+						)));
+					}
+				}
+
 				// TODO (timo): can pusher/devices have conflicting formats
 				let event_id_only = http.format == Some(PushFormat::EventIdOnly);
 
 				let mut device =
 					Device::new(pusher.ids.app_id.clone(), pusher.ids.pushkey.clone());
-				device.data.default_payload = http.default_payload.clone();
+				device.data.data.clone_from(&http.data);
 				device.data.format.clone_from(&http.format);
 
 				// Tweaks are only added if the format is NOT event_id_only
@@ -352,8 +408,17 @@ impl Service {
 
 				notifi.event_id = Some((*event.event_id).to_owned());
 				notifi.room_id = Some((*event.room_id).to_owned());
-				// TODO: missed calls
-				notifi.counts = NotificationCounts::new(unread, uint!(0));
+				if http
+					.data
+					.get("org.matrix.msc4076.disable_badge_count")
+					.is_none() && http.data.get("disable_badge_count").is_none()
+				{
+					notifi.counts = NotificationCounts::new(unread, uint!(0));
+				} else {
+					// counts will not be serialised if it's the default (0, 0)
+					// skip_serializing_if = "NotificationCounts::is_default"
+					notifi.counts = NotificationCounts::default();
+				}
 
 				if event_id_only {
 					self.send_request(
