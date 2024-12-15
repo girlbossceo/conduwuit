@@ -36,6 +36,8 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+permissions: {}
+
 jobs:
   docs:
     name: Documentation and GitHub Pages
@@ -61,6 +63,8 @@ jobs:
 
       - name: Sync repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup GitHub Pages
         if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && (github.event_name != 'pull_request')
@@ -109,8 +113,8 @@ jobs:
         if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
         run: |
             sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-            extra-substituters = ${{ env.ATTIC_ENDPOINT }}
-            extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+            extra-substituters = ${ATTIC_ENDPOINT}
+            extra-trusted-public-keys = ${ATTIC_PUBLIC_KEY}
             EOF
 
       - name: Prepare build environment

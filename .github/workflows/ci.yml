@@ -53,10 +53,10 @@ env:
     # complement uses libolm
     NIXPKGS_ALLOW_INSECURE: 1
     WEB_UPLOAD_SSH_USERNAME: ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
+    GH_SHA: ${{ github.sha }}
+    GH_REF_NAME: ${{ github.ref_name }}
 
-permissions:
-    packages: write
-    contents: read
+permissions: {}
 
 jobs:
     tests:
@@ -88,8 +88,8 @@ jobs:
                   ssh -q website "echo test"
 
                   echo "Creating commit rev directory on web server"
-                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/"
-                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/"
+                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/$GITHUB_SHA/"
+                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/$GITHUB_SHA/"
 
             - name: Install liburing
               run: |
@@ -106,6 +106,8 @@ jobs:
 
             - name: Sync repository
               uses: actions/checkout@v4
+              with:
+                persist-credentials: false
 
             - name: Tag comparison check
               if: ${{ startsWith(github.ref, 'refs/tags/v') && !endsWith(github.ref, '-rc') }}
@@ -113,7 +115,7 @@ jobs:
                   # Tag mismatch with latest repo tag check to prevent potential downgrades
                   LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
 
-                  if [ $LATEST_TAG != ${{ github.ref_name }} ]; then
+                  if [ ${LATEST_TAG} != ${GH_REF_NAME} ]; then
                     echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.'
                     echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.' >> $GITHUB_STEP_SUMMARY
                     exit 1
@@ -162,8 +164,8 @@ jobs:
               if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
               run: |
                   sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = ${{ env.ATTIC_ENDPOINT }}
-                  extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+                  extra-substituters = ${ATTIC_ENDPOINT}
+                  extra-trusted-public-keys = ${ATTIC_PUBLIC_KEY}
                   EOF
 
             - name: Prepare build environment
@@ -233,9 +235,11 @@ jobs:
                   diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_diff_output.log)
 
             - name: Update Job Summary
+              env:
+                GH_JOB_STATUS: ${{ job.status }}
               if: success() || failure()
               run: |
-                  if [ ${{ job.status }} == 'success' ]; then
+                  if [ ${GH_JOB_STATUS} == 'success' ]; then
                       echo '# ✅ completed suwuccessfully' >> $GITHUB_STEP_SUMMARY
                   else
                       echo '# CI failure' >> $GITHUB_STEP_SUMMARY
@@ -264,6 +268,8 @@ jobs:
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
+              with:
+                persist-credentials: false
 
             - name: Setup SSH web publish
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
@@ -332,8 +338,8 @@ jobs:
               if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
               run: |
                   sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = ${{ env.ATTIC_ENDPOINT }}
-                  extra-trusted-public-keys = ${{ env.ATTIC_PUBLIC_KEY }}
+                  extra-substituters = ${ATTIC_ENDPOINT}
+                  extra-trusted-public-keys = ${ATTIC_PUBLIC_KEY}
                   EOF
 
             - name: Prepare build environment
@@ -476,28 +482,28 @@ jobs:
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp static-x86_64-linux-musl-x86_64-haswell-optimised website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/static-x86_64-linux-musl-x86_64-haswell-optimised
+                    scp static-x86_64-linux-musl-x86_64-haswell-optimised website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-x86_64-linux-musl-x86_64-haswell-optimised
                   fi
 
             - name: Upload static-${{ matrix.target }}-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp static-${{ matrix.target }} website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/static-${{ matrix.target }}
+                    scp static-${{ matrix.target }} website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-${{ matrix.target }}
                   fi
 
             - name: Upload static deb x86_64-linux-musl-all-features-x86_64-haswell-optimised to webserver
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp x86_64-linux-musl-x86_64-haswell-optimised.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/x86_64-linux-musl-x86_64-haswell-optimised.deb
+                    scp x86_64-linux-musl-x86_64-haswell-optimised.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/x86_64-linux-musl-x86_64-haswell-optimised.deb
                   fi
 
             - name: Upload static deb ${{ matrix.target }}-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp ${{ matrix.target }}.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/${{ matrix.target }}.deb
+                    scp ${{ matrix.target }}.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/${{ matrix.target }}.deb
                   fi
 
             - name: Upload static-${{ matrix.target }}-debug-all-features to GitHub
@@ -519,14 +525,14 @@ jobs:
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp static-${{ matrix.target }}-debug website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/static-${{ matrix.target }}-debug
+                    scp static-${{ matrix.target }}-debug website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-${{ matrix.target }}-debug
                   fi
 
             - name: Upload static deb ${{ matrix.target }}-debug-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp ${{ matrix.target }}-debug.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/${{ matrix.target }}-debug.deb
+                    scp ${{ matrix.target }}-debug.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/${{ matrix.target }}-debug.deb
                   fi
 
             - name: Build OCI image ${{ matrix.target }}-all-features
@@ -568,21 +574,21 @@ jobs:
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
+                    scp oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
                   fi
 
             - name: Upload OCI image ${{ matrix.target }}-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp oci-image-${{ matrix.target }}.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/oci-image-${{ matrix.target }}.tar.gz
+                    scp oci-image-${{ matrix.target }}.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-${{ matrix.target }}.tar.gz
                   fi
 
             - name: Upload OCI image ${{ matrix.target }}-debug-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp oci-image-${{ matrix.target }}-debug.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/oci-image-${{ matrix.target }}-debug.tar.gz
+                    scp oci-image-${{ matrix.target }}-debug.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-${{ matrix.target }}-debug.tar.gz
                   fi
 
     build_mac_binaries:
@@ -594,6 +600,8 @@ jobs:
         steps:
             - name: Sync repository
               uses: actions/checkout@v4
+              with:
+                persist-credentials: false
 
             - name: Setup SSH web publish
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
@@ -624,7 +632,8 @@ jobs:
               run: |
                   # Tag mismatch with latest repo tag check to prevent potential downgrades
                   LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-                  if [ $LATEST_TAG != ${{ github.ref_name }} ]; then
+
+                  if [ ${LATEST_TAG} != ${GH_REF_NAME} ]; then
                     echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.'
                     echo '# WARNING: Attempting to run this workflow for a tag that is not the latest repo tag. Aborting.' >> $GITHUB_STEP_SUMMARY
                     exit 1
@@ -671,14 +680,14 @@ jobs:
               if: ${{ matrix.os == 'macos-13' }}
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp conduwuit-macos-x86_64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/conduwuit-macos-x86_64
+                    scp conduwuit-macos-x86_64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/conduwuit-macos-x86_64
                   fi
 
             - name: Upload macOS arm64 binary to webserver
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
                   if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
-                    scp conduwuit-macos-arm64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${{ github.sha }}/conduwuit-macos-arm64
+                    scp conduwuit-macos-arm64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/conduwuit-macos-arm64
                   fi
 
             - name: Upload macOS x86_64 binary
@@ -701,6 +710,9 @@ jobs:
         name: Docker publish
         runs-on: ubuntu-24.04
         needs: build
+        permissions:
+          packages: write
+          contents: read
         if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && github.event.pull_request.user.login != 'renovate[bot]'
         env:
             DOCKER_ARM64: docker.io/${{ github.repository }}:${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}-arm64v8
@@ -756,92 +768,92 @@ jobs:
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker load -i oci-image-amd64.tar.gz
-                  docker tag $(docker images -q conduit:main) ${{ env.DOCKER_AMD64 }}
-                  docker tag $(docker images -q conduit:main) ${{ env.GHCR_AMD64 }}
-                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_AMD64 }}
-                  docker push ${{ env.DOCKER_AMD64 }}
-                  docker push ${{ env.GHCR_AMD64 }}
-                  docker push ${{ env.GLCR_AMD64 }}
+                  docker tag $(docker images -q conduwuit:main) ${DOCKER_AMD64}
+                  docker tag $(docker images -q conduwuit:main) ${GHCR_AMD64}
+                  docker tag $(docker images -q conduwuit:main) ${GLCR_AMD64}
+                  docker push ${DOCKER_AMD64}
+                  docker push ${GHCR_AMD64}
+                  docker push ${GLCR_AMD64}
 
             - name: Load and push arm64 image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker load -i oci-image-arm64v8.tar.gz
-                  docker tag $(docker images -q conduit:main) ${{ env.DOCKER_ARM64 }}
-                  docker tag $(docker images -q conduit:main) ${{ env.GHCR_ARM64 }}
-                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_ARM64 }}
-                  docker push ${{ env.DOCKER_ARM64 }}
-                  docker push ${{ env.GHCR_ARM64 }}
-                  docker push ${{ env.GLCR_ARM64 }}
+                  docker tag $(docker images -q conduwuit:main) ${DOCKER_ARM64}
+                  docker tag $(docker images -q conduwuit:main) ${GHCR_ARM64}
+                  docker tag $(docker images -q conduwuit:main) ${GLCR_ARM64}
+                  docker push ${DOCKER_ARM64}
+                  docker push ${GHCR_ARM64}
+                  docker push ${GLCR_ARM64}
 
             - name: Load and push amd64 debug image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker load -i oci-image-amd64-debug.tar.gz
-                  docker tag $(docker images -q conduit:main) ${{ env.DOCKER_AMD64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GHCR_AMD64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_AMD64 }}-debug
-                  docker push ${{ env.DOCKER_AMD64 }}-debug
-                  docker push ${{ env.GHCR_AMD64 }}-debug
-                  docker push ${{ env.GLCR_AMD64 }}-debug
+                  docker tag $(docker images -q conduwuit:main) ${DOCKER_AMD64}-debug
+                  docker tag $(docker images -q conduwuit:main) ${GHCR_AMD64}-debug
+                  docker tag $(docker images -q conduwuit:main) ${GLCR_AMD64}-debug
+                  docker push ${DOCKER_AMD64}-debug
+                  docker push ${GHCR_AMD64}-debug
+                  docker push ${GLCR_AMD64}-debug
 
             - name: Load and push arm64 debug image
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
                   docker load -i oci-image-arm64v8-debug.tar.gz
-                  docker tag $(docker images -q conduit:main) ${{ env.DOCKER_ARM64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GHCR_ARM64 }}-debug
-                  docker tag $(docker images -q conduit:main) ${{ env.GLCR_ARM64 }}-debug
-                  docker push ${{ env.DOCKER_ARM64 }}-debug
-                  docker push ${{ env.GHCR_ARM64 }}-debug
-                  docker push ${{ env.GLCR_ARM64 }}-debug
+                  docker tag $(docker images -q conduwuit:main) ${DOCKER_ARM64}-debug
+                  docker tag $(docker images -q conduwuit:main) ${GHCR_ARM64}-debug
+                  docker tag $(docker images -q conduwuit:main) ${GLCR_ARM64}-debug
+                  docker push ${DOCKER_ARM64}-debug
+                  docker push ${GHCR_ARM64}-debug
+                  docker push ${GLCR_ARM64}-debug
 
             - name: Create Docker combined manifests
               run: |
                   # Dockerhub Container Registry
-                  docker manifest create ${{ env.DOCKER_TAG }} --amend ${{ env.DOCKER_ARM64 }} --amend ${{ env.DOCKER_AMD64 }}
-                  docker manifest create ${{ env.DOCKER_BRANCH }} --amend ${{ env.DOCKER_ARM64 }} --amend ${{ env.DOCKER_AMD64 }}
+                  docker manifest create ${DOCKER_TAG} --amend ${DOCKER_ARM64} --amend ${DOCKER_AMD64}
+                  docker manifest create ${DOCKER_BRANCH} --amend ${DOCKER_ARM64} --amend ${DOCKER_AMD64}
                   # GitHub Container Registry
-                  docker manifest create ${{ env.GHCR_TAG }} --amend ${{ env.GHCR_ARM64 }} --amend ${{ env.GHCR_AMD64 }}
-                  docker manifest create ${{ env.GHCR_BRANCH }} --amend ${{ env.GHCR_ARM64 }} --amend ${{ env.GHCR_AMD64 }}
+                  docker manifest create ${GHCR_TAG} --amend ${GHCR_ARM64} --amend ${GHCR_AMD64}
+                  docker manifest create ${GHCR_BRANCH} --amend ${GHCR_ARM64} --amend ${GHCR_AMD64}
                   # GitLab Container Registry
-                  docker manifest create ${{ env.GLCR_TAG }} --amend ${{ env.GLCR_ARM64 }} --amend ${{ env.GLCR_AMD64 }}
-                  docker manifest create ${{ env.GLCR_BRANCH }} --amend ${{ env.GLCR_ARM64 }} --amend ${{ env.GLCR_AMD64 }}
+                  docker manifest create ${GLCR_TAG} --amend ${GLCR_ARM64} --amend ${GLCR_AMD64}
+                  docker manifest create ${GLCR_BRANCH} --amend ${GLCR_ARM64} --amend ${GLCR_AMD64}
 
             - name: Create Docker combined debug manifests
               run: |
                   # Dockerhub Container Registry
-                  docker manifest create ${{ env.DOCKER_TAG }}-debug --amend ${{ env.DOCKER_ARM64 }}-debug --amend ${{ env.DOCKER_AMD64 }}-debug
-                  docker manifest create ${{ env.DOCKER_BRANCH }}-debug --amend ${{ env.DOCKER_ARM64 }}-debug --amend ${{ env.DOCKER_AMD64 }}-debug
+                  docker manifest create ${DOCKER_TAG}-debug --amend ${DOCKER_ARM64}-debug --amend ${DOCKER_AMD64}-debug
+                  docker manifest create ${DOCKER_BRANCH}-debug --amend ${DOCKER_ARM64}-debug --amend ${DOCKER_AMD64}-debug
                   # GitHub Container Registry
-                  docker manifest create ${{ env.GHCR_TAG }}-debug --amend ${{ env.GHCR_ARM64 }}-debug --amend ${{ env.GHCR_AMD64 }}-debug
-                  docker manifest create ${{ env.GHCR_BRANCH }}-debug --amend ${{ env.GHCR_ARM64 }}-debug --amend ${{ env.GHCR_AMD64 }}-debug
+                  docker manifest create ${GHCR_TAG}-debug --amend ${GHCR_ARM64}-debug --amend ${GHCR_AMD64}-debug
+                  docker manifest create ${GHCR_BRANCH}-debug --amend ${GHCR_ARM64}-debug --amend ${GHCR_AMD64}-debug
                   # GitLab Container Registry
-                  docker manifest create ${{ env.GLCR_TAG }}-debug --amend ${{ env.GLCR_ARM64 }}-debug --amend ${{ env.GLCR_AMD64 }}-debug
-                  docker manifest create ${{ env.GLCR_BRANCH }}-debug --amend ${{ env.GLCR_ARM64 }}-debug --amend ${{ env.GLCR_AMD64 }}-debug
+                  docker manifest create ${GLCR_TAG}-debug --amend ${GLCR_ARM64}-debug --amend ${GLCR_AMD64}-debug
+                  docker manifest create ${GLCR_BRANCH}-debug --amend ${GLCR_ARM64}-debug --amend ${GLCR_AMD64}-debug
 
             - name: Push manifests to Docker registries
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
-                  docker manifest push ${{ env.DOCKER_TAG }}
-                  docker manifest push ${{ env.DOCKER_BRANCH }}
-                  docker manifest push ${{ env.GHCR_TAG }}
-                  docker manifest push ${{ env.GHCR_BRANCH }}
-                  docker manifest push ${{ env.GLCR_TAG }}
-                  docker manifest push ${{ env.GLCR_BRANCH }}
-                  docker manifest push ${{ env.DOCKER_TAG }}-debug
-                  docker manifest push ${{ env.DOCKER_BRANCH }}-debug
-                  docker manifest push ${{ env.GHCR_TAG }}-debug
-                  docker manifest push ${{ env.GHCR_BRANCH }}-debug
-                  docker manifest push ${{ env.GLCR_TAG }}-debug
-                  docker manifest push ${{ env.GLCR_BRANCH }}-debug
+                  docker manifest push ${DOCKER_TAG}
+                  docker manifest push ${DOCKER_BRANCH}
+                  docker manifest push ${GHCR_TAG}
+                  docker manifest push ${GHCR_BRANCH}
+                  docker manifest push ${GLCR_TAG}
+                  docker manifest push ${GLCR_BRANCH}
+                  docker manifest push ${DOCKER_TAG}-debug
+                  docker manifest push ${DOCKER_BRANCH}-debug
+                  docker manifest push ${GHCR_TAG}-debug
+                  docker manifest push ${GHCR_BRANCH}-debug
+                  docker manifest push ${GLCR_TAG}-debug
+                  docker manifest push ${GLCR_BRANCH}-debug
 
             - name: Add Image Links to Job Summary
               if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
               run: |
-                  echo "- \`docker pull ${{ env.DOCKER_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.GHCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.GLCR_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.DOCKER_TAG }}-debug\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.GHCR_TAG }}-debug\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${{ env.GLCR_TAG }}-debug\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${DOCKER_TAG}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${GHCR_TAG}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${GLCR_TAG}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${DOCKER_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${GHCR_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- \`docker pull ${GLCR_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
