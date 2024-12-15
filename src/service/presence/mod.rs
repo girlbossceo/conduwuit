@@ -99,13 +99,14 @@ impl Service {
 
 		let last_presence = self.db.get_presence(user_id).await;
 		let state_changed = match last_presence {
-			Err(_) => true,
-			Ok((_, ref presence)) => presence.content.presence != *new_state,
+			| Err(_) => true,
+			| Ok((_, ref presence)) => presence.content.presence != *new_state,
 		};
 
 		let last_last_active_ago = match last_presence {
-			Err(_) => 0_u64,
-			Ok((_, ref presence)) => presence.content.last_active_ago.unwrap_or_default().into(),
+			| Err(_) => 0_u64,
+			| Ok((_, ref presence)) =>
+				presence.content.last_active_ago.unwrap_or_default().into(),
 		};
 
 		if !state_changed && last_last_active_ago < REFRESH_TIMEOUT {
@@ -113,8 +114,8 @@ impl Service {
 		}
 
 		let status_msg = match last_presence {
-			Ok((_, ref presence)) => presence.content.status_msg.clone(),
-			Err(_) => Some(String::new()),
+			| Ok((_, ref presence)) => presence.content.status_msg.clone(),
+			| Err(_) => Some(String::new()),
 		};
 
 		let last_active_ago = UInt::new(0);
@@ -125,12 +126,16 @@ impl Service {
 
 	/// Adds a presence event which will be saved until a new event replaces it.
 	pub async fn set_presence(
-		&self, user_id: &UserId, state: &PresenceState, currently_active: Option<bool>, last_active_ago: Option<UInt>,
+		&self,
+		user_id: &UserId,
+		state: &PresenceState,
+		currently_active: Option<bool>,
+		last_active_ago: Option<UInt>,
 		status_msg: Option<String>,
 	) -> Result<()> {
 		let presence_state = match state.as_str() {
-			"" => &PresenceState::Offline, // default an empty string to 'offline'
-			&_ => state,
+			| "" => &PresenceState::Offline, // default an empty string to 'offline'
+			| &_ => state,
 		};
 
 		self.db
@@ -141,8 +146,8 @@ impl Service {
 			&& user_id != self.services.globals.server_user
 		{
 			let timeout = match presence_state {
-				PresenceState::Online => self.services.server.config.presence_idle_timeout_s,
-				_ => self.services.server.config.presence_offline_timeout_s,
+				| PresenceState::Online => self.services.server.config.presence_idle_timeout_s,
+				| _ => self.services.server.config.presence_offline_timeout_s,
 			};
 
 			self.timer_sender
@@ -160,16 +165,25 @@ impl Service {
 	///
 	/// TODO: Why is this not used?
 	#[allow(dead_code)]
-	pub async fn remove_presence(&self, user_id: &UserId) { self.db.remove_presence(user_id).await }
+	pub async fn remove_presence(&self, user_id: &UserId) {
+		self.db.remove_presence(user_id).await;
+	}
 
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
-	pub fn presence_since(&self, since: u64) -> impl Stream<Item = (&UserId, u64, &[u8])> + Send + '_ {
+	pub fn presence_since(
+		&self,
+		since: u64,
+	) -> impl Stream<Item = (&UserId, u64, &[u8])> + Send + '_ {
 		self.db.presence_since(since)
 	}
 
 	#[inline]
-	pub async fn from_json_bytes_to_event(&self, bytes: &[u8], user_id: &UserId) -> Result<PresenceEvent> {
+	pub async fn from_json_bytes_to_event(
+		&self,
+		bytes: &[u8],
+		user_id: &UserId,
+	) -> Result<PresenceEvent> {
 		let presence = Presence::from_json_bytes(bytes)?;
 		let event = presence
 			.to_presence_event(user_id, &self.services.users)
@@ -192,13 +206,16 @@ impl Service {
 		}
 
 		let new_state = match (&presence_state, last_active_ago.map(u64::from)) {
-			(PresenceState::Online, Some(ago)) if ago >= self.idle_timeout => Some(PresenceState::Unavailable),
-			(PresenceState::Unavailable, Some(ago)) if ago >= self.offline_timeout => Some(PresenceState::Offline),
-			_ => None,
+			| (PresenceState::Online, Some(ago)) if ago >= self.idle_timeout =>
+				Some(PresenceState::Unavailable),
+			| (PresenceState::Unavailable, Some(ago)) if ago >= self.offline_timeout =>
+				Some(PresenceState::Offline),
+			| _ => None,
 		};
 
 		debug!(
-			"Processed presence timer for user '{user_id}': Old state = {presence_state}, New state = {new_state:?}"
+			"Processed presence timer for user '{user_id}': Old state = {presence_state}, New \
+			 state = {new_state:?}"
 		);
 
 		if let Some(new_state) = new_state {

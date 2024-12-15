@@ -49,18 +49,18 @@ pub struct RoomQuery<'a> {
 
 type TokenId = ArrayVec<u8, TOKEN_ID_MAX_LEN>;
 
-const TOKEN_ID_MAX_LEN: usize = size_of::<ShortRoomId>() + WORD_MAX_LEN + 1 + size_of::<RawPduId>();
+const TOKEN_ID_MAX_LEN: usize =
+	size_of::<ShortRoomId>() + WORD_MAX_LEN + 1 + size_of::<RawPduId>();
 const WORD_MAX_LEN: usize = 50;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			db: Data {
-				tokenids: args.db["tokenids"].clone(),
-			},
+			db: Data { tokenids: args.db["tokenids"].clone() },
 			services: Services {
 				short: args.depend::<rooms::short::Service>("rooms::short"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 			},
 		}))
@@ -103,7 +103,8 @@ pub fn deindex_pdu(&self, shortroomid: ShortRoomId, pdu_id: &RawPduId, message_b
 
 #[implement(Service)]
 pub async fn search_pdus<'a>(
-	&'a self, query: &'a RoomQuery<'a>,
+	&'a self,
+	query: &'a RoomQuery<'a>,
 ) -> Result<(usize, impl Stream<Item = PduEvent> + Send + 'a)> {
 	let pdu_ids: Vec<_> = self.search_pdu_ids(query).await?.collect().await;
 
@@ -136,7 +137,10 @@ pub async fn search_pdus<'a>(
 // result is modeled as a stream such that callers don't have to be refactored
 // though an additional async/wrap still exists for now
 #[implement(Service)]
-pub async fn search_pdu_ids(&self, query: &RoomQuery<'_>) -> Result<impl Stream<Item = RawPduId> + Send + '_> {
+pub async fn search_pdu_ids(
+	&self,
+	query: &RoomQuery<'_>,
+) -> Result<impl Stream<Item = RawPduId> + Send + '_> {
 	let shortroomid = self.services.short.get_shortroomid(query.room_id).await?;
 
 	let pdu_ids = self.search_pdu_ids_query_room(query, shortroomid).await;
@@ -147,7 +151,11 @@ pub async fn search_pdu_ids(&self, query: &RoomQuery<'_>) -> Result<impl Stream<
 }
 
 #[implement(Service)]
-async fn search_pdu_ids_query_room(&self, query: &RoomQuery<'_>, shortroomid: ShortRoomId) -> Vec<Vec<RawPduId>> {
+async fn search_pdu_ids_query_room(
+	&self,
+	query: &RoomQuery<'_>,
+	shortroomid: ShortRoomId,
+) -> Vec<Vec<RawPduId>> {
 	tokenize(&query.criteria.search_term)
 		.stream()
 		.wide_then(|word| async move {
@@ -162,7 +170,9 @@ async fn search_pdu_ids_query_room(&self, query: &RoomQuery<'_>, shortroomid: Sh
 /// Iterate over PduId's containing a word
 #[implement(Service)]
 fn search_pdu_ids_query_words<'a>(
-	&'a self, shortroomid: ShortRoomId, word: &'a str,
+	&'a self,
+	shortroomid: ShortRoomId,
+	word: &'a str,
 ) -> impl Stream<Item = RawPduId> + Send + '_ {
 	self.search_pdu_ids_query_word(shortroomid, word)
 		.map(move |key| -> RawPduId {
@@ -173,7 +183,11 @@ fn search_pdu_ids_query_words<'a>(
 
 /// Iterate over raw database results for a word
 #[implement(Service)]
-fn search_pdu_ids_query_word(&self, shortroomid: ShortRoomId, word: &str) -> impl Stream<Item = Val<'_>> + Send + '_ {
+fn search_pdu_ids_query_word(
+	&self,
+	shortroomid: ShortRoomId,
+	word: &str,
+) -> impl Stream<Item = Val<'_>> + Send + '_ {
 	// rustc says const'ing this not yet stable
 	let end_id: RawPduId = PduId {
 		shortroomid,

@@ -23,13 +23,14 @@ pub(crate) enum PresenceCommand {
 }
 
 /// All the getters and iterators in key_value/presence.rs
-pub(super) async fn process(subcommand: PresenceCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: PresenceCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		PresenceCommand::GetPresence {
-			user_id,
-		} => {
+		| PresenceCommand::GetPresence { user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.presence.db.get_presence(&user_id).await;
 			let query_time = timer.elapsed();
@@ -38,9 +39,7 @@ pub(super) async fn process(subcommand: PresenceCommand, context: &Command<'_>) 
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		PresenceCommand::PresenceSince {
-			since,
-		} => {
+		| PresenceCommand::PresenceSince { since } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<(_, _, _)> = services
 				.presence

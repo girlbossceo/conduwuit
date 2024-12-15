@@ -7,7 +7,8 @@ use crate::{utils, Error, Result, Ruma};
 ///
 /// Sets the typing state of the sender user.
 pub(crate) async fn create_typing_event_route(
-	State(services): State<crate::State>, body: Ruma<create_typing_event::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<create_typing_event::v3::Request>,
 ) -> Result<create_typing_event::v3::Response> {
 	use create_typing_event::v3::Typing;
 

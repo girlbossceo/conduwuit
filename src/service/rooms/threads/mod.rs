@@ -11,8 +11,8 @@ use conduwuit::{
 use database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
-	api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint, CanonicalJsonValue,
-	EventId, OwnedUserId, RoomId, UserId,
+	api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint,
+	CanonicalJsonValue, EventId, OwnedUserId, RoomId, UserId,
 };
 use serde_json::json;
 
@@ -55,7 +55,9 @@ impl Service {
 			.timeline
 			.get_pdu_id(root_event_id)
 			.await
-			.map_err(|e| err!(Request(InvalidParam("Invalid event_id in thread message: {e:?}"))))?;
+			.map_err(|e| {
+				err!(Request(InvalidParam("Invalid event_id in thread message: {e:?}")))
+			})?;
 
 		let root_pdu = self
 			.services
@@ -79,8 +81,9 @@ impl Service {
 				.get("m.relations")
 				.and_then(|r| r.as_object())
 				.and_then(|r| r.get("m.thread"))
-				.and_then(|relations| serde_json::from_value::<BundledThread>(relations.clone().into()).ok())
-			{
+				.and_then(|relations| {
+					serde_json::from_value::<BundledThread>(relations.clone().into()).ok()
+				}) {
 				// Thread already existed
 				relations.count = relations.count.saturating_add(uint!(1));
 				relations.latest_event = pdu.to_message_like_event();
@@ -129,7 +132,11 @@ impl Service {
 	}
 
 	pub async fn threads_until<'a>(
-		&'a self, user_id: &'a UserId, room_id: &'a RoomId, shorteventid: PduCount, _inc: &'a IncludeThreads,
+		&'a self,
+		user_id: &'a UserId,
+		room_id: &'a RoomId,
+		shorteventid: PduCount,
+		_inc: &'a IncludeThreads,
 	) -> Result<impl Stream<Item = (PduCount, PduEvent)> + Send + 'a> {
 		let shortroomid: ShortRoomId = self.services.short.get_shortroomid(room_id).await?;
 
@@ -160,7 +167,11 @@ impl Service {
 		Ok(stream)
 	}
 
-	pub(super) fn update_participants(&self, root_id: &RawPduId, participants: &[OwnedUserId]) -> Result {
+	pub(super) fn update_participants(
+		&self,
+		root_id: &RawPduId,
+		participants: &[OwnedUserId],
+	) -> Result {
 		let users = participants
 			.iter()
 			.map(|user| user.as_bytes())

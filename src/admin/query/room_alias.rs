@@ -24,13 +24,14 @@ pub(crate) enum RoomAliasCommand {
 }
 
 /// All the getters and iterators in src/database/key_value/rooms/alias.rs
-pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: RoomAliasCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		RoomAliasCommand::ResolveLocalAlias {
-			alias,
-		} => {
+		| RoomAliasCommand::ResolveLocalAlias { alias } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.rooms.alias.resolve_local_alias(&alias).await;
 			let query_time = timer.elapsed();
@@ -39,9 +40,7 @@ pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>)
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomAliasCommand::LocalAliasesForRoom {
-			room_id,
-		} => {
+		| RoomAliasCommand::LocalAliasesForRoom { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let aliases: Vec<_> = services
 				.rooms
@@ -56,7 +55,7 @@ pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>)
 				"Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```"
 			)))
 		},
-		RoomAliasCommand::AllLocalAliases => {
+		| RoomAliasCommand::AllLocalAliases => {
 			let timer = tokio::time::Instant::now();
 			let aliases = services
 				.rooms

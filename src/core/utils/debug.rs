@@ -31,10 +31,8 @@ impl<T: fmt::Debug> fmt::Debug for TruncatedSlice<'_, T> {
 /// fn bar(foos: &[&str]);
 /// ```
 pub fn slice_truncated<T: fmt::Debug>(
-	slice: &[T], max_len: usize,
+	slice: &[T],
+	max_len: usize,
 ) -> tracing::field::DebugValue<TruncatedSlice<'_, T>> {
-	tracing::field::debug(TruncatedSlice {
-		inner: slice,
-		max_len,
-	})
+	tracing::field::debug(TruncatedSlice { inner: slice, max_len })
 }

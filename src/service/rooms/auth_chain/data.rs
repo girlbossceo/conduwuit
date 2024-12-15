@@ -19,14 +19,18 @@ impl Data {
 		let db = &args.db;
 		let config = &args.server.config;
 		let cache_size = f64::from(config.auth_chain_cache_capacity);
-		let cache_size = usize_from_f64(cache_size * config.cache_capacity_modifier).expect("valid cache size");
+		let cache_size = usize_from_f64(cache_size * config.cache_capacity_modifier)
+			.expect("valid cache size");
 		Self {
 			shorteventid_authchain: db["shorteventid_authchain"].clone(),
 			auth_chain_cache: Mutex::new(LruCache::new(cache_size)),
 		}
 	}
 
-	pub(super) async fn get_cached_eventid_authchain(&self, key: &[u64]) -> Result<Arc<[ShortEventId]>> {
+	pub(super) async fn get_cached_eventid_authchain(
+		&self,
+		key: &[u64],
+	) -> Result<Arc<[ShortEventId]>> {
 		debug_assert!(!key.is_empty(), "auth_chain key must not be empty");
 
 		// Check RAM cache

@@ -66,14 +66,14 @@ ruma_handler!(T1, T2, T3, T4);
 
 const fn method_to_filter(method: &Method) -> MethodFilter {
 	match *method {
-		Method::DELETE => MethodFilter::DELETE,
-		Method::GET => MethodFilter::GET,
-		Method::HEAD => MethodFilter::HEAD,
-		Method::OPTIONS => MethodFilter::OPTIONS,
-		Method::PATCH => MethodFilter::PATCH,
-		Method::POST => MethodFilter::POST,
-		Method::PUT => MethodFilter::PUT,
-		Method::TRACE => MethodFilter::TRACE,
-		_ => panic!("Unsupported HTTP method"),
+		| Method::DELETE => MethodFilter::DELETE,
+		| Method::GET => MethodFilter::GET,
+		| Method::HEAD => MethodFilter::HEAD,
+		| Method::OPTIONS => MethodFilter::OPTIONS,
+		| Method::PATCH => MethodFilter::PATCH,
+		| Method::POST => MethodFilter::POST,
+		| Method::PUT => MethodFilter::PUT,
+		| Method::TRACE => MethodFilter::TRACE,
+		| _ => panic!("Unsupported HTTP method"),
 	}
 }

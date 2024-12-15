@@ -42,11 +42,9 @@ pub enum ProxyConfig {
 impl ProxyConfig {
 	pub fn to_proxy(&self) -> Result<Option<Proxy>> {
 		Ok(match self.clone() {
-			Self::None => None,
-			Self::Global {
-				url,
-			} => Some(Proxy::all(url)?),
-			Self::ByDomain(proxies) => Some(Proxy::custom(move |url| {
+			| Self::None => None,
+			| Self::Global { url } => Some(Proxy::all(url)?),
+			| Self::ByDomain(proxies) => Some(Proxy::custom(move |url| {
 				// first matching proxy
 				proxies.iter().find_map(|proxy| proxy.for_url(url)).cloned()
 			})),
@@ -76,24 +74,26 @@ impl PartialProxyConfig {
 		for wc_domain in &self.include {
 			if wc_domain.matches(domain) {
 				match included_because {
-					Some(prev) if !wc_domain.more_specific_than(prev) => (),
-					_ => included_because = Some(wc_domain),
+					| Some(prev) if !wc_domain.more_specific_than(prev) => (),
+					| _ => included_because = Some(wc_domain),
 				}
 			}
 		}
 		for wc_domain in &self.exclude {
 			if wc_domain.matches(domain) {
 				match excluded_because {
-					Some(prev) if !wc_domain.more_specific_than(prev) => (),
-					_ => excluded_because = Some(wc_domain),
+					| Some(prev) if !wc_domain.more_specific_than(prev) => (),
+					| _ => excluded_because = Some(wc_domain),
 				}
 			}
 		}
 		match (included_because, excluded_because) {
-			(Some(a), Some(b)) if a.more_specific_than(b) => Some(&self.url), /* included for a more specific reason */
+			| (Some(a), Some(b)) if a.more_specific_than(b) => Some(&self.url), /* included for
+			                                                                      * a more specific
+			                                                                      * reason */
 			// than excluded
-			(Some(_), None) => Some(&self.url),
-			_ => None,
+			| (Some(_), None) => Some(&self.url),
+			| _ => None,
 		}
 	}
 }
@@ -108,19 +108,19 @@ enum WildCardedDomain {
 impl WildCardedDomain {
 	fn matches(&self, domain: &str) -> bool {
 		match self {
-			Self::WildCard => true,
-			Self::WildCarded(d) => domain.ends_with(d),
-			Self::Exact(d) => domain == d,
+			| Self::WildCard => true,
+			| Self::WildCarded(d) => domain.ends_with(d),
+			| Self::Exact(d) => domain == d,
 		}
 	}
 
 	fn more_specific_than(&self, other: &Self) -> bool {
 		match (self, other) {
-			(Self::WildCard, Self::WildCard) => false,
-			(_, Self::WildCard) => true,
-			(Self::Exact(a), Self::WildCarded(_)) => other.matches(a),
-			(Self::WildCarded(a), Self::WildCarded(b)) => a != b && a.ends_with(b),
-			_ => false,
+			| (Self::WildCard, Self::WildCard) => false,
+			| (_, Self::WildCard) => true,
+			| (Self::Exact(a), Self::WildCarded(_)) => other.matches(a),
+			| (Self::WildCarded(a), Self::WildCarded(b)) => a != b && a.ends_with(b),
+			| _ => false,
 		}
 	}
 }

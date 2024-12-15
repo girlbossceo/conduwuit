@@ -25,24 +25,21 @@ pub(crate) enum RoomDirectoryCommand {
 	},
 }
 
-pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	command: RoomDirectoryCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 	match command {
-		RoomDirectoryCommand::Publish {
-			room_id,
-		} => {
+		| RoomDirectoryCommand::Publish { room_id } => {
 			services.rooms.directory.set_public(&room_id);
 			Ok(RoomMessageEventContent::notice_plain("Room published"))
 		},
-		RoomDirectoryCommand::Unpublish {
-			room_id,
-		} => {
+		| RoomDirectoryCommand::Unpublish { room_id } => {
 			services.rooms.directory.set_not_public(&room_id);
 			Ok(RoomMessageEventContent::notice_plain("Room unpublished"))
 		},
-		RoomDirectoryCommand::List {
-			page,
-		} => {
+		| RoomDirectoryCommand::List { page } => {
 			// TODO: i know there's a way to do this with clap, but i can't seem to find it
 			let page = page.unwrap_or(1);
 			let mut rooms: Vec<_> = services
@@ -70,7 +67,9 @@ pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>
 				"Rooms (page {page}):\n```\n{}\n```",
 				rooms
 					.iter()
-					.map(|(id, members, name)| format!("{id} | Members: {members} | Name: {name}"))
+					.map(|(id, members, name)| format!(
+						"{id} | Members: {members} | Name: {name}"
+					))
 					.collect::<Vec<_>>()
 					.join("\n")
 			);

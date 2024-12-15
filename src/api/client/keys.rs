@@ -7,7 +7,10 @@ use ruma::{
 	api::{
 		client::{
 			error::ErrorKind,
-			keys::{claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures, upload_signing_keys},
+			keys::{
+				claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
+				upload_signing_keys,
+			},
 			uiaa::{AuthFlow, AuthType, UiaaInfo},
 		},
 		federation,
@@ -31,7 +34,8 @@ use crate::{
 /// - If there are no device keys yet: Adds device keys (TODO: merge with
 ///   existing keys?)
 pub(crate) async fn upload_keys_route(
-	State(services): State<crate::State>, body: Ruma<upload_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<upload_keys::v3::Request>,
 ) -> Result<upload_keys::v3::Response> {
 	let (sender_user, sender_device) = body.sender();
 
@@ -75,7 +79,8 @@ pub(crate) async fn upload_keys_route(
 /// - The master and self-signing keys contain signatures that the user is
 ///   allowed to see
 pub(crate) async fn get_keys_route(
-	State(services): State<crate::State>, body: Ruma<get_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_keys::v3::Request>,
 ) -> Result<get_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -93,7 +98,8 @@ pub(crate) async fn get_keys_route(
 ///
 /// Claims one-time keys
 pub(crate) async fn claim_keys_route(
-	State(services): State<crate::State>, body: Ruma<claim_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<claim_keys::v3::Request>,
 ) -> Result<claim_keys::v3::Response> {
 	claim_keys_helper(&services, &body.one_time_keys).await
 }
@@ -104,16 +110,15 @@ pub(crate) async fn claim_keys_route(
 ///
 /// - Requires UIAA to verify password
 pub(crate) async fn upload_signing_keys_route(
-	State(services): State<crate::State>, body: Ruma<upload_signing_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<upload_signing_keys::v3::Request>,
 ) -> Result<upload_signing_keys::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
 
 	// UIAA
 	let mut uiaainfo = UiaaInfo {
-		flows: vec![AuthFlow {
-			stages: vec![AuthType::Password],
-		}],
+		flows: vec![AuthFlow { stages: vec![AuthType::Password] }],
 		completed: Vec::new(),
 		params: Box::default(),
 		session: None,
@@ -161,7 +166,8 @@ pub(crate) async fn upload_signing_keys_route(
 ///
 /// Uploads end-to-end key signatures from the sender user.
 pub(crate) async fn upload_signatures_route(
-	State(services): State<crate::State>, body: Ruma<upload_signatures::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<upload_signatures::v3::Request>,
 ) -> Result<upload_signatures::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -174,7 +180,10 @@ pub(crate) async fn upload_signatures_route(
 				.get("signatures")
 				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Missing signatures field."))?
 				.get(sender_user.to_string())
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid user in signatures field."))?
+				.ok_or(Error::BadRequest(
+					ErrorKind::InvalidParam,
+					"Invalid user in signatures field.",
+				))?
 				.as_object()
 				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature."))?
 				.clone()
@@ -185,7 +194,10 @@ pub(crate) async fn upload_signatures_route(
 					signature
 						.1
 						.as_str()
-						.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature value."))?
+						.ok_or(Error::BadRequest(
+							ErrorKind::InvalidParam,
+							"Invalid signature value.",
+						))?
 						.to_owned(),
 				);
 
@@ -209,7 +221,8 @@ pub(crate) async fn upload_signatures_route(
 ///
 /// - TODO: left users
 pub(crate) async fn get_key_changes_route(
-	State(services): State<crate::State>, body: Ruma<get_key_changes::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_key_changes::v3::Request>,
 ) -> Result<get_key_changes::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -255,8 +268,11 @@ pub(crate) async fn get_key_changes_route(
 }
 
 pub(crate) async fn get_keys_helper<F>(
-	services: &Services, sender_user: Option<&UserId>, device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>,
-	allowed_signatures: F, include_display_names: bool,
+	services: &Services,
+	sender_user: Option<&UserId>,
+	device_keys_input: &BTreeMap<OwnedUserId, Vec<OwnedDeviceId>>,
+	allowed_signatures: F,
+	include_display_names: bool,
 ) -> Result<get_keys::v3::Response>
 where
 	F: Fn(&UserId) -> bool + Send + Sync,
@@ -289,7 +305,9 @@ where
 						.users
 						.get_device_metadata(user_id, device_id)
 						.await
-						.map_err(|_| err!(Database("all_device_keys contained nonexistent device.")))?;
+						.map_err(|_| {
+							err!(Database("all_device_keys contained nonexistent device."))
+						})?;
 
 					add_unsigned_device_display_name(&mut keys, metadata, include_display_names)
 						.map_err(|_| err!(Database("invalid device keys in database")))?;
@@ -307,7 +325,11 @@ where
 						.users
 						.get_device_metadata(user_id, device_id)
 						.await
-						.map_err(|_| err!(Request(InvalidParam("Tried to get keys for nonexistent device."))))?;
+						.map_err(|_| {
+							err!(Request(InvalidParam(
+								"Tried to get keys for nonexistent device."
+							)))
+						})?;
 
 					add_unsigned_device_display_name(&mut keys, metadata, include_display_names)
 						.map_err(|_| err!(Database("invalid device keys in database")))?;
@@ -350,9 +372,8 @@ where
 				device_keys_input_fed.insert(user_id.to_owned(), keys.clone());
 			}
 
-			let request = federation::keys::get_keys::v1::Request {
-				device_keys: device_keys_input_fed,
-			};
+			let request =
+				federation::keys::get_keys::v1::Request { device_keys: device_keys_input_fed };
 
 			let response = services
 				.sending
@@ -382,8 +403,8 @@ where
 					.users
 					.add_cross_signing_keys(
 						&user, &raw, &None, &None,
-						false, /* Dont notify. A notification would trigger another key request resulting in an
-						       * endless loop */
+						false, /* Dont notify. A notification would trigger another key request
+						       * resulting in an endless loop */
 					)
 					.await?;
 				master_keys.insert(user.clone(), raw);
@@ -406,7 +427,8 @@ where
 }
 
 fn add_unsigned_device_display_name(
-	keys: &mut Raw<ruma::encryption::DeviceKeys>, metadata: ruma::api::client::device::Device,
+	keys: &mut Raw<ruma::encryption::DeviceKeys>,
+	metadata: ruma::api::client::device::Device,
 	include_display_names: bool,
 ) -> serde_json::Result<()> {
 	if let Some(display_name) = metadata.display_name {
@@ -431,7 +453,8 @@ fn add_unsigned_device_display_name(
 }
 
 pub(crate) async fn claim_keys_helper(
-	services: &Services, one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, OneTimeKeyAlgorithm>>,
+	services: &Services,
+	one_time_keys_input: &BTreeMap<OwnedUserId, BTreeMap<OwnedDeviceId, OneTimeKeyAlgorithm>>,
 ) -> Result<claim_keys::v3::Response> {
 	let mut one_time_keys = BTreeMap::new();
 
@@ -473,12 +496,9 @@ pub(crate) async fn claim_keys_helper(
 				server,
 				services
 					.sending
-					.send_federation_request(
-						server,
-						federation::keys::claim_keys::v1::Request {
-							one_time_keys: one_time_keys_input_fed,
-						},
-					)
+					.send_federation_request(server, federation::keys::claim_keys::v1::Request {
+						one_time_keys: one_time_keys_input_fed,
+					})
 					.await,
 			)
 		})
@@ -486,17 +506,14 @@ pub(crate) async fn claim_keys_helper(
 
 	while let Some((server, response)) = futures.next().await {
 		match response {
-			Ok(keys) => {
+			| Ok(keys) => {
 				one_time_keys.extend(keys.one_time_keys);
 			},
-			Err(_e) => {
+			| Err(_e) => {
 				failures.insert(server.to_string(), json!({}));
 			},
 		}
 	}
 
-	Ok(claim_keys::v3::Response {
-		failures,
-		one_time_keys,
-	})
+	Ok(claim_keys::v3::Response { failures, one_time_keys })
 }

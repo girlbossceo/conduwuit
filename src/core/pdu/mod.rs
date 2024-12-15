@@ -15,7 +15,8 @@ mod unsigned;
 use std::{cmp::Ordering, sync::Arc};
 
 use ruma::{
-	events::TimelineEventType, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedRoomId, OwnedUserId, UInt,
+	events::TimelineEventType, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedRoomId,
+	OwnedUserId, UInt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue as RawJsonValue;

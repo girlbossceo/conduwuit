@@ -3,14 +3,18 @@ use std::{fmt::Debug, mem};
 use bytes::BytesMut;
 use conduwuit::{debug_error, err, trace, utils, warn, Err, Result};
 use reqwest::Client;
-use ruma::api::{appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken};
+use ruma::api::{
+	appservice::Registration, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
+};
 
 /// Sends a request to an appservice
 ///
 /// Only returns Ok(None) if there is no url specified in the appservice
 /// registration file
 pub(crate) async fn send_request<T>(
-	client: &Client, registration: Registration, request: T,
+	client: &Client,
+	registration: Registration,
+	request: T,
 ) -> Result<Option<T::IncomingResponse>>
 where
 	T: OutgoingRequest + Debug + Send,
@@ -25,17 +29,17 @@ where
 
 	let hs_token = registration.hs_token.as_str();
 	let mut http_request = request
-		.try_into_http_request::<BytesMut>(&dest, SendAccessToken::IfRequired(hs_token), &VERSIONS)
+		.try_into_http_request::<BytesMut>(
+			&dest,
+			SendAccessToken::IfRequired(hs_token),
+			&VERSIONS,
+		)
 		.map_err(|e| err!(BadServerResponse(warn!("Failed to find destination {dest}: {e}"))))?
 		.map(BytesMut::freeze);
 
 	let mut parts = http_request.uri().clone().into_parts();
 	let old_path_and_query = parts.path_and_query.unwrap().as_str().to_owned();
-	let symbol = if old_path_and_query.contains('?') {
-		"&"
-	} else {
-		"?"
-	};
+	let symbol = if old_path_and_query.contains('?') { "&" } else { "?" };
 
 	parts.path_and_query = Some(
 		(old_path_and_query + symbol + "access_token=" + hs_token)

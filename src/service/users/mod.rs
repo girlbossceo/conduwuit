@@ -10,10 +10,12 @@ use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
 use ruma::{
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
-	events::{ignored_user_list::IgnoredUserListEvent, AnyToDeviceEvent, GlobalAccountDataEventType},
+	events::{
+		ignored_user_list::IgnoredUserListEvent, AnyToDeviceEvent, GlobalAccountDataEventType,
+	},
 	serde::Raw,
-	DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId, OneTimeKeyName, OwnedDeviceId,
-	OwnedKeyId, OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
+	DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId,
+	OneTimeKeyName, OwnedDeviceId, OwnedKeyId, OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
 };
 use serde_json::json;
 
@@ -65,7 +67,8 @@ impl crate::Service for Service {
 				account_data: args.depend::<account_data::Service>("account_data"),
 				admin: args.depend::<admin::Service>("admin"),
 				globals: args.depend::<globals::Service>("globals"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 			},
 			db: Data {
@@ -114,7 +117,9 @@ impl Service {
 
 	/// Check if a user is an admin
 	#[inline]
-	pub async fn is_admin(&self, user_id: &UserId) -> bool { self.services.admin.user_is_admin(user_id).await }
+	pub async fn is_admin(&self, user_id: &UserId) -> bool {
+		self.services.admin.user_is_admin(user_id).await
+	}
 
 	/// Create a new user account on this homeserver.
 	#[inline]
@@ -141,7 +146,9 @@ impl Service {
 
 	/// Check if a user has an account on this homeserver.
 	#[inline]
-	pub async fn exists(&self, user_id: &UserId) -> bool { self.db.userid_password.get(user_id).await.is_ok() }
+	pub async fn exists(&self, user_id: &UserId) -> bool {
+		self.db.userid_password.get(user_id).await.is_ok()
+	}
 
 	/// Check if account is deactivated
 	pub async fn is_deactivated(&self, user_id: &UserId) -> Result<bool> {
@@ -154,7 +161,9 @@ impl Service {
 	}
 
 	/// Check if account is active, infallible
-	pub async fn is_active(&self, user_id: &UserId) -> bool { !self.is_deactivated(user_id).await.unwrap_or(true) }
+	pub async fn is_active(&self, user_id: &UserId) -> bool {
+		!self.is_deactivated(user_id).await.unwrap_or(true)
+	}
 
 	/// Check if account is active, infallible
 	pub async fn is_active_local(&self, user_id: &UserId) -> bool {
@@ -173,10 +182,14 @@ impl Service {
 	/// Returns an iterator over all users on this homeserver (offered for
 	/// compatibility)
 	#[allow(clippy::iter_without_into_iter, clippy::iter_not_returning_iterator)]
-	pub fn iter(&self) -> impl Stream<Item = OwnedUserId> + Send + '_ { self.stream().map(ToOwned::to_owned) }
+	pub fn iter(&self) -> impl Stream<Item = OwnedUserId> + Send + '_ {
+		self.stream().map(ToOwned::to_owned)
+	}
 
 	/// Returns an iterator over all users on this homeserver.
-	pub fn stream(&self) -> impl Stream<Item = &UserId> + Send { self.db.userid_password.keys().ignore_err() }
+	pub fn stream(&self) -> impl Stream<Item = &UserId> + Send {
+		self.db.userid_password.keys().ignore_err()
+	}
 
 	/// Returns a list of local users as list of usernames.
 	///
@@ -200,7 +213,9 @@ impl Service {
 		password
 			.map(utils::hash::password)
 			.transpose()
-			.map_err(|e| err!(Request(InvalidParam("Password does not meet the requirements: {e}"))))?
+			.map_err(|e| {
+				err!(Request(InvalidParam("Password does not meet the requirements: {e}")))
+			})?
 			.map_or_else(
 				|| self.db.userid_password.insert(user_id, b""),
 				|hash| self.db.userid_password.insert(user_id, hash),
@@ -254,13 +269,19 @@ impl Service {
 
 	/// Adds a new device to a user.
 	pub async fn create_device(
-		&self, user_id: &UserId, device_id: &DeviceId, token: &str, initial_device_display_name: Option<String>,
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		token: &str,
+		initial_device_display_name: Option<String>,
 		client_ip: Option<String>,
 	) -> Result<()> {
 		// This method should never be called for nonexistent users. We shouldn't assert
 		// though...
 		if !self.exists(user_id).await {
-			return Err!(Request(InvalidParam(error!("Called create_device for non-existent {user_id}"))));
+			return Err!(Request(InvalidParam(error!(
+				"Called create_device for non-existent {user_id}"
+			))));
 		}
 
 		let key = (user_id, device_id);
@@ -304,7 +325,10 @@ impl Service {
 	}
 
 	/// Returns an iterator over all device ids of this user.
-	pub fn all_device_ids<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = &DeviceId> + Send + 'a {
+	pub fn all_device_ids<'a>(
+		&'a self,
+		user_id: &'a UserId,
+	) -> impl Stream<Item = &DeviceId> + Send + 'a {
 		let prefix = (user_id, Interfix);
 		self.db
 			.userdeviceid_metadata
@@ -319,7 +343,12 @@ impl Service {
 	}
 
 	/// Replaces the access token of one device.
-	pub async fn set_token(&self, user_id: &UserId, device_id: &DeviceId, token: &str) -> Result<()> {
+	pub async fn set_token(
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		token: &str,
+	) -> Result<()> {
 		let key = (user_id, device_id);
 		// should not be None, but we shouldn't assert either lol...
 		if self.db.userdeviceid_metadata.qry(&key).await.is_err() {
@@ -344,7 +373,10 @@ impl Service {
 	}
 
 	pub async fn add_one_time_key(
-		&self, user_id: &UserId, device_id: &DeviceId, one_time_key_key: &KeyId<OneTimeKeyAlgorithm, OneTimeKeyName>,
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		one_time_key_key: &KeyId<OneTimeKeyAlgorithm, OneTimeKeyName>,
 		one_time_key_value: &Raw<OneTimeKey>,
 	) -> Result {
 		// All devices have metadata
@@ -391,7 +423,10 @@ impl Service {
 	}
 
 	pub async fn take_one_time_key(
-		&self, user_id: &UserId, device_id: &DeviceId, key_algorithm: &OneTimeKeyAlgorithm,
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		key_algorithm: &OneTimeKeyAlgorithm,
 	) -> Result<(OwnedKeyId<OneTimeKeyAlgorithm, OneTimeKeyName>, Raw<OneTimeKey>)> {
 		let count = self.services.globals.next_count()?.to_be_bytes();
 		self.db.userid_lastonetimekeyupdate.insert(user_id, count);
@@ -435,7 +470,9 @@ impl Service {
 	}
 
 	pub async fn count_one_time_keys(
-		&self, user_id: &UserId, device_id: &DeviceId,
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
 	) -> BTreeMap<OneTimeKeyAlgorithm, UInt> {
 		type KeyVal<'a> = ((Ignore, Ignore, &'a Unquoted), Ignore);
 
@@ -462,7 +499,12 @@ impl Service {
 		algorithm_counts
 	}
 
-	pub async fn add_device_keys(&self, user_id: &UserId, device_id: &DeviceId, device_keys: &Raw<DeviceKeys>) {
+	pub async fn add_device_keys(
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		device_keys: &Raw<DeviceKeys>,
+	) {
 		let key = (user_id, device_id);
 
 		self.db.keyid_key.put(key, Json(device_keys));
@@ -470,8 +512,12 @@ impl Service {
 	}
 
 	pub async fn add_cross_signing_keys(
-		&self, user_id: &UserId, master_key: &Raw<CrossSigningKey>, self_signing_key: &Option<Raw<CrossSigningKey>>,
-		user_signing_key: &Option<Raw<CrossSigningKey>>, notify: bool,
+		&self,
+		user_id: &UserId,
+		master_key: &Raw<CrossSigningKey>,
+		self_signing_key: &Option<Raw<CrossSigningKey>>,
+		user_signing_key: &Option<Raw<CrossSigningKey>>,
+		notify: bool,
 	) -> Result<()> {
 		// TODO: Check signatures
 		let mut prefix = user_id.as_bytes().to_vec();
@@ -495,9 +541,10 @@ impl Service {
 				.keys
 				.into_values();
 
-			let self_signing_key_id = self_signing_key_ids
-				.next()
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Self signing key contained no key."))?;
+			let self_signing_key_id = self_signing_key_ids.next().ok_or(Error::BadRequest(
+				ErrorKind::InvalidParam,
+				"Self signing key contained no key.",
+			))?;
 
 			if self_signing_key_ids.next().is_some() {
 				return Err(Error::BadRequest(
@@ -531,7 +578,9 @@ impl Service {
 				.ok_or(err!(Request(InvalidParam("User signing key contained no key."))))?;
 
 			if user_signing_key_ids.next().is_some() {
-				return Err!(Request(InvalidParam("User signing key contained more than one key.")));
+				return Err!(Request(InvalidParam(
+					"User signing key contained more than one key."
+				)));
 			}
 
 			let mut user_signing_key_key = prefix;
@@ -554,7 +603,11 @@ impl Service {
 	}
 
 	pub async fn sign_key(
-		&self, target_id: &UserId, key_id: &str, signature: (String, String), sender_id: &UserId,
+		&self,
+		target_id: &UserId,
+		key_id: &str,
+		signature: (String, String),
+		sender_id: &UserId,
 	) -> Result<()> {
 		let key = (target_id, key_id);
 
@@ -590,7 +643,10 @@ impl Service {
 
 	#[inline]
 	pub fn keys_changed<'a>(
-		&'a self, user_id: &'a UserId, from: u64, to: Option<u64>,
+		&'a self,
+		user_id: &'a UserId,
+		from: u64,
+		to: Option<u64>,
 	) -> impl Stream<Item = &UserId> + Send + 'a {
 		self.keys_changed_user_or_room(user_id.as_str(), from, to)
 			.map(|(user_id, ..)| user_id)
@@ -598,13 +654,19 @@ impl Service {
 
 	#[inline]
 	pub fn room_keys_changed<'a>(
-		&'a self, room_id: &'a RoomId, from: u64, to: Option<u64>,
+		&'a self,
+		room_id: &'a RoomId,
+		from: u64,
+		to: Option<u64>,
 	) -> impl Stream<Item = (&UserId, u64)> + Send + 'a {
 		self.keys_changed_user_or_room(room_id.as_str(), from, to)
 	}
 
 	fn keys_changed_user_or_room<'a>(
-		&'a self, user_or_room_id: &'a str, from: u64, to: Option<u64>,
+		&'a self,
+		user_or_room_id: &'a str,
+		from: u64,
+		to: Option<u64>,
 	) -> impl Stream<Item = (&UserId, u64)> + Send + 'a {
 		type KeyVal<'a> = ((&'a str, u64), &'a UserId);
 
@@ -614,7 +676,9 @@ impl Service {
 			.keychangeid_userid
 			.stream_from(&start)
 			.ignore_err()
-			.ready_take_while(move |((prefix, count), _): &KeyVal<'_>| *prefix == user_or_room_id && *count <= to)
+			.ready_take_while(move |((prefix, count), _): &KeyVal<'_>| {
+				*prefix == user_or_room_id && *count <= to
+			})
 			.map(|((_, count), user_id): KeyVal<'_>| (user_id, count))
 	}
 
@@ -636,13 +700,21 @@ impl Service {
 		self.db.keychangeid_userid.put_raw(key, user_id);
 	}
 
-	pub async fn get_device_keys<'a>(&'a self, user_id: &'a UserId, device_id: &DeviceId) -> Result<Raw<DeviceKeys>> {
+	pub async fn get_device_keys<'a>(
+		&'a self,
+		user_id: &'a UserId,
+		device_id: &DeviceId,
+	) -> Result<Raw<DeviceKeys>> {
 		let key_id = (user_id, device_id);
 		self.db.keyid_key.qry(&key_id).await.deserialized()
 	}
 
 	pub async fn get_key<F>(
-		&self, key_id: &[u8], sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &F,
+		&self,
+		key_id: &[u8],
+		sender_user: Option<&UserId>,
+		user_id: &UserId,
+		allowed_signatures: &F,
 	) -> Result<Raw<CrossSigningKey>>
 	where
 		F: Fn(&UserId) -> bool + Send + Sync,
@@ -655,7 +727,10 @@ impl Service {
 	}
 
 	pub async fn get_master_key<F>(
-		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &F,
+		&self,
+		sender_user: Option<&UserId>,
+		user_id: &UserId,
+		allowed_signatures: &F,
 	) -> Result<Raw<CrossSigningKey>>
 	where
 		F: Fn(&UserId) -> bool + Send + Sync,
@@ -667,7 +742,10 @@ impl Service {
 	}
 
 	pub async fn get_self_signing_key<F>(
-		&self, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &F,
+		&self,
+		sender_user: Option<&UserId>,
+		user_id: &UserId,
+		allowed_signatures: &F,
 	) -> Result<Raw<CrossSigningKey>>
 	where
 		F: Fn(&UserId) -> bool + Send + Sync,
@@ -688,7 +766,11 @@ impl Service {
 	}
 
 	pub async fn add_to_device_event(
-		&self, sender: &UserId, target_user_id: &UserId, target_device_id: &DeviceId, event_type: &str,
+		&self,
+		sender: &UserId,
+		target_user_id: &UserId,
+		target_device_id: &DeviceId,
+		event_type: &str,
 		content: serde_json::Value,
 	) {
 		let count = self.services.globals.next_count().unwrap();
@@ -705,7 +787,9 @@ impl Service {
 	}
 
 	pub fn get_to_device_events<'a>(
-		&'a self, user_id: &'a UserId, device_id: &'a DeviceId,
+		&'a self,
+		user_id: &'a UserId,
+		device_id: &'a DeviceId,
 	) -> impl Stream<Item = Raw<AnyToDeviceEvent>> + Send + 'a {
 		let prefix = (user_id, device_id, Interfix);
 		self.db
@@ -715,7 +799,12 @@ impl Service {
 			.map(|(_, val): (Ignore, Raw<AnyToDeviceEvent>)| val)
 	}
 
-	pub async fn remove_to_device_events(&self, user_id: &UserId, device_id: &DeviceId, until: u64) {
+	pub async fn remove_to_device_events(
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		until: u64,
+	) {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 		prefix.extend_from_slice(device_id.as_bytes());
@@ -742,7 +831,12 @@ impl Service {
 			.await;
 	}
 
-	pub async fn update_device_metadata(&self, user_id: &UserId, device_id: &DeviceId, device: &Device) -> Result<()> {
+	pub async fn update_device_metadata(
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+		device: &Device,
+	) -> Result<()> {
 		increment(&self.db.userid_devicelistversion, user_id.as_bytes());
 
 		let key = (user_id, device_id);
@@ -752,7 +846,11 @@ impl Service {
 	}
 
 	/// Get device metadata.
-	pub async fn get_device_metadata(&self, user_id: &UserId, device_id: &DeviceId) -> Result<Device> {
+	pub async fn get_device_metadata(
+		&self,
+		user_id: &UserId,
+		device_id: &DeviceId,
+	) -> Result<Device> {
 		self.db
 			.userdeviceid_metadata
 			.qry(&(user_id, device_id))
@@ -768,7 +866,10 @@ impl Service {
 			.deserialized()
 	}
 
-	pub fn all_devices_metadata<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = Device> + Send + 'a {
+	pub fn all_devices_metadata<'a>(
+		&'a self,
+		user_id: &'a UserId,
+	) -> impl Stream<Item = Device> + Send + 'a {
 		let key = (user_id, Interfix);
 		self.db
 			.userdeviceid_metadata
@@ -787,7 +888,11 @@ impl Service {
 		filter_id
 	}
 
-	pub async fn get_filter(&self, user_id: &UserId, filter_id: &str) -> Result<FilterDefinition> {
+	pub async fn get_filter(
+		&self,
+		user_id: &UserId,
+		filter_id: &str,
+	) -> Result<FilterDefinition> {
 		let key = (user_id, filter_id);
 		self.db.userfilterid_filter.qry(&key).await.deserialized()
 	}
@@ -817,11 +922,10 @@ impl Service {
 		};
 
 		let (expires_at_bytes, user_bytes) = value.split_at(0_u64.to_be_bytes().len());
-		let expires_at = u64::from_be_bytes(
-			expires_at_bytes
-				.try_into()
-				.map_err(|e| err!(Database("expires_at in openid_userid is invalid u64. {e}")))?,
-		);
+		let expires_at =
+			u64::from_be_bytes(expires_at_bytes.try_into().map_err(|e| {
+				err!(Database("expires_at in openid_userid is invalid u64. {e}"))
+			})?);
 
 		if expires_at < utils::millis_since_unix_epoch() {
 			debug_warn!("OpenID token is expired, removing");
@@ -833,11 +937,16 @@ impl Service {
 		let user_string = utils::string_from_bytes(user_bytes)
 			.map_err(|e| err!(Database("User ID in openid_userid is invalid unicode. {e}")))?;
 
-		UserId::parse(user_string).map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))
+		UserId::parse(user_string)
+			.map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))
 	}
 
 	/// Gets a specific user profile key
-	pub async fn profile_key(&self, user_id: &UserId, profile_key: &str) -> Result<serde_json::Value> {
+	pub async fn profile_key(
+		&self,
+		user_id: &UserId,
+		profile_key: &str,
+	) -> Result<serde_json::Value> {
 		let key = (user_id, profile_key);
 		self.db
 			.useridprofilekey_value
@@ -848,7 +957,8 @@ impl Service {
 
 	/// Gets all the user's profile keys and values in an iterator
 	pub fn all_profile_keys<'a>(
-		&'a self, user_id: &'a UserId,
+		&'a self,
+		user_id: &'a UserId,
 	) -> impl Stream<Item = (String, serde_json::Value)> + 'a + Send {
 		type KeyVal = ((Ignore, String), serde_json::Value);
 
@@ -861,7 +971,12 @@ impl Service {
 	}
 
 	/// Sets a new profile key value, removes the key if value is None
-	pub fn set_profile_key(&self, user_id: &UserId, profile_key: &str, profile_key_value: Option<serde_json::Value>) {
+	pub fn set_profile_key(
+		&self,
+		user_id: &UserId,
+		profile_key: &str,
+		profile_key_value: Option<serde_json::Value>,
+	) {
 		// TODO: insert to the stable MSC4175 key when it's stable
 		let key = (user_id, profile_key);
 
@@ -901,7 +1016,10 @@ impl Service {
 	}
 }
 
-pub fn parse_master_key(user_id: &UserId, master_key: &Raw<CrossSigningKey>) -> Result<(Vec<u8>, CrossSigningKey)> {
+pub fn parse_master_key(
+	user_id: &UserId,
+	master_key: &Raw<CrossSigningKey>,
+) -> Result<(Vec<u8>, CrossSigningKey)> {
 	let mut prefix = user_id.as_bytes().to_vec();
 	prefix.push(0xFF);
 
@@ -925,7 +1043,10 @@ pub fn parse_master_key(user_id: &UserId, master_key: &Raw<CrossSigningKey>) -> 
 
 /// Ensure that a user only sees signatures from themselves and the target user
 fn clean_signatures<F>(
-	mut cross_signing_key: serde_json::Value, sender_user: Option<&UserId>, user_id: &UserId, allowed_signatures: &F,
+	mut cross_signing_key: serde_json::Value,
+	sender_user: Option<&UserId>,
+	user_id: &UserId,
+	allowed_signatures: &F,
 ) -> Result<serde_json::Value>
 where
 	F: Fn(&UserId) -> bool + Send + Sync,
@@ -937,9 +1058,11 @@ where
 		// Don't allocate for the full size of the current signatures, but require
 		// at most one resize if nothing is dropped
 		let new_capacity = signatures.len() / 2;
-		for (user, signature) in mem::replace(signatures, serde_json::Map::with_capacity(new_capacity)) {
-			let sid =
-				<&UserId>::try_from(user.as_str()).map_err(|_| Error::bad_database("Invalid user ID in database."))?;
+		for (user, signature) in
+			mem::replace(signatures, serde_json::Map::with_capacity(new_capacity))
+		{
+			let sid = <&UserId>::try_from(user.as_str())
+				.map_err(|_| Error::bad_database("Invalid user ID in database."))?;
 			if sender_user == Some(user_id) || sid == user_id || allowed_signatures(sid) {
 				signatures.insert(user, signature);
 			}

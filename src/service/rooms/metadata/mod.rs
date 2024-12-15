@@ -58,7 +58,9 @@ pub async fn exists(&self, room_id: &RoomId) -> bool {
 }
 
 #[implement(Service)]
-pub fn iter_ids(&self) -> impl Stream<Item = &RoomId> + Send + '_ { self.db.roomid_shortroomid.keys().ignore_err() }
+pub fn iter_ids(&self) -> impl Stream<Item = &RoomId> + Send + '_ {
+	self.db.roomid_shortroomid.keys().ignore_err()
+}
 
 #[implement(Service)]
 #[inline]
@@ -81,12 +83,18 @@ pub fn ban_room(&self, room_id: &RoomId, banned: bool) {
 }
 
 #[implement(Service)]
-pub fn list_banned_rooms(&self) -> impl Stream<Item = &RoomId> + Send + '_ { self.db.bannedroomids.keys().ignore_err() }
+pub fn list_banned_rooms(&self) -> impl Stream<Item = &RoomId> + Send + '_ {
+	self.db.bannedroomids.keys().ignore_err()
+}
 
 #[implement(Service)]
 #[inline]
-pub async fn is_disabled(&self, room_id: &RoomId) -> bool { self.db.disabledroomids.get(room_id).await.is_ok() }
+pub async fn is_disabled(&self, room_id: &RoomId) -> bool {
+	self.db.disabledroomids.get(room_id).await.is_ok()
+}
 
 #[implement(Service)]
 #[inline]
-pub async fn is_banned(&self, room_id: &RoomId) -> bool { self.db.bannedroomids.get(room_id).await.is_ok() }
+pub async fn is_banned(&self, room_id: &RoomId) -> bool {
+	self.db.bannedroomids.get(room_id).await.is_ok()
+}

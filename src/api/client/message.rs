@@ -56,7 +56,8 @@ const LIMIT_DEFAULT: usize = 10;
 /// - Only works if the user is joined (TODO: always allow, but only show events
 ///   where the user was joined, depending on `history_visibility`)
 pub(crate) async fn get_message_events_route(
-	State(services): State<crate::State>, body: Ruma<get_message_events::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_message_events::v3::Request>,
 ) -> Result<get_message_events::v3::Response> {
 	let sender = body.sender();
 	let (sender_user, sender_device) = sender;
@@ -69,8 +70,8 @@ pub(crate) async fn get_message_events_route(
 		.map(str::parse)
 		.transpose()?
 		.unwrap_or_else(|| match body.dir {
-			Direction::Forward => PduCount::min(),
-			Direction::Backward => PduCount::max(),
+			| Direction::Forward => PduCount::min(),
+			| Direction::Backward => PduCount::max(),
 		});
 
 	let to: Option<PduCount> = body.to.as_deref().map(str::parse).flat_ok();
@@ -81,10 +82,12 @@ pub(crate) async fn get_message_events_route(
 		.unwrap_or(LIMIT_DEFAULT)
 		.min(LIMIT_MAX);
 
-	services
-		.rooms
-		.lazy_loading
-		.lazy_load_confirm_delivery(sender_user, sender_device, room_id, from);
+	services.rooms.lazy_loading.lazy_load_confirm_delivery(
+		sender_user,
+		sender_device,
+		room_id,
+		from,
+	);
 
 	if matches!(body.dir, Direction::Backward) {
 		services
@@ -98,14 +101,14 @@ pub(crate) async fn get_message_events_route(
 	}
 
 	let it = match body.dir {
-		Direction::Forward => services
+		| Direction::Forward => services
 			.rooms
 			.timeline
 			.pdus(Some(sender_user), room_id, Some(from))
 			.await?
 			.boxed(),
 
-		Direction::Backward => services
+		| Direction::Backward => services
 			.rooms
 			.timeline
 			.pdus_rev(Some(sender_user), room_id, Some(from))
@@ -141,10 +144,13 @@ pub(crate) async fn get_message_events_route(
 
 	if !cfg!(feature = "element_hacks") {
 		if let Some(next_token) = next_token {
-			services
-				.rooms
-				.lazy_loading
-				.lazy_load_mark_sent(sender_user, sender_device, room_id, lazy, next_token);
+			services.rooms.lazy_loading.lazy_load_mark_sent(
+				sender_user,
+				sender_device,
+				room_id,
+				lazy,
+				next_token,
+			);
 		}
 	}
 
@@ -162,7 +168,11 @@ pub(crate) async fn get_message_events_route(
 	})
 }
 
-async fn get_member_event(services: &Services, room_id: &RoomId, user_id: &UserId) -> Option<Raw<AnyStateEvent>> {
+async fn get_member_event(
+	services: &Services,
+	room_id: &RoomId,
+	user_id: &UserId,
+) -> Option<Raw<AnyStateEvent>> {
 	services
 		.rooms
 		.state_accessor
@@ -173,7 +183,11 @@ async fn get_member_event(services: &Services, room_id: &RoomId, user_id: &UserI
 }
 
 pub(crate) async fn update_lazy(
-	services: &Services, room_id: &RoomId, sender: (&UserId, &DeviceId), mut lazy: LazySet, item: &PdusIterItem,
+	services: &Services,
+	room_id: &RoomId,
+	sender: (&UserId, &DeviceId),
+	mut lazy: LazySet,
+	item: &PdusIterItem,
 	force: bool,
 ) -> LazySet {
 	let (_, event) = &item;
@@ -204,7 +218,11 @@ pub(crate) async fn update_lazy(
 	lazy
 }
 
-pub(crate) async fn ignored_filter(services: &Services, item: PdusIterItem, user_id: &UserId) -> Option<PdusIterItem> {
+pub(crate) async fn ignored_filter(
+	services: &Services,
+	item: PdusIterItem,
+	user_id: &UserId,
+) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
 
 	// exclude Synapse's dummy events from bloating up response bodies. clients
@@ -223,7 +241,9 @@ pub(crate) async fn ignored_filter(services: &Services, item: PdusIterItem, user
 }
 
 pub(crate) async fn visibility_filter(
-	services: &Services, item: PdusIterItem, user_id: &UserId,
+	services: &Services,
+	item: PdusIterItem,
+	user_id: &UserId,
 ) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
 

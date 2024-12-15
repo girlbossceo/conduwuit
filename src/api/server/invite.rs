@@ -16,7 +16,8 @@ use crate::Ruma;
 /// Invites a remote user to a room.
 #[tracing::instrument(skip_all, fields(%client), name = "invite")]
 pub(crate) async fn create_invite_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<create_invite::v2::Request>,
 ) -> Result<create_invite::v2::Response> {
 	// ACL check origin
@@ -28,9 +29,7 @@ pub(crate) async fn create_invite_route(
 
 	if !services.server.supported_room_version(&body.room_version) {
 		return Err(Error::BadRequest(
-			ErrorKind::IncompatibleRoomVersion {
-				room_version: body.room_version.clone(),
-			},
+			ErrorKind::IncompatibleRoomVersion { room_version: body.room_version.clone() },
 			"Server does not support this room version.",
 		));
 	}
@@ -102,11 +101,14 @@ pub(crate) async fn create_invite_route(
 		.try_into()
 		.map_err(|e| err!(Request(InvalidParam("Invalid sender property: {e}"))))?;
 
-	if services.rooms.metadata.is_banned(&body.room_id).await && !services.users.is_admin(&invited_user).await {
+	if services.rooms.metadata.is_banned(&body.room_id).await
+		&& !services.users.is_admin(&invited_user).await
+	{
 		return Err!(Request(Forbidden("This room is banned on this homeserver.")));
 	}
 
-	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user).await {
+	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user).await
+	{
 		return Err!(Request(Forbidden("This server does not allow room invites.")));
 	}
 

@@ -13,7 +13,9 @@ use conduwuit::{
 };
 use database::{Database, Deserialized, Json, KeyVal, Map};
 use futures::{future::select_ok, FutureExt, Stream, StreamExt};
-use ruma::{api::Direction, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
+use ruma::{
+	api::Direction, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
+};
 use tokio::sync::Mutex;
 
 use super::{PduId, RawPduId};
@@ -54,15 +56,19 @@ impl Data {
 		}
 	}
 
-	pub(super) async fn last_timeline_count(&self, sender_user: Option<&UserId>, room_id: &RoomId) -> Result<PduCount> {
+	pub(super) async fn last_timeline_count(
+		&self,
+		sender_user: Option<&UserId>,
+		room_id: &RoomId,
+	) -> Result<PduCount> {
 		match self
 			.lasttimelinecount_cache
 			.lock()
 			.await
 			.entry(room_id.into())
 		{
-			hash_map::Entry::Occupied(o) => Ok(*o.get()),
-			hash_map::Entry::Vacant(v) => Ok(self
+			| hash_map::Entry::Occupied(o) => Ok(*o.get()),
+			| hash_map::Entry::Vacant(v) => Ok(self
 				.pdus_rev(sender_user, room_id, PduCount::max())
 				.await?
 				.next()
@@ -93,7 +99,10 @@ impl Data {
 	}
 
 	/// Returns the json of a pdu.
-	pub(super) async fn get_non_outlier_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
+	pub(super) async fn get_non_outlier_pdu_json(
+		&self,
+		event_id: &EventId,
+	) -> Result<CanonicalJsonObject> {
 		let pduid = self.get_pdu_id(event_id).await?;
 
 		self.pduid_pdu.get(&pduid).await.deserialized()
@@ -160,12 +169,19 @@ impl Data {
 	}
 
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
-	pub(super) async fn get_pdu_json_from_id(&self, pdu_id: &RawPduId) -> Result<CanonicalJsonObject> {
+	pub(super) async fn get_pdu_json_from_id(
+		&self,
+		pdu_id: &RawPduId,
+	) -> Result<CanonicalJsonObject> {
 		self.pduid_pdu.get(pdu_id).await.deserialized()
 	}
 
 	pub(super) async fn append_pdu(
-		&self, pdu_id: &RawPduId, pdu: &PduEvent, json: &CanonicalJsonObject, count: PduCount,
+		&self,
+		pdu_id: &RawPduId,
+		pdu: &PduEvent,
+		json: &CanonicalJsonObject,
+		count: PduCount,
 	) {
 		debug_assert!(matches!(count, PduCount::Normal(_)), "PduCount not Normal");
 
@@ -179,7 +195,12 @@ impl Data {
 		self.eventid_outlierpdu.remove(pdu.event_id.as_bytes());
 	}
 
-	pub(super) fn prepend_backfill_pdu(&self, pdu_id: &RawPduId, event_id: &EventId, json: &CanonicalJsonObject) {
+	pub(super) fn prepend_backfill_pdu(
+		&self,
+		pdu_id: &RawPduId,
+		event_id: &EventId,
+		json: &CanonicalJsonObject,
+	) {
 		self.pduid_pdu.raw_put(pdu_id, Json(json));
 		self.eventid_pduid.insert(event_id, pdu_id);
 		self.eventid_outlierpdu.remove(event_id);
@@ -187,7 +208,10 @@ impl Data {
 
 	/// Removes a pdu and creates a new one with the same id.
 	pub(super) async fn replace_pdu(
-		&self, pdu_id: &RawPduId, pdu_json: &CanonicalJsonObject, _pdu: &PduEvent,
+		&self,
+		pdu_id: &RawPduId,
+		pdu_json: &CanonicalJsonObject,
+		_pdu: &PduEvent,
 	) -> Result {
 		if self.pduid_pdu.get(pdu_id).await.is_not_found() {
 			return Err!(Request(NotFound("PDU does not exist.")));
@@ -202,7 +226,10 @@ impl Data {
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
 	pub(super) async fn pdus_rev<'a>(
-		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, until: PduCount,
+		&'a self,
+		user_id: Option<&'a UserId>,
+		room_id: &'a RoomId,
+		until: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
 		let current = self
 			.count_to_id(room_id, until, Direction::Backward)
@@ -219,7 +246,10 @@ impl Data {
 	}
 
 	pub(super) async fn pdus<'a>(
-		&'a self, user_id: Option<&'a UserId>, room_id: &'a RoomId, from: PduCount,
+		&'a self,
+		user_id: Option<&'a UserId>,
+		room_id: &'a RoomId,
+		from: PduCount,
 	) -> Result<impl Stream<Item = PdusIterItem> + Send + Unpin + 'a> {
 		let current = self.count_to_id(room_id, from, Direction::Forward).await?;
 		let prefix = current.shortroomid();
@@ -236,8 +266,8 @@ impl Data {
 	fn each_pdu((pdu_id, pdu): KeyVal<'_>, user_id: Option<&UserId>) -> PdusIterItem {
 		let pdu_id: RawPduId = pdu_id.into();
 
-		let mut pdu =
-			serde_json::from_slice::<PduEvent>(pdu).expect("PduEvent in pduid_pdu database column is invalid JSON");
+		let mut pdu = serde_json::from_slice::<PduEvent>(pdu)
+			.expect("PduEvent in pduid_pdu database column is invalid JSON");
 
 		if Some(pdu.sender.borrow()) != user_id {
 			pdu.remove_transaction_id().log_err().ok();
@@ -249,7 +279,10 @@ impl Data {
 	}
 
 	pub(super) fn increment_notification_counts(
-		&self, room_id: &RoomId, notifies: Vec<OwnedUserId>, highlights: Vec<OwnedUserId>,
+		&self,
+		room_id: &RoomId,
+		notifies: Vec<OwnedUserId>,
+		highlights: Vec<OwnedUserId>,
 	) {
 		let _cork = self.db.cork();
 
@@ -268,7 +301,12 @@ impl Data {
 		}
 	}
 
-	async fn count_to_id(&self, room_id: &RoomId, shorteventid: PduCount, dir: Direction) -> Result<RawPduId> {
+	async fn count_to_id(
+		&self,
+		room_id: &RoomId,
+		shorteventid: PduCount,
+		dir: Direction,
+	) -> Result<RawPduId> {
 		let shortroomid: ShortRoomId = self
 			.services
 			.short

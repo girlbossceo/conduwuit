@@ -16,7 +16,9 @@ impl Data {
 		let db = &args.db;
 		Self {
 			global: db["global"].clone(),
-			counter: RwLock::new(Self::stored_count(&db["global"]).expect("initialized global counter")),
+			counter: RwLock::new(
+				Self::stored_count(&db["global"]).expect("initialized global counter"),
+			),
 			db: args.db.clone(),
 		}
 	}

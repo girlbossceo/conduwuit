@@ -14,7 +14,9 @@ use http::{Method, StatusCode, Uri};
 	skip_all,
 )]
 pub(crate) async fn spawn(
-	State(services): State<Arc<Services>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
+	State(services): State<Arc<Services>>,
+	req: http::Request<axum::body::Body>,
+	next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
 	let server = &services.server;
 	if !server.running() {
@@ -40,7 +42,9 @@ pub(crate) async fn spawn(
 
 #[tracing::instrument(level = "debug", skip_all)]
 pub(crate) async fn handle(
-	State(services): State<Arc<Services>>, req: http::Request<axum::body::Body>, next: axum::middleware::Next,
+	State(services): State<Arc<Services>>,
+	req: http::Request<axum::body::Body>,
+	next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
 	let server = &services.server;
 	if !server.running() {

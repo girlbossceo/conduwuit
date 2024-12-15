@@ -43,7 +43,8 @@ const TRANSFERABLE_STATE_EVENTS: &[StateEventType; 9] = &[
 /// - Moves local aliases
 /// - Modifies old room power levels to prevent users from speaking
 pub(crate) async fn upgrade_room_route(
-	State(services): State<crate::State>, body: Ruma<upgrade_room::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<upgrade_room::v3::Request>,
 ) -> Result<upgrade_room::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -72,13 +73,10 @@ pub(crate) async fn upgrade_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(
-				String::new(),
-				&RoomTombstoneEventContent {
-					body: "This room has been replaced".to_owned(),
-					replacement_room: replacement_room.clone(),
-				},
-			),
+			PduBuilder::state(String::new(), &RoomTombstoneEventContent {
+				body: "This room has been replaced".to_owned(),
+				replacement_room: replacement_room.clone(),
+			}),
 			sender_user,
 			&body.room_id,
 			&state_lock,
@@ -108,7 +106,7 @@ pub(crate) async fn upgrade_room_route(
 	{
 		use RoomVersionId::*;
 		match body.new_version {
-			V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
+			| V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 				create_event_content.insert(
 					"creator".into(),
 					json!(&sender_user).try_into().map_err(|e| {
@@ -117,7 +115,7 @@ pub(crate) async fn upgrade_room_route(
 					})?,
 				);
 			},
-			_ => {
+			| _ => {
 				// "creator" key no longer exists in V11+ rooms
 				create_event_content.remove("creator");
 			},
@@ -154,7 +152,8 @@ pub(crate) async fn upgrade_room_route(
 		.build_and_append_pdu(
 			PduBuilder {
 				event_type: TimelineEventType::RoomCreate,
-				content: to_raw_value(&create_event_content).expect("event is valid, we just created it"),
+				content: to_raw_value(&create_event_content)
+					.expect("event is valid, we just created it"),
 				unsigned: None,
 				state_key: Some(String::new()),
 				redacts: None,
@@ -203,8 +202,8 @@ pub(crate) async fn upgrade_room_route(
 			.room_state_get(&body.room_id, event_type, "")
 			.await
 		{
-			Ok(v) => v.content.clone(),
-			Err(_) => continue, // Skipping missing events.
+			| Ok(v) => v.content.clone(),
+			| Err(_) => continue, // Skipping missing events.
 		};
 
 		services
@@ -258,7 +257,9 @@ pub(crate) async fn upgrade_room_route(
 		power_levels_event_content
 			.users_default
 			.checked_add(int!(1))
-			.ok_or_else(|| err!(Request(BadJson("users_default power levels event content is not valid"))))?,
+			.ok_or_else(|| {
+				err!(Request(BadJson("users_default power levels event content is not valid")))
+			})?,
 	);
 
 	// Modify the power levels in the old room to prevent sending of events and
@@ -267,14 +268,11 @@ pub(crate) async fn upgrade_room_route(
 		.rooms
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(
-				String::new(),
-				&RoomPowerLevelsEventContent {
-					events_default: new_level,
-					invite: new_level,
-					..power_levels_event_content
-				},
-			),
+			PduBuilder::state(String::new(), &RoomPowerLevelsEventContent {
+				events_default: new_level,
+				invite: new_level,
+				..power_levels_event_content
+			}),
 			sender_user,
 			&body.room_id,
 			&state_lock,
@@ -284,7 +282,5 @@ pub(crate) async fn upgrade_room_route(
 	drop(state_lock);
 
 	// Return the replacement room id
-	Ok(upgrade_room::v3::Response {
-		replacement_room,
-	})
+	Ok(upgrade_room::v3::Response { replacement_room })
 }

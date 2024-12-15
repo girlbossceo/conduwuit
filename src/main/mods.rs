@@ -44,8 +44,8 @@ pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, boo
 	if starts {
 		let start = main_mod.get::<StartFuncProto>("start")?;
 		match start(&server.server).await {
-			Ok(services) => server.services.lock().await.insert(services),
-			Err(error) => {
+			| Ok(services) => server.services.lock().await.insert(services),
+			| Err(error) => {
 				error!("Starting server: {error}");
 				return Err(error);
 			},

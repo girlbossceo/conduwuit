@@ -35,17 +35,9 @@ impl super::Service {
 			(self.resolve_actual_dest(server_name, true).await?, false)
 		};
 
-		let CachedDest {
-			dest,
-			host,
-			..
-		} = result;
+		let CachedDest { dest, host, .. } = result;
 
-		Ok(ActualDest {
-			dest,
-			host,
-			cached,
-		})
+		Ok(ActualDest { dest, host, cached })
 	}
 
 	/// Returns: `actual_destination`, host header
@@ -53,12 +45,16 @@ impl super::Service {
 	/// Numbers in comments below refer to bullet points in linked section of
 	/// specification
 	#[tracing::instrument(skip_all, name = "actual")]
-	pub async fn resolve_actual_dest(&self, dest: &ServerName, cache: bool) -> Result<CachedDest> {
+	pub async fn resolve_actual_dest(
+		&self,
+		dest: &ServerName,
+		cache: bool,
+	) -> Result<CachedDest> {
 		trace!("Finding actual destination for {dest}");
 		let mut host = dest.as_str().to_owned();
 		let actual_dest = match get_ip_with_port(dest.as_str()) {
-			Some(host_port) => Self::actual_dest_1(host_port)?,
-			None => {
+			| Some(host_port) => Self::actual_dest_1(host_port)?,
+			| None =>
 				if let Some(pos) = dest.as_str().find(':') {
 					self.actual_dest_2(dest, cache, pos).await?
 				} else if let Some(delegated) = self.request_well_known(dest.as_str()).await? {
@@ -67,8 +63,7 @@ impl super::Service {
 					self.actual_dest_4(&host, cache, overrider).await?
 				} else {
 					self.actual_dest_5(dest, cache).await?
-				}
-			},
+				},
 		};
 
 		// Can't use get_ip_with_port here because we don't want to add a port
@@ -79,7 +74,10 @@ impl super::Service {
 			FedDest::Named(addr.to_string(), FedDest::default_port())
 		} else if let Some(pos) = host.find(':') {
 			let (host, port) = host.split_at(pos);
-			FedDest::Named(host.to_owned(), port.try_into().unwrap_or_else(|_| FedDest::default_port()))
+			FedDest::Named(
+				host.to_owned(),
+				port.try_into().unwrap_or_else(|_| FedDest::default_port()),
+			)
 		} else {
 			FedDest::Named(host, FedDest::default_port())
 		};
@@ -100,20 +98,30 @@ impl super::Service {
 	async fn actual_dest_2(&self, dest: &ServerName, cache: bool, pos: usize) -> Result<FedDest> {
 		debug!("2: Hostname with included port");
 		let (host, port) = dest.as_str().split_at(pos);
-		self.conditional_query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448), cache)
-			.await?;
+		self.conditional_query_and_cache_override(
+			host,
+			host,
+			port.parse::<u16>().unwrap_or(8448),
+			cache,
+		)
+		.await?;
 		Ok(FedDest::Named(
 			host.to_owned(),
 			port.try_into().unwrap_or_else(|_| FedDest::default_port()),
 		))
 	}
 
-	async fn actual_dest_3(&self, host: &mut String, cache: bool, delegated: String) -> Result<FedDest> {
+	async fn actual_dest_3(
+		&self,
+		host: &mut String,
+		cache: bool,
+		delegated: String,
+	) -> Result<FedDest> {
 		debug!("3: A .well-known file is available");
 		*host = add_port_to_hostname(&delegated).uri_string();
 		match get_ip_with_port(&delegated) {
-			Some(host_and_port) => Self::actual_dest_3_1(host_and_port),
-			None => {
+			| Some(host_and_port) => Self::actual_dest_3_1(host_and_port),
+			| None =>
 				if let Some(pos) = delegated.find(':') {
 					self.actual_dest_3_2(cache, delegated, pos).await
 				} else {
@@ -123,8 +131,7 @@ impl super::Service {
 					} else {
 						self.actual_dest_3_4(cache, delegated).await
 					}
-				}
-			},
+				},
 		}
 	}
 
@@ -133,22 +140,42 @@ impl super::Service {
 		Ok(host_and_port)
 	}
 
-	async fn actual_dest_3_2(&self, cache: bool, delegated: String, pos: usize) -> Result<FedDest> {
+	async fn actual_dest_3_2(
+		&self,
+		cache: bool,
+		delegated: String,
+		pos: usize,
+	) -> Result<FedDest> {
 		debug!("3.2: Hostname with port in .well-known file");
 		let (host, port) = delegated.split_at(pos);
-		self.conditional_query_and_cache_override(host, host, port.parse::<u16>().unwrap_or(8448), cache)
-			.await?;
+		self.conditional_query_and_cache_override(
+			host,
+			host,
+			port.parse::<u16>().unwrap_or(8448),
+			cache,
+		)
+		.await?;
 		Ok(FedDest::Named(
 			host.to_owned(),
 			port.try_into().unwrap_or_else(|_| FedDest::default_port()),
 		))
 	}
 
-	async fn actual_dest_3_3(&self, cache: bool, delegated: String, overrider: FedDest) -> Result<FedDest> {
+	async fn actual_dest_3_3(
+		&self,
+		cache: bool,
+		delegated: String,
+		overrider: FedDest,
+	) -> Result<FedDest> {
 		debug!("3.3: SRV lookup successful");
 		let force_port = overrider.port();
-		self.conditional_query_and_cache_override(&delegated, &overrider.hostname(), force_port.unwrap_or(8448), cache)
-			.await?;
+		self.conditional_query_and_cache_override(
+			&delegated,
+			&overrider.hostname(),
+			force_port.unwrap_or(8448),
+			cache,
+		)
+		.await?;
 		if let Some(port) = force_port {
 			Ok(FedDest::Named(
 				delegated,
@@ -169,11 +196,21 @@ impl super::Service {
 		Ok(add_port_to_hostname(&delegated))
 	}
 
-	async fn actual_dest_4(&self, host: &str, cache: bool, overrider: FedDest) -> Result<FedDest> {
+	async fn actual_dest_4(
+		&self,
+		host: &str,
+		cache: bool,
+		overrider: FedDest,
+	) -> Result<FedDest> {
 		debug!("4: No .well-known; SRV record found");
 		let force_port = overrider.port();
-		self.conditional_query_and_cache_override(host, &overrider.hostname(), force_port.unwrap_or(8448), cache)
-			.await?;
+		self.conditional_query_and_cache_override(
+			host,
+			&overrider.hostname(),
+			force_port.unwrap_or(8448),
+			cache,
+		)
+		.await?;
 		if let Some(port) = force_port {
 			let port = format!(":{port}");
 			Ok(FedDest::Named(
@@ -245,7 +282,11 @@ impl super::Service {
 
 	#[inline]
 	async fn conditional_query_and_cache_override(
-		&self, overname: &str, hostname: &str, port: u16, cache: bool,
+		&self,
+		overname: &str,
+		hostname: &str,
+		port: u16,
+		cache: bool,
 	) -> Result<()> {
 		if cache {
 			self.query_and_cache_override(overname, hostname, port)
@@ -256,22 +297,24 @@ impl super::Service {
 	}
 
 	#[tracing::instrument(skip_all, name = "ip")]
-	async fn query_and_cache_override(&self, overname: &'_ str, hostname: &'_ str, port: u16) -> Result<()> {
+	async fn query_and_cache_override(
+		&self,
+		overname: &'_ str,
+		hostname: &'_ str,
+		port: u16,
+	) -> Result<()> {
 		match self.resolver.resolver.lookup_ip(hostname.to_owned()).await {
-			Err(e) => Self::handle_resolve_error(&e, hostname),
-			Ok(override_ip) => {
+			| Err(e) => Self::handle_resolve_error(&e, hostname),
+			| Ok(override_ip) => {
 				if hostname != overname {
 					debug_info!("{overname:?} overriden by {hostname:?}");
 				}
 
-				self.set_cached_override(
-					overname,
-					CachedOverride {
-						ips: override_ip.into_iter().take(MAX_IPS).collect(),
-						port,
-						expire: CachedOverride::default_expire(),
-					},
-				);
+				self.set_cached_override(overname, CachedOverride {
+					ips: override_ip.into_iter().take(MAX_IPS).collect(),
+					port,
+					expire: CachedOverride::default_expire(),
+				});
 
 				Ok(())
 			},
@@ -280,14 +323,15 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "srv")]
 	async fn query_srv_record(&self, hostname: &'_ str) -> Result<Option<FedDest>> {
-		let hostnames = [format!("_matrix-fed._tcp.{hostname}."), format!("_matrix._tcp.{hostname}.")];
+		let hostnames =
+			[format!("_matrix-fed._tcp.{hostname}."), format!("_matrix._tcp.{hostname}.")];
 
 		for hostname in hostnames {
 			debug!("querying SRV for {hostname:?}");
 			let hostname = hostname.trim_end_matches('.');
 			match self.resolver.resolver.srv_lookup(hostname).await {
-				Err(e) => Self::handle_resolve_error(&e, hostname)?,
-				Ok(result) => {
+				| Err(e) => Self::handle_resolve_error(&e, hostname)?,
+				| Ok(result) =>
 					return Ok(result.iter().next().map(|result| {
 						FedDest::Named(
 							result.target().to_string().trim_end_matches('.').to_owned(),
@@ -296,8 +340,7 @@ impl super::Service {
 								.try_into()
 								.unwrap_or_else(|_| FedDest::default_port()),
 						)
-					}))
-				},
+					})),
 			}
 		}
 
@@ -308,25 +351,24 @@ impl super::Service {
 		use hickory_resolver::error::ResolveErrorKind;
 
 		match *e.kind() {
-			ResolveErrorKind::NoRecordsFound {
-				..
-			} => {
+			| ResolveErrorKind::NoRecordsFound { .. } => {
 				// Raise to debug_warn if we can find out the result wasn't from cache
 				debug!(%host, "No DNS records found: {e}");
 				Ok(())
 			},
-			ResolveErrorKind::Timeout => {
+			| ResolveErrorKind::Timeout => {
 				Err!(warn!(%host, "DNS {e}"))
 			},
-			ResolveErrorKind::NoConnections => {
+			| ResolveErrorKind::NoConnections => {
 				error!(
-					"Your DNS server is overloaded and has ran out of connections. It is strongly recommended you \
-					 remediate this issue to ensure proper federation connectivity."
+					"Your DNS server is overloaded and has ran out of connections. It is \
+					 strongly recommended you remediate this issue to ensure proper federation \
+					 connectivity."
 				);
 
 				Err!(error!(%host, "DNS error: {e}"))
 			},
-			_ => Err!(error!(%host, "DNS error: {e}")),
+			| _ => Err!(error!(%host, "DNS error: {e}")),
 		}
 	}
 
@@ -349,8 +391,9 @@ impl super::Service {
 			dest.is_ip_literal() || !IPAddress::is_valid(dest.host()),
 			"Destination is not an IP literal."
 		);
-		let ip = IPAddress::parse(dest.host())
-			.map_err(|e| err!(BadServerResponse(debug_error!("Failed to parse IP literal from string: {e}"))))?;
+		let ip = IPAddress::parse(dest.host()).map_err(|e| {
+			err!(BadServerResponse(debug_error!("Failed to parse IP literal from string: {e}")))
+		})?;
 
 		self.validate_ip(&ip)?;
 

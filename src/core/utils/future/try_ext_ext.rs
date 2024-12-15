@@ -14,17 +14,23 @@ pub trait TryExtExt<T, E>
 where
 	Self: TryFuture<Ok = T, Error = E> + Send,
 {
-	fn is_err(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
+	fn is_err(
+		self,
+	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
 	where
 		Self: Sized;
 
 	#[allow(clippy::wrong_self_convention)]
-	fn is_ok(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
+	fn is_ok(
+		self,
+	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
 	where
 		Self: Sized;
 
 	fn map_ok_or<U, F>(
-		self, default: U, f: F,
+		self,
+		default: U,
+		f: F,
 	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> U, impl FnOnce(Self::Error) -> U>
 	where
 		F: FnOnce(Self::Ok) -> U,
@@ -32,11 +38,18 @@ where
 
 	fn ok(
 		self,
-	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> Option<Self::Ok>, impl FnOnce(Self::Error) -> Option<Self::Ok>>
+	) -> MapOkOrElse<
+		Self,
+		impl FnOnce(Self::Ok) -> Option<Self::Ok>,
+		impl FnOnce(Self::Error) -> Option<Self::Ok>,
+	>
 	where
 		Self: Sized;
 
-	fn unwrap_or(self, default: Self::Ok) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
+	fn unwrap_or(
+		self,
+		default: Self::Ok,
+	) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
 	where
 		Self: Sized;
 
@@ -51,7 +64,9 @@ where
 	Fut: TryFuture<Ok = T, Error = E> + Send,
 {
 	#[inline]
-	fn is_err(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
+	fn is_err(
+		self,
+	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
 	where
 		Self: Sized,
 	{
@@ -59,7 +74,9 @@ where
 	}
 
 	#[inline]
-	fn is_ok(self) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
+	fn is_ok(
+		self,
+	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> bool, impl FnOnce(Self::Error) -> bool>
 	where
 		Self: Sized,
 	{
@@ -68,7 +85,9 @@ where
 
 	#[inline]
 	fn map_ok_or<U, F>(
-		self, default: U, f: F,
+		self,
+		default: U,
+		f: F,
 	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> U, impl FnOnce(Self::Error) -> U>
 	where
 		F: FnOnce(Self::Ok) -> U,
@@ -80,7 +99,11 @@ where
 	#[inline]
 	fn ok(
 		self,
-	) -> MapOkOrElse<Self, impl FnOnce(Self::Ok) -> Option<Self::Ok>, impl FnOnce(Self::Error) -> Option<Self::Ok>>
+	) -> MapOkOrElse<
+		Self,
+		impl FnOnce(Self::Ok) -> Option<Self::Ok>,
+		impl FnOnce(Self::Error) -> Option<Self::Ok>,
+	>
 	where
 		Self: Sized,
 	{
@@ -88,7 +111,10 @@ where
 	}
 
 	#[inline]
-	fn unwrap_or(self, default: Self::Ok) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
+	fn unwrap_or(
+		self,
+		default: Self::Ok,
+	) -> UnwrapOrElse<Self, impl FnOnce(Self::Error) -> Self::Ok>
 	where
 		Self: Sized,
 	{

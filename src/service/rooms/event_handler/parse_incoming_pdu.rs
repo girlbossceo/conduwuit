@@ -3,9 +3,13 @@ use ruma::{CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId, R
 use serde_json::value::RawValue as RawJsonValue;
 
 #[implement(super::Service)]
-pub async fn parse_incoming_pdu(&self, pdu: &RawJsonValue) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
-	let value = serde_json::from_str::<CanonicalJsonObject>(pdu.get())
-		.map_err(|e| err!(BadServerResponse(debug_warn!("Error parsing incoming event {e:?}"))))?;
+pub async fn parse_incoming_pdu(
+	&self,
+	pdu: &RawJsonValue,
+) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
+	let value = serde_json::from_str::<CanonicalJsonObject>(pdu.get()).map_err(|e| {
+		err!(BadServerResponse(debug_warn!("Error parsing incoming event {e:?}")))
+	})?;
 
 	let room_id: OwnedRoomId = value
 		.get("room_id")
@@ -20,8 +24,9 @@ pub async fn parse_incoming_pdu(&self, pdu: &RawJsonValue) -> Result<(OwnedEvent
 		.await
 		.map_err(|_| err!("Server is not in room {room_id}"))?;
 
-	let (event_id, value) = gen_event_id_canonical_json(pdu, &room_version_id)
-		.map_err(|e| err!(Request(InvalidParam("Could not convert event to canonical json: {e}"))))?;
+	let (event_id, value) = gen_event_id_canonical_json(pdu, &room_version_id).map_err(|e| {
+		err!(Request(InvalidParam("Could not convert event to canonical json: {e}")))
+	})?;
 
 	Ok((event_id, value, room_id))
 }

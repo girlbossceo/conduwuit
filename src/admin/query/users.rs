@@ -1,7 +1,9 @@
 use clap::Subcommand;
 use conduwuit::Result;
 use futures::stream::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedDeviceId, OwnedRoomId, OwnedUserId};
+use ruma::{
+	events::room::message::RoomMessageEventContent, OwnedDeviceId, OwnedRoomId, OwnedUserId,
+};
 
 use crate::{admin_command, admin_command_dispatch};
 
@@ -91,7 +93,11 @@ pub(crate) enum UsersCommand {
 
 #[admin_command]
 async fn get_backup_session(
-	&self, user_id: OwnedUserId, version: String, room_id: OwnedRoomId, session_id: String,
+	&self,
+	user_id: OwnedUserId,
+	version: String,
+	room_id: OwnedRoomId,
+	session_id: String,
 ) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self
@@ -108,7 +114,10 @@ async fn get_backup_session(
 
 #[admin_command]
 async fn get_room_backups(
-	&self, user_id: OwnedUserId, version: String, room_id: OwnedRoomId,
+	&self,
+	user_id: OwnedUserId,
+	version: String,
+	room_id: OwnedRoomId,
 ) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self
@@ -124,7 +133,11 @@ async fn get_room_backups(
 }
 
 #[admin_command]
-async fn get_all_backups(&self, user_id: OwnedUserId, version: String) -> Result<RoomMessageEventContent> {
+async fn get_all_backups(
+	&self,
+	user_id: OwnedUserId,
+	version: String,
+) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self.services.key_backups.get_all(&user_id, &version).await;
 	let query_time = timer.elapsed();
@@ -135,7 +148,11 @@ async fn get_all_backups(&self, user_id: OwnedUserId, version: String) -> Result
 }
 
 #[admin_command]
-async fn get_backup_algorithm(&self, user_id: OwnedUserId, version: String) -> Result<RoomMessageEventContent> {
+async fn get_backup_algorithm(
+	&self,
+	user_id: OwnedUserId,
+	version: String,
+) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self
 		.services
@@ -150,7 +167,10 @@ async fn get_backup_algorithm(&self, user_id: OwnedUserId, version: String) -> R
 }
 
 #[admin_command]
-async fn get_latest_backup_version(&self, user_id: OwnedUserId) -> Result<RoomMessageEventContent> {
+async fn get_latest_backup_version(
+	&self,
+	user_id: OwnedUserId,
+) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self
 		.services
@@ -244,7 +264,11 @@ async fn list_devices_metadata(&self, user_id: OwnedUserId) -> Result<RoomMessag
 }
 
 #[admin_command]
-async fn get_device_metadata(&self, user_id: OwnedUserId, device_id: OwnedDeviceId) -> Result<RoomMessageEventContent> {
+async fn get_device_metadata(
+	&self,
+	user_id: OwnedUserId,
+	device_id: OwnedDeviceId,
+) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let device = self
 		.services
@@ -270,7 +294,11 @@ async fn get_devices_version(&self, user_id: OwnedUserId) -> Result<RoomMessageE
 }
 
 #[admin_command]
-async fn count_one_time_keys(&self, user_id: OwnedUserId, device_id: OwnedDeviceId) -> Result<RoomMessageEventContent> {
+async fn count_one_time_keys(
+	&self,
+	user_id: OwnedUserId,
+	device_id: OwnedDeviceId,
+) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self
 		.services
@@ -285,7 +313,11 @@ async fn count_one_time_keys(&self, user_id: OwnedUserId, device_id: OwnedDevice
 }
 
 #[admin_command]
-async fn get_device_keys(&self, user_id: OwnedUserId, device_id: OwnedDeviceId) -> Result<RoomMessageEventContent> {
+async fn get_device_keys(
+	&self,
+	user_id: OwnedUserId,
+	device_id: OwnedDeviceId,
+) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self
 		.services
@@ -327,7 +359,9 @@ async fn get_master_key(&self, user_id: OwnedUserId) -> Result<RoomMessageEventC
 
 #[admin_command]
 async fn get_to_device_events(
-	&self, user_id: OwnedUserId, device_id: OwnedDeviceId,
+	&self,
+	user_id: OwnedUserId,
+	device_id: OwnedDeviceId,
 ) -> Result<RoomMessageEventContent> {
 	let timer = tokio::time::Instant::now();
 	let result = self

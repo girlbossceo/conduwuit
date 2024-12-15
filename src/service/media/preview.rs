@@ -53,10 +53,10 @@ pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
 	self.create(&mxc, None, None, None, &image).await?;
 
 	let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {
-		Err(_) => (None, None),
-		Ok(reader) => match reader.into_dimensions() {
-			Err(_) => (None, None),
-			Ok((width, height)) => (Some(width), Some(height)),
+		| Err(_) => (None, None),
+		| Ok(reader) => match reader.into_dimensions() {
+			| Err(_) => (None, None),
+			| Ok((width, height)) => (Some(width), Some(height)),
 		},
 	};
 
@@ -79,8 +79,8 @@ pub async fn get_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 	let _request_lock = self.url_preview_mutex.lock(url.as_str()).await;
 
 	match self.db.get_url_preview(url.as_str()).await {
-		Ok(preview) => Ok(preview),
-		Err(_) => self.request_url_preview(url).await,
+		| Ok(preview) => Ok(preview),
+		| Err(_) => self.request_url_preview(url).await,
 	}
 }
 
@@ -111,9 +111,9 @@ async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 		return Err!(Request(Unknown("Unknown Content-Type")));
 	};
 	let data = match content_type {
-		html if html.starts_with("text/html") => self.download_html(url.as_str()).await?,
-		img if img.starts_with("image/") => self.download_image(url.as_str()).await?,
-		_ => return Err!(Request(Unknown("Unsupported Content-Type"))),
+		| html if html.starts_with("text/html") => self.download_html(url.as_str()).await?,
+		| img if img.starts_with("image/") => self.download_image(url.as_str()).await?,
+		| _ => return Err!(Request(Unknown("Unsupported Content-Type"))),
 	};
 
 	self.set_url_preview(url.as_str(), &data).await?;
@@ -131,8 +131,9 @@ async fn download_html(&self, url: &str) -> Result<UrlPreviewData> {
 		bytes.extend_from_slice(&chunk);
 		if bytes.len() > self.services.globals.url_preview_max_spider_size() {
 			debug!(
-				"Response body from URL {} exceeds url_preview_max_spider_size ({}), not processing the rest of the \
-				 response body and assuming our necessary data is in this range.",
+				"Response body from URL {} exceeds url_preview_max_spider_size ({}), not \
+				 processing the rest of the response body and assuming our necessary data is in \
+				 this range.",
 				url,
 				self.services.globals.url_preview_max_spider_size()
 			);
@@ -145,8 +146,8 @@ async fn download_html(&self, url: &str) -> Result<UrlPreviewData> {
 	};
 
 	let mut data = match html.opengraph.images.first() {
-		None => UrlPreviewData::default(),
-		Some(obj) => self.download_image(&obj.url).await?,
+		| None => UrlPreviewData::default(),
+		| Some(obj) => self.download_image(&obj.url).await?,
 	};
 
 	let props = html.opengraph.properties;
@@ -169,11 +170,11 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 	}
 
 	let host = match url.host_str() {
-		None => {
+		| None => {
 			debug!("Ignoring URL preview for a URL that does not have a host (?): {}", url);
 			return false;
 		},
-		Some(h) => h.to_owned(),
+		| Some(h) => h.to_owned(),
 	};
 
 	let allowlist_domain_contains = self
@@ -205,7 +206,10 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 		}
 
 		if allowlist_domain_explicit.contains(&host) {
-			debug!("Host {} is allowed by url_preview_domain_explicit_allowlist (check 2/4)", &host);
+			debug!(
+				"Host {} is allowed by url_preview_domain_explicit_allowlist (check 2/4)",
+				&host
+			);
 			return true;
 		}
 
@@ -213,7 +217,10 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 			.iter()
 			.any(|domain_s| domain_s.contains(&host.clone()))
 		{
-			debug!("Host {} is allowed by url_preview_domain_contains_allowlist (check 3/4)", &host);
+			debug!(
+				"Host {} is allowed by url_preview_domain_contains_allowlist (check 3/4)",
+				&host
+			);
 			return true;
 		}
 
@@ -229,11 +236,12 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 		if self.services.globals.url_preview_check_root_domain() {
 			debug!("Checking root domain");
 			match host.split_once('.') {
-				None => return false,
-				Some((_, root_domain)) => {
+				| None => return false,
+				| Some((_, root_domain)) => {
 					if denylist_domain_explicit.contains(&root_domain.to_owned()) {
 						debug!(
-							"Root domain {} is not allowed by url_preview_domain_explicit_denylist (check 1/3)",
+							"Root domain {} is not allowed by \
+							 url_preview_domain_explicit_denylist (check 1/3)",
 							&root_domain
 						);
 						return true;
@@ -241,7 +249,8 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 
 					if allowlist_domain_explicit.contains(&root_domain.to_owned()) {
 						debug!(
-							"Root domain {} is allowed by url_preview_domain_explicit_allowlist (check 2/3)",
+							"Root domain {} is allowed by url_preview_domain_explicit_allowlist \
+							 (check 2/3)",
 							&root_domain
 						);
 						return true;
@@ -252,7 +261,8 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 						.any(|domain_s| domain_s.contains(&root_domain.to_owned()))
 					{
 						debug!(
-							"Root domain {} is allowed by url_preview_domain_contains_allowlist (check 3/3)",
+							"Root domain {} is allowed by url_preview_domain_contains_allowlist \
+							 (check 3/3)",
 							&root_domain
 						);
 						return true;

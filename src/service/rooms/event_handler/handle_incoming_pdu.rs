@@ -7,7 +7,8 @@ use std::{
 use conduwuit::{debug, err, implement, warn, Error, Result};
 use futures::{FutureExt, TryFutureExt};
 use ruma::{
-	api::client::error::ErrorKind, events::StateEventType, CanonicalJsonValue, EventId, RoomId, ServerName, UserId,
+	api::client::error::ErrorKind, events::StateEventType, CanonicalJsonValue, EventId, RoomId,
+	ServerName, UserId,
 };
 
 use super::{check_room_id, get_room_version_id};
@@ -43,8 +44,12 @@ use crate::rooms::timeline::RawPduId;
 #[implement(super::Service)]
 #[tracing::instrument(skip(self, origin, value, is_timeline_event), name = "pdu")]
 pub async fn handle_incoming_pdu<'a>(
-	&self, origin: &'a ServerName, room_id: &'a RoomId, event_id: &'a EventId,
-	value: BTreeMap<String, CanonicalJsonValue>, is_timeline_event: bool,
+	&self,
+	origin: &'a ServerName,
+	room_id: &'a RoomId,
+	event_id: &'a EventId,
+	value: BTreeMap<String, CanonicalJsonValue>,
+	is_timeline_event: bool,
 ) -> Result<Option<RawPduId>> {
 	// 1. Skip the PDU if we already have it as a timeline event
 	if let Ok(pdu_id) = self.services.timeline.get_pdu_id(event_id).await {
@@ -144,10 +149,10 @@ pub async fn handle_incoming_pdu<'a>(
 				.expect("locked")
 				.entry(prev_id.into())
 			{
-				Entry::Vacant(e) => {
+				| Entry::Vacant(e) => {
 					e.insert((now, 1));
 				},
-				Entry::Occupied(mut e) => {
+				| Entry::Occupied(mut e) => {
 					*e.get_mut() = (now, e.get().1.saturating_add(1));
 				},
 			};

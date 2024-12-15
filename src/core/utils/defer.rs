@@ -9,9 +9,7 @@ macro_rules! defer {
 			fn drop(&mut self) { (self.closure)(); }
 		}
 
-		let _defer_ = _Defer_ {
-			closure: || $body,
-		};
+		let _defer_ = _Defer_ { closure: || $body };
 	};
 
 	($body:expr) => {

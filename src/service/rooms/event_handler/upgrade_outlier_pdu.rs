@@ -19,8 +19,12 @@ use crate::rooms::{state_compressor::HashSetCompressStateEvent, timeline::RawPdu
 
 #[implement(super::Service)]
 pub(super) async fn upgrade_outlier_to_timeline_pdu(
-	&self, incoming_pdu: Arc<PduEvent>, val: BTreeMap<String, CanonicalJsonValue>, create_event: &PduEvent,
-	origin: &ServerName, room_id: &RoomId,
+	&self,
+	incoming_pdu: Arc<PduEvent>,
+	val: BTreeMap<String, CanonicalJsonValue>,
+	create_event: &PduEvent,
+	origin: &ServerName,
+	room_id: &RoomId,
 ) -> Result<Option<RawPduId>> {
 	// Skip the PDU if we already have it as a timeline event
 	if let Ok(pduid) = self
@@ -63,7 +67,8 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 			.await?;
 	}
 
-	let state_at_incoming_event = state_at_incoming_event.expect("we always set this to some above");
+	let state_at_incoming_event =
+		state_at_incoming_event.expect("we always set this to some above");
 	let room_version = to_room_version(&room_version_id);
 
 	debug!("Performing auth check");
@@ -124,24 +129,34 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 		!auth_check
 			|| incoming_pdu.kind == TimelineEventType::RoomRedaction
 				&& match room_version_id {
-					V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
+					| V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
 						if let Some(redact_id) = &incoming_pdu.redacts {
 							!self
 								.services
 								.state_accessor
-								.user_can_redact(redact_id, &incoming_pdu.sender, &incoming_pdu.room_id, true)
+								.user_can_redact(
+									redact_id,
+									&incoming_pdu.sender,
+									&incoming_pdu.room_id,
+									true,
+								)
 								.await?
 						} else {
 							false
 						}
 					},
-					_ => {
+					| _ => {
 						let content: RoomRedactionEventContent = incoming_pdu.get_content()?;
 						if let Some(redact_id) = &content.redacts {
 							!self
 								.services
 								.state_accessor
-								.user_can_redact(redact_id, &incoming_pdu.sender, &incoming_pdu.room_id, true)
+								.user_can_redact(
+									redact_id,
+									&incoming_pdu.sender,
+									&incoming_pdu.room_id,
+									true,
+								)
 								.await?
 						} else {
 							false
@@ -229,11 +244,7 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 
 		// Set the new room state to the resolved state
 		debug!("Forcing new room state");
-		let HashSetCompressStateEvent {
-			shortstatehash,
-			added,
-			removed,
-		} = self
+		let HashSetCompressStateEvent { shortstatehash, added, removed } = self
 			.services
 			.state_compressor
 			.save_state(room_id, new_room_state)

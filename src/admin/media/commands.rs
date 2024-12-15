@@ -1,16 +1,21 @@
 use std::time::Duration;
 
-use conduwuit::{debug, debug_info, debug_warn, error, info, trace, utils::time::parse_timepoint_ago, Result};
+use conduwuit::{
+	debug, debug_info, debug_warn, error, info, trace, utils::time::parse_timepoint_ago, Result,
+};
 use conduwuit_service::media::Dim;
 use ruma::{
-	events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, OwnedMxcUri, OwnedServerName, ServerName,
+	events::room::message::RoomMessageEventContent, EventId, Mxc, MxcUri, OwnedMxcUri,
+	OwnedServerName, ServerName,
 };
 
 use crate::{admin_command, utils::parse_local_user_id};
 
 #[admin_command]
 pub(super) async fn delete(
-	&self, mxc: Option<Box<MxcUri>>, event_id: Option<Box<EventId>>,
+	&self,
+	mxc: Option<Box<MxcUri>>,
+	event_id: Option<Box<EventId>>,
 ) -> Result<RoomMessageEventContent> {
 	if event_id.is_some() && mxc.is_some() {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -52,7 +57,10 @@ pub(super) async fn delete(
 							let final_url = url.to_string().replace('"', "");
 							mxc_urls.push(final_url);
 						} else {
-							info!("Found a URL in the event ID {event_id} but did not start with mxc://, ignoring");
+							info!(
+								"Found a URL in the event ID {event_id} but did not start with \
+								 mxc://, ignoring"
+							);
 						}
 					}
 
@@ -67,17 +75,24 @@ pub(super) async fn delete(
 								debug!("Found a thumbnail_url in info key: {thumbnail_url}");
 
 								if thumbnail_url.to_string().starts_with("\"mxc://") {
-									debug!("Pushing thumbnail URL {thumbnail_url} to list of MXCs to delete");
-									let final_thumbnail_url = thumbnail_url.to_string().replace('"', "");
+									debug!(
+										"Pushing thumbnail URL {thumbnail_url} to list of MXCs \
+										 to delete"
+									);
+									let final_thumbnail_url =
+										thumbnail_url.to_string().replace('"', "");
 									mxc_urls.push(final_thumbnail_url);
 								} else {
 									info!(
-										"Found a thumbnail URL in the event ID {event_id} but did not start with \
-										 mxc://, ignoring"
+										"Found a thumbnail URL in the event ID {event_id} but \
+										 did not start with mxc://, ignoring"
 									);
 								}
 							} else {
-								info!("No \"thumbnail_url\" key in \"info\" key, assuming no thumbnails.");
+								info!(
+									"No \"thumbnail_url\" key in \"info\" key, assuming no \
+									 thumbnails."
+								);
 							}
 						}
 					}
@@ -98,8 +113,8 @@ pub(super) async fn delete(
 									mxc_urls.push(final_url);
 								} else {
 									info!(
-										"Found a URL in the event ID {event_id} but did not start with mxc://, \
-										 ignoring"
+										"Found a URL in the event ID {event_id} but did not \
+										 start with mxc://, ignoring"
 									);
 								}
 							} else {
@@ -109,13 +124,14 @@ pub(super) async fn delete(
 					}
 				} else {
 					return Ok(RoomMessageEventContent::text_plain(
-						"Event ID does not have a \"content\" key or failed parsing the event ID JSON.",
+						"Event ID does not have a \"content\" key or failed parsing the event \
+						 ID JSON.",
 					));
 				}
 			} else {
 				return Ok(RoomMessageEventContent::text_plain(
-					"Event ID does not have a \"content\" key, this is not a message or an event type that contains \
-					 media.",
+					"Event ID does not have a \"content\" key, this is not a message or an \
+					 event type that contains media.",
 				));
 			}
 		} else {
@@ -126,7 +142,9 @@ pub(super) async fn delete(
 
 		if mxc_urls.is_empty() {
 			info!("Parsed event ID {event_id} but did not contain any MXC URLs.");
-			return Ok(RoomMessageEventContent::text_plain("Parsed event ID but found no MXC URLs."));
+			return Ok(RoomMessageEventContent::text_plain(
+				"Parsed event ID but found no MXC URLs.",
+			));
 		}
 
 		let mut mxc_deletion_count: usize = 0;
@@ -138,11 +156,11 @@ pub(super) async fn delete(
 				.delete(&mxc_url.as_str().try_into()?)
 				.await
 			{
-				Ok(()) => {
+				| Ok(()) => {
 					debug_info!("Successfully deleted {mxc_url} from filesystem and database");
 					mxc_deletion_count = mxc_deletion_count.saturating_add(1);
 				},
-				Err(e) => {
+				| Err(e) => {
 					debug_warn!("Failed to delete {mxc_url}, ignoring error and skipping: {e}");
 					continue;
 				},
@@ -150,19 +168,22 @@ pub(super) async fn delete(
 		}
 
 		return Ok(RoomMessageEventContent::text_plain(format!(
-			"Deleted {mxc_deletion_count} total MXCs from our database and the filesystem from event ID {event_id}."
+			"Deleted {mxc_deletion_count} total MXCs from our database and the filesystem from \
+			 event ID {event_id}."
 		)));
 	}
 
 	Ok(RoomMessageEventContent::text_plain(
-		"Please specify either an MXC using --mxc or an event ID using --event-id of the message containing an image. \
-		 See --help for details.",
+		"Please specify either an MXC using --mxc or an event ID using --event-id of the \
+		 message containing an image. See --help for details.",
 	))
 }
 
 #[admin_command]
 pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -192,11 +213,11 @@ pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
 	for mxc in &mxc_list {
 		trace!(%failed_parsed_mxcs, %mxc_deletion_count, "Deleting MXC {mxc} in bulk");
 		match self.services.media.delete(mxc).await {
-			Ok(()) => {
+			| Ok(()) => {
 				debug_info!("Successfully deleted {mxc} from filesystem and database");
 				mxc_deletion_count = mxc_deletion_count.saturating_add(1);
 			},
-			Err(e) => {
+			| Err(e) => {
 				debug_warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
 				continue;
 			},
@@ -204,14 +225,18 @@ pub(super) async fn delete_list(&self) -> Result<RoomMessageEventContent> {
 	}
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Finished bulk MXC deletion, deleted {mxc_deletion_count} total MXCs from our database and the filesystem. \
-		 {failed_parsed_mxcs} MXCs failed to be parsed from the database.",
+		"Finished bulk MXC deletion, deleted {mxc_deletion_count} total MXCs from our database \
+		 and the filesystem. {failed_parsed_mxcs} MXCs failed to be parsed from the database.",
 	)))
 }
 
 #[admin_command]
 pub(super) async fn delete_past_remote_media(
-	&self, duration: String, before: bool, after: bool, yes_i_want_to_delete_local_media: bool,
+	&self,
+	duration: String,
+	before: bool,
+	after: bool,
+	yes_i_want_to_delete_local_media: bool,
 ) -> Result<RoomMessageEventContent> {
 	if before && after {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -224,7 +249,12 @@ pub(super) async fn delete_past_remote_media(
 	let deleted_count = self
 		.services
 		.media
-		.delete_all_remote_media_at_after_time(duration, before, after, yes_i_want_to_delete_local_media)
+		.delete_all_remote_media_at_after_time(
+			duration,
+			before,
+			after,
+			yes_i_want_to_delete_local_media,
+		)
 		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
@@ -233,7 +263,10 @@ pub(super) async fn delete_past_remote_media(
 }
 
 #[admin_command]
-pub(super) async fn delete_all_from_user(&self, username: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn delete_all_from_user(
+	&self,
+	username: String,
+) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &username)?;
 
 	let deleted_count = self.services.media.delete_from_user(&user_id).await?;
@@ -245,7 +278,9 @@ pub(super) async fn delete_all_from_user(&self, username: String) -> Result<Room
 
 #[admin_command]
 pub(super) async fn delete_all_from_server(
-	&self, server_name: Box<ServerName>, yes_i_want_to_delete_local_media: bool,
+	&self,
+	server_name: Box<ServerName>,
+	yes_i_want_to_delete_local_media: bool,
 ) -> Result<RoomMessageEventContent> {
 	if server_name == self.services.globals.server_name() && !yes_i_want_to_delete_local_media {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -260,20 +295,26 @@ pub(super) async fn delete_all_from_server(
 		.await
 		.inspect_err(|e| error!("Failed to get MXC URIs from our database: {e}"))
 	else {
-		return Ok(RoomMessageEventContent::text_plain("Failed to get MXC URIs from our database"));
+		return Ok(RoomMessageEventContent::text_plain(
+			"Failed to get MXC URIs from our database",
+		));
 	};
 
 	let mut deleted_count: usize = 0;
 
 	for mxc in all_mxcs {
 		let Ok(mxc_server_name) = mxc.server_name().inspect_err(|e| {
-			debug_warn!("Failed to parse MXC {mxc} server name from database, ignoring error and skipping: {e}");
+			debug_warn!(
+				"Failed to parse MXC {mxc} server name from database, ignoring error and \
+				 skipping: {e}"
+			);
 		}) else {
 			continue;
 		};
 
 		if mxc_server_name != server_name
-			|| (self.services.globals.server_is_ours(mxc_server_name) && !yes_i_want_to_delete_local_media)
+			|| (self.services.globals.server_is_ours(mxc_server_name)
+				&& !yes_i_want_to_delete_local_media)
 		{
 			trace!("skipping MXC URI {mxc}");
 			continue;
@@ -282,10 +323,10 @@ pub(super) async fn delete_all_from_server(
 		let mxc: Mxc<'_> = mxc.as_str().try_into()?;
 
 		match self.services.media.delete(&mxc).await {
-			Ok(()) => {
+			| Ok(()) => {
 				deleted_count = deleted_count.saturating_add(1);
 			},
-			Err(e) => {
+			| Err(e) => {
 				debug_warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
 				continue;
 			},
@@ -307,7 +348,10 @@ pub(super) async fn get_file_info(&self, mxc: OwnedMxcUri) -> Result<RoomMessage
 
 #[admin_command]
 pub(super) async fn get_remote_file(
-	&self, mxc: OwnedMxcUri, server: Option<OwnedServerName>, timeout: u32,
+	&self,
+	mxc: OwnedMxcUri,
+	server: Option<OwnedServerName>,
+	timeout: u32,
 ) -> Result<RoomMessageEventContent> {
 	let mxc: Mxc<'_> = mxc.as_str().try_into()?;
 	let timeout = Duration::from_millis(timeout.into());
@@ -327,7 +371,12 @@ pub(super) async fn get_remote_file(
 
 #[admin_command]
 pub(super) async fn get_remote_thumbnail(
-	&self, mxc: OwnedMxcUri, server: Option<OwnedServerName>, timeout: u32, width: u32, height: u32,
+	&self,
+	mxc: OwnedMxcUri,
+	server: Option<OwnedServerName>,
+	timeout: u32,
+	width: u32,
+	height: u32,
 ) -> Result<RoomMessageEventContent> {
 	let mxc: Mxc<'_> = mxc.as_str().try_into()?;
 	let timeout = Duration::from_millis(timeout.into());

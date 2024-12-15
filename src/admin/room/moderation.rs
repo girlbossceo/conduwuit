@@ -6,7 +6,10 @@ use conduwuit::{
 	warn, Result,
 };
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomAliasId, RoomId, RoomOrAliasId};
+use ruma::{
+	events::room::message::RoomMessageEventContent, OwnedRoomId, RoomAliasId, RoomId,
+	RoomOrAliasId,
+};
 
 use crate::{admin_command, admin_command_dispatch, get_room_info};
 
@@ -75,7 +78,10 @@ pub(crate) enum RoomModerationCommand {
 
 #[admin_command]
 async fn ban_room(
-	&self, force: bool, disable_federation: bool, room: Box<RoomOrAliasId>,
+	&self,
+	force: bool,
+	disable_federation: bool,
+	room: Box<RoomOrAliasId>,
 ) -> Result<RoomMessageEventContent> {
 	debug!("Got room alias or ID: {}", room);
 
@@ -89,13 +95,13 @@ async fn ban_room(
 
 	let room_id = if room.is_room_id() {
 		let room_id = match RoomId::parse(&room) {
-			Ok(room_id) => room_id,
-			Err(e) => {
+			| Ok(room_id) => room_id,
+			| Err(e) =>
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Failed to parse room ID {room}. Please note that this requires a full room ID \
-					 (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"
-				)))
-			},
+					"Failed to parse room ID {room}. Please note that this requires a full room \
+					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+					 (`#roomalias:example.com`): {e}"
+				))),
 		};
 
 		debug!("Room specified is a room ID, banning room ID");
@@ -105,18 +111,18 @@ async fn ban_room(
 		room_id
 	} else if room.is_room_alias_id() {
 		let room_alias = match RoomAliasId::parse(&room) {
-			Ok(room_alias) => room_alias,
-			Err(e) => {
+			| Ok(room_alias) => room_alias,
+			| Err(e) =>
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Failed to parse room ID {room}. Please note that this requires a full room ID \
-					 (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"
-				)))
-			},
+					"Failed to parse room ID {room}. Please note that this requires a full room \
+					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+					 (`#roomalias:example.com`): {e}"
+				))),
 		};
 
 		debug!(
-			"Room specified is not a room ID, attempting to resolve room alias to a room ID locally, if not using \
-			 get_alias_helper to fetch room ID remotely"
+			"Room specified is not a room ID, attempting to resolve room alias to a room ID \
+			 locally, if not using get_alias_helper to fetch room ID remotely"
 		);
 
 		let room_id = if let Ok(room_id) = self
@@ -128,7 +134,10 @@ async fn ban_room(
 		{
 			room_id
 		} else {
-			debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
+			debug!(
+				"We don't have this room alias to a room ID locally, attempting to fetch room \
+				 ID over federation"
+			);
 
 			match self
 				.services
@@ -137,11 +146,15 @@ async fn ban_room(
 				.resolve_alias(&room_alias, None)
 				.await
 			{
-				Ok((room_id, servers)) => {
-					debug!(?room_id, ?servers, "Got federation response fetching room ID for {room}");
+				| Ok((room_id, servers)) => {
+					debug!(
+						?room_id,
+						?servers,
+						"Got federation response fetching room ID for {room}"
+					);
 					room_id
 				},
-				Err(e) => {
+				| Err(e) => {
 					return Ok(RoomMessageEventContent::notice_plain(format!(
 						"Failed to resolve room alias {room} to a room ID: {e}"
 					)));
@@ -154,8 +167,9 @@ async fn ban_room(
 		room_id
 	} else {
 		return Ok(RoomMessageEventContent::text_plain(
-			"Room specified is not a room ID or room alias. Please note that this requires a full room ID \
-			 (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`)",
+			"Room specified is not a room ID or room alias. Please note that this requires a \
+			 full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+			 (`#roomalias:example.com`)",
 		));
 	};
 
@@ -171,8 +185,8 @@ async fn ban_room(
 
 		while let Some(local_user) = users.next().await {
 			debug!(
-				"Attempting leave for user {local_user} in room {room_id} (forced, ignoring all errors, evicting \
-				 admins too)",
+				"Attempting leave for user {local_user} in room {room_id} (forced, ignoring all \
+				 errors, evicting admins too)",
 			);
 
 			if let Err(e) = leave_room(self.services, local_user, &room_id, None).await {
@@ -196,12 +210,14 @@ async fn ban_room(
 			debug!("Attempting leave for user {} in room {}", &local_user, &room_id);
 			if let Err(e) = leave_room(self.services, local_user, &room_id, None).await {
 				error!(
-					"Error attempting to make local user {} leave room {} during room banning: {}",
+					"Error attempting to make local user {} leave room {} during room banning: \
+					 {}",
 					&local_user, &room_id, e
 				);
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Error attempting to make local user {} leave room {} during room banning (room is still banned \
-					 but not removing any more users): {}\nIf you would like to ignore errors, use --force",
+					"Error attempting to make local user {} leave room {} during room banning \
+					 (room is still banned but not removing any more users): {}\nIf you would \
+					 like to ignore errors, use --force",
 					&local_user, &room_id, e
 				)));
 			}
@@ -232,19 +248,26 @@ async fn ban_room(
 	if disable_federation {
 		self.services.rooms.metadata.disable_room(&room_id, true);
 		return Ok(RoomMessageEventContent::text_plain(
-			"Room banned, removed all our local users, and disabled incoming federation with room.",
+			"Room banned, removed all our local users, and disabled incoming federation with \
+			 room.",
 		));
 	}
 
 	Ok(RoomMessageEventContent::text_plain(
-		"Room banned and removed all our local users, use `!admin federation disable-room` to stop receiving new \
-		 inbound federation events as well if needed.",
+		"Room banned and removed all our local users, use `!admin federation disable-room` to \
+		 stop receiving new inbound federation events as well if needed.",
 	))
 }
 
 #[admin_command]
-async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+async fn ban_list_of_rooms(
+	&self,
+	force: bool,
+	disable_federation: bool,
+) -> Result<RoomMessageEventContent> {
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -264,9 +287,10 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 
 	for &room in &rooms_s {
 		match <&RoomOrAliasId>::try_from(room) {
-			Ok(room_alias_or_id) => {
+			| Ok(room_alias_or_id) => {
 				if let Ok(admin_room_id) = self.services.admin.get_admin_room().await {
-					if room.to_owned().eq(&admin_room_id) || room.to_owned().eq(admin_room_alias) {
+					if room.to_owned().eq(&admin_room_id) || room.to_owned().eq(admin_room_alias)
+					{
 						info!("User specified admin room in bulk ban list, ignoring");
 						continue;
 					}
@@ -274,19 +298,20 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 
 				if room_alias_or_id.is_room_id() {
 					let room_id = match RoomId::parse(room_alias_or_id) {
-						Ok(room_id) => room_id,
-						Err(e) => {
+						| Ok(room_id) => room_id,
+						| Err(e) => {
 							if force {
 								// ignore rooms we failed to parse if we're force banning
 								warn!(
-									"Error parsing room \"{room}\" during bulk room banning, ignoring error and \
-									 logging here: {e}"
+									"Error parsing room \"{room}\" during bulk room banning, \
+									 ignoring error and logging here: {e}"
 								);
 								continue;
 							}
 
 							return Ok(RoomMessageEventContent::text_plain(format!(
-								"{room} is not a valid room ID or room alias, please fix the list and try again: {e}"
+								"{room} is not a valid room ID or room alias, please fix the \
+								 list and try again: {e}"
 							)));
 						},
 					};
@@ -296,7 +321,7 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 
 				if room_alias_or_id.is_room_alias_id() {
 					match RoomAliasId::parse(room_alias_or_id) {
-						Ok(room_alias) => {
+						| Ok(room_alias) => {
 							let room_id = if let Ok(room_id) = self
 								.services
 								.rooms
@@ -307,8 +332,8 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 								room_id
 							} else {
 								debug!(
-									"We don't have this room alias to a room ID locally, attempting to fetch room ID \
-									 over federation"
+									"We don't have this room alias to a room ID locally, \
+									 attempting to fetch room ID over federation"
 								);
 
 								match self
@@ -318,7 +343,7 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 									.resolve_alias(&room_alias, None)
 									.await
 								{
-									Ok((room_id, servers)) => {
+									| Ok((room_id, servers)) => {
 										debug!(
 											?room_id,
 											?servers,
@@ -326,15 +351,19 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 										);
 										room_id
 									},
-									Err(e) => {
+									| Err(e) => {
 										// don't fail if force blocking
 										if force {
-											warn!("Failed to resolve room alias {room} to a room ID: {e}");
+											warn!(
+												"Failed to resolve room alias {room} to a room \
+												 ID: {e}"
+											);
 											continue;
 										}
 
 										return Ok(RoomMessageEventContent::text_plain(format!(
-											"Failed to resolve room alias {room} to a room ID: {e}"
+											"Failed to resolve room alias {room} to a room ID: \
+											 {e}"
 										)));
 									},
 								}
@@ -342,34 +371,37 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 
 							room_ids.push(room_id);
 						},
-						Err(e) => {
+						| Err(e) => {
 							if force {
 								// ignore rooms we failed to parse if we're force deleting
 								error!(
-									"Error parsing room \"{room}\" during bulk room banning, ignoring error and \
-									 logging here: {e}"
+									"Error parsing room \"{room}\" during bulk room banning, \
+									 ignoring error and logging here: {e}"
 								);
 								continue;
 							}
 
 							return Ok(RoomMessageEventContent::text_plain(format!(
-								"{room} is not a valid room ID or room alias, please fix the list and try again: {e}"
+								"{room} is not a valid room ID or room alias, please fix the \
+								 list and try again: {e}"
 							)));
 						},
 					}
 				}
 			},
-			Err(e) => {
+			| Err(e) => {
 				if force {
 					// ignore rooms we failed to parse if we're force deleting
 					error!(
-						"Error parsing room \"{room}\" during bulk room banning, ignoring error and logging here: {e}"
+						"Error parsing room \"{room}\" during bulk room banning, ignoring error \
+						 and logging here: {e}"
 					);
 					continue;
 				}
 
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"{room} is not a valid room ID or room alias, please fix the list and try again: {e}"
+					"{room} is not a valid room ID or room alias, please fix the list and try \
+					 again: {e}"
 				)));
 			},
 		}
@@ -393,8 +425,8 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 
 			while let Some(local_user) = users.next().await {
 				debug!(
-					"Attempting leave for user {local_user} in room {room_id} (forced, ignoring all errors, evicting \
-					 admins too)",
+					"Attempting leave for user {local_user} in room {room_id} (forced, ignoring \
+					 all errors, evicting admins too)",
 				);
 
 				if let Err(e) = leave_room(self.services, local_user, &room_id, None).await {
@@ -418,14 +450,15 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 				debug!("Attempting leave for user {local_user} in room {room_id}");
 				if let Err(e) = leave_room(self.services, local_user, &room_id, None).await {
 					error!(
-						"Error attempting to make local user {local_user} leave room {room_id} during bulk room \
-						 banning: {e}",
+						"Error attempting to make local user {local_user} leave room {room_id} \
+						 during bulk room banning: {e}",
 					);
 
 					return Ok(RoomMessageEventContent::text_plain(format!(
-						"Error attempting to make local user {} leave room {} during room banning (room is still \
-						 banned but not removing any more users and not banning any more rooms): {}\nIf you would \
-						 like to ignore errors, use --force",
+						"Error attempting to make local user {} leave room {} during room \
+						 banning (room is still banned but not removing any more users and not \
+						 banning any more rooms): {}\nIf you would like to ignore errors, use \
+						 --force",
 						&local_user, &room_id, e
 					)));
 				}
@@ -458,8 +491,8 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 
 	if disable_federation {
 		Ok(RoomMessageEventContent::text_plain(format!(
-			"Finished bulk room ban, banned {room_ban_count} total rooms, evicted all users, and disabled incoming \
-			 federation with the room."
+			"Finished bulk room ban, banned {room_ban_count} total rooms, evicted all users, \
+			 and disabled incoming federation with the room."
 		)))
 	} else {
 		Ok(RoomMessageEventContent::text_plain(format!(
@@ -469,16 +502,20 @@ async fn ban_list_of_rooms(&self, force: bool, disable_federation: bool) -> Resu
 }
 
 #[admin_command]
-async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) -> Result<RoomMessageEventContent> {
+async fn unban_room(
+	&self,
+	enable_federation: bool,
+	room: Box<RoomOrAliasId>,
+) -> Result<RoomMessageEventContent> {
 	let room_id = if room.is_room_id() {
 		let room_id = match RoomId::parse(&room) {
-			Ok(room_id) => room_id,
-			Err(e) => {
+			| Ok(room_id) => room_id,
+			| Err(e) =>
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Failed to parse room ID {room}. Please note that this requires a full room ID \
-					 (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"
-				)))
-			},
+					"Failed to parse room ID {room}. Please note that this requires a full room \
+					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+					 (`#roomalias:example.com`): {e}"
+				))),
 		};
 
 		debug!("Room specified is a room ID, unbanning room ID");
@@ -488,18 +525,18 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 		room_id
 	} else if room.is_room_alias_id() {
 		let room_alias = match RoomAliasId::parse(&room) {
-			Ok(room_alias) => room_alias,
-			Err(e) => {
+			| Ok(room_alias) => room_alias,
+			| Err(e) =>
 				return Ok(RoomMessageEventContent::text_plain(format!(
-					"Failed to parse room ID {room}. Please note that this requires a full room ID \
-					 (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`): {e}"
-				)))
-			},
+					"Failed to parse room ID {room}. Please note that this requires a full room \
+					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+					 (`#roomalias:example.com`): {e}"
+				))),
 		};
 
 		debug!(
-			"Room specified is not a room ID, attempting to resolve room alias to a room ID locally, if not using \
-			 get_alias_helper to fetch room ID remotely"
+			"Room specified is not a room ID, attempting to resolve room alias to a room ID \
+			 locally, if not using get_alias_helper to fetch room ID remotely"
 		);
 
 		let room_id = if let Ok(room_id) = self
@@ -511,7 +548,10 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 		{
 			room_id
 		} else {
-			debug!("We don't have this room alias to a room ID locally, attempting to fetch room ID over federation");
+			debug!(
+				"We don't have this room alias to a room ID locally, attempting to fetch room \
+				 ID over federation"
+			);
 
 			match self
 				.services
@@ -520,11 +560,15 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 				.resolve_alias(&room_alias, None)
 				.await
 			{
-				Ok((room_id, servers)) => {
-					debug!(?room_id, ?servers, "Got federation response fetching room ID for room {room}");
+				| Ok((room_id, servers)) => {
+					debug!(
+						?room_id,
+						?servers,
+						"Got federation response fetching room ID for room {room}"
+					);
 					room_id
 				},
-				Err(e) => {
+				| Err(e) => {
 					return Ok(RoomMessageEventContent::text_plain(format!(
 						"Failed to resolve room alias {room} to a room ID: {e}"
 					)));
@@ -537,8 +581,9 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 		room_id
 	} else {
 		return Ok(RoomMessageEventContent::text_plain(
-			"Room specified is not a room ID or room alias. Please note that this requires a full room ID \
-			 (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias (`#roomalias:example.com`)",
+			"Room specified is not a room ID or room alias. Please note that this requires a \
+			 full room ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
+			 (`#roomalias:example.com`)",
 		));
 	};
 
@@ -548,8 +593,8 @@ async fn unban_room(&self, enable_federation: bool, room: Box<RoomOrAliasId>) ->
 	}
 
 	Ok(RoomMessageEventContent::text_plain(
-		"Room unbanned, you may need to re-enable federation with the room using enable-room if this is a remote room \
-		 to make it fully functional.",
+		"Room unbanned, you may need to re-enable federation with the room using enable-room if \
+		 this is a remote room to make it fully functional.",
 	))
 }
 

@@ -6,23 +6,11 @@ use crate::Result;
 
 pub(crate) fn get_simple_settings(args: &[Meta]) -> HashMap<String, String> {
 	args.iter().fold(HashMap::new(), |mut map, arg| {
-		let Meta::NameValue(MetaNameValue {
-			path,
-			value,
-			..
-		}) = arg
-		else {
+		let Meta::NameValue(MetaNameValue { path, value, .. }) = arg else {
 			return map;
 		};
 
-		let Expr::Lit(
-			ExprLit {
-				lit: Lit::Str(str),
-				..
-			},
-			..,
-		) = value
-		else {
+		let Expr::Lit(ExprLit { lit: Lit::Str(str), .. }, ..) = value else {
 			return map;
 		};
 

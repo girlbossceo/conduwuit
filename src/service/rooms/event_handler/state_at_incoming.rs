@@ -21,7 +21,8 @@ use ruma::{
 // request and build the state from a known point and resolve if > 1 prev_event
 #[tracing::instrument(skip_all, name = "state")]
 pub(super) async fn state_at_incoming_degree_one(
-	&self, incoming_pdu: &Arc<PduEvent>,
+	&self,
+	incoming_pdu: &Arc<PduEvent>,
 ) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 	let prev_event = &*incoming_pdu.prev_events[0];
 	let Ok(prev_event_sstatehash) = self
@@ -70,7 +71,10 @@ pub(super) async fn state_at_incoming_degree_one(
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, name = "state")]
 pub(super) async fn state_at_incoming_resolved(
-	&self, incoming_pdu: &Arc<PduEvent>, room_id: &RoomId, room_version_id: &RoomVersionId,
+	&self,
+	incoming_pdu: &Arc<PduEvent>,
+	room_id: &RoomId,
+	room_version_id: &RoomVersionId,
 ) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 	debug!("Calculating state at event using state res");
 	let mut extremity_sstatehashes = HashMap::with_capacity(incoming_pdu.prev_events.len());
@@ -157,10 +161,16 @@ pub(super) async fn state_at_incoming_resolved(
 
 	let event_fetch = |event_id| self.event_fetch(event_id);
 	let event_exists = |event_id| self.event_exists(event_id);
-	let result = state_res::resolve(room_version_id, &fork_states, &auth_chain_sets, &event_fetch, &event_exists)
-		.boxed()
-		.await
-		.map_err(|e| err!(Database(warn!(?e, "State resolution on prev events failed."))));
+	let result = state_res::resolve(
+		room_version_id,
+		&fork_states,
+		&auth_chain_sets,
+		&event_fetch,
+		&event_exists,
+	)
+	.boxed()
+	.await
+	.map_err(|e| err!(Database(warn!(?e, "State resolution on prev events failed."))));
 
 	drop(lock);
 

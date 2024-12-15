@@ -25,7 +25,8 @@ use crate::{
 /// Reports an abusive room to homeserver admins
 #[tracing::instrument(skip_all, fields(%client), name = "report_room")]
 pub(crate) async fn report_room_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<report_room::v3::Request>,
 ) -> Result<report_room::v3::Response> {
 	// user authentication
@@ -78,14 +79,16 @@ pub(crate) async fn report_room_route(
 /// Reports an inappropriate event to homeserver admins
 #[tracing::instrument(skip_all, fields(%client), name = "report_event")]
 pub(crate) async fn report_event_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<report_content::v3::Request>,
 ) -> Result<report_content::v3::Response> {
 	// user authentication
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
 	info!(
-		"Received event report by user {sender_user} for room {} and event ID {}, with reason: \"{}\"",
+		"Received event report by user {sender_user} for room {} and event ID {}, with reason: \
+		 \"{}\"",
 		body.room_id,
 		body.event_id,
 		body.reason.as_deref().unwrap_or("")
@@ -114,8 +117,8 @@ pub(crate) async fn report_event_route(
 	services
 		.admin
 		.send_message(message::RoomMessageEventContent::text_markdown(format!(
-			"@room Event report received from {} -\n\nEvent ID: {}\nRoom ID: {}\nSent By: {}\n\nReport Score: \
-			 {}\nReport Reason: {}",
+			"@room Event report received from {} -\n\nEvent ID: {}\nRoom ID: {}\nSent By: \
+			 {}\n\nReport Score: {}\nReport Reason: {}",
 			sender_user.to_owned(),
 			pdu.event_id,
 			pdu.room_id,
@@ -136,10 +139,18 @@ pub(crate) async fn report_event_route(
 /// check if report reasoning is less than or equal to 750 characters
 /// check if reporting user is in the reporting room
 async fn is_event_report_valid(
-	services: &Services, event_id: &EventId, room_id: &RoomId, sender_user: &UserId, reason: Option<&String>,
-	score: Option<ruma::Int>, pdu: &PduEvent,
+	services: &Services,
+	event_id: &EventId,
+	room_id: &RoomId,
+	sender_user: &UserId,
+	reason: Option<&String>,
+	score: Option<ruma::Int>,
+	pdu: &PduEvent,
 ) -> Result<()> {
-	debug_info!("Checking if report from user {sender_user} for event {event_id} in room {room_id} is valid");
+	debug_info!(
+		"Checking if report from user {sender_user} for event {event_id} in room {room_id} is \
+		 valid"
+	);
 
 	if room_id != pdu.room_id {
 		return Err(Error::BadRequest(
@@ -183,6 +194,9 @@ async fn is_event_report_valid(
 /// enumerating for potential events existing in our server.
 async fn delay_response() {
 	let time_to_wait = rand::thread_rng().gen_range(2..5);
-	debug_info!("Got successful /report request, waiting {time_to_wait} seconds before sending successful response.");
+	debug_info!(
+		"Got successful /report request, waiting {time_to_wait} seconds before sending \
+		 successful response."
+	);
 	sleep(Duration::from_secs(time_to_wait)).await;
 }

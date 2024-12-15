@@ -11,9 +11,7 @@ pub(crate) async fn get_protocols_route(
 	_body: Ruma<get_protocols::v3::Request>,
 ) -> Result<get_protocols::v3::Response> {
 	// TODO
-	Ok(get_protocols::v3::Response {
-		protocols: BTreeMap::new(),
-	})
+	Ok(get_protocols::v3::Response { protocols: BTreeMap::new() })
 }
 
 /// # `GET /_matrix/client/unstable/thirdparty/protocols`

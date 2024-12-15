@@ -184,7 +184,12 @@ impl Visit for Visitor<'_> {
 	}
 }
 
-pub fn visit(out: &mut String, level: Level, __callsite: &'static DefaultCallsite, vs: &mut ValueSet<'_>) {
+pub fn visit(
+	out: &mut String,
+	level: Level,
+	__callsite: &'static DefaultCallsite,
+	vs: &mut ValueSet<'_>,
+) {
 	let meta = __callsite.metadata();
 	let enabled = level_enabled!(level) && {
 		let interest = __callsite.interest();

@@ -18,7 +18,8 @@ use crate::{
 ///
 /// Gets information on all devices of the user.
 pub(crate) async fn get_devices_route(
-	State(services): State<crate::State>, body: Ruma<get_devices::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_devices::v1::Request>,
 ) -> Result<get_devices::v1::Response> {
 	if !services.globals.user_is_local(&body.user_id) {
 		return Err(Error::BadRequest(
@@ -52,11 +53,7 @@ pub(crate) async fn get_devices_route(
 				services
 					.users
 					.get_device_keys(user_id, &device_id_clone)
-					.map_ok(|keys| UserDevice {
-						device_id,
-						keys,
-						device_display_name,
-					})
+					.map_ok(|keys| UserDevice { device_id, keys, device_display_name })
 					.map(Result::ok)
 					.await
 			})
@@ -79,7 +76,8 @@ pub(crate) async fn get_devices_route(
 ///
 /// Gets devices and identity keys for the given users.
 pub(crate) async fn get_keys_route(
-	State(services): State<crate::State>, body: Ruma<get_keys::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_keys::v1::Request>,
 ) -> Result<get_keys::v1::Response> {
 	if body
 		.device_keys
@@ -112,7 +110,8 @@ pub(crate) async fn get_keys_route(
 ///
 /// Claims one-time keys.
 pub(crate) async fn claim_keys_route(
-	State(services): State<crate::State>, body: Ruma<claim_keys::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<claim_keys::v1::Request>,
 ) -> Result<claim_keys::v1::Response> {
 	if body
 		.one_time_keys
@@ -127,7 +126,5 @@ pub(crate) async fn claim_keys_route(
 
 	let result = claim_keys_helper(&services, &body.one_time_keys).await?;
 
-	Ok(claim_keys::v1::Response {
-		one_time_keys: result.one_time_keys,
-	})
+	Ok(claim_keys::v1::Response { one_time_keys: result.one_time_keys })
 }

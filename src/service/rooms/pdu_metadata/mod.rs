@@ -36,8 +36,8 @@ impl Service {
 	#[tracing::instrument(skip(self, from, to), level = "debug")]
 	pub fn add_relation(&self, from: PduCount, to: PduCount) {
 		match (from, to) {
-			(PduCount::Normal(f), PduCount::Normal(t)) => self.db.add_relation(f, t),
-			_ => {
+			| (PduCount::Normal(f), PduCount::Normal(t)) => self.db.add_relation(f, t),
+			| _ => {
 				// TODO: Relations with backfilled pdus
 			},
 		}
@@ -45,15 +45,21 @@ impl Service {
 
 	#[allow(clippy::too_many_arguments)]
 	pub async fn get_relations(
-		&self, user_id: &UserId, room_id: &RoomId, target: &EventId, from: PduCount, limit: usize, max_depth: u8,
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+		target: &EventId,
+		from: PduCount,
+		limit: usize,
+		max_depth: u8,
 		dir: Direction,
 	) -> Vec<PdusIterItem> {
 		let room_id = self.services.short.get_or_create_shortroomid(room_id).await;
 
 		let target = match self.services.timeline.get_pdu_count(target).await {
-			Ok(PduCount::Normal(c)) => c,
+			| Ok(PduCount::Normal(c)) => c,
 			// TODO: Support backfilled relations
-			_ => 0, // This will result in an empty iterator
+			| _ => 0, // This will result in an empty iterator
 		};
 
 		let mut pdus: Vec<_> = self
@@ -66,9 +72,9 @@ impl Service {
 
 		'limit: while let Some(stack_pdu) = stack.pop() {
 			let target = match stack_pdu.0 .0 {
-				PduCount::Normal(c) => c,
+				| PduCount::Normal(c) => c,
 				// TODO: Support backfilled relations
-				PduCount::Backfilled(_) => 0, // This will result in an empty iterator
+				| PduCount::Backfilled(_) => 0, // This will result in an empty iterator
 			};
 
 			let relations: Vec<_> = self
@@ -106,7 +112,9 @@ impl Service {
 
 	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn mark_event_soft_failed(&self, event_id: &EventId) { self.db.mark_event_soft_failed(event_id) }
+	pub fn mark_event_soft_failed(&self, event_id: &EventId) {
+		self.db.mark_event_soft_failed(event_id);
+	}
 
 	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]

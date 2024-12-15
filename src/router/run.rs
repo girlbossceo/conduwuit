@@ -33,9 +33,10 @@ pub(crate) async fn run(services: Arc<Services>) -> Result<()> {
 		.runtime()
 		.spawn(signal(server.clone(), tx.clone(), handle.clone()));
 
-	let mut listener = server
-		.runtime()
-		.spawn(serve::serve(services.clone(), handle.clone(), tx.subscribe()));
+	let mut listener =
+		server
+			.runtime()
+			.spawn(serve::serve(services.clone(), handle.clone(), tx.subscribe()));
 
 	// Focal point
 	debug!("Running");
@@ -63,7 +64,8 @@ pub(crate) async fn start(server: Arc<Server>) -> Result<Arc<Services>> {
 	let services = Services::build(server).await?.start().await?;
 
 	#[cfg(feature = "systemd")]
-	sd_notify::notify(true, &[sd_notify::NotifyState::Ready]).expect("failed to notify systemd of ready state");
+	sd_notify::notify(true, &[sd_notify::NotifyState::Ready])
+		.expect("failed to notify systemd of ready state");
 
 	debug!("Started");
 	Ok(services)
@@ -98,7 +100,8 @@ pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 	}
 
 	#[cfg(feature = "systemd")]
-	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping]).expect("failed to notify systemd of stopping state");
+	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping])
+		.expect("failed to notify systemd of stopping state");
 
 	info!("Shutdown complete.");
 	Ok(())
@@ -121,7 +124,12 @@ async fn signal(server: Arc<Server>, tx: Sender<()>, handle: axum_server::Handle
 	}
 }
 
-async fn handle_shutdown(server: &Arc<Server>, tx: &Sender<()>, handle: &axum_server::Handle, sig: &str) {
+async fn handle_shutdown(
+	server: &Arc<Server>,
+	tx: &Sender<()>,
+	handle: &axum_server::Handle,
+	sig: &str,
+) {
 	debug!("Received signal {sig}");
 	if let Err(e) = tx.send(()) {
 		error!("failed sending shutdown transaction to channel: {e}");
@@ -139,7 +147,9 @@ async fn handle_shutdown(server: &Arc<Server>, tx: &Sender<()>, handle: &axum_se
 }
 
 async fn handle_services_poll(
-	server: &Arc<Server>, result: Result<()>, listener: JoinHandle<Result<()>>,
+	server: &Arc<Server>,
+	result: Result<()>,
+	listener: JoinHandle<Result<()>>,
 ) -> Result<()> {
 	debug!("Service manager finished: {result:?}");
 

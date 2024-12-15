@@ -30,15 +30,14 @@ pub(crate) enum AccountDataCommand {
 }
 
 /// All the getters and iterators from src/database/key_value/account_data.rs
-pub(super) async fn process(subcommand: AccountDataCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: AccountDataCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		AccountDataCommand::ChangesSince {
-			user_id,
-			since,
-			room_id,
-		} => {
+		| AccountDataCommand::ChangesSince { user_id, since, room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.account_data
@@ -51,11 +50,7 @@ pub(super) async fn process(subcommand: AccountDataCommand, context: &Command<'_
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		AccountDataCommand::Get {
-			user_id,
-			kind,
-			room_id,
-		} => {
+		| AccountDataCommand::Get { user_id, kind, room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.account_data

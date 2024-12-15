@@ -46,7 +46,8 @@ const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
 ///
 /// Sliding Sync endpoint (future endpoint: `/_matrix/client/v4/sync`)
 pub(crate) async fn sync_events_v4_route(
-	State(services): State<crate::State>, body: Ruma<sync_events::v4::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<sync_events::v4::Request>,
 ) -> Result<sync_events::v4::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.expect("user is authenticated");
@@ -81,16 +82,19 @@ pub(crate) async fn sync_events_v4_route(
 	}
 
 	if globalsince == 0 {
-		services
-			.sync
-			.forget_sync_request_connection(sender_user.clone(), sender_device.clone(), conn_id.clone());
+		services.sync.forget_sync_request_connection(
+			sender_user.clone(),
+			sender_device.clone(),
+			conn_id.clone(),
+		);
 	}
 
 	// Get sticky parameters from cache
-	let known_rooms =
-		services
-			.sync
-			.update_sync_request_with_cache(sender_user.clone(), sender_device.clone(), &mut body);
+	let known_rooms = services.sync.update_sync_request_with_cache(
+		sender_user.clone(),
+		sender_device.clone(),
+		&mut body,
+	);
 
 	let all_joined_rooms: Vec<_> = services
 		.rooms
@@ -125,9 +129,7 @@ pub(crate) async fn sync_events_v4_route(
 	let mut device_list_changes = HashSet::new();
 	let mut device_list_left = HashSet::new();
 
-	let mut receipts = sync_events::v4::Receipts {
-		rooms: BTreeMap::new(),
-	};
+	let mut receipts = sync_events::v4::Receipts { rooms: BTreeMap::new() };
 
 	let mut account_data = sync_events::v4::AccountData {
 		global: Vec::new(),
@@ -168,7 +170,9 @@ pub(crate) async fn sync_events_v4_route(
 		);
 
 		for room_id in &all_joined_rooms {
-			let Ok(current_shortstatehash) = services.rooms.state.get_room_shortstatehash(room_id).await else {
+			let Ok(current_shortstatehash) =
+				services.rooms.state.get_room_shortstatehash(room_id).await
+			else {
 				error!("Room {room_id} has no state");
 				continue;
 			};
@@ -202,12 +206,17 @@ pub(crate) async fn sync_events_v4_route(
 				let since_sender_member: Option<RoomMemberEventContent> = services
 					.rooms
 					.state_accessor
-					.state_get_content(since_shortstatehash, &StateEventType::RoomMember, sender_user.as_str())
+					.state_get_content(
+						since_shortstatehash,
+						&StateEventType::RoomMember,
+						sender_user.as_str(),
+					)
 					.ok()
 					.await;
 
-				let joined_since_last_sync =
-					since_sender_member.map_or(true, |member| member.membership != MembershipState::Join);
+				let joined_since_last_sync = since_sender_member
+					.as_ref()
+					.is_none_or(|member| member.membership != MembershipState::Join);
 
 				let new_encrypted_room = encrypted_room && since_encryption.is_err();
 
@@ -232,8 +241,10 @@ pub(crate) async fn sync_events_v4_route(
 							};
 							if pdu.kind == RoomMember {
 								if let Some(state_key) = &pdu.state_key {
-									let user_id = UserId::parse(state_key.clone())
-										.map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
+									let user_id =
+										UserId::parse(state_key.clone()).map_err(|_| {
+											Error::bad_database("Invalid UserId in member PDU.")
+										})?;
 
 									if user_id == *sender_user {
 										continue;
@@ -241,19 +252,25 @@ pub(crate) async fn sync_events_v4_route(
 
 									let content: RoomMemberEventContent = pdu.get_content()?;
 									match content.membership {
-										MembershipState::Join => {
+										| MembershipState::Join => {
 											// A new user joined an encrypted room
-											if !share_encrypted_room(&services, sender_user, &user_id, Some(room_id))
-												.await
+											if !share_encrypted_room(
+												&services,
+												sender_user,
+												&user_id,
+												Some(room_id),
+											)
+											.await
 											{
 												device_list_changes.insert(user_id);
 											}
 										},
-										MembershipState::Leave => {
-											// Write down users that have left encrypted rooms we are in
+										| MembershipState::Leave => {
+											// Write down users that have left encrypted rooms we
+											// are in
 											left_encrypted_users.insert(user_id);
 										},
-										_ => {},
+										| _ => {},
 									}
 								}
 							}
@@ -293,7 +310,8 @@ pub(crate) async fn sync_events_v4_route(
 		}
 
 		for user_id in left_encrypted_users {
-			let dont_share_encrypted_room = !share_encrypted_room(&services, sender_user, &user_id, None).await;
+			let dont_share_encrypted_room =
+				!share_encrypted_room(&services, sender_user, &user_id, None).await;
 
 			// If the user doesn't share an encrypted room with the target anymore, we need
 			// to tell them
@@ -308,85 +326,85 @@ pub(crate) async fn sync_events_v4_route(
 
 	for (list_id, list) in &body.lists {
 		let active_rooms = match list.filters.clone().and_then(|f| f.is_invite) {
-			Some(true) => &all_invited_rooms,
-			Some(false) => &all_joined_rooms,
-			None => &all_rooms,
+			| Some(true) => &all_invited_rooms,
+			| Some(false) => &all_joined_rooms,
+			| None => &all_rooms,
 		};
 
 		let active_rooms = match list.filters.clone().map(|f| f.not_room_types) {
-			Some(filter) if filter.is_empty() => active_rooms.clone(),
-			Some(value) => filter_rooms(&services, active_rooms, &value, true).await,
-			None => active_rooms.clone(),
+			| Some(filter) if filter.is_empty() => active_rooms.clone(),
+			| Some(value) => filter_rooms(&services, active_rooms, &value, true).await,
+			| None => active_rooms.clone(),
 		};
 
 		let active_rooms = match list.filters.clone().map(|f| f.room_types) {
-			Some(filter) if filter.is_empty() => active_rooms.clone(),
-			Some(value) => filter_rooms(&services, &active_rooms, &value, false).await,
-			None => active_rooms,
+			| Some(filter) if filter.is_empty() => active_rooms.clone(),
+			| Some(value) => filter_rooms(&services, &active_rooms, &value, false).await,
+			| None => active_rooms,
 		};
 
 		let mut new_known_rooms = BTreeSet::new();
 
 		let ranges = list.ranges.clone();
-		lists.insert(
-			list_id.clone(),
-			sync_events::v4::SyncList {
-				ops: ranges
-					.into_iter()
-					.map(|mut r| {
-						r.0 = r.0.clamp(
-							uint!(0),
-							UInt::try_from(active_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
+		lists.insert(list_id.clone(), sync_events::v4::SyncList {
+			ops: ranges
+				.into_iter()
+				.map(|mut r| {
+					r.0 = r.0.clamp(
+						uint!(0),
+						UInt::try_from(active_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
+					);
+					r.1 = r.1.clamp(
+						r.0,
+						UInt::try_from(active_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX),
+					);
+
+					let room_ids = if !active_rooms.is_empty() {
+						active_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec()
+					} else {
+						Vec::new()
+					};
+
+					new_known_rooms.extend(room_ids.iter().cloned());
+					for room_id in &room_ids {
+						let todo_room = todo_rooms.entry(room_id.clone()).or_insert((
+							BTreeSet::new(),
+							0_usize,
+							u64::MAX,
+						));
+
+						let limit: usize = list
+							.room_details
+							.timeline_limit
+							.map(u64::from)
+							.map_or(10, usize_from_u64_truncated)
+							.min(100);
+
+						todo_room
+							.0
+							.extend(list.room_details.required_state.iter().cloned());
+
+						todo_room.1 = todo_room.1.max(limit);
+						// 0 means unknown because it got out of date
+						todo_room.2 = todo_room.2.min(
+							known_rooms
+								.get(list_id.as_str())
+								.and_then(|k| k.get(room_id))
+								.copied()
+								.unwrap_or(0),
 						);
-						r.1 =
-							r.1.clamp(r.0, UInt::try_from(active_rooms.len().saturating_sub(1)).unwrap_or(UInt::MAX));
-
-						let room_ids = if !active_rooms.is_empty() {
-							active_rooms[usize_from_ruma(r.0)..=usize_from_ruma(r.1)].to_vec()
-						} else {
-							Vec::new()
-						};
-
-						new_known_rooms.extend(room_ids.iter().cloned());
-						for room_id in &room_ids {
-							let todo_room =
-								todo_rooms
-									.entry(room_id.clone())
-									.or_insert((BTreeSet::new(), 0_usize, u64::MAX));
-
-							let limit: usize = list
-								.room_details
-								.timeline_limit
-								.map(u64::from)
-								.map_or(10, usize_from_u64_truncated)
-								.min(100);
-
-							todo_room
-								.0
-								.extend(list.room_details.required_state.iter().cloned());
-
-							todo_room.1 = todo_room.1.max(limit);
-							// 0 means unknown because it got out of date
-							todo_room.2 = todo_room.2.min(
-								known_rooms
-									.get(list_id.as_str())
-									.and_then(|k| k.get(room_id))
-									.copied()
-									.unwrap_or(0),
-							);
-						}
-						sync_events::v4::SyncOp {
-							op: SlidingOp::Sync,
-							range: Some(r),
-							index: None,
-							room_ids,
-							room_id: None,
-						}
-					})
-					.collect(),
-				count: ruma_from_usize(active_rooms.len()),
-			},
-		);
+					}
+					sync_events::v4::SyncOp {
+						op: SlidingOp::Sync,
+						range: Some(r),
+						index: None,
+						room_ids,
+						room_id: None,
+					}
+				})
+				.collect(),
+			count: ruma_from_usize(active_rooms.len()),
+		});
 
 		if let Some(conn_id) = &body.conn_id {
 			services.sync.update_sync_known_rooms(
@@ -405,9 +423,10 @@ pub(crate) async fn sync_events_v4_route(
 		if !services.rooms.metadata.exists(room_id).await {
 			continue;
 		}
-		let todo_room = todo_rooms
-			.entry(room_id.clone())
-			.or_insert((BTreeSet::new(), 0_usize, u64::MAX));
+		let todo_room =
+			todo_rooms
+				.entry(room_id.clone())
+				.or_insert((BTreeSet::new(), 0_usize, u64::MAX));
 
 		let limit: usize = room
 			.timeline_limit
@@ -471,14 +490,22 @@ pub(crate) async fn sync_events_v4_route(
 
 			(timeline_pdus, limited) = (Vec::new(), true);
 		} else {
-			(timeline_pdus, limited) =
-				match load_timeline(&services, sender_user, room_id, roomsincecount, None, *timeline_limit).await {
-					Ok(value) => value,
-					Err(err) => {
-						warn!("Encountered missing timeline in {}, error {}", room_id, err);
-						continue;
-					},
-				};
+			(timeline_pdus, limited) = match load_timeline(
+				&services,
+				sender_user,
+				room_id,
+				roomsincecount,
+				None,
+				*timeline_limit,
+			)
+			.await
+			{
+				| Ok(value) => value,
+				| Err(err) => {
+					warn!("Encountered missing timeline in {}, error {}", room_id, err);
+					continue;
+				},
+			};
 		}
 
 		account_data.rooms.insert(
@@ -543,11 +570,11 @@ pub(crate) async fn sync_events_v4_route(
 			.first()
 			.map_or(Ok::<_, Error>(None), |(pdu_count, _)| {
 				Ok(Some(match pdu_count {
-					PduCount::Backfilled(_) => {
+					| PduCount::Backfilled(_) => {
 						error!("timeline in backfill state?!");
 						"0".to_owned()
 					},
-					PduCount::Normal(c) => c.to_string(),
+					| PduCount::Normal(c) => c.to_string(),
 				}))
 			})?
 			.or_else(|| {
@@ -568,7 +595,9 @@ pub(crate) async fn sync_events_v4_route(
 
 		for (_, pdu) in timeline_pdus {
 			let ts = MilliSecondsSinceUnixEpoch(pdu.origin_server_ts);
-			if DEFAULT_BUMP_TYPES.contains(pdu.event_type()) && timestamp.is_none_or(|time| time <= ts) {
+			if DEFAULT_BUMP_TYPES.contains(pdu.event_type())
+				&& timestamp.is_none_or(|time| time <= ts)
+			{
 				timestamp = Some(ts);
 			}
 		}
@@ -611,7 +640,7 @@ pub(crate) async fn sync_events_v4_route(
 			.await;
 
 		let name = match heroes.len().cmp(&(1_usize)) {
-			Ordering::Greater => {
+			| Ordering::Greater => {
 				let firsts = heroes[1..]
 					.iter()
 					.map(|h| h.name.clone().unwrap_or_else(|| h.user_id.to_string()))
@@ -625,13 +654,13 @@ pub(crate) async fn sync_events_v4_route(
 
 				Some(format!("{firsts} and {last}"))
 			},
-			Ordering::Equal => Some(
+			| Ordering::Equal => Some(
 				heroes[0]
 					.name
 					.clone()
 					.unwrap_or_else(|| heroes[0].user_id.to_string()),
 			),
-			Ordering::Less => None,
+			| Ordering::Less => None,
 		};
 
 		let heroes_avatar = if heroes.len() == 1 {
@@ -640,77 +669,74 @@ pub(crate) async fn sync_events_v4_route(
 			None
 		};
 
-		rooms.insert(
-			room_id.clone(),
-			sync_events::v4::SlidingSyncRoom {
-				name: services
-					.rooms
-					.state_accessor
-					.get_name(room_id)
-					.await
-					.ok()
-					.or(name),
-				avatar: if let Some(heroes_avatar) = heroes_avatar {
-					ruma::JsOption::Some(heroes_avatar)
-				} else {
-					match services.rooms.state_accessor.get_avatar(room_id).await {
-						ruma::JsOption::Some(avatar) => ruma::JsOption::from_option(avatar.url),
-						ruma::JsOption::Null => ruma::JsOption::Null,
-						ruma::JsOption::Undefined => ruma::JsOption::Undefined,
-					}
-				},
-				initial: Some(roomsince == &0),
-				is_dm: None,
-				invite_state,
-				unread_notifications: UnreadNotificationsCount {
-					highlight_count: Some(
-						services
-							.rooms
-							.user
-							.highlight_count(sender_user, room_id)
-							.await
-							.try_into()
-							.expect("notification count can't go that high"),
-					),
-					notification_count: Some(
-						services
-							.rooms
-							.user
-							.notification_count(sender_user, room_id)
-							.await
-							.try_into()
-							.expect("notification count can't go that high"),
-					),
-				},
-				timeline: room_events,
-				required_state,
-				prev_batch,
-				limited,
-				joined_count: Some(
-					services
-						.rooms
-						.state_cache
-						.room_joined_count(room_id)
-						.await
-						.unwrap_or(0)
-						.try_into()
-						.unwrap_or_else(|_| uint!(0)),
-				),
-				invited_count: Some(
-					services
-						.rooms
-						.state_cache
-						.room_invited_count(room_id)
-						.await
-						.unwrap_or(0)
-						.try_into()
-						.unwrap_or_else(|_| uint!(0)),
-				),
-				num_live: None, // Count events in timeline greater than global sync counter
-				timestamp,
-				heroes: Some(heroes),
+		rooms.insert(room_id.clone(), sync_events::v4::SlidingSyncRoom {
+			name: services
+				.rooms
+				.state_accessor
+				.get_name(room_id)
+				.await
+				.ok()
+				.or(name),
+			avatar: if let Some(heroes_avatar) = heroes_avatar {
+				ruma::JsOption::Some(heroes_avatar)
+			} else {
+				match services.rooms.state_accessor.get_avatar(room_id).await {
+					| ruma::JsOption::Some(avatar) => ruma::JsOption::from_option(avatar.url),
+					| ruma::JsOption::Null => ruma::JsOption::Null,
+					| ruma::JsOption::Undefined => ruma::JsOption::Undefined,
+				}
 			},
-		);
+			initial: Some(roomsince == &0),
+			is_dm: None,
+			invite_state,
+			unread_notifications: UnreadNotificationsCount {
+				highlight_count: Some(
+					services
+						.rooms
+						.user
+						.highlight_count(sender_user, room_id)
+						.await
+						.try_into()
+						.expect("notification count can't go that high"),
+				),
+				notification_count: Some(
+					services
+						.rooms
+						.user
+						.notification_count(sender_user, room_id)
+						.await
+						.try_into()
+						.expect("notification count can't go that high"),
+				),
+			},
+			timeline: room_events,
+			required_state,
+			prev_batch,
+			limited,
+			joined_count: Some(
+				services
+					.rooms
+					.state_cache
+					.room_joined_count(room_id)
+					.await
+					.unwrap_or(0)
+					.try_into()
+					.unwrap_or_else(|_| uint!(0)),
+			),
+			invited_count: Some(
+				services
+					.rooms
+					.state_cache
+					.room_invited_count(room_id)
+					.await
+					.unwrap_or(0)
+					.try_into()
+					.unwrap_or_else(|_| uint!(0)),
+			),
+			num_live: None, // Count events in timeline greater than global sync counter
+			timestamp,
+			heroes: Some(heroes),
+		});
 	}
 
 	if rooms
@@ -757,16 +783,17 @@ pub(crate) async fn sync_events_v4_route(
 			},
 			account_data,
 			receipts,
-			typing: sync_events::v4::Typing {
-				rooms: BTreeMap::new(),
-			},
+			typing: sync_events::v4::Typing { rooms: BTreeMap::new() },
 		},
 		delta_token: None,
 	})
 }
 
 async fn filter_rooms(
-	services: &Services, rooms: &[OwnedRoomId], filter: &[RoomTypeFilter], negate: bool,
+	services: &Services,
+	rooms: &[OwnedRoomId],
+	filter: &[RoomTypeFilter],
+	negate: bool,
 ) -> Vec<OwnedRoomId> {
 	rooms
 		.iter()

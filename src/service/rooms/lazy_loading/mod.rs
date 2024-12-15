@@ -51,7 +51,11 @@ impl crate::Service for Service {
 #[tracing::instrument(skip(self), level = "debug")]
 #[inline]
 pub async fn lazy_load_was_sent_before(
-	&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, ll_user: &UserId,
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	room_id: &RoomId,
+	ll_user: &UserId,
 ) -> bool {
 	let key = (user_id, device_id, room_id, ll_user);
 	self.db.lazyloadedids.qry(&key).await.is_ok()
@@ -60,7 +64,12 @@ pub async fn lazy_load_was_sent_before(
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
 pub fn lazy_load_mark_sent(
-	&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, lazy_load: HashSet<OwnedUserId>, count: PduCount,
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	room_id: &RoomId,
+	lazy_load: HashSet<OwnedUserId>,
+	count: PduCount,
 ) {
 	let key = (user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), count);
 
@@ -72,7 +81,13 @@ pub fn lazy_load_mark_sent(
 
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
-pub fn lazy_load_confirm_delivery(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId, since: PduCount) {
+pub fn lazy_load_confirm_delivery(
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	room_id: &RoomId,
+	since: PduCount,
+) {
 	let key = (user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), since);
 
 	let Some(user_ids) = self.lazy_load_waiting.lock().expect("locked").remove(&key) else {

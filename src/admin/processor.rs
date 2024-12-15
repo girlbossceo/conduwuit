@@ -53,8 +53,8 @@ async fn handle_command(services: Arc<Services>, command: CommandInput) -> Proce
 
 async fn process_command(services: Arc<Services>, input: &CommandInput) -> ProcessorResult {
 	let (command, args, body) = match parse(&services, input) {
-		Err(error) => return Err(error),
-		Ok(parsed) => parsed,
+		| Err(error) => return Err(error),
+		| Ok(parsed) => parsed,
 	};
 
 	let context = Command {
@@ -68,7 +68,8 @@ async fn process_command(services: Arc<Services>, input: &CommandInput) -> Proce
 }
 
 fn handle_panic(error: &Error, command: &CommandInput) -> ProcessorResult {
-	let link = "Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
+	let link =
+		"Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
 	let msg = format!("Panic occurred while processing command:\n```\n{error:#?}\n```\n{link}");
 	let content = RoomMessageEventContent::notice_markdown(msg);
 	error!("Panic while processing command: {error:?}");
@@ -76,7 +77,11 @@ fn handle_panic(error: &Error, command: &CommandInput) -> ProcessorResult {
 }
 
 // Parse and process a message from the admin room
-async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) -> ProcessorResult {
+async fn process(
+	context: &Command<'_>,
+	command: AdminCommand,
+	args: &[String],
+) -> ProcessorResult {
 	let (capture, logs) = capture_create(context);
 
 	let capture_scope = capture.start();
@@ -100,11 +105,12 @@ async fn process(context: &Command<'_>, command: AdminCommand, args: &[String]) 
 	drop(logs);
 
 	match result {
-		Ok(content) => {
-			write!(&mut output, "{0}", content.body()).expect("failed to format command result to output buffer");
+		| Ok(content) => {
+			write!(&mut output, "{0}", content.body())
+				.expect("failed to format command result to output buffer");
 			Ok(Some(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id)))
 		},
-		Err(error) => {
+		| Err(error) => {
 			write!(&mut output, "Command failed with error:\n```\n{error:#?}\n```")
 				.expect("failed to format command result to output");
 			Err(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id))
@@ -128,8 +134,9 @@ fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {
 		.and_then(LevelFilter::into_level)
 		.unwrap_or(Level::DEBUG);
 
-	let filter =
-		move |data: capture::Data<'_>| data.level() <= log_level && data.our_modules() && data.scope.contains(&"admin");
+	let filter = move |data: capture::Data<'_>| {
+		data.level() <= log_level && data.our_modules() && data.scope.contains(&"admin")
+	};
 
 	let logs = Arc::new(Mutex::new(
 		collect_stream(|s| markdown_table_head(s)).expect("markdown table header"),
@@ -146,14 +153,15 @@ fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {
 
 // Parse chat messages from the admin room into an AdminCommand object
 fn parse<'a>(
-	services: &Arc<Services>, input: &'a CommandInput,
+	services: &Arc<Services>,
+	input: &'a CommandInput,
 ) -> Result<(AdminCommand, Vec<String>, Vec<&'a str>), CommandOutput> {
 	let lines = input.command.lines().filter(|line| !line.trim().is_empty());
 	let command_line = lines.clone().next().expect("command missing first line");
 	let body = lines.skip(1).collect();
 	match parse_command(command_line) {
-		Ok((command, args)) => Ok((command, args, body)),
-		Err(error) => {
+		| Ok((command, args)) => Ok((command, args, body)),
+		| Err(error) => {
 			let message = error
 				.to_string()
 				.replace("server.name", services.globals.server_name().as_str());
@@ -255,11 +263,12 @@ fn parse_line(command_line: &str) -> Vec<String> {
 	argv
 }
 
-fn reply(mut content: RoomMessageEventContent, reply_id: Option<&EventId>) -> RoomMessageEventContent {
+fn reply(
+	mut content: RoomMessageEventContent,
+	reply_id: Option<&EventId>,
+) -> RoomMessageEventContent {
 	content.relates_to = reply_id.map(|event_id| Reply {
-		in_reply_to: InReplyTo {
-			event_id: event_id.to_owned(),
-		},
+		in_reply_to: InReplyTo { event_id: event_id.to_owned() },
 	});
 
 	content

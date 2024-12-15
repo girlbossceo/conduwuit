@@ -6,7 +6,11 @@ use crate::{admin_command, get_room_info, PAGE_SIZE};
 
 #[admin_command]
 pub(super) async fn list_rooms(
-	&self, page: Option<usize>, exclude_disabled: bool, exclude_banned: bool, no_details: bool,
+	&self,
+	page: Option<usize>,
+	exclude_disabled: bool,
+	exclude_banned: bool,
+	no_details: bool,
 ) -> Result<RoomMessageEventContent> {
 	// TODO: i know there's a way to do this with clap, but i can't seem to find it
 	let page = page.unwrap_or(1);
@@ -16,10 +20,12 @@ pub(super) async fn list_rooms(
 		.metadata
 		.iter_ids()
 		.filter_map(|room_id| async move {
-			(!exclude_disabled || !self.services.rooms.metadata.is_disabled(room_id).await).then_some(room_id)
+			(!exclude_disabled || !self.services.rooms.metadata.is_disabled(room_id).await)
+				.then_some(room_id)
 		})
 		.filter_map(|room_id| async move {
-			(!exclude_banned || !self.services.rooms.metadata.is_banned(room_id).await).then_some(room_id)
+			(!exclude_banned || !self.services.rooms.metadata.is_banned(room_id).await)
+				.then_some(room_id)
 		})
 		.then(|room_id| get_room_info(self.services, room_id))
 		.collect::<Vec<_>>()

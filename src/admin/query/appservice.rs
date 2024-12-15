@@ -18,13 +18,14 @@ pub(crate) enum AppserviceCommand {
 }
 
 /// All the getters and iterators from src/database/key_value/appservice.rs
-pub(super) async fn process(subcommand: AppserviceCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: AppserviceCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		AppserviceCommand::GetRegistration {
-			appservice_id,
-		} => {
+		| AppserviceCommand::GetRegistration { appservice_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.appservice.get_registration(&appservice_id).await;
 
@@ -34,7 +35,7 @@ pub(super) async fn process(subcommand: AppserviceCommand, context: &Command<'_>
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		AppserviceCommand::All => {
+		| AppserviceCommand::All => {
 			let timer = tokio::time::Instant::now();
 			let results = services.appservice.all().await;
 			let query_time = timer.elapsed();

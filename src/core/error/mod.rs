@@ -128,23 +128,25 @@ pub enum Error {
 
 impl Error {
 	//#[deprecated]
-	pub fn bad_database(message: &'static str) -> Self { crate::err!(Database(error!("{message}"))) }
+	pub fn bad_database(message: &'static str) -> Self {
+		crate::err!(Database(error!("{message}")))
+	}
 
 	/// Sanitizes public-facing errors that can leak sensitive information.
 	pub fn sanitized_message(&self) -> String {
 		match self {
-			Self::Database(..) => String::from("Database error occurred."),
-			Self::Io(..) => String::from("I/O error occurred."),
-			_ => self.message(),
+			| Self::Database(..) => String::from("Database error occurred."),
+			| Self::Io(..) => String::from("I/O error occurred."),
+			| _ => self.message(),
 		}
 	}
 
 	/// Generate the error message string.
 	pub fn message(&self) -> String {
 		match self {
-			Self::Federation(ref origin, ref error) => format!("Answer from {origin}: {error}"),
-			Self::Ruma(ref error) => response::ruma_error_message(error),
-			_ => format!("{self}"),
+			| Self::Federation(ref origin, ref error) => format!("Answer from {origin}: {error}"),
+			| Self::Ruma(ref error) => response::ruma_error_message(error),
+			| _ => format!("{self}"),
 		}
 	}
 
@@ -154,9 +156,10 @@ impl Error {
 		use ruma::api::client::error::ErrorKind::Unknown;
 
 		match self {
-			Self::Federation(_, error) | Self::Ruma(error) => response::ruma_error_kind(error).clone(),
-			Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
-			_ => Unknown,
+			| Self::Federation(_, error) | Self::Ruma(error) =>
+				response::ruma_error_kind(error).clone(),
+			| Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
+			| _ => Unknown,
 		}
 	}
 
@@ -166,12 +169,12 @@ impl Error {
 		use http::StatusCode;
 
 		match self {
-			Self::Federation(_, error) | Self::Ruma(error) => error.status_code,
-			Self::Request(kind, _, code) => response::status_code(kind, *code),
-			Self::BadRequest(kind, ..) => response::bad_request_code(kind),
-			Self::Reqwest(error) => error.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-			Self::Conflict(_) => StatusCode::CONFLICT,
-			_ => StatusCode::INTERNAL_SERVER_ERROR,
+			| Self::Federation(_, error) | Self::Ruma(error) => error.status_code,
+			| Self::Request(kind, _, code) => response::status_code(kind, *code),
+			| Self::BadRequest(kind, ..) => response::bad_request_code(kind),
+			| Self::Reqwest(error) => error.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+			| Self::Conflict(_) => StatusCode::CONFLICT,
+			| _ => StatusCode::INTERNAL_SERVER_ERROR,
 		}
 	}
 

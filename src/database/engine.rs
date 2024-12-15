@@ -6,12 +6,14 @@ use std::{
 	sync::{atomic::AtomicU32, Arc, Mutex, RwLock},
 };
 
-use conduwuit::{debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, Result, Server};
+use conduwuit::{
+	debug, error, info, utils::time::rfc2822_from_seconds, warn, Err, Result, Server,
+};
 use rocksdb::{
 	backup::{BackupEngine, BackupEngineOptions},
 	perf::get_memory_usage_stats,
-	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon, DBWithThreadMode, Env, LogLevel,
-	MultiThreaded, Options,
+	AsColumnFamilyRef, BoundColumnFamily, Cache, ColumnFamilyDescriptor, DBCommon,
+	DBWithThreadMode, Env, LogLevel, MultiThreaded, Options,
 };
 
 use crate::{
@@ -169,11 +171,13 @@ impl Engine {
 
 	pub fn memory_usage(&self) -> Result<String> {
 		let mut res = String::new();
-		let stats = get_memory_usage_stats(Some(&[&self.db]), Some(&[&self.row_cache])).or_else(or_else)?;
+		let stats = get_memory_usage_stats(Some(&[&self.db]), Some(&[&self.row_cache]))
+			.or_else(or_else)?;
 		let mibs = |input| f64::from(u32::try_from(input / 1024).unwrap_or(0)) / 1024.0;
 		writeln!(
 			res,
-			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow cache: {:.2} MiB",
+			"Memory buffers: {:.2} MiB\nPending write: {:.2} MiB\nTable readers: {:.2} MiB\nRow \
+			 cache: {:.2} MiB",
 			mibs(stats.mem_table_total),
 			mibs(stats.mem_table_unflushed),
 			mibs(stats.mem_table_readers_total),
@@ -202,7 +206,8 @@ impl Engine {
 			return Ok(());
 		}
 
-		let options = BackupEngineOptions::new(path.expect("valid database backup path")).map_err(map_err)?;
+		let options = BackupEngineOptions::new(path.expect("valid database backup path"))
+			.map_err(map_err)?;
 		let mut engine = BackupEngine::open(&options, &self.env).map_err(map_err)?;
 		if config.database_backups_to_keep > 0 {
 			let flush = !self.is_read_only();
@@ -232,13 +237,14 @@ impl Engine {
 		let config = &self.server.config;
 		let path = config.database_backup_path.as_ref();
 		if path.is_none() || path.is_some_and(|path| path.as_os_str().is_empty()) {
-			return Ok(
-				"Configure database_backup_path to enable backups, or the path specified is not valid".to_owned(),
-			);
+			return Ok("Configure database_backup_path to enable backups, or the path \
+			           specified is not valid"
+				.to_owned());
 		}
 
 		let mut res = String::new();
-		let options = BackupEngineOptions::new(path.expect("valid database backup path")).or_else(or_else)?;
+		let options = BackupEngineOptions::new(path.expect("valid database backup path"))
+			.or_else(or_else)?;
 		let engine = BackupEngine::open(&options, &self.env).or_else(or_else)?;
 		for info in engine.get_backup_info() {
 			writeln!(
@@ -256,8 +262,8 @@ impl Engine {
 
 	pub fn file_list(&self) -> Result<String> {
 		match self.db.live_files() {
-			Err(e) => Ok(String::from(e)),
-			Ok(files) => {
+			| Err(e) => Ok(String::from(e)),
+			| Ok(files) => {
 				let mut res = String::new();
 				writeln!(res, "| lev  | sst  | keys | dels | size | column |")?;
 				writeln!(res, "| ---: | :--- | ---: | ---: | ---: | :---   |")?;
@@ -265,7 +271,12 @@ impl Engine {
 					writeln!(
 						res,
 						"| {} | {:<13} | {:7}+ | {:4}- | {:9} | {} |",
-						file.level, file.name, file.num_entries, file.num_deletions, file.size, file.column_family_name,
+						file.level,
+						file.name,
+						file.num_entries,
+						file.num_deletions,
+						file.size,
+						file.column_family_name,
 					)?;
 				}
 
@@ -277,7 +288,11 @@ impl Engine {
 	/// Query for database property by null-terminated name which is expected to
 	/// have a result with an integer representation. This is intended for
 	/// low-overhead programmatic use.
-	pub(crate) fn property_integer(&self, cf: &impl AsColumnFamilyRef, name: &CStr) -> Result<u64> {
+	pub(crate) fn property_integer(
+		&self,
+		cf: &impl AsColumnFamilyRef,
+		name: &CStr,
+	) -> Result<u64> {
 		result(self.db.property_int_value_cf(cf, name))
 			.and_then(|val| val.map_or_else(|| Err!("Property {name:?} not found."), Ok))
 	}
@@ -300,8 +315,8 @@ impl Engine {
 pub(crate) fn repair(db_opts: &Options, path: &PathBuf) -> Result<()> {
 	warn!("Starting database repair. This may take a long time...");
 	match Db::repair(db_opts, path) {
-		Ok(()) => info!("Database repair successful."),
-		Err(e) => return Err!("Repair failed: {e:?}"),
+		| Ok(()) => info!("Database repair successful."),
+		| Err(e) => return Err!("Repair failed: {e:?}"),
 	}
 
 	Ok(())
@@ -320,10 +335,10 @@ pub(crate) fn handle_log(level: LogLevel, msg: &str) {
 	}
 
 	match level {
-		LogLevel::Header | LogLevel::Debug => debug!("{msg}"),
-		LogLevel::Error | LogLevel::Fatal => error!("{msg}"),
-		LogLevel::Info => debug!("{msg}"),
-		LogLevel::Warn => warn!("{msg}"),
+		| LogLevel::Header | LogLevel::Debug => debug!("{msg}"),
+		| LogLevel::Error | LogLevel::Fatal => error!("{msg}"),
+		| LogLevel::Info => debug!("{msg}"),
+		| LogLevel::Warn => warn!("{msg}"),
 	};
 }
 

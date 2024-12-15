@@ -71,13 +71,10 @@ pub fn content_disposition_type(content_type: Option<&str>) -> ContentDispositio
 /// `sanitize_filename` crate
 #[tracing::instrument(level = "debug")]
 pub fn sanitise_filename(filename: &str) -> String {
-	sanitize_filename::sanitize_with_options(
-		filename,
-		sanitize_filename::Options {
-			truncate: false,
-			..Default::default()
-		},
-	)
+	sanitize_filename::sanitize_with_options(filename, sanitize_filename::Options {
+		truncate: false,
+		..Default::default()
+	})
 }
 
 /// creates the final Content-Disposition based on whether the filename exists
@@ -89,11 +86,16 @@ pub fn sanitise_filename(filename: &str) -> String {
 ///
 /// else: `Content-Disposition: attachment/inline`
 pub fn make_content_disposition(
-	content_disposition: Option<&ContentDisposition>, content_type: Option<&str>, filename: Option<&str>,
+	content_disposition: Option<&ContentDisposition>,
+	content_type: Option<&str>,
+	filename: Option<&str>,
 ) -> ContentDisposition {
 	ContentDisposition::new(content_disposition_type(content_type)).with_filename(
 		filename
-			.or_else(|| content_disposition.and_then(|content_disposition| content_disposition.filename.as_deref()))
+			.or_else(|| {
+				content_disposition
+					.and_then(|content_disposition| content_disposition.filename.as_deref())
+			})
 			.map(sanitise_filename),
 	)
 }
@@ -102,8 +104,8 @@ pub fn make_content_disposition(
 mod tests {
 	#[test]
 	fn string_sanitisation() {
-		const SAMPLE: &str =
-			"🏳️‍⚧️this\\r\\n įs \r\\n ä \\r\nstrïng 🥴that\n\r ../../../../../../../may be\r\n malicious🏳️‍⚧️";
+		const SAMPLE: &str = "🏳️‍⚧️this\\r\\n įs \r\\n ä \\r\nstrïng 🥴that\n\r \
+		                      ../../../../../../../may be\r\n malicious🏳️‍⚧️";
 		const SANITISED: &str = "🏳️‍⚧️thisrn įs n ä rstrïng 🥴that ..............may be malicious🏳️‍⚧️";
 
 		let options = sanitize_filename::Options {
@@ -125,14 +127,12 @@ mod tests {
 	fn empty_sanitisation() {
 		use crate::utils::string::EMPTY;
 
-		let result = sanitize_filename::sanitize_with_options(
-			EMPTY,
-			sanitize_filename::Options {
+		let result =
+			sanitize_filename::sanitize_with_options(EMPTY, sanitize_filename::Options {
 				windows: true,
 				truncate: true,
 				replacement: "",
-			},
-		);
+			});
 
 		assert_eq!(EMPTY, result);
 	}

@@ -4,8 +4,8 @@ use quote::quote;
 pub(super) fn flags_capture(args: TokenStream) -> TokenStream {
 	let cargo_crate_name = std::env::var("CARGO_CRATE_NAME");
 	let crate_name = match cargo_crate_name.as_ref() {
-		Err(_) => return args,
-		Ok(crate_name) => crate_name.trim_start_matches("conduwuit_"),
+		| Err(_) => return args,
+		| Ok(crate_name) => crate_name.trim_start_matches("conduwuit_"),
 	};
 
 	let flag = std::env::args().collect::<Vec<_>>();

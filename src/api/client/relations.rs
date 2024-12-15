@@ -8,7 +8,8 @@ use futures::StreamExt;
 use ruma::{
 	api::{
 		client::relations::{
-			get_relating_events, get_relating_events_with_rel_type, get_relating_events_with_rel_type_and_event_type,
+			get_relating_events, get_relating_events_with_rel_type,
+			get_relating_events_with_rel_type_and_event_type,
 		},
 		Direction,
 	},
@@ -21,7 +22,8 @@ use crate::Ruma;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}/{eventType}`
 pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
-	State(services): State<crate::State>, body: Ruma<get_relating_events_with_rel_type_and_event_type::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_relating_events_with_rel_type_and_event_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type_and_event_type::v1::Response> {
 	paginate_relations_with_filter(
 		&services,
@@ -47,7 +49,8 @@ pub(crate) async fn get_relating_events_with_rel_type_and_event_type_route(
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}/{relType}`
 pub(crate) async fn get_relating_events_with_rel_type_route(
-	State(services): State<crate::State>, body: Ruma<get_relating_events_with_rel_type::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_relating_events_with_rel_type::v1::Request>,
 ) -> Result<get_relating_events_with_rel_type::v1::Response> {
 	paginate_relations_with_filter(
 		&services,
@@ -73,7 +76,8 @@ pub(crate) async fn get_relating_events_with_rel_type_route(
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/relations/{eventId}`
 pub(crate) async fn get_relating_events_route(
-	State(services): State<crate::State>, body: Ruma<get_relating_events::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_relating_events::v1::Request>,
 ) -> Result<get_relating_events::v1::Response> {
 	paginate_relations_with_filter(
 		&services,
@@ -93,16 +97,24 @@ pub(crate) async fn get_relating_events_route(
 
 #[allow(clippy::too_many_arguments)]
 async fn paginate_relations_with_filter(
-	services: &Services, sender_user: &UserId, room_id: &RoomId, target: &EventId,
-	filter_event_type: Option<TimelineEventType>, filter_rel_type: Option<RelationType>, from: Option<&str>,
-	to: Option<&str>, limit: Option<UInt>, recurse: bool, dir: Direction,
+	services: &Services,
+	sender_user: &UserId,
+	room_id: &RoomId,
+	target: &EventId,
+	filter_event_type: Option<TimelineEventType>,
+	filter_rel_type: Option<RelationType>,
+	from: Option<&str>,
+	to: Option<&str>,
+	limit: Option<UInt>,
+	recurse: bool,
+	dir: Direction,
 ) -> Result<get_relating_events::v1::Response> {
 	let start: PduCount = from
 		.map(str::parse)
 		.transpose()?
 		.unwrap_or_else(|| match dir {
-			Direction::Forward => PduCount::min(),
-			Direction::Backward => PduCount::max(),
+			| Direction::Forward => PduCount::min(),
+			| Direction::Backward => PduCount::max(),
 		});
 
 	let to: Option<PduCount> = to.map(str::parse).flat_ok();
@@ -115,11 +127,7 @@ async fn paginate_relations_with_filter(
 		.min(100);
 
 	// Spec (v1.10) recommends depth of at least 3
-	let depth: u8 = if recurse {
-		3
-	} else {
-		1
-	};
+	let depth: u8 = if recurse { 3 } else { 1 };
 
 	let events: Vec<PdusIterItem> = services
 		.rooms
@@ -145,8 +153,8 @@ async fn paginate_relations_with_filter(
 		.await;
 
 	let next_batch = match dir {
-		Direction::Forward => events.last(),
-		Direction::Backward => events.first(),
+		| Direction::Forward => events.last(),
+		| Direction::Backward => events.first(),
 	}
 	.map(at!(0))
 	.as_ref()
@@ -164,7 +172,11 @@ async fn paginate_relations_with_filter(
 	})
 }
 
-async fn visibility_filter(services: &Services, sender_user: &UserId, item: PdusIterItem) -> Option<PdusIterItem> {
+async fn visibility_filter(
+	services: &Services,
+	sender_user: &UserId,
+	item: PdusIterItem,
+) -> Option<PdusIterItem> {
 	let (_, pdu) = &item;
 
 	services

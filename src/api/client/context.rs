@@ -32,7 +32,8 @@ const LIMIT_DEFAULT: usize = 10;
 /// - Only works if the user is joined (TODO: always allow, but only show events
 ///   if the user was joined, depending on history_visibility)
 pub(crate) async fn get_context_route(
-	State(services): State<crate::State>, body: Ruma<get_context::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_context::v3::Request>,
 ) -> Result<get_context::v3::Response> {
 	let filter = &body.filter;
 	let sender = body.sender();
@@ -50,9 +51,8 @@ pub(crate) async fn get_context_route(
 	// members for "inline" profiles on the timeline to work properly
 	let lazy_load_enabled = matches!(filter.lazy_load_options, LazyLoadOptions::Enabled { .. });
 
-	let lazy_load_redundant = if let LazyLoadOptions::Enabled {
-		include_redundant_members,
-	} = filter.lazy_load_options
+	let lazy_load_redundant = if let LazyLoadOptions::Enabled { include_redundant_members } =
+		filter.lazy_load_options
 	{
 		include_redundant_members
 	} else {
@@ -91,10 +91,11 @@ pub(crate) async fn get_context_route(
 		return Err!(Request(Forbidden("You don't have permission to view this event.")));
 	}
 
-	let events_before = services
-		.rooms
-		.timeline
-		.pdus_rev(Some(sender_user), room_id, Some(base_token));
+	let events_before =
+		services
+			.rooms
+			.timeline
+			.pdus_rev(Some(sender_user), room_id, Some(base_token));
 
 	let events_after = services
 		.rooms
@@ -166,7 +167,9 @@ pub(crate) async fn get_context_route(
 				.filter(|&user_id: &&UserId| lazy.contains(user_id))
 				.map(|_| event_id)
 		})
-		.broad_filter_map(|event_id: &OwnedEventId| services.rooms.timeline.get_pdu(event_id).ok())
+		.broad_filter_map(|event_id: &OwnedEventId| {
+			services.rooms.timeline.get_pdu(event_id).ok()
+		})
 		.map(|pdu| pdu.to_state_event())
 		.collect()
 		.await;

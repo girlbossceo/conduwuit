@@ -3,7 +3,9 @@
 
 use futures::{
 	future::{ready, Ready},
-	stream::{All, Any, Filter, FilterMap, Fold, ForEach, Scan, SkipWhile, Stream, StreamExt, TakeWhile},
+	stream::{
+		All, Any, Filter, FilterMap, Fold, ForEach, Scan, SkipWhile, Stream, StreamExt, TakeWhile,
+	},
 };
 
 /// Synchronous combinators to augment futures::StreamExt. Most Stream
@@ -24,19 +26,32 @@ where
 	where
 		F: Fn(Item) -> bool;
 
-	fn ready_filter<'a, F>(self, f: F) -> Filter<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	fn ready_filter<'a, F>(
+		self,
+		f: F,
+	) -> Filter<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
 		F: Fn(&Item) -> bool + 'a;
 
-	fn ready_filter_map<F, U>(self, f: F) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
+	fn ready_filter_map<F, U>(
+		self,
+		f: F,
+	) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
 	where
 		F: Fn(Item) -> Option<U>;
 
-	fn ready_fold<T, F>(self, init: T, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
+	fn ready_fold<T, F>(
+		self,
+		init: T,
+		f: F,
+	) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
 	where
 		F: Fn(T, Item) -> T;
 
-	fn ready_fold_default<T, F>(self, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
+	fn ready_fold_default<T, F>(
+		self,
+		f: F,
+	) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
 	where
 		F: Fn(T, Item) -> T,
 		T: Default;
@@ -45,23 +60,33 @@ where
 	where
 		F: FnMut(Item);
 
-	fn ready_take_while<'a, F>(self, f: F) -> TakeWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	fn ready_take_while<'a, F>(
+		self,
+		f: F,
+	) -> TakeWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
 		F: Fn(&Item) -> bool + 'a;
 
 	fn ready_scan<B, T, F>(
-		self, init: T, f: F,
+		self,
+		init: T,
+		f: F,
 	) -> Scan<Self, T, Ready<Option<B>>, impl FnMut(&mut T, Item) -> Ready<Option<B>>>
 	where
 		F: Fn(&mut T, Item) -> Option<B>;
 
 	fn ready_scan_each<T, F>(
-		self, init: T, f: F,
+		self,
+		init: T,
+		f: F,
 	) -> Scan<Self, T, Ready<Option<Item>>, impl FnMut(&mut T, Item) -> Ready<Option<Item>>>
 	where
 		F: Fn(&mut T, &Item);
 
-	fn ready_skip_while<'a, F>(self, f: F) -> SkipWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	fn ready_skip_while<'a, F>(
+		self,
+		f: F,
+	) -> SkipWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
 		F: Fn(&Item) -> bool + 'a;
 }
@@ -87,7 +112,10 @@ where
 	}
 
 	#[inline]
-	fn ready_filter<'a, F>(self, f: F) -> Filter<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	fn ready_filter<'a, F>(
+		self,
+		f: F,
+	) -> Filter<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
 		F: Fn(&Item) -> bool + 'a,
 	{
@@ -95,7 +123,10 @@ where
 	}
 
 	#[inline]
-	fn ready_filter_map<F, U>(self, f: F) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
+	fn ready_filter_map<F, U>(
+		self,
+		f: F,
+	) -> FilterMap<Self, Ready<Option<U>>, impl FnMut(Item) -> Ready<Option<U>>>
 	where
 		F: Fn(Item) -> Option<U>,
 	{
@@ -103,7 +134,11 @@ where
 	}
 
 	#[inline]
-	fn ready_fold<T, F>(self, init: T, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
+	fn ready_fold<T, F>(
+		self,
+		init: T,
+		f: F,
+	) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
 	where
 		F: Fn(T, Item) -> T,
 	{
@@ -111,7 +146,10 @@ where
 	}
 
 	#[inline]
-	fn ready_fold_default<T, F>(self, f: F) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
+	fn ready_fold_default<T, F>(
+		self,
+		f: F,
+	) -> Fold<Self, Ready<T>, T, impl FnMut(T, Item) -> Ready<T>>
 	where
 		F: Fn(T, Item) -> T,
 		T: Default,
@@ -121,7 +159,10 @@ where
 
 	#[inline]
 	#[allow(clippy::unit_arg)]
-	fn ready_for_each<F>(self, mut f: F) -> ForEach<Self, Ready<()>, impl FnMut(Item) -> Ready<()>>
+	fn ready_for_each<F>(
+		self,
+		mut f: F,
+	) -> ForEach<Self, Ready<()>, impl FnMut(Item) -> Ready<()>>
 	where
 		F: FnMut(Item),
 	{
@@ -129,7 +170,10 @@ where
 	}
 
 	#[inline]
-	fn ready_take_while<'a, F>(self, f: F) -> TakeWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	fn ready_take_while<'a, F>(
+		self,
+		f: F,
+	) -> TakeWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
 		F: Fn(&Item) -> bool + 'a,
 	{
@@ -138,7 +182,9 @@ where
 
 	#[inline]
 	fn ready_scan<B, T, F>(
-		self, init: T, f: F,
+		self,
+		init: T,
+		f: F,
 	) -> Scan<Self, T, Ready<Option<B>>, impl FnMut(&mut T, Item) -> Ready<Option<B>>>
 	where
 		F: Fn(&mut T, Item) -> Option<B>,
@@ -148,7 +194,9 @@ where
 
 	#[inline]
 	fn ready_scan_each<T, F>(
-		self, init: T, f: F,
+		self,
+		init: T,
+		f: F,
 	) -> Scan<Self, T, Ready<Option<Item>>, impl FnMut(&mut T, Item) -> Ready<Option<Item>>>
 	where
 		F: Fn(&mut T, &Item),
@@ -160,7 +208,10 @@ where
 	}
 
 	#[inline]
-	fn ready_skip_while<'a, F>(self, f: F) -> SkipWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
+	fn ready_skip_while<'a, F>(
+		self,
+		f: F,
+	) -> SkipWhile<Self, Ready<bool>, impl FnMut(&Item) -> Ready<bool> + 'a>
 	where
 		F: Fn(&Item) -> bool + 'a,
 	{

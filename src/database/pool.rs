@@ -230,8 +230,8 @@ fn worker_wait(&self, recv: &Receiver<Cmd>) -> Result<Cmd, RecvError> {
 #[implement(Pool)]
 fn worker_handle(&self, cmd: Cmd) {
 	match cmd {
-		Cmd::Get(cmd) => self.handle_get(cmd),
-		Cmd::Iter(cmd) => self.handle_iter(cmd),
+		| Cmd::Get(cmd) => self.handle_get(cmd),
+		| Cmd::Iter(cmd) => self.handle_iter(cmd),
 	}
 }
 
@@ -251,8 +251,8 @@ fn handle_iter(&self, mut cmd: Seek) {
 
 	let from = cmd.key.as_deref().map(Into::into);
 	let result = match cmd.dir {
-		Direction::Forward => cmd.state.init_fwd(from),
-		Direction::Reverse => cmd.state.init_rev(from),
+		| Direction::Forward => cmd.state.init_fwd(from),
+		| Direction::Reverse => cmd.state.init_rev(from),
 	};
 
 	let chan_result = chan.send(into_send_seek(result));
@@ -274,8 +274,8 @@ fn _handle_seek(&self, mut cmd: Seek) {
 	}
 
 	match cmd.dir {
-		Direction::Forward => cmd.state.seek_fwd(),
-		Direction::Reverse => cmd.state.seek_rev(),
+		| Direction::Forward => cmd.state.seek_fwd(),
+		| Direction::Reverse => cmd.state.seek_rev(),
 	};
 
 	let chan_result = chan.send(into_send_seek(cmd.state));

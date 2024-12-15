@@ -10,7 +10,9 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduwuit::{debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server};
+use conduwuit::{
+	debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server,
+};
 pub use create::create_admin_room;
 use futures::{FutureExt, TryFutureExt};
 use loole::{Receiver, Sender};
@@ -158,21 +160,19 @@ impl Service {
 	/// the queue is full.
 	pub fn command(&self, command: String, reply_id: Option<OwnedEventId>) -> Result<()> {
 		self.sender
-			.send(CommandInput {
-				command,
-				reply_id,
-			})
+			.send(CommandInput { command, reply_id })
 			.map_err(|e| err!("Failed to enqueue admin command: {e:?}"))
 	}
 
 	/// Dispatches a comamnd to the processor on the current task and waits for
 	/// completion.
-	pub async fn command_in_place(&self, command: String, reply_id: Option<OwnedEventId>) -> ProcessorResult {
-		self.process_command(CommandInput {
-			command,
-			reply_id,
-		})
-		.await
+	pub async fn command_in_place(
+		&self,
+		command: String,
+		reply_id: Option<OwnedEventId>,
+	) -> ProcessorResult {
+		self.process_command(CommandInput { command, reply_id })
+			.await
 	}
 
 	/// Invokes the tab-completer to complete the command. When unavailable,
@@ -191,8 +191,8 @@ impl Service {
 
 	async fn handle_command(&self, command: CommandInput) {
 		match self.process_command(command).await {
-			Ok(None) => debug!("Command successful with no response"),
-			Ok(Some(output)) | Err(output) => self
+			| Ok(None) => debug!("Command successful with no response"),
+			| Ok(Some(output)) | Err(output) => self
 				.handle_response(output)
 				.await
 				.unwrap_or_else(default_log),
@@ -250,10 +250,7 @@ impl Service {
 	}
 
 	async fn handle_response(&self, content: RoomMessageEventContent) -> Result<()> {
-		let Some(Relation::Reply {
-			in_reply_to,
-		}) = content.relates_to.as_ref()
-		else {
+		let Some(Relation::Reply { in_reply_to }) = content.relates_to.as_ref() else {
 			return Ok(());
 		};
 
@@ -277,7 +274,10 @@ impl Service {
 	}
 
 	async fn respond_to_room(
-		&self, content: RoomMessageEventContent, room_id: &RoomId, user_id: &UserId,
+		&self,
+		content: RoomMessageEventContent,
+		room_id: &RoomId,
+		user_id: &UserId,
 	) -> Result<()> {
 		assert!(self.user_is_admin(user_id).await, "sender is not admin");
 
@@ -298,12 +298,16 @@ impl Service {
 	}
 
 	async fn handle_response_error(
-		&self, e: Error, room_id: &RoomId, user_id: &UserId, state_lock: &RoomMutexGuard,
+		&self,
+		e: Error,
+		room_id: &RoomId,
+		user_id: &UserId,
+		state_lock: &RoomMutexGuard,
 	) -> Result<()> {
 		error!("Failed to build and append admin room response PDU: \"{e}\"");
 		let content = RoomMessageEventContent::text_plain(format!(
-			"Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command may have finished \
-			 successfully, but we could not return the output."
+			"Failed to build and append admin room PDU: \"{e}\"\n\nThe original admin command \
+			 may have finished successfully, but we could not return the output."
 		));
 
 		self.services
@@ -321,7 +325,8 @@ impl Service {
 
 		// Admin command with public echo (in admin room)
 		let server_user = &self.services.globals.server_user;
-		let is_public_prefix = body.starts_with("!admin") || body.starts_with(server_user.as_str());
+		let is_public_prefix =
+			body.starts_with("!admin") || body.starts_with(server_user.as_str());
 
 		// Expected backward branch
 		if !is_public_escape && !is_public_prefix {

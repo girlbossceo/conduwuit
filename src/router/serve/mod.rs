@@ -14,7 +14,9 @@ use super::layers;
 
 /// Serve clients
 pub(super) async fn serve(
-	services: Arc<Services>, handle: ServerHandle, shutdown: broadcast::Receiver<()>,
+	services: Arc<Services>,
+	handle: ServerHandle,
+	shutdown: broadcast::Receiver<()>,
 ) -> Result<()> {
 	let server = &services.server;
 	let config = &server.config;

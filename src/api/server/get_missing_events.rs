@@ -12,7 +12,8 @@ use crate::Ruma;
 ///
 /// Retrieves events that the sender is missing.
 pub(crate) async fn get_missing_events_route(
-	State(services): State<crate::State>, body: Ruma<get_missing_events::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_missing_events::v1::Request>,
 ) -> Result<get_missing_events::v1::Response> {
 	AccessCheck {
 		services: &services,
@@ -87,7 +88,5 @@ pub(crate) async fn get_missing_events_route(
 		i = i.saturating_add(1);
 	}
 
-	Ok(get_missing_events::v1::Response {
-		events,
-	})
+	Ok(get_missing_events::v1::Response { events })
 }

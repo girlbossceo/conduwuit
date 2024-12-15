@@ -56,7 +56,10 @@ impl Map {
 	}
 
 	#[inline]
-	pub fn watch_prefix<'a, K>(&'a self, prefix: &K) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>
+	pub fn watch_prefix<'a, K>(
+		&'a self,
+		prefix: &K,
+	) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>
 	where
 		K: AsRef<[u8]> + ?Sized + Debug,
 	{
@@ -64,7 +67,9 @@ impl Map {
 	}
 
 	#[inline]
-	pub fn property_integer(&self, name: &CStr) -> Result<u64> { self.db.property_integer(&self.cf(), name) }
+	pub fn property_integer(&self, name: &CStr) -> Result<u64> {
+		self.db.property_integer(&self.cf(), name)
+	}
 
 	#[inline]
 	pub fn property(&self, name: &str) -> Result<String> { self.db.property(&self.cf(), name) }
@@ -76,7 +81,9 @@ impl Map {
 }
 
 impl Debug for Map {
-	fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result { write!(out, "Map {{name: {0}}}", self.name) }
+	fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(out, "Map {{name: {0}}}", self.name)
+	}
 }
 
 impl Display for Map {

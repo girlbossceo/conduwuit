@@ -84,7 +84,7 @@ fn matches_url(&self, filter: &RoomEventFilter) -> bool {
 		.is_some_and(Value::is_string);
 
 	match url_filter {
-		UrlFilter::EventsWithUrl => url,
-		UrlFilter::EventsWithoutUrl => !url,
+		| UrlFilter::EventsWithUrl => url,
+		| UrlFilter::EventsWithoutUrl => !url,
 	}
 }

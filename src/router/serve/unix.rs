@@ -10,7 +10,9 @@ use axum::{
 	extract::{connect_info::IntoMakeServiceWithConnectInfo, Request},
 	Router,
 };
-use conduwuit::{debug, debug_error, info, result::UnwrapInfallible, trace, warn, Err, Result, Server};
+use conduwuit::{
+	debug, debug_error, info, result::UnwrapInfallible, trace, warn, Err, Result, Server,
+};
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
 	rt::{TokioExecutor, TokioIo},
@@ -31,7 +33,11 @@ const NULL_ADDR: net::SocketAddr = net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new
 const FINI_POLL_INTERVAL: Duration = Duration::from_millis(750);
 
 #[tracing::instrument(skip_all, level = "debug")]
-pub(super) async fn serve(server: &Arc<Server>, app: Router, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+pub(super) async fn serve(
+	server: &Arc<Server>,
+	app: Router,
+	mut shutdown: broadcast::Receiver<()>,
+) -> Result<()> {
 	let mut tasks = JoinSet::<()>::new();
 	let executor = TokioExecutor::new();
 	let app = app.into_make_service_with_connect_info::<net::SocketAddr>();
@@ -55,8 +61,12 @@ pub(super) async fn serve(server: &Arc<Server>, app: Router, mut shutdown: broad
 }
 
 async fn accept(
-	server: &Arc<Server>, listener: &UnixListener, tasks: &mut JoinSet<()>, mut app: MakeService,
-	builder: server::conn::auto::Builder<TokioExecutor>, conn: (UnixStream, SocketAddr),
+	server: &Arc<Server>,
+	listener: &UnixListener,
+	tasks: &mut JoinSet<()>,
+	mut app: MakeService,
+	builder: server::conn::auto::Builder<TokioExecutor>,
+	conn: (UnixStream, SocketAddr),
 ) {
 	let (socket, remote) = conn;
 	let socket = TokioIo::new(socket);
@@ -103,7 +113,8 @@ async fn init(server: &Arc<Server>) -> Result<UnixListener> {
 	}
 
 	let socket_perms = config.unix_socket_perms.to_string();
-	let octal_perms = u32::from_str_radix(&socket_perms, 8).expect("failed to convert octal permissions");
+	let octal_perms =
+		u32::from_str_radix(&socket_perms, 8).expect("failed to convert octal permissions");
 	let perms = std::fs::Permissions::from_mode(octal_perms);
 	if let Err(e) = fs::set_permissions(&path, perms).await {
 		return Err!("Failed to set socket {path:?} permissions: {e}");

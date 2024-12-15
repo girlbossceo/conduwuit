@@ -16,7 +16,8 @@ use crate::Ruma;
 /// Load media from our server.
 #[tracing::instrument(skip_all, fields(%client), name = "media_get")]
 pub(crate) async fn get_content_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content::v1::Request>,
 ) -> Result<get_content::v1::Response> {
 	let mxc = Mxc {
@@ -33,7 +34,8 @@ pub(crate) async fn get_content_route(
 		return Err!(Request(NotFound("Media not found.")));
 	};
 
-	let content_disposition = make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
+	let content_disposition =
+		make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
 	let content = Content {
 		file: content.expect("entire file contents"),
 		content_type: content_type.map(Into::into),
@@ -51,7 +53,8 @@ pub(crate) async fn get_content_route(
 /// Load media thumbnail from our server.
 #[tracing::instrument(skip_all, fields(%client), name = "media_thumbnail_get")]
 pub(crate) async fn get_content_thumbnail_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_thumbnail::v1::Request>,
 ) -> Result<get_content_thumbnail::v1::Response> {
 	let dim = Dim::from_ruma(body.width, body.height, body.method.clone())?;
@@ -69,7 +72,8 @@ pub(crate) async fn get_content_thumbnail_route(
 		return Err!(Request(NotFound("Media not found.")));
 	};
 
-	let content_disposition = make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
+	let content_disposition =
+		make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
 	let content = Content {
 		file: content.expect("entire file contents"),
 		content_type: content_type.map(Into::into),

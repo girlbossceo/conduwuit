@@ -34,7 +34,10 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(user_id.to_string(), &RoomMemberEventContent::new(MembershipState::Invite)),
+			PduBuilder::state(
+				user_id.to_string(),
+				&RoomMemberEventContent::new(MembershipState::Invite),
+			),
 			server_user,
 			&room_id,
 			&state_lock,
@@ -43,7 +46,10 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(user_id.to_string(), &RoomMemberEventContent::new(MembershipState::Join)),
+			PduBuilder::state(
+				user_id.to_string(),
+				&RoomMemberEventContent::new(MembershipState::Join),
+			),
 			user_id,
 			&room_id,
 			&state_lock,
@@ -51,18 +57,18 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 		.await?;
 
 	// Set power level
-	let users = BTreeMap::from_iter([(server_user.clone(), 100.into()), (user_id.to_owned(), 100.into())]);
+	let users = BTreeMap::from_iter([
+		(server_user.clone(), 100.into()),
+		(user_id.to_owned(), 100.into()),
+	]);
 
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(
-				String::new(),
-				&RoomPowerLevelsEventContent {
-					users,
-					..Default::default()
-				},
-			),
+			PduBuilder::state(String::new(), &RoomPowerLevelsEventContent {
+				users,
+				..Default::default()
+			}),
 			server_user,
 			&room_id,
 			&state_lock,
@@ -103,9 +109,7 @@ async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> R
 		.get_room(room_id, user_id, RoomAccountDataEventType::Tag)
 		.await
 		.unwrap_or_else(|_| TagEvent {
-			content: TagEventContent {
-				tags: BTreeMap::new(),
-			},
+			content: TagEventContent { tags: BTreeMap::new() },
 		});
 
 	event

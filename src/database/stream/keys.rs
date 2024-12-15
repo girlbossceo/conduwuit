@@ -17,18 +17,12 @@ pub(crate) struct Keys<'a> {
 
 impl<'a> Keys<'a> {
 	pub(crate) fn new(db: &'a Arc<Engine>, cf: &'a Arc<ColumnFamily>, opts: ReadOptions) -> Self {
-		Self {
-			state: State::new(db, cf, opts),
-		}
+		Self { state: State::new(db, cf, opts) }
 	}
 }
 
 impl<'a> convert::From<State<'a>> for Keys<'a> {
-	fn from(state: State<'a>) -> Self {
-		Self {
-			state,
-		}
-	}
+	fn from(state: State<'a>) -> Self { Self { state } }
 }
 
 impl<'a> Cursor<'a, Key<'a>> for Keys<'a> {
@@ -41,11 +35,7 @@ impl<'a> Cursor<'a, Key<'a>> for Keys<'a> {
 	fn seek(&mut self) { self.state.seek_fwd(); }
 
 	#[inline]
-	fn init(self, from: From<'a>) -> Self {
-		Self {
-			state: self.state.init_fwd(from),
-		}
-	}
+	fn init(self, from: From<'a>) -> Self { Self { state: self.state.init_fwd(from) } }
 }
 
 impl<'a> Stream for Keys<'a> {

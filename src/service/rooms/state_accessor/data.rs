@@ -39,14 +39,16 @@ impl Data {
 			services: Services {
 				short: args.depend::<rooms::short::Service>("rooms::short"),
 				state: args.depend::<rooms::state::Service>("rooms::state"),
-				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
+				state_compressor: args
+					.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 			},
 		}
 	}
 
 	pub(super) async fn state_full(
-		&self, shortstatehash: ShortStateHash,
+		&self,
+		shortstatehash: ShortStateHash,
 	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		let state = self
 			.state_full_pdus(shortstatehash)
@@ -58,7 +60,10 @@ impl Data {
 		Ok(state)
 	}
 
-	pub(super) async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<PduEvent>> {
+	pub(super) async fn state_full_pdus(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> Result<Vec<PduEvent>> {
 		let short_ids = self.state_full_shortids(shortstatehash).await?;
 
 		let full_pdus = self
@@ -66,16 +71,19 @@ impl Data {
 			.short
 			.multi_get_eventid_from_short(short_ids.iter().map(ref_at!(1)))
 			.ready_filter_map(Result::ok)
-			.broad_filter_map(
-				|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await.ok() },
-			)
+			.broad_filter_map(|event_id: OwnedEventId| async move {
+				self.services.timeline.get_pdu(&event_id).await.ok()
+			})
 			.collect()
 			.await;
 
 		Ok(full_pdus)
 	}
 
-	pub(super) async fn state_full_ids<Id>(&self, shortstatehash: ShortStateHash) -> Result<HashMap<ShortStateKey, Id>>
+	pub(super) async fn state_full_ids<Id>(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> Result<HashMap<ShortStateKey, Id>>
 	where
 		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
@@ -96,7 +104,8 @@ impl Data {
 	}
 
 	pub(super) async fn state_full_shortids(
-		&self, shortstatehash: ShortStateHash,
+		&self,
+		shortstatehash: ShortStateHash,
 	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
 		let shortids = self
 			.services
@@ -118,7 +127,10 @@ impl Data {
 	/// Returns a single EventId from `room_id` with key
 	/// (`event_type`,`state_key`).
 	pub(super) async fn state_get_id<Id>(
-		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<Id>
 	where
 		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
@@ -155,10 +167,15 @@ impl Data {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub(super) async fn state_get(
-		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<PduEvent> {
 		self.state_get_id(shortstatehash, event_type, state_key)
-			.and_then(|event_id: OwnedEventId| async move { self.services.timeline.get_pdu(&event_id).await })
+			.and_then(|event_id: OwnedEventId| async move {
+				self.services.timeline.get_pdu(&event_id).await
+			})
 			.await
 	}
 
@@ -179,7 +196,8 @@ impl Data {
 
 	/// Returns the full room state.
 	pub(super) async fn room_state_full(
-		&self, room_id: &RoomId,
+		&self,
+		room_id: &RoomId,
 	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		self.services
 			.state
@@ -203,7 +221,10 @@ impl Data {
 	/// Returns a single EventId from `room_id` with key
 	/// (`event_type`,`state_key`).
 	pub(super) async fn room_state_get_id<Id>(
-		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<Id>
 	where
 		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
@@ -218,7 +239,10 @@ impl Data {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub(super) async fn room_state_get(
-		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<PduEvent> {
 		self.services
 			.state

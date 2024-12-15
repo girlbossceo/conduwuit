@@ -94,15 +94,16 @@ impl Console {
 		debug!("session starting");
 		while self.server.running() {
 			match self.readline().await {
-				Ok(event) => match event {
-					ReadlineEvent::Line(string) => self.clone().handle(string).await,
-					ReadlineEvent::Interrupted => continue,
-					ReadlineEvent::Eof => break,
-					ReadlineEvent::Quit => self.server.shutdown().unwrap_or_else(error::default_log),
+				| Ok(event) => match event {
+					| ReadlineEvent::Line(string) => self.clone().handle(string).await,
+					| ReadlineEvent::Interrupted => continue,
+					| ReadlineEvent::Eof => break,
+					| ReadlineEvent::Quit =>
+						self.server.shutdown().unwrap_or_else(error::default_log),
 				},
-				Err(error) => match error {
-					ReadlineError::Closed => break,
-					ReadlineError::IO(error) => {
+				| Err(error) => match error {
+					| ReadlineError::Closed => break,
+					| ReadlineError::IO(error) => {
 						error!("console I/O: {error:?}");
 						break;
 					},
@@ -158,9 +159,9 @@ impl Console {
 
 	async fn process(self: Arc<Self>, line: String) {
 		match self.admin.command_in_place(line, None).await {
-			Ok(Some(ref content)) => self.output(content),
-			Err(ref content) => self.output_err(content),
-			_ => unreachable!(),
+			| Ok(Some(ref content)) => self.output(content),
+			| Err(ref content) => self.output_err(content),
+			| _ => unreachable!(),
 		}
 	}
 

@@ -23,7 +23,10 @@ pub(crate) struct Server {
 }
 
 impl Server {
-	pub(crate) fn build(args: &Args, runtime: Option<&runtime::Handle>) -> Result<Arc<Self>, Error> {
+	pub(crate) fn build(
+		args: &Args,
+		runtime: Option<&runtime::Handle>,
+	) -> Result<Arc<Self>, Error> {
 		let _runtime_guard = runtime.map(runtime::Handle::enter);
 
 		let raw_config = Config::load(args.config.as_deref())?;
@@ -33,12 +36,14 @@ impl Server {
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = crate::sentry::init(&config);
 
-		let (tracing_reload_handle, tracing_flame_guard, capture) = crate::logging::init(&config)?;
+		let (tracing_reload_handle, tracing_flame_guard, capture) =
+			crate::logging::init(&config)?;
 
 		config.check()?;
 
 		#[cfg(unix)]
-		sys::maximize_fd_limit().expect("Unable to increase maximum soft and hard file descriptor limit");
+		sys::maximize_fd_limit()
+			.expect("Unable to increase maximum soft and hard file descriptor limit");
 
 		info!(
 			server_name = %config.server_name,
@@ -49,14 +54,10 @@ impl Server {
 		);
 
 		Ok(Arc::new(Self {
-			server: Arc::new(conduwuit::Server::new(
-				config,
-				runtime.cloned(),
-				Log {
-					reload: tracing_reload_handle,
-					capture,
-				},
-			)),
+			server: Arc::new(conduwuit::Server::new(config, runtime.cloned(), Log {
+				reload: tracing_reload_handle,
+				capture,
+			})),
 
 			services: None.into(),
 

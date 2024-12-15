@@ -13,7 +13,12 @@ async fn long_file_names_works() {
 
 	impl Data for MockedKVDatabase {
 		fn create_file_metadata(
-			&self, _sender_user: Option<&str>, mxc: String, width: u32, height: u32, content_disposition: Option<&str>,
+			&self,
+			_sender_user: Option<&str>,
+			mxc: String,
+			width: u32,
+			height: u32,
+			content_disposition: Option<&str>,
 			content_type: Option<&str>,
 		) -> Result<Vec<u8>> {
 			// copied from src/database/key_value/media.rs
@@ -46,14 +51,22 @@ async fn long_file_names_works() {
 		fn get_all_media_keys(&self) -> Vec<Vec<u8>> { todo!() }
 
 		fn search_file_metadata(
-			&self, _mxc: String, _width: u32, _height: u32,
+			&self,
+			_mxc: String,
+			_width: u32,
+			_height: u32,
 		) -> Result<(Option<String>, Option<String>, Vec<u8>)> {
 			todo!()
 		}
 
 		fn remove_url_preview(&self, _url: &str) -> Result<()> { todo!() }
 
-		fn set_url_preview(&self, _url: &str, _data: &UrlPreviewData, _timestamp: std::time::Duration) -> Result<()> {
+		fn set_url_preview(
+			&self,
+			_url: &str,
+			_data: &UrlPreviewData,
+			_timestamp: std::time::Duration,
+		) -> Result<()> {
 			todo!()
 		}
 
@@ -64,11 +77,18 @@ async fn long_file_names_works() {
 	let mxc = "mxc://example.com/ascERGshawAWawugaAcauga".to_owned();
 	let width = 100;
 	let height = 100;
-	let content_disposition = "attachment; filename=\"this is a very long file name with spaces and special \
-	                           characters like äöüß and even emoji like 🦀.png\"";
+	let content_disposition = "attachment; filename=\"this is a very long file name with spaces \
+	                           and special characters like äöüß and even emoji like 🦀.png\"";
 	let content_type = "image/png";
 	let key = db
-		.create_file_metadata(None, mxc, width, height, Some(content_disposition), Some(content_type))
+		.create_file_metadata(
+			None,
+			mxc,
+			width,
+			height,
+			Some(content_disposition),
+			Some(content_type),
+		)
 		.unwrap();
 	let mut r = PathBuf::from("/tmp/media");
 	// r.push(base64::encode_config(key, base64::URL_SAFE_NO_PAD));

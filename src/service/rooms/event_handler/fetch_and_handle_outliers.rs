@@ -5,10 +5,14 @@ use std::{
 };
 
 use conduwuit::{
-	debug, debug_error, implement, info, pdu, trace, utils::math::continue_exponential_backoff_secs, warn, PduEvent,
+	debug, debug_error, implement, info, pdu, trace,
+	utils::math::continue_exponential_backoff_secs, warn, PduEvent,
 };
 use futures::TryFutureExt;
-use ruma::{api::federation::event::get_event, CanonicalJsonValue, EventId, RoomId, RoomVersionId, ServerName};
+use ruma::{
+	api::federation::event::get_event, CanonicalJsonValue, EventId, RoomId, RoomVersionId,
+	ServerName,
+};
 
 /// Find the event and auth it. Once the event is validated (steps 1 - 8)
 /// it is appended to the outliers Tree.
@@ -21,7 +25,11 @@ use ruma::{api::federation::event::get_event, CanonicalJsonValue, EventId, RoomI
 /// d. TODO: Ask other servers over federation?
 #[implement(super::Service)]
 pub(super) async fn fetch_and_handle_outliers<'a>(
-	&self, origin: &'a ServerName, events: &'a [Arc<EventId>], create_event: &'a PduEvent, room_id: &'a RoomId,
+	&self,
+	origin: &'a ServerName,
+	events: &'a [Arc<EventId>],
+	create_event: &'a PduEvent,
+	room_id: &'a RoomId,
 	room_version_id: &'a RoomVersionId,
 ) -> Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)> {
 	let back_off = |id| match self
@@ -32,10 +40,12 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 		.expect("locked")
 		.entry(id)
 	{
-		hash_map::Entry::Vacant(e) => {
+		| hash_map::Entry::Vacant(e) => {
 			e.insert((Instant::now(), 1));
 		},
-		hash_map::Entry::Occupied(mut e) => *e.get_mut() = (Instant::now(), e.get().1.saturating_add(1)),
+		| hash_map::Entry::Occupied(mut e) => {
+			*e.get_mut() = (Instant::now(), e.get().1.saturating_add(1));
+		},
 	};
 
 	let mut events_with_auth_events = Vec::with_capacity(events.len());
@@ -67,7 +77,12 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 				// Exponential backoff
 				const MIN_DURATION: u64 = 5 * 60;
 				const MAX_DURATION: u64 = 60 * 60 * 24;
-				if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
+				if continue_exponential_backoff_secs(
+					MIN_DURATION,
+					MAX_DURATION,
+					time.elapsed(),
+					*tries,
+				) {
 					info!("Backing off from {next_id}");
 					continue;
 				}
@@ -86,18 +101,16 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 			match self
 				.services
 				.sending
-				.send_federation_request(
-					origin,
-					get_event::v1::Request {
-						event_id: (*next_id).to_owned(),
-						include_unredacted_content: None,
-					},
-				)
+				.send_federation_request(origin, get_event::v1::Request {
+					event_id: (*next_id).to_owned(),
+					include_unredacted_content: None,
+				})
 				.await
 			{
-				Ok(res) => {
+				| Ok(res) => {
 					debug!("Got {next_id} over federation");
-					let Ok((calculated_event_id, value)) = pdu::gen_event_id_canonical_json(&res.pdu, room_version_id)
+					let Ok((calculated_event_id, value)) =
+						pdu::gen_event_id_canonical_json(&res.pdu, room_version_id)
 					else {
 						back_off((*next_id).to_owned());
 						continue;
@@ -105,15 +118,18 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 
 					if calculated_event_id != *next_id {
 						warn!(
-							"Server didn't return event id we requested: requested: {next_id}, we got \
-							 {calculated_event_id}. Event: {:?}",
+							"Server didn't return event id we requested: requested: {next_id}, \
+							 we got {calculated_event_id}. Event: {:?}",
 							&res.pdu
 						);
 					}
 
-					if let Some(auth_events) = value.get("auth_events").and_then(|c| c.as_array()) {
+					if let Some(auth_events) = value.get("auth_events").and_then(|c| c.as_array())
+					{
 						for auth_event in auth_events {
-							if let Ok(auth_event) = serde_json::from_value(auth_event.clone().into()) {
+							if let Ok(auth_event) =
+								serde_json::from_value(auth_event.clone().into())
+							{
 								let a: Arc<EventId> = auth_event;
 								todo_auth_events.push(a);
 							} else {
@@ -127,7 +143,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 					events_in_reverse_order.push((next_id.clone(), value));
 					events_all.insert(next_id);
 				},
-				Err(e) => {
+				| Err(e) => {
 					debug_error!("Failed to fetch event {next_id}: {e}");
 					back_off((*next_id).to_owned());
 				},
@@ -158,20 +174,32 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 				// Exponential backoff
 				const MIN_DURATION: u64 = 5 * 60;
 				const MAX_DURATION: u64 = 60 * 60 * 24;
-				if continue_exponential_backoff_secs(MIN_DURATION, MAX_DURATION, time.elapsed(), *tries) {
+				if continue_exponential_backoff_secs(
+					MIN_DURATION,
+					MAX_DURATION,
+					time.elapsed(),
+					*tries,
+				) {
 					debug!("Backing off from {next_id}");
 					continue;
 				}
 			}
 
-			match Box::pin(self.handle_outlier_pdu(origin, create_event, &next_id, room_id, value.clone(), true)).await
+			match Box::pin(self.handle_outlier_pdu(
+				origin,
+				create_event,
+				&next_id,
+				room_id,
+				value.clone(),
+				true,
+			))
+			.await
 			{
-				Ok((pdu, json)) => {
+				| Ok((pdu, json)) =>
 					if next_id == *id {
 						pdus.push((pdu, Some(json)));
-					}
-				},
-				Err(e) => {
+					},
+				| Err(e) => {
 					warn!("Authentication of event {next_id} failed: {e:?}");
 					back_off(next_id.into());
 				},

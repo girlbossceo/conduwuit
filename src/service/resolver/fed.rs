@@ -29,8 +29,8 @@ pub(crate) fn get_ip_with_port(dest_str: &str) -> Option<FedDest> {
 
 pub(crate) fn add_port_to_hostname(dest: &str) -> FedDest {
 	let (host, port) = match dest.find(':') {
-		None => (dest, DEFAULT_PORT),
-		Some(pos) => dest.split_at(pos),
+		| None => (dest, DEFAULT_PORT),
+		| Some(pos) => dest.split_at(pos),
 	};
 
 	FedDest::Named(
@@ -42,23 +42,23 @@ pub(crate) fn add_port_to_hostname(dest: &str) -> FedDest {
 impl FedDest {
 	pub(crate) fn https_string(&self) -> String {
 		match self {
-			Self::Literal(addr) => format!("https://{addr}"),
-			Self::Named(host, port) => format!("https://{host}{port}"),
+			| Self::Literal(addr) => format!("https://{addr}"),
+			| Self::Named(host, port) => format!("https://{host}{port}"),
 		}
 	}
 
 	pub(crate) fn uri_string(&self) -> String {
 		match self {
-			Self::Literal(addr) => addr.to_string(),
-			Self::Named(host, port) => format!("{host}{port}"),
+			| Self::Literal(addr) => addr.to_string(),
+			| Self::Named(host, port) => format!("{host}{port}"),
 		}
 	}
 
 	#[inline]
 	pub(crate) fn hostname(&self) -> Cow<'_, str> {
 		match &self {
-			Self::Literal(addr) => addr.ip().to_string().into(),
-			Self::Named(host, _) => host.into(),
+			| Self::Literal(addr) => addr.ip().to_string().into(),
+			| Self::Named(host, _) => host.into(),
 		}
 	}
 
@@ -66,16 +66,20 @@ impl FedDest {
 	#[allow(clippy::string_slice)]
 	pub(crate) fn port(&self) -> Option<u16> {
 		match &self {
-			Self::Literal(addr) => Some(addr.port()),
-			Self::Named(_, port) => port[1..].parse().ok(),
+			| Self::Literal(addr) => Some(addr.port()),
+			| Self::Named(_, port) => port[1..].parse().ok(),
 		}
 	}
 
 	#[inline]
 	#[must_use]
-	pub fn default_port() -> PortString { PortString::from(DEFAULT_PORT).expect("default port string") }
+	pub fn default_port() -> PortString {
+		PortString::from(DEFAULT_PORT).expect("default port string")
+	}
 }
 
 impl fmt::Display for FedDest {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.uri_string().as_str()) }
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str(self.uri_string().as_str())
+	}
 }

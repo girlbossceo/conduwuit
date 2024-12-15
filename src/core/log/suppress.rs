@@ -25,10 +25,7 @@ impl Suppress {
 			.reload(&suppress, Some(&[handle]))
 			.expect("log filter reloaded");
 
-		Self {
-			server: server.clone(),
-			restore,
-		}
+		Self { server: server.clone(), restore }
 	}
 }
 

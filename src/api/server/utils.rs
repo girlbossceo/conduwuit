@@ -34,10 +34,11 @@ pub(super) async fn check(&self) -> Result {
 	let server_can_see: OptionFuture<_> = self
 		.event_id
 		.map(|event_id| {
-			self.services
-				.rooms
-				.state_accessor
-				.server_can_see_event(self.origin, self.room_id, event_id)
+			self.services.rooms.state_accessor.server_can_see_event(
+				self.origin,
+				self.room_id,
+				event_id,
+			)
 		})
 		.into();
 

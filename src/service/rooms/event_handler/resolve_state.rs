@@ -20,7 +20,10 @@ use crate::rooms::state_compressor::CompressedStateEvent;
 #[implement(super::Service)]
 #[tracing::instrument(skip_all, name = "resolve")]
 pub async fn resolve_state(
-	&self, room_id: &RoomId, room_version_id: &RoomVersionId, incoming_state: HashMap<u64, Arc<EventId>>,
+	&self,
+	room_id: &RoomId,
+	room_version_id: &RoomVersionId,
+	incoming_state: HashMap<u64, Arc<EventId>>,
 ) -> Result<Arc<HashSet<CompressedStateEvent>>> {
 	debug!("Loading current room state ids");
 	let current_sstatehash = self
@@ -76,10 +79,16 @@ pub async fn resolve_state(
 
 	let event_fetch = |event_id| self.event_fetch(event_id);
 	let event_exists = |event_id| self.event_exists(event_id);
-	let state = state_res::resolve(room_version_id, &fork_states, &auth_chain_sets, &event_fetch, &event_exists)
-		.boxed()
-		.await
-		.map_err(|e| err!(Database(error!("State resolution failed: {e:?}"))))?;
+	let state = state_res::resolve(
+		room_version_id,
+		&fork_states,
+		&auth_chain_sets,
+		&event_fetch,
+		&event_exists,
+	)
+	.boxed()
+	.await
+	.map_err(|e| err!(Database(error!("State resolution failed: {e:?}"))))?;
 
 	drop(lock);
 

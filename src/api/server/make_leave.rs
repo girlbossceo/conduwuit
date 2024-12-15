@@ -13,7 +13,8 @@ use crate::{service::pdu::PduBuilder, Ruma};
 ///
 /// Creates a leave template.
 pub(crate) async fn create_leave_event_template_route(
-	State(services): State<crate::State>, body: Ruma<prepare_leave_event::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<prepare_leave_event::v1::Request>,
 ) -> Result<prepare_leave_event::v1::Response> {
 	if !services.rooms.metadata.exists(&body.room_id).await {
 		return Err!(Request(NotFound("Room is unknown to this server.")));
@@ -37,7 +38,10 @@ pub(crate) async fn create_leave_event_template_route(
 		.rooms
 		.timeline
 		.create_hash_and_sign_event(
-			PduBuilder::state(body.user_id.to_string(), &RoomMemberEventContent::new(MembershipState::Leave)),
+			PduBuilder::state(
+				body.user_id.to_string(),
+				&RoomMemberEventContent::new(MembershipState::Leave),
+			),
 			&body.user_id,
 			&body.room_id,
 			&state_lock,

@@ -2,10 +2,11 @@ use axum::extract::State;
 use conduwuit::{err, Err};
 use ruma::{
 	api::client::backup::{
-		add_backup_keys, add_backup_keys_for_room, add_backup_keys_for_session, create_backup_version,
-		delete_backup_keys, delete_backup_keys_for_room, delete_backup_keys_for_session, delete_backup_version,
-		get_backup_info, get_backup_keys, get_backup_keys_for_room, get_backup_keys_for_session,
-		get_latest_backup_info, update_backup_version,
+		add_backup_keys, add_backup_keys_for_room, add_backup_keys_for_session,
+		create_backup_version, delete_backup_keys, delete_backup_keys_for_room,
+		delete_backup_keys_for_session, delete_backup_version, get_backup_info, get_backup_keys,
+		get_backup_keys_for_room, get_backup_keys_for_session, get_latest_backup_info,
+		update_backup_version,
 	},
 	UInt,
 };
@@ -16,15 +17,14 @@ use crate::{Result, Ruma};
 ///
 /// Creates a new backup.
 pub(crate) async fn create_backup_version_route(
-	State(services): State<crate::State>, body: Ruma<create_backup_version::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<create_backup_version::v3::Request>,
 ) -> Result<create_backup_version::v3::Response> {
 	let version = services
 		.key_backups
 		.create_backup(body.sender_user(), &body.algorithm)?;
 
-	Ok(create_backup_version::v3::Response {
-		version,
-	})
+	Ok(create_backup_version::v3::Response { version })
 }
 
 /// # `PUT /_matrix/client/r0/room_keys/version/{version}`
@@ -32,7 +32,8 @@ pub(crate) async fn create_backup_version_route(
 /// Update information about an existing backup. Only `auth_data` can be
 /// modified.
 pub(crate) async fn update_backup_version_route(
-	State(services): State<crate::State>, body: Ruma<update_backup_version::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<update_backup_version::v3::Request>,
 ) -> Result<update_backup_version::v3::Response> {
 	services
 		.key_backups
@@ -46,7 +47,8 @@ pub(crate) async fn update_backup_version_route(
 ///
 /// Get information about the latest backup version.
 pub(crate) async fn get_latest_backup_info_route(
-	State(services): State<crate::State>, body: Ruma<get_latest_backup_info::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_latest_backup_info::v3::Request>,
 ) -> Result<get_latest_backup_info::v3::Response> {
 	let (version, algorithm) = services
 		.key_backups
@@ -75,13 +77,16 @@ pub(crate) async fn get_latest_backup_info_route(
 ///
 /// Get information about an existing backup.
 pub(crate) async fn get_backup_info_route(
-	State(services): State<crate::State>, body: Ruma<get_backup_info::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_backup_info::v3::Request>,
 ) -> Result<get_backup_info::v3::Response> {
 	let algorithm = services
 		.key_backups
 		.get_backup(body.sender_user(), &body.version)
 		.await
-		.map_err(|_| err!(Request(NotFound("Key backup does not exist at version {:?}", body.version))))?;
+		.map_err(|_| {
+			err!(Request(NotFound("Key backup does not exist at version {:?}", body.version)))
+		})?;
 
 	Ok(get_backup_info::v3::Response {
 		algorithm,
@@ -105,7 +110,8 @@ pub(crate) async fn get_backup_info_route(
 /// - Deletes both information about the backup, as well as all key data related
 ///   to the backup
 pub(crate) async fn delete_backup_version_route(
-	State(services): State<crate::State>, body: Ruma<delete_backup_version::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<delete_backup_version::v3::Request>,
 ) -> Result<delete_backup_version::v3::Response> {
 	services
 		.key_backups
@@ -124,7 +130,8 @@ pub(crate) async fn delete_backup_version_route(
 /// - Adds the keys to the backup
 /// - Returns the new number of keys in this backup and the etag
 pub(crate) async fn add_backup_keys_route(
-	State(services): State<crate::State>, body: Ruma<add_backup_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<add_backup_keys::v3::Request>,
 ) -> Result<add_backup_keys::v3::Response> {
 	if services
 		.key_backups
@@ -168,7 +175,8 @@ pub(crate) async fn add_backup_keys_route(
 /// - Adds the keys to the backup
 /// - Returns the new number of keys in this backup and the etag
 pub(crate) async fn add_backup_keys_for_room_route(
-	State(services): State<crate::State>, body: Ruma<add_backup_keys_for_room::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<add_backup_keys_for_room::v3::Request>,
 ) -> Result<add_backup_keys_for_room::v3::Response> {
 	if services
 		.key_backups
@@ -210,7 +218,8 @@ pub(crate) async fn add_backup_keys_for_room_route(
 /// - Adds the keys to the backup
 /// - Returns the new number of keys in this backup and the etag
 pub(crate) async fn add_backup_keys_for_session_route(
-	State(services): State<crate::State>, body: Ruma<add_backup_keys_for_session::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<add_backup_keys_for_session::v3::Request>,
 ) -> Result<add_backup_keys_for_session::v3::Response> {
 	if services
 		.key_backups
@@ -251,56 +260,56 @@ pub(crate) async fn add_backup_keys_for_session_route(
 ///
 /// Retrieves all keys from the backup.
 pub(crate) async fn get_backup_keys_route(
-	State(services): State<crate::State>, body: Ruma<get_backup_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_backup_keys::v3::Request>,
 ) -> Result<get_backup_keys::v3::Response> {
 	let rooms = services
 		.key_backups
 		.get_all(body.sender_user(), &body.version)
 		.await;
 
-	Ok(get_backup_keys::v3::Response {
-		rooms,
-	})
+	Ok(get_backup_keys::v3::Response { rooms })
 }
 
 /// # `GET /_matrix/client/r0/room_keys/keys/{roomId}`
 ///
 /// Retrieves all keys from the backup for a given room.
 pub(crate) async fn get_backup_keys_for_room_route(
-	State(services): State<crate::State>, body: Ruma<get_backup_keys_for_room::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_backup_keys_for_room::v3::Request>,
 ) -> Result<get_backup_keys_for_room::v3::Response> {
 	let sessions = services
 		.key_backups
 		.get_room(body.sender_user(), &body.version, &body.room_id)
 		.await;
 
-	Ok(get_backup_keys_for_room::v3::Response {
-		sessions,
-	})
+	Ok(get_backup_keys_for_room::v3::Response { sessions })
 }
 
 /// # `GET /_matrix/client/r0/room_keys/keys/{roomId}/{sessionId}`
 ///
 /// Retrieves a key from the backup.
 pub(crate) async fn get_backup_keys_for_session_route(
-	State(services): State<crate::State>, body: Ruma<get_backup_keys_for_session::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_backup_keys_for_session::v3::Request>,
 ) -> Result<get_backup_keys_for_session::v3::Response> {
 	let key_data = services
 		.key_backups
 		.get_session(body.sender_user(), &body.version, &body.room_id, &body.session_id)
 		.await
-		.map_err(|_| err!(Request(NotFound(debug_error!("Backup key not found for this user's session.")))))?;
+		.map_err(|_| {
+			err!(Request(NotFound(debug_error!("Backup key not found for this user's session."))))
+		})?;
 
-	Ok(get_backup_keys_for_session::v3::Response {
-		key_data,
-	})
+	Ok(get_backup_keys_for_session::v3::Response { key_data })
 }
 
 /// # `DELETE /_matrix/client/r0/room_keys/keys`
 ///
 /// Delete the keys from the backup.
 pub(crate) async fn delete_backup_keys_route(
-	State(services): State<crate::State>, body: Ruma<delete_backup_keys::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<delete_backup_keys::v3::Request>,
 ) -> Result<delete_backup_keys::v3::Response> {
 	services
 		.key_backups
@@ -324,7 +333,8 @@ pub(crate) async fn delete_backup_keys_route(
 ///
 /// Delete the keys from the backup for a given room.
 pub(crate) async fn delete_backup_keys_for_room_route(
-	State(services): State<crate::State>, body: Ruma<delete_backup_keys_for_room::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<delete_backup_keys_for_room::v3::Request>,
 ) -> Result<delete_backup_keys_for_room::v3::Response> {
 	services
 		.key_backups
@@ -348,7 +358,8 @@ pub(crate) async fn delete_backup_keys_for_room_route(
 ///
 /// Delete a key from the backup.
 pub(crate) async fn delete_backup_keys_for_session_route(
-	State(services): State<crate::State>, body: Ruma<delete_backup_keys_for_session::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<delete_backup_keys_for_session::v3::Request>,
 ) -> Result<delete_backup_keys_for_session::v3::Response> {
 	services
 		.key_backups

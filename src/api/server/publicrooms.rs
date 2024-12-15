@@ -15,7 +15,8 @@ use crate::{Error, Result, Ruma};
 /// Lists the public rooms on this server.
 #[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_filtered_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
 	if !services
@@ -35,7 +36,9 @@ pub(crate) async fn get_public_rooms_filtered_route(
 		&body.room_network,
 	)
 	.await
-	.map_err(|_| Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list."))?;
+	.map_err(|_| {
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+	})?;
 
 	Ok(get_public_rooms_filtered::v1::Response {
 		chunk: response.chunk,
@@ -50,7 +53,8 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// Lists the public rooms on this server.
 #[tracing::instrument(skip_all, fields(%client), "publicrooms")]
 pub(crate) async fn get_public_rooms_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_public_rooms::v1::Request>,
 ) -> Result<get_public_rooms::v1::Response> {
 	if !services
@@ -69,7 +73,9 @@ pub(crate) async fn get_public_rooms_route(
 		&body.room_network,
 	)
 	.await
-	.map_err(|_| Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list."))?;
+	.map_err(|_| {
+		Error::BadRequest(ErrorKind::Unknown, "Failed to return this server's public room list.")
+	})?;
 
 	Ok(get_public_rooms::v1::Response {
 		chunk: response.chunk,

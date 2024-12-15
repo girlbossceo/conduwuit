@@ -61,7 +61,11 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Registers an appservice and returns the ID to the caller
-	pub async fn register_appservice(&self, registration: &Registration, appservice_config_body: &str) -> Result {
+	pub async fn register_appservice(
+		&self,
+		registration: &Registration,
+		appservice_config_body: &str,
+	) -> Result {
 		//TODO: Check for collisions between exclusive appservice namespaces
 		self.registration_info
 			.write()
@@ -152,7 +156,10 @@ impl Service {
 			.any(|info| info.rooms.is_exclusive_match(room_id.as_str()))
 	}
 
-	pub fn read(&self) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>> {
+	pub fn read(
+		&self,
+	) -> impl Future<Output = tokio::sync::RwLockReadGuard<'_, BTreeMap<String, RegistrationInfo>>>
+	{
 		self.registration_info.read()
 	}
 

@@ -14,7 +14,7 @@ pub enum Destination {
 #[must_use]
 pub(super) fn get_prefix(&self) -> Vec<u8> {
 	match self {
-		Self::Normal(server) => {
+		| Self::Normal(server) => {
 			let len = server.as_bytes().len().saturating_add(1);
 
 			let mut p = Vec::with_capacity(len);
@@ -22,7 +22,7 @@ pub(super) fn get_prefix(&self) -> Vec<u8> {
 			p.push(0xFF);
 			p
 		},
-		Self::Appservice(server) => {
+		| Self::Appservice(server) => {
 			let sigil = b"+";
 			let len = sigil.len().saturating_add(server.len()).saturating_add(1);
 
@@ -32,7 +32,7 @@ pub(super) fn get_prefix(&self) -> Vec<u8> {
 			p.push(0xFF);
 			p
 		},
-		Self::Push(user, pushkey) => {
+		| Self::Push(user, pushkey) => {
 			let sigil = b"$";
 			let len = sigil
 				.len()

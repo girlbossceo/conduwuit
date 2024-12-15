@@ -21,7 +21,10 @@ pub(super) struct Presence {
 impl Presence {
 	#[must_use]
 	pub(super) fn new(
-		state: PresenceState, currently_active: bool, last_active_ts: u64, status_msg: Option<String>,
+		state: PresenceState,
+		currently_active: bool,
+		last_active_ts: u64,
+		status_msg: Option<String>,
 	) -> Self {
 		Self {
 			state,
@@ -32,11 +35,16 @@ impl Presence {
 	}
 
 	pub(super) fn from_json_bytes(bytes: &[u8]) -> Result<Self> {
-		serde_json::from_slice(bytes).map_err(|_| Error::bad_database("Invalid presence data in database"))
+		serde_json::from_slice(bytes)
+			.map_err(|_| Error::bad_database("Invalid presence data in database"))
 	}
 
 	/// Creates a PresenceEvent from available data.
-	pub(super) async fn to_presence_event(&self, user_id: &UserId, users: &users::Service) -> PresenceEvent {
+	pub(super) async fn to_presence_event(
+		&self,
+		user_id: &UserId,
+		users: &users::Service,
+	) -> PresenceEvent {
 		let now = utils::millis_since_unix_epoch();
 		let last_active_ago = if self.currently_active {
 			None

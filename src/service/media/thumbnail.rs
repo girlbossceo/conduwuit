@@ -22,12 +22,17 @@ impl super::Service {
 	/// Uploads or replaces a file thumbnail.
 	#[allow(clippy::too_many_arguments)]
 	pub async fn upload_thumbnail(
-		&self, mxc: &Mxc<'_>, user: Option<&UserId>, content_disposition: Option<&ContentDisposition>,
-		content_type: Option<&str>, dim: &Dim, file: &[u8],
+		&self,
+		mxc: &Mxc<'_>,
+		user: Option<&UserId>,
+		content_disposition: Option<&ContentDisposition>,
+		content_type: Option<&str>,
+		dim: &Dim,
+		file: &[u8],
 	) -> Result<()> {
-		let key = self
-			.db
-			.create_file_metadata(mxc, user, dim, content_disposition, content_type)?;
+		let key =
+			self.db
+				.create_file_metadata(mxc, user, dim, content_disposition, content_type)?;
 
 		//TODO: Dangling metadata in database if creation fails
 		let mut f = self.create_media_file(&key).await?;
@@ -78,7 +83,12 @@ impl super::Service {
 
 	/// Generate a thumbnail
 	#[tracing::instrument(skip(self), name = "generate", level = "debug")]
-	async fn get_thumbnail_generate(&self, mxc: &Mxc<'_>, dim: &Dim, data: Metadata) -> Result<Option<FileMeta>> {
+	async fn get_thumbnail_generate(
+		&self,
+		mxc: &Mxc<'_>,
+		dim: &Dim,
+		data: Metadata,
+	) -> Result<Option<FileMeta>> {
 		let mut content = Vec::new();
 		let path = self.get_media_file(&data.key);
 		fs::File::open(path)
@@ -117,11 +127,7 @@ impl super::Service {
 
 fn thumbnail_generate(image: &DynamicImage, requested: &Dim) -> Result<DynamicImage> {
 	let thumbnail = if !requested.crop() {
-		let Dim {
-			width,
-			height,
-			..
-		} = requested.scaled(&Dim {
+		let Dim { width, height, .. } = requested.scaled(&Dim {
 			width: image.width(),
 			height: image.height(),
 			..Dim::default()
@@ -202,12 +208,12 @@ impl Dim {
 	#[must_use]
 	pub fn normalized(&self) -> Self {
 		match (self.width, self.height) {
-			(0..=32, 0..=32) => Self::new(32, 32, Some(Method::Crop)),
-			(0..=96, 0..=96) => Self::new(96, 96, Some(Method::Crop)),
-			(0..=320, 0..=240) => Self::new(320, 240, Some(Method::Scale)),
-			(0..=640, 0..=480) => Self::new(640, 480, Some(Method::Scale)),
-			(0..=800, 0..=600) => Self::new(800, 600, Some(Method::Scale)),
-			_ => Self::default(),
+			| (0..=32, 0..=32) => Self::new(32, 32, Some(Method::Crop)),
+			| (0..=96, 0..=96) => Self::new(96, 96, Some(Method::Crop)),
+			| (0..=320, 0..=240) => Self::new(320, 240, Some(Method::Scale)),
+			| (0..=640, 0..=480) => Self::new(640, 480, Some(Method::Scale)),
+			| (0..=800, 0..=600) => Self::new(800, 600, Some(Method::Scale)),
+			| _ => Self::default(),
 		}
 	}
 

@@ -10,7 +10,8 @@ use crate::{Result, Ruma};
 ///
 /// - A user can only access their own filters
 pub(crate) async fn get_filter_route(
-	State(services): State<crate::State>, body: Ruma<get_filter::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_filter::v3::Request>,
 ) -> Result<get_filter::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -26,7 +27,8 @@ pub(crate) async fn get_filter_route(
 ///
 /// Creates a new filter to be used by other endpoints.
 pub(crate) async fn create_filter_route(
-	State(services): State<crate::State>, body: Ruma<create_filter::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<create_filter::v3::Request>,
 ) -> Result<create_filter::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

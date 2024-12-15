@@ -60,27 +60,26 @@ impl Resolver {
 		opts.shuffle_dns_servers = true;
 		opts.rotate = true;
 		opts.ip_strategy = match config.ip_lookup_strategy {
-			1 => hickory_resolver::config::LookupIpStrategy::Ipv4Only,
-			2 => hickory_resolver::config::LookupIpStrategy::Ipv6Only,
-			3 => hickory_resolver::config::LookupIpStrategy::Ipv4AndIpv6,
-			4 => hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4,
-			_ => hickory_resolver::config::LookupIpStrategy::Ipv4thenIpv6,
+			| 1 => hickory_resolver::config::LookupIpStrategy::Ipv4Only,
+			| 2 => hickory_resolver::config::LookupIpStrategy::Ipv6Only,
+			| 3 => hickory_resolver::config::LookupIpStrategy::Ipv4AndIpv6,
+			| 4 => hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4,
+			| _ => hickory_resolver::config::LookupIpStrategy::Ipv4thenIpv6,
 		};
 		opts.authentic_data = false;
 
 		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
 		Ok(Arc::new(Self {
 			resolver: resolver.clone(),
-			hooked: Arc::new(Hooked {
-				resolver,
-				cache,
-			}),
+			hooked: Arc::new(Hooked { resolver, cache }),
 		}))
 	}
 }
 
 impl Resolve for Resolver {
-	fn resolve(&self, name: Name) -> Resolving { resolve_to_reqwest(self.resolver.clone(), name).boxed() }
+	fn resolve(&self, name: Name) -> Resolving {
+		resolve_to_reqwest(self.resolver.clone(), name).boxed()
+	}
 }
 
 impl Resolve for Hooked {

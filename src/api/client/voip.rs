@@ -17,7 +17,8 @@ type HmacSha1 = Hmac<Sha1>;
 ///
 /// TODO: Returns information about the recommended turn server.
 pub(crate) async fn turn_server_route(
-	State(services): State<crate::State>, body: Ruma<get_turn_server_info::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_turn_server_info::v3::Request>,
 ) -> Result<get_turn_server_info::v3::Response> {
 	// MSC4166: return M_NOT_FOUND 404 if no TURN URIs are specified in any way
 	if services.server.config.turn_uris.is_empty() {
@@ -44,7 +45,8 @@ pub(crate) async fn turn_server_route(
 
 		let username: String = format!("{}:{}", expiry.get(), user);
 
-		let mut mac = HmacSha1::new_from_slice(turn_secret.as_bytes()).expect("HMAC can take key of any size");
+		let mut mac = HmacSha1::new_from_slice(turn_secret.as_bytes())
+			.expect("HMAC can take key of any size");
 		mac.update(username.as_bytes());
 
 		let password: String = general_purpose::STANDARD.encode(mac.finalize().into_bytes());

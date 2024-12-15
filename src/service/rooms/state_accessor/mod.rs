@@ -34,8 +34,8 @@ use ruma::{
 	},
 	room::RoomType,
 	space::SpaceRoomJoinRule,
-	EventEncryptionAlgorithm, EventId, JsOption, OwnedRoomAliasId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId,
-	ServerName, UserId,
+	EventEncryptionAlgorithm, EventId, JsOption, OwnedRoomAliasId, OwnedRoomId, OwnedServerName,
+	OwnedUserId, RoomId, ServerName, UserId,
 };
 use serde::Deserialize;
 
@@ -75,8 +75,12 @@ impl crate::Service for Service {
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 			},
 			db: Data::new(&args),
-			server_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(server_visibility_cache_capacity)?)),
-			user_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(user_visibility_cache_capacity)?)),
+			server_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(
+				server_visibility_cache_capacity,
+			)?)),
+			user_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(
+				user_visibility_cache_capacity,
+			)?)),
 		}))
 	}
 
@@ -102,7 +106,10 @@ impl Service {
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_full_ids<Id>(&self, shortstatehash: ShortStateHash) -> Result<HashMap<ShortStateKey, Id>>
+	pub async fn state_full_ids<Id>(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> Result<HashMap<ShortStateKey, Id>>
 	where
 		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
@@ -112,13 +119,15 @@ impl Service {
 
 	#[inline]
 	pub async fn state_full_shortids(
-		&self, shortstatehash: ShortStateHash,
+		&self,
+		shortstatehash: ShortStateHash,
 	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
 		self.db.state_full_shortids(shortstatehash).await
 	}
 
 	pub async fn state_full(
-		&self, shortstatehash: ShortStateHash,
+		&self,
+		shortstatehash: ShortStateHash,
 	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		self.db.state_full(shortstatehash).await
 	}
@@ -127,7 +136,10 @@ impl Service {
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn state_get_id<Id>(
-		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<Id>
 	where
 		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
@@ -142,7 +154,10 @@ impl Service {
 	/// `state_key`).
 	#[inline]
 	pub async fn state_get(
-		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<PduEvent> {
 		self.db
 			.state_get(shortstatehash, event_type, state_key)
@@ -151,7 +166,10 @@ impl Service {
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub async fn state_get_content<T>(
-		&self, shortstatehash: ShortStateHash, event_type: &StateEventType, state_key: &str,
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<T>
 	where
 		T: for<'de> Deserialize<'de>,
@@ -162,7 +180,11 @@ impl Service {
 	}
 
 	/// Get membership for given user in state
-	async fn user_membership(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> MembershipState {
+	async fn user_membership(
+		&self,
+		shortstatehash: ShortStateHash,
+		user_id: &UserId,
+	) -> MembershipState {
 		self.state_get_content(shortstatehash, &StateEventType::RoomMember, user_id.as_str())
 			.await
 			.map_or(MembershipState::Leave, |c: RoomMemberEventContent| c.membership)
@@ -185,7 +207,12 @@ impl Service {
 	/// Whether a server is allowed to see an event through federation, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip_all, level = "trace")]
-	pub async fn server_can_see_event(&self, origin: &ServerName, room_id: &RoomId, event_id: &EventId) -> bool {
+	pub async fn server_can_see_event(
+		&self,
+		origin: &ServerName,
+		room_id: &RoomId,
+		event_id: &EventId,
+	) -> bool {
 		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
 			return true;
 		};
@@ -213,20 +240,20 @@ impl Service {
 			.ready_filter(|member| member.server_name() == origin);
 
 		let visibility = match history_visibility {
-			HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
-			HistoryVisibility::Invited => {
+			| HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
+			| HistoryVisibility::Invited => {
 				// Allow if any member on requesting server was AT LEAST invited, else deny
 				current_server_members
 					.any(|member| self.user_was_invited(shortstatehash, member))
 					.await
 			},
-			HistoryVisibility::Joined => {
+			| HistoryVisibility::Joined => {
 				// Allow if any member on requested server was joined, else deny
 				current_server_members
 					.any(|member| self.user_was_joined(shortstatehash, member))
 					.await
 			},
-			_ => {
+			| _ => {
 				error!("Unknown history visibility {history_visibility}");
 				false
 			},
@@ -243,7 +270,12 @@ impl Service {
 	/// Whether a user is allowed to see an event, based on
 	/// the room's history_visibility at that event's state.
 	#[tracing::instrument(skip_all, level = "trace")]
-	pub async fn user_can_see_event(&self, user_id: &UserId, room_id: &RoomId, event_id: &EventId) -> bool {
+	pub async fn user_can_see_event(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+		event_id: &EventId,
+	) -> bool {
 		let Ok(shortstatehash) = self.pdu_shortstatehash(event_id).await else {
 			return true;
 		};
@@ -267,17 +299,17 @@ impl Service {
 			});
 
 		let visibility = match history_visibility {
-			HistoryVisibility::WorldReadable => true,
-			HistoryVisibility::Shared => currently_member,
-			HistoryVisibility::Invited => {
+			| HistoryVisibility::WorldReadable => true,
+			| HistoryVisibility::Shared => currently_member,
+			| HistoryVisibility::Invited => {
 				// Allow if any member on requesting server was AT LEAST invited, else deny
 				self.user_was_invited(shortstatehash, user_id).await
 			},
-			HistoryVisibility::Joined => {
+			| HistoryVisibility::Joined => {
 				// Allow if any member on requested server was joined, else deny
 				self.user_was_joined(shortstatehash, user_id).await
 			},
-			_ => {
+			| _ => {
 				error!("Unknown history visibility {history_visibility}");
 				false
 			},
@@ -307,9 +339,10 @@ impl Service {
 			});
 
 		match history_visibility {
-			HistoryVisibility::Invited => self.services.state_cache.is_invited(user_id, room_id).await,
-			HistoryVisibility::WorldReadable => true,
-			_ => false,
+			| HistoryVisibility::Invited =>
+				self.services.state_cache.is_invited(user_id, room_id).await,
+			| HistoryVisibility::WorldReadable => true,
+			| _ => false,
 		}
 	}
 
@@ -320,7 +353,10 @@ impl Service {
 
 	/// Returns the full room state.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_full(&self, room_id: &RoomId) -> Result<HashMap<(StateEventType, String), PduEvent>> {
+	pub async fn room_state_full(
+		&self,
+		room_id: &RoomId,
+	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
 		self.db.room_state_full(room_id).await
 	}
 
@@ -334,7 +370,10 @@ impl Service {
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn room_state_get_id<Id>(
-		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<Id>
 	where
 		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
@@ -349,14 +388,20 @@ impl Service {
 	/// `state_key`).
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn room_state_get(
-		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<PduEvent> {
 		self.db.room_state_get(room_id, event_type, state_key).await
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
 	pub async fn room_state_get_content<T>(
-		&self, room_id: &RoomId, event_type: &StateEventType, state_key: &str,
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
 	) -> Result<T>
 	where
 		T: for<'de> Deserialize<'de>,
@@ -381,18 +426,29 @@ impl Service {
 		JsOption::from_option(content)
 	}
 
-	pub async fn get_member(&self, room_id: &RoomId, user_id: &UserId) -> Result<RoomMemberEventContent> {
+	pub async fn get_member(
+		&self,
+		room_id: &RoomId,
+		user_id: &UserId,
+	) -> Result<RoomMemberEventContent> {
 		self.room_state_get_content(room_id, &StateEventType::RoomMember, user_id.as_str())
 			.await
 	}
 
 	pub async fn user_can_invite(
-		&self, room_id: &RoomId, sender: &UserId, target_user: &UserId, state_lock: &RoomMutexGuard,
+		&self,
+		room_id: &RoomId,
+		sender: &UserId,
+		target_user: &UserId,
+		state_lock: &RoomMutexGuard,
 	) -> bool {
 		self.services
 			.timeline
 			.create_hash_and_sign_event(
-				PduBuilder::state(target_user.into(), &RoomMemberEventContent::new(MembershipState::Invite)),
+				PduBuilder::state(
+					target_user.into(),
+					&RoomMemberEventContent::new(MembershipState::Invite),
+				),
 				sender,
 				room_id,
 				state_lock,
@@ -405,7 +461,9 @@ impl Service {
 	pub async fn is_world_readable(&self, room_id: &RoomId) -> bool {
 		self.room_state_get_content(room_id, &StateEventType::RoomHistoryVisibility, "")
 			.await
-			.map(|c: RoomHistoryVisibilityEventContent| c.history_visibility == HistoryVisibility::WorldReadable)
+			.map(|c: RoomHistoryVisibilityEventContent| {
+				c.history_visibility == HistoryVisibility::WorldReadable
+			})
 			.unwrap_or(false)
 	}
 
@@ -439,7 +497,11 @@ impl Service {
 	/// If federation is true, it allows redaction events from any user of the
 	/// same server as the original event sender
 	pub async fn user_can_redact(
-		&self, redacts: &EventId, sender: &UserId, room_id: &RoomId, federation: bool,
+		&self,
+		redacts: &EventId,
+		sender: &UserId,
+		room_id: &RoomId,
+		federation: bool,
 	) -> Result<bool> {
 		let redacting_event = self.services.timeline.get_pdu(redacts).await;
 
@@ -451,7 +513,11 @@ impl Service {
 		}
 
 		if let Ok(pl_event_content) = self
-			.room_state_get_content::<RoomPowerLevelsEventContent>(room_id, &StateEventType::RoomPowerLevels, "")
+			.room_state_get_content::<RoomPowerLevelsEventContent>(
+				room_id,
+				&StateEventType::RoomPowerLevels,
+				"",
+			)
 			.await
 		{
 			let pl_event: RoomPowerLevels = pl_event_content.into();
@@ -485,10 +551,15 @@ impl Service {
 	}
 
 	/// Returns the join rule (`SpaceRoomJoinRule`) for a given room
-	pub async fn get_join_rule(&self, room_id: &RoomId) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>)> {
+	pub async fn get_join_rule(
+		&self,
+		room_id: &RoomId,
+	) -> Result<(SpaceRoomJoinRule, Vec<OwnedRoomId>)> {
 		self.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
 			.await
-			.map(|c: RoomJoinRulesEventContent| (c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule)))
+			.map(|c: RoomJoinRulesEventContent| {
+				(c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule))
+			})
 			.or_else(|_| Ok((SpaceRoomJoinRule::Invite, vec![])))
 	}
 
@@ -497,10 +568,7 @@ impl Service {
 		let mut room_ids = Vec::with_capacity(1);
 		if let JoinRule::Restricted(r) | JoinRule::KnockRestricted(r) = join_rule {
 			for rule in r.allow {
-				if let AllowRule::RoomMembership(RoomMembership {
-					room_id: membership,
-				}) = rule
-				{
+				if let AllowRule::RoomMembership(RoomMembership { room_id: membership }) = rule {
 					room_ids.push(membership.clone());
 				}
 			}
@@ -520,7 +588,10 @@ impl Service {
 
 	/// Gets the room's encryption algorithm if `m.room.encryption` state event
 	/// is found
-	pub async fn get_room_encryption(&self, room_id: &RoomId) -> Result<EventEncryptionAlgorithm> {
+	pub async fn get_room_encryption(
+		&self,
+		room_id: &RoomId,
+	) -> Result<EventEncryptionAlgorithm> {
 		self.room_state_get_content(room_id, &StateEventType::RoomEncryption, "")
 			.await
 			.map(|content: RoomEncryptionEventContent| content.algorithm)

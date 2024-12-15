@@ -14,8 +14,9 @@ use conduwuit::Result;
 
 use self::{
 	account_data::AccountDataCommand, appservice::AppserviceCommand, globals::GlobalsCommand,
-	presence::PresenceCommand, pusher::PusherCommand, resolver::ResolverCommand, room_alias::RoomAliasCommand,
-	room_state_cache::RoomStateCacheCommand, sending::SendingCommand, users::UsersCommand,
+	presence::PresenceCommand, pusher::PusherCommand, resolver::ResolverCommand,
+	room_alias::RoomAliasCommand, room_state_cache::RoomStateCacheCommand,
+	sending::SendingCommand, users::UsersCommand,
 };
 use crate::admin_command_dispatch;
 

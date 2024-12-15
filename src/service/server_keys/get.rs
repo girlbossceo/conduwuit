@@ -1,17 +1,25 @@
 use std::borrow::Borrow;
 
 use conduwuit::{implement, Err, Result};
-use ruma::{api::federation::discovery::VerifyKey, CanonicalJsonObject, RoomVersionId, ServerName, ServerSigningKeyId};
+use ruma::{
+	api::federation::discovery::VerifyKey, CanonicalJsonObject, RoomVersionId, ServerName,
+	ServerSigningKeyId,
+};
 
 use super::{extract_key, PubKeyMap, PubKeys};
 
 #[implement(super::Service)]
-pub async fn get_event_keys(&self, object: &CanonicalJsonObject, version: &RoomVersionId) -> Result<PubKeyMap> {
+pub async fn get_event_keys(
+	&self,
+	object: &CanonicalJsonObject,
+	version: &RoomVersionId,
+) -> Result<PubKeyMap> {
 	use ruma::signatures::required_keys;
 
 	let required = match required_keys(object, version) {
-		Ok(required) => required,
-		Err(e) => return Err!(BadServerResponse("Failed to determine keys required to verify: {e}")),
+		| Ok(required) => required,
+		| Err(e) =>
+			return Err!(BadServerResponse("Failed to determine keys required to verify: {e}")),
 	};
 
 	let batch = required
@@ -52,7 +60,11 @@ where
 }
 
 #[implement(super::Service)]
-pub async fn get_verify_key(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
+pub async fn get_verify_key(
+	&self,
+	origin: &ServerName,
+	key_id: &ServerSigningKeyId,
+) -> Result<VerifyKey> {
 	let notary_first = self.services.server.config.query_trusted_key_servers_first;
 	let notary_only = self.services.server.config.only_query_trusted_key_servers;
 
@@ -86,7 +98,11 @@ pub async fn get_verify_key(&self, origin: &ServerName, key_id: &ServerSigningKe
 }
 
 #[implement(super::Service)]
-async fn get_verify_key_from_notaries(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
+async fn get_verify_key_from_notaries(
+	&self,
+	origin: &ServerName,
+	key_id: &ServerSigningKeyId,
+) -> Result<VerifyKey> {
 	for notary in self.services.globals.trusted_servers() {
 		if let Ok(server_keys) = self.notary_request(notary, origin).await {
 			for server_key in server_keys.clone() {
@@ -105,7 +121,11 @@ async fn get_verify_key_from_notaries(&self, origin: &ServerName, key_id: &Serve
 }
 
 #[implement(super::Service)]
-async fn get_verify_key_from_origin(&self, origin: &ServerName, key_id: &ServerSigningKeyId) -> Result<VerifyKey> {
+async fn get_verify_key_from_origin(
+	&self,
+	origin: &ServerName,
+	key_id: &ServerSigningKeyId,
+) -> Result<VerifyKey> {
 	if let Ok(server_key) = self.server_request(origin).await {
 		self.add_signing_keys(server_key.clone()).await;
 		if let Some(result) = extract_key(server_key, key_id) {

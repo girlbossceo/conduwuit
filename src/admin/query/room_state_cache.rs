@@ -77,15 +77,13 @@ pub(crate) enum RoomStateCacheCommand {
 }
 
 pub(super) async fn process(
-	subcommand: RoomStateCacheCommand, context: &Command<'_>,
+	subcommand: RoomStateCacheCommand,
+	context: &Command<'_>,
 ) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		RoomStateCacheCommand::ServerInRoom {
-			server,
-			room_id,
-		} => {
+		| RoomStateCacheCommand::ServerInRoom { server, room_id } => {
 			let timer = tokio::time::Instant::now();
 			let result = services
 				.rooms
@@ -98,9 +96,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{result:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomServers {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::RoomServers { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -115,9 +111,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::ServerRooms {
-			server,
-		} => {
+		| RoomStateCacheCommand::ServerRooms { server } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -132,9 +126,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomMembers {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::RoomMembers { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -149,9 +141,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::LocalUsersInRoom {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::LocalUsersInRoom { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -166,9 +156,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::ActiveLocalUsersInRoom {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::ActiveLocalUsersInRoom { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -183,9 +171,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomJoinedCount {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::RoomJoinedCount { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.rooms.state_cache.room_joined_count(&room_id).await;
 			let query_time = timer.elapsed();
@@ -194,9 +180,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomInvitedCount {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::RoomInvitedCount { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.rooms
@@ -209,9 +193,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomUserOnceJoined {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::RoomUserOnceJoined { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -226,9 +208,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomMembersInvited {
-			room_id,
-		} => {
+		| RoomStateCacheCommand::RoomMembersInvited { room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -243,10 +223,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::GetInviteCount {
-			room_id,
-			user_id,
-		} => {
+		| RoomStateCacheCommand::GetInviteCount { room_id, user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.rooms
@@ -259,10 +236,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::GetLeftCount {
-			room_id,
-			user_id,
-		} => {
+		| RoomStateCacheCommand::GetLeftCount { room_id, user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.rooms
@@ -275,9 +249,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomsJoined {
-			user_id,
-		} => {
+		| RoomStateCacheCommand::RoomsJoined { user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -292,9 +264,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomsInvited {
-			user_id,
-		} => {
+		| RoomStateCacheCommand::RoomsInvited { user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -308,9 +278,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::RoomsLeft {
-			user_id,
-		} => {
+		| RoomStateCacheCommand::RoomsLeft { user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results: Vec<_> = services
 				.rooms
@@ -324,10 +292,7 @@ pub(super) async fn process(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		RoomStateCacheCommand::InviteState {
-			user_id,
-			room_id,
-		} => {
+		| RoomStateCacheCommand::InviteState { user_id, room_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services
 				.rooms

@@ -13,13 +13,14 @@ pub(crate) enum PusherCommand {
 	},
 }
 
-pub(super) async fn process(subcommand: PusherCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: PusherCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		PusherCommand::GetPushers {
-			user_id,
-		} => {
+		| PusherCommand::GetPushers { user_id } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.pusher.get_pushers(&user_id).await;
 			let query_time = timer.elapsed();

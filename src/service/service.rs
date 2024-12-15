@@ -114,7 +114,9 @@ impl<'a> Args<'a> {
 	/// Create a reference immediately to a service when constructing another
 	/// Service. The other service must be constructed.
 	#[inline]
-	pub(crate) fn require<T: Service>(&'a self, name: &str) -> Arc<T> { require::<T>(self.service, name) }
+	pub(crate) fn require<T: Service>(&'a self, name: &str) -> Arc<T> {
+		require::<T>(self.service, name)
+	}
 }
 
 /// Reference a Service by name. Panics if the Service does not exist or was

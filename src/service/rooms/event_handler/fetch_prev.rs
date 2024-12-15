@@ -8,7 +8,8 @@ use futures::{future, FutureExt};
 use ruma::{
 	int,
 	state_res::{self},
-	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId, ServerName,
+	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId,
+	ServerName,
 };
 
 use super::check_room_id;
@@ -17,7 +18,11 @@ use super::check_room_id;
 #[allow(clippy::type_complexity)]
 #[tracing::instrument(skip_all)]
 pub(super) async fn fetch_prev(
-	&self, origin: &ServerName, create_event: &PduEvent, room_id: &RoomId, room_version_id: &RoomVersionId,
+	&self,
+	origin: &ServerName,
+	create_event: &PduEvent,
+	room_id: &RoomId,
+	room_version_id: &RoomVersionId,
 	initial_set: Vec<Arc<EventId>>,
 ) -> Result<(
 	Vec<Arc<EventId>>,
@@ -35,7 +40,13 @@ pub(super) async fn fetch_prev(
 		self.services.server.check_running()?;
 
 		if let Some((pdu, mut json_opt)) = self
-			.fetch_and_handle_outliers(origin, &[prev_event_id.clone()], create_event, room_id, room_version_id)
+			.fetch_and_handle_outliers(
+				origin,
+				&[prev_event_id.clone()],
+				create_event,
+				room_id,
+				room_version_id,
+			)
 			.boxed()
 			.await
 			.pop()
@@ -67,7 +78,8 @@ pub(super) async fn fetch_prev(
 						}
 					}
 
-					graph.insert(prev_event_id.clone(), pdu.prev_events.iter().cloned().collect());
+					graph
+						.insert(prev_event_id.clone(), pdu.prev_events.iter().cloned().collect());
 				} else {
 					// Time based check failed
 					graph.insert(prev_event_id.clone(), HashSet::new());

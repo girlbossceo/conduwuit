@@ -12,8 +12,12 @@ pub(crate) use self::{v3::sync_events_route, v4::sync_events_v4_route};
 use crate::{service::Services, Error, PduEvent, Result};
 
 async fn load_timeline(
-	services: &Services, sender_user: &UserId, room_id: &RoomId, roomsincecount: PduCount,
-	next_batch: Option<PduCount>, limit: usize,
+	services: &Services,
+	sender_user: &UserId,
+	room_id: &RoomId,
+	roomsincecount: PduCount,
+	next_batch: Option<PduCount>,
+	limit: usize,
 ) -> Result<(Vec<(PduCount, PduEvent)>, bool), Error> {
 	let last_timeline_count = services
 		.rooms
@@ -51,7 +55,10 @@ async fn load_timeline(
 }
 
 async fn share_encrypted_room(
-	services: &Services, sender_user: &UserId, user_id: &UserId, ignore_room: Option<&RoomId>,
+	services: &Services,
+	sender_user: &UserId,
+	user_id: &UserId,
+	ignore_room: Option<&RoomId>,
 ) -> bool {
 	services
 		.rooms

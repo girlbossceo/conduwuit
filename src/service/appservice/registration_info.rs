@@ -15,13 +15,15 @@ pub struct RegistrationInfo {
 impl RegistrationInfo {
 	#[must_use]
 	pub fn is_user_match(&self, user_id: &UserId) -> bool {
-		self.users.is_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
+		self.users.is_match(user_id.as_str())
+			|| self.registration.sender_localpart == user_id.localpart()
 	}
 
 	#[inline]
 	#[must_use]
 	pub fn is_exclusive_user_match(&self, user_id: &UserId) -> bool {
-		self.users.is_exclusive_match(user_id.as_str()) || self.registration.sender_localpart == user_id.localpart()
+		self.users.is_exclusive_match(user_id.as_str())
+			|| self.registration.sender_localpart == user_id.localpart()
 	}
 }
 

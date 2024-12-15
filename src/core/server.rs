@@ -79,8 +79,9 @@ impl Server {
 			return Err!("Restart already in progress");
 		}
 
-		self.shutdown()
-			.inspect_err(|_| self.restarting.store(false, Ordering::Release))
+		self.shutdown().inspect_err(|_| {
+			self.restarting.store(false, Ordering::Release);
+		})
 	}
 
 	pub fn shutdown(&self) -> Result<()> {
@@ -88,8 +89,9 @@ impl Server {
 			return Err!("Shutdown already in progress");
 		}
 
-		self.signal("SIGTERM")
-			.inspect_err(|_| self.stopping.store(false, Ordering::Release))
+		self.signal("SIGTERM").inspect_err(|_| {
+			self.stopping.store(false, Ordering::Release);
+		})
 	}
 
 	pub fn signal(&self, sig: &'static str) -> Result<()> {

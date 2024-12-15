@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-	parse::Parser, punctuated::Punctuated, spanned::Spanned, Error, Expr, ExprLit, Field, Fields, FieldsNamed,
-	ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, TypePath,
+	parse::Parser, punctuated::Punctuated, spanned::Spanned, Error, Expr, ExprLit, Field, Fields,
+	FieldsNamed, ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, TypePath,
 };
 
 use crate::{
@@ -29,9 +29,9 @@ pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<Toke
 fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 	let settings = get_simple_settings(args);
 
-	let filename = settings
-		.get("filename")
-		.ok_or_else(|| Error::new(args[0].span(), "missing required 'filename' attribute argument"))?;
+	let filename = settings.get("filename").ok_or_else(|| {
+		Error::new(args[0].span(), "missing required 'filename' attribute argument")
+	})?;
 
 	let undocumented = settings
 		.get("undocumented")
@@ -43,9 +43,9 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 		.split(' ')
 		.collect();
 
-	let section = settings
-		.get("section")
-		.ok_or_else(|| Error::new(args[0].span(), "missing required 'section' attribute argument"))?;
+	let section = settings.get("section").ok_or_else(|| {
+		Error::new(args[0].span(), "missing required 'section' attribute argument")
+	})?;
 
 	let mut file = OpenOptions::new()
 		.write(true)
@@ -53,7 +53,12 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 		.truncate(section == "global")
 		.append(section != "global")
 		.open(filename)
-		.map_err(|e| Error::new(Span::call_site(), format!("Failed to open config file for generation: {e}")))?;
+		.map_err(|e| {
+			Error::new(
+				Span::call_site(),
+				format!("Failed to open config file for generation: {e}"),
+			)
+		})?;
 
 	if let Some(header) = settings.get("header") {
 		file.write_all(header.as_bytes())
@@ -63,11 +68,7 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 	file.write_fmt(format_args!("\n[{section}]\n"))
 		.expect("written to config file");
 
-	if let Fields::Named(FieldsNamed {
-		named,
-		..
-	}) = &input.fields
-	{
+	if let Fields::Named(FieldsNamed { named, .. }) = &input.fields {
 		for field in named {
 			let Some(ident) = &field.ident else {
 				continue;
@@ -120,12 +121,7 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 
 fn get_default(field: &Field) -> Option<String> {
 	for attr in &field.attrs {
-		let Meta::List(MetaList {
-			path,
-			tokens,
-			..
-		}) = &attr.meta
-		else {
+		let Meta::List(MetaList { path, tokens, .. }) = &attr.meta else {
 			continue;
 		};
 
@@ -149,23 +145,18 @@ fn get_default(field: &Field) -> Option<String> {
 		};
 
 		match arg {
-			Meta::NameValue(MetaNameValue {
-				value: Expr::Lit(ExprLit {
-					lit: Lit::Str(str),
-					..
-				}),
+			| Meta::NameValue(MetaNameValue {
+				value: Expr::Lit(ExprLit { lit: Lit::Str(str), .. }),
 				..
 			}) => {
 				match str.value().as_str() {
-					"HashSet::new" | "Vec::new" | "RegexSet::empty" => Some("[]".to_owned()),
-					"true_fn" => return Some("true".to_owned()),
-					_ => return None,
+					| "HashSet::new" | "Vec::new" | "RegexSet::empty" => Some("[]".to_owned()),
+					| "true_fn" => return Some("true".to_owned()),
+					| _ => return None,
 				};
 			},
-			Meta::Path {
-				..
-			} => return Some("false".to_owned()),
-			_ => return None,
+			| Meta::Path { .. } => return Some("false".to_owned()),
+			| _ => return None,
 		};
 	}
 
@@ -174,12 +165,7 @@ fn get_default(field: &Field) -> Option<String> {
 
 fn get_doc_default(field: &Field) -> Option<String> {
 	for attr in &field.attrs {
-		let Meta::NameValue(MetaNameValue {
-			path,
-			value,
-			..
-		}) = &attr.meta
-		else {
+		let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta else {
 			continue;
 		};
 
@@ -187,11 +173,7 @@ fn get_doc_default(field: &Field) -> Option<String> {
 			continue;
 		}
 
-		let Expr::Lit(ExprLit {
-			lit,
-			..
-		}) = &value
-		else {
+		let Expr::Lit(ExprLit { lit, .. }) = &value else {
 			continue;
 		};
 
@@ -217,12 +199,7 @@ fn get_doc_default(field: &Field) -> Option<String> {
 fn get_doc_comment(field: &Field) -> Option<String> {
 	let mut out = String::new();
 	for attr in &field.attrs {
-		let Meta::NameValue(MetaNameValue {
-			path,
-			value,
-			..
-		}) = &attr.meta
-		else {
+		let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta else {
 			continue;
 		};
 
@@ -230,11 +207,7 @@ fn get_doc_comment(field: &Field) -> Option<String> {
 			continue;
 		}
 
-		let Expr::Lit(ExprLit {
-			lit,
-			..
-		}) = &value
-		else {
+		let Expr::Lit(ExprLit { lit, .. }) = &value else {
 			continue;
 		};
 
@@ -254,11 +227,7 @@ fn get_doc_comment(field: &Field) -> Option<String> {
 }
 
 fn get_type_name(field: &Field) -> Option<String> {
-	let Type::Path(TypePath {
-		path,
-		..
-	}) = &field.ty
-	else {
+	let Type::Path(TypePath { path, .. }) = &field.ty else {
 		return None;
 	};
 

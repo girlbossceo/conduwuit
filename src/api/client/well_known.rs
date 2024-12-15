@@ -13,21 +13,18 @@ use crate::{Error, Result, Ruma};
 ///
 /// Returns the .well-known URL if it is configured, otherwise returns 404.
 pub(crate) async fn well_known_client(
-	State(services): State<crate::State>, _body: Ruma<discover_homeserver::Request>,
+	State(services): State<crate::State>,
+	_body: Ruma<discover_homeserver::Request>,
 ) -> Result<discover_homeserver::Response> {
 	let client_url = match services.server.config.well_known.client.as_ref() {
-		Some(url) => url.to_string(),
-		None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
+		| Some(url) => url.to_string(),
+		| None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
 	};
 
 	Ok(discover_homeserver::Response {
-		homeserver: HomeserverInfo {
-			base_url: client_url.clone(),
-		},
+		homeserver: HomeserverInfo { base_url: client_url.clone() },
 		identity_server: None,
-		sliding_sync_proxy: Some(SlidingSyncProxyInfo {
-			url: client_url,
-		}),
+		sliding_sync_proxy: Some(SlidingSyncProxyInfo { url: client_url }),
 		tile_server: None,
 	})
 }
@@ -36,7 +33,8 @@ pub(crate) async fn well_known_client(
 ///
 /// Server support contact and support page of a homeserver's domain.
 pub(crate) async fn well_known_support(
-	State(services): State<crate::State>, _body: Ruma<discover_support::Request>,
+	State(services): State<crate::State>,
+	_body: Ruma<discover_support::Request>,
 ) -> Result<discover_support::Response> {
 	let support_page = services
 		.server
@@ -65,11 +63,7 @@ pub(crate) async fn well_known_support(
 	let mut contacts: Vec<Contact> = vec![];
 
 	if let Some(role) = role {
-		let contact = Contact {
-			role,
-			email_address,
-			matrix_id,
-		};
+		let contact = Contact { role, email_address, matrix_id };
 
 		contacts.push(contact);
 	}
@@ -79,22 +73,21 @@ pub(crate) async fn well_known_support(
 		return Err(Error::BadRequest(ErrorKind::NotFound, "Not found."));
 	}
 
-	Ok(discover_support::Response {
-		contacts,
-		support_page,
-	})
+	Ok(discover_support::Response { contacts, support_page })
 }
 
 /// # `GET /client/server.json`
 ///
 /// Endpoint provided by sliding sync proxy used by some clients such as Element
 /// Web as a non-standard health check.
-pub(crate) async fn syncv3_client_server_json(State(services): State<crate::State>) -> Result<impl IntoResponse> {
+pub(crate) async fn syncv3_client_server_json(
+	State(services): State<crate::State>,
+) -> Result<impl IntoResponse> {
 	let server_url = match services.server.config.well_known.client.as_ref() {
-		Some(url) => url.to_string(),
-		None => match services.server.config.well_known.server.as_ref() {
-			Some(url) => url.to_string(),
-			None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
+		| Some(url) => url.to_string(),
+		| None => match services.server.config.well_known.server.as_ref() {
+			| Some(url) => url.to_string(),
+			| None => return Err(Error::BadRequest(ErrorKind::NotFound, "Not found.")),
 		},
 	};
 

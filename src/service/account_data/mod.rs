@@ -9,8 +9,8 @@ use database::{Deserialized, Handle, Interfix, Json, Map};
 use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
 	events::{
-		AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent, GlobalAccountDataEventType,
-		RoomAccountDataEventType,
+		AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent,
+		GlobalAccountDataEventType, RoomAccountDataEventType,
 	},
 	serde::Raw,
 	RoomId, UserId,
@@ -54,7 +54,11 @@ impl crate::Service for Service {
 #[allow(clippy::needless_pass_by_value)]
 #[implement(Service)]
 pub async fn update(
-	&self, room_id: Option<&RoomId>, user_id: &UserId, event_type: RoomAccountDataEventType, data: &serde_json::Value,
+	&self,
+	room_id: Option<&RoomId>,
+	user_id: &UserId,
+	event_type: RoomAccountDataEventType,
+	data: &serde_json::Value,
 ) -> Result<()> {
 	if data.get("type").is_none() || data.get("content").is_none() {
 		return Err!(Request(InvalidParam("Account data doesn't have all required fields.")));
@@ -91,7 +95,12 @@ where
 
 /// Searches the global account data for a specific kind.
 #[implement(Service)]
-pub async fn get_room<T>(&self, room_id: &RoomId, user_id: &UserId, kind: RoomAccountDataEventType) -> Result<T>
+pub async fn get_room<T>(
+	&self,
+	room_id: &RoomId,
+	user_id: &UserId,
+	kind: RoomAccountDataEventType,
+) -> Result<T>
 where
 	T: for<'de> Deserialize<'de>,
 {
@@ -101,7 +110,12 @@ where
 }
 
 #[implement(Service)]
-pub async fn get_raw(&self, room_id: Option<&RoomId>, user_id: &UserId, kind: &str) -> Result<Handle<'_>> {
+pub async fn get_raw(
+	&self,
+	room_id: Option<&RoomId>,
+	user_id: &UserId,
+	kind: &str,
+) -> Result<Handle<'_>> {
 	let key = (room_id, user_id, kind.to_owned());
 	self.db
 		.roomusertype_roomuserdataid
@@ -113,7 +127,10 @@ pub async fn get_raw(&self, room_id: Option<&RoomId>, user_id: &UserId, kind: &s
 /// Returns all changes to the account data that happened after `since`.
 #[implement(Service)]
 pub fn changes_since<'a>(
-	&'a self, room_id: Option<&'a RoomId>, user_id: &'a UserId, since: u64,
+	&'a self,
+	room_id: Option<&'a RoomId>,
+	user_id: &'a UserId,
+	since: u64,
 ) -> impl Stream<Item = AnyRawAccountDataEvent> + Send + 'a {
 	let prefix = (room_id, user_id, Interfix);
 	let prefix = database::serialize_key(prefix).expect("failed to serialize prefix");
@@ -128,8 +145,10 @@ pub fn changes_since<'a>(
 		.ready_take_while(move |(k, _)| k.starts_with(&prefix))
 		.map(move |(_, v)| {
 			match room_id {
-				Some(_) => serde_json::from_slice::<Raw<AnyRoomAccountDataEvent>>(v).map(AnyRawAccountDataEvent::Room),
-				None => serde_json::from_slice::<Raw<AnyGlobalAccountDataEvent>>(v).map(AnyRawAccountDataEvent::Global),
+				| Some(_) => serde_json::from_slice::<Raw<AnyRoomAccountDataEvent>>(v)
+					.map(AnyRawAccountDataEvent::Room),
+				| None => serde_json::from_slice::<Raw<AnyGlobalAccountDataEvent>>(v)
+					.map(AnyRawAccountDataEvent::Global),
 			}
 			.map_err(|e| err!(Database("Database contains invalid account data: {e}")))
 			.log_err()

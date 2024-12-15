@@ -15,7 +15,8 @@ use reqwest::Url;
 use ruma::{
 	api::client::{
 		authenticated_media::{
-			get_content, get_content_as_filename, get_content_thumbnail, get_media_config, get_media_preview,
+			get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
+			get_media_preview,
 		},
 		media::create_content,
 	},
@@ -26,7 +27,8 @@ use crate::Ruma;
 
 /// # `GET /_matrix/client/v1/media/config`
 pub(crate) async fn get_media_config_route(
-	State(services): State<crate::State>, _body: Ruma<get_media_config::v1::Request>,
+	State(services): State<crate::State>,
+	_body: Ruma<get_media_config::v1::Request>,
 ) -> Result<get_media_config::v1::Response> {
 	Ok(get_media_config::v1::Response {
 		upload_size: ruma_from_usize(services.globals.config.max_request_size),
@@ -46,7 +48,8 @@ pub(crate) async fn get_media_config_route(
 	fields(%client),
 )]
 pub(crate) async fn create_content_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<create_content::v3::Request>,
 ) -> Result<create_content::v3::Response> {
 	let user = body.sender_user.as_ref().expect("user is authenticated");
@@ -79,7 +82,8 @@ pub(crate) async fn create_content_route(
 	fields(%client),
 )]
 pub(crate) async fn get_content_thumbnail_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_thumbnail::v1::Request>,
 ) -> Result<get_content_thumbnail::v1::Response> {
 	let user = body.sender_user.as_ref().expect("user is authenticated");
@@ -115,7 +119,8 @@ pub(crate) async fn get_content_thumbnail_route(
 	fields(%client),
 )]
 pub(crate) async fn get_content_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content::v1::Request>,
 ) -> Result<get_content::v1::Response> {
 	let user = body.sender_user.as_ref().expect("user is authenticated");
@@ -150,7 +155,8 @@ pub(crate) async fn get_content_route(
 	fields(%client),
 )]
 pub(crate) async fn get_content_as_filename_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_as_filename::v1::Request>,
 ) -> Result<get_content_as_filename::v1::Response> {
 	let user = body.sender_user.as_ref().expect("user is authenticated");
@@ -185,7 +191,8 @@ pub(crate) async fn get_content_as_filename_route(
 	fields(%client),
 )]
 pub(crate) async fn get_media_preview_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_media_preview::v1::Request>,
 ) -> Result<get_media_preview::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -223,7 +230,11 @@ pub(crate) async fn get_media_preview_route(
 }
 
 async fn fetch_thumbnail(
-	services: &Services, mxc: &Mxc<'_>, user: &UserId, timeout_ms: Duration, dim: &Dim,
+	services: &Services,
+	mxc: &Mxc<'_>,
+	user: &UserId,
+	timeout_ms: Duration,
+	dim: &Dim,
 ) -> Result<FileMeta> {
 	let FileMeta {
 		content,
@@ -245,7 +256,11 @@ async fn fetch_thumbnail(
 }
 
 async fn fetch_file(
-	services: &Services, mxc: &Mxc<'_>, user: &UserId, timeout_ms: Duration, filename: Option<&str>,
+	services: &Services,
+	mxc: &Mxc<'_>,
+	user: &UserId,
+	timeout_ms: Duration,
+	filename: Option<&str>,
 ) -> Result<FileMeta> {
 	let FileMeta {
 		content,
@@ -267,7 +282,11 @@ async fn fetch_file(
 }
 
 async fn fetch_thumbnail_meta(
-	services: &Services, mxc: &Mxc<'_>, user: &UserId, timeout_ms: Duration, dim: &Dim,
+	services: &Services,
+	mxc: &Mxc<'_>,
+	user: &UserId,
+	timeout_ms: Duration,
+	dim: &Dim,
 ) -> Result<FileMeta> {
 	if let Some(filemeta) = services.media.get_thumbnail(mxc, dim).await? {
 		return Ok(filemeta);
@@ -283,7 +302,12 @@ async fn fetch_thumbnail_meta(
 		.await
 }
 
-async fn fetch_file_meta(services: &Services, mxc: &Mxc<'_>, user: &UserId, timeout_ms: Duration) -> Result<FileMeta> {
+async fn fetch_file_meta(
+	services: &Services,
+	mxc: &Mxc<'_>,
+	user: &UserId,
+	timeout_ms: Duration,
+) -> Result<FileMeta> {
 	if let Some(filemeta) = services.media.get(mxc).await? {
 		return Ok(filemeta);
 	}

@@ -16,9 +16,7 @@ pub fn create(services: Arc<Services>) -> (State, Guard) {
 		services: Arc::into_raw(services.clone()),
 	};
 
-	let guard = Guard {
-		services,
-	};
+	let guard = Guard { services };
 
 	(state, guard)
 }

@@ -11,11 +11,7 @@ pub struct Handle<'a> {
 }
 
 impl<'a> From<DBPinnableSlice<'a>> for Handle<'a> {
-	fn from(val: DBPinnableSlice<'a>) -> Self {
-		Self {
-			val,
-		}
-	}
+	fn from(val: DBPinnableSlice<'a>) -> Self { Self { val } }
 }
 
 impl Debug for Handle<'_> {

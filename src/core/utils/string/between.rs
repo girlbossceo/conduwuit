@@ -15,7 +15,9 @@ pub trait Between<'a> {
 
 impl<'a> Between<'a> for &'a str {
 	#[inline]
-	fn between_infallible(&self, delim: Delim<'_>) -> &'a str { self.between(delim).unwrap_or(self) }
+	fn between_infallible(&self, delim: Delim<'_>) -> &'a str {
+		self.between(delim).unwrap_or(self)
+	}
 
 	#[inline]
 	fn between(&self, delim: Delim<'_>) -> Option<&'a str> {

@@ -1,5 +1,7 @@
 use axum::extract::State;
-use ruma::{api::client::redact::redact_event, events::room::redaction::RoomRedactionEventContent};
+use ruma::{
+	api::client::redact::redact_event, events::room::redaction::RoomRedactionEventContent,
+};
 
 use crate::{service::pdu::PduBuilder, Result, Ruma};
 
@@ -9,7 +11,8 @@ use crate::{service::pdu::PduBuilder, Result, Ruma};
 ///
 /// - TODO: Handle txn id
 pub(crate) async fn redact_event_route(
-	State(services): State<crate::State>, body: Ruma<redact_event::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<redact_event::v3::Request>,
 ) -> Result<redact_event::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let body = body.body;
@@ -35,7 +38,5 @@ pub(crate) async fn redact_event_route(
 
 	drop(state_lock);
 
-	Ok(redact_event::v3::Response {
-		event_id: event_id.into(),
-	})
+	Ok(redact_event::v3::Response { event_id: event_id.into() })
 }

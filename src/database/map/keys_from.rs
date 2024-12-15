@@ -11,7 +11,10 @@ use crate::{
 };
 
 #[implement(super::Map)]
-pub fn keys_from<'a, K, P>(self: &'a Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn keys_from<'a, K, P>(
+	self: &'a Arc<Self>,
+	from: &P,
+) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
@@ -30,7 +33,10 @@ where
 }
 
 #[implement(super::Map)]
-pub fn keys_raw_from<'a, K, P>(self: &'a Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn keys_raw_from<'a, K, P>(
+	self: &'a Arc<Self>,
+	from: &P,
+) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
 	K: Deserialize<'a> + Send,

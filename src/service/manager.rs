@@ -102,21 +102,32 @@ impl Manager {
 		unimplemented!("unexpected worker task abort {error:?}");
 	}
 
-	async fn handle_result(&self, workers: &mut WorkersLocked<'_>, result: WorkerResult) -> Result<()> {
+	async fn handle_result(
+		&self,
+		workers: &mut WorkersLocked<'_>,
+		result: WorkerResult,
+	) -> Result<()> {
 		let (service, result) = result;
 		match result {
-			Ok(()) => self.handle_finished(workers, &service).await,
-			Err(error) => self.handle_error(workers, &service, error).await,
+			| Ok(()) => self.handle_finished(workers, &service).await,
+			| Err(error) => self.handle_error(workers, &service, error).await,
 		}
 	}
 
-	async fn handle_finished(&self, _workers: &mut WorkersLocked<'_>, service: &Arc<dyn Service>) -> Result<()> {
+	async fn handle_finished(
+		&self,
+		_workers: &mut WorkersLocked<'_>,
+		service: &Arc<dyn Service>,
+	) -> Result<()> {
 		debug!("service {:?} worker finished", service.name());
 		Ok(())
 	}
 
 	async fn handle_error(
-		&self, workers: &mut WorkersLocked<'_>, service: &Arc<dyn Service>, error: Error,
+		&self,
+		workers: &mut WorkersLocked<'_>,
+		service: &Arc<dyn Service>,
+		error: Error,
 	) -> Result<()> {
 		let name = service.name();
 		error!("service {name:?} aborted: {error}");
@@ -138,9 +149,16 @@ impl Manager {
 	}
 
 	/// Start the worker in a task for the service.
-	async fn start_worker(&self, workers: &mut WorkersLocked<'_>, service: &Arc<dyn Service>) -> Result<()> {
+	async fn start_worker(
+		&self,
+		workers: &mut WorkersLocked<'_>,
+		service: &Arc<dyn Service>,
+	) -> Result<()> {
 		if !self.server.running() {
-			return Err!("Service {:?} worker not starting during server shutdown.", service.name());
+			return Err!(
+				"Service {:?} worker not starting during server shutdown.",
+				service.name()
+			);
 		}
 
 		debug!("Service {:?} worker starting...", service.name());

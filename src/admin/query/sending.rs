@@ -62,11 +62,14 @@ pub(crate) enum SendingCommand {
 }
 
 /// All the getters and iterators in key_value/sending.rs
-pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: SendingCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		SendingCommand::ActiveRequests => {
+		| SendingCommand::ActiveRequests => {
 			let timer = tokio::time::Instant::now();
 			let results = services.sending.db.active_requests();
 			let active_requests = results.collect::<Vec<_>>().await;
@@ -76,25 +79,29 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{active_requests:#?}\n```"
 			)))
 		},
-		SendingCommand::QueuedRequests {
+		| SendingCommand::QueuedRequests {
 			appservice_id,
 			server_name,
 			user_id,
 			push_key,
 		} => {
-			if appservice_id.is_none() && server_name.is_none() && user_id.is_none() && push_key.is_none() {
+			if appservice_id.is_none()
+				&& server_name.is_none()
+				&& user_id.is_none()
+				&& push_key.is_none()
+			{
 				return Ok(RoomMessageEventContent::text_plain(
-					"An appservice ID, server name, or a user ID with push key must be specified via arguments. See \
-					 --help for more details.",
+					"An appservice ID, server name, or a user ID with push key must be \
+					 specified via arguments. See --help for more details.",
 				));
 			}
 			let timer = tokio::time::Instant::now();
 			let results = match (appservice_id, server_name, user_id, push_key) {
-				(Some(appservice_id), None, None, None) => {
+				| (Some(appservice_id), None, None, None) => {
 					if appservice_id.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
-							"An appservice ID, server name, or a user ID with push key must be specified via \
-							 arguments. See --help for more details.",
+							"An appservice ID, server name, or a user ID with push key must be \
+							 specified via arguments. See --help for more details.",
 						));
 					}
 
@@ -103,15 +110,15 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 						.db
 						.queued_requests(&Destination::Appservice(appservice_id))
 				},
-				(None, Some(server_name), None, None) => services
+				| (None, Some(server_name), None, None) => services
 					.sending
 					.db
 					.queued_requests(&Destination::Normal(server_name.into())),
-				(None, None, Some(user_id), Some(push_key)) => {
+				| (None, None, Some(user_id), Some(push_key)) => {
 					if push_key.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
-							"An appservice ID, server name, or a user ID with push key must be specified via \
-							 arguments. See --help for more details.",
+							"An appservice ID, server name, or a user ID with push key must be \
+							 specified via arguments. See --help for more details.",
 						));
 					}
 
@@ -120,16 +127,16 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 						.db
 						.queued_requests(&Destination::Push(user_id.into(), push_key))
 				},
-				(Some(_), Some(_), Some(_), Some(_)) => {
+				| (Some(_), Some(_), Some(_), Some(_)) => {
 					return Ok(RoomMessageEventContent::text_plain(
-						"An appservice ID, server name, or a user ID with push key must be specified via arguments. \
-						 Not all of them See --help for more details.",
+						"An appservice ID, server name, or a user ID with push key must be \
+						 specified via arguments. Not all of them See --help for more details.",
 					));
 				},
-				_ => {
+				| _ => {
 					return Ok(RoomMessageEventContent::text_plain(
-						"An appservice ID, server name, or a user ID with push key must be specified via arguments. \
-						 See --help for more details.",
+						"An appservice ID, server name, or a user ID with push key must be \
+						 specified via arguments. See --help for more details.",
 					));
 				},
 			};
@@ -141,26 +148,30 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{queued_requests:#?}\n```"
 			)))
 		},
-		SendingCommand::ActiveRequestsFor {
+		| SendingCommand::ActiveRequestsFor {
 			appservice_id,
 			server_name,
 			user_id,
 			push_key,
 		} => {
-			if appservice_id.is_none() && server_name.is_none() && user_id.is_none() && push_key.is_none() {
+			if appservice_id.is_none()
+				&& server_name.is_none()
+				&& user_id.is_none()
+				&& push_key.is_none()
+			{
 				return Ok(RoomMessageEventContent::text_plain(
-					"An appservice ID, server name, or a user ID with push key must be specified via arguments. See \
-					 --help for more details.",
+					"An appservice ID, server name, or a user ID with push key must be \
+					 specified via arguments. See --help for more details.",
 				));
 			}
 
 			let timer = tokio::time::Instant::now();
 			let results = match (appservice_id, server_name, user_id, push_key) {
-				(Some(appservice_id), None, None, None) => {
+				| (Some(appservice_id), None, None, None) => {
 					if appservice_id.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
-							"An appservice ID, server name, or a user ID with push key must be specified via \
-							 arguments. See --help for more details.",
+							"An appservice ID, server name, or a user ID with push key must be \
+							 specified via arguments. See --help for more details.",
 						));
 					}
 
@@ -169,15 +180,15 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 						.db
 						.active_requests_for(&Destination::Appservice(appservice_id))
 				},
-				(None, Some(server_name), None, None) => services
+				| (None, Some(server_name), None, None) => services
 					.sending
 					.db
 					.active_requests_for(&Destination::Normal(server_name.into())),
-				(None, None, Some(user_id), Some(push_key)) => {
+				| (None, None, Some(user_id), Some(push_key)) => {
 					if push_key.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
-							"An appservice ID, server name, or a user ID with push key must be specified via \
-							 arguments. See --help for more details.",
+							"An appservice ID, server name, or a user ID with push key must be \
+							 specified via arguments. See --help for more details.",
 						));
 					}
 
@@ -186,16 +197,16 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 						.db
 						.active_requests_for(&Destination::Push(user_id.into(), push_key))
 				},
-				(Some(_), Some(_), Some(_), Some(_)) => {
+				| (Some(_), Some(_), Some(_), Some(_)) => {
 					return Ok(RoomMessageEventContent::text_plain(
-						"An appservice ID, server name, or a user ID with push key must be specified via arguments. \
-						 Not all of them See --help for more details.",
+						"An appservice ID, server name, or a user ID with push key must be \
+						 specified via arguments. Not all of them See --help for more details.",
 					));
 				},
-				_ => {
+				| _ => {
 					return Ok(RoomMessageEventContent::text_plain(
-						"An appservice ID, server name, or a user ID with push key must be specified via arguments. \
-						 See --help for more details.",
+						"An appservice ID, server name, or a user ID with push key must be \
+						 specified via arguments. See --help for more details.",
 					));
 				},
 			};
@@ -207,9 +218,7 @@ pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{active_requests:#?}\n```"
 			)))
 		},
-		SendingCommand::GetLatestEduCount {
-			server_name,
-		} => {
+		| SendingCommand::GetLatestEduCount { server_name } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.sending.db.get_latest_educount(&server_name).await;
 			let query_time = timer.elapsed();

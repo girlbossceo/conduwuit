@@ -12,7 +12,8 @@ use crate::Ruma;
 ///
 /// Retrieves a snapshot of a room's state at a given event.
 pub(crate) async fn get_room_state_route(
-	State(services): State<crate::State>, body: Ruma<get_room_state::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_room_state::v1::Request>,
 ) -> Result<get_room_state::v1::Response> {
 	AccessCheck {
 		services: &services,
@@ -69,8 +70,5 @@ pub(crate) async fn get_room_state_route(
 		.try_collect()
 		.await?;
 
-	Ok(get_room_state::v1::Response {
-		auth_chain,
-		pdus,
-	})
+	Ok(get_room_state::v1::Response { auth_chain, pdus })
 }

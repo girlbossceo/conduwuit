@@ -48,7 +48,11 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-pub fn create_backup(&self, user_id: &UserId, backup_metadata: &Raw<BackupAlgorithm>) -> Result<String> {
+pub fn create_backup(
+	&self,
+	user_id: &UserId,
+	backup_metadata: &Raw<BackupAlgorithm>,
+) -> Result<String> {
 	let version = self.services.globals.next_count()?.to_string();
 	let count = self.services.globals.next_count()?;
 
@@ -71,13 +75,18 @@ pub async fn delete_backup(&self, user_id: &UserId, version: &str) {
 		.backupkeyid_backup
 		.keys_prefix_raw(&key)
 		.ignore_err()
-		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
+		.ready_for_each(|outdated_key| {
+			self.db.backupkeyid_backup.remove(outdated_key);
+		})
 		.await;
 }
 
 #[implement(Service)]
 pub async fn update_backup<'a>(
-	&self, user_id: &UserId, version: &'a str, backup_metadata: &Raw<BackupAlgorithm>,
+	&self,
+	user_id: &UserId,
+	version: &'a str,
+	backup_metadata: &Raw<BackupAlgorithm>,
 ) -> Result<&'a str> {
 	let key = (user_id, version);
 	if self.db.backupid_algorithm.qry(&key).await.is_err() {
@@ -110,7 +119,10 @@ pub async fn get_latest_backup_version(&self, user_id: &UserId) -> Result<String
 }
 
 #[implement(Service)]
-pub async fn get_latest_backup(&self, user_id: &UserId) -> Result<(String, Raw<BackupAlgorithm>)> {
+pub async fn get_latest_backup(
+	&self,
+	user_id: &UserId,
+) -> Result<(String, Raw<BackupAlgorithm>)> {
 	type Key<'a> = (&'a UserId, &'a str);
 	type KeyVal<'a> = (Key<'a>, Raw<BackupAlgorithm>);
 
@@ -134,7 +146,12 @@ pub async fn get_backup(&self, user_id: &UserId, version: &str) -> Result<Raw<Ba
 
 #[implement(Service)]
 pub async fn add_key(
-	&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str, key_data: &Raw<KeyBackupData>,
+	&self,
+	user_id: &UserId,
+	version: &str,
+	room_id: &RoomId,
+	session_id: &str,
+	key_data: &Raw<KeyBackupData>,
 ) -> Result<()> {
 	let key = (user_id, version);
 	if self.db.backupid_algorithm.qry(&key).await.is_err() {
@@ -176,14 +193,16 @@ pub async fn get_etag(&self, user_id: &UserId, version: &str) -> String {
 }
 
 #[implement(Service)]
-pub async fn get_all(&self, user_id: &UserId, version: &str) -> BTreeMap<OwnedRoomId, RoomKeyBackup> {
+pub async fn get_all(
+	&self,
+	user_id: &UserId,
+	version: &str,
+) -> BTreeMap<OwnedRoomId, RoomKeyBackup> {
 	type Key<'a> = (Ignore, Ignore, &'a RoomId, &'a str);
 	type KeyVal<'a> = (Key<'a>, Raw<KeyBackupData>);
 
 	let mut rooms = BTreeMap::<OwnedRoomId, RoomKeyBackup>::new();
-	let default = || RoomKeyBackup {
-		sessions: BTreeMap::new(),
-	};
+	let default = || RoomKeyBackup { sessions: BTreeMap::new() };
 
 	let prefix = (user_id, version, Interfix);
 	self.db
@@ -204,7 +223,10 @@ pub async fn get_all(&self, user_id: &UserId, version: &str) -> BTreeMap<OwnedRo
 
 #[implement(Service)]
 pub async fn get_room(
-	&self, user_id: &UserId, version: &str, room_id: &RoomId,
+	&self,
+	user_id: &UserId,
+	version: &str,
+	room_id: &RoomId,
 ) -> BTreeMap<String, Raw<KeyBackupData>> {
 	type KeyVal<'a> = ((Ignore, Ignore, Ignore, &'a str), Raw<KeyBackupData>);
 
@@ -213,14 +235,20 @@ pub async fn get_room(
 		.backupkeyid_backup
 		.stream_prefix(&prefix)
 		.ignore_err()
-		.map(|((.., session_id), key_backup_data): KeyVal<'_>| (session_id.to_owned(), key_backup_data))
+		.map(|((.., session_id), key_backup_data): KeyVal<'_>| {
+			(session_id.to_owned(), key_backup_data)
+		})
 		.collect()
 		.await
 }
 
 #[implement(Service)]
 pub async fn get_session(
-	&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str,
+	&self,
+	user_id: &UserId,
+	version: &str,
+	room_id: &RoomId,
+	session_id: &str,
 ) -> Result<Raw<KeyBackupData>> {
 	let key = (user_id, version, room_id, session_id);
 
@@ -245,17 +273,27 @@ pub async fn delete_room_keys(&self, user_id: &UserId, version: &str, room_id: &
 		.backupkeyid_backup
 		.keys_prefix_raw(&key)
 		.ignore_err()
-		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
+		.ready_for_each(|outdated_key| {
+			self.db.backupkeyid_backup.remove(outdated_key);
+		})
 		.await;
 }
 
 #[implement(Service)]
-pub async fn delete_room_key(&self, user_id: &UserId, version: &str, room_id: &RoomId, session_id: &str) {
+pub async fn delete_room_key(
+	&self,
+	user_id: &UserId,
+	version: &str,
+	room_id: &RoomId,
+	session_id: &str,
+) {
 	let key = (user_id, version, room_id, session_id);
 	self.db
 		.backupkeyid_backup
 		.keys_prefix_raw(&key)
 		.ignore_err()
-		.ready_for_each(|outdated_key| self.db.backupkeyid_backup.remove(outdated_key))
+		.ready_for_each(|outdated_key| {
+			self.db.backupkeyid_backup.remove(outdated_key);
+		})
 		.await;
 }

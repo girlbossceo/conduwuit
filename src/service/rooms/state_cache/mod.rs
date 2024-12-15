@@ -20,7 +20,8 @@ use ruma::{
 			member::{MembershipState, RoomMemberEventContent},
 			power_levels::RoomPowerLevelsEventContent,
 		},
-		AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType, RoomAccountDataEventType, StateEventType,
+		AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType,
+		RoomAccountDataEventType, StateEventType,
 	},
 	int,
 	serde::Raw,
@@ -68,7 +69,8 @@ impl crate::Service for Service {
 			services: Services {
 				account_data: args.depend::<account_data::Service>("account_data"),
 				globals: args.depend::<globals::Service>("globals"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				users: args.depend::<users::Service>("users"),
 			},
 			db: Data {
@@ -96,8 +98,13 @@ impl Service {
 	#[tracing::instrument(skip(self, last_state))]
 	#[allow(clippy::too_many_arguments)]
 	pub async fn update_membership(
-		&self, room_id: &RoomId, user_id: &UserId, membership_event: RoomMemberEventContent, sender: &UserId,
-		last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>, invite_via: Option<Vec<OwnedServerName>>,
+		&self,
+		room_id: &RoomId,
+		user_id: &UserId,
+		membership_event: RoomMemberEventContent,
+		sender: &UserId,
+		last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
+		invite_via: Option<Vec<OwnedServerName>>,
 		update_joined_count: bool,
 	) -> Result<()> {
 		let membership = membership_event.membership;
@@ -138,7 +145,7 @@ impl Service {
 		}
 
 		match &membership {
-			MembershipState::Join => {
+			| MembershipState::Join => {
 				// Check if the user never joined this room
 				if !self.once_joined(user_id, room_id).await {
 					// Add the user ID to the join list then
@@ -181,12 +188,21 @@ impl Service {
 						if let Ok(tag_event) = self
 							.services
 							.account_data
-							.get_room(&predecessor.room_id, user_id, RoomAccountDataEventType::Tag)
+							.get_room(
+								&predecessor.room_id,
+								user_id,
+								RoomAccountDataEventType::Tag,
+							)
 							.await
 						{
 							self.services
 								.account_data
-								.update(Some(room_id), user_id, RoomAccountDataEventType::Tag, &tag_event)
+								.update(
+									Some(room_id),
+									user_id,
+									RoomAccountDataEventType::Tag,
+									&tag_event,
+								)
 								.await
 								.ok();
 						};
@@ -195,7 +211,10 @@ impl Service {
 						if let Ok(mut direct_event) = self
 							.services
 							.account_data
-							.get_global::<DirectEvent>(user_id, GlobalAccountDataEventType::Direct)
+							.get_global::<DirectEvent>(
+								user_id,
+								GlobalAccountDataEventType::Direct,
+							)
 							.await
 						{
 							let mut room_ids_updated = false;
@@ -213,7 +232,8 @@ impl Service {
 										None,
 										user_id,
 										GlobalAccountDataEventType::Direct.to_string().into(),
-										&serde_json::to_value(&direct_event).expect("to json always works"),
+										&serde_json::to_value(&direct_event)
+											.expect("to json always works"),
 									)
 									.await?;
 							}
@@ -223,7 +243,7 @@ impl Service {
 
 				self.mark_as_joined(user_id, room_id);
 			},
-			MembershipState::Invite => {
+			| MembershipState::Invite => {
 				// We want to know if the sender is ignored by the receiver
 				if self.services.users.user_is_ignored(sender, user_id).await {
 					return Ok(());
@@ -232,10 +252,10 @@ impl Service {
 				self.mark_as_invited(user_id, room_id, last_state, invite_via)
 					.await;
 			},
-			MembershipState::Leave | MembershipState::Ban => {
+			| MembershipState::Leave | MembershipState::Ban => {
 				self.mark_as_left(user_id, room_id);
 			},
-			_ => {},
+			| _ => {},
 		}
 
 		if update_joined_count {
@@ -246,7 +266,11 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, appservice), level = "debug")]
-	pub async fn appservice_in_room(&self, room_id: &RoomId, appservice: &RegistrationInfo) -> bool {
+	pub async fn appservice_in_room(
+		&self,
+		room_id: &RoomId,
+		appservice: &RegistrationInfo,
+	) -> bool {
 		if let Some(cached) = self
 			.appservice_in_room_cache
 			.read()
@@ -347,7 +371,10 @@ impl Service {
 
 	/// Returns an iterator of all servers participating in this room.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_servers<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &ServerName> + Send + 'a {
+	pub fn room_servers<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &ServerName> + Send + 'a {
 		let prefix = (room_id, Interfix);
 		self.db
 			.roomserverids
@@ -357,7 +384,11 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn server_in_room<'a>(&'a self, server: &'a ServerName, room_id: &'a RoomId) -> bool {
+	pub async fn server_in_room<'a>(
+		&'a self,
+		server: &'a ServerName,
+		room_id: &'a RoomId,
+	) -> bool {
 		let key = (server, room_id);
 		self.db.serverroomids.qry(&key).await.is_ok()
 	}
@@ -365,7 +396,10 @@ impl Service {
 	/// Returns an iterator of all rooms a server participates in (as far as we
 	/// know).
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn server_rooms<'a>(&'a self, server: &'a ServerName) -> impl Stream<Item = &RoomId> + Send + 'a {
+	pub fn server_rooms<'a>(
+		&'a self,
+		server: &'a ServerName,
+	) -> impl Stream<Item = &RoomId> + Send + 'a {
 		let prefix = (server, Interfix);
 		self.db
 			.serverroomids
@@ -393,7 +427,9 @@ impl Service {
 
 	/// List the rooms common between two users
 	pub fn get_shared_rooms<'a>(
-		&'a self, user_a: &'a UserId, user_b: &'a UserId,
+		&'a self,
+		user_a: &'a UserId,
+		user_b: &'a UserId,
 	) -> impl Stream<Item = &RoomId> + Send + 'a {
 		use conduwuit::utils::set;
 
@@ -404,7 +440,10 @@ impl Service {
 
 	/// Returns an iterator of all joined members of a room.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_members<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &UserId> + Send + 'a {
+	pub fn room_members<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &UserId> + Send + 'a {
 		let prefix = (room_id, Interfix);
 		self.db
 			.roomuserid_joined
@@ -422,7 +461,10 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	/// Returns an iterator of all our local users in the room, even if they're
 	/// deactivated/guests
-	pub fn local_users_in_room<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &UserId> + Send + 'a {
+	pub fn local_users_in_room<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &UserId> + Send + 'a {
 		self.room_members(room_id)
 			.ready_filter(|user| self.services.globals.user_is_local(user))
 	}
@@ -430,7 +472,10 @@ impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
 	/// Returns an iterator of all our local joined users in a room who are
 	/// active (not deactivated, not guest)
-	pub fn active_local_users_in_room<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &UserId> + Send + 'a {
+	pub fn active_local_users_in_room<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &UserId> + Send + 'a {
 		self.local_users_in_room(room_id)
 			.filter(|user| self.services.users.is_active(user))
 	}
@@ -447,7 +492,10 @@ impl Service {
 
 	/// Returns an iterator over all User IDs who ever joined a room.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_useroncejoined<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &UserId> + Send + 'a {
+	pub fn room_useroncejoined<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &UserId> + Send + 'a {
 		let prefix = (room_id, Interfix);
 		self.db
 			.roomuseroncejoinedids
@@ -458,7 +506,10 @@ impl Service {
 
 	/// Returns an iterator over all invited members of a room.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_members_invited<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &UserId> + Send + 'a {
+	pub fn room_members_invited<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &UserId> + Send + 'a {
 		let prefix = (room_id, Interfix);
 		self.db
 			.roomuserid_invitecount
@@ -485,7 +536,10 @@ impl Service {
 
 	/// Returns an iterator over all rooms this user joined.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn rooms_joined<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = &RoomId> + Send + 'a {
+	pub fn rooms_joined<'a>(
+		&'a self,
+		user_id: &'a UserId,
+	) -> impl Stream<Item = &RoomId> + Send + 'a {
 		self.db
 			.userroomid_joined
 			.keys_raw_prefix(user_id)
@@ -495,7 +549,10 @@ impl Service {
 
 	/// Returns an iterator over all rooms a user was invited to.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn rooms_invited<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = StrippedStateEventItem> + Send + 'a {
+	pub fn rooms_invited<'a>(
+		&'a self,
+		user_id: &'a UserId,
+	) -> impl Stream<Item = StrippedStateEventItem> + Send + 'a {
 		type KeyVal<'a> = (Key<'a>, Raw<Vec<AnyStrippedStateEvent>>);
 		type Key<'a> = (&'a UserId, &'a RoomId);
 
@@ -510,30 +567,45 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn invite_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
+	pub async fn invite_state(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+	) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let key = (user_id, room_id);
 		self.db
 			.userroomid_invitestate
 			.qry(&key)
 			.await
 			.deserialized()
-			.and_then(|val: Raw<Vec<AnyStrippedStateEvent>>| val.deserialize_as().map_err(Into::into))
+			.and_then(|val: Raw<Vec<AnyStrippedStateEvent>>| {
+				val.deserialize_as().map_err(Into::into)
+			})
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn left_state(&self, user_id: &UserId, room_id: &RoomId) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
+	pub async fn left_state(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+	) -> Result<Vec<Raw<AnyStrippedStateEvent>>> {
 		let key = (user_id, room_id);
 		self.db
 			.userroomid_leftstate
 			.qry(&key)
 			.await
 			.deserialized()
-			.and_then(|val: Raw<Vec<AnyStrippedStateEvent>>| val.deserialize_as().map_err(Into::into))
+			.and_then(|val: Raw<Vec<AnyStrippedStateEvent>>| {
+				val.deserialize_as().map_err(Into::into)
+			})
 	}
 
 	/// Returns an iterator over all rooms a user left.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn rooms_left<'a>(&'a self, user_id: &'a UserId) -> impl Stream<Item = SyncStateEventItem> + Send + 'a {
+	pub fn rooms_left<'a>(
+		&'a self,
+		user_id: &'a UserId,
+	) -> impl Stream<Item = SyncStateEventItem> + Send + 'a {
 		type KeyVal<'a> = (Key<'a>, Raw<Vec<Raw<AnySyncStateEvent>>>);
 		type Key<'a> = (&'a UserId, &'a RoomId);
 
@@ -571,7 +643,11 @@ impl Service {
 		self.db.userroomid_leftstate.qry(&key).await.is_ok()
 	}
 
-	pub async fn user_membership(&self, user_id: &UserId, room_id: &RoomId) -> Option<MembershipState> {
+	pub async fn user_membership(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+	) -> Option<MembershipState> {
 		let states = join4(
 			self.is_joined(user_id, room_id),
 			self.is_left(user_id, room_id),
@@ -581,16 +657,19 @@ impl Service {
 		.await;
 
 		match states {
-			(true, ..) => Some(MembershipState::Join),
-			(_, true, ..) => Some(MembershipState::Leave),
-			(_, _, true, ..) => Some(MembershipState::Invite),
-			(false, false, false, true) => Some(MembershipState::Ban),
-			_ => None,
+			| (true, ..) => Some(MembershipState::Join),
+			| (_, true, ..) => Some(MembershipState::Leave),
+			| (_, _, true, ..) => Some(MembershipState::Invite),
+			| (false, false, false, true) => Some(MembershipState::Ban),
+			| _ => None,
 		}
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn servers_invite_via<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &ServerName> + Send + 'a {
+	pub fn servers_invite_via<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &ServerName> + Send + 'a {
 		type KeyVal<'a> = (Ignore, Vec<&'a ServerName>);
 
 		self.db
@@ -711,7 +790,10 @@ impl Service {
 	}
 
 	pub async fn mark_as_invited(
-		&self, user_id: &UserId, room_id: &RoomId, last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+		last_state: Option<Vec<Raw<AnyStrippedStateEvent>>>,
 		invite_via: Option<Vec<OwnedServerName>>,
 	) {
 		let roomuser_id = (room_id, user_id);

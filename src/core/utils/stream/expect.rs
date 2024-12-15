@@ -14,9 +14,13 @@ where
 	Item: 'a,
 {
 	#[inline]
-	fn expect_ok(self: T) -> impl Stream<Item = Item> + Send + 'a { self.map_expect("stream expectation failure") }
+	fn expect_ok(self: T) -> impl Stream<Item = Item> + Send + 'a {
+		self.map_expect("stream expectation failure")
+	}
 
 	//TODO: move to impl MapExpect
 	#[inline]
-	fn map_expect(self, msg: &'a str) -> impl Stream<Item = Item> + Send + 'a { self.map(|res| res.expect(msg)) }
+	fn map_expect(self, msg: &'a str) -> impl Stream<Item = Item> + Send + 'a {
+		self.map(|res| res.expect(msg))
+	}
 }

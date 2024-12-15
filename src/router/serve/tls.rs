@@ -10,7 +10,12 @@ use conduwuit::{err, Result, Server};
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 
-pub(super) async fn serve(server: &Arc<Server>, app: Router, handle: ServerHandle, addrs: Vec<SocketAddr>) -> Result {
+pub(super) async fn serve(
+	server: &Arc<Server>,
+	app: Router,
+	handle: ServerHandle,
+	addrs: Vec<SocketAddr>,
+) -> Result {
 	let tls = &server.config.tls;
 	let certs = tls
 		.certs
@@ -29,7 +34,8 @@ pub(super) async fn serve(server: &Arc<Server>, app: Router, handle: ServerHandl
 
 	debug!("Using direct TLS. Certificate path {certs} and certificate private key path {key}",);
 	info!(
-		"Note: It is strongly recommended that you use a reverse proxy instead of running conduwuit directly with TLS."
+		"Note: It is strongly recommended that you use a reverse proxy instead of running \
+		 conduwuit directly with TLS."
 	);
 	let conf = RustlsConfig::from_pem_file(certs, key).await?;
 
@@ -58,8 +64,8 @@ pub(super) async fn serve(server: &Arc<Server>, app: Router, handle: ServerHandl
 
 	if tls.dual_protocol {
 		warn!(
-			"Listening on {addrs:?} with TLS certificate {certs} and supporting plain text (HTTP) connections too \
-			 (insecure!)",
+			"Listening on {addrs:?} with TLS certificate {certs} and supporting plain text \
+			 (HTTP) connections too (insecure!)",
 		);
 	} else {
 		info!("Listening on {addrs:?} with TLS certificate {certs}");

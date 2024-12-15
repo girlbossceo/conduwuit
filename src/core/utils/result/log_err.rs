@@ -20,5 +20,7 @@ pub trait LogErr<T, E: Display> {
 
 impl<T, E: Display> LogErr<T, E> for Result<T, E> {
 	#[inline]
-	fn err_log(self, level: Level) -> Self { self.inspect_err(|error| error::inspect_log_level(&error, level)) }
+	fn err_log(self, level: Level) -> Self {
+		self.inspect_err(|error| error::inspect_log_level(&error, level))
+	}
 }

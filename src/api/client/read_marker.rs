@@ -21,15 +21,14 @@ use crate::{Result, Ruma};
 /// - If `read_receipt` is set: Update private marker and public read receipt
 ///   EDU
 pub(crate) async fn set_read_marker_route(
-	State(services): State<crate::State>, body: Ruma<set_read_marker::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<set_read_marker::v3::Request>,
 ) -> Result<set_read_marker::v3::Response> {
 	let sender_user = body.sender_user();
 
 	if let Some(event) = &body.fully_read {
 		let fully_read_event = ruma::events::fully_read::FullyReadEvent {
-			content: ruma::events::fully_read::FullyReadEventContent {
-				event_id: event.clone(),
-			},
+			content: ruma::events::fully_read::FullyReadEventContent { event_id: event.clone() },
 		};
 
 		services
@@ -55,13 +54,10 @@ pub(crate) async fn set_read_marker_route(
 			event.to_owned(),
 			BTreeMap::from_iter([(
 				ReceiptType::Read,
-				BTreeMap::from_iter([(
-					sender_user.to_owned(),
-					ruma::events::receipt::Receipt {
-						ts: Some(MilliSecondsSinceUnixEpoch::now()),
-						thread: ReceiptThread::Unthreaded,
-					},
-				)]),
+				BTreeMap::from_iter([(sender_user.to_owned(), ruma::events::receipt::Receipt {
+					ts: Some(MilliSecondsSinceUnixEpoch::now()),
+					thread: ReceiptThread::Unthreaded,
+				})]),
 			)]),
 		)]);
 
@@ -88,7 +84,9 @@ pub(crate) async fn set_read_marker_route(
 			.map_err(|_| err!(Request(NotFound("Event not found."))))?;
 
 		let PduCount::Normal(count) = count else {
-			return Err!(Request(InvalidParam("Event is a backfilled PDU and cannot be marked as read.")));
+			return Err!(Request(InvalidParam(
+				"Event is a backfilled PDU and cannot be marked as read."
+			)));
 		};
 
 		services
@@ -104,7 +102,8 @@ pub(crate) async fn set_read_marker_route(
 ///
 /// Sets private read marker and public read receipt EDU.
 pub(crate) async fn create_receipt_route(
-	State(services): State<crate::State>, body: Ruma<create_receipt::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<create_receipt::v3::Request>,
 ) -> Result<create_receipt::v3::Response> {
 	let sender_user = body.sender_user();
 
@@ -119,7 +118,7 @@ pub(crate) async fn create_receipt_route(
 	}
 
 	match body.receipt_type {
-		create_receipt::v3::ReceiptType::FullyRead => {
+		| create_receipt::v3::ReceiptType::FullyRead => {
 			let fully_read_event = ruma::events::fully_read::FullyReadEvent {
 				content: ruma::events::fully_read::FullyReadEventContent {
 					event_id: body.event_id.clone(),
@@ -135,7 +134,7 @@ pub(crate) async fn create_receipt_route(
 				)
 				.await?;
 		},
-		create_receipt::v3::ReceiptType::Read => {
+		| create_receipt::v3::ReceiptType::Read => {
 			let receipt_content = BTreeMap::from_iter([(
 				body.event_id.clone(),
 				BTreeMap::from_iter([(
@@ -163,7 +162,7 @@ pub(crate) async fn create_receipt_route(
 				)
 				.await;
 		},
-		create_receipt::v3::ReceiptType::ReadPrivate => {
+		| create_receipt::v3::ReceiptType::ReadPrivate => {
 			let count = services
 				.rooms
 				.timeline
@@ -172,7 +171,9 @@ pub(crate) async fn create_receipt_route(
 				.map_err(|_| err!(Request(NotFound("Event not found."))))?;
 
 			let PduCount::Normal(count) = count else {
-				return Err!(Request(InvalidParam("Event is a backfilled PDU and cannot be marked as read.")));
+				return Err!(Request(InvalidParam(
+					"Event is a backfilled PDU and cannot be marked as read."
+				)));
 			};
 
 			services
@@ -180,12 +181,11 @@ pub(crate) async fn create_receipt_route(
 				.read_receipt
 				.private_read_set(&body.room_id, sender_user, count);
 		},
-		_ => {
+		| _ =>
 			return Err!(Request(InvalidParam(warn!(
 				"Received unknown read receipt type: {}",
 				&body.receipt_type
-			))))
-		},
+			)))),
 	}
 
 	Ok(create_receipt::v3::Response {})

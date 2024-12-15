@@ -17,18 +17,12 @@ pub(crate) struct ItemsRev<'a> {
 
 impl<'a> ItemsRev<'a> {
 	pub(crate) fn new(db: &'a Arc<Engine>, cf: &'a Arc<ColumnFamily>, opts: ReadOptions) -> Self {
-		Self {
-			state: State::new(db, cf, opts),
-		}
+		Self { state: State::new(db, cf, opts) }
 	}
 }
 
 impl<'a> convert::From<State<'a>> for ItemsRev<'a> {
-	fn from(state: State<'a>) -> Self {
-		Self {
-			state,
-		}
-	}
+	fn from(state: State<'a>) -> Self { Self { state } }
 }
 
 impl<'a> Cursor<'a, KeyVal<'a>> for ItemsRev<'a> {
@@ -40,11 +34,7 @@ impl<'a> Cursor<'a, KeyVal<'a>> for ItemsRev<'a> {
 	fn seek(&mut self) { self.state.seek_rev(); }
 
 	#[inline]
-	fn init(self, from: From<'a>) -> Self {
-		Self {
-			state: self.state.init_rev(from),
-		}
-	}
+	fn init(self, from: From<'a>) -> Self { Self { state: self.state.init_rev(from) } }
 }
 
 impl<'a> Stream for ItemsRev<'a> {

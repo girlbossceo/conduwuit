@@ -52,7 +52,12 @@ impl crate::Service for Service {
 impl Service {
 	/// Sets a user as typing until the timeout timestamp is reached or
 	/// roomtyping_remove is called.
-	pub async fn typing_add(&self, user_id: &UserId, room_id: &RoomId, timeout: u64) -> Result<()> {
+	pub async fn typing_add(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+		timeout: u64,
+	) -> Result<()> {
 		debug_info!("typing started {user_id:?} in {room_id:?} timeout:{timeout:?}");
 		// update clients
 		self.typing
@@ -177,15 +182,15 @@ impl Service {
 
 	/// Returns a new typing EDU.
 	pub async fn typings_all(
-		&self, room_id: &RoomId, sender_user: &UserId,
+		&self,
+		room_id: &RoomId,
+		sender_user: &UserId,
 	) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
 		let room_typing_indicators = self.typing.read().await.get(room_id).cloned();
 
 		let Some(typing_indicators) = room_typing_indicators else {
 			return Ok(SyncEphemeralRoomEvent {
-				content: ruma::events::typing::TypingEventContent {
-					user_ids: Vec::new(),
-				},
+				content: ruma::events::typing::TypingEventContent { user_ids: Vec::new() },
 			});
 		};
 
@@ -204,13 +209,16 @@ impl Service {
 			.await;
 
 		Ok(SyncEphemeralRoomEvent {
-			content: ruma::events::typing::TypingEventContent {
-				user_ids,
-			},
+			content: ruma::events::typing::TypingEventContent { user_ids },
 		})
 	}
 
-	async fn federation_send(&self, room_id: &RoomId, user_id: &UserId, typing: bool) -> Result<()> {
+	async fn federation_send(
+		&self,
+		room_id: &RoomId,
+		user_id: &UserId,
+		typing: bool,
+	) -> Result<()> {
 		debug_assert!(
 			self.services.globals.user_is_local(user_id),
 			"tried to broadcast typing status of remote user",

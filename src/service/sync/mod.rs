@@ -47,7 +47,8 @@ struct Services {
 struct SlidingSyncCache {
 	lists: BTreeMap<String, SyncRequestList>,
 	subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
-	known_rooms: BTreeMap<String, BTreeMap<OwnedRoomId, u64>>, // For every room, the roomsince number
+	known_rooms: BTreeMap<String, BTreeMap<OwnedRoomId, u64>>, /* For every room, the
+	                                                            * roomsince number */
 	extensions: ExtensionsConfig,
 }
 
@@ -85,14 +86,24 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub fn remembered(&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String) -> bool {
+	pub fn remembered(
+		&self,
+		user_id: OwnedUserId,
+		device_id: OwnedDeviceId,
+		conn_id: String,
+	) -> bool {
 		self.connections
 			.lock()
 			.unwrap()
 			.contains_key(&(user_id, device_id, conn_id))
 	}
 
-	pub fn forget_sync_request_connection(&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String) {
+	pub fn forget_sync_request_connection(
+		&self,
+		user_id: OwnedUserId,
+		device_id: OwnedDeviceId,
+		conn_id: String,
+	) {
 		self.connections
 			.lock()
 			.expect("locked")
@@ -100,25 +111,26 @@ impl Service {
 	}
 
 	pub fn update_sync_request_with_cache(
-		&self, user_id: OwnedUserId, device_id: OwnedDeviceId, request: &mut sync_events::v4::Request,
+		&self,
+		user_id: OwnedUserId,
+		device_id: OwnedDeviceId,
+		request: &mut sync_events::v4::Request,
 	) -> BTreeMap<String, BTreeMap<OwnedRoomId, u64>> {
 		let Some(conn_id) = request.conn_id.clone() else {
 			return BTreeMap::new();
 		};
 
 		let mut cache = self.connections.lock().expect("locked");
-		let cached = Arc::clone(
-			cache
-				.entry((user_id, device_id, conn_id))
-				.or_insert_with(|| {
-					Arc::new(Mutex::new(SlidingSyncCache {
-						lists: BTreeMap::new(),
-						subscriptions: BTreeMap::new(),
-						known_rooms: BTreeMap::new(),
-						extensions: ExtensionsConfig::default(),
-					}))
-				}),
-		);
+		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(
+			|| {
+				Arc::new(Mutex::new(SlidingSyncCache {
+					lists: BTreeMap::new(),
+					subscriptions: BTreeMap::new(),
+					known_rooms: BTreeMap::new(),
+					extensions: ExtensionsConfig::default(),
+				}))
+			},
+		));
 		let cached = &mut cached.lock().expect("locked");
 		drop(cache);
 
@@ -141,13 +153,15 @@ impl Service {
 					.clone()
 					.or_else(|| cached_list.include_old_rooms.clone());
 				match (&mut list.filters, cached_list.filters.clone()) {
-					(Some(list_filters), Some(cached_filters)) => {
+					| (Some(list_filters), Some(cached_filters)) => {
 						list_filters.is_dm = list_filters.is_dm.or(cached_filters.is_dm);
 						if list_filters.spaces.is_empty() {
 							list_filters.spaces = cached_filters.spaces;
 						}
-						list_filters.is_encrypted = list_filters.is_encrypted.or(cached_filters.is_encrypted);
-						list_filters.is_invite = list_filters.is_invite.or(cached_filters.is_invite);
+						list_filters.is_encrypted =
+							list_filters.is_encrypted.or(cached_filters.is_encrypted);
+						list_filters.is_invite =
+							list_filters.is_invite.or(cached_filters.is_invite);
 						if list_filters.room_types.is_empty() {
 							list_filters.room_types = cached_filters.room_types;
 						}
@@ -165,9 +179,9 @@ impl Service {
 							list_filters.not_tags = cached_filters.not_tags;
 						}
 					},
-					(_, Some(cached_filters)) => list.filters = Some(cached_filters),
-					(Some(list_filters), _) => list.filters = Some(list_filters.clone()),
-					(..) => {},
+					| (_, Some(cached_filters)) => list.filters = Some(cached_filters),
+					| (Some(list_filters), _) => list.filters = Some(list_filters.clone()),
+					| (..) => {},
 				}
 				if list.bump_event_types.is_empty() {
 					list.bump_event_types
@@ -220,22 +234,23 @@ impl Service {
 	}
 
 	pub fn update_sync_subscriptions(
-		&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String,
+		&self,
+		user_id: OwnedUserId,
+		device_id: OwnedDeviceId,
+		conn_id: String,
 		subscriptions: BTreeMap<OwnedRoomId, sync_events::v4::RoomSubscription>,
 	) {
 		let mut cache = self.connections.lock().expect("locked");
-		let cached = Arc::clone(
-			cache
-				.entry((user_id, device_id, conn_id))
-				.or_insert_with(|| {
-					Arc::new(Mutex::new(SlidingSyncCache {
-						lists: BTreeMap::new(),
-						subscriptions: BTreeMap::new(),
-						known_rooms: BTreeMap::new(),
-						extensions: ExtensionsConfig::default(),
-					}))
-				}),
-		);
+		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(
+			|| {
+				Arc::new(Mutex::new(SlidingSyncCache {
+					lists: BTreeMap::new(),
+					subscriptions: BTreeMap::new(),
+					known_rooms: BTreeMap::new(),
+					extensions: ExtensionsConfig::default(),
+				}))
+			},
+		));
 		let cached = &mut cached.lock().expect("locked");
 		drop(cache);
 
@@ -243,22 +258,25 @@ impl Service {
 	}
 
 	pub fn update_sync_known_rooms(
-		&self, user_id: OwnedUserId, device_id: OwnedDeviceId, conn_id: String, list_id: String,
-		new_cached_rooms: BTreeSet<OwnedRoomId>, globalsince: u64,
+		&self,
+		user_id: OwnedUserId,
+		device_id: OwnedDeviceId,
+		conn_id: String,
+		list_id: String,
+		new_cached_rooms: BTreeSet<OwnedRoomId>,
+		globalsince: u64,
 	) {
 		let mut cache = self.connections.lock().expect("locked");
-		let cached = Arc::clone(
-			cache
-				.entry((user_id, device_id, conn_id))
-				.or_insert_with(|| {
-					Arc::new(Mutex::new(SlidingSyncCache {
-						lists: BTreeMap::new(),
-						subscriptions: BTreeMap::new(),
-						known_rooms: BTreeMap::new(),
-						extensions: ExtensionsConfig::default(),
-					}))
-				}),
-		);
+		let cached = Arc::clone(cache.entry((user_id, device_id, conn_id)).or_insert_with(
+			|| {
+				Arc::new(Mutex::new(SlidingSyncCache {
+					lists: BTreeMap::new(),
+					subscriptions: BTreeMap::new(),
+					known_rooms: BTreeMap::new(),
+					extensions: ExtensionsConfig::default(),
+				}))
+			},
+		));
 		let cached = &mut cached.lock().expect("locked");
 		drop(cache);
 

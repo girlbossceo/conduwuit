@@ -4,11 +4,13 @@ use std::{
 	time::Duration,
 };
 
-use conduwuit::{debug, debug_error, debug_warn, error, implement, info, result::FlatOk, trace, warn};
+use conduwuit::{
+	debug, debug_error, debug_warn, error, implement, info, result::FlatOk, trace, warn,
+};
 use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
-	api::federation::discovery::ServerSigningKeys, serde::Raw, CanonicalJsonObject, OwnedServerName,
-	OwnedServerSigningKeyId, ServerName, ServerSigningKeyId,
+	api::federation::discovery::ServerSigningKeys, serde::Raw, CanonicalJsonObject,
+	OwnedServerName, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId,
 };
 use serde_json::value::RawValue as RawJsonValue;
 use tokio::time::{timeout_at, Instant};
@@ -79,7 +81,9 @@ where
 			return;
 		}
 
-		warn!("missing {missing_keys} keys for {missing_servers} servers from all notaries first");
+		warn!(
+			"missing {missing_keys} keys for {missing_servers} servers from all notaries first"
+		);
 	}
 
 	if !notary_only {
@@ -101,13 +105,15 @@ where
 			return;
 		}
 
-		debug_warn!("still missing {missing_keys} keys for {missing_servers} servers from all notaries.");
+		debug_warn!(
+			"still missing {missing_keys} keys for {missing_servers} servers from all notaries."
+		);
 	}
 
 	if missing_keys > 0 {
 		warn!(
-			"did not obtain {missing_keys} keys for {missing_servers} servers out of {requested_keys} total keys for \
-			 {requested_servers} total servers."
+			"did not obtain {missing_keys} keys for {missing_servers} servers out of \
+			 {requested_keys} total keys for {requested_servers} total servers."
 		);
 	}
 
@@ -162,12 +168,15 @@ where
 
 #[implement(super::Service)]
 async fn acquire_origin(
-	&self, origin: OwnedServerName, mut key_ids: Vec<OwnedServerSigningKeyId>, timeout: Instant,
+	&self,
+	origin: OwnedServerName,
+	mut key_ids: Vec<OwnedServerSigningKeyId>,
+	timeout: Instant,
 ) -> (OwnedServerName, Vec<OwnedServerSigningKeyId>) {
 	match timeout_at(timeout, self.server_request(&origin)).await {
-		Err(e) => debug_warn!(?origin, "timed out: {e}"),
-		Ok(Err(e)) => debug_error!(?origin, "{e}"),
-		Ok(Ok(server_keys)) => {
+		| Err(e) => debug_warn!(?origin, "timed out: {e}"),
+		| Ok(Err(e)) => debug_error!(?origin, "{e}"),
+		| Ok(Ok(server_keys)) => {
 			trace!(
 				%origin,
 				?key_ids,
@@ -192,19 +201,21 @@ where
 	for notary in self.services.globals.trusted_servers() {
 		let missing_keys = keys_count(&missing);
 		let missing_servers = missing.len();
-		debug!("Asking notary {notary} for {missing_keys} missing keys from {missing_servers} servers");
+		debug!(
+			"Asking notary {notary} for {missing_keys} missing keys from {missing_servers} \
+			 servers"
+		);
 
 		let batch = missing
 			.iter()
 			.map(|(server, keys)| (server.borrow(), keys.iter().map(Borrow::borrow)));
 
 		match self.batch_notary_request(notary, batch).await {
-			Err(e) => error!("Failed to contact notary {notary:?}: {e}"),
-			Ok(results) => {
+			| Err(e) => error!("Failed to contact notary {notary:?}: {e}"),
+			| Ok(results) =>
 				for server_keys in results {
 					self.acquire_notary_result(&mut missing, server_keys).await;
-				}
-			},
+				},
 		}
 	}
 
@@ -224,4 +235,6 @@ async fn acquire_notary_result(&self, missing: &mut Batch, server_keys: ServerSi
 	}
 }
 
-fn keys_count(batch: &Batch) -> usize { batch.iter().flat_map(|(_, key_ids)| key_ids.iter()).count() }
+fn keys_count(batch: &Batch) -> usize {
+	batch.iter().flat_map(|(_, key_ids)| key_ids.iter()).count()
+}

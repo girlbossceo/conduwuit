@@ -5,7 +5,10 @@ use futures::{StreamExt, TryFutureExt};
 use ruma::{
 	api::{
 		client::{
-			directory::{get_public_rooms, get_public_rooms_filtered, get_room_visibility, set_room_visibility},
+			directory::{
+				get_public_rooms, get_public_rooms_filtered, get_room_visibility,
+				set_room_visibility,
+			},
 			error::ErrorKind,
 			room,
 		},
@@ -32,7 +35,8 @@ use crate::Ruma;
 /// - Rooms are ordered by the number of joined members
 #[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_filtered_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_public_rooms_filtered::v3::Request>,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
 	if let Some(server) = &body.server {
@@ -57,7 +61,10 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	.await
 	.map_err(|e| {
 		warn!(?body.server, "Failed to return /publicRooms: {e}");
-		Error::BadRequest(ErrorKind::Unknown, "Failed to return the requested server's public room list.")
+		Error::BadRequest(
+			ErrorKind::Unknown,
+			"Failed to return the requested server's public room list.",
+		)
 	})?;
 
 	Ok(response)
@@ -70,7 +77,8 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// - Rooms are ordered by the number of joined members
 #[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
 pub(crate) async fn get_public_rooms_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_public_rooms::v3::Request>,
 ) -> Result<get_public_rooms::v3::Response> {
 	if let Some(server) = &body.server {
@@ -95,7 +103,10 @@ pub(crate) async fn get_public_rooms_route(
 	.await
 	.map_err(|e| {
 		warn!(?body.server, "Failed to return /publicRooms: {e}");
-		Error::BadRequest(ErrorKind::Unknown, "Failed to return the requested server's public room list.")
+		Error::BadRequest(
+			ErrorKind::Unknown,
+			"Failed to return the requested server's public room list.",
+		)
 	})?;
 
 	Ok(get_public_rooms::v3::Response {
@@ -111,7 +122,8 @@ pub(crate) async fn get_public_rooms_route(
 /// Sets the visibility of a given room in the room directory.
 #[tracing::instrument(skip_all, fields(%client), name = "room_directory")]
 pub(crate) async fn set_room_visibility_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -139,14 +151,14 @@ pub(crate) async fn set_room_visibility_route(
 	}
 
 	match &body.visibility {
-		room::Visibility::Public => {
+		| room::Visibility::Public => {
 			if services.globals.config.lockdown_public_room_directory
 				&& !services.users.is_admin(sender_user).await
 				&& body.appservice_info.is_none()
 			{
 				info!(
-					"Non-admin user {sender_user} tried to publish {0} to the room directory while \
-					 \"lockdown_public_room_directory\" is enabled",
+					"Non-admin user {sender_user} tried to publish {0} to the room directory \
+					 while \"lockdown_public_room_directory\" is enabled",
 					body.room_id
 				);
 
@@ -154,8 +166,8 @@ pub(crate) async fn set_room_visibility_route(
 					services
 						.admin
 						.send_text(&format!(
-							"Non-admin user {sender_user} tried to publish {0} to the room directory while \
-							 \"lockdown_public_room_directory\" is enabled",
+							"Non-admin user {sender_user} tried to publish {0} to the room \
+							 directory while \"lockdown_public_room_directory\" is enabled",
 							body.room_id
 						))
 						.await;
@@ -172,13 +184,16 @@ pub(crate) async fn set_room_visibility_route(
 			if services.globals.config.admin_room_notices {
 				services
 					.admin
-					.send_text(&format!("{sender_user} made {} public to the room directory", body.room_id))
+					.send_text(&format!(
+						"{sender_user} made {} public to the room directory",
+						body.room_id
+					))
 					.await;
 			}
 			info!("{sender_user} made {0} public to the room directory", body.room_id);
 		},
-		room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id),
-		_ => {
+		| room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id),
+		| _ => {
 			return Err(Error::BadRequest(
 				ErrorKind::InvalidParam,
 				"Room visibility type is not supported.",
@@ -193,7 +208,8 @@ pub(crate) async fn set_room_visibility_route(
 ///
 /// Gets the visibility of a given room in the room directory.
 pub(crate) async fn get_room_visibility_route(
-	State(services): State<crate::State>, body: Ruma<get_room_visibility::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_room_visibility::v3::Request>,
 ) -> Result<get_room_visibility::v3::Response> {
 	if !services.rooms.metadata.exists(&body.room_id).await {
 		// Return 404 if the room doesn't exist
@@ -210,10 +226,16 @@ pub(crate) async fn get_room_visibility_route(
 }
 
 pub(crate) async fn get_public_rooms_filtered_helper(
-	services: &Services, server: Option<&ServerName>, limit: Option<UInt>, since: Option<&str>, filter: &Filter,
+	services: &Services,
+	server: Option<&ServerName>,
+	limit: Option<UInt>,
+	since: Option<&str>,
+	filter: &Filter,
 	_network: &RoomNetwork,
 ) -> Result<get_public_rooms_filtered::v3::Response> {
-	if let Some(other_server) = server.filter(|server_name| !services.globals.server_is_ours(server_name)) {
+	if let Some(other_server) =
+		server.filter(|server_name| !services.globals.server_is_ours(server_name))
+	{
 		let response = services
 			.sending
 			.send_federation_request(
@@ -245,9 +267,10 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 	if let Some(s) = &since {
 		let mut characters = s.chars();
 		let backwards = match characters.next() {
-			Some('n') => false,
-			Some('p') => true,
-			_ => return Err(Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token")),
+			| Some('n') => false,
+			| Some('p') => true,
+			| _ =>
+				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token")),
 		};
 
 		num_since = characters
@@ -337,7 +360,11 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 
 /// Check whether the user can publish to the room directory via power levels of
 /// room history visibility event or room creator
-async fn user_can_publish_room(services: &Services, user_id: &UserId, room_id: &RoomId) -> Result<bool> {
+async fn user_can_publish_room(
+	services: &Services,
+	user_id: &UserId,
+	room_id: &RoomId,
+) -> Result<bool> {
 	if let Ok(event) = services
 		.rooms
 		.state_accessor
@@ -347,7 +374,8 @@ async fn user_can_publish_room(services: &Services, user_id: &UserId, room_id: &
 		serde_json::from_str(event.content.get())
 			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
 			.map(|content: RoomPowerLevelsEventContent| {
-				RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
+				RoomPowerLevels::from(content)
+					.user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
 			})
 	} else if let Ok(event) = services
 		.rooms
@@ -406,10 +434,10 @@ async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> Public
 			.state_accessor
 			.room_state_get_content(&room_id, &StateEventType::RoomJoinRules, "")
 			.map_ok(|c: RoomJoinRulesEventContent| match c.join_rule {
-				JoinRule::Public => PublicRoomJoinRule::Public,
-				JoinRule::Knock => "knock".into(),
-				JoinRule::KnockRestricted(_) => "knock_restricted".into(),
-				_ => "invite".into(),
+				| JoinRule::Public => PublicRoomJoinRule::Public,
+				| JoinRule::Knock => "knock".into(),
+				| JoinRule::KnockRestricted(_) => "knock_restricted".into(),
+				| _ => "invite".into(),
 			})
 			.await
 			.unwrap_or_default(),

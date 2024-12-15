@@ -41,7 +41,11 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 	#[cfg(feature = "sentry_telemetry")]
 	let layers = layers.layer(sentry_tower::NewSentryLayer::<http::Request<_>>::new_from_top());
 
-	#[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]
+	#[cfg(any(
+		feature = "zstd_compression",
+		feature = "gzip_compression",
+		feature = "brotli_compression"
+	))]
 	let layers = layers.layer(compression_layer(server));
 
 	let layers = layers
@@ -88,7 +92,11 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 	Ok((router.layer(layers), guard))
 }
 
-#[cfg(any(feature = "zstd_compression", feature = "gzip_compression", feature = "brotli_compression"))]
+#[cfg(any(
+	feature = "zstd_compression",
+	feature = "gzip_compression",
+	feature = "brotli_compression"
+))]
 fn compression_layer(server: &Server) -> tower_http::compression::CompressionLayer {
 	let mut compression_layer = tower_http::compression::CompressionLayer::new();
 
@@ -148,11 +156,15 @@ fn cors_layer(_server: &Server) -> CorsLayer {
 		.max_age(Duration::from_secs(86400))
 }
 
-fn body_limit_layer(server: &Server) -> DefaultBodyLimit { DefaultBodyLimit::max(server.config.max_request_size) }
+fn body_limit_layer(server: &Server) -> DefaultBodyLimit {
+	DefaultBodyLimit::max(server.config.max_request_size)
+}
 
 #[tracing::instrument(name = "panic", level = "error", skip_all)]
 #[allow(clippy::needless_pass_by_value)]
-fn catch_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<http_body_util::Full<bytes::Bytes>> {
+fn catch_panic(
+	err: Box<dyn Any + Send + 'static>,
+) -> http::Response<http_body_util::Full<bytes::Bytes>> {
 	//TODO: XXX
 	/*
 		conduwuit_service::services()

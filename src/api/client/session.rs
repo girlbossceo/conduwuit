@@ -37,7 +37,8 @@ struct Claims {
 /// the `type` field when logging in.
 #[tracing::instrument(skip_all, fields(%client), name = "login")]
 pub(crate) async fn get_login_types_route(
-	InsecureClientIp(client): InsecureClientIp, _body: Ruma<get_login_types::v3::Request>,
+	InsecureClientIp(client): InsecureClientIp,
+	_body: Ruma<get_login_types::v3::Request>,
 ) -> Result<get_login_types::v3::Response> {
 	Ok(get_login_types::v3::Response::new(vec![
 		get_login_types::v3::LoginType::Password(PasswordLoginType::default()),
@@ -61,13 +62,15 @@ pub(crate) async fn get_login_types_route(
 /// supported login types.
 #[tracing::instrument(skip_all, fields(%client), name = "login")]
 pub(crate) async fn login_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp, body: Ruma<login::v3::Request>,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<login::v3::Request>,
 ) -> Result<login::v3::Response> {
 	// Validate login method
 	// TODO: Other login methods
 	let user_id = match &body.login_info {
 		#[allow(deprecated)]
-		login::v3::LoginInfo::Password(login::v3::Password {
+		| login::v3::LoginInfo::Password(login::v3::Password {
 			identifier,
 			password,
 			user,
@@ -75,7 +78,10 @@ pub(crate) async fn login_route(
 		}) => {
 			debug!("Got password login type");
 			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				UserId::parse_with_server_name(user_id.to_lowercase(), services.globals.server_name())
+				UserId::parse_with_server_name(
+					user_id.to_lowercase(),
+					services.globals.server_name(),
+				)
 			} else if let Some(user) = user {
 				UserId::parse(user)
 			} else {
@@ -100,22 +106,29 @@ pub(crate) async fn login_route(
 
 			user_id
 		},
-		login::v3::LoginInfo::Token(login::v3::Token {
-			token,
-		}) => {
+		| login::v3::LoginInfo::Token(login::v3::Token { token }) => {
 			debug!("Got token login type");
 			if let Some(jwt_decoding_key) = services.globals.jwt_decoding_key() {
-				let token =
-					jsonwebtoken::decode::<Claims>(token, jwt_decoding_key, &jsonwebtoken::Validation::default())
-						.map_err(|e| {
-							warn!("Failed to parse JWT token from user logging in: {e}");
-							Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid.")
-						})?;
+				let token = jsonwebtoken::decode::<Claims>(
+					token,
+					jwt_decoding_key,
+					&jsonwebtoken::Validation::default(),
+				)
+				.map_err(|e| {
+					warn!("Failed to parse JWT token from user logging in: {e}");
+					Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid.")
+				})?;
 
 				let username = token.claims.sub.to_lowercase();
 
-				UserId::parse_with_server_name(username, services.globals.server_name())
-					.map_err(|e| err!(Request(InvalidUsername(debug_error!(?e, "Failed to parse login username")))))?
+				UserId::parse_with_server_name(username, services.globals.server_name()).map_err(
+					|e| {
+						err!(Request(InvalidUsername(debug_error!(
+							?e,
+							"Failed to parse login username"
+						))))
+					},
+				)?
 			} else {
 				return Err!(Request(Unknown(
 					"Token login is not supported (server has no jwt decoding key)."
@@ -123,13 +136,16 @@ pub(crate) async fn login_route(
 			}
 		},
 		#[allow(deprecated)]
-		login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService {
+		| login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService {
 			identifier,
 			user,
 		}) => {
 			debug!("Got appservice login type");
 			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				UserId::parse_with_server_name(user_id.to_lowercase(), services.globals.server_name())
+				UserId::parse_with_server_name(
+					user_id.to_lowercase(),
+					services.globals.server_name(),
+				)
 			} else if let Some(user) = user {
 				UserId::parse(user)
 			} else {
@@ -143,18 +159,27 @@ pub(crate) async fn login_route(
 
 			if let Some(ref info) = body.appservice_info {
 				if !info.is_user_match(&user_id) {
-					return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
+					return Err(Error::BadRequest(
+						ErrorKind::Exclusive,
+						"User is not in namespace.",
+					));
 				}
 			} else {
-				return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing appservice token."));
+				return Err(Error::BadRequest(
+					ErrorKind::MissingToken,
+					"Missing appservice token.",
+				));
 			}
 
 			user_id
 		},
-		_ => {
+		| _ => {
 			warn!("Unsupported or unknown login type: {:?}", &body.login_info);
 			debug!("JSON body: {:?}", &body.json_body);
-			return Err(Error::BadRequest(ErrorKind::Unknown, "Unsupported or unknown login type."));
+			return Err(Error::BadRequest(
+				ErrorKind::Unknown,
+				"Unsupported or unknown login type.",
+			));
 		},
 	};
 
@@ -233,7 +258,9 @@ pub(crate) async fn login_route(
 /// - Triggers device list updates
 #[tracing::instrument(skip_all, fields(%client), name = "logout")]
 pub(crate) async fn logout_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp, body: Ruma<logout::v3::Request>,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<logout::v3::Request>,
 ) -> Result<logout::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
@@ -261,7 +288,8 @@ pub(crate) async fn logout_route(
 /// user.
 #[tracing::instrument(skip_all, fields(%client), name = "logout")]
 pub(crate) async fn logout_all_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<logout_all::v3::Request>,
 ) -> Result<logout_all::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");

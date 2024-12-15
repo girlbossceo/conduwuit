@@ -18,8 +18,8 @@ use ruma::{
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
 	serde::Raw,
 	signatures::{Ed25519KeyPair, PublicKeyMap, PublicKeySet},
-	CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, RoomVersionId, ServerName,
-	ServerSigningKeyId,
+	CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, RoomVersionId,
+	ServerName, ServerSigningKeyId,
 };
 use serde_json::value::RawValue as RawJsonValue;
 
@@ -113,7 +113,11 @@ async fn add_signing_keys(&self, new_keys: ServerSigningKeys) {
 }
 
 #[implement(Service)]
-pub async fn required_keys_exist(&self, object: &CanonicalJsonObject, version: &RoomVersionId) -> bool {
+pub async fn required_keys_exist(
+	&self,
+	object: &CanonicalJsonObject,
+	version: &RoomVersionId,
+) -> bool {
 	use ruma::signatures::required_keys;
 
 	let Ok(required_keys) = required_keys(object, version) else {
@@ -179,7 +183,8 @@ pub async fn signing_keys_for(&self, origin: &ServerName) -> Result<ServerSignin
 
 #[implement(Service)]
 fn minimum_valid_ts(&self) -> MilliSecondsSinceUnixEpoch {
-	let timepoint = timepoint_from_now(self.minimum_valid).expect("SystemTime should not overflow");
+	let timepoint =
+		timepoint_from_now(self.minimum_valid).expect("SystemTime should not overflow");
 	MilliSecondsSinceUnixEpoch::from_system_time(timepoint).expect("UInt should not overflow")
 }
 

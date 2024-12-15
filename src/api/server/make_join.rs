@@ -23,7 +23,8 @@ use crate::{
 ///
 /// Creates a join template.
 pub(crate) async fn create_join_event_template_route(
-	State(services): State<crate::State>, body: Ruma<prepare_join_event::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<prepare_join_event::v1::Request>,
 ) -> Result<prepare_join_event::v1::Response> {
 	if !services.rooms.metadata.exists(&body.room_id).await {
 		return Err!(Request(NotFound("Room is unknown to this server.")));
@@ -47,8 +48,8 @@ pub(crate) async fn create_join_event_template_route(
 		.contains(body.origin())
 	{
 		warn!(
-			"Server {} for remote user {} tried joining room ID {} which has a server name that is globally \
-			 forbidden. Rejecting.",
+			"Server {} for remote user {} tried joining room ID {} which has a server name that \
+			 is globally forbidden. Rejecting.",
 			body.origin(),
 			&body.user_id,
 			&body.room_id,
@@ -72,9 +73,7 @@ pub(crate) async fn create_join_event_template_route(
 	let room_version_id = services.rooms.state.get_room_version(&body.room_id).await?;
 	if !body.ver.contains(&room_version_id) {
 		return Err(Error::BadRequest(
-			ErrorKind::IncompatibleRoomVersion {
-				room_version: room_version_id,
-			},
+			ErrorKind::IncompatibleRoomVersion { room_version: room_version_id },
 			"Room version not supported.",
 		));
 	}
@@ -86,16 +85,25 @@ pub(crate) async fn create_join_event_template_route(
 		if matches!(room_version_id, V1 | V2 | V3 | V4 | V5 | V6 | V7) {
 			// room version does not support restricted join rules
 			None
-		} else if user_can_perform_restricted_join(&services, &body.user_id, &body.room_id, &room_version_id).await? {
+		} else if user_can_perform_restricted_join(
+			&services,
+			&body.user_id,
+			&body.room_id,
+			&room_version_id,
+		)
+		.await?
+		{
 			let Some(auth_user) = services
 				.rooms
 				.state_cache
 				.local_users_in_room(&body.room_id)
 				.filter(|user| {
-					services
-						.rooms
-						.state_accessor
-						.user_can_invite(&body.room_id, user, &body.user_id, &state_lock)
+					services.rooms.state_accessor.user_can_invite(
+						&body.room_id,
+						user,
+						&body.user_id,
+						&state_lock,
+					)
 				})
 				.boxed()
 				.next()
@@ -116,13 +124,10 @@ pub(crate) async fn create_join_event_template_route(
 		.rooms
 		.timeline
 		.create_hash_and_sign_event(
-			PduBuilder::state(
-				body.user_id.to_string(),
-				&RoomMemberEventContent {
-					join_authorized_via_users_server,
-					..RoomMemberEventContent::new(MembershipState::Join)
-				},
-			),
+			PduBuilder::state(body.user_id.to_string(), &RoomMemberEventContent {
+				join_authorized_via_users_server,
+				..RoomMemberEventContent::new(MembershipState::Join)
+			}),
 			&body.user_id,
 			&body.room_id,
 			&state_lock,
@@ -142,7 +147,10 @@ pub(crate) async fn create_join_event_template_route(
 
 /// Checks whether the given user can join the given room via a restricted join.
 pub(crate) async fn user_can_perform_restricted_join(
-	services: &Services, user_id: &UserId, room_id: &RoomId, room_version_id: &RoomVersionId,
+	services: &Services,
+	user_id: &UserId,
+	room_id: &RoomId,
+	room_version_id: &RoomVersionId,
 ) -> Result<bool> {
 	use RoomVersionId::*;
 
@@ -159,13 +167,19 @@ pub(crate) async fn user_can_perform_restricted_join(
 	let Ok(join_rules_event_content) = services
 		.rooms
 		.state_accessor
-		.room_state_get_content::<RoomJoinRulesEventContent>(room_id, &StateEventType::RoomJoinRules, "")
+		.room_state_get_content::<RoomJoinRulesEventContent>(
+			room_id,
+			&StateEventType::RoomJoinRules,
+			"",
+		)
 		.await
 	else {
 		return Ok(false);
 	};
 
-	let (JoinRule::Restricted(r) | JoinRule::KnockRestricted(r)) = join_rules_event_content.join_rule else {
+	let (JoinRule::Restricted(r) | JoinRule::KnockRestricted(r)) =
+		join_rules_event_content.join_rule
+	else {
 		return Ok(false);
 	};
 
@@ -195,12 +209,15 @@ pub(crate) async fn user_can_perform_restricted_join(
 	}
 }
 
-pub(crate) fn maybe_strip_event_id(pdu_json: &mut CanonicalJsonObject, room_version_id: &RoomVersionId) -> Result {
+pub(crate) fn maybe_strip_event_id(
+	pdu_json: &mut CanonicalJsonObject,
+	room_version_id: &RoomVersionId,
+) -> Result {
 	use RoomVersionId::*;
 
 	match room_version_id {
-		V1 | V2 => Ok(()),
-		_ => {
+		| V1 | V2 => Ok(()),
+		| _ => {
 			pdu_json.remove("event_id");
 			Ok(())
 		},

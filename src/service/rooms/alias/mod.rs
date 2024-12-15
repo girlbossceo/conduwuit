@@ -52,7 +52,8 @@ impl crate::Service for Service {
 				appservice: args.depend::<appservice::Service>("appservice"),
 				globals: args.depend::<globals::Service>("globals"),
 				sending: args.depend::<sending::Service>("sending"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 			},
 		}))
 	}
@@ -62,8 +63,15 @@ impl crate::Service for Service {
 
 impl Service {
 	#[tracing::instrument(skip(self))]
-	pub fn set_alias(&self, alias: &RoomAliasId, room_id: &RoomId, user_id: &UserId) -> Result<()> {
-		if alias == self.services.globals.admin_alias && user_id != self.services.globals.server_user {
+	pub fn set_alias(
+		&self,
+		alias: &RoomAliasId,
+		room_id: &RoomId,
+		user_id: &UserId,
+	) -> Result<()> {
+		if alias == self.services.globals.admin_alias
+			&& user_id != self.services.globals.server_user
+		{
 			return Err(Error::BadRequest(
 				ErrorKind::forbidden(),
 				"Only the server user can set this alias",
@@ -120,7 +128,9 @@ impl Service {
 	}
 
 	pub async fn resolve_with_servers(
-		&self, room: &RoomOrAliasId, servers: Option<Vec<OwnedServerName>>,
+		&self,
+		room: &RoomOrAliasId,
+		servers: Option<Vec<OwnedServerName>>,
 	) -> Result<(OwnedRoomId, Vec<OwnedServerName>)> {
 		if room.is_room_id() {
 			let room_id = RoomId::parse(room).expect("valid RoomId");
@@ -133,14 +143,16 @@ impl Service {
 
 	#[tracing::instrument(skip(self), name = "resolve")]
 	pub async fn resolve_alias(
-		&self, room_alias: &RoomAliasId, servers: Option<Vec<OwnedServerName>>,
+		&self,
+		room_alias: &RoomAliasId,
+		servers: Option<Vec<OwnedServerName>>,
 	) -> Result<(OwnedRoomId, Vec<OwnedServerName>)> {
 		let server_name = room_alias.server_name();
 		let server_is_ours = self.services.globals.server_is_ours(server_name);
 		let servers_contains_ours = || {
-			servers
-				.as_ref()
-				.is_some_and(|servers| servers.contains(&self.services.globals.config.server_name))
+			servers.as_ref().is_some_and(|servers| {
+				servers.contains(&self.services.globals.config.server_name)
+			})
 		};
 
 		if !server_is_ours && !servers_contains_ours() {
@@ -150,8 +162,8 @@ impl Service {
 		}
 
 		let room_id = match self.resolve_local_alias(room_alias).await {
-			Ok(r) => Some(r),
-			Err(_) => self.resolve_appservice_alias(room_alias).await?,
+			| Ok(r) => Some(r),
+			| Err(_) => self.resolve_appservice_alias(room_alias).await?,
 		};
 
 		room_id.map_or_else(
@@ -166,7 +178,10 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn local_aliases_for_room<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &RoomAliasId> + Send + 'a {
+	pub fn local_aliases_for_room<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &RoomAliasId> + Send + 'a {
 		let prefix = (room_id, Interfix);
 		self.db
 			.aliasid_alias
@@ -208,10 +223,15 @@ impl Service {
 		if let Ok(content) = self
 			.services
 			.state_accessor
-			.room_state_get_content::<RoomPowerLevelsEventContent>(&room_id, &StateEventType::RoomPowerLevels, "")
+			.room_state_get_content::<RoomPowerLevelsEventContent>(
+				&room_id,
+				&StateEventType::RoomPowerLevels,
+				"",
+			)
 			.await
 		{
-			return Ok(RoomPowerLevels::from(content).user_can_send_state(user_id, StateEventType::RoomCanonicalAlias));
+			return Ok(RoomPowerLevels::from(content)
+				.user_can_send_state(user_id, StateEventType::RoomCanonicalAlias));
 		}
 
 		// If there is no power levels event, only the room creator can change
@@ -232,7 +252,10 @@ impl Service {
 		self.db.alias_userid.get(alias.alias()).await.deserialized()
 	}
 
-	async fn resolve_appservice_alias(&self, room_alias: &RoomAliasId) -> Result<Option<OwnedRoomId>> {
+	async fn resolve_appservice_alias(
+		&self,
+		room_alias: &RoomAliasId,
+	) -> Result<Option<OwnedRoomId>> {
 		use ruma::api::appservice::query::query_room_alias;
 
 		for appservice in self.services.appservice.read().await.values() {
@@ -242,9 +265,7 @@ impl Service {
 						.sending
 						.send_appservice_request(
 							appservice.registration.clone(),
-							query_room_alias::v1::Request {
-								room_alias: room_alias.to_owned(),
-							},
+							query_room_alias::v1::Request { room_alias: room_alias.to_owned() },
 						)
 						.await,
 					Ok(Some(_opt_result))
@@ -261,19 +282,27 @@ impl Service {
 	}
 
 	pub async fn appservice_checks(
-		&self, room_alias: &RoomAliasId, appservice_info: &Option<RegistrationInfo>,
+		&self,
+		room_alias: &RoomAliasId,
+		appservice_info: &Option<RegistrationInfo>,
 	) -> Result<()> {
 		if !self
 			.services
 			.globals
 			.server_is_ours(room_alias.server_name())
 		{
-			return Err(Error::BadRequest(ErrorKind::InvalidParam, "Alias is from another server."));
+			return Err(Error::BadRequest(
+				ErrorKind::InvalidParam,
+				"Alias is from another server.",
+			));
 		}
 
 		if let Some(ref info) = appservice_info {
 			if !info.aliases.is_match(room_alias.as_str()) {
-				return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias is not in namespace."));
+				return Err(Error::BadRequest(
+					ErrorKind::Exclusive,
+					"Room alias is not in namespace.",
+				));
 			}
 		} else if self
 			.services
@@ -281,7 +310,10 @@ impl Service {
 			.is_exclusive_alias(room_alias)
 			.await
 		{
-			return Err(Error::BadRequest(ErrorKind::Exclusive, "Room alias reserved by appservice."));
+			return Err(Error::BadRequest(
+				ErrorKind::Exclusive,
+				"Room alias reserved by appservice.",
+			));
 		}
 
 		Ok(())

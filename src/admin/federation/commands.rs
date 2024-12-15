@@ -2,7 +2,9 @@ use std::fmt::Write;
 
 use conduwuit::Result;
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId};
+use ruma::{
+	events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId,
+};
 
 use crate::{admin_command, get_room_info};
 
@@ -38,7 +40,10 @@ pub(super) async fn incoming_federation(&self) -> Result<RoomMessageEventContent
 }
 
 #[admin_command]
-pub(super) async fn fetch_support_well_known(&self, server_name: Box<ServerName>) -> Result<RoomMessageEventContent> {
+pub(super) async fn fetch_support_well_known(
+	&self,
+	server_name: Box<ServerName>,
+) -> Result<RoomMessageEventContent> {
 	let response = self
 		.services
 		.client
@@ -60,16 +65,20 @@ pub(super) async fn fetch_support_well_known(&self, server_name: Box<ServerName>
 	}
 
 	let json: serde_json::Value = match serde_json::from_str(&text) {
-		Ok(json) => json,
-		Err(_) => {
-			return Ok(RoomMessageEventContent::text_plain("Response text/body is not valid JSON."));
+		| Ok(json) => json,
+		| Err(_) => {
+			return Ok(RoomMessageEventContent::text_plain(
+				"Response text/body is not valid JSON.",
+			));
 		},
 	};
 
 	let pretty_json: String = match serde_json::to_string_pretty(&json) {
-		Ok(json) => json,
-		Err(_) => {
-			return Ok(RoomMessageEventContent::text_plain("Response text/body is not valid JSON."));
+		| Ok(json) => json,
+		| Err(_) => {
+			return Ok(RoomMessageEventContent::text_plain(
+				"Response text/body is not valid JSON.",
+			));
 		},
 	};
 
@@ -79,10 +88,14 @@ pub(super) async fn fetch_support_well_known(&self, server_name: Box<ServerName>
 }
 
 #[admin_command]
-pub(super) async fn remote_user_in_rooms(&self, user_id: Box<UserId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn remote_user_in_rooms(
+	&self,
+	user_id: Box<UserId>,
+) -> Result<RoomMessageEventContent> {
 	if user_id.server_name() == self.services.globals.config.server_name {
 		return Ok(RoomMessageEventContent::text_plain(
-			"User belongs to our server, please use `list-joined-rooms` user admin command instead.",
+			"User belongs to our server, please use `list-joined-rooms` user admin command \
+			 instead.",
 		));
 	}
 

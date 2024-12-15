@@ -43,7 +43,9 @@ impl Data {
 		}
 	}
 
-	pub(super) fn delete_active_request(&self, key: &[u8]) { self.servercurrentevent_data.remove(key); }
+	pub(super) fn delete_active_request(&self, key: &[u8]) {
+		self.servercurrentevent_data.remove(key);
+	}
 
 	pub(super) async fn delete_all_active_requests_for(&self, destination: &Destination) {
 		let prefix = destination.get_prefix();
@@ -76,11 +78,7 @@ impl Data {
 		events
 			.filter(|(key, _)| !key.is_empty())
 			.for_each(|(key, val)| {
-				let val = if let SendingEvent::Edu(val) = &val {
-					&**val
-				} else {
-					&[]
-				};
+				let val = if let SendingEvent::Edu(val) = &val { &**val } else { &[] };
 
 				self.servercurrentevent_data.insert(key, val);
 				self.servernameevent_data.remove(key);
@@ -93,21 +91,26 @@ impl Data {
 			.raw_stream()
 			.ignore_err()
 			.map(|(key, val)| {
-				let (dest, event) = parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
+				let (dest, event) =
+					parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
 
 				(key.to_vec(), event, dest)
 			})
 	}
 
 	#[inline]
-	pub fn active_requests_for(&self, destination: &Destination) -> impl Stream<Item = SendingItem> + Send + '_ {
+	pub fn active_requests_for(
+		&self,
+		destination: &Destination,
+	) -> impl Stream<Item = SendingItem> + Send + '_ {
 		let prefix = destination.get_prefix();
 		self.servercurrentevent_data
 			.raw_stream_from(&prefix)
 			.ignore_err()
 			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
 			.map(|(key, val)| {
-				let (_, event) = parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
+				let (_, event) =
+					parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
 
 				(key.to_vec(), event)
 			})
@@ -150,14 +153,18 @@ impl Data {
 		keys
 	}
 
-	pub fn queued_requests(&self, destination: &Destination) -> impl Stream<Item = QueueItem> + Send + '_ {
+	pub fn queued_requests(
+		&self,
+		destination: &Destination,
+	) -> impl Stream<Item = QueueItem> + Send + '_ {
 		let prefix = destination.get_prefix();
 		self.servernameevent_data
 			.raw_stream_from(&prefix)
 			.ignore_err()
 			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
 			.map(|(key, val)| {
-				let (_, event) = parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
+				let (_, event) =
+					parse_servercurrentevent(key, val).expect("invalid servercurrentevent");
 
 				(key.to_vec(), event)
 			})
@@ -186,8 +193,9 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 			.next()
 			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
-		let server = utils::string_from_bytes(server)
-			.map_err(|_| Error::bad_database("Invalid server bytes in server_currenttransaction"))?;
+		let server = utils::string_from_bytes(server).map_err(|_| {
+			Error::bad_database("Invalid server bytes in server_currenttransaction")
+		})?;
 
 		(
 			Destination::Appservice(server),
@@ -203,8 +211,8 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 		let user = parts.next().expect("splitn always returns one element");
 		let user_string = utils::string_from_bytes(user)
 			.map_err(|_| Error::bad_database("Invalid user string in servercurrentevent"))?;
-		let user_id =
-			UserId::parse(user_string).map_err(|_| Error::bad_database("Invalid user id in servercurrentevent"))?;
+		let user_id = UserId::parse(user_string)
+			.map_err(|_| Error::bad_database("Invalid user id in servercurrentevent"))?;
 
 		let pushkey = parts
 			.next()
@@ -233,14 +241,14 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 			.next()
 			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
-		let server = utils::string_from_bytes(server)
-			.map_err(|_| Error::bad_database("Invalid server bytes in server_currenttransaction"))?;
+		let server = utils::string_from_bytes(server).map_err(|_| {
+			Error::bad_database("Invalid server bytes in server_currenttransaction")
+		})?;
 
 		(
-			Destination::Normal(
-				ServerName::parse(server)
-					.map_err(|_| Error::bad_database("Invalid server string in server_currenttransaction"))?,
-			),
+			Destination::Normal(ServerName::parse(server).map_err(|_| {
+				Error::bad_database("Invalid server string in server_currenttransaction")
+			})?),
 			if value.is_empty() {
 				SendingEvent::Pdu(event.into())
 			} else {

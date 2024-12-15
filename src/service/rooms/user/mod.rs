@@ -92,7 +92,12 @@ pub async fn last_notification_read(&self, user_id: &UserId, room_id: &RoomId) -
 }
 
 #[implement(Service)]
-pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64, shortstatehash: ShortStateHash) {
+pub async fn associate_token_shortstatehash(
+	&self,
+	room_id: &RoomId,
+	token: u64,
+	shortstatehash: ShortStateHash,
+) {
 	let shortroomid = self
 		.services
 		.short
@@ -108,7 +113,11 @@ pub async fn associate_token_shortstatehash(&self, room_id: &RoomId, token: u64,
 }
 
 #[implement(Service)]
-pub async fn get_token_shortstatehash(&self, room_id: &RoomId, token: u64) -> Result<ShortStateHash> {
+pub async fn get_token_shortstatehash(
+	&self,
+	room_id: &RoomId,
+	token: u64,
+) -> Result<ShortStateHash> {
 	let shortroomid = self.services.short.get_shortroomid(room_id).await?;
 
 	let key: &[u64] = &[shortroomid, token];

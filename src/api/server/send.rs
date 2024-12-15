@@ -2,15 +2,18 @@ use std::{collections::BTreeMap, net::IpAddr, time::Instant};
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{debug, debug_warn, err, error, result::LogErr, trace, utils::ReadyExt, warn, Err, Error, Result};
+use conduwuit::{
+	debug, debug_warn, err, error, result::LogErr, trace, utils::ReadyExt, warn, Err, Error,
+	Result,
+};
 use futures::StreamExt;
 use ruma::{
 	api::{
 		client::error::ErrorKind,
 		federation::transactions::{
 			edu::{
-				DeviceListUpdateContent, DirectDeviceContent, Edu, PresenceContent, ReceiptContent,
-				SigningKeyUpdateContent, TypingContent,
+				DeviceListUpdateContent, DirectDeviceContent, Edu, PresenceContent,
+				ReceiptContent, SigningKeyUpdateContent, TypingContent,
 			},
 			send_transaction_message,
 		},
@@ -38,7 +41,8 @@ type ResolvedMap = BTreeMap<OwnedEventId, Result<()>>;
 /// Push EDUs and PDUs to this server.
 #[tracing::instrument(skip_all, fields(%client, origin = body.origin().as_str()), name = "send")]
 pub(crate) async fn send_transaction_message_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<send_transaction_message::v1::Request>,
 ) -> Result<send_transaction_message::v1::Response> {
 	if body.origin() != body.body.origin {
@@ -69,7 +73,8 @@ pub(crate) async fn send_transaction_message_route(
 		"Starting txn",
 	);
 
-	let resolved_map = handle_pdus(&services, &client, &body.pdus, body.origin(), &txn_start_time).await?;
+	let resolved_map =
+		handle_pdus(&services, &client, &body.pdus, body.origin(), &txn_start_time).await?;
 	handle_edus(&services, &client, &body.edus, body.origin()).await;
 
 	debug!(
@@ -90,13 +95,17 @@ pub(crate) async fn send_transaction_message_route(
 }
 
 async fn handle_pdus(
-	services: &Services, _client: &IpAddr, pdus: &[Box<RawJsonValue>], origin: &ServerName, txn_start_time: &Instant,
+	services: &Services,
+	_client: &IpAddr,
+	pdus: &[Box<RawJsonValue>],
+	origin: &ServerName,
+	txn_start_time: &Instant,
 ) -> Result<ResolvedMap> {
 	let mut parsed_pdus = Vec::with_capacity(pdus.len());
 	for pdu in pdus {
 		parsed_pdus.push(match services.rooms.event_handler.parse_incoming_pdu(pdu).await {
-			Ok(t) => t,
-			Err(e) => {
+			| Ok(t) => t,
+			| Err(e) => {
 				debug_warn!("Could not parse PDU: {e}");
 				continue;
 			},
@@ -145,26 +154,45 @@ async fn handle_pdus(
 	Ok(resolved_map)
 }
 
-async fn handle_edus(services: &Services, client: &IpAddr, edus: &[Raw<Edu>], origin: &ServerName) {
+async fn handle_edus(
+	services: &Services,
+	client: &IpAddr,
+	edus: &[Raw<Edu>],
+	origin: &ServerName,
+) {
 	for edu in edus
 		.iter()
 		.filter_map(|edu| serde_json::from_str::<Edu>(edu.json().get()).ok())
 	{
 		match edu {
-			Edu::Presence(presence) => handle_edu_presence(services, client, origin, presence).await,
-			Edu::Receipt(receipt) => handle_edu_receipt(services, client, origin, receipt).await,
-			Edu::Typing(typing) => handle_edu_typing(services, client, origin, typing).await,
-			Edu::DeviceListUpdate(content) => handle_edu_device_list_update(services, client, origin, content).await,
-			Edu::DirectToDevice(content) => handle_edu_direct_to_device(services, client, origin, content).await,
-			Edu::SigningKeyUpdate(content) => handle_edu_signing_key_update(services, client, origin, content).await,
-			Edu::_Custom(ref _custom) => {
+			| Edu::Presence(presence) => {
+				handle_edu_presence(services, client, origin, presence).await;
+			},
+			| Edu::Receipt(receipt) =>
+				handle_edu_receipt(services, client, origin, receipt).await,
+			| Edu::Typing(typing) => handle_edu_typing(services, client, origin, typing).await,
+			| Edu::DeviceListUpdate(content) => {
+				handle_edu_device_list_update(services, client, origin, content).await;
+			},
+			| Edu::DirectToDevice(content) => {
+				handle_edu_direct_to_device(services, client, origin, content).await;
+			},
+			| Edu::SigningKeyUpdate(content) => {
+				handle_edu_signing_key_update(services, client, origin, content).await;
+			},
+			| Edu::_Custom(ref _custom) => {
 				debug_warn!(?edus, "received custom/unknown EDU");
 			},
 		}
 	}
 }
 
-async fn handle_edu_presence(services: &Services, _client: &IpAddr, origin: &ServerName, presence: PresenceContent) {
+async fn handle_edu_presence(
+	services: &Services,
+	_client: &IpAddr,
+	origin: &ServerName,
+	presence: PresenceContent,
+) {
 	if !services.globals.allow_incoming_presence() {
 		return;
 	}
@@ -193,7 +221,12 @@ async fn handle_edu_presence(services: &Services, _client: &IpAddr, origin: &Ser
 	}
 }
 
-async fn handle_edu_receipt(services: &Services, _client: &IpAddr, origin: &ServerName, receipt: ReceiptContent) {
+async fn handle_edu_receipt(
+	services: &Services,
+	_client: &IpAddr,
+	origin: &ServerName,
+	receipt: ReceiptContent,
+) {
 	if !services.globals.allow_incoming_read_receipts() {
 		return;
 	}
@@ -230,7 +263,8 @@ async fn handle_edu_receipt(services: &Services, _client: &IpAddr, origin: &Serv
 				.await
 			{
 				for event_id in &user_updates.event_ids {
-					let user_receipts = BTreeMap::from([(user_id.clone(), user_updates.data.clone())]);
+					let user_receipts =
+						BTreeMap::from([(user_id.clone(), user_updates.data.clone())]);
 					let receipts = BTreeMap::from([(ReceiptType::Read, user_receipts)]);
 					let receipt_content = BTreeMap::from([(event_id.to_owned(), receipts)]);
 					let event = ReceiptEvent {
@@ -255,7 +289,12 @@ async fn handle_edu_receipt(services: &Services, _client: &IpAddr, origin: &Serv
 	}
 }
 
-async fn handle_edu_typing(services: &Services, _client: &IpAddr, origin: &ServerName, typing: TypingContent) {
+async fn handle_edu_typing(
+	services: &Services,
+	_client: &IpAddr,
+	origin: &ServerName,
+	typing: TypingContent,
+) {
 	if !services.globals.config.allow_incoming_typing {
 		return;
 	}
@@ -321,12 +360,12 @@ async fn handle_edu_typing(services: &Services, _client: &IpAddr, origin: &Serve
 }
 
 async fn handle_edu_device_list_update(
-	services: &Services, _client: &IpAddr, origin: &ServerName, content: DeviceListUpdateContent,
+	services: &Services,
+	_client: &IpAddr,
+	origin: &ServerName,
+	content: DeviceListUpdateContent,
 ) {
-	let DeviceListUpdateContent {
-		user_id,
-		..
-	} = content;
+	let DeviceListUpdateContent { user_id, .. } = content;
 
 	if user_id.server_name() != origin {
 		debug_warn!(
@@ -340,14 +379,12 @@ async fn handle_edu_device_list_update(
 }
 
 async fn handle_edu_direct_to_device(
-	services: &Services, _client: &IpAddr, origin: &ServerName, content: DirectDeviceContent,
+	services: &Services,
+	_client: &IpAddr,
+	origin: &ServerName,
+	content: DirectDeviceContent,
 ) {
-	let DirectDeviceContent {
-		sender,
-		ev_type,
-		message_id,
-		messages,
-	} = content;
+	let DirectDeviceContent { sender, ev_type, message_id, messages } = content;
 
 	if sender.server_name() != origin {
 		debug_warn!(
@@ -369,23 +406,28 @@ async fn handle_edu_direct_to_device(
 
 	for (target_user_id, map) in &messages {
 		for (target_device_id_maybe, event) in map {
-			let Ok(event) = event
-				.deserialize_as()
-				.map_err(|e| err!(Request(InvalidParam(error!("To-Device event is invalid: {e}")))))
-			else {
+			let Ok(event) = event.deserialize_as().map_err(|e| {
+				err!(Request(InvalidParam(error!("To-Device event is invalid: {e}"))))
+			}) else {
 				continue;
 			};
 
 			let ev_type = ev_type.to_string();
 			match target_device_id_maybe {
-				DeviceIdOrAllDevices::DeviceId(target_device_id) => {
+				| DeviceIdOrAllDevices::DeviceId(target_device_id) => {
 					services
 						.users
-						.add_to_device_event(&sender, target_user_id, target_device_id, &ev_type, event)
+						.add_to_device_event(
+							&sender,
+							target_user_id,
+							target_device_id,
+							&ev_type,
+							event,
+						)
 						.await;
 				},
 
-				DeviceIdOrAllDevices::AllDevices => {
+				| DeviceIdOrAllDevices::AllDevices => {
 					let (sender, ev_type, event) = (&sender, &ev_type, &event);
 					services
 						.users
@@ -412,13 +454,12 @@ async fn handle_edu_direct_to_device(
 }
 
 async fn handle_edu_signing_key_update(
-	services: &Services, _client: &IpAddr, origin: &ServerName, content: SigningKeyUpdateContent,
+	services: &Services,
+	_client: &IpAddr,
+	origin: &ServerName,
+	content: SigningKeyUpdateContent,
 ) {
-	let SigningKeyUpdateContent {
-		user_id,
-		master_key,
-		self_signing_key,
-	} = content;
+	let SigningKeyUpdateContent { user_id, master_key, self_signing_key } = content;
 
 	if user_id.server_name() != origin {
 		debug_warn!(

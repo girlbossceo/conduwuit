@@ -17,14 +17,17 @@ use crate::{service::pdu::PduBuilder, utils, Result, Ruma};
 /// - Tries to send the event into the room, auth rules will determine if it is
 ///   allowed
 pub(crate) async fn send_message_event_route(
-	State(services): State<crate::State>, body: Ruma<send_message_event::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<send_message_event::v3::Request>,
 ) -> Result<send_message_event::v3::Response> {
 	let sender_user = body.sender_user();
 	let sender_device = body.sender_device.as_deref();
 	let appservice_info = body.appservice_info.as_ref();
 
 	// Forbid m.room.encrypted if encryption is disabled
-	if MessageLikeEventType::RoomEncrypted == body.event_type && !services.globals.allow_encryption() {
+	if MessageLikeEventType::RoomEncrypted == body.event_type
+		&& !services.globals.allow_encryption()
+	{
 		return Err!(Request(Forbidden("Encryption has been disabled")));
 	}
 
@@ -60,8 +63,8 @@ pub(crate) async fn send_message_event_route(
 	let mut unsigned = BTreeMap::new();
 	unsigned.insert("transaction_id".to_owned(), body.txn_id.to_string().into());
 
-	let content =
-		from_str(body.body.body.json().get()).map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
+	let content = from_str(body.body.body.json().get())
+		.map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
 
 	let event_id = services
 		.rooms
@@ -80,13 +83,14 @@ pub(crate) async fn send_message_event_route(
 		)
 		.await?;
 
-	services
-		.transaction_ids
-		.add_txnid(sender_user, sender_device, &body.txn_id, event_id.as_bytes());
+	services.transaction_ids.add_txnid(
+		sender_user,
+		sender_device,
+		&body.txn_id,
+		event_id.as_bytes(),
+	);
 
 	drop(state_lock);
 
-	Ok(send_message_event::v3::Response {
-		event_id: event_id.into(),
-	})
+	Ok(send_message_event::v3::Response { event_id: event_id.into() })
 }

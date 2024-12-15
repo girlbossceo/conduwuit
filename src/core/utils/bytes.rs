@@ -39,7 +39,9 @@ pub fn increment(old: Option<&[u8]>) -> [u8; 8] {
 /// Parses 8 big-endian bytes into an u64; panic on invalid argument
 #[inline]
 #[must_use]
-pub fn u64_from_u8(bytes: &[u8]) -> u64 { u64_from_bytes(bytes).expect("must slice at least 8 bytes") }
+pub fn u64_from_u8(bytes: &[u8]) -> u64 {
+	u64_from_bytes(bytes).expect("must slice at least 8 bytes")
+}
 
 /// Parses the big-endian bytes into an u64.
 #[inline]

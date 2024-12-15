@@ -9,7 +9,8 @@ use conduwuit::Result;
 use ruma::OwnedRoomId;
 
 use self::{
-	alias::RoomAliasCommand, directory::RoomDirectoryCommand, info::RoomInfoCommand, moderation::RoomModerationCommand,
+	alias::RoomAliasCommand, directory::RoomDirectoryCommand, info::RoomInfoCommand,
+	moderation::RoomModerationCommand,
 };
 use crate::admin_command_dispatch;
 

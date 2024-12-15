@@ -27,7 +27,11 @@ pub(crate) enum RoomInfoCommand {
 }
 
 #[admin_command]
-async fn list_joined_members(&self, room_id: Box<RoomId>, local_only: bool) -> Result<RoomMessageEventContent> {
+async fn list_joined_members(
+	&self,
+	room_id: Box<RoomId>,
+	local_only: bool,
+) -> Result<RoomMessageEventContent> {
 	let room_name = self
 		.services
 		.rooms

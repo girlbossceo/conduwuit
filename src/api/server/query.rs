@@ -19,7 +19,8 @@ use crate::Ruma;
 ///
 /// Resolve a room alias to a room id.
 pub(crate) async fn get_room_information_route(
-	State(services): State<crate::State>, body: Ruma<get_room_information::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_room_information::v1::Request>,
 ) -> Result<get_room_information::v1::Response> {
 	let room_id = services
 		.rooms
@@ -50,10 +51,7 @@ pub(crate) async fn get_room_information_route(
 		servers.insert(0, services.globals.server_name().to_owned());
 	}
 
-	Ok(get_room_information::v1::Response {
-		room_id,
-		servers,
-	})
+	Ok(get_room_information::v1::Response { room_id, servers })
 }
 
 /// # `GET /_matrix/federation/v1/query/profile`
@@ -61,7 +59,8 @@ pub(crate) async fn get_room_information_route(
 ///
 /// Gets information on a profile.
 pub(crate) async fn get_profile_information_route(
-	State(services): State<crate::State>, body: Ruma<get_profile_information::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
 	if !services
 		.globals
@@ -88,14 +87,14 @@ pub(crate) async fn get_profile_information_route(
 	let mut custom_profile_fields = BTreeMap::new();
 
 	match &body.field {
-		Some(ProfileField::DisplayName) => {
+		| Some(ProfileField::DisplayName) => {
 			displayname = services.users.displayname(&body.user_id).await.ok();
 		},
-		Some(ProfileField::AvatarUrl) => {
+		| Some(ProfileField::AvatarUrl) => {
 			avatar_url = services.users.avatar_url(&body.user_id).await.ok();
 			blurhash = services.users.blurhash(&body.user_id).await.ok();
 		},
-		Some(custom_field) => {
+		| Some(custom_field) => {
 			if let Ok(value) = services
 				.users
 				.profile_key(&body.user_id, custom_field.as_str())
@@ -104,7 +103,7 @@ pub(crate) async fn get_profile_information_route(
 				custom_profile_fields.insert(custom_field.to_string(), value);
 			}
 		},
-		None => {
+		| None => {
 			displayname = services.users.displayname(&body.user_id).await.ok();
 			avatar_url = services.users.avatar_url(&body.user_id).await.ok();
 			blurhash = services.users.blurhash(&body.user_id).await.ok();

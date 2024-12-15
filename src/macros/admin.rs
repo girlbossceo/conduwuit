@@ -42,14 +42,14 @@ fn dispatch_arm(v: &Variant) -> Result<TokenStream2> {
 	let target = camel_to_snake_string(&format!("{name}"));
 	let handler = Ident::new(&target, Span::call_site().into());
 	let res = match &v.fields {
-		Fields::Named(fields) => {
+		| Fields::Named(fields) => {
 			let field = fields.named.iter().filter_map(|f| f.ident.as_ref());
 			let arg = field.clone();
 			quote! {
 				#name { #( #field ),* } => Box::pin(context.#handler(#( #arg ),*)).await?,
 			}
 		},
-		Fields::Unnamed(fields) => {
+		| Fields::Unnamed(fields) => {
 			let Some(ref field) = fields.unnamed.first() else {
 				return Err(Error::new(Span::call_site().into(), "One unnamed field required"));
 			};
@@ -57,7 +57,7 @@ fn dispatch_arm(v: &Variant) -> Result<TokenStream2> {
 				#name ( #field ) => Box::pin(#handler::process(#field, context)).await?,
 			}
 		},
-		Fields::Unit => {
+		| Fields::Unit => {
 			quote! {
 				#name => Box::pin(context.#handler()).await?,
 			}

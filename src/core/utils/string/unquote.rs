@@ -26,7 +26,9 @@ impl<'a> Unquote<'a> for &'a str {
 	}
 
 	#[inline]
-	fn unquote(&self) -> Option<&'a str> { self.strip_prefix(QUOTE).and_then(|s| s.strip_suffix(QUOTE)) }
+	fn unquote(&self) -> Option<&'a str> {
+		self.strip_prefix(QUOTE).and_then(|s| s.strip_suffix(QUOTE))
+	}
 
 	#[inline]
 	fn is_quoted(&self) -> bool { self.starts_with(QUOTE) && self.ends_with(QUOTE) }

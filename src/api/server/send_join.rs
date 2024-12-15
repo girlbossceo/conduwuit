@@ -16,7 +16,8 @@ use ruma::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
 	},
-	CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, ServerName,
+	CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId,
+	ServerName,
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 use service::Services;
@@ -25,7 +26,10 @@ use crate::Ruma;
 
 /// helper method for /send_join v1 and v2
 async fn create_join_event(
-	services: &Services, origin: &ServerName, room_id: &RoomId, pdu: &RawJsonValue,
+	services: &Services,
+	origin: &ServerName,
+	room_id: &RoomId,
+	pdu: &RawJsonValue,
 ) -> Result<create_join_event::v1::RoomState> {
 	if !services.rooms.metadata.exists(room_id).await {
 		return Err!(Request(NotFound("Room is unknown to this server.")));
@@ -146,7 +150,8 @@ async fn create_join_event(
 
 		if !services.globals.user_is_local(&authorising_user) {
 			return Err!(Request(InvalidParam(
-				"Cannot authorise membership event through {authorising_user} as they do not belong to this homeserver"
+				"Cannot authorise membership event through {authorising_user} as they do not \
+				 belong to this homeserver"
 			)));
 		}
 
@@ -157,12 +162,19 @@ async fn create_join_event(
 			.await
 		{
 			return Err!(Request(InvalidParam(
-				"Authorising user {authorising_user} is not in the room you are trying to join, they cannot authorise \
-				 your join."
+				"Authorising user {authorising_user} is not in the room you are trying to join, \
+				 they cannot authorise your join."
 			)));
 		}
 
-		if !super::user_can_perform_restricted_join(services, &state_key, room_id, &room_version_id).await? {
+		if !super::user_can_perform_restricted_join(
+			services,
+			&state_key,
+			room_id,
+			&room_version_id,
+		)
+		.await?
+		{
 			return Err!(Request(UnableToAuthorizeJoin(
 				"Joining user did not pass restricted room's rules."
 			)));
@@ -228,7 +240,9 @@ async fn create_join_event(
 		.event_ids_iter(room_id, starting_events)
 		.await?
 		.map(Ok)
-		.broad_and_then(|event_id| async move { services.rooms.timeline.get_pdu_json(&event_id).await })
+		.broad_and_then(|event_id| async move {
+			services.rooms.timeline.get_pdu_json(&event_id).await
+		})
 		.broad_and_then(|pdu| {
 			services
 				.sending
@@ -252,7 +266,8 @@ async fn create_join_event(
 ///
 /// Submits a signed join event.
 pub(crate) async fn create_join_event_v1_route(
-	State(services): State<crate::State>, body: Ruma<create_join_event::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
 	if services
 		.globals
@@ -261,8 +276,8 @@ pub(crate) async fn create_join_event_v1_route(
 		.contains(body.origin())
 	{
 		warn!(
-			"Server {} tried joining room ID {} through us who has a server name that is globally forbidden. \
-			 Rejecting.",
+			"Server {} tried joining room ID {} through us who has a server name that is \
+			 globally forbidden. Rejecting.",
 			body.origin(),
 			&body.room_id,
 		);
@@ -277,8 +292,8 @@ pub(crate) async fn create_join_event_v1_route(
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Server {} tried joining room ID {} through us which has a server name that is globally forbidden. \
-				 Rejecting.",
+				"Server {} tried joining room ID {} through us which has a server name that is \
+				 globally forbidden. Rejecting.",
 				body.origin(),
 				&body.room_id,
 			);
@@ -292,16 +307,15 @@ pub(crate) async fn create_join_event_v1_route(
 		.boxed()
 		.await?;
 
-	Ok(create_join_event::v1::Response {
-		room_state,
-	})
+	Ok(create_join_event::v1::Response { room_state })
 }
 
 /// # `PUT /_matrix/federation/v2/send_join/{roomId}/{eventId}`
 ///
 /// Submits a signed join event.
 pub(crate) async fn create_join_event_v2_route(
-	State(services): State<crate::State>, body: Ruma<create_join_event::v2::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
 	if services
 		.globals
@@ -320,8 +334,8 @@ pub(crate) async fn create_join_event_v2_route(
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Server {} tried joining room ID {} through us which has a server name that is globally forbidden. \
-				 Rejecting.",
+				"Server {} tried joining room ID {} through us which has a server name that is \
+				 globally forbidden. Rejecting.",
 				body.origin(),
 				&body.room_id,
 			);
@@ -331,13 +345,10 @@ pub(crate) async fn create_join_event_v2_route(
 		}
 	}
 
-	let create_join_event::v1::RoomState {
-		auth_chain,
-		state,
-		event,
-	} = create_join_event(&services, body.origin(), &body.room_id, &body.pdu)
-		.boxed()
-		.await?;
+	let create_join_event::v1::RoomState { auth_chain, state, event } =
+		create_join_event(&services, body.origin(), &body.room_id, &body.pdu)
+			.boxed()
+			.await?;
 	let room_state = create_join_event::v2::RoomState {
 		members_omitted: false,
 		auth_chain,
@@ -346,7 +357,5 @@ pub(crate) async fn create_join_event_v2_route(
 		servers_in_room: None,
 	};
 
-	Ok(create_join_event::v2::Response {
-		room_state,
-	})
+	Ok(create_join_event::v2::Response { room_state })
 }

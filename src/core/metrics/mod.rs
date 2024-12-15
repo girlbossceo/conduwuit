@@ -68,5 +68,7 @@ impl Metrics {
 
 	pub fn task_root(&self) -> Option<&TaskMonitor> { self.task_monitor.as_ref() }
 
-	pub fn runtime_metrics(&self) -> Option<&runtime::RuntimeMetrics> { self.runtime_metrics.as_ref() }
+	pub fn runtime_metrics(&self) -> Option<&runtime::RuntimeMetrics> {
+		self.runtime_metrics.as_ref()
+	}
 }

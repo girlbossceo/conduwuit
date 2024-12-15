@@ -13,11 +13,7 @@ pub(crate) fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
 where
 	T: Deserialize<'a>,
 {
-	let mut deserializer = Deserializer {
-		buf,
-		pos: 0,
-		seq: false,
-	};
+	let mut deserializer = Deserializer { buf, pos: 0, seq: false };
 
 	T::deserialize(&mut deserializer).debug_inspect(|_| {
 		deserializer
@@ -169,7 +165,12 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_seq(self)
 	}
 
-	fn deserialize_tuple_struct<V>(self, _name: &'static str, _len: usize, visitor: V) -> Result<V::Value>
+	fn deserialize_tuple_struct<V>(
+		self,
+		_name: &'static str,
+		_len: usize,
+		visitor: V,
+	) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
 	{
@@ -186,7 +187,12 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		d.deserialize_map(visitor).map_err(Into::into)
 	}
 
-	fn deserialize_struct<V>(self, name: &'static str, fields: &'static [&'static str], visitor: V) -> Result<V::Value>
+	fn deserialize_struct<V>(
+		self,
+		name: &'static str,
+		fields: &'static [&'static str],
+		visitor: V,
+	) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
 	{
@@ -201,9 +207,9 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		V: Visitor<'de>,
 	{
 		match name {
-			"Ignore" => self.record_ignore(),
-			"IgnoreAll" => self.record_ignore_all(),
-			_ => unhandled!("Unrecognized deserialization Directive {name:?}"),
+			| "Ignore" => self.record_ignore(),
+			| "IgnoreAll" => self.record_ignore_all(),
+			| _ => unhandled!("Unrecognized deserialization Directive {name:?}"),
 		};
 
 		visitor.visit_unit()
@@ -214,13 +220,16 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		V: Visitor<'de>,
 	{
 		match name {
-			"$serde_json::private::RawValue" => visitor.visit_map(self),
-			_ => visitor.visit_newtype_struct(self),
+			| "$serde_json::private::RawValue" => visitor.visit_map(self),
+			| _ => visitor.visit_newtype_struct(self),
 		}
 	}
 
 	fn deserialize_enum<V>(
-		self, _name: &'static str, _variants: &'static [&'static str], _visitor: V,
+		self,
+		_name: &'static str,
+		_variants: &'static [&'static str],
+		_visitor: V,
 	) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
@@ -260,7 +269,10 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	fn deserialize_u8<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unhandled!("deserialize u8 not implemented; try dereferencing the Handle for [u8] access instead")
+		unhandled!(
+			"deserialize u8 not implemented; try dereferencing the Handle for [u8] access \
+			 instead"
+		)
 	}
 
 	fn deserialize_u16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
@@ -338,8 +350,8 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		);
 
 		match self.record_peek_byte() {
-			Some(b'{') => self.deserialize_map(visitor),
-			_ => self.deserialize_str(visitor),
+			| Some(b'{') => self.deserialize_map(visitor),
+			| _ => self.deserialize_str(visitor),
 		}
 	}
 }

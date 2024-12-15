@@ -35,7 +35,10 @@ const BATCH_MAX: usize = 20;
 ///
 /// - Only works if the user is currently joined to the room (TODO: Respect
 ///   history visibility)
-pub(crate) async fn search_events_route(State(services): State<crate::State>, body: Ruma<Request>) -> Result<Response> {
+pub(crate) async fn search_events_route(
+	State(services): State<crate::State>,
+	body: Ruma<Request>,
+) -> Result<Response> {
 	let sender_user = body.sender_user();
 	let next_batch = body.next_batch.as_deref();
 	let room_events_result: OptionFuture<_> = body
@@ -56,7 +59,10 @@ pub(crate) async fn search_events_route(State(services): State<crate::State>, bo
 
 #[allow(clippy::map_unwrap_or)]
 async fn category_room_events(
-	services: &Services, sender_user: &UserId, next_batch: Option<&str>, criteria: &Criteria,
+	services: &Services,
+	sender_user: &UserId,
+	next_batch: Option<&str>,
+	criteria: &Criteria,
 ) -> Result<ResultRoomEvents> {
 	let filter = &criteria.filter;
 
@@ -186,11 +192,17 @@ async fn procure_room_state(services: &Services, room_id: &RoomId) -> Result<Roo
 	Ok(state_events)
 }
 
-async fn check_room_visible(services: &Services, user_id: &UserId, room_id: &RoomId, search: &Criteria) -> Result {
+async fn check_room_visible(
+	services: &Services,
+	user_id: &UserId,
+	room_id: &RoomId,
+	search: &Criteria,
+) -> Result {
 	let check_visible = search.filter.rooms.is_some();
 	let check_state = check_visible && search.include_state.is_some_and(is_true!());
 
-	let is_joined = !check_visible || services.rooms.state_cache.is_joined(user_id, room_id).await;
+	let is_joined =
+		!check_visible || services.rooms.state_cache.is_joined(user_id, room_id).await;
 
 	let state_visible = !check_state
 		|| services

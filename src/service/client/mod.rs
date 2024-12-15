@@ -42,7 +42,9 @@ impl crate::Service for Service {
 				.build()?,
 
 			url_preview: base(config)
-				.and_then(|builder| builder_interface(builder, url_preview_bind_iface.as_deref()))?
+				.and_then(|builder| {
+					builder_interface(builder, url_preview_bind_iface.as_deref())
+				})?
 				.local_address(url_preview_bind_addr)
 				.dns_resolver(resolver.resolver.clone())
 				.redirect(redirect::Policy::limited(3))
@@ -178,7 +180,10 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 }
 
 #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> Result<reqwest::ClientBuilder> {
+fn builder_interface(
+	builder: reqwest::ClientBuilder,
+	config: Option<&str>,
+) -> Result<reqwest::ClientBuilder> {
 	if let Some(iface) = config {
 		Ok(builder.interface(iface))
 	} else {
@@ -187,7 +192,10 @@ fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> R
 }
 
 #[cfg(not(any(target_os = "android", target_os = "fuchsia", target_os = "linux")))]
-fn builder_interface(builder: reqwest::ClientBuilder, config: Option<&str>) -> Result<reqwest::ClientBuilder> {
+fn builder_interface(
+	builder: reqwest::ClientBuilder,
+	config: Option<&str>,
+) -> Result<reqwest::ClientBuilder> {
 	use conduwuit::Err;
 
 	if let Some(iface) = config {

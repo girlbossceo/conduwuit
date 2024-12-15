@@ -10,7 +10,9 @@ use std::{
 use conduwuit::{error, Config, Result};
 use data::Data;
 use regex::RegexSet;
-use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, ServerName, UserId};
+use ruma::{
+	OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, ServerName, UserId,
+};
 use tokio::sync::Mutex;
 
 use crate::service;
@@ -40,30 +42,30 @@ impl crate::Service for Service {
 			.as_ref()
 			.map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
 
-		let turn_secret = config
-			.turn_secret_file
-			.as_ref()
-			.map_or(config.turn_secret.clone(), |path| {
-				std::fs::read_to_string(path).unwrap_or_else(|e| {
-					error!("Failed to read the TURN secret file: {e}");
-
-					config.turn_secret.clone()
-				})
-			});
-
-		let registration_token =
+		let turn_secret =
 			config
-				.registration_token_file
+				.turn_secret_file
 				.as_ref()
-				.map_or(config.registration_token.clone(), |path| {
-					let Ok(token) = std::fs::read_to_string(path).inspect_err(|e| {
-						error!("Failed to read the registration token file: {e}");
-					}) else {
-						return config.registration_token.clone();
-					};
+				.map_or(config.turn_secret.clone(), |path| {
+					std::fs::read_to_string(path).unwrap_or_else(|e| {
+						error!("Failed to read the TURN secret file: {e}");
 
-					Some(token)
+						config.turn_secret.clone()
+					})
 				});
+
+		let registration_token = config.registration_token_file.as_ref().map_or(
+			config.registration_token.clone(),
+			|path| {
+				let Ok(token) = std::fs::read_to_string(path).inspect_err(|e| {
+					error!("Failed to read the registration token file: {e}");
+				}) else {
+					return config.registration_token.clone();
+				};
+
+				Some(token)
+			},
+		);
 
 		let mut s = Self {
 			db,
@@ -73,8 +75,11 @@ impl crate::Service for Service {
 			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
-			server_user: UserId::parse_with_server_name(String::from("conduit"), &config.server_name)
-				.expect("@conduit:server_name is valid"),
+			server_user: UserId::parse_with_server_name(
+				String::from("conduit"),
+				&config.server_name,
+			)
+			.expect("@conduit:server_name is valid"),
 			turn_secret,
 			registration_token,
 		};
@@ -125,7 +130,9 @@ impl Service {
 
 	pub fn allow_guest_registration(&self) -> bool { self.config.allow_guest_registration }
 
-	pub fn allow_guests_auto_join_rooms(&self) -> bool { self.config.allow_guests_auto_join_rooms }
+	pub fn allow_guests_auto_join_rooms(&self) -> bool {
+		self.config.allow_guests_auto_join_rooms
+	}
 
 	pub fn log_guest_registrations(&self) -> bool { self.config.log_guest_registrations }
 
@@ -137,17 +144,23 @@ impl Service {
 		self.config.allow_public_room_directory_over_federation
 	}
 
-	pub fn allow_device_name_federation(&self) -> bool { self.config.allow_device_name_federation }
+	pub fn allow_device_name_federation(&self) -> bool {
+		self.config.allow_device_name_federation
+	}
 
 	pub fn allow_room_creation(&self) -> bool { self.config.allow_room_creation }
 
-	pub fn new_user_displayname_suffix(&self) -> &String { &self.config.new_user_displayname_suffix }
+	pub fn new_user_displayname_suffix(&self) -> &String {
+		&self.config.new_user_displayname_suffix
+	}
 
 	pub fn allow_check_for_updates(&self) -> bool { self.config.allow_check_for_updates }
 
 	pub fn trusted_servers(&self) -> &[OwnedServerName] { &self.config.trusted_servers }
 
-	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> { self.jwt_decoding_key.as_ref() }
+	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> {
+		self.jwt_decoding_key.as_ref()
+	}
 
 	pub fn turn_password(&self) -> &String { &self.config.turn_password }
 
@@ -173,11 +186,15 @@ impl Service {
 		&self.config.url_preview_domain_explicit_denylist
 	}
 
-	pub fn url_preview_url_contains_allowlist(&self) -> &Vec<String> { &self.config.url_preview_url_contains_allowlist }
+	pub fn url_preview_url_contains_allowlist(&self) -> &Vec<String> {
+		&self.config.url_preview_url_contains_allowlist
+	}
 
 	pub fn url_preview_max_spider_size(&self) -> usize { self.config.url_preview_max_spider_size }
 
-	pub fn url_preview_check_root_domain(&self) -> bool { self.config.url_preview_check_root_domain }
+	pub fn url_preview_check_root_domain(&self) -> bool {
+		self.config.url_preview_check_root_domain
+	}
 
 	pub fn forbidden_alias_names(&self) -> &RegexSet { &self.config.forbidden_alias_names }
 
@@ -189,18 +206,26 @@ impl Service {
 
 	pub fn allow_outgoing_presence(&self) -> bool { self.config.allow_outgoing_presence }
 
-	pub fn allow_incoming_read_receipts(&self) -> bool { self.config.allow_incoming_read_receipts }
+	pub fn allow_incoming_read_receipts(&self) -> bool {
+		self.config.allow_incoming_read_receipts
+	}
 
-	pub fn allow_outgoing_read_receipts(&self) -> bool { self.config.allow_outgoing_read_receipts }
+	pub fn allow_outgoing_read_receipts(&self) -> bool {
+		self.config.allow_outgoing_read_receipts
+	}
 
 	pub fn block_non_admin_invites(&self) -> bool { self.config.block_non_admin_invites }
 
 	/// checks if `user_id` is local to us via server_name comparison
 	#[inline]
-	pub fn user_is_local(&self, user_id: &UserId) -> bool { self.server_is_ours(user_id.server_name()) }
+	pub fn user_is_local(&self, user_id: &UserId) -> bool {
+		self.server_is_ours(user_id.server_name())
+	}
 
 	#[inline]
-	pub fn server_is_ours(&self, server_name: &ServerName) -> bool { server_name == self.config.server_name }
+	pub fn server_is_ours(&self, server_name: &ServerName) -> bool {
+		server_name == self.config.server_name
+	}
 
 	#[inline]
 	pub fn is_read_only(&self) -> bool { self.db.db.is_read_only() }

@@ -12,7 +12,8 @@ use crate::Ruma;
 /// - Only works if a user of this server is currently invited or joined the
 ///   room
 pub(crate) async fn get_event_route(
-	State(services): State<crate::State>, body: Ruma<get_event::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_event::v1::Request>,
 ) -> Result<get_event::v1::Response> {
 	let event = services
 		.rooms

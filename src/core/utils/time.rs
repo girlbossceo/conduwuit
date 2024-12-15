@@ -13,7 +13,9 @@ pub fn now_millis() -> u64 {
 }
 
 #[inline]
-pub fn parse_timepoint_ago(ago: &str) -> Result<SystemTime> { timepoint_ago(parse_duration(ago)?) }
+pub fn parse_timepoint_ago(ago: &str) -> Result<SystemTime> {
+	timepoint_ago(parse_duration(ago)?)
+}
 
 #[inline]
 pub fn timepoint_ago(duration: Duration) -> Result<SystemTime> {
@@ -61,13 +63,13 @@ pub fn pretty(d: Duration) -> String {
 	let gen64 = |w, f, u| fmt(w, (f * 100.0) as u32, u);
 	let gen128 = |w, f, u| gen64(u64::try_from(w).expect("u128 to u64"), f, u);
 	match whole_and_frac(d) {
-		(Days(whole), frac) => gen64(whole, frac, "days"),
-		(Hours(whole), frac) => gen64(whole, frac, "hours"),
-		(Mins(whole), frac) => gen64(whole, frac, "minutes"),
-		(Secs(whole), frac) => gen64(whole, frac, "seconds"),
-		(Millis(whole), frac) => gen128(whole, frac, "milliseconds"),
-		(Micros(whole), frac) => gen128(whole, frac, "microseconds"),
-		(Nanos(whole), frac) => gen128(whole, frac, "nanoseconds"),
+		| (Days(whole), frac) => gen64(whole, frac, "days"),
+		| (Hours(whole), frac) => gen64(whole, frac, "hours"),
+		| (Mins(whole), frac) => gen64(whole, frac, "minutes"),
+		| (Secs(whole), frac) => gen64(whole, frac, "seconds"),
+		| (Millis(whole), frac) => gen128(whole, frac, "milliseconds"),
+		| (Micros(whole), frac) => gen128(whole, frac, "microseconds"),
+		| (Nanos(whole), frac) => gen128(whole, frac, "nanoseconds"),
 	}
 }
 
@@ -80,18 +82,15 @@ pub fn whole_and_frac(d: Duration) -> (Unit, f64) {
 	use Unit::*;
 
 	let whole = whole_unit(d);
-	(
-		whole,
-		match whole {
-			Days(_) => (d.as_secs() % 86_400) as f64 / 86_400.0,
-			Hours(_) => (d.as_secs() % 3_600) as f64 / 3_600.0,
-			Mins(_) => (d.as_secs() % 60) as f64 / 60.0,
-			Secs(_) => f64::from(d.subsec_millis()) / 1000.0,
-			Millis(_) => f64::from(d.subsec_micros()) / 1000.0,
-			Micros(_) => f64::from(d.subsec_nanos()) / 1000.0,
-			Nanos(_) => 0.0,
-		},
-	)
+	(whole, match whole {
+		| Days(_) => (d.as_secs() % 86_400) as f64 / 86_400.0,
+		| Hours(_) => (d.as_secs() % 3_600) as f64 / 3_600.0,
+		| Mins(_) => (d.as_secs() % 60) as f64 / 60.0,
+		| Secs(_) => f64::from(d.subsec_millis()) / 1000.0,
+		| Millis(_) => f64::from(d.subsec_micros()) / 1000.0,
+		| Micros(_) => f64::from(d.subsec_nanos()) / 1000.0,
+		| Nanos(_) => 0.0,
+	})
 }
 
 /// Return the largest Unit which represents the duration. The value is
@@ -101,18 +100,18 @@ pub fn whole_unit(d: Duration) -> Unit {
 	use Unit::*;
 
 	match d.as_secs() {
-		86_400.. => Days(d.as_secs() / 86_400),
-		3_600..=86_399 => Hours(d.as_secs() / 3_600),
-		60..=3_599 => Mins(d.as_secs() / 60),
+		| 86_400.. => Days(d.as_secs() / 86_400),
+		| 3_600..=86_399 => Hours(d.as_secs() / 3_600),
+		| 60..=3_599 => Mins(d.as_secs() / 60),
 
-		_ => match d.as_micros() {
-			1_000_000.. => Secs(d.as_secs()),
-			1_000..=999_999 => Millis(d.subsec_millis().into()),
+		| _ => match d.as_micros() {
+			| 1_000_000.. => Secs(d.as_secs()),
+			| 1_000..=999_999 => Millis(d.subsec_millis().into()),
 
-			_ => match d.as_nanos() {
-				1_000.. => Micros(d.subsec_micros().into()),
+			| _ => match d.as_nanos() {
+				| 1_000.. => Micros(d.subsec_micros().into()),
 
-				_ => Nanos(d.subsec_nanos().into()),
+				| _ => Nanos(d.subsec_nanos().into()),
 			},
 		},
 	}

@@ -17,7 +17,8 @@ use crate::Ruma;
 ///
 /// - This does not include the event itself
 pub(crate) async fn get_event_authorization_route(
-	State(services): State<crate::State>, body: Ruma<get_event_authorization::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_event_authorization::v1::Request>,
 ) -> Result<get_event_authorization::v1::Response> {
 	AccessCheck {
 		services: &services,
@@ -40,8 +41,8 @@ pub(crate) async fn get_event_authorization_route(
 		.and_then(|val| val.as_str())
 		.ok_or_else(|| Error::bad_database("Invalid event in database."))?;
 
-	let room_id =
-		<&RoomId>::try_from(room_id_str).map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
+	let room_id = <&RoomId>::try_from(room_id_str)
+		.map_err(|_| Error::bad_database("Invalid room_id in event in database."))?;
 
 	let auth_chain = services
 		.rooms
@@ -53,7 +54,5 @@ pub(crate) async fn get_event_authorization_route(
 		.collect()
 		.await;
 
-	Ok(get_event_authorization::v1::Response {
-		auth_chain,
-	})
+	Ok(get_event_authorization::v1::Response { auth_chain })
 }

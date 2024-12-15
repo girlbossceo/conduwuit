@@ -16,7 +16,8 @@ use crate::{Error, Result, Ruma};
 ///
 /// - The token generated is only valid for the OpenID API
 pub(crate) async fn create_openid_token_route(
-	State(services): State<crate::State>, body: Ruma<account::request_openid_token::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<account::request_openid_token::v3::Request>,
 ) -> Result<account::request_openid_token::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

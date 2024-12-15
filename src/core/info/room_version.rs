@@ -34,7 +34,9 @@ impl crate::Server {
 	}
 
 	#[inline]
-	pub fn available_room_versions(&self) -> impl Iterator<Item = (RoomVersionId, RoomVersionStability)> {
+	pub fn available_room_versions(
+		&self,
+	) -> impl Iterator<Item = (RoomVersionId, RoomVersionStability)> {
 		available_room_versions()
 	}
 

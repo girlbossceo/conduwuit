@@ -11,7 +11,9 @@ use ruma::{
 	api::{
 		client::{
 			error::ErrorKind,
-			profile::{get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name},
+			profile::{
+				get_avatar_url, get_display_name, get_profile, set_avatar_url, set_display_name,
+			},
 		},
 		federation,
 	},
@@ -29,7 +31,8 @@ use crate::Ruma;
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub(crate) async fn set_displayname_route(
-	State(services): State<crate::State>, body: Ruma<set_display_name::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<set_display_name::v3::Request>,
 ) -> Result<set_display_name::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -45,7 +48,8 @@ pub(crate) async fn set_displayname_route(
 		.collect()
 		.await;
 
-	update_displayname(&services, &body.user_id, body.displayname.clone(), &all_joined_rooms).await;
+	update_displayname(&services, &body.user_id, body.displayname.clone(), &all_joined_rooms)
+		.await;
 
 	if services.globals.allow_local_presence() {
 		// Presence update
@@ -65,7 +69,8 @@ pub(crate) async fn set_displayname_route(
 /// - If user is on another server and we do not have a local copy already fetch
 ///   displayname over federation
 pub(crate) async fn get_displayname_route(
-	State(services): State<crate::State>, body: Ruma<get_display_name::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_display_name::v3::Request>,
 ) -> Result<get_display_name::v3::Response> {
 	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
@@ -94,9 +99,7 @@ pub(crate) async fn get_displayname_route(
 				.users
 				.set_blurhash(&body.user_id, response.blurhash.clone());
 
-			return Ok(get_display_name::v3::Response {
-				displayname: response.displayname,
-			});
+			return Ok(get_display_name::v3::Response { displayname: response.displayname });
 		}
 	}
 
@@ -117,7 +120,8 @@ pub(crate) async fn get_displayname_route(
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub(crate) async fn set_avatar_url_route(
-	State(services): State<crate::State>, body: Ruma<set_avatar_url::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<set_avatar_url::v3::Request>,
 ) -> Result<set_avatar_url::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -161,7 +165,8 @@ pub(crate) async fn set_avatar_url_route(
 /// - If user is on another server and we do not have a local copy already fetch
 ///   `avatar_url` and blurhash over federation
 pub(crate) async fn get_avatar_url_route(
-	State(services): State<crate::State>, body: Ruma<get_avatar_url::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_avatar_url::v3::Request>,
 ) -> Result<get_avatar_url::v3::Response> {
 	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
@@ -218,7 +223,8 @@ pub(crate) async fn get_avatar_url_route(
 /// - If user is on another server and we do not have a local copy already,
 ///   fetch profile over federation.
 pub(crate) async fn get_profile_route(
-	State(services): State<crate::State>, body: Ruma<get_profile::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_profile::v3::Request>,
 ) -> Result<get_profile::v3::Response> {
 	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
@@ -254,9 +260,11 @@ pub(crate) async fn get_profile_route(
 				.set_timezone(&body.user_id, response.tz.clone());
 
 			for (profile_key, profile_key_value) in &response.custom_profile_fields {
-				services
-					.users
-					.set_profile_key(&body.user_id, profile_key, Some(profile_key_value.clone()));
+				services.users.set_profile_key(
+					&body.user_id,
+					profile_key,
+					Some(profile_key_value.clone()),
+				);
 			}
 
 			return Ok(get_profile::v3::Response {
@@ -295,7 +303,10 @@ pub(crate) async fn get_profile_route(
 }
 
 pub async fn update_displayname(
-	services: &Services, user_id: &UserId, displayname: Option<String>, all_joined_rooms: &[OwnedRoomId],
+	services: &Services,
+	user_id: &UserId,
+	displayname: Option<String>,
+	all_joined_rooms: &[OwnedRoomId],
 ) {
 	let (current_avatar_url, current_blurhash, current_displayname) = join3(
 		services.users.avatar_url(user_id),
@@ -322,19 +333,16 @@ pub async fn update_displayname(
 		.iter()
 		.try_stream()
 		.and_then(|room_id: &OwnedRoomId| async move {
-			let pdu = PduBuilder::state(
-				user_id.to_string(),
-				&RoomMemberEventContent {
-					displayname: displayname.clone(),
-					membership: MembershipState::Join,
-					avatar_url: avatar_url.clone(),
-					blurhash: blurhash.clone(),
-					join_authorized_via_users_server: None,
-					reason: None,
-					is_direct: None,
-					third_party_invite: None,
-				},
-			);
+			let pdu = PduBuilder::state(user_id.to_string(), &RoomMemberEventContent {
+				displayname: displayname.clone(),
+				membership: MembershipState::Join,
+				avatar_url: avatar_url.clone(),
+				blurhash: blurhash.clone(),
+				join_authorized_via_users_server: None,
+				reason: None,
+				is_direct: None,
+				third_party_invite: None,
+			});
 
 			Ok((pdu, room_id))
 		})
@@ -346,7 +354,10 @@ pub async fn update_displayname(
 }
 
 pub async fn update_avatar_url(
-	services: &Services, user_id: &UserId, avatar_url: Option<OwnedMxcUri>, blurhash: Option<String>,
+	services: &Services,
+	user_id: &UserId,
+	avatar_url: Option<OwnedMxcUri>,
+	blurhash: Option<String>,
 	all_joined_rooms: &[OwnedRoomId],
 ) {
 	let (current_avatar_url, current_blurhash, current_displayname) = join3(
@@ -375,19 +386,16 @@ pub async fn update_avatar_url(
 		.iter()
 		.try_stream()
 		.and_then(|room_id: &OwnedRoomId| async move {
-			let pdu = PduBuilder::state(
-				user_id.to_string(),
-				&RoomMemberEventContent {
-					avatar_url: avatar_url.clone(),
-					blurhash: blurhash.clone(),
-					membership: MembershipState::Join,
-					displayname: displayname.clone(),
-					join_authorized_via_users_server: None,
-					reason: None,
-					is_direct: None,
-					third_party_invite: None,
-				},
-			);
+			let pdu = PduBuilder::state(user_id.to_string(), &RoomMemberEventContent {
+				avatar_url: avatar_url.clone(),
+				blurhash: blurhash.clone(),
+				membership: MembershipState::Join,
+				displayname: displayname.clone(),
+				join_authorized_via_users_server: None,
+				reason: None,
+				is_direct: None,
+				third_party_invite: None,
+			});
 
 			Ok((pdu, room_id))
 		})
@@ -399,7 +407,9 @@ pub async fn update_avatar_url(
 }
 
 pub async fn update_all_rooms(
-	services: &Services, all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>, user_id: &UserId,
+	services: &Services,
+	all_joined_rooms: Vec<(PduBuilder, &OwnedRoomId)>,
+	user_id: &UserId,
 ) {
 	for (pdu_builder, room_id) in all_joined_rooms {
 		let state_lock = services.rooms.state.mutex.lock(room_id).await;

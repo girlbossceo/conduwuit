@@ -58,7 +58,13 @@ impl crate::Service for Service {
 
 /// Creates a new Uiaa session. Make sure the session token is unique.
 #[implement(Service)]
-pub fn create(&self, user_id: &UserId, device_id: &DeviceId, uiaainfo: &UiaaInfo, json_body: &CanonicalJsonValue) {
+pub fn create(
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	uiaainfo: &UiaaInfo,
+	json_body: &CanonicalJsonValue,
+) {
 	// TODO: better session error handling (why is uiaainfo.session optional in
 	// ruma?)
 	self.set_uiaa_request(
@@ -78,7 +84,11 @@ pub fn create(&self, user_id: &UserId, device_id: &DeviceId, uiaainfo: &UiaaInfo
 
 #[implement(Service)]
 pub async fn try_auth(
-	&self, user_id: &UserId, device_id: &DeviceId, auth: &AuthData, uiaainfo: &UiaaInfo,
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	auth: &AuthData,
+	uiaainfo: &UiaaInfo,
 ) -> Result<(bool, UiaaInfo)> {
 	let mut uiaainfo = if let Some(session) = auth.session() {
 		self.get_uiaa_session(user_id, device_id, session).await?
@@ -92,7 +102,7 @@ pub async fn try_auth(
 
 	match auth {
 		// Find out what the user completed
-		AuthData::Password(Password {
+		| AuthData::Password(Password {
 			identifier,
 			password,
 			#[cfg(feature = "element_hacks")]
@@ -105,17 +115,26 @@ pub async fn try_auth(
 			} else if let Some(username) = user {
 				username
 			} else {
-				return Err(Error::BadRequest(ErrorKind::Unrecognized, "Identifier type not recognized."));
+				return Err(Error::BadRequest(
+					ErrorKind::Unrecognized,
+					"Identifier type not recognized.",
+				));
 			};
 
 			#[cfg(not(feature = "element_hacks"))]
 			let Some(UserIdentifier::UserIdOrLocalpart(username)) = identifier
 			else {
-				return Err(Error::BadRequest(ErrorKind::Unrecognized, "Identifier type not recognized."));
+				return Err(Error::BadRequest(
+					ErrorKind::Unrecognized,
+					"Identifier type not recognized.",
+				));
 			};
 
-			let user_id = UserId::parse_with_server_name(username.clone(), self.services.globals.server_name())
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "User ID is invalid."))?;
+			let user_id = UserId::parse_with_server_name(
+				username.clone(),
+				self.services.globals.server_name(),
+			)
+			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "User ID is invalid."))?;
 
 			// Check if password is correct
 			if let Ok(hash) = self.services.users.password_hash(&user_id).await {
@@ -132,7 +151,7 @@ pub async fn try_auth(
 			// Password was correct! Let's add it to `completed`
 			uiaainfo.completed.push(AuthType::Password);
 		},
-		AuthData::RegistrationToken(t) => {
+		| AuthData::RegistrationToken(t) => {
 			if self
 				.services
 				.globals
@@ -149,10 +168,10 @@ pub async fn try_auth(
 				return Ok((false, uiaainfo));
 			}
 		},
-		AuthData::Dummy(_) => {
+		| AuthData::Dummy(_) => {
 			uiaainfo.completed.push(AuthType::Dummy);
 		},
-		k => error!("type not supported: {:?}", k),
+		| k => error!("type not supported: {:?}", k),
 	}
 
 	// Check if a flow now succeeds
@@ -190,7 +209,13 @@ pub async fn try_auth(
 }
 
 #[implement(Service)]
-fn set_uiaa_request(&self, user_id: &UserId, device_id: &DeviceId, session: &str, request: &CanonicalJsonValue) {
+fn set_uiaa_request(
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	session: &str,
+	request: &CanonicalJsonValue,
+) {
 	let key = (user_id.to_owned(), device_id.to_owned(), session.to_owned());
 	self.userdevicesessionid_uiaarequest
 		.write()
@@ -200,7 +225,10 @@ fn set_uiaa_request(&self, user_id: &UserId, device_id: &DeviceId, session: &str
 
 #[implement(Service)]
 pub fn get_uiaa_request(
-	&self, user_id: &UserId, device_id: Option<&DeviceId>, session: &str,
+	&self,
+	user_id: &UserId,
+	device_id: Option<&DeviceId>,
+	session: &str,
 ) -> Option<CanonicalJsonValue> {
 	let key = (
 		user_id.to_owned(),
@@ -216,7 +244,13 @@ pub fn get_uiaa_request(
 }
 
 #[implement(Service)]
-fn update_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &str, uiaainfo: Option<&UiaaInfo>) {
+fn update_uiaa_session(
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	session: &str,
+	uiaainfo: Option<&UiaaInfo>,
+) {
 	let key = (user_id, device_id, session);
 
 	if let Some(uiaainfo) = uiaainfo {
@@ -229,7 +263,12 @@ fn update_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &
 }
 
 #[implement(Service)]
-async fn get_uiaa_session(&self, user_id: &UserId, device_id: &DeviceId, session: &str) -> Result<UiaaInfo> {
+async fn get_uiaa_session(
+	&self,
+	user_id: &UserId,
+	device_id: &DeviceId,
+	session: &str,
+) -> Result<UiaaInfo> {
 	let key = (user_id, device_id, session);
 	self.db
 		.userdevicesessionid_uiaainfo

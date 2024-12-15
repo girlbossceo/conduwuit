@@ -17,10 +17,7 @@ impl Database {
 	/// Load an existing database or create a new one.
 	pub async fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
 		let db = Engine::open(server).await?;
-		Ok(Arc::new(Self {
-			db: db.clone(),
-			maps: maps::open(&db)?,
-		}))
+		Ok(Arc::new(Self { db: db.clone(), maps: maps::open(&db)? }))
 	}
 
 	#[inline]
@@ -31,7 +28,9 @@ impl Database {
 	}
 
 	#[inline]
-	pub fn iter(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ { self.maps.iter() }
+	pub fn iter(&self) -> impl Iterator<Item = (&MapsKey, &MapsVal)> + Send + '_ {
+		self.maps.iter()
+	}
 
 	#[inline]
 	pub fn keys(&self) -> impl Iterator<Item = &MapsKey> + Send + '_ { self.maps.keys() }

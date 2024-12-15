@@ -4,7 +4,9 @@ use std::{
 	time::Instant,
 };
 
-use conduwuit::{debug, implement, utils::math::continue_exponential_backoff_secs, Error, PduEvent, Result};
+use conduwuit::{
+	debug, implement, utils::math::continue_exponential_backoff_secs, Error, PduEvent, Result,
+};
 use ruma::{api::client::error::ErrorKind, CanonicalJsonValue, EventId, RoomId, ServerName};
 
 #[implement(super::Service)]
@@ -15,15 +17,23 @@ use ruma::{api::client::error::ErrorKind, CanonicalJsonValue, EventId, RoomId, S
 	name = "prev"
 )]
 pub(super) async fn handle_prev_pdu<'a>(
-	&self, origin: &'a ServerName, event_id: &'a EventId, room_id: &'a RoomId,
-	eventid_info: &mut HashMap<Arc<EventId>, (Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>,
-	create_event: &Arc<PduEvent>, first_pdu_in_room: &Arc<PduEvent>, prev_id: &EventId,
+	&self,
+	origin: &'a ServerName,
+	event_id: &'a EventId,
+	room_id: &'a RoomId,
+	eventid_info: &mut HashMap<
+		Arc<EventId>,
+		(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>),
+	>,
+	create_event: &Arc<PduEvent>,
+	first_pdu_in_room: &Arc<PduEvent>,
+	prev_id: &EventId,
 ) -> Result {
 	// Check for disabled again because it might have changed
 	if self.services.metadata.is_disabled(room_id).await {
 		debug!(
-			"Federaton of room {room_id} is currently disabled on this server. Request by origin {origin} and event \
-			 ID {event_id}"
+			"Federaton of room {room_id} is currently disabled on this server. Request by \
+			 origin {origin} and event ID {event_id}"
 		);
 		return Err(Error::BadRequest(
 			ErrorKind::forbidden(),

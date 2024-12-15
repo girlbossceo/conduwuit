@@ -66,10 +66,7 @@ fn ser_complex() {
 		media_id: "AbCdEfGhIjK",
 	};
 
-	let dim = Dim {
-		width: 123,
-		height: 456,
-	};
+	let dim = Dim { width: 123, height: 456 };
 
 	let mut a = Vec::new();
 	a.extend_from_slice(b"mxc://");
@@ -128,9 +125,7 @@ fn ser_json_macro() {
 		foo: String,
 	}
 
-	let content = Foo {
-		foo: "bar".to_owned(),
-	};
+	let content = Foo { foo: "bar".to_owned() };
 	let content = serde_json::to_value(content).expect("failed to serialize content");
 	let sender: &UserId = "@foo:example.com".try_into().unwrap();
 	let serialized = serialize_to_vec(Json(json!({
@@ -153,7 +148,8 @@ fn ser_json_raw() {
 		..Default::default()
 	};
 
-	let value = serde_json::value::to_raw_value(&filter).expect("failed to serialize to raw value");
+	let value =
+		serde_json::value::to_raw_value(&filter).expect("failed to serialize to raw value");
 	let a = serialize_to_vec(value.get()).expect("failed to serialize raw value");
 	let s = String::from_utf8_lossy(&a);
 	assert_eq!(&s, r#"{"event_fields":["content.body"]}"#);
@@ -169,7 +165,8 @@ fn ser_json_raw_json() {
 		..Default::default()
 	};
 
-	let value = serde_json::value::to_raw_value(&filter).expect("failed to serialize to raw value");
+	let value =
+		serde_json::value::to_raw_value(&filter).expect("failed to serialize to raw value");
 	let a = serialize_to_vec(Json(value)).expect("failed to serialize json value");
 	let s = String::from_utf8_lossy(&a);
 	assert_eq!(&s, r#"{"event_fields":["content.body"]}"#);
@@ -241,7 +238,8 @@ fn de_tuple_ignore() {
 	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
 
 	let raw: &[u8] = b"@user:example.com\xFF@user2:example.net\xFF!room:example.com";
-	let (a, _, c): (&UserId, Ignore, &RoomId) = de::from_slice(raw).expect("failed to deserialize");
+	let (a, _, c): (&UserId, Ignore, &RoomId) =
+		de::from_slice(raw).expect("failed to deserialize");
 
 	assert_eq!(a, user_id, "deserialized user_id does not match");
 	assert_eq!(c, room_id, "deserialized room_id does not match");
@@ -254,7 +252,8 @@ fn de_json_array() {
 
 	let b: Raw<Vec<Raw<String>>> = de::from_slice(&s).expect("failed to deserialize");
 
-	let d: Vec<String> = serde_json::from_str(b.json().get()).expect("failed to deserialize JSON");
+	let d: Vec<String> =
+		serde_json::from_str(b.json().get()).expect("failed to deserialize JSON");
 
 	for (i, a) in a.iter().enumerate() {
 		assert_eq!(*a, d[i]);
@@ -268,7 +267,8 @@ fn de_json_raw_array() {
 
 	let b: Raw<Vec<Raw<String>>> = de::from_slice(&s).expect("failed to deserialize");
 
-	let c: Vec<Raw<String>> = serde_json::from_str(b.json().get()).expect("failed to deserialize JSON");
+	let c: Vec<Raw<String>> =
+		serde_json::from_str(b.json().get()).expect("failed to deserialize JSON");
 
 	for (i, a) in a.iter().enumerate() {
 		let c = serde_json::to_value(c[i].json()).expect("failed to deserialize JSON to string");

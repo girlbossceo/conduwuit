@@ -1,8 +1,8 @@
 use ruma::{
 	events::{
-		room::member::RoomMemberEventContent, space::child::HierarchySpaceChildEvent, AnyEphemeralRoomEvent,
-		AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent,
-		AnyTimelineEvent, StateEvent,
+		room::member::RoomMemberEventContent, space::child::HierarchySpaceChildEvent,
+		AnyEphemeralRoomEvent, AnyMessageLikeEvent, AnyStateEvent, AnyStrippedStateEvent,
+		AnySyncStateEvent, AnySyncTimelineEvent, AnyTimelineEvent, StateEvent,
 	},
 	serde::Raw,
 };

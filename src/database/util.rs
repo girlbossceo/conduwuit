@@ -30,13 +30,15 @@ pub(crate) fn _into_direction(mode: &IteratorMode<'_>) -> Direction {
 	use IteratorMode::{End, From, Start};
 
 	match mode {
-		Start | From(_, Forward) => Forward,
-		End | From(_, Reverse) => Reverse,
+		| Start | From(_, Forward) => Forward,
+		| End | From(_, Reverse) => Reverse,
 	}
 }
 
 #[inline]
-pub(crate) fn result<T>(r: std::result::Result<T, rocksdb::Error>) -> Result<T, conduwuit::Error> {
+pub(crate) fn result<T>(
+	r: std::result::Result<T, rocksdb::Error>,
+) -> Result<T, conduwuit::Error> {
 	r.map_or_else(or_else, and_then)
 }
 

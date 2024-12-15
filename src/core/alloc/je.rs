@@ -29,8 +29,9 @@ pub fn memory_usage() -> Option<String> {
 	let resident = mibs(stats::resident::read());
 	let retained = mibs(stats::retained::read());
 	Some(format!(
-		"allocated: {allocated:.2} MiB\nactive: {active:.2} MiB\nmapped: {mapped:.2} MiB\nmetadata: {metadata:.2} \
-		 MiB\nresident: {resident:.2} MiB\nretained: {retained:.2} MiB\n"
+		"allocated: {allocated:.2} MiB\nactive: {active:.2} MiB\nmapped: {mapped:.2} \
+		 MiB\nmetadata: {metadata:.2} MiB\nresident: {resident:.2} MiB\nretained: {retained:.2} \
+		 MiB\n"
 	))
 }
 

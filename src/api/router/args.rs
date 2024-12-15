@@ -4,8 +4,8 @@ use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, Bytes, BytesMut};
 use conduwuit::{debug, debug_warn, err, trace, utils::string::EMPTY, Error, Result};
 use ruma::{
-	api::IncomingRequest, CanonicalJsonObject, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName,
-	OwnedUserId, ServerName, UserId,
+	api::IncomingRequest, CanonicalJsonObject, CanonicalJsonValue, DeviceId, OwnedDeviceId,
+	OwnedServerName, OwnedUserId, ServerName, UserId,
 };
 use service::Services;
 
@@ -43,7 +43,9 @@ where
 	T: IncomingRequest + Send + Sync + 'static,
 {
 	#[inline]
-	pub(crate) fn sender(&self) -> (&UserId, &DeviceId) { (self.sender_user(), self.sender_device()) }
+	pub(crate) fn sender(&self) -> (&UserId, &DeviceId) {
+		(self.sender_user(), self.sender_device())
+	}
 
 	#[inline]
 	pub(crate) fn sender_user(&self) -> &UserId {
@@ -83,7 +85,10 @@ where
 {
 	type Rejection = Error;
 
-	async fn from_request(request: hyper::Request<Body>, services: &State) -> Result<Self, Self::Rejection> {
+	async fn from_request(
+		request: hyper::Request<Body>,
+		services: &State,
+	) -> Result<Self, Self::Rejection> {
 		let mut request = request::from(services, request).await?;
 		let mut json_body = serde_json::from_slice::<CanonicalJsonValue>(&request.body).ok();
 
@@ -96,7 +101,10 @@ where
 			&& !request.parts.uri.path().contains("/media/")
 		{
 			trace!("json_body from_request: {:?}", json_body.clone());
-			debug_warn!("received a POST request with an empty body, defaulting/assuming to {{}} like Synapse does");
+			debug_warn!(
+				"received a POST request with an empty body, defaulting/assuming to {{}} like \
+				 Synapse does"
+			);
 			json_body = Some(CanonicalJsonValue::Object(CanonicalJsonObject::new()));
 		}
 		let auth = auth::auth(services, &mut request, json_body.as_ref(), &T::METADATA).await?;
@@ -112,14 +120,18 @@ where
 }
 
 fn make_body<T>(
-	services: &Services, request: &mut Request, json_body: Option<&mut CanonicalJsonValue>, auth: &Auth,
+	services: &Services,
+	request: &mut Request,
+	json_body: Option<&mut CanonicalJsonValue>,
+	auth: &Auth,
 ) -> Result<T>
 where
 	T: IncomingRequest,
 {
 	let body = take_body(services, request, json_body, auth);
 	let http_request = into_http_request(request, body);
-	T::try_from_http_request(http_request, &request.path).map_err(|e| err!(Request(BadJson(debug_warn!("{e}")))))
+	T::try_from_http_request(http_request, &request.path)
+		.map_err(|e| err!(Request(BadJson(debug_warn!("{e}")))))
 }
 
 fn into_http_request(request: &Request, body: Bytes) -> hyper::Request<Bytes> {
@@ -141,7 +153,10 @@ fn into_http_request(request: &Request, body: Bytes) -> hyper::Request<Bytes> {
 
 #[allow(clippy::needless_pass_by_value)]
 fn take_body(
-	services: &Services, request: &mut Request, json_body: Option<&mut CanonicalJsonValue>, auth: &Auth,
+	services: &Services,
+	request: &mut Request,
+	json_body: Option<&mut CanonicalJsonValue>,
+	auth: &Auth,
 ) -> Bytes {
 	let Some(CanonicalJsonValue::Object(json_body)) = json_body else {
 		return mem::take(&mut request.body);

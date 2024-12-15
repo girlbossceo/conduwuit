@@ -190,7 +190,10 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		router = router
 			.ruma_route(&server::get_server_version_route)
 			.route("/_matrix/key/v2/server", get(server::get_server_keys_route))
-			.route("/_matrix/key/v2/server/:key_id", get(server::get_server_keys_deprecated_route))
+			.route(
+				"/_matrix/key/v2/server/:key_id",
+				get(server::get_server_keys_deprecated_route),
+			)
 			.ruma_route(&server::get_public_rooms_route)
 			.ruma_route(&server::get_public_rooms_filtered_route)
 			.ruma_route(&server::send_transaction_message_route)
@@ -284,6 +287,10 @@ async fn redirect_legacy_preview(uri: Uri) -> impl IntoResponse {
 	Redirect::temporary(&uri)
 }
 
-async fn legacy_media_disabled() -> impl IntoResponse { err!(Request(Forbidden("Unauthenticated media is disabled."))) }
+async fn legacy_media_disabled() -> impl IntoResponse {
+	err!(Request(Forbidden("Unauthenticated media is disabled.")))
+}
 
-async fn federation_disabled() -> impl IntoResponse { err!(Request(Forbidden("Federation is disabled."))) }
+async fn federation_disabled() -> impl IntoResponse {
+	err!(Request(Forbidden("Federation is disabled.")))
+}

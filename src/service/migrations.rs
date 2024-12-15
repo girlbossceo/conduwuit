@@ -12,7 +12,9 @@ use conduwuit::{
 use futures::{FutureExt, StreamExt};
 use itertools::Itertools;
 use ruma::{
-	events::{push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType},
+	events::{
+		push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType,
+	},
 	push::Ruleset,
 	OwnedUserId, RoomId, UserId,
 };
@@ -45,7 +47,8 @@ pub(crate) async fn migrations(services: &Services) -> Result<()> {
 		if !services.users.exists(server_user).await {
 			error!("The {server_user} server user does not exist, and the database is not new.");
 			return Err!(Database(
-				"Cannot reuse an existing database after changing the server name, please delete the old one first.",
+				"Cannot reuse an existing database after changing the server name, please \
+				 delete the old one first.",
 			));
 		}
 	}
@@ -144,7 +147,8 @@ async fn migrate(services: &Services) -> Result<()> {
 
 	assert!(
 		version_match,
-		"Failed asserting local database version {} is equal to known latest conduwuit database version {}",
+		"Failed asserting local database version {} is equal to known latest conduwuit database \
+		 version {}",
 		services.globals.db.database_version().await,
 		DATABASE_VERSION,
 	);
@@ -192,7 +196,8 @@ async fn migrate(services: &Services) -> Result<()> {
 						let matches = patterns.matches(room_alias.alias());
 						if matches.matched_any() {
 							warn!(
-								"Room with alias {} ({}) matches the following forbidden room name patterns: {}",
+								"Room with alias {} ({}) matches the following forbidden room \
+								 name patterns: {}",
 								room_alias,
 								&room_id,
 								matches
@@ -223,8 +228,8 @@ async fn db_lt_12(services: &Services) -> Result<()> {
 		.await
 	{
 		let user = match UserId::parse_with_server_name(username.as_str(), &config.server_name) {
-			Ok(u) => u,
-			Err(e) => {
+			| Ok(u) => u,
+			| Err(e) => {
 				warn!("Invalid username {username}: {e}");
 				continue;
 			},
@@ -240,7 +245,8 @@ async fn db_lt_12(services: &Services) -> Result<()> {
 
 		//content rule
 		{
-			let content_rule_transformation = [".m.rules.contains_user_name", ".m.rule.contains_user_name"];
+			let content_rule_transformation =
+				[".m.rules.contains_user_name", ".m.rule.contains_user_name"];
 
 			let rule = rules_list.content.get(content_rule_transformation[0]);
 			if rule.is_some() {
@@ -301,8 +307,8 @@ async fn db_lt_13(services: &Services) -> Result<()> {
 		.await
 	{
 		let user = match UserId::parse_with_server_name(username.as_str(), &config.server_name) {
-			Ok(u) => u,
-			Err(e) => {
+			| Ok(u) => u,
+			| Err(e) => {
 				warn!("Invalid username {username}: {e}");
 				continue;
 			},
@@ -413,7 +419,9 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 					.rooms
 					.state_accessor
 					.get_member(room_id, user_id)
-					.map(|member| member.is_ok_and(|member| member.membership == MembershipState::Join))
+					.map(|member| {
+						member.is_ok_and(|member| member.membership == MembershipState::Join)
+					})
 			})
 			.collect::<Vec<_>>()
 			.await;
@@ -426,7 +434,9 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 					.rooms
 					.state_accessor
 					.get_member(room_id, user_id)
-					.map(|member| member.is_ok_and(|member| member.membership == MembershipState::Join))
+					.map(|member| {
+						member.is_ok_and(|member| member.membership == MembershipState::Join)
+					})
 			})
 			.collect::<Vec<_>>()
 			.await;
@@ -444,7 +454,8 @@ async fn retroactively_fix_bad_data_from_roomuserid_joined(services: &Services) 
 
 	for room_id in &room_ids {
 		debug_info!(
-			"Updating joined count for room {room_id} to fix servers in room after correcting membership states"
+			"Updating joined count for room {room_id} to fix servers in room after correcting \
+			 membership states"
 		);
 
 		services

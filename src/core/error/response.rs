@@ -57,49 +57,35 @@ pub(super) fn bad_request_code(kind: &ErrorKind) -> StatusCode {
 
 	match kind {
 		// 429
-		LimitExceeded {
-			..
-		} => StatusCode::TOO_MANY_REQUESTS,
+		| LimitExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
 
 		// 413
-		TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+		| TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
 
 		// 405
-		Unrecognized => StatusCode::METHOD_NOT_ALLOWED,
+		| Unrecognized => StatusCode::METHOD_NOT_ALLOWED,
 
 		// 404
-		NotFound => StatusCode::NOT_FOUND,
+		| NotFound => StatusCode::NOT_FOUND,
 
 		// 403
-		GuestAccessForbidden
+		| GuestAccessForbidden
 		| ThreepidAuthFailed
 		| UserDeactivated
 		| ThreepidDenied
-		| WrongRoomKeysVersion {
-			..
-		}
-		| Forbidden {
-			..
-		} => StatusCode::FORBIDDEN,
+		| WrongRoomKeysVersion { .. }
+		| Forbidden { .. } => StatusCode::FORBIDDEN,
 
 		// 401
-		UnknownToken {
-			..
-		}
-		| MissingToken
-		| Unauthorized => StatusCode::UNAUTHORIZED,
+		| UnknownToken { .. } | MissingToken | Unauthorized => StatusCode::UNAUTHORIZED,
 
 		// 400
-		_ => StatusCode::BAD_REQUEST,
+		| _ => StatusCode::BAD_REQUEST,
 	}
 }
 
 pub(super) fn ruma_error_message(error: &ruma::api::client::error::Error) -> String {
-	if let ErrorBody::Standard {
-		message,
-		..
-	} = &error.body
-	{
+	if let ErrorBody::Standard { message, .. } = &error.body {
 		return message.to_string();
 	}
 

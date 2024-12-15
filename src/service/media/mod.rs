@@ -80,13 +80,21 @@ impl crate::Service for Service {
 impl Service {
 	/// Uploads a file.
 	pub async fn create(
-		&self, mxc: &Mxc<'_>, user: Option<&UserId>, content_disposition: Option<&ContentDisposition>,
-		content_type: Option<&str>, file: &[u8],
+		&self,
+		mxc: &Mxc<'_>,
+		user: Option<&UserId>,
+		content_disposition: Option<&ContentDisposition>,
+		content_type: Option<&str>,
+		file: &[u8],
 	) -> Result<()> {
 		// Width, Height = 0 if it's not a thumbnail
-		let key = self
-			.db
-			.create_file_metadata(mxc, user, &Dim::default(), content_disposition, content_type)?;
+		let key = self.db.create_file_metadata(
+			mxc,
+			user,
+			&Dim::default(),
+			content_disposition,
+			content_type,
+		)?;
 
 		//TODO: Dangling metadata in database if creation fails
 		let mut f = self.create_media_file(&key).await?;
@@ -132,10 +140,10 @@ impl Service {
 
 			debug_info!(%deletion_count, "Deleting MXC {mxc} by user {user} from database and filesystem");
 			match self.delete(&mxc).await {
-				Ok(()) => {
+				| Ok(()) => {
 					deletion_count = deletion_count.saturating_add(1);
 				},
-				Err(e) => {
+				| Err(e) => {
 					debug_error!(%deletion_count, "Failed to delete {mxc} from user {user}, ignoring error: {e}");
 				},
 			}
@@ -146,11 +154,8 @@ impl Service {
 
 	/// Downloads a file.
 	pub async fn get(&self, mxc: &Mxc<'_>) -> Result<Option<FileMeta>> {
-		if let Ok(Metadata {
-			content_disposition,
-			content_type,
-			key,
-		}) = self.db.search_file_metadata(mxc, &Dim::default()).await
+		if let Ok(Metadata { content_disposition, content_type, key }) =
+			self.db.search_file_metadata(mxc, &Dim::default()).await
 		{
 			let mut content = Vec::new();
 			let path = self.get_media_file(&key);
@@ -181,13 +186,19 @@ impl Service {
 			let mxc = parts
 				.next()
 				.map(|bytes| {
-					utils::string_from_bytes(bytes)
-						.map_err(|e| err!(Database(error!("Failed to parse MXC unicode bytes from our database: {e}"))))
+					utils::string_from_bytes(bytes).map_err(|e| {
+						err!(Database(error!(
+							"Failed to parse MXC unicode bytes from our database: {e}"
+						)))
+					})
 				})
 				.transpose()?;
 
 			let Some(mxc_s) = mxc else {
-				debug_warn!(?mxc, "Parsed MXC URL unicode bytes from database but is still invalid");
+				debug_warn!(
+					?mxc,
+					"Parsed MXC URL unicode bytes from database but is still invalid"
+				);
 				continue;
 			};
 
@@ -207,7 +218,11 @@ impl Service {
 	/// Deletes all remote only media files in the given at or after
 	/// time/duration. Returns a usize with the amount of media files deleted.
 	pub async fn delete_all_remote_media_at_after_time(
-		&self, time: SystemTime, before: bool, after: bool, yes_i_want_to_delete_local_media: bool,
+		&self,
+		time: SystemTime,
+		before: bool,
+		after: bool,
+		yes_i_want_to_delete_local_media: bool,
 	) -> Result<usize> {
 		let all_keys = self.db.get_all_media_keys().await;
 		let mut remote_mxcs = Vec::with_capacity(all_keys.len());
@@ -218,19 +233,26 @@ impl Service {
 			let mxc = parts
 				.next()
 				.map(|bytes| {
-					utils::string_from_bytes(bytes)
-						.map_err(|e| err!(Database(error!("Failed to parse MXC unicode bytes from our database: {e}"))))
+					utils::string_from_bytes(bytes).map_err(|e| {
+						err!(Database(error!(
+							"Failed to parse MXC unicode bytes from our database: {e}"
+						)))
+					})
 				})
 				.transpose()?;
 
 			let Some(mxc_s) = mxc else {
-				debug_warn!(?mxc, "Parsed MXC URL unicode bytes from database but is still invalid");
+				debug_warn!(
+					?mxc,
+					"Parsed MXC URL unicode bytes from database but is still invalid"
+				);
 				continue;
 			};
 
 			trace!("Parsed MXC key to URL: {mxc_s}");
 			let mxc = OwnedMxcUri::from(mxc_s);
-			if (mxc.server_name() == Ok(self.services.globals.server_name()) && !yes_i_want_to_delete_local_media)
+			if (mxc.server_name() == Ok(self.services.globals.server_name())
+				&& !yes_i_want_to_delete_local_media)
 				|| !mxc.is_valid()
 			{
 				debug!("Ignoring local or broken media MXC: {mxc}");
@@ -240,9 +262,12 @@ impl Service {
 			let path = self.get_media_file(&key);
 
 			let file_metadata = match fs::metadata(path.clone()).await {
-				Ok(file_metadata) => file_metadata,
-				Err(e) => {
-					error!("Failed to obtain file metadata for MXC {mxc} at file path \"{path:?}\", skipping: {e}");
+				| Ok(file_metadata) => file_metadata,
+				| Err(e) => {
+					error!(
+						"Failed to obtain file metadata for MXC {mxc} at file path \
+						 \"{path:?}\", skipping: {e}"
+					);
 					continue;
 				},
 			};
@@ -250,12 +275,12 @@ impl Service {
 			trace!(%mxc, ?path, "File metadata: {file_metadata:?}");
 
 			let file_created_at = match file_metadata.created() {
-				Ok(value) => value,
-				Err(err) if err.kind() == std::io::ErrorKind::Unsupported => {
+				| Ok(value) => value,
+				| Err(err) if err.kind() == std::io::ErrorKind::Unsupported => {
 					debug!("btime is unsupported, using mtime instead");
 					file_metadata.modified()?
 				},
-				Err(err) => {
+				| Err(err) => {
 					error!("Could not delete MXC {mxc} at path {path:?}: {err:?}. Skipping...");
 					continue;
 				},
@@ -264,10 +289,16 @@ impl Service {
 			debug!("File created at: {file_created_at:?}");
 
 			if file_created_at >= time && before {
-				debug!("File is within (before) user duration, pushing to list of file paths and keys to delete.");
+				debug!(
+					"File is within (before) user duration, pushing to list of file paths and \
+					 keys to delete."
+				);
 				remote_mxcs.push(mxc.to_string());
 			} else if file_created_at <= time && after {
-				debug!("File is not within (after) user duration, pushing to list of file paths and keys to delete.");
+				debug!(
+					"File is not within (after) user duration, pushing to list of file paths \
+					 and keys to delete."
+				);
 				remote_mxcs.push(mxc.to_string());
 			}
 		}
@@ -289,10 +320,10 @@ impl Service {
 			debug_info!("Deleting MXC {mxc} from database and filesystem");
 
 			match self.delete(&mxc).await {
-				Ok(()) => {
+				| Ok(()) => {
 					deletion_count = deletion_count.saturating_add(1);
 				},
-				Err(e) => {
+				| Err(e) => {
 					warn!("Failed to delete {mxc}, ignoring error and skipping: {e}");
 					continue;
 				},

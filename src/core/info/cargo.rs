@@ -41,17 +41,22 @@ static FEATURES: OnceLock<Vec<String>> = OnceLock::new();
 static DEPENDENCIES: OnceLock<DepsSet> = OnceLock::new();
 
 #[must_use]
-pub fn dependencies_names() -> Vec<&'static str> { dependencies().keys().map(String::as_str).collect() }
+pub fn dependencies_names() -> Vec<&'static str> {
+	dependencies().keys().map(String::as_str).collect()
+}
 
 pub fn dependencies() -> &'static DepsSet {
-	DEPENDENCIES
-		.get_or_init(|| init_dependencies().unwrap_or_else(|e| panic!("Failed to initialize dependencies: {e}")))
+	DEPENDENCIES.get_or_init(|| {
+		init_dependencies().unwrap_or_else(|e| panic!("Failed to initialize dependencies: {e}"))
+	})
 }
 
 /// List of all possible features for the project. For *enabled* features in
 /// this build see the companion function in info::rustc.
 pub fn features() -> &'static Vec<String> {
-	FEATURES.get_or_init(|| init_features().unwrap_or_else(|e| panic!("Failed initialize features: {e}")))
+	FEATURES.get_or_init(|| {
+		init_features().unwrap_or_else(|e| panic!("Failed initialize features: {e}"))
+	})
 }
 
 fn init_features() -> Result<Vec<String>> {

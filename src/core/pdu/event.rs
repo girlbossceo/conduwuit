@@ -19,13 +19,19 @@ impl Event for Pdu {
 
 	fn content(&self) -> &RawJsonValue { &self.content }
 
-	fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch { MilliSecondsSinceUnixEpoch(self.origin_server_ts) }
+	fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch {
+		MilliSecondsSinceUnixEpoch(self.origin_server_ts)
+	}
 
 	fn state_key(&self) -> Option<&str> { self.state_key.as_deref() }
 
-	fn prev_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ { self.prev_events.iter() }
+	fn prev_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ {
+		self.prev_events.iter()
+	}
 
-	fn auth_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ { self.auth_events.iter() }
+	fn auth_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ {
+		self.auth_events.iter()
+	}
 
 	fn redacts(&self) -> Option<&Self::Id> { self.redacts.as_ref() }
 }

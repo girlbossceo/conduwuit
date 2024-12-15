@@ -84,7 +84,9 @@ pub fn trap() {
 }
 
 #[must_use]
-pub fn panic_str(p: &Box<dyn Any + Send>) -> &'static str { p.downcast_ref::<&str>().copied().unwrap_or_default() }
+pub fn panic_str(p: &Box<dyn Any + Send>) -> &'static str {
+	p.downcast_ref::<&str>().copied().unwrap_or_default()
+}
 
 #[inline(always)]
 #[must_use]
@@ -96,4 +98,6 @@ pub fn type_name<T: ?Sized>() -> &'static str { std::any::type_name::<T>() }
 
 #[must_use]
 #[inline]
-pub const fn logging() -> bool { cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level")) }
+pub const fn logging() -> bool {
+	cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level"))
+}

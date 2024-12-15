@@ -16,18 +16,24 @@ pub fn check(config: &Config) -> Result<()> {
 	warn_unknown_key(config);
 
 	if config.sentry && config.sentry_endpoint.is_none() {
-		return Err!(Config("sentry_endpoint", "Sentry cannot be enabled without an endpoint set"));
+		return Err!(Config(
+			"sentry_endpoint",
+			"Sentry cannot be enabled without an endpoint set"
+		));
 	}
 
 	if cfg!(all(feature = "hardened_malloc", feature = "jemalloc")) {
-		info!("hardened_malloc and jemalloc compile-time features are both enabled, this causes jemalloc to be used.");
+		info!(
+			"hardened_malloc and jemalloc compile-time features are both enabled, this causes \
+			 jemalloc to be used."
+		);
 	}
 
 	if cfg!(not(unix)) && config.unix_socket_path.is_some() {
 		return Err!(Config(
 			"unix_socket_path",
-			"UNIX socket support is only available on *nix platforms. Please remove 'unix_socket_path' from your \
-			 config."
+			"UNIX socket support is only available on *nix platforms. Please remove \
+			 'unix_socket_path' from your config."
 		));
 	}
 
@@ -44,30 +50,36 @@ pub fn check(config: &Config) -> Result<()> {
 			use std::path::Path;
 
 			if addr.ip().is_loopback() {
-				debug_info!("Found loopback listening address {addr}, running checks if we're in a container.");
+				debug_info!(
+					"Found loopback listening address {addr}, running checks if we're in a \
+					 container."
+				);
 
 				if Path::new("/proc/vz").exists() /* Guest */ && !Path::new("/proc/bz").exists()
 				/* Host */
 				{
 					error!(
-						"You are detected using OpenVZ with a loopback/localhost listening address of {addr}. If you \
-						 are using OpenVZ for containers and you use NAT-based networking to communicate with the \
-						 host and guest, this will NOT work. Please change this to \"0.0.0.0\". If this is expected, \
-						 you can ignore.",
+						"You are detected using OpenVZ with a loopback/localhost listening \
+						 address of {addr}. If you are using OpenVZ for containers and you use \
+						 NAT-based networking to communicate with the host and guest, this will \
+						 NOT work. Please change this to \"0.0.0.0\". If this is expected, you \
+						 can ignore.",
 					);
 				} else if Path::new("/.dockerenv").exists() {
 					error!(
-						"You are detected using Docker with a loopback/localhost listening address of {addr}. If you \
-						 are using a reverse proxy on the host and require communication to conduwuit in the Docker \
-						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
-						 If this is expected, you can ignore.",
+						"You are detected using Docker with a loopback/localhost listening \
+						 address of {addr}. If you are using a reverse proxy on the host and \
+						 require communication to conduwuit in the Docker container via \
+						 NAT-based networking, this will NOT work. Please change this to \
+						 \"0.0.0.0\". If this is expected, you can ignore.",
 					);
 				} else if Path::new("/run/.containerenv").exists() {
 					error!(
-						"You are detected using Podman with a loopback/localhost listening address of {addr}. If you \
-						 are using a reverse proxy on the host and require communication to conduwuit in the Podman \
-						 container via NAT-based networking, this will NOT work. Please change this to \"0.0.0.0\". \
-						 If this is expected, you can ignore.",
+						"You are detected using Podman with a loopback/localhost listening \
+						 address of {addr}. If you are using a reverse proxy on the host and \
+						 require communication to conduwuit in the Podman container via \
+						 NAT-based networking, this will NOT work. Please change this to \
+						 \"0.0.0.0\". If this is expected, you can ignore.",
 					);
 				}
 			}
@@ -93,7 +105,8 @@ pub fn check(config: &Config) -> Result<()> {
 	if config.emergency_password == Some(String::from("F670$2CP@Hw8mG7RY1$%!#Ic7YA")) {
 		return Err!(Config(
 			"emergency_password",
-			"The public example emergency password is being used, this is insecure. Please change this."
+			"The public example emergency password is being used, this is insecure. Please \
+			 change this."
 		));
 	}
 
@@ -124,7 +137,8 @@ pub fn check(config: &Config) -> Result<()> {
 	if config.max_request_size < 10_000_000 {
 		return Err!(Config(
 			"max_request_size",
-			"Max request size is less than 10MB. Please increase it as this is too low for operable federation."
+			"Max request size is less than 10MB. Please increase it as this is too low for \
+			 operable federation."
 		));
 	}
 
@@ -145,11 +159,12 @@ pub fn check(config: &Config) -> Result<()> {
 	{
 		return Err!(Config(
 			"registration_token",
-			"!! You have `allow_registration` enabled without a token configured in your config which means you are \
-			 allowing ANYONE to register on your conduwuit instance without any 2nd-step (e.g. registration token). \
-			 If this is not the intended behaviour, please set a registration token. For security and safety reasons, \
-			 conduwuit will shut down. If you are extra sure this is the desired behaviour you want, please set the \
-			 following config option to true:
+			"!! You have `allow_registration` enabled without a token configured in your config \
+			 which means you are allowing ANYONE to register on your conduwuit instance without \
+			 any 2nd-step (e.g. registration token). If this is not the intended behaviour, \
+			 please set a registration token. For security and safety reasons, conduwuit will \
+			 shut down. If you are extra sure this is the desired behaviour you want, please \
+			 set the following config option to true:
 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`"
 		));
 	}
@@ -161,17 +176,18 @@ pub fn check(config: &Config) -> Result<()> {
 	{
 		warn!(
 			"Open registration is enabled via setting \
-			 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and `allow_registration` to \
-			 true without a registration token configured. You are expected to be aware of the risks now. If this is \
-			 not the desired behaviour, please set a registration token."
+			 `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` and \
+			 `allow_registration` to true without a registration token configured. You are \
+			 expected to be aware of the risks now. If this is not the desired behaviour, \
+			 please set a registration token."
 		);
 	}
 
 	if config.allow_outgoing_presence && !config.allow_local_presence {
 		return Err!(Config(
 			"allow_local_presence",
-			"Outgoing presence requires allowing local presence. Please enable 'allow_local_presence' or disable \
-			 outgoing presence."
+			"Outgoing presence requires allowing local presence. Please enable \
+			 'allow_local_presence' or disable outgoing presence."
 		));
 	}
 
@@ -180,9 +196,10 @@ pub fn check(config: &Config) -> Result<()> {
 		.contains(&"*".to_owned())
 	{
 		warn!(
-			"All URLs are allowed for URL previews via setting \"url_preview_domain_contains_allowlist\" to \"*\". \
-			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
-			 doing this."
+			"All URLs are allowed for URL previews via setting \
+			 \"url_preview_domain_contains_allowlist\" to \"*\". This opens up significant \
+			 attack surface to your server. You are expected to be aware of the risks by doing \
+			 this."
 		);
 	}
 	if config
@@ -190,9 +207,10 @@ pub fn check(config: &Config) -> Result<()> {
 		.contains(&"*".to_owned())
 	{
 		warn!(
-			"All URLs are allowed for URL previews via setting \"url_preview_domain_explicit_allowlist\" to \"*\". \
-			 This opens up significant attack surface to your server. You are expected to be aware of the risks by \
-			 doing this."
+			"All URLs are allowed for URL previews via setting \
+			 \"url_preview_domain_explicit_allowlist\" to \"*\". This opens up significant \
+			 attack surface to your server. You are expected to be aware of the risks by doing \
+			 this."
 		);
 	}
 	if config
@@ -200,9 +218,9 @@ pub fn check(config: &Config) -> Result<()> {
 		.contains(&"*".to_owned())
 	{
 		warn!(
-			"All URLs are allowed for URL previews via setting \"url_preview_url_contains_allowlist\" to \"*\". This \
-			 opens up significant attack surface to your server. You are expected to be aware of the risks by doing \
-			 this."
+			"All URLs are allowed for URL previews via setting \
+			 \"url_preview_url_contains_allowlist\" to \"*\". This opens up significant attack \
+			 surface to your server. You are expected to be aware of the risks by doing this."
 		);
 	}
 
@@ -260,7 +278,8 @@ pub(super) fn is_dual_listening(raw_config: &Figment) -> Result<()> {
 	let contains_unix_socket = raw_config.contains("unix_socket_path");
 	if contains_address && contains_unix_socket {
 		return Err!(
-			"TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify only one option."
+			"TOML keys \"address\" and \"unix_socket_path\" were both defined. Please specify \
+			 only one option."
 		);
 	}
 

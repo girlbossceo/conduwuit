@@ -2,16 +2,16 @@ use std::mem;
 
 use bytes::Bytes;
 use conduwuit::{
-	debug, debug_error, debug_warn, err, error::inspect_debug_log, implement, trace, utils::string::EMPTY, Err, Error,
-	Result,
+	debug, debug_error, debug_warn, err, error::inspect_debug_log, implement, trace,
+	utils::string::EMPTY, Err, Error, Result,
 };
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
 use reqwest::{Client, Method, Request, Response, Url};
 use ruma::{
 	api::{
-		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest,
-		SendAccessToken,
+		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion,
+		OutgoingRequest, SendAccessToken,
 	},
 	serde::Base64,
 	server_util::authorization::XMatrix,
@@ -25,7 +25,12 @@ use crate::{
 
 impl super::Service {
 	#[tracing::instrument(skip_all, level = "debug")]
-	pub async fn send<T>(&self, client: &Client, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+	pub async fn send<T>(
+		&self,
+		client: &Client,
+		dest: &ServerName,
+		request: T,
+	) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Send,
 	{
@@ -39,7 +44,9 @@ impl super::Service {
 			.forbidden_remote_server_names
 			.contains(dest)
 		{
-			return Err!(Request(Forbidden(debug_warn!("Federation with {dest} is not allowed."))));
+			return Err!(Request(Forbidden(debug_warn!(
+				"Federation with {dest} is not allowed."
+			))));
 		}
 
 		let actual = self.services.resolver.get_actual_dest(dest).await?;
@@ -49,7 +56,11 @@ impl super::Service {
 	}
 
 	async fn execute<T>(
-		&self, dest: &ServerName, actual: &ActualDest, request: Request, client: &Client,
+		&self,
+		dest: &ServerName,
+		actual: &ActualDest,
+		request: Request,
+		client: &Client,
 	) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Send,
@@ -59,8 +70,18 @@ impl super::Service {
 
 		debug!(?method, ?url, "Sending request");
 		match client.execute(request).await {
-			Ok(response) => handle_response::<T>(&self.services.resolver, dest, actual, &method, &url, response).await,
-			Err(error) => Err(handle_error(actual, &method, &url, error).expect_err("always returns error")),
+			| Ok(response) =>
+				handle_response::<T>(
+					&self.services.resolver,
+					dest,
+					actual,
+					&method,
+					&url,
+					response,
+				)
+				.await,
+			| Err(error) =>
+				Err(handle_error(actual, &method, &url, error).expect_err("always returns error")),
 		}
 	}
 
@@ -86,7 +107,11 @@ impl super::Service {
 }
 
 async fn handle_response<T>(
-	resolver: &resolver::Service, dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url,
+	resolver: &resolver::Service,
+	dest: &ServerName,
+	actual: &ActualDest,
+	method: &Method,
+	url: &Url,
 	response: Response,
 ) -> Result<T::IncomingResponse>
 where
@@ -96,21 +121,22 @@ where
 	let result = T::IncomingResponse::try_from_http_response(response);
 
 	if result.is_ok() && !actual.cached {
-		resolver.set_cached_destination(
-			dest.to_owned(),
-			CachedDest {
-				dest: actual.dest.clone(),
-				host: actual.host.clone(),
-				expire: CachedDest::default_expire(),
-			},
-		);
+		resolver.set_cached_destination(dest.to_owned(), CachedDest {
+			dest: actual.dest.clone(),
+			host: actual.host.clone(),
+			expire: CachedDest::default_expire(),
+		});
 	}
 
 	result.map_err(|e| err!(BadServerResponse("Server returned bad 200 response: {e:?}")))
 }
 
 async fn into_http_response(
-	dest: &ServerName, actual: &ActualDest, method: &Method, url: &Url, mut response: Response,
+	dest: &ServerName,
+	actual: &ActualDest,
+	method: &Method,
+	url: &Url,
+	mut response: Response,
 ) -> Result<http::Response<Bytes>> {
 	let status = response.status();
 	trace!(
@@ -146,13 +172,21 @@ async fn into_http_response(
 
 	debug!("Got {status:?} for {method} {url}");
 	if !status.is_success() {
-		return Err(Error::Federation(dest.to_owned(), RumaError::from_http_response(http_response)));
+		return Err(Error::Federation(
+			dest.to_owned(),
+			RumaError::from_http_response(http_response),
+		));
 	}
 
 	Ok(http_response)
 }
 
-fn handle_error(actual: &ActualDest, method: &Method, url: &Url, mut e: reqwest::Error) -> Result {
+fn handle_error(
+	actual: &ActualDest,
+	method: &Method,
+	url: &Url,
+	mut e: reqwest::Error,
+) -> Result {
 	if e.is_timeout() || e.is_connect() {
 		e = e.without_url();
 		debug_warn!("{e:?}");
@@ -186,7 +220,8 @@ fn sign_request(&self, http_request: &mut http::Request<Vec<u8>>, dest: &ServerN
 		.expect("http::Request missing path_and_query");
 
 	let mut req: Object = if !body.is_empty() {
-		let content: CanonicalJsonValue = serde_json::from_slice(body).expect("failed to serialize body");
+		let content: CanonicalJsonValue =
+			serde_json::from_slice(body).expect("failed to serialize body");
 
 		let authorization: [Member; 5] = [
 			("content".into(), content),

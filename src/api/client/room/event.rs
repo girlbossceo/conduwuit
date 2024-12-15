@@ -9,7 +9,8 @@ use crate::{client::ignored_filter, Ruma};
 ///
 /// Gets a single event.
 pub(crate) async fn get_room_event_route(
-	State(services): State<crate::State>, ref body: Ruma<get_room_event::v3::Request>,
+	State(services): State<crate::State>,
+	ref body: Ruma<get_room_event::v3::Request>,
 ) -> Result<get_room_event::v3::Response> {
 	let event = services
 		.rooms
@@ -47,7 +48,5 @@ pub(crate) async fn get_room_event_route(
 
 	let event = event.to_room_event();
 
-	Ok(get_room_event::v3::Response {
-		event,
-	})
+	Ok(get_room_event::v3::Response { event })
 }

@@ -44,7 +44,12 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Replaces the previous read receipt.
-	pub async fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) {
+	pub async fn readreceipt_update(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+		event: &ReceiptEvent,
+	) {
 		self.db.readreceipt_update(user_id, room_id, event).await;
 		self.services
 			.sending
@@ -54,23 +59,21 @@ impl Service {
 	}
 
 	/// Gets the latest private read receipt from the user in the room
-	pub async fn private_read_get(&self, room_id: &RoomId, user_id: &UserId) -> Result<Raw<AnySyncEphemeralRoomEvent>> {
-		let pdu_count = self
-			.private_read_get_count(room_id, user_id)
-			.map_err(|e| err!(Database(warn!("No private read receipt was set in {room_id}: {e}"))));
-		let shortroomid = self
-			.services
-			.short
-			.get_shortroomid(room_id)
-			.map_err(|e| err!(Database(warn!("Short room ID does not exist in database for {room_id}: {e}"))));
+	pub async fn private_read_get(
+		&self,
+		room_id: &RoomId,
+		user_id: &UserId,
+	) -> Result<Raw<AnySyncEphemeralRoomEvent>> {
+		let pdu_count = self.private_read_get_count(room_id, user_id).map_err(|e| {
+			err!(Database(warn!("No private read receipt was set in {room_id}: {e}")))
+		});
+		let shortroomid = self.services.short.get_shortroomid(room_id).map_err(|e| {
+			err!(Database(warn!("Short room ID does not exist in database for {room_id}: {e}")))
+		});
 		let (pdu_count, shortroomid) = try_join!(pdu_count, shortroomid)?;
 
 		let shorteventid = PduCount::Normal(pdu_count);
-		let pdu_id: RawPduId = PduId {
-			shortroomid,
-			shorteventid,
-		}
-		.into();
+		let pdu_id: RawPduId = PduId { shortroomid, shorteventid }.into();
 
 		let pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await?;
 
@@ -80,21 +83,17 @@ impl Service {
 			event_id,
 			BTreeMap::from_iter([(
 				ruma::events::receipt::ReceiptType::ReadPrivate,
-				BTreeMap::from_iter([(
-					user_id,
-					ruma::events::receipt::Receipt {
-						ts: None, // TODO: start storing the timestamp so we can return one
-						thread: ruma::events::receipt::ReceiptThread::Unthreaded,
-					},
-				)]),
+				BTreeMap::from_iter([(user_id, ruma::events::receipt::Receipt {
+					ts: None, // TODO: start storing the timestamp so we can return one
+					thread: ruma::events::receipt::ReceiptThread::Unthreaded,
+				})]),
 			)]),
 		)]);
 		let receipt_event_content = ReceiptEventContent(content);
-		let receipt_sync_event = SyncEphemeralRoomEvent {
-			content: receipt_event_content,
-		};
+		let receipt_sync_event = SyncEphemeralRoomEvent { content: receipt_event_content };
 
-		let event = serde_json::value::to_raw_value(&receipt_sync_event).expect("receipt created manually");
+		let event = serde_json::value::to_raw_value(&receipt_sync_event)
+			.expect("receipt created manually");
 
 		Ok(Raw::from_json(event))
 	}
@@ -104,7 +103,9 @@ impl Service {
 	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn readreceipts_since<'a>(
-		&'a self, room_id: &'a RoomId, since: u64,
+		&'a self,
+		room_id: &'a RoomId,
+		since: u64,
 	) -> impl Stream<Item = ReceiptItem<'_>> + Send + 'a {
 		self.db.readreceipts_since(room_id, since)
 	}
@@ -119,7 +120,11 @@ impl Service {
 	/// Returns the private read marker PDU count.
 	#[inline]
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn private_read_get_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
+	pub async fn private_read_get_count(
+		&self,
+		room_id: &RoomId,
+		user_id: &UserId,
+	) -> Result<u64> {
 		self.db.private_read_get_count(room_id, user_id).await
 	}
 
@@ -137,7 +142,9 @@ where
 {
 	let mut json = BTreeMap::new();
 	for value in receipts {
-		let receipt = serde_json::from_str::<SyncEphemeralRoomEvent<ReceiptEventContent>>(value.json().get());
+		let receipt = serde_json::from_str::<SyncEphemeralRoomEvent<ReceiptEventContent>>(
+			value.json().get(),
+		);
 		if let Ok(value) = receipt {
 			for (event, receipt) in value.content {
 				json.insert(event, receipt);
@@ -149,9 +156,7 @@ where
 	let content = ReceiptEventContent::from_iter(json);
 
 	Raw::from_json(
-		serde_json::value::to_raw_value(&SyncEphemeralRoomEvent {
-			content,
-		})
-		.expect("received valid json"),
+		serde_json::value::to_raw_value(&SyncEphemeralRoomEvent { content })
+			.expect("received valid json"),
 	)
 }

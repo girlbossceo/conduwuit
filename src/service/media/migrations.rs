@@ -83,7 +83,8 @@ pub(crate) async fn checkup_sha256_media(services: &Services) -> Result<()> {
 	for key in media.db.get_all_media_keys().await {
 		let new_path = media.get_media_file_sha256(&key).into_os_string();
 		let old_path = media.get_media_file_b64(&key).into_os_string();
-		if let Err(e) = handle_media_check(&dbs, config, &files, &key, &new_path, &old_path).await {
+		if let Err(e) = handle_media_check(&dbs, config, &files, &key, &new_path, &old_path).await
+		{
 			error!(
 				media_id = ?encode_key(&key), ?new_path, ?old_path,
 				"Failed to resolve media check failure: {e}"
@@ -100,8 +101,12 @@ pub(crate) async fn checkup_sha256_media(services: &Services) -> Result<()> {
 }
 
 async fn handle_media_check(
-	dbs: &(&Arc<database::Map>, &Arc<database::Map>), config: &Config, files: &HashSet<OsString>, key: &[u8],
-	new_path: &OsStr, old_path: &OsStr,
+	dbs: &(&Arc<database::Map>, &Arc<database::Map>),
+	config: &Config,
+	files: &HashSet<OsString>,
+	key: &[u8],
+	new_path: &OsStr,
+	old_path: &OsStr,
 ) -> Result<()> {
 	use crate::media::encode_key;
 

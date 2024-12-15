@@ -13,8 +13,8 @@ pub fn remove_transaction_id(&mut self) -> Result {
 		return Ok(());
 	};
 
-	let mut unsigned: BTreeMap<String, Box<RawJsonValue>> =
-		serde_json::from_str(unsigned.get()).map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?;
+	let mut unsigned: BTreeMap<String, Box<RawJsonValue>> = serde_json::from_str(unsigned.get())
+		.map_err(|e| err!(Database("Invalid unsigned in pdu event: {e}")))?;
 
 	unsigned.remove("transaction_id");
 	self.unsigned = to_raw_value(&unsigned)
@@ -97,7 +97,9 @@ where
 
 #[implement(Pdu)]
 #[must_use]
-pub fn get_unsigned_as_value(&self) -> JsonValue { self.get_unsigned::<JsonValue>().unwrap_or_default() }
+pub fn get_unsigned_as_value(&self) -> JsonValue {
+	self.get_unsigned::<JsonValue>().unwrap_or_default()
+}
 
 #[implement(Pdu)]
 pub fn get_unsigned<T>(&self) -> Result<JsonValue> {

@@ -119,7 +119,8 @@ impl Service {
 		self.services
 			.admin
 			.send_message(RoomMessageEventContent::text_markdown(format!(
-				"### the following is a message from the conduwuit puppy\n\nit was sent on `{}`:\n\n@room: {}",
+				"### the following is a message from the conduwuit puppy\n\nit was sent on \
+				 `{}`:\n\n@room: {}",
 				update.date, update.message
 			)))
 			.await
@@ -127,7 +128,9 @@ impl Service {
 	}
 
 	#[inline]
-	pub fn update_check_for_updates_id(&self, id: u64) { self.db.raw_put(LAST_CHECK_FOR_UPDATES_COUNT, id); }
+	pub fn update_check_for_updates_id(&self, id: u64) {
+		self.db.raw_put(LAST_CHECK_FOR_UPDATES_COUNT, id);
+	}
 
 	pub async fn last_check_for_updates_id(&self) -> u64 {
 		self.db

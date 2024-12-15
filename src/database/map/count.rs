@@ -26,7 +26,10 @@ where
 /// - From is a raw
 #[implement(super::Map)]
 #[inline]
-pub fn raw_count_from<'a, P>(self: &'a Arc<Self>, from: &'a P) -> impl Future<Output = usize> + Send + 'a
+pub fn raw_count_from<'a, P>(
+	self: &'a Arc<Self>,
+	from: &'a P,
+) -> impl Future<Output = usize> + Send + 'a
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync + 'a,
 {
@@ -38,7 +41,10 @@ where
 /// - Prefix is structured key
 #[implement(super::Map)]
 #[inline]
-pub fn count_prefix<'a, P>(self: &'a Arc<Self>, prefix: &P) -> impl Future<Output = usize> + Send + 'a
+pub fn count_prefix<'a, P>(
+	self: &'a Arc<Self>,
+	prefix: &P,
+) -> impl Future<Output = usize> + Send + 'a
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {
@@ -50,7 +56,10 @@ where
 /// - Prefix is raw
 #[implement(super::Map)]
 #[inline]
-pub fn raw_count_prefix<'a, P>(self: &'a Arc<Self>, prefix: &'a P) -> impl Future<Output = usize> + Send + 'a
+pub fn raw_count_prefix<'a, P>(
+	self: &'a Arc<Self>,
+	prefix: &'a P,
+) -> impl Future<Output = usize> + Send + 'a
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync + 'a,
 {

@@ -32,10 +32,14 @@ pub fn set_public(&self, room_id: &RoomId) { self.db.publicroomids.insert(room_i
 pub fn set_not_public(&self, room_id: &RoomId) { self.db.publicroomids.remove(room_id); }
 
 #[implement(Service)]
-pub fn public_rooms(&self) -> impl Stream<Item = &RoomId> + Send { self.db.publicroomids.keys().ignore_err() }
+pub fn public_rooms(&self) -> impl Stream<Item = &RoomId> + Send {
+	self.db.publicroomids.keys().ignore_err()
+}
 
 #[implement(Service)]
-pub async fn is_public_room(&self, room_id: &RoomId) -> bool { self.visibility(room_id).await == Visibility::Public }
+pub async fn is_public_room(&self, room_id: &RoomId) -> bool {
+	self.visibility(room_id).await == Visibility::Public
+}
 
 #[implement(Service)]
 pub async fn visibility(&self, room_id: &RoomId) -> Visibility {

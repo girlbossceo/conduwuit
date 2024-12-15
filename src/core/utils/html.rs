@@ -16,12 +16,12 @@ impl fmt::Display for Escape<'_> {
 		let mut last = 0;
 		for (i, ch) in s.char_indices() {
 			let s = match ch {
-				'>' => "&gt;",
-				'<' => "&lt;",
-				'&' => "&amp;",
-				'\'' => "&#39;",
-				'"' => "&quot;",
-				_ => continue,
+				| '>' => "&gt;",
+				| '<' => "&lt;",
+				| '&' => "&amp;",
+				| '\'' => "&#39;",
+				| '"' => "&quot;",
+				| _ => continue,
 			};
 			fmt.write_str(&pile_o_bits[last..i])?;
 			fmt.write_str(s)?;

@@ -22,20 +22,16 @@ pub(crate) enum ResolverCommand {
 }
 
 #[admin_command]
-async fn destinations_cache(&self, server_name: Option<OwnedServerName>) -> Result<RoomMessageEventContent> {
+async fn destinations_cache(
+	&self,
+	server_name: Option<OwnedServerName>,
+) -> Result<RoomMessageEventContent> {
 	use service::resolver::cache::CachedDest;
 
 	let mut out = String::new();
 	writeln!(out, "| Server Name | Destination | Hostname | Expires |")?;
 	writeln!(out, "| ----------- | ----------- | -------- | ------- |")?;
-	let row = |(
-		name,
-		&CachedDest {
-			ref dest,
-			ref host,
-			expire,
-		},
-	)| {
+	let row = |(name, &CachedDest { ref dest, ref host, expire })| {
 		let expire = time::format(expire, "%+");
 		writeln!(out, "| {name} | {dest} | {host} | {expire} |").expect("wrote line");
 	};
@@ -64,14 +60,7 @@ async fn overrides_cache(&self, server_name: Option<String>) -> Result<RoomMessa
 	let mut out = String::new();
 	writeln!(out, "| Server Name | IP  | Port | Expires |")?;
 	writeln!(out, "| ----------- | --- | ----:| ------- |")?;
-	let row = |(
-		name,
-		&CachedOverride {
-			ref ips,
-			port,
-			expire,
-		},
-	)| {
+	let row = |(name, &CachedOverride { ref ips, port, expire })| {
 		let expire = time::format(expire, "%+");
 		writeln!(out, "| {name} | {ips:?} | {port} | {expire} |").expect("wrote line");
 	};

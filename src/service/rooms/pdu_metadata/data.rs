@@ -56,26 +56,27 @@ impl Data {
 	}
 
 	pub(super) fn get_relations<'a>(
-		&'a self, user_id: &'a UserId, shortroomid: ShortRoomId, target: ShortEventId, from: PduCount, dir: Direction,
+		&'a self,
+		user_id: &'a UserId,
+		shortroomid: ShortRoomId,
+		target: ShortEventId,
+		from: PduCount,
+		dir: Direction,
 	) -> impl Stream<Item = PdusIterItem> + Send + '_ {
 		let mut current = ArrayVec::<u8, 16>::new();
 		current.extend(target.to_be_bytes());
 		current.extend(from.saturating_inc(dir).into_unsigned().to_be_bytes());
 		let current = current.as_slice();
 		match dir {
-			Direction::Forward => self.tofrom_relation.raw_keys_from(current).boxed(),
-			Direction::Backward => self.tofrom_relation.rev_raw_keys_from(current).boxed(),
+			| Direction::Forward => self.tofrom_relation.raw_keys_from(current).boxed(),
+			| Direction::Backward => self.tofrom_relation.rev_raw_keys_from(current).boxed(),
 		}
 		.ignore_err()
 		.ready_take_while(move |key| key.starts_with(&target.to_be_bytes()))
 		.map(|to_from| u64_from_u8(&to_from[8..16]))
 		.map(PduCount::from_unsigned)
 		.wide_filter_map(move |shorteventid| async move {
-			let pdu_id: RawPduId = PduId {
-				shortroomid,
-				shorteventid,
-			}
-			.into();
+			let pdu_id: RawPduId = PduId { shortroomid, shorteventid }.into();
 
 			let mut pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await.ok()?;
 
@@ -99,7 +100,9 @@ impl Data {
 		self.referencedevents.qry(&key).await.is_ok()
 	}
 
-	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) { self.softfailedeventids.insert(event_id, []); }
+	pub(super) fn mark_event_soft_failed(&self, event_id: &EventId) {
+		self.softfailedeventids.insert(event_id, []);
+	}
 
 	pub(super) async fn is_event_soft_failed(&self, event_id: &EventId) -> bool {
 		self.softfailedeventids.get(event_id).await.is_ok()

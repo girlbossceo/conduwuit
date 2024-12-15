@@ -34,7 +34,11 @@ impl Data {
 	}
 
 	pub(super) fn create_file_metadata(
-		&self, mxc: &Mxc<'_>, user: Option<&UserId>, dim: &Dim, content_disposition: Option<&ContentDisposition>,
+		&self,
+		mxc: &Mxc<'_>,
+		user: Option<&UserId>,
+		dim: &Dim,
+		content_disposition: Option<&ContentDisposition>,
 		content_type: Option<&str>,
 	) -> Result<Vec<u8>> {
 		let dim: &[u32] = &[dim.width, dim.height];
@@ -63,7 +67,10 @@ impl Data {
 			.stream_prefix_raw(&prefix)
 			.ignore_err()
 			.ready_for_each(|(key, val)| {
-				debug_assert!(key.starts_with(mxc.to_string().as_bytes()), "key should start with the mxc");
+				debug_assert!(
+					key.starts_with(mxc.to_string().as_bytes()),
+					"key should start with the mxc"
+				);
 
 				let user = str_from_bytes(val).unwrap_or_default();
 				debug_info!("Deleting key {key:?} which was uploaded by user {user}");
@@ -95,7 +102,11 @@ impl Data {
 		Ok(keys)
 	}
 
-	pub(super) async fn search_file_metadata(&self, mxc: &Mxc<'_>, dim: &Dim) -> Result<Metadata> {
+	pub(super) async fn search_file_metadata(
+		&self,
+		mxc: &Mxc<'_>,
+		dim: &Dim,
+	) -> Result<Metadata> {
 		let dim: &[u32] = &[dim.width, dim.height];
 		let prefix = (mxc, dim, Interfix);
 
@@ -113,8 +124,9 @@ impl Data {
 		let content_type = parts
 			.next()
 			.map(|bytes| {
-				string_from_bytes(bytes)
-					.map_err(|_| Error::bad_database("Content type in mediaid_file is invalid unicode."))
+				string_from_bytes(bytes).map_err(|_| {
+					Error::bad_database("Content type in mediaid_file is invalid unicode.")
+				})
 			})
 			.transpose()?;
 
@@ -127,16 +139,16 @@ impl Data {
 		} else {
 			Some(
 				string_from_bytes(content_disposition_bytes)
-					.map_err(|_| Error::bad_database("Content Disposition in mediaid_file is invalid unicode."))?
+					.map_err(|_| {
+						Error::bad_database(
+							"Content Disposition in mediaid_file is invalid unicode.",
+						)
+					})?
 					.parse()?,
 			)
 		};
 
-		Ok(Metadata {
-			content_disposition,
-			content_type,
-			key,
-		})
+		Ok(Metadata { content_disposition, content_type, key })
 	}
 
 	/// Gets all the MXCs associated with a user
@@ -144,7 +156,9 @@ impl Data {
 		self.mediaid_user
 			.stream()
 			.ignore_err()
-			.ready_filter_map(|(key, user): (&str, &UserId)| (user == user_id).then(|| key.into()))
+			.ready_filter_map(|(key, user): (&str, &UserId)| {
+				(user == user_id).then(|| key.into())
+			})
 			.collect()
 			.await
 	}
@@ -166,7 +180,12 @@ impl Data {
 		Ok(())
 	}
 
-	pub(super) fn set_url_preview(&self, url: &str, data: &UrlPreviewData, timestamp: Duration) -> Result<()> {
+	pub(super) fn set_url_preview(
+		&self,
+		url: &str,
+		data: &UrlPreviewData,
+		timestamp: Duration,
+	) -> Result<()> {
 		let mut value = Vec::<u8>::new();
 		value.extend_from_slice(&timestamp.as_secs().to_be_bytes());
 		value.push(0xFF);
@@ -218,43 +237,43 @@ impl Data {
 			.next()
 			.and_then(|b| String::from_utf8(b.to_vec()).ok())
 		{
-			Some(s) if s.is_empty() => None,
-			x => x,
+			| Some(s) if s.is_empty() => None,
+			| x => x,
 		};
 		let description = match values
 			.next()
 			.and_then(|b| String::from_utf8(b.to_vec()).ok())
 		{
-			Some(s) if s.is_empty() => None,
-			x => x,
+			| Some(s) if s.is_empty() => None,
+			| x => x,
 		};
 		let image = match values
 			.next()
 			.and_then(|b| String::from_utf8(b.to_vec()).ok())
 		{
-			Some(s) if s.is_empty() => None,
-			x => x,
+			| Some(s) if s.is_empty() => None,
+			| x => x,
 		};
 		let image_size = match values
 			.next()
 			.map(|b| usize::from_be_bytes(b.try_into().unwrap_or_default()))
 		{
-			Some(0) => None,
-			x => x,
+			| Some(0) => None,
+			| x => x,
 		};
 		let image_width = match values
 			.next()
 			.map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default()))
 		{
-			Some(0) => None,
-			x => x,
+			| Some(0) => None,
+			| x => x,
 		};
 		let image_height = match values
 			.next()
 			.map(|b| u32::from_be_bytes(b.try_into().unwrap_or_default()))
 		{
-			Some(0) => None,
-			x => x,
+			| Some(0) => None,
+			| x => x,
 		};
 
 		Ok(UrlPreviewData {

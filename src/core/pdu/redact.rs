@@ -22,8 +22,8 @@ struct ExtractRedactedBecause {
 pub fn redact(&mut self, room_version_id: &RoomVersionId, reason: &Self) -> Result {
 	self.unsigned = None;
 
-	let mut content =
-		serde_json::from_str(self.content.get()).map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
+	let mut content = serde_json::from_str(self.content.get())
+		.map_err(|_| Error::bad_database("PDU in db has invalid content."))?;
 
 	redact_content_in_place(&mut content, room_version_id, self.kind.to_string())
 		.map_err(|e| Error::Redaction(self.sender.server_name().to_owned(), e))?;
@@ -75,7 +75,9 @@ pub fn is_redacted(&self) -> bool {
 #[must_use]
 pub fn copy_redacts(&self) -> (Option<Arc<EventId>>, Box<RawJsonValue>) {
 	if self.kind == TimelineEventType::RoomRedaction {
-		if let Ok(mut content) = serde_json::from_str::<RoomRedactionEventContent>(self.content.get()) {
+		if let Ok(mut content) =
+			serde_json::from_str::<RoomRedactionEventContent>(self.content.get())
+		{
 			if let Some(redacts) = content.redacts {
 				return (Some(redacts.into()), self.content.clone());
 			} else if let Some(redacts) = self.redacts.clone() {

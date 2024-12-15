@@ -21,11 +21,14 @@ pub(crate) enum GlobalsCommand {
 }
 
 /// All the getters and iterators from src/database/key_value/globals.rs
-pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(
+	subcommand: GlobalsCommand,
+	context: &Command<'_>,
+) -> Result<RoomMessageEventContent> {
 	let services = context.services;
 
 	match subcommand {
-		GlobalsCommand::DatabaseVersion => {
+		| GlobalsCommand::DatabaseVersion => {
 			let timer = tokio::time::Instant::now();
 			let results = services.globals.db.database_version().await;
 			let query_time = timer.elapsed();
@@ -34,7 +37,7 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		GlobalsCommand::CurrentCount => {
+		| GlobalsCommand::CurrentCount => {
 			let timer = tokio::time::Instant::now();
 			let results = services.globals.db.current_count();
 			let query_time = timer.elapsed();
@@ -43,7 +46,7 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		GlobalsCommand::LastCheckForUpdatesId => {
+		| GlobalsCommand::LastCheckForUpdatesId => {
 			let timer = tokio::time::Instant::now();
 			let results = services.updates.last_check_for_updates_id().await;
 			let query_time = timer.elapsed();
@@ -52,9 +55,7 @@ pub(super) async fn process(subcommand: GlobalsCommand, context: &Command<'_>) -
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-		GlobalsCommand::SigningKeysFor {
-			origin,
-		} => {
+		| GlobalsCommand::SigningKeysFor { origin } => {
 			let timer = tokio::time::Instant::now();
 			let results = services.server_keys.verify_keys_for(&origin).await;
 			let query_time = timer.elapsed();

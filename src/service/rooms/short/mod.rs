@@ -60,7 +60,10 @@ pub async fn get_or_create_shorteventid(&self, event_id: &EventId) -> ShortEvent
 }
 
 #[implement(Service)]
-pub fn multi_get_or_create_shorteventid<'a, I>(&'a self, event_ids: I) -> impl Stream<Item = ShortEventId> + Send + '_
+pub fn multi_get_or_create_shorteventid<'a, I>(
+	&'a self,
+	event_ids: I,
+) -> impl Stream<Item = ShortEventId> + Send + '_
 where
 	I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 	<I as Iterator>::Item: AsRef<[u8]> + Send + Sync + 'a,
@@ -72,8 +75,8 @@ where
 			event_ids.next().map(|event_id| (event_id, result))
 		})
 		.map(|(event_id, result)| match result {
-			Ok(ref short) => utils::u64_from_u8(short),
-			Err(_) => self.create_shorteventid(event_id),
+			| Ok(ref short) => utils::u64_from_u8(short),
+			| Err(_) => self.create_shorteventid(event_id),
 		})
 }
 
@@ -104,7 +107,11 @@ pub async fn get_shorteventid(&self, event_id: &EventId) -> Result<ShortEventId>
 }
 
 #[implement(Service)]
-pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> ShortStateKey {
+pub async fn get_or_create_shortstatekey(
+	&self,
+	event_type: &StateEventType,
+	state_key: &str,
+) -> ShortStateKey {
 	const BUFSIZE: usize = size_of::<ShortStateKey>();
 
 	if let Ok(shortstatekey) = self.get_shortstatekey(event_type, state_key).await {
@@ -127,7 +134,11 @@ pub async fn get_or_create_shortstatekey(&self, event_type: &StateEventType, sta
 }
 
 #[implement(Service)]
-pub async fn get_shortstatekey(&self, event_type: &StateEventType, state_key: &str) -> Result<ShortStateKey> {
+pub async fn get_shortstatekey(
+	&self,
+	event_type: &StateEventType,
+	state_key: &str,
+) -> Result<ShortStateKey> {
 	let key = (event_type, state_key);
 	self.db
 		.statekey_shortstatekey
@@ -153,7 +164,10 @@ where
 }
 
 #[implement(Service)]
-pub fn multi_get_eventid_from_short<'a, Id, I>(&'a self, shorteventid: I) -> impl Stream<Item = Result<Id>> + Send + 'a
+pub fn multi_get_eventid_from_short<'a, Id, I>(
+	&'a self,
+	shorteventid: I,
+) -> impl Stream<Item = Result<Id>> + Send + 'a
 where
 	I: Iterator<Item = &'a ShortEventId> + Send + 'a,
 	Id: for<'de> Deserialize<'de> + Sized + ToOwned + 'a,
@@ -168,7 +182,10 @@ where
 }
 
 #[implement(Service)]
-pub async fn get_statekey_from_short(&self, shortstatekey: ShortStateKey) -> Result<(StateEventType, String)> {
+pub async fn get_statekey_from_short(
+	&self,
+	shortstatekey: ShortStateKey,
+) -> Result<(StateEventType, String)> {
 	const BUFSIZE: usize = size_of::<ShortStateKey>();
 
 	self.db

@@ -13,7 +13,8 @@ use crate::{service::rooms::spaces::PaginationToken, Error, Result, Ruma};
 /// Paginates over the space tree in a depth-first manner to locate child rooms
 /// of a given space.
 pub(crate) async fn get_hierarchy_route(
-	State(services): State<crate::State>, body: Ruma<get_hierarchy::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_hierarchy::v1::Request>,
 ) -> Result<get_hierarchy::v1::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 

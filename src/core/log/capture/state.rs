@@ -13,11 +13,7 @@ impl Default for State {
 
 impl State {
 	#[must_use]
-	pub fn new() -> Self {
-		Self {
-			active: RwLock::new(Vec::new()),
-		}
-	}
+	pub fn new() -> Self { Self { active: RwLock::new(Vec::new()) } }
 
 	pub(super) fn add(&self, capture: &Arc<Capture>) {
 		self.active

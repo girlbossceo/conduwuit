@@ -32,7 +32,9 @@ where
 /// Intersection of sets
 ///
 /// Outputs the set of elements common to all input sets. Inputs must be sorted.
-pub fn intersection_sorted<Item, Iter, Iters>(mut input: Iters) -> impl Iterator<Item = Item> + Send
+pub fn intersection_sorted<Item, Iter, Iters>(
+	mut input: Iters,
+) -> impl Iterator<Item = Item> + Send
 where
 	Iters: Iterator<Item = Iter> + Clone + Send,
 	Iter: Iterator<Item = Item> + Send,

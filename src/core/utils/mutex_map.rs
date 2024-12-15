@@ -70,10 +70,9 @@ where
 impl<Key, Val> Drop for Guard<Key, Val> {
 	fn drop(&mut self) {
 		if Arc::strong_count(Omg::mutex(&self.val)) <= 2 {
-			self.map
-				.lock()
-				.expect("locked")
-				.retain(|_, val| !Arc::ptr_eq(val, Omg::mutex(&self.val)) || Arc::strong_count(val) > 2);
+			self.map.lock().expect("locked").retain(|_, val| {
+				!Arc::ptr_eq(val, Omg::mutex(&self.val)) || Arc::strong_count(val) > 2
+			});
 		}
 	}
 }

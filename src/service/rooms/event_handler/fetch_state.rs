@@ -6,7 +6,8 @@ use std::{
 use conduwuit::{debug, implement, warn, Err, Error, PduEvent, Result};
 use futures::FutureExt;
 use ruma::{
-	api::federation::event::get_room_state_ids, events::StateEventType, EventId, RoomId, RoomVersionId, ServerName,
+	api::federation::event::get_room_state_ids, events::StateEventType, EventId, RoomId,
+	RoomVersionId, ServerName,
 };
 
 /// Call /state_ids to find out what the state at this pdu is. We trust the
@@ -15,20 +16,21 @@ use ruma::{
 #[implement(super::Service)]
 #[tracing::instrument(skip(self, create_event, room_version_id))]
 pub(super) async fn fetch_state(
-	&self, origin: &ServerName, create_event: &PduEvent, room_id: &RoomId, room_version_id: &RoomVersionId,
+	&self,
+	origin: &ServerName,
+	create_event: &PduEvent,
+	room_id: &RoomId,
+	room_version_id: &RoomVersionId,
 	event_id: &EventId,
 ) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
 	debug!("Fetching state ids");
 	let res = self
 		.services
 		.sending
-		.send_federation_request(
-			origin,
-			get_room_state_ids::v1::Request {
-				room_id: room_id.to_owned(),
-				event_id: (*event_id).to_owned(),
-			},
-		)
+		.send_federation_request(origin, get_room_state_ids::v1::Request {
+			room_id: room_id.to_owned(),
+			event_id: (*event_id).to_owned(),
+		})
 		.await
 		.inspect_err(|e| warn!("Fetching state for event failed: {e}"))?;
 
@@ -58,14 +60,13 @@ pub(super) async fn fetch_state(
 			.await;
 
 		match state.entry(shortstatekey) {
-			hash_map::Entry::Vacant(v) => {
+			| hash_map::Entry::Vacant(v) => {
 				v.insert(Arc::from(&*pdu.event_id));
 			},
-			hash_map::Entry::Occupied(_) => {
+			| hash_map::Entry::Occupied(_) =>
 				return Err(Error::bad_database(
 					"State event's type and state_key combination exists multiple times.",
-				))
-			},
+				)),
 		}
 	}
 

@@ -40,7 +40,12 @@ impl Data {
 		}
 	}
 
-	pub(super) async fn readreceipt_update(&self, user_id: &UserId, room_id: &RoomId, event: &ReceiptEvent) {
+	pub(super) async fn readreceipt_update(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+		event: &ReceiptEvent,
+	) {
 		// Remove old entry
 		let last_possible_key = (room_id, u64::MAX);
 		self.readreceiptid_readreceipt
@@ -57,7 +62,9 @@ impl Data {
 	}
 
 	pub(super) fn readreceipts_since<'a>(
-		&'a self, room_id: &'a RoomId, since: u64,
+		&'a self,
+		room_id: &'a RoomId,
+		since: u64,
 	) -> impl Stream<Item = ReceiptItem<'_>> + Send + 'a {
 		type Key<'a> = (&'a RoomId, u64, &'a UserId);
 		type KeyVal<'a> = (Key<'a>, CanonicalJsonObject);
@@ -87,12 +94,20 @@ impl Data {
 		self.roomuserid_lastprivatereadupdate.put(key, next_count);
 	}
 
-	pub(super) async fn private_read_get_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
+	pub(super) async fn private_read_get_count(
+		&self,
+		room_id: &RoomId,
+		user_id: &UserId,
+	) -> Result<u64> {
 		let key = (room_id, user_id);
 		self.roomuserid_privateread.qry(&key).await.deserialized()
 	}
 
-	pub(super) async fn last_privateread_update(&self, user_id: &UserId, room_id: &RoomId) -> u64 {
+	pub(super) async fn last_privateread_update(
+		&self,
+		user_id: &UserId,
+		room_id: &RoomId,
+	) -> u64 {
 		let key = (room_id, user_id);
 		self.roomuserid_lastprivatereadupdate
 			.qry(&key)

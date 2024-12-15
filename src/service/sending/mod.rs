@@ -25,8 +25,8 @@ pub use self::{
 	sender::{EDU_LIMIT, PDU_LIMIT},
 };
 use crate::{
-	account_data, client, globals, presence, pusher, resolver, rooms, rooms::timeline::RawPduId, server_keys, users,
-	Dep,
+	account_data, client, globals, presence, pusher, resolver, rooms, rooms::timeline::RawPduId,
+	server_keys, users, Dep,
 };
 
 pub struct Service {
@@ -156,18 +156,16 @@ impl Service {
 	{
 		let _cork = self.db.db.cork();
 		let requests = servers
-			.map(|server| (Destination::Normal(server.into()), SendingEvent::Pdu(pdu_id.to_owned())))
+			.map(|server| {
+				(Destination::Normal(server.into()), SendingEvent::Pdu(pdu_id.to_owned()))
+			})
 			.collect::<Vec<_>>()
 			.await;
 
 		let keys = self.db.queue_requests(requests.iter().map(|(o, e)| (e, o)));
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
-			self.dispatch(Msg {
-				dest,
-				event,
-				queue_id,
-			})?;
+			self.dispatch(Msg { dest, event, queue_id })?;
 		}
 
 		Ok(())
@@ -204,18 +202,16 @@ impl Service {
 	{
 		let _cork = self.db.db.cork();
 		let requests = servers
-			.map(|server| (Destination::Normal(server.to_owned()), SendingEvent::Edu(serialized.clone())))
+			.map(|server| {
+				(Destination::Normal(server.to_owned()), SendingEvent::Edu(serialized.clone()))
+			})
 			.collect::<Vec<_>>()
 			.await;
 
 		let keys = self.db.queue_requests(requests.iter().map(|(o, e)| (e, o)));
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
-			self.dispatch(Msg {
-				dest,
-				event,
-				queue_id,
-			})?;
+			self.dispatch(Msg { dest, event, queue_id })?;
 		}
 
 		Ok(())
@@ -253,7 +249,11 @@ impl Service {
 
 	/// Sends a request to a federation server
 	#[tracing::instrument(skip_all, name = "request")]
-	pub async fn send_federation_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+	pub async fn send_federation_request<T>(
+		&self,
+		dest: &ServerName,
+		request: T,
+	) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
@@ -263,7 +263,11 @@ impl Service {
 
 	/// Like send_federation_request() but with a very large timeout
 	#[tracing::instrument(skip_all, name = "synapse")]
-	pub async fn send_synapse_request<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+	pub async fn send_synapse_request<T>(
+		&self,
+		dest: &ServerName,
+		request: T,
+	) -> Result<T::IncomingResponse>
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
@@ -276,7 +280,9 @@ impl Service {
 	/// Only returns None if there is no url specified in the appservice
 	/// registration file
 	pub async fn send_appservice_request<T>(
-		&self, registration: Registration, request: T,
+		&self,
+		registration: Registration,
+		request: T,
 	) -> Result<Option<T::IncomingResponse>>
 	where
 		T: OutgoingRequest + Debug + Send,
@@ -291,24 +297,30 @@ impl Service {
 	/// key
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn cleanup_events(
-		&self, appservice_id: Option<&str>, user_id: Option<&UserId>, push_key: Option<&str>,
+		&self,
+		appservice_id: Option<&str>,
+		user_id: Option<&UserId>,
+		push_key: Option<&str>,
 	) -> Result {
 		match (appservice_id, user_id, push_key) {
-			(None, Some(user_id), Some(push_key)) => {
+			| (None, Some(user_id), Some(push_key)) => {
 				self.db
-					.delete_all_requests_for(&Destination::Push(user_id.to_owned(), push_key.to_owned()))
+					.delete_all_requests_for(&Destination::Push(
+						user_id.to_owned(),
+						push_key.to_owned(),
+					))
 					.await;
 
 				Ok(())
 			},
-			(Some(appservice_id), None, None) => {
+			| (Some(appservice_id), None, None) => {
 				self.db
 					.delete_all_requests_for(&Destination::Appservice(appservice_id.to_owned()))
 					.await;
 
 				Ok(())
 			},
-			_ => {
+			| _ => {
 				debug_warn!("cleanup_events called with too many or too few arguments");
 				Ok(())
 			},

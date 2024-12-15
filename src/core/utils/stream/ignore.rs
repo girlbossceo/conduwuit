@@ -23,8 +23,12 @@ where
 
 	#[cfg(not(debug_assertions))]
 	#[inline]
-	fn ignore_err(self: T) -> impl Stream<Item = Item> + Send + 'a { self.filter_map(|res| ready(res.ok())) }
+	fn ignore_err(self: T) -> impl Stream<Item = Item> + Send + 'a {
+		self.filter_map(|res| ready(res.ok()))
+	}
 
 	#[inline]
-	fn ignore_ok(self: T) -> impl Stream<Item = Error> + Send + 'a { self.filter_map(|res| ready(res.err())) }
+	fn ignore_ok(self: T) -> impl Stream<Item = Error> + Send + 'a {
+		self.filter_map(|res| ready(res.err()))
+	}
 }

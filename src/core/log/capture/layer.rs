@@ -22,11 +22,7 @@ type ScopeNames = ArrayVec<&'static str, 32>;
 
 impl Layer {
 	#[inline]
-	pub fn new(state: &Arc<State>) -> Self {
-		Self {
-			state: state.clone(),
-		}
-	}
+	pub fn new(state: &Arc<State>) -> Self { Self { state: state.clone() } }
 }
 
 impl fmt::Debug for Layer {
@@ -56,9 +52,7 @@ where
 	S: Subscriber + for<'a> LookupSpan<'a>,
 {
 	let names = ScopeNames::new();
-	let mut visitor = Visitor {
-		values: Values::new(),
-	};
+	let mut visitor = Visitor { values: Values::new() };
 	event.record(&mut visitor);
 
 	let mut closure = capture.closure.lock().expect("exclusive lock");
@@ -83,7 +77,7 @@ where
 		}
 	}
 
-	capture.filter.as_ref().map_or(true, |filter| {
+	capture.filter.as_ref().is_none_or(|filter| {
 		filter(Data {
 			layer,
 			event,
@@ -95,7 +89,9 @@ where
 }
 
 impl Visit for Visitor {
-	fn record_debug(&mut self, f: &Field, v: &dyn fmt::Debug) { self.values.push((f.name(), format!("{v:?}"))); }
+	fn record_debug(&mut self, f: &Field, v: &dyn fmt::Debug) {
+		self.values.push((f.name(), format!("{v:?}")));
+	}
 
 	fn record_str(&mut self, f: &Field, v: &str) { self.values.push((f.name(), v.to_owned())); }
 }

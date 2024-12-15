@@ -9,7 +9,8 @@ use crate::{util::map_err, Handle};
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
 pub fn aqry_batch<'b, 'a: 'b, const MAX: usize, I, K>(
-	self: &'a Arc<Self>, keys: I,
+	self: &'a Arc<Self>,
+	keys: I,
 ) -> impl Stream<Item = Result<Handle<'b>>> + Send + 'a
 where
 	I: Iterator<Item = &'b K> + Send + 'a,
@@ -22,7 +23,10 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
-pub fn get_batch<'a, I, K>(self: &'a Arc<Self>, keys: I) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a
+pub fn get_batch<'a, I, K>(
+	self: &'a Arc<Self>,
+	keys: I,
+) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a
 where
 	I: Iterator<Item = &'a K> + Debug + Send + 'a,
 	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,
@@ -34,7 +38,10 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(name = "batch_blocking", level = "trace", skip_all)]
-pub(crate) fn get_batch_blocking<'a, I, K>(&self, keys: I) -> impl Iterator<Item = Result<Handle<'_>>> + Send
+pub(crate) fn get_batch_blocking<'a, I, K>(
+	&self,
+	keys: I,
+) -> impl Iterator<Item = Result<Handle<'_>>> + Send
 where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Debug + Send,
 	K: AsRef<[u8]> + Debug + Send + ?Sized + Sync + 'a,

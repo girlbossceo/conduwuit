@@ -29,13 +29,12 @@ pub(super) async fn show_config(&self) -> Result<RoomMessageEventContent> {
 
 #[admin_command]
 pub(super) async fn list_features(
-	&self, available: bool, enabled: bool, comma: bool,
+	&self,
+	available: bool,
+	enabled: bool,
+	comma: bool,
 ) -> Result<RoomMessageEventContent> {
-	let delim = if comma {
-		","
-	} else {
-		" "
-	};
+	let delim = if comma { "," } else { " " };
 	if enabled && !available {
 		let features = info::rustc::features().join(delim);
 		let out = format!("`\n{features}\n`");
@@ -53,16 +52,8 @@ pub(super) async fn list_features(
 	let available = info::cargo::features();
 	for feature in available {
 		let active = enabled.contains(&feature.as_str());
-		let emoji = if active {
-			"✅"
-		} else {
-			"❌"
-		};
-		let remark = if active {
-			"[enabled]"
-		} else {
-			""
-		};
+		let emoji = if active { "✅" } else { "❌" };
+		let remark = if active { "[enabled]" } else { "" };
 		writeln!(features, "{emoji} {feature} {remark}")?;
 	}
 
@@ -73,7 +64,8 @@ pub(super) async fn list_features(
 pub(super) async fn memory_usage(&self) -> Result<RoomMessageEventContent> {
 	let services_usage = self.services.memory_usage().await?;
 	let database_usage = self.services.db.db.memory_usage()?;
-	let allocator_usage = conduwuit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
+	let allocator_usage =
+		conduwuit::alloc::memory_usage().map_or(String::new(), |s| format!("\nAllocator:\n{s}"));
 
 	Ok(RoomMessageEventContent::text_plain(format!(
 		"Services:\n{services_usage}\nDatabase:\n{database_usage}{allocator_usage}",
@@ -106,8 +98,8 @@ pub(super) async fn backup_database(&self) -> Result<RoomMessageEventContent> {
 		.server
 		.runtime()
 		.spawn_blocking(move || match globals.db.backup() {
-			Ok(()) => String::new(),
-			Err(e) => e.to_string(),
+			| Ok(()) => String::new(),
+			| Err(e) => e.to_string(),
 		})
 		.await?;
 
@@ -147,8 +139,8 @@ pub(super) async fn restart(&self, force: bool) -> Result<RoomMessageEventConten
 
 	if !force && current_exe_deleted() {
 		return Err!(
-			"The server cannot be restarted because the executable changed. If this is expected use --force to \
-			 override."
+			"The server cannot be restarted because the executable changed. If this is expected \
+			 use --force to override."
 		);
 	}
 

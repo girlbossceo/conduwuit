@@ -17,8 +17,13 @@ use super::{check_room_id, get_room_version_id, to_room_version};
 #[implement(super::Service)]
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_outlier_pdu<'a>(
-	&self, origin: &'a ServerName, create_event: &'a PduEvent, event_id: &'a EventId, room_id: &'a RoomId,
-	mut value: CanonicalJsonObject, auth_events_known: bool,
+	&self,
+	origin: &'a ServerName,
+	create_event: &'a PduEvent,
+	event_id: &'a EventId,
+	room_id: &'a RoomId,
+	mut value: CanonicalJsonObject,
+	auth_events_known: bool,
 ) -> Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)> {
 	// 1. Remove unsigned field
 	value.remove("unsigned");
@@ -34,8 +39,8 @@ pub(super) async fn handle_outlier_pdu<'a>(
 		.verify_event(&value, Some(&room_version_id))
 		.await
 	{
-		Ok(ruma::signatures::Verified::All) => value,
-		Ok(ruma::signatures::Verified::Signatures) => {
+		| Ok(ruma::signatures::Verified::All) => value,
+		| Ok(ruma::signatures::Verified::Signatures) => {
 			// Redact
 			debug_info!("Calculated hash does not match (redaction): {event_id}");
 			let Ok(obj) = ruma::canonical_json::redact(value, &room_version_id, None) else {
@@ -44,24 +49,26 @@ pub(super) async fn handle_outlier_pdu<'a>(
 
 			// Skip the PDU if it is redacted and we already have it as an outlier event
 			if self.services.timeline.pdu_exists(event_id).await {
-				return Err!(Request(InvalidParam("Event was redacted and we already knew about it")));
+				return Err!(Request(InvalidParam(
+					"Event was redacted and we already knew about it"
+				)));
 			}
 
 			obj
 		},
-		Err(e) => {
+		| Err(e) =>
 			return Err!(Request(InvalidParam(debug_error!(
 				"Signature verification failed for {event_id}: {e}"
-			))))
-		},
+			)))),
 	};
 
 	// Now that we have checked the signature and hashes we can add the eventID and
 	// convert to our PduEvent type
 	val.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.as_str().to_owned()));
-	let incoming_pdu =
-		serde_json::from_value::<PduEvent>(serde_json::to_value(&val).expect("CanonicalJsonObj is a valid JsonValue"))
-			.map_err(|_| Error::bad_database("Event is not a valid PDU."))?;
+	let incoming_pdu = serde_json::from_value::<PduEvent>(
+		serde_json::to_value(&val).expect("CanonicalJsonObj is a valid JsonValue"),
+	)
+	.map_err(|_| Error::bad_database("Event is not a valid PDU."))?;
 
 	check_room_id(room_id, &incoming_pdu)?;
 
@@ -108,10 +115,10 @@ pub(super) async fn handle_outlier_pdu<'a>(
 				.clone()
 				.expect("all auth events have state keys"),
 		)) {
-			hash_map::Entry::Vacant(v) => {
+			| hash_map::Entry::Vacant(v) => {
 				v.insert(auth_event);
 			},
-			hash_map::Entry::Occupied(_) => {
+			| hash_map::Entry::Occupied(_) => {
 				return Err(Error::BadRequest(
 					ErrorKind::InvalidParam,
 					"Auth event's type and state_key combination exists multiple times.",

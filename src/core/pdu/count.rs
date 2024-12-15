@@ -21,8 +21,8 @@ impl Count {
 	#[must_use]
 	pub fn from_signed(signed: i64) -> Self {
 		match signed {
-			i64::MIN..=0 => Self::Backfilled(signed),
-			_ => Self::Normal(signed as u64),
+			| i64::MIN..=0 => Self::Backfilled(signed),
+			| _ => Self::Normal(signed as u64),
 		}
 	}
 
@@ -31,8 +31,8 @@ impl Count {
 	pub fn into_unsigned(self) -> u64 {
 		self.debug_assert_valid();
 		match self {
-			Self::Normal(i) => i,
-			Self::Backfilled(i) => i as u64,
+			| Self::Normal(i) => i,
+			| Self::Backfilled(i) => i as u64,
 		}
 	}
 
@@ -41,8 +41,8 @@ impl Count {
 	pub fn into_signed(self) -> i64 {
 		self.debug_assert_valid();
 		match self {
-			Self::Normal(i) => i as i64,
-			Self::Backfilled(i) => i,
+			| Self::Normal(i) => i as i64,
+			| Self::Backfilled(i) => i,
 		}
 	}
 
@@ -51,27 +51,27 @@ impl Count {
 	pub fn into_normal(self) -> Self {
 		self.debug_assert_valid();
 		match self {
-			Self::Normal(i) => Self::Normal(i),
-			Self::Backfilled(_) => Self::Normal(0),
+			| Self::Normal(i) => Self::Normal(i),
+			| Self::Backfilled(_) => Self::Normal(0),
 		}
 	}
 
 	#[inline]
 	pub fn checked_inc(self, dir: Direction) -> Result<Self, Error> {
 		match dir {
-			Direction::Forward => self.checked_add(1),
-			Direction::Backward => self.checked_sub(1),
+			| Direction::Forward => self.checked_add(1),
+			| Direction::Backward => self.checked_sub(1),
 		}
 	}
 
 	#[inline]
 	pub fn checked_add(self, add: u64) -> Result<Self, Error> {
 		Ok(match self {
-			Self::Normal(i) => Self::Normal(
+			| Self::Normal(i) => Self::Normal(
 				i.checked_add(add)
 					.ok_or_else(|| err!(Arithmetic("Count::Normal overflow")))?,
 			),
-			Self::Backfilled(i) => Self::Backfilled(
+			| Self::Backfilled(i) => Self::Backfilled(
 				i.checked_add(add as i64)
 					.ok_or_else(|| err!(Arithmetic("Count::Backfilled overflow")))?,
 			),
@@ -81,11 +81,11 @@ impl Count {
 	#[inline]
 	pub fn checked_sub(self, sub: u64) -> Result<Self, Error> {
 		Ok(match self {
-			Self::Normal(i) => Self::Normal(
+			| Self::Normal(i) => Self::Normal(
 				i.checked_sub(sub)
 					.ok_or_else(|| err!(Arithmetic("Count::Normal underflow")))?,
 			),
-			Self::Backfilled(i) => Self::Backfilled(
+			| Self::Backfilled(i) => Self::Backfilled(
 				i.checked_sub(sub as i64)
 					.ok_or_else(|| err!(Arithmetic("Count::Backfilled underflow")))?,
 			),
@@ -96,8 +96,8 @@ impl Count {
 	#[must_use]
 	pub fn saturating_inc(self, dir: Direction) -> Self {
 		match dir {
-			Direction::Forward => self.saturating_add(1),
-			Direction::Backward => self.saturating_sub(1),
+			| Direction::Forward => self.saturating_add(1),
+			| Direction::Backward => self.saturating_sub(1),
 		}
 	}
 
@@ -105,8 +105,8 @@ impl Count {
 	#[must_use]
 	pub fn saturating_add(self, add: u64) -> Self {
 		match self {
-			Self::Normal(i) => Self::Normal(i.saturating_add(add)),
-			Self::Backfilled(i) => Self::Backfilled(i.saturating_add(add as i64)),
+			| Self::Normal(i) => Self::Normal(i.saturating_add(add)),
+			| Self::Backfilled(i) => Self::Backfilled(i.saturating_add(add as i64)),
 		}
 	}
 
@@ -114,8 +114,8 @@ impl Count {
 	#[must_use]
 	pub fn saturating_sub(self, sub: u64) -> Self {
 		match self {
-			Self::Normal(i) => Self::Normal(i.saturating_sub(sub)),
-			Self::Backfilled(i) => Self::Backfilled(i.saturating_sub(sub as i64)),
+			| Self::Normal(i) => Self::Normal(i.saturating_sub(sub)),
+			| Self::Backfilled(i) => Self::Backfilled(i.saturating_sub(sub as i64)),
 		}
 	}
 
@@ -139,8 +139,8 @@ impl Display for Count {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
 		self.debug_assert_valid();
 		match self {
-			Self::Normal(i) => write!(f, "{i}"),
-			Self::Backfilled(i) => write!(f, "{i}"),
+			| Self::Normal(i) => write!(f, "{i}"),
+			| Self::Backfilled(i) => write!(f, "{i}"),
 		}
 	}
 }

@@ -16,7 +16,9 @@ use conduwuit::{
 	warn, PduEvent, Result,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
-use futures::{future::join_all, pin_mut, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{
+	future::join_all, pin_mut, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
+};
 use ruma::{
 	events::{
 		room::{create::RoomCreateEventContent, member::RoomMemberEventContent},
@@ -70,8 +72,10 @@ impl crate::Service for Service {
 				short: args.depend::<rooms::short::Service>("rooms::short"),
 				spaces: args.depend::<rooms::spaces::Service>("rooms::spaces"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_compressor: args
+					.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 			},
 			db: Data {
@@ -100,7 +104,8 @@ impl Service {
 		shortstatehash: u64,
 		statediffnew: Arc<HashSet<CompressedStateEvent>>,
 		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
-		state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
+		state_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room state
+		                              * mutex */
 	) -> Result {
 		let event_ids = statediffnew
 			.iter()
@@ -120,8 +125,9 @@ impl Service {
 			};
 
 			match pdu.kind {
-				TimelineEventType::RoomMember => {
-					let Some(user_id) = pdu.state_key.as_ref().map(UserId::parse).flat_ok() else {
+				| TimelineEventType::RoomMember => {
+					let Some(user_id) = pdu.state_key.as_ref().map(UserId::parse).flat_ok()
+					else {
 						continue;
 					};
 
@@ -131,10 +137,18 @@ impl Service {
 
 					self.services
 						.state_cache
-						.update_membership(room_id, &user_id, membership_event, &pdu.sender, None, None, false)
+						.update_membership(
+							room_id,
+							&user_id,
+							membership_event,
+							&pdu.sender,
+							None,
+							None,
+							false,
+						)
 						.await?;
 				},
-				TimelineEventType::SpaceChild => {
+				| TimelineEventType::SpaceChild => {
 					self.services
 						.spaces
 						.roomid_spacehierarchy_cache
@@ -142,7 +156,7 @@ impl Service {
 						.await
 						.remove(&pdu.room_id);
 				},
-				_ => continue,
+				| _ => continue,
 			}
 		}
 
@@ -159,7 +173,10 @@ impl Service {
 	/// to `stateid_pduid` and adds the incoming event to `eventid_statehash`.
 	#[tracing::instrument(skip(self, state_ids_compressed), level = "debug")]
 	pub async fn set_event_state(
-		&self, event_id: &EventId, room_id: &RoomId, state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
+		&self,
+		event_id: &EventId,
+		room_id: &RoomId,
+		state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<ShortStateHash> {
 		const KEY_LEN: usize = size_of::<ShortEventId>();
 		const VAL_LEN: usize = size_of::<ShortStateHash>();
@@ -190,22 +207,23 @@ impl Service {
 				Vec::new()
 			};
 
-			let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
-				let statediffnew: HashSet<_> = state_ids_compressed
-					.difference(&parent_stateinfo.full_state)
-					.copied()
-					.collect();
+			let (statediffnew, statediffremoved) =
+				if let Some(parent_stateinfo) = states_parents.last() {
+					let statediffnew: HashSet<_> = state_ids_compressed
+						.difference(&parent_stateinfo.full_state)
+						.copied()
+						.collect();
 
-				let statediffremoved: HashSet<_> = parent_stateinfo
-					.full_state
-					.difference(&state_ids_compressed)
-					.copied()
-					.collect();
+					let statediffremoved: HashSet<_> = parent_stateinfo
+						.full_state
+						.difference(&state_ids_compressed)
+						.copied()
+						.collect();
 
-				(Arc::new(statediffnew), Arc::new(statediffremoved))
-			} else {
-				(state_ids_compressed, Arc::new(HashSet::new()))
-			};
+					(Arc::new(statediffnew), Arc::new(statediffremoved))
+				} else {
+					(state_ids_compressed, Arc::new(HashSet::new()))
+				};
 			self.services.state_compressor.save_state_from_diff(
 				shortstatehash,
 				statediffnew,
@@ -338,7 +356,8 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		shortstatehash: u64,
-		_mutex_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
+		_mutex_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room
+		                               * state mutex */
 	) {
 		const BUFSIZE: usize = size_of::<u64>();
 
@@ -366,7 +385,10 @@ impl Service {
 			.deserialized()
 	}
 
-	pub fn get_forward_extremities<'a>(&'a self, room_id: &'a RoomId) -> impl Stream<Item = &EventId> + Send + '_ {
+	pub fn get_forward_extremities<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = &EventId> + Send + '_ {
 		let prefix = (room_id, Interfix);
 
 		self.db
@@ -380,7 +402,8 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		event_ids: Vec<OwnedEventId>,
-		_state_lock: &RoomMutexGuard, // Take mutex guard to make sure users get the room state mutex
+		_state_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room
+		                               * state mutex */
 	) {
 		let prefix = (room_id, Interfix);
 		self.db
@@ -399,26 +422,33 @@ impl Service {
 	/// This fetches auth events from the current state.
 	#[tracing::instrument(skip(self, content), level = "debug")]
 	pub async fn get_auth_events(
-		&self, room_id: &RoomId, kind: &TimelineEventType, sender: &UserId, state_key: Option<&str>,
+		&self,
+		room_id: &RoomId,
+		kind: &TimelineEventType,
+		sender: &UserId,
+		state_key: Option<&str>,
 		content: &serde_json::value::RawValue,
 	) -> Result<StateMap<Arc<PduEvent>>> {
 		let Ok(shortstatehash) = self.get_room_shortstatehash(room_id).await else {
 			return Ok(HashMap::new());
 		};
 
-		let mut sauthevents: HashMap<_, _> = state_res::auth_types_for_event(kind, sender, state_key, content)?
-			.iter()
-			.stream()
-			.broad_filter_map(|(event_type, state_key)| {
-				self.services
-					.short
-					.get_shortstatekey(event_type, state_key)
-					.map_ok(move |ssk| (ssk, (event_type, state_key)))
-					.map(Result::ok)
-			})
-			.map(|(ssk, (event_type, state_key))| (ssk, (event_type.to_owned(), state_key.to_owned())))
-			.collect()
-			.await;
+		let mut sauthevents: HashMap<_, _> =
+			state_res::auth_types_for_event(kind, sender, state_key, content)?
+				.iter()
+				.stream()
+				.broad_filter_map(|(event_type, state_key)| {
+					self.services
+						.short
+						.get_shortstatekey(event_type, state_key)
+						.map_ok(move |ssk| (ssk, (event_type, state_key)))
+						.map(Result::ok)
+				})
+				.map(|(ssk, (event_type, state_key))| {
+					(ssk, (event_type.to_owned(), state_key.to_owned()))
+				})
+				.collect()
+				.await;
 
 		let (state_keys, event_ids): (Vec<_>, Vec<_>) = self
 			.services

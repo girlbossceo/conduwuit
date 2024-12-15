@@ -26,11 +26,7 @@ impl Cork {
 	#[inline]
 	pub(super) fn new(db: &Arc<Engine>, flush: bool, sync: bool) -> Self {
 		db.cork();
-		Self {
-			db: db.clone(),
-			flush,
-			sync,
-		}
+		Self { db: db.clone(), flush, sync }
 	}
 }
 

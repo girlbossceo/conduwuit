@@ -10,8 +10,8 @@ use ruma::{
 			error::ErrorKind,
 			membership::mutual_rooms,
 			profile::{
-				delete_profile_key, delete_timezone_key, get_profile_key, get_timezone_key, set_profile_key,
-				set_timezone_key,
+				delete_profile_key, delete_timezone_key, get_profile_key, get_timezone_key,
+				set_profile_key, set_timezone_key,
 			},
 			room::get_summary,
 		},
@@ -34,7 +34,8 @@ use crate::{Error, Result, Ruma, RumaResponse};
 /// An implementation of [MSC2666](https://github.com/matrix-org/matrix-spec-proposals/pull/2666)
 #[tracing::instrument(skip_all, fields(%client), name = "mutual_rooms")]
 pub(crate) async fn get_mutual_rooms_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<mutual_rooms::unstable::Request>,
 ) -> Result<mutual_rooms::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -47,10 +48,7 @@ pub(crate) async fn get_mutual_rooms_route(
 	}
 
 	if !services.users.exists(&body.user_id).await {
-		return Ok(mutual_rooms::unstable::Response {
-			joined: vec![],
-			next_batch_token: None,
-		});
+		return Ok(mutual_rooms::unstable::Response { joined: vec![], next_batch_token: None });
 	}
 
 	let mutual_rooms: Vec<OwnedRoomId> = services
@@ -77,7 +75,8 @@ pub(crate) async fn get_mutual_rooms_route(
 ///
 /// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
 pub(crate) async fn get_room_summary_legacy(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_summary::msc3266::Request>,
 ) -> Result<RumaResponse<get_summary::msc3266::Response>> {
 	get_room_summary(State(services), InsecureClientIp(client), body)
@@ -94,7 +93,8 @@ pub(crate) async fn get_room_summary_legacy(
 /// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
 #[tracing::instrument(skip_all, fields(%client), name = "room_summary")]
 pub(crate) async fn get_room_summary(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_summary::msc3266::Request>,
 ) -> Result<get_summary::msc3266::Response> {
 	let sender_user = body.sender_user.as_ref();
@@ -194,7 +194,8 @@ pub(crate) async fn get_room_summary(
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub(crate) async fn delete_timezone_key_route(
-	State(services): State<crate::State>, body: Ruma<delete_timezone_key::unstable::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<delete_timezone_key::unstable::Request>,
 ) -> Result<delete_timezone_key::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -221,7 +222,8 @@ pub(crate) async fn delete_timezone_key_route(
 ///
 /// - Also makes sure other users receive the update using presence EDUs
 pub(crate) async fn set_timezone_key_route(
-	State(services): State<crate::State>, body: Ruma<set_timezone_key::unstable::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<set_timezone_key::unstable::Request>,
 ) -> Result<set_timezone_key::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -248,7 +250,8 @@ pub(crate) async fn set_timezone_key_route(
 ///
 /// This also handles the avatar_url and displayname being updated.
 pub(crate) async fn set_profile_key_route(
-	State(services): State<crate::State>, body: Ruma<set_profile_key::unstable::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<set_profile_key::unstable::Request>,
 ) -> Result<set_profile_key::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -264,7 +267,9 @@ pub(crate) async fn set_profile_key_route(
 
 	if body.kv_pair.len() > 1 {
 		// TODO: support PATCH or "recursively" adding keys in some sort
-		return Err!(Request(BadJson("This endpoint can only take one key-value pair at a time")));
+		return Err!(Request(BadJson(
+			"This endpoint can only take one key-value pair at a time"
+		)));
 	}
 
 	let Some(profile_key_value) = body.kv_pair.get(&body.key) else {
@@ -294,7 +299,13 @@ pub(crate) async fn set_profile_key_route(
 			.collect()
 			.await;
 
-		update_displayname(&services, &body.user_id, Some(profile_key_value.to_string()), &all_joined_rooms).await;
+		update_displayname(
+			&services,
+			&body.user_id,
+			Some(profile_key_value.to_string()),
+			&all_joined_rooms,
+		)
+		.await;
 	} else if body.key == "avatar_url" {
 		let mxc = ruma::OwnedMxcUri::from(profile_key_value.to_string());
 
@@ -330,7 +341,8 @@ pub(crate) async fn set_profile_key_route(
 ///
 /// This also handles the avatar_url and displayname being updated.
 pub(crate) async fn delete_profile_key_route(
-	State(services): State<crate::State>, body: Ruma<delete_profile_key::unstable::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<delete_profile_key::unstable::Request>,
 ) -> Result<delete_profile_key::unstable::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 
@@ -340,7 +352,9 @@ pub(crate) async fn delete_profile_key_route(
 
 	if body.kv_pair.len() > 1 {
 		// TODO: support PATCH or "recursively" adding keys in some sort
-		return Err!(Request(BadJson("This endpoint can only take one key-value pair at a time")));
+		return Err!(Request(BadJson(
+			"This endpoint can only take one key-value pair at a time"
+		)));
 	}
 
 	if body.key == "displayname" {
@@ -387,7 +401,8 @@ pub(crate) async fn delete_profile_key_route(
 /// - If user is on another server and we do not have a local copy already fetch
 ///   `timezone` over federation
 pub(crate) async fn get_timezone_key_route(
-	State(services): State<crate::State>, body: Ruma<get_timezone_key::unstable::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_timezone_key::unstable::Request>,
 ) -> Result<get_timezone_key::unstable::Response> {
 	if !services.globals.user_is_local(&body.user_id) {
 		// Create and update our local copy of the user
@@ -422,9 +437,7 @@ pub(crate) async fn get_timezone_key_route(
 				.users
 				.set_timezone(&body.user_id, response.tz.clone());
 
-			return Ok(get_timezone_key::unstable::Response {
-				tz: response.tz,
-			});
+			return Ok(get_timezone_key::unstable::Response { tz: response.tz });
 		}
 	}
 
@@ -446,7 +459,8 @@ pub(crate) async fn get_timezone_key_route(
 /// - If user is on another server and we do not have a local copy already fetch
 ///   `timezone` over federation
 pub(crate) async fn get_profile_key_route(
-	State(services): State<crate::State>, body: Ruma<get_profile_key::unstable::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_profile_key::unstable::Request>,
 ) -> Result<get_profile_key::unstable::Response> {
 	let mut profile_key_value: BTreeMap<String, serde_json::Value> = BTreeMap::new();
 
@@ -492,9 +506,7 @@ pub(crate) async fn get_profile_key_route(
 				return Err!(Request(NotFound("The requested profile key does not exist.")));
 			}
 
-			return Ok(get_profile_key::unstable::Response {
-				value: profile_key_value,
-			});
+			return Ok(get_profile_key::unstable::Response { value: profile_key_value });
 		}
 	}
 
@@ -510,7 +522,5 @@ pub(crate) async fn get_profile_key_route(
 		return Err!(Request(NotFound("The requested profile key does not exist.")));
 	}
 
-	Ok(get_profile_key::unstable::Response {
-		value: profile_key_value,
-	})
+	Ok(get_profile_key::unstable::Response { value: profile_key_value })
 }

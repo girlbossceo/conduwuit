@@ -65,9 +65,9 @@ async fn startup_execute_command(&self, i: usize, command: String) -> Result<()>
 	debug!("Startup command #{i}: executing {command:?}");
 
 	match self.command_in_place(command, None).await {
-		Ok(Some(output)) => Self::startup_command_output(i, &output),
-		Err(output) => Self::startup_command_error(i, &output),
-		Ok(None) => {
+		| Ok(Some(output)) => Self::startup_command_output(i, &output),
+		| Err(output) => Self::startup_command_error(i, &output),
+		| Ok(None) => {
 			info!("Startup command #{i} completed (no output).");
 			Ok(())
 		},

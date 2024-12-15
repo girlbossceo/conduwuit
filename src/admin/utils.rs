@@ -8,7 +8,10 @@ pub(crate) fn escape_html(s: &str) -> String {
 		.replace('>', "&gt;")
 }
 
-pub(crate) async fn get_room_info(services: &Services, room_id: &RoomId) -> (OwnedRoomId, u64, String) {
+pub(crate) async fn get_room_info(
+	services: &Services,
+	room_id: &RoomId,
+) -> (OwnedRoomId, u64, String) {
 	(
 		room_id.into(),
 		services
@@ -44,7 +47,10 @@ pub(crate) fn parse_local_user_id(services: &Services, user_id: &str) -> Result<
 }
 
 /// Parses user ID that is an active (not guest or deactivated) local user
-pub(crate) async fn parse_active_local_user_id(services: &Services, user_id: &str) -> Result<OwnedUserId> {
+pub(crate) async fn parse_active_local_user_id(
+	services: &Services,
+	user_id: &str,
+) -> Result<OwnedUserId> {
 	let user_id = parse_local_user_id(services, user_id)?;
 
 	if !services.users.exists(&user_id).await {

@@ -10,12 +10,15 @@ use conduwuit::{
 use tracing_subscriber::{layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
 
 #[cfg(feature = "perf_measurements")]
-pub(crate) type TracingFlameGuard = Option<tracing_flame::FlushGuard<std::io::BufWriter<std::fs::File>>>;
+pub(crate) type TracingFlameGuard =
+	Option<tracing_flame::FlushGuard<std::io::BufWriter<std::fs::File>>>;
 #[cfg(not(feature = "perf_measurements"))]
 pub(crate) type TracingFlameGuard = ();
 
 #[allow(clippy::redundant_clone)]
-pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>)> {
+pub(crate) fn init(
+	config: &Config,
+) -> Result<(LogLevelReloadHandles, TracingFlameGuard, Arc<capture::State>)> {
 	let reload_handles = LogLevelReloadHandles::default();
 
 	let console_span_events = fmt_span::from_str(&config.log_span_events).unwrap_or_err();
@@ -27,7 +30,8 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 		.with_ansi(config.log_colors)
 		.with_span_events(console_span_events)
 		.with_thread_ids(config.log_thread_ids);
-	let (console_reload_filter, console_reload_handle) = reload::Layer::new(console_filter.clone());
+	let (console_reload_filter, console_reload_handle) =
+		reload::Layer::new(console_filter.clone());
 	reload_handles.add("console", Box::new(console_reload_handle));
 
 	let cap_state = Arc::new(capture::State::new());
@@ -39,8 +43,8 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 
 	#[cfg(feature = "sentry_telemetry")]
 	let subscriber = {
-		let sentry_filter =
-			EnvFilter::try_new(&config.sentry_filter).map_err(|e| err!(Config("sentry_filter", "{e}.")))?;
+		let sentry_filter = EnvFilter::try_new(&config.sentry_filter)
+			.map_err(|e| err!(Config("sentry_filter", "{e}.")))?;
 		let sentry_layer = sentry_tracing::layer();
 		let (sentry_reload_filter, sentry_reload_handle) = reload::Layer::new(sentry_filter);
 		reload_handles.add("sentry", Box::new(sentry_reload_handle));
@@ -52,8 +56,9 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 		let (flame_layer, flame_guard) = if config.tracing_flame {
 			let flame_filter = EnvFilter::try_new(&config.tracing_flame_filter)
 				.map_err(|e| err!(Config("tracing_flame_filter", "{e}.")))?;
-			let (flame_layer, flame_guard) = tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path)
-				.map_err(|e| err!(Config("tracing_flame_output_path", "{e}.")))?;
+			let (flame_layer, flame_guard) =
+				tracing_flame::FlameLayer::with_file(&config.tracing_flame_output_path)
+					.map_err(|e| err!(Config("tracing_flame_output_path", "{e}.")))?;
 			let flame_layer = flame_layer
 				.with_empty_samples(false)
 				.with_filter(flame_filter);
@@ -62,17 +67,20 @@ pub(crate) fn init(config: &Config) -> Result<(LogLevelReloadHandles, TracingFla
 			(None, None)
 		};
 
-		let jaeger_filter =
-			EnvFilter::try_new(&config.jaeger_filter).map_err(|e| err!(Config("jaeger_filter", "{e}.")))?;
+		let jaeger_filter = EnvFilter::try_new(&config.jaeger_filter)
+			.map_err(|e| err!(Config("jaeger_filter", "{e}.")))?;
 		let jaeger_layer = config.allow_jaeger.then(|| {
-			opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+			opentelemetry::global::set_text_map_propagator(
+				opentelemetry_jaeger::Propagator::new(),
+			);
 			let tracer = opentelemetry_jaeger::new_agent_pipeline()
 				.with_auto_split_batch(true)
 				.with_service_name("conduwuit")
 				.install_batch(opentelemetry_sdk::runtime::Tokio)
 				.expect("jaeger agent pipeline");
 			let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-			let (jaeger_reload_filter, jaeger_reload_handle) = reload::Layer::new(jaeger_filter.clone());
+			let (jaeger_reload_filter, jaeger_reload_handle) =
+				reload::Layer::new(jaeger_filter.clone());
 			reload_handles.add("jaeger", Box::new(jaeger_reload_handle));
 			Some(telemetry.with_filter(jaeger_reload_filter))
 		});

@@ -43,7 +43,9 @@ impl crate::Service for Service {
 
 impl Service {
 	pub async fn event_ids_iter<'a, I>(
-		&'a self, room_id: &RoomId, starting_events: I,
+		&'a self,
+		room_id: &RoomId,
+		starting_events: I,
 	) -> Result<impl Stream<Item = Arc<EventId>> + Send + '_>
 	where
 		I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
@@ -57,7 +59,11 @@ impl Service {
 		Ok(stream)
 	}
 
-	pub async fn get_event_ids<'a, I>(&'a self, room_id: &RoomId, starting_events: I) -> Result<Vec<Arc<EventId>>>
+	pub async fn get_event_ids<'a, I>(
+		&'a self,
+		room_id: &RoomId,
+		starting_events: I,
+	) -> Result<Vec<Arc<EventId>>>
 	where
 		I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 	{
@@ -74,7 +80,11 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip_all, name = "auth_chain")]
-	pub async fn get_auth_chain<'a, I>(&'a self, room_id: &RoomId, starting_events: I) -> Result<Vec<ShortEventId>>
+	pub async fn get_auth_chain<'a, I>(
+		&'a self,
+		room_id: &RoomId,
+		starting_events: I,
+	) -> Result<Vec<ShortEventId>>
 	where
 		I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 	{
@@ -110,7 +120,8 @@ impl Service {
 				continue;
 			}
 
-			let chunk_key: Vec<ShortEventId> = chunk.iter().map(|(short, _)| short).copied().collect();
+			let chunk_key: Vec<ShortEventId> =
+				chunk.iter().map(|(short, _)| short).copied().collect();
 			if let Ok(cached) = self.get_cached_eventid_authchain(&chunk_key).await {
 				trace!("Found cache entry for whole chunk");
 				full_auth_chain.extend(cached.iter().copied());
@@ -169,7 +180,11 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id))]
-	async fn get_auth_chain_inner(&self, room_id: &RoomId, event_id: &EventId) -> Result<HashSet<ShortEventId>> {
+	async fn get_auth_chain_inner(
+		&self,
+		room_id: &RoomId,
+		event_id: &EventId,
+	) -> Result<HashSet<ShortEventId>> {
 		let mut todo = vec![Arc::from(event_id)];
 		let mut found = HashSet::new();
 
@@ -177,8 +192,10 @@ impl Service {
 			trace!(?event_id, "processing auth event");
 
 			match self.services.timeline.get_pdu(&event_id).await {
-				Err(e) => debug_error!(?event_id, ?e, "Could not find pdu mentioned in auth events"),
-				Ok(pdu) => {
+				| Err(e) => {
+					debug_error!(?event_id, ?e, "Could not find pdu mentioned in auth events");
+				},
+				| Ok(pdu) => {
 					if pdu.room_id != room_id {
 						return Err!(Request(Forbidden(error!(
 							?event_id,
@@ -196,7 +213,11 @@ impl Service {
 							.await;
 
 						if found.insert(sauthevent) {
-							trace!(?event_id, ?auth_event, "adding auth event to processing queue");
+							trace!(
+								?event_id,
+								?auth_event,
+								"adding auth event to processing queue"
+							);
 							todo.push(auth_event.clone());
 						}
 					}

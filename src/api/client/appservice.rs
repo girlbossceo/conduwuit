@@ -9,12 +9,12 @@ use crate::Ruma;
 /// Ask the homeserver to ping the application service to ensure the connection
 /// works.
 pub(crate) async fn appservice_ping(
-	State(services): State<crate::State>, body: Ruma<request_ping::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<request_ping::v1::Request>,
 ) -> Result<request_ping::v1::Response> {
-	let appservice_info = body
-		.appservice_info
-		.as_ref()
-		.ok_or_else(|| err!(Request(Forbidden("This endpoint can only be called by appservices."))))?;
+	let appservice_info = body.appservice_info.as_ref().ok_or_else(|| {
+		err!(Request(Forbidden("This endpoint can only be called by appservices.")))
+	})?;
 
 	if body.appservice_id != appservice_info.registration.id {
 		return Err!(Request(Forbidden(
@@ -41,7 +41,5 @@ pub(crate) async fn appservice_ping(
 		.await?
 		.expect("We already validated if an appservice URL exists above");
 
-	Ok(request_ping::v1::Response {
-		duration: timer.elapsed(),
-	})
+	Ok(request_ping::v1::Response { duration: timer.elapsed() })
 }

@@ -53,18 +53,22 @@ impl Data {
 	}
 
 	pub(super) async fn set_presence(
-		&self, user_id: &UserId, presence_state: &PresenceState, currently_active: Option<bool>,
-		last_active_ago: Option<UInt>, status_msg: Option<String>,
+		&self,
+		user_id: &UserId,
+		presence_state: &PresenceState,
+		currently_active: Option<bool>,
+		last_active_ago: Option<UInt>,
+		status_msg: Option<String>,
 	) -> Result<()> {
 		let last_presence = self.get_presence(user_id).await;
 		let state_changed = match last_presence {
-			Err(_) => true,
-			Ok(ref presence) => presence.1.content.presence != *presence_state,
+			| Err(_) => true,
+			| Ok(ref presence) => presence.1.content.presence != *presence_state,
 		};
 
 		let status_msg_changed = match last_presence {
-			Err(_) => true,
-			Ok(ref last_presence) => {
+			| Err(_) => true,
+			| Ok(ref last_presence) => {
 				let old_msg = last_presence
 					.1
 					.content
@@ -80,18 +84,22 @@ impl Data {
 
 		let now = utils::millis_since_unix_epoch();
 		let last_last_active_ts = match last_presence {
-			Err(_) => 0,
-			Ok((_, ref presence)) => now.saturating_sub(presence.content.last_active_ago.unwrap_or_default().into()),
+			| Err(_) => 0,
+			| Ok((_, ref presence)) =>
+				now.saturating_sub(presence.content.last_active_ago.unwrap_or_default().into()),
 		};
 
 		let last_active_ts = match last_active_ago {
-			None => now,
-			Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
+			| None => now,
+			| Some(last_active_ago) => now.saturating_sub(last_active_ago.into()),
 		};
 
 		// TODO: tighten for state flicker?
 		if !status_msg_changed && !state_changed && last_active_ts < last_last_active_ts {
-			debug_warn!("presence spam {user_id:?} last_active_ts:{last_active_ts:?} < {last_last_active_ts:?}",);
+			debug_warn!(
+				"presence spam {user_id:?} last_active_ts:{last_active_ts:?} < \
+				 {last_last_active_ts:?}",
+			);
 			return Ok(());
 		}
 
@@ -138,7 +146,10 @@ impl Data {
 	}
 
 	#[inline]
-	pub(super) fn presence_since(&self, since: u64) -> impl Stream<Item = (&UserId, u64, &[u8])> + Send + '_ {
+	pub(super) fn presence_since(
+		&self,
+		since: u64,
+	) -> impl Stream<Item = (&UserId, u64, &[u8])> + Send + '_ {
 		self.presenceid_presence
 			.raw_stream()
 			.ignore_err()

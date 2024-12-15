@@ -15,10 +15,13 @@ pub(crate) struct Watchers {
 }
 
 impl Watchers {
-	pub(crate) fn watch<'a>(&'a self, prefix: &[u8]) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+	pub(crate) fn watch<'a>(
+		&'a self,
+		prefix: &[u8],
+	) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
 		let mut rx = match self.watchers.write().unwrap().entry(prefix.to_vec()) {
-			hash_map::Entry::Occupied(o) => o.get().1.clone(),
-			hash_map::Entry::Vacant(v) => {
+			| hash_map::Entry::Occupied(o) => o.get().1.clone(),
+			| hash_map::Entry::Vacant(v) => {
 				let (tx, rx) = watch::channel(());
 				v.insert((tx, rx.clone()));
 				rx

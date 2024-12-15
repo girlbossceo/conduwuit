@@ -23,8 +23,8 @@ use conduwuit::{
 };
 use futures::TryFutureExt;
 use ruma::{
-	events::room::create::RoomCreateEventContent, state_res::RoomVersion, EventId, OwnedEventId, OwnedRoomId, RoomId,
-	RoomVersionId,
+	events::room::create::RoomCreateEventContent, state_res::RoomVersion, EventId, OwnedEventId,
+	OwnedRoomId, RoomId, RoomVersionId,
 };
 
 use crate::{globals, rooms, sending, server_keys, Dep};
@@ -69,8 +69,10 @@ impl crate::Service for Service {
 				pdu_metadata: args.depend::<rooms::pdu_metadata::Service>("rooms::pdu_metadata"),
 				short: args.depend::<rooms::short::Service>("rooms::short"),
 				state: args.depend::<rooms::state::Service>("rooms::state"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
-				state_compressor: args.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_compressor: args
+					.depend::<rooms::state_compressor::Service>("rooms::state_compressor"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
 				server: args.server.clone(),
 			},
@@ -95,7 +97,9 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	async fn event_exists(&self, event_id: Arc<EventId>) -> bool { self.services.timeline.pdu_exists(&event_id).await }
+	async fn event_exists(&self, event_id: Arc<EventId>) -> bool {
+		self.services.timeline.pdu_exists(&event_id).await
+	}
 
 	async fn event_fetch(&self, event_id: Arc<EventId>) -> Option<Arc<PduEvent>> {
 		self.services

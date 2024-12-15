@@ -20,12 +20,15 @@ pub(super) fn implement(item: ItemFn, args: &[Meta]) -> Result<TokenStream> {
 }
 
 fn get_receiver(args: &[Meta]) -> Result<Path> {
-	let receiver = &args
-		.first()
-		.ok_or_else(|| Error::new(Span::call_site().into(), "Missing required argument to receiver"))?;
+	let receiver = &args.first().ok_or_else(|| {
+		Error::new(Span::call_site().into(), "Missing required argument to receiver")
+	})?;
 
 	let Meta::Path(receiver) = receiver else {
-		return Err(Error::new(Span::call_site().into(), "First argument is not path to receiver"));
+		return Err(Error::new(
+			Span::call_site().into(),
+			"First argument is not path to receiver",
+		));
 	};
 
 	Ok(receiver.clone())

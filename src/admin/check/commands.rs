@@ -19,8 +19,9 @@ pub(super) async fn check_all_users(&self) -> Result<RoomMessageEventContent> {
 	let ok_count = users.iter().filter(|_user| true).count();
 
 	let message = format!(
-		"Database query completed in {query_time:?}:\n\n```\nTotal entries: {total:?}\nFailure/Invalid user count: \
-		 {err_count:?}\nSuccess/Valid user count: {ok_count:?}\n```"
+		"Database query completed in {query_time:?}:\n\n```\nTotal entries: \
+		 {total:?}\nFailure/Invalid user count: {err_count:?}\nSuccess/Valid user count: \
+		 {ok_count:?}\n```"
 	);
 
 	Ok(RoomMessageEventContent::notice_markdown(message))

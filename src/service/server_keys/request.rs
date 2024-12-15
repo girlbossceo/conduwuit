@@ -12,7 +12,9 @@ use ruma::{
 
 #[implement(super::Service)]
 pub(super) async fn batch_notary_request<'a, S, K>(
-	&self, notary: &ServerName, batch: S,
+	&self,
+	notary: &ServerName,
+	batch: S,
 ) -> Result<Vec<ServerSigningKeys>>
 where
 	S: Iterator<Item = (&'a ServerName, K)> + Send,
@@ -74,7 +76,9 @@ where
 
 #[implement(super::Service)]
 pub async fn notary_request(
-	&self, notary: &ServerName, target: &ServerName,
+	&self,
+	notary: &ServerName,
+	target: &ServerName,
 ) -> Result<impl Iterator<Item = ServerSigningKeys> + Clone + Debug + Send> {
 	use get_remote_server_keys::v2::Request;
 

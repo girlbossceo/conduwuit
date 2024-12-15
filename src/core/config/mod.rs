@@ -18,8 +18,8 @@ pub use figment::{value::Value as FigmentValue, Figment};
 use itertools::Itertools;
 use regex::RegexSet;
 use ruma::{
-	api::client::discovery::discover_support::ContactRole, OwnedRoomOrAliasId, OwnedServerName, OwnedUserId,
-	RoomVersionId,
+	api::client::discovery::discover_support::ContactRole, OwnedRoomOrAliasId, OwnedServerName,
+	OwnedUserId, RoomVersionId,
 };
 use serde::{de::IgnoredAny, Deserialize};
 use url::Url;
@@ -181,7 +181,10 @@ pub struct Config {
 	/// are scaled by your CPU core count.
 	///
 	/// default: 1.0
-	#[serde(default = "default_cache_capacity_modifier", alias = "conduit_cache_capacity_modifier")]
+	#[serde(
+		default = "default_cache_capacity_modifier",
+		alias = "conduit_cache_capacity_modifier"
+	)]
 	pub cache_capacity_modifier: f64,
 
 	/// default: varies by system
@@ -1555,7 +1558,8 @@ pub struct Config {
 	pub db_pool_queue_size: usize,
 
 	#[serde(flatten)]
-	#[allow(clippy::zero_sized_map_values)] // this is a catchall, the map shouldn't be zero at runtime
+	#[allow(clippy::zero_sized_map_values)]
+	// this is a catchall, the map shouldn't be zero at runtime
 	catchall: BTreeMap<String, IgnoredAny>,
 }
 
@@ -1676,15 +1680,15 @@ impl Config {
 
 	fn get_bind_hosts(&self) -> Vec<IpAddr> {
 		match &self.address.addrs {
-			Left(addr) => vec![*addr],
-			Right(addrs) => addrs.clone(),
+			| Left(addr) => vec![*addr],
+			| Right(addrs) => addrs.clone(),
 		}
 	}
 
 	fn get_bind_ports(&self) -> Vec<u16> {
 		match &self.port.ports {
-			Left(port) => vec![*port],
-			Right(ports) => ports.clone(),
+			| Left(port) => vec![*port],
+			| Right(ports) => ports.clone(),
 		}
 	}
 
@@ -1756,9 +1760,13 @@ impl fmt::Display for Config {
 		line("Allow registration", &self.allow_registration.to_string());
 		line(
 			"Registration token",
-			if self.registration_token.is_none() && self.registration_token_file.is_none() && self.allow_registration {
+			if self.registration_token.is_none()
+				&& self.registration_token_file.is_none()
+				&& self.allow_registration
+			{
 				"not set (⚠️ open registration!)"
-			} else if self.registration_token.is_none() && self.registration_token_file.is_none() {
+			} else if self.registration_token.is_none() && self.registration_token_file.is_none()
+			{
 				"not set"
 			} else {
 				"set"
@@ -1811,7 +1819,8 @@ impl fmt::Display for Config {
 			&self.allow_outgoing_read_receipts.to_string(),
 		);
 		line(
-			"Block non-admin room invites (local and remote, admins can still send and receive invites)",
+			"Block non-admin room invites (local and remote, admins can still send and receive \
+			 invites)",
 			&self.block_non_admin_invites.to_string(),
 		);
 		line("Enable admin escape commands", &self.admin_escape_commands.to_string());
@@ -1859,13 +1868,10 @@ impl fmt::Display for Config {
 			"Lockdown public room directory (only allow admins to publish)",
 			&self.lockdown_public_room_directory.to_string(),
 		);
-		line(
-			"JWT secret",
-			match self.jwt_secret {
-				Some(_) => "set",
-				None => "not set",
-			},
-		);
+		line("JWT secret", match self.jwt_secret {
+			| Some(_) => "set",
+			| None => "not set",
+		});
 		line(
 			"Trusted key servers",
 			&self
@@ -1979,7 +1985,8 @@ impl fmt::Display for Config {
 			&lst.join(", ")
 		});
 		line("Forbidden Remote Room Directory Server Names", {
-			let mut lst = Vec::with_capacity(self.forbidden_remote_room_directory_server_names.len());
+			let mut lst =
+				Vec::with_capacity(self.forbidden_remote_room_directory_server_names.len());
 			for domain in &self.forbidden_remote_room_directory_server_names {
 				lst.push(domain.host());
 			}
@@ -2099,11 +2106,7 @@ fn default_address() -> ListeningAddr {
 	}
 }
 
-fn default_port() -> ListeningPort {
-	ListeningPort {
-		ports: Left(8008),
-	}
-}
+fn default_port() -> ListeningPort { ListeningPort { ports: Left(8008) } }
 
 fn default_unix_socket_perms() -> u32 { 660 }
 
@@ -2115,19 +2118,33 @@ fn default_pdu_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturati
 
 fn default_cache_capacity_modifier() -> f64 { 1.0 }
 
-fn default_auth_chain_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
+fn default_auth_chain_cache_capacity() -> u32 {
+	parallelism_scaled_u32(10_000).saturating_add(100_000)
+}
 
-fn default_shorteventid_cache_capacity() -> u32 { parallelism_scaled_u32(50_000).saturating_add(100_000) }
+fn default_shorteventid_cache_capacity() -> u32 {
+	parallelism_scaled_u32(50_000).saturating_add(100_000)
+}
 
-fn default_eventidshort_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
+fn default_eventidshort_cache_capacity() -> u32 {
+	parallelism_scaled_u32(25_000).saturating_add(100_000)
+}
 
-fn default_eventid_pdu_cache_capacity() -> u32 { parallelism_scaled_u32(25_000).saturating_add(100_000) }
+fn default_eventid_pdu_cache_capacity() -> u32 {
+	parallelism_scaled_u32(25_000).saturating_add(100_000)
+}
 
-fn default_shortstatekey_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
+fn default_shortstatekey_cache_capacity() -> u32 {
+	parallelism_scaled_u32(10_000).saturating_add(100_000)
+}
 
-fn default_statekeyshort_cache_capacity() -> u32 { parallelism_scaled_u32(10_000).saturating_add(100_000) }
+fn default_statekeyshort_cache_capacity() -> u32 {
+	parallelism_scaled_u32(10_000).saturating_add(100_000)
+}
 
-fn default_servernameevent_data_cache_capacity() -> u32 { parallelism_scaled_u32(100_000).saturating_add(500_000) }
+fn default_servernameevent_data_cache_capacity() -> u32 {
+	parallelism_scaled_u32(100_000).saturating_add(500_000)
+}
 
 fn default_server_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(500) }
 
@@ -2203,7 +2220,9 @@ fn default_jaeger_filter() -> String {
 
 fn default_tracing_flame_output_path() -> String { "./tracing.folded".to_owned() }
 
-fn default_trusted_servers() -> Vec<OwnedServerName> { vec![OwnedServerName::try_from("matrix.org").unwrap()] }
+fn default_trusted_servers() -> Vec<OwnedServerName> {
+	vec![OwnedServerName::try_from("matrix.org").unwrap()]
+}
 
 /// do debug logging by default for debug builds
 #[must_use]
@@ -2332,4 +2351,6 @@ fn default_trusted_server_batch_size() -> usize { 256 }
 
 fn default_db_pool_workers() -> usize { sys::available_parallelism().saturating_mul(4).max(32) }
 
-fn default_db_pool_queue_size() -> usize { sys::available_parallelism().saturating_mul(8).max(256) }
+fn default_db_pool_queue_size() -> usize {
+	sys::available_parallelism().saturating_mul(8).max(256)
+}

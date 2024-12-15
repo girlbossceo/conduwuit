@@ -2,8 +2,9 @@ use std::{cmp, collections::HashMap, convert::TryFrom};
 
 use conduwuit::{err, utils, Config, Result};
 use rocksdb::{
-	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, DBRecoveryMode, Env,
-	LogLevel, LruCacheOptions, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
+	statistics::StatsLevel, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType,
+	DBRecoveryMode, Env, LogLevel, LruCacheOptions, Options, UniversalCompactOptions,
+	UniversalCompactionStopStyle,
 };
 
 /// Create database-wide options suitable for opening the database. This also
@@ -11,7 +12,12 @@ use rocksdb::{
 /// resulting value. Note that we require special per-column options on some
 /// columns, therefor columns should only be opened after passing this result
 /// through cf_options().
-pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_cache: &Cache) -> Result<Options> {
+pub(crate) fn db_options(
+	config: &Config,
+	env: &mut Env,
+	row_cache: &Cache,
+	col_cache: &Cache,
+) -> Result<Options> {
 	const DEFAULT_STATS_LEVEL: StatsLevel = if cfg!(debug_assertions) {
 		StatsLevel::ExceptDetailedTimers
 	} else {
@@ -73,13 +79,13 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	opts.set_disable_auto_compactions(!config.rocksdb_compaction);
 
 	opts.set_statistics_level(match config.rocksdb_stats_level {
-		0 => StatsLevel::DisableAll,
-		1 => DEFAULT_STATS_LEVEL,
-		2 => StatsLevel::ExceptHistogramOrTimers,
-		3 => StatsLevel::ExceptTimers,
-		4 => StatsLevel::ExceptDetailedTimers,
-		5 => StatsLevel::ExceptTimeForMutex,
-		6_u8..=u8::MAX => StatsLevel::All,
+		| 0 => StatsLevel::DisableAll,
+		| 1 => DEFAULT_STATS_LEVEL,
+		| 2 => StatsLevel::ExceptHistogramOrTimers,
+		| 3 => StatsLevel::ExceptTimers,
+		| 4 => StatsLevel::ExceptDetailedTimers,
+		| 5 => StatsLevel::ExceptTimeForMutex,
+		| 6_u8..=u8::MAX => StatsLevel::All,
 	});
 
 	// Default: https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes#ktoleratecorruptedtailrecords
@@ -88,11 +94,11 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 	// recovered in this manner as it's likely any lost information will be
 	// restored via federation.
 	opts.set_wal_recovery_mode(match config.rocksdb_recovery_mode {
-		0 => DBRecoveryMode::AbsoluteConsistency,
-		1 => DBRecoveryMode::TolerateCorruptedTailRecords,
-		2 => DBRecoveryMode::PointInTime,
-		3 => DBRecoveryMode::SkipAnyCorruptedRecord,
-		4_u8..=u8::MAX => unimplemented!(),
+		| 0 => DBRecoveryMode::AbsoluteConsistency,
+		| 1 => DBRecoveryMode::TolerateCorruptedTailRecords,
+		| 2 => DBRecoveryMode::PointInTime,
+		| 3 => DBRecoveryMode::SkipAnyCorruptedRecord,
+		| 4_u8..=u8::MAX => unimplemented!(),
 	});
 
 	// <https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST>
@@ -111,11 +117,14 @@ pub(crate) fn db_options(config: &Config, env: &mut Env, row_cache: &Cache, col_
 /// db_options() as the argument to this function and use the return value in
 /// the arguments to open the specific column.
 pub(crate) fn cf_options(
-	cfg: &Config, name: &str, mut opts: Options, cache: &mut HashMap<String, Cache>,
+	cfg: &Config,
+	name: &str,
+	mut opts: Options,
+	cache: &mut HashMap<String, Cache>,
 ) -> Result<Options> {
 	// Columns with non-default compaction options
 	match name {
-		"backupid_algorithm"
+		| "backupid_algorithm"
 		| "backupid_etag"
 		| "backupkeyid_backup"
 		| "roomid_shortroomid"
@@ -125,12 +134,12 @@ pub(crate) fn cf_options(
 		| "shortstatehash_statediff"
 		| "userdevicetxnid_response"
 		| "userfilterid_filter" => set_for_sequential_small_uc(&mut opts, cfg),
-		&_ => {},
+		| &_ => {},
 	}
 
 	// Columns with non-default table/cache configs
 	match name {
-		"shorteventid_eventid" => set_table_with_new_cache(
+		| "shorteventid_eventid" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
@@ -138,7 +147,7 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.shorteventid_cache_capacity, 64)?,
 		),
 
-		"eventid_shorteventid" => set_table_with_new_cache(
+		| "eventid_shorteventid" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
@@ -146,7 +155,7 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.eventidshort_cache_capacity, 64)?,
 		),
 
-		"eventid_pduid" => set_table_with_new_cache(
+		| "eventid_pduid" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
@@ -154,7 +163,7 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.eventid_pdu_cache_capacity, 64)?,
 		),
 
-		"shorteventid_authchain" => {
+		| "shorteventid_authchain" => {
 			set_table_with_new_cache(
 				&mut opts,
 				cfg,
@@ -164,7 +173,7 @@ pub(crate) fn cf_options(
 			);
 		},
 
-		"shortstatekey_statekey" => set_table_with_new_cache(
+		| "shortstatekey_statekey" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
@@ -172,7 +181,7 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.shortstatekey_cache_capacity, 1024)?,
 		),
 
-		"statekey_shortstatekey" => set_table_with_new_cache(
+		| "statekey_shortstatekey" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
@@ -180,22 +189,32 @@ pub(crate) fn cf_options(
 			cache_size(cfg, cfg.statekeyshort_cache_capacity, 1024)?,
 		),
 
-		"servernameevent_data" => set_table_with_new_cache(
+		| "servernameevent_data" => set_table_with_new_cache(
 			&mut opts,
 			cfg,
 			cache,
 			name,
-			cache_size(cfg, cfg.servernameevent_data_cache_capacity, 128)?, /* Raw average value size = 102, key
+			cache_size(cfg, cfg.servernameevent_data_cache_capacity, 128)?, /* Raw average
+			                                                                 * value size =
+			                                                                 * 102, key
 			                                                                 * size = 34 */
 		),
 
-		"eventid_outlierpdu" => {
-			set_table_with_new_cache(&mut opts, cfg, cache, name, cache_size(cfg, cfg.pdu_cache_capacity, 1536)?);
+		| "eventid_outlierpdu" => {
+			set_table_with_new_cache(
+				&mut opts,
+				cfg,
+				cache,
+				name,
+				cache_size(cfg, cfg.pdu_cache_capacity, 1536)?,
+			);
 		},
 
-		"pduid_pdu" => set_table_with_shared_cache(&mut opts, cfg, cache, name, "eventid_outlierpdu"),
+		| "pduid_pdu" => {
+			set_table_with_shared_cache(&mut opts, cfg, cache, name, "eventid_outlierpdu");
+		},
 
-		&_ => {},
+		| &_ => {},
 	}
 
 	Ok(opts)
@@ -203,11 +222,11 @@ pub(crate) fn cf_options(
 
 fn set_logging_defaults(opts: &mut Options, config: &Config) {
 	let rocksdb_log_level = match config.rocksdb_log_level.as_ref() {
-		"debug" => LogLevel::Debug,
-		"info" => LogLevel::Info,
-		"warn" => LogLevel::Warn,
-		"fatal" => LogLevel::Fatal,
-		_ => LogLevel::Error,
+		| "debug" => LogLevel::Debug,
+		| "info" => LogLevel::Info,
+		| "warn" => LogLevel::Warn,
+		| "fatal" => LogLevel::Fatal,
+		| _ => LogLevel::Error,
 	};
 
 	opts.set_log_level(rocksdb_log_level);
@@ -225,13 +244,13 @@ fn set_logging_defaults(opts: &mut Options, config: &Config) {
 
 fn set_compression_defaults(opts: &mut Options, config: &Config) {
 	let rocksdb_compression_algo = match config.rocksdb_compression_algo.as_ref() {
-		"snappy" => DBCompressionType::Snappy,
-		"zlib" => DBCompressionType::Zlib,
-		"bz2" => DBCompressionType::Bz2,
-		"lz4" => DBCompressionType::Lz4,
-		"lz4hc" => DBCompressionType::Lz4hc,
-		"none" => DBCompressionType::None,
-		_ => DBCompressionType::Zstd,
+		| "snappy" => DBCompressionType::Snappy,
+		| "zlib" => DBCompressionType::Zlib,
+		| "bz2" => DBCompressionType::Bz2,
+		| "lz4" => DBCompressionType::Lz4,
+		| "lz4hc" => DBCompressionType::Lz4hc,
+		| "none" => DBCompressionType::None,
+		| _ => DBCompressionType::Zstd,
 	};
 
 	if config.rocksdb_bottommost_compression {
@@ -239,7 +258,13 @@ fn set_compression_defaults(opts: &mut Options, config: &Config) {
 		opts.set_bottommost_zstd_max_train_bytes(0, true);
 
 		// -14 w_bits is only read by zlib.
-		opts.set_bottommost_compression_options(-14, config.rocksdb_bottommost_compression_level, 0, 0, true);
+		opts.set_bottommost_compression_options(
+			-14,
+			config.rocksdb_bottommost_compression_level,
+			0,
+			0,
+			true,
+		);
 	}
 
 	// -14 w_bits is only read by zlib.
@@ -338,7 +363,11 @@ fn uc_options(_config: &Config) -> UniversalCompactOptions {
 }
 
 fn set_table_with_new_cache(
-	opts: &mut Options, config: &Config, caches: &mut HashMap<String, Cache>, name: &str, size: usize,
+	opts: &mut Options,
+	config: &Config,
+	caches: &mut HashMap<String, Cache>,
+	name: &str,
+	size: usize,
 ) {
 	let mut cache_opts = LruCacheOptions::default();
 	cache_opts.set_capacity(size);
@@ -351,7 +380,11 @@ fn set_table_with_new_cache(
 }
 
 fn set_table_with_shared_cache(
-	opts: &mut Options, config: &Config, cache: &HashMap<String, Cache>, _name: &str, cache_name: &str,
+	opts: &mut Options,
+	config: &Config,
+	cache: &HashMap<String, Cache>,
+	_name: &str,
+	cache_name: &str,
 ) {
 	let mut table = table_options(config);
 	table.set_block_cache(

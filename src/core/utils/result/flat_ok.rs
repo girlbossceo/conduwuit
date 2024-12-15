@@ -19,7 +19,9 @@ impl<T, E> FlatOk<T> for Option<Result<T, E>> {
 	fn flat_ok_or<Ep>(self, err: Ep) -> Result<T, Ep> { self.flat_ok().ok_or(err) }
 
 	#[inline]
-	fn flat_ok_or_else<Ep, F: FnOnce() -> Ep>(self, err: F) -> Result<T, Ep> { self.flat_ok().ok_or_else(err) }
+	fn flat_ok_or_else<Ep, F: FnOnce() -> Ep>(self, err: F) -> Result<T, Ep> {
+		self.flat_ok().ok_or_else(err)
+	}
 }
 
 impl<T, E> FlatOk<T> for Result<Option<T>, E> {
@@ -30,5 +32,7 @@ impl<T, E> FlatOk<T> for Result<Option<T>, E> {
 	fn flat_ok_or<Ep>(self, err: Ep) -> Result<T, Ep> { self.flat_ok().ok_or(err) }
 
 	#[inline]
-	fn flat_ok_or_else<Ep, F: FnOnce() -> Ep>(self, err: F) -> Result<T, Ep> { self.flat_ok().ok_or_else(err) }
+	fn flat_ok_or_else<Ep, F: FnOnce() -> Ep>(self, err: F) -> Result<T, Ep> {
+		self.flat_ok().ok_or_else(err)
+	}
 }

@@ -6,7 +6,9 @@ use std::{
 	time::{Instant, SystemTime},
 };
 
-use conduwuit::{debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result};
+use conduwuit::{
+	debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result,
+};
 use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
@@ -26,7 +28,10 @@ pub(super) async fn echo(&self, message: Vec<String>) -> Result<RoomMessageEvent
 }
 
 #[admin_command]
-pub(super) async fn get_auth_chain(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_auth_chain(
+	&self,
+	event_id: Box<EventId>,
+) -> Result<RoomMessageEventContent> {
 	let Ok(event) = self.services.rooms.timeline.get_pdu_json(&event_id).await else {
 		return Ok(RoomMessageEventContent::notice_plain("Event not found."));
 	};
@@ -68,20 +73,26 @@ pub(super) async fn parse_pdu(&self) -> Result<RoomMessageEventContent> {
 
 	let string = self.body[1..self.body.len().saturating_sub(1)].join("\n");
 	match serde_json::from_str(&string) {
-		Ok(value) => match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
-			Ok(hash) => {
+		| Ok(value) => match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
+			| Ok(hash) => {
 				let event_id = EventId::parse(format!("${hash}"));
 
-				match serde_json::from_value::<PduEvent>(serde_json::to_value(value).expect("value is json")) {
-					Ok(pdu) => Ok(RoomMessageEventContent::text_plain(format!("EventId: {event_id:?}\n{pdu:#?}"))),
-					Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+				match serde_json::from_value::<PduEvent>(
+					serde_json::to_value(value).expect("value is json"),
+				) {
+					| Ok(pdu) => Ok(RoomMessageEventContent::text_plain(format!(
+						"EventId: {event_id:?}\n{pdu:#?}"
+					))),
+					| Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 						"EventId: {event_id:?}\nCould not parse event: {e}"
 					))),
 				}
 			},
-			Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Could not parse PDU JSON: {e:?}"))),
+			| Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+				"Could not parse PDU JSON: {e:?}"
+			))),
 		},
-		Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+		| Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 			"Invalid json in command body: {e}"
 		))),
 	}
@@ -103,8 +114,9 @@ pub(super) async fn get_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessage
 	}
 
 	match pdu_json {
-		Ok(json) => {
-			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
+		| Ok(json) => {
+			let json_text =
+				serde_json::to_string_pretty(&json).expect("canonical json is valid json");
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"{}\n```json\n{}\n```",
 				if outlier {
@@ -115,13 +127,15 @@ pub(super) async fn get_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessage
 				json_text
 			)))
 		},
-		Err(_) => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
+		| Err(_) => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
 	}
 }
 
 #[admin_command]
 pub(super) async fn get_remote_pdu_list(
-	&self, server: Box<ServerName>, force: bool,
+	&self,
+	server: Box<ServerName>,
+	force: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !self.services.globals.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -131,8 +145,8 @@ pub(super) async fn get_remote_pdu_list(
 
 	if server == self.services.globals.server_name() {
 		return Ok(RoomMessageEventContent::text_plain(
-			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for fetching local PDUs from \
-			 the database.",
+			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for \
+			 fetching local PDUs from the database.",
 		));
 	}
 
@@ -184,7 +198,9 @@ pub(super) async fn get_remote_pdu_list(
 
 #[admin_command]
 pub(super) async fn get_remote_pdu(
-	&self, event_id: Box<EventId>, server: Box<ServerName>,
+	&self,
+	event_id: Box<EventId>,
+	server: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !self.services.globals.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -194,30 +210,32 @@ pub(super) async fn get_remote_pdu(
 
 	if server == self.services.globals.server_name() {
 		return Ok(RoomMessageEventContent::text_plain(
-			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for fetching local PDUs.",
+			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for \
+			 fetching local PDUs.",
 		));
 	}
 
 	match self
 		.services
 		.sending
-		.send_federation_request(
-			&server,
-			ruma::api::federation::event::get_event::v1::Request {
-				event_id: event_id.clone().into(),
-				include_unredacted_content: None,
-			},
-		)
+		.send_federation_request(&server, ruma::api::federation::event::get_event::v1::Request {
+			event_id: event_id.clone().into(),
+			include_unredacted_content: None,
+		})
 		.await
 	{
-		Ok(response) => {
-			let json: CanonicalJsonObject = serde_json::from_str(response.pdu.get()).map_err(|e| {
-				warn!(
-					"Requested event ID {event_id} from server but failed to convert from RawValue to \
-					 CanonicalJsonObject (malformed event/response?): {e}"
-				);
-				Error::BadRequest(ErrorKind::Unknown, "Received response from server but failed to parse PDU")
-			})?;
+		| Ok(response) => {
+			let json: CanonicalJsonObject =
+				serde_json::from_str(response.pdu.get()).map_err(|e| {
+					warn!(
+						"Requested event ID {event_id} from server but failed to convert from \
+						 RawValue to CanonicalJsonObject (malformed event/response?): {e}"
+					);
+					Error::BadRequest(
+						ErrorKind::Unknown,
+						"Received response from server but failed to parse PDU",
+					)
+				})?;
 
 			trace!("Attempting to parse PDU: {:?}", &response.pdu);
 			let _parsed_pdu = {
@@ -229,8 +247,8 @@ pub(super) async fn get_remote_pdu(
 					.await;
 
 				let (event_id, value, room_id) = match parsed_result {
-					Ok(t) => t,
-					Err(e) => {
+					| Ok(t) => t,
+					| Err(e) => {
 						warn!("Failed to parse PDU: {e}");
 						info!("Full PDU: {:?}", &response.pdu);
 						return Ok(RoomMessageEventContent::text_plain(format!(
@@ -250,21 +268,27 @@ pub(super) async fn get_remote_pdu(
 				.boxed()
 				.await?;
 
-			let json_text = serde_json::to_string_pretty(&json).expect("canonical json is valid json");
+			let json_text =
+				serde_json::to_string_pretty(&json).expect("canonical json is valid json");
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(
 				"{}\n```json\n{}\n```",
-				"Got PDU from specified server and handled as backfilled PDU successfully. Event body:", json_text
+				"Got PDU from specified server and handled as backfilled PDU successfully. \
+				 Event body:",
+				json_text
 			)))
 		},
-		Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+		| Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 			"Remote server did not have PDU or failed sending request to remote server: {e}"
 		))),
 	}
 }
 
 #[admin_command]
-pub(super) async fn get_room_state(&self, room: OwnedRoomOrAliasId) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_room_state(
+	&self,
+	room: OwnedRoomOrAliasId,
+) -> Result<RoomMessageEventContent> {
 	let room_id = self.services.rooms.alias.resolve(&room).await?;
 	let room_state: Vec<_> = self
 		.services
@@ -285,7 +309,8 @@ pub(super) async fn get_room_state(&self, room: OwnedRoomOrAliasId) -> Result<Ro
 	let json = serde_json::to_string_pretty(&room_state).map_err(|e| {
 		warn!("Failed converting room state vector in our database to pretty JSON: {e}");
 		Error::bad_database(
-			"Failed to convert room state events to pretty JSON, possible invalid room state events in our database",
+			"Failed to convert room state events to pretty JSON, possible invalid room state \
+			 events in our database",
 		)
 	})?;
 
@@ -305,10 +330,13 @@ pub(super) async fn ping(&self, server: Box<ServerName>) -> Result<RoomMessageEv
 	match self
 		.services
 		.sending
-		.send_federation_request(&server, ruma::api::federation::discovery::get_server_version::v1::Request {})
+		.send_federation_request(
+			&server,
+			ruma::api::federation::discovery::get_server_version::v1::Request {},
+		)
 		.await
 	{
-		Ok(response) => {
+		| Ok(response) => {
 			let ping_time = timer.elapsed();
 
 			let json_text_res = serde_json::to_string_pretty(&response.server);
@@ -323,8 +351,11 @@ pub(super) async fn ping(&self, server: Box<ServerName>) -> Result<RoomMessageEv
 				"Got non-JSON response which took {ping_time:?} time:\n{response:?}"
 			)))
 		},
-		Err(e) => {
-			warn!("Failed sending federation request to specified server from ping debug command: {e}");
+		| Err(e) => {
+			warn!(
+				"Failed sending federation request to specified server from ping debug command: \
+				 {e}"
+			);
 			Ok(RoomMessageEventContent::text_plain(format!(
 				"Failed sending federation request to specified server:\n\n{e}",
 			)))
@@ -347,13 +378,17 @@ pub(super) async fn force_device_list_updates(&self) -> Result<RoomMessageEventC
 }
 
 #[admin_command]
-pub(super) async fn change_log_level(&self, filter: Option<String>, reset: bool) -> Result<RoomMessageEventContent> {
+pub(super) async fn change_log_level(
+	&self,
+	filter: Option<String>,
+	reset: bool,
+) -> Result<RoomMessageEventContent> {
 	let handles = &["console"];
 
 	if reset {
 		let old_filter_layer = match EnvFilter::try_new(&self.services.globals.config.log) {
-			Ok(s) => s,
-			Err(e) => {
+			| Ok(s) => s,
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Log level from config appears to be invalid now: {e}"
 				)));
@@ -367,13 +402,13 @@ pub(super) async fn change_log_level(&self, filter: Option<String>, reset: bool)
 			.reload
 			.reload(&old_filter_layer, Some(handles))
 		{
-			Ok(()) => {
+			| Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Successfully changed log level back to config value {}",
 					self.services.globals.config.log
 				)));
 			},
-			Err(e) => {
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Failed to modify and reload the global tracing log level: {e}"
 				)));
@@ -383,8 +418,8 @@ pub(super) async fn change_log_level(&self, filter: Option<String>, reset: bool)
 
 	if let Some(filter) = filter {
 		let new_filter_layer = match EnvFilter::try_new(filter) {
-			Ok(s) => s,
-			Err(e) => {
+			| Ok(s) => s,
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Invalid log level filter specified: {e}"
 				)));
@@ -398,10 +433,10 @@ pub(super) async fn change_log_level(&self, filter: Option<String>, reset: bool)
 			.reload
 			.reload(&new_filter_layer, Some(handles))
 		{
-			Ok(()) => {
+			| Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain("Successfully changed log level"));
 			},
-			Err(e) => {
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Failed to modify and reload the global tracing log level: {e}"
 				)));
@@ -414,7 +449,9 @@ pub(super) async fn change_log_level(&self, filter: Option<String>, reset: bool)
 
 #[admin_command]
 pub(super) async fn sign_json(&self) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -423,21 +460,24 @@ pub(super) async fn sign_json(&self) -> Result<RoomMessageEventContent> {
 
 	let string = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
 	match serde_json::from_str(&string) {
-		Ok(mut value) => {
+		| Ok(mut value) => {
 			self.services
 				.server_keys
 				.sign_json(&mut value)
 				.expect("our request json is what ruma expects");
-			let json_text = serde_json::to_string_pretty(&value).expect("canonical json is valid json");
+			let json_text =
+				serde_json::to_string_pretty(&value).expect("canonical json is valid json");
 			Ok(RoomMessageEventContent::text_plain(json_text))
 		},
-		Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
+		| Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
 	}
 }
 
 #[admin_command]
 pub(super) async fn verify_json(&self) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -446,13 +486,13 @@ pub(super) async fn verify_json(&self) -> Result<RoomMessageEventContent> {
 
 	let string = self.body[1..self.body.len().checked_sub(1).unwrap()].join("\n");
 	match serde_json::from_str::<CanonicalJsonObject>(&string) {
-		Ok(value) => match self.services.server_keys.verify_json(&value, None).await {
-			Ok(()) => Ok(RoomMessageEventContent::text_plain("Signature correct")),
-			Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+		| Ok(value) => match self.services.server_keys.verify_json(&value, None).await {
+			| Ok(()) => Ok(RoomMessageEventContent::text_plain("Signature correct")),
+			| Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 				"Signature verification failed: {e}"
 			))),
 		},
-		Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
+		| Err(e) => Ok(RoomMessageEventContent::text_plain(format!("Invalid json: {e}"))),
 	}
 }
 
@@ -462,9 +502,10 @@ pub(super) async fn verify_pdu(&self, event_id: Box<EventId>) -> Result<RoomMess
 
 	event.remove("event_id");
 	let msg = match self.services.server_keys.verify_event(&event, None).await {
-		Ok(ruma::signatures::Verified::Signatures) => "signatures OK, but content hash failed (redaction).",
-		Ok(ruma::signatures::Verified::All) => "signatures and hashes OK.",
-		Err(e) => return Err(e),
+		| Ok(ruma::signatures::Verified::Signatures) =>
+			"signatures OK, but content hash failed (redaction).",
+		| Ok(ruma::signatures::Verified::All) => "signatures and hashes OK.",
+		| Err(e) => return Err(e),
 	};
 
 	Ok(RoomMessageEventContent::notice_plain(msg))
@@ -472,7 +513,10 @@ pub(super) async fn verify_pdu(&self, event_id: Box<EventId>) -> Result<RoomMess
 
 #[admin_command]
 #[tracing::instrument(skip(self))]
-pub(super) async fn first_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn first_pdu_in_room(
+	&self,
+	room_id: Box<RoomId>,
+) -> Result<RoomMessageEventContent> {
 	if !self
 		.services
 		.rooms
@@ -498,7 +542,10 @@ pub(super) async fn first_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<Roo
 
 #[admin_command]
 #[tracing::instrument(skip(self))]
-pub(super) async fn latest_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn latest_pdu_in_room(
+	&self,
+	room_id: Box<RoomId>,
+) -> Result<RoomMessageEventContent> {
 	if !self
 		.services
 		.rooms
@@ -525,7 +572,9 @@ pub(super) async fn latest_pdu_in_room(&self, room_id: Box<RoomId>) -> Result<Ro
 #[admin_command]
 #[tracing::instrument(skip(self))]
 pub(super) async fn force_set_room_state_from_server(
-	&self, room_id: Box<RoomId>, server_name: Box<ServerName>,
+	&self,
+	room_id: Box<RoomId>,
+	server_name: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
 	if !self
 		.services
@@ -554,13 +603,10 @@ pub(super) async fn force_set_room_state_from_server(
 	let remote_state_response = self
 		.services
 		.sending
-		.send_federation_request(
-			&server_name,
-			get_room_state::v1::Request {
-				room_id: room_id.clone().into(),
-				event_id: first_pdu.event_id.clone().into(),
-			},
-		)
+		.send_federation_request(&server_name, get_room_state::v1::Request {
+			room_id: room_id.clone().into(),
+			event_id: first_pdu.event_id.clone().into(),
+		})
 		.await?;
 
 	for pdu in remote_state_response.pdus.clone() {
@@ -571,8 +617,8 @@ pub(super) async fn force_set_room_state_from_server(
 			.parse_incoming_pdu(&pdu)
 			.await
 		{
-			Ok(t) => t,
-			Err(e) => {
+			| Ok(t) => t,
+			| Err(e) => {
 				warn!("Could not parse PDU, ignoring: {e}");
 				continue;
 			},
@@ -654,8 +700,8 @@ pub(super) async fn force_set_room_state_from_server(
 		.await?;
 
 	info!(
-		"Updating joined counts for room just in case (e.g. we may have found a difference in the room's \
-		 m.room.member state"
+		"Updating joined counts for room just in case (e.g. we may have found a difference in \
+		 the room's m.room.member state"
 	);
 	self.services
 		.rooms
@@ -672,9 +718,13 @@ pub(super) async fn force_set_room_state_from_server(
 
 #[admin_command]
 pub(super) async fn get_signing_keys(
-	&self, server_name: Option<Box<ServerName>>, notary: Option<Box<ServerName>>, query: bool,
+	&self,
+	server_name: Option<Box<ServerName>>,
+	notary: Option<Box<ServerName>>,
+	query: bool,
 ) -> Result<RoomMessageEventContent> {
-	let server_name = server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
+	let server_name =
+		server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
 
 	if let Some(notary) = notary {
 		let signing_keys = self
@@ -706,8 +756,12 @@ pub(super) async fn get_signing_keys(
 }
 
 #[admin_command]
-pub(super) async fn get_verify_keys(&self, server_name: Option<Box<ServerName>>) -> Result<RoomMessageEventContent> {
-	let server_name = server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
+pub(super) async fn get_verify_keys(
+	&self,
+	server_name: Option<Box<ServerName>>,
+) -> Result<RoomMessageEventContent> {
+	let server_name =
+		server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
 
 	let keys = self
 		.services
@@ -727,7 +781,9 @@ pub(super) async fn get_verify_keys(&self, server_name: Option<Box<ServerName>>)
 
 #[admin_command]
 pub(super) async fn resolve_true_destination(
-	&self, server_name: Box<ServerName>, no_cache: bool,
+	&self,
+	server_name: Box<ServerName>,
+	no_cache: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !self.services.globals.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
@@ -737,7 +793,8 @@ pub(super) async fn resolve_true_destination(
 
 	if server_name == self.services.globals.config.server_name {
 		return Ok(RoomMessageEventContent::text_plain(
-			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for fetching local PDUs.",
+			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for \
+			 fetching local PDUs.",
 		));
 	}
 
@@ -846,7 +903,9 @@ pub(super) async fn list_dependencies(&self, names: bool) -> Result<RoomMessageE
 
 #[admin_command]
 pub(super) async fn database_stats(
-	&self, property: Option<String>, map: Option<String>,
+	&self,
+	property: Option<String>,
+	map: Option<String>,
 ) -> Result<RoomMessageEventContent> {
 	let property = property.unwrap_or_else(|| "rocksdb.stats".to_owned());
 	let map_name = map.as_ref().map_or(EMPTY, String::as_str);

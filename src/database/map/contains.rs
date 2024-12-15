@@ -29,7 +29,10 @@ where
 /// - harder errors will panic
 #[inline]
 #[implement(super::Map)]
-pub fn acontains<const MAX: usize, K>(self: &Arc<Self>, key: &K) -> impl Future<Output = bool> + Send + '_
+pub fn acontains<const MAX: usize, K>(
+	self: &Arc<Self>,
+	key: &K,
+) -> impl Future<Output = bool> + Send + '_
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -42,7 +45,11 @@ where
 /// - harder errors will panic
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, buf), fields(%self), level = "trace")]
-pub fn bcontains<K, B>(self: &Arc<Self>, key: &K, buf: &mut B) -> impl Future<Output = bool> + Send + '_
+pub fn bcontains<K, B>(
+	self: &Arc<Self>,
+	key: &K,
+	buf: &mut B,
+) -> impl Future<Output = bool> + Send + '_
 where
 	K: Serialize + ?Sized + Debug,
 	B: Write + AsRef<[u8]>,

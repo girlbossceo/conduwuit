@@ -24,12 +24,17 @@ where
 		F: Fn(Item) -> K + Send,
 		K: Eq + Hash + Send;
 
-	fn counts_by_with_cap<const CAP: usize, K, F>(self, f: F) -> impl Future<Output = HashMap<K, usize>> + Send
+	fn counts_by_with_cap<const CAP: usize, K, F>(
+		self,
+		f: F,
+	) -> impl Future<Output = HashMap<K, usize>> + Send
 	where
 		F: Fn(Item) -> K + Send,
 		K: Eq + Hash + Send;
 
-	fn counts_with_cap<const CAP: usize>(self) -> impl Future<Output = HashMap<Item, usize>> + Send
+	fn counts_with_cap<const CAP: usize>(
+		self,
+	) -> impl Future<Output = HashMap<Item, usize>> + Send
 	where
 		<Self as Stream>::Item: Eq + Hash;
 
@@ -63,7 +68,10 @@ where
 	}
 
 	#[inline]
-	fn counts_by_with_cap<const CAP: usize, K, F>(self, f: F) -> impl Future<Output = HashMap<K, usize>> + Send
+	fn counts_by_with_cap<const CAP: usize, K, F>(
+		self,
+		f: F,
+	) -> impl Future<Output = HashMap<K, usize>> + Send
 	where
 		F: Fn(Item) -> K + Send,
 		K: Eq + Hash + Send,
@@ -72,7 +80,9 @@ where
 	}
 
 	#[inline]
-	fn counts_with_cap<const CAP: usize>(self) -> impl Future<Output = HashMap<Item, usize>> + Send
+	fn counts_with_cap<const CAP: usize>(
+		self,
+	) -> impl Future<Output = HashMap<Item, usize>> + Send
 	where
 		<Self as Stream>::Item: Eq + Hash,
 	{

@@ -11,8 +11,8 @@ use conduwuit_service::media::{Dim, FileMeta, CACHE_CONTROL_IMMUTABLE, CORP_CROS
 use reqwest::Url;
 use ruma::{
 	api::client::media::{
-		create_content, get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
-		get_media_preview,
+		create_content, get_content, get_content_as_filename, get_content_thumbnail,
+		get_media_config, get_media_preview,
 	},
 	Mxc,
 };
@@ -23,7 +23,8 @@ use crate::{client::create_content_route, Ruma, RumaResponse};
 ///
 /// Returns max upload size.
 pub(crate) async fn get_media_config_legacy_route(
-	State(services): State<crate::State>, _body: Ruma<get_media_config::v3::Request>,
+	State(services): State<crate::State>,
+	_body: Ruma<get_media_config::v3::Request>,
 ) -> Result<get_media_config::v3::Response> {
 	Ok(get_media_config::v3::Response {
 		upload_size: ruma_from_usize(services.globals.config.max_request_size),
@@ -38,7 +39,8 @@ pub(crate) async fn get_media_config_legacy_route(
 ///
 /// Returns max upload size.
 pub(crate) async fn get_media_config_legacy_legacy_route(
-	State(services): State<crate::State>, body: Ruma<get_media_config::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<get_media_config::v3::Request>,
 ) -> Result<RumaResponse<get_media_config::v3::Response>> {
 	get_media_config_legacy_route(State(services), body)
 		.await
@@ -50,7 +52,8 @@ pub(crate) async fn get_media_config_legacy_legacy_route(
 /// Returns URL preview.
 #[tracing::instrument(skip_all, fields(%client), name = "url_preview_legacy")]
 pub(crate) async fn get_media_preview_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<get_media_preview::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
@@ -91,7 +94,8 @@ pub(crate) async fn get_media_preview_legacy_route(
 ///
 /// Returns URL preview.
 pub(crate) async fn get_media_preview_legacy_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_media_preview::v3::Request>,
 ) -> Result<RumaResponse<get_media_preview::v3::Response>> {
 	get_media_preview_legacy_route(State(services), InsecureClientIp(client), body)
@@ -110,7 +114,8 @@ pub(crate) async fn get_media_preview_legacy_legacy_route(
 /// - Some metadata will be saved in the database
 /// - Media will be saved in the media/ directory
 pub(crate) async fn create_content_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<create_content::v3::Request>,
 ) -> Result<RumaResponse<create_content::v3::Response>> {
 	create_content_route(State(services), InsecureClientIp(client), body)
@@ -128,7 +133,8 @@ pub(crate) async fn create_content_legacy_route(
 ///   seconds
 #[tracing::instrument(skip_all, fields(%client), name = "media_get_legacy")]
 pub(crate) async fn get_content_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content::v3::Request>,
 ) -> Result<get_content::v3::Response> {
 	let mxc = Mxc {
@@ -142,7 +148,8 @@ pub(crate) async fn get_content_legacy_route(
 		content_disposition,
 	}) = services.media.get(&mxc).await?
 	{
-		let content_disposition = make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
+		let content_disposition =
+			make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
 
 		Ok(get_content::v3::Response {
 			file: content.expect("entire file contents"),
@@ -156,10 +163,15 @@ pub(crate) async fn get_content_legacy_route(
 			.media
 			.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
 			.await
-			.map_err(|e| err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}")))))?;
+			.map_err(|e| {
+				err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
+			})?;
 
-		let content_disposition =
-			make_content_disposition(response.content_disposition.as_ref(), response.content_type.as_deref(), None);
+		let content_disposition = make_content_disposition(
+			response.content_disposition.as_ref(),
+			response.content_type.as_deref(),
+			None,
+		);
 
 		Ok(get_content::v3::Response {
 			file: response.file,
@@ -187,7 +199,8 @@ pub(crate) async fn get_content_legacy_route(
 ///   seconds
 #[tracing::instrument(skip_all, fields(%client), name = "media_get_legacy")]
 pub(crate) async fn get_content_legacy_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content::v3::Request>,
 ) -> Result<RumaResponse<get_content::v3::Response>> {
 	get_content_legacy_route(State(services), InsecureClientIp(client), body)
@@ -205,7 +218,8 @@ pub(crate) async fn get_content_legacy_legacy_route(
 ///   seconds
 #[tracing::instrument(skip_all, fields(%client), name = "media_get_legacy")]
 pub(crate) async fn get_content_as_filename_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<get_content_as_filename::v3::Response> {
 	let mxc = Mxc {
@@ -219,8 +233,11 @@ pub(crate) async fn get_content_as_filename_legacy_route(
 		content_disposition,
 	}) = services.media.get(&mxc).await?
 	{
-		let content_disposition =
-			make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), Some(&body.filename));
+		let content_disposition = make_content_disposition(
+			content_disposition.as_ref(),
+			content_type.as_deref(),
+			Some(&body.filename),
+		);
 
 		Ok(get_content_as_filename::v3::Response {
 			file: content.expect("entire file contents"),
@@ -234,10 +251,15 @@ pub(crate) async fn get_content_as_filename_legacy_route(
 			.media
 			.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
 			.await
-			.map_err(|e| err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}")))))?;
+			.map_err(|e| {
+				err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
+			})?;
 
-		let content_disposition =
-			make_content_disposition(response.content_disposition.as_ref(), response.content_type.as_deref(), None);
+		let content_disposition = make_content_disposition(
+			response.content_disposition.as_ref(),
+			response.content_type.as_deref(),
+			None,
+		);
 
 		Ok(get_content_as_filename::v3::Response {
 			content_disposition: Some(content_disposition),
@@ -264,7 +286,8 @@ pub(crate) async fn get_content_as_filename_legacy_route(
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
 pub(crate) async fn get_content_as_filename_legacy_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_as_filename::v3::Request>,
 ) -> Result<RumaResponse<get_content_as_filename::v3::Response>> {
 	get_content_as_filename_legacy_route(State(services), InsecureClientIp(client), body)
@@ -282,7 +305,8 @@ pub(crate) async fn get_content_as_filename_legacy_legacy_route(
 ///   seconds
 #[tracing::instrument(skip_all, fields(%client), name = "media_thumbnail_get_legacy")]
 pub(crate) async fn get_content_thumbnail_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<get_content_thumbnail::v3::Response> {
 	let mxc = Mxc {
@@ -297,7 +321,8 @@ pub(crate) async fn get_content_thumbnail_legacy_route(
 		content_disposition,
 	}) = services.media.get_thumbnail(&mxc, &dim).await?
 	{
-		let content_disposition = make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
+		let content_disposition =
+			make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
 
 		Ok(get_content_thumbnail::v3::Response {
 			file: content.expect("entire file contents"),
@@ -311,10 +336,15 @@ pub(crate) async fn get_content_thumbnail_legacy_route(
 			.media
 			.fetch_remote_thumbnail_legacy(&body)
 			.await
-			.map_err(|e| err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}")))))?;
+			.map_err(|e| {
+				err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
+			})?;
 
-		let content_disposition =
-			make_content_disposition(response.content_disposition.as_ref(), response.content_type.as_deref(), None);
+		let content_disposition = make_content_disposition(
+			response.content_disposition.as_ref(),
+			response.content_type.as_deref(),
+			None,
+		);
 
 		Ok(get_content_thumbnail::v3::Response {
 			file: response.file,
@@ -341,7 +371,8 @@ pub(crate) async fn get_content_thumbnail_legacy_route(
 /// - Uses client-provided `timeout_ms` if available, else defaults to 20
 ///   seconds
 pub(crate) async fn get_content_thumbnail_legacy_legacy_route(
-	State(services): State<crate::State>, InsecureClientIp(client): InsecureClientIp,
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<get_content_thumbnail::v3::Request>,
 ) -> Result<RumaResponse<get_content_thumbnail::v3::Response>> {
 	get_content_thumbnail_legacy_route(State(services), InsecureClientIp(client), body)

@@ -47,12 +47,18 @@ pub(super) async fn list_users(&self) -> Result<RoomMessageEventContent> {
 }
 
 #[admin_command]
-pub(super) async fn create_user(&self, username: String, password: Option<String>) -> Result<RoomMessageEventContent> {
+pub(super) async fn create_user(
+	&self,
+	username: String,
+	password: Option<String>,
+) -> Result<RoomMessageEventContent> {
 	// Validate user id
 	let user_id = parse_local_user_id(self.services, &username)?;
 
 	if self.services.users.exists(&user_id).await {
-		return Ok(RoomMessageEventContent::text_plain(format!("Userid {user_id} already exists")));
+		return Ok(RoomMessageEventContent::text_plain(format!(
+			"Userid {user_id} already exists"
+		)));
 	}
 
 	if user_id.is_historical() {
@@ -120,7 +126,9 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 				.server_in_room(self.services.globals.server_name(), &room_id)
 				.await
 			{
-				warn!("Skipping room {room} to automatically join as we have never joined before.");
+				warn!(
+					"Skipping room {room} to automatically join as we have never joined before."
+				);
 				continue;
 			}
 
@@ -130,25 +138,31 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 					&user_id,
 					&room_id,
 					Some("Automatically joining this room upon registration".to_owned()),
-					&[self.services.globals.server_name().to_owned(), room_server_name.to_owned()],
+					&[
+						self.services.globals.server_name().to_owned(),
+						room_server_name.to_owned(),
+					],
 					None,
 					&None,
 				)
 				.await
 				{
-					Ok(_response) => {
+					| Ok(_response) => {
 						info!("Automatically joined room {room} for user {user_id}");
 					},
-					Err(e) => {
+					| Err(e) => {
 						self.services
 							.admin
 							.send_message(RoomMessageEventContent::text_plain(format!(
-								"Failed to automatically join room {room} for user {user_id}: {e}"
+								"Failed to automatically join room {room} for user {user_id}: \
+								 {e}"
 							)))
 							.await
 							.ok();
 						// don't return this error so we don't fail registrations
-						error!("Failed to automatically join room {room} for user {user_id}: {e}");
+						error!(
+							"Failed to automatically join room {room} for user {user_id}: {e}"
+						);
 					},
 				};
 			}
@@ -181,7 +195,11 @@ pub(super) async fn create_user(&self, username: String, password: Option<String
 }
 
 #[admin_command]
-pub(super) async fn deactivate(&self, no_leave_rooms: bool, user_id: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn deactivate(
+	&self,
+	no_leave_rooms: bool,
+	user_id: String,
+) -> Result<RoomMessageEventContent> {
 	// Validate user id
 	let user_id = parse_local_user_id(self.services, &user_id)?;
 
@@ -229,7 +247,8 @@ pub(super) async fn reset_password(&self, username: String) -> Result<RoomMessag
 
 	if user_id == self.services.globals.server_user {
 		return Ok(RoomMessageEventContent::text_plain(
-			"Not allowed to set the password for the server account. Please use the emergency password config option.",
+			"Not allowed to set the password for the server account. Please use the emergency \
+			 password config option.",
 		));
 	}
 
@@ -240,18 +259,24 @@ pub(super) async fn reset_password(&self, username: String) -> Result<RoomMessag
 		.users
 		.set_password(&user_id, Some(new_password.as_str()))
 	{
-		Ok(()) => Ok(RoomMessageEventContent::text_plain(format!(
+		| Ok(()) => Ok(RoomMessageEventContent::text_plain(format!(
 			"Successfully reset the password for user {user_id}: `{new_password}`"
 		))),
-		Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
+		| Err(e) => Ok(RoomMessageEventContent::text_plain(format!(
 			"Couldn't reset the password for user {user_id}: {e}"
 		))),
 	}
 }
 
 #[admin_command]
-pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+pub(super) async fn deactivate_all(
+	&self,
+	no_leave_rooms: bool,
+	force: bool,
+) -> Result<RoomMessageEventContent> {
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -269,7 +294,7 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 
 	for username in usernames {
 		match parse_active_local_user_id(self.services, username).await {
-			Ok(user_id) => {
+			| Ok(user_id) => {
 				if self.services.users.is_admin(&user_id).await && !force {
 					self.services
 						.admin
@@ -296,7 +321,7 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 
 				user_ids.push(user_id);
 			},
-			Err(e) => {
+			| Err(e) => {
 				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!(
@@ -313,7 +338,7 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 
 	for user_id in user_ids {
 		match self.services.users.deactivate_account(&user_id).await {
-			Ok(()) => {
+			| Ok(()) => {
 				deactivation_count = deactivation_count.saturating_add(1);
 				if !no_leave_rooms {
 					info!("Forcing user {user_id} to leave all rooms apart of deactivate-all");
@@ -328,14 +353,17 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 
 					full_user_deactivate(self.services, &user_id, &all_joined_rooms).await?;
 					update_displayname(self.services, &user_id, None, &all_joined_rooms).await;
-					update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms).await;
+					update_avatar_url(self.services, &user_id, None, None, &all_joined_rooms)
+						.await;
 					leave_all_rooms(self.services, &user_id).await;
 				}
 			},
-			Err(e) => {
+			| Err(e) => {
 				self.services
 					.admin
-					.send_message(RoomMessageEventContent::text_plain(format!("Failed deactivating user: {e}")))
+					.send_message(RoomMessageEventContent::text_plain(format!(
+						"Failed deactivating user: {e}"
+					)))
 					.await
 					.ok();
 			},
@@ -348,8 +376,8 @@ pub(super) async fn deactivate_all(&self, no_leave_rooms: bool, force: bool) -> 
 		)))
 	} else {
 		Ok(RoomMessageEventContent::text_plain(format!(
-			"Deactivated {deactivation_count} accounts.\nSkipped admin accounts: {}. Use --force to deactivate admin \
-			 accounts",
+			"Deactivated {deactivation_count} accounts.\nSkipped admin accounts: {}. Use \
+			 --force to deactivate admin accounts",
 			admins.join(", ")
 		)))
 	}
@@ -391,9 +419,13 @@ pub(super) async fn list_joined_rooms(&self, user_id: String) -> Result<RoomMess
 
 #[admin_command]
 pub(super) async fn force_join_list_of_local_users(
-	&self, room_id: OwnedRoomOrAliasId, yes_i_want_to_do_this: bool,
+	&self,
+	room_id: OwnedRoomOrAliasId,
+	yes_i_want_to_do_this: bool,
 ) -> Result<RoomMessageEventContent> {
-	if self.body.len() < 2 || !self.body[0].trim().starts_with("```") || self.body.last().unwrap_or(&"").trim() != "```"
+	if self.body.len() < 2
+		|| !self.body[0].trim().starts_with("```")
+		|| self.body.last().unwrap_or(&"").trim() != "```"
 	{
 		return Ok(RoomMessageEventContent::text_plain(
 			"Expected code block in command body. Add --help for details.",
@@ -402,8 +434,8 @@ pub(super) async fn force_join_list_of_local_users(
 
 	if !yes_i_want_to_do_this {
 		return Ok(RoomMessageEventContent::notice_markdown(
-			"You must pass the --yes-i-want-to-do-this-flag to ensure you really want to force bulk join all \
-			 specified local users.",
+			"You must pass the --yes-i-want-to-do-this-flag to ensure you really want to force \
+			 bulk join all specified local users.",
 		));
 	}
 
@@ -462,7 +494,7 @@ pub(super) async fn force_join_list_of_local_users(
 
 	for username in usernames {
 		match parse_active_local_user_id(self.services, username).await {
-			Ok(user_id) => {
+			| Ok(user_id) => {
 				// don't make the server service account join
 				if user_id == self.services.globals.server_user {
 					self.services
@@ -477,7 +509,7 @@ pub(super) async fn force_join_list_of_local_users(
 
 				user_ids.push(user_id);
 			},
-			Err(e) => {
+			| Err(e) => {
 				self.services
 					.admin
 					.send_message(RoomMessageEventContent::text_plain(format!(
@@ -505,10 +537,10 @@ pub(super) async fn force_join_list_of_local_users(
 		)
 		.await
 		{
-			Ok(_res) => {
+			| Ok(_res) => {
 				successful_joins = successful_joins.saturating_add(1);
 			},
-			Err(e) => {
+			| Err(e) => {
 				debug_warn!("Failed force joining {user_id} to {room_id} during bulk join: {e}");
 				failed_joins = failed_joins.saturating_add(1);
 			},
@@ -516,18 +548,21 @@ pub(super) async fn force_join_list_of_local_users(
 	}
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
-		"{successful_joins} local users have been joined to {room_id}. {failed_joins} joins failed.",
+		"{successful_joins} local users have been joined to {room_id}. {failed_joins} joins \
+		 failed.",
 	)))
 }
 
 #[admin_command]
 pub(super) async fn force_join_all_local_users(
-	&self, room_id: OwnedRoomOrAliasId, yes_i_want_to_do_this: bool,
+	&self,
+	room_id: OwnedRoomOrAliasId,
+	yes_i_want_to_do_this: bool,
 ) -> Result<RoomMessageEventContent> {
 	if !yes_i_want_to_do_this {
 		return Ok(RoomMessageEventContent::notice_markdown(
-			"You must pass the --yes-i-want-to-do-this-flag to ensure you really want to force bulk join all local \
-			 users.",
+			"You must pass the --yes-i-want-to-do-this-flag to ensure you really want to force \
+			 bulk join all local users.",
 		));
 	}
 
@@ -598,10 +633,10 @@ pub(super) async fn force_join_all_local_users(
 		)
 		.await
 		{
-			Ok(_res) => {
+			| Ok(_res) => {
 				successful_joins = successful_joins.saturating_add(1);
 			},
-			Err(e) => {
+			| Err(e) => {
 				debug_warn!("Failed force joining {user_id} to {room_id} during bulk join: {e}");
 				failed_joins = failed_joins.saturating_add(1);
 			},
@@ -609,13 +644,16 @@ pub(super) async fn force_join_all_local_users(
 	}
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
-		"{successful_joins} local users have been joined to {room_id}. {failed_joins} joins failed.",
+		"{successful_joins} local users have been joined to {room_id}. {failed_joins} joins \
+		 failed.",
 	)))
 }
 
 #[admin_command]
 pub(super) async fn force_join_room(
-	&self, user_id: String, room_id: OwnedRoomOrAliasId,
+	&self,
+	user_id: String,
+	room_id: OwnedRoomOrAliasId,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &user_id)?;
 	let (room_id, servers) = self
@@ -629,7 +667,8 @@ pub(super) async fn force_join_room(
 		self.services.globals.user_is_local(&user_id),
 		"Parsed user_id must be a local user"
 	);
-	join_room_by_id_helper(self.services, &user_id, &room_id, None, &servers, None, &None).await?;
+	join_room_by_id_helper(self.services, &user_id, &room_id, None, &servers, None, &None)
+		.await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"{user_id} has been joined to {room_id}.",
@@ -638,7 +677,9 @@ pub(super) async fn force_join_room(
 
 #[admin_command]
 pub(super) async fn force_leave_room(
-	&self, user_id: String, room_id: OwnedRoomOrAliasId,
+	&self,
+	user_id: String,
+	room_id: OwnedRoomOrAliasId,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &user_id)?;
 	let room_id = self.services.rooms.alias.resolve(&room_id).await?;
@@ -656,7 +697,9 @@ pub(super) async fn force_leave_room(
 
 #[admin_command]
 pub(super) async fn force_demote(
-	&self, user_id: String, room_id: OwnedRoomOrAliasId,
+	&self,
+	user_id: String,
+	room_id: OwnedRoomOrAliasId,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &user_id)?;
 	let room_id = self.services.rooms.alias.resolve(&room_id).await?;
@@ -672,14 +715,19 @@ pub(super) async fn force_demote(
 		.services
 		.rooms
 		.state_accessor
-		.room_state_get_content::<RoomPowerLevelsEventContent>(&room_id, &StateEventType::RoomPowerLevels, "")
+		.room_state_get_content::<RoomPowerLevelsEventContent>(
+			&room_id,
+			&StateEventType::RoomPowerLevels,
+			"",
+		)
 		.await
 		.ok();
 
 	let user_can_demote_self = room_power_levels
 		.as_ref()
 		.is_some_and(|power_levels_content| {
-			RoomPowerLevels::from(power_levels_content.clone()).user_can_change_user_power_level(&user_id, &user_id)
+			RoomPowerLevels::from(power_levels_content.clone())
+				.user_can_change_user_power_level(&user_id, &user_id)
 		}) || self
 		.services
 		.rooms
@@ -710,7 +758,8 @@ pub(super) async fn force_demote(
 		.await?;
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
-		"User {user_id} demoted themselves to the room default power level in {room_id} - {event_id}"
+		"User {user_id} demoted themselves to the room default power level in {room_id} - \
+		 {event_id}"
 	)))
 }
 
@@ -731,7 +780,10 @@ pub(super) async fn make_user_admin(&self, user_id: String) -> Result<RoomMessag
 
 #[admin_command]
 pub(super) async fn put_room_tag(
-	&self, user_id: String, room_id: Box<RoomId>, tag: String,
+	&self,
+	user_id: String,
+	room_id: Box<RoomId>,
+	tag: String,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
@@ -741,9 +793,7 @@ pub(super) async fn put_room_tag(
 		.get_room(&room_id, &user_id, RoomAccountDataEventType::Tag)
 		.await
 		.unwrap_or(TagEvent {
-			content: TagEventContent {
-				tags: BTreeMap::new(),
-			},
+			content: TagEventContent { tags: BTreeMap::new() },
 		});
 
 	tags_event
@@ -768,7 +818,10 @@ pub(super) async fn put_room_tag(
 
 #[admin_command]
 pub(super) async fn delete_room_tag(
-	&self, user_id: String, room_id: Box<RoomId>, tag: String,
+	&self,
+	user_id: String,
+	room_id: Box<RoomId>,
+	tag: String,
 ) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
@@ -778,9 +831,7 @@ pub(super) async fn delete_room_tag(
 		.get_room(&room_id, &user_id, RoomAccountDataEventType::Tag)
 		.await
 		.unwrap_or(TagEvent {
-			content: TagEventContent {
-				tags: BTreeMap::new(),
-			},
+			content: TagEventContent { tags: BTreeMap::new() },
 		});
 
 	tags_event.content.tags.remove(&tag.clone().into());
@@ -796,12 +847,17 @@ pub(super) async fn delete_room_tag(
 		.await?;
 
 	Ok(RoomMessageEventContent::text_plain(format!(
-		"Successfully updated room account data for {user_id} and room {room_id}, deleting room tag {tag}"
+		"Successfully updated room account data for {user_id} and room {room_id}, deleting room \
+		 tag {tag}"
 	)))
 }
 
 #[admin_command]
-pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn get_room_tags(
+	&self,
+	user_id: String,
+	room_id: Box<RoomId>,
+) -> Result<RoomMessageEventContent> {
 	let user_id = parse_active_local_user_id(self.services, &user_id).await?;
 
 	let tags_event = self
@@ -810,9 +866,7 @@ pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) 
 		.get_room(&room_id, &user_id, RoomAccountDataEventType::Tag)
 		.await
 		.unwrap_or(TagEvent {
-			content: TagEventContent {
-				tags: BTreeMap::new(),
-			},
+			content: TagEventContent { tags: BTreeMap::new() },
 		});
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -822,7 +876,10 @@ pub(super) async fn get_room_tags(&self, user_id: String, room_id: Box<RoomId>) 
 }
 
 #[admin_command]
-pub(super) async fn redact_event(&self, event_id: Box<EventId>) -> Result<RoomMessageEventContent> {
+pub(super) async fn redact_event(
+	&self,
+	event_id: Box<EventId>,
+) -> Result<RoomMessageEventContent> {
 	let Ok(event) = self
 		.services
 		.rooms
@@ -841,7 +898,9 @@ pub(super) async fn redact_event(&self, event_id: Box<EventId>) -> Result<RoomMe
 	let sender_user = event.sender;
 
 	if !self.services.globals.user_is_local(&sender_user) {
-		return Ok(RoomMessageEventContent::text_plain("This command only works on local users."));
+		return Ok(RoomMessageEventContent::text_plain(
+			"This command only works on local users.",
+		));
 	}
 
 	let reason = format!(

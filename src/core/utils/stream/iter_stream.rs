@@ -13,7 +13,11 @@ pub trait IterStream<I: IntoIterator + Send> {
 	/// Convert an Iterator into a TryStream
 	fn try_stream(
 		self,
-	) -> impl TryStream<Ok = <I as IntoIterator>::Item, Error = Error, Item = Result<<I as IntoIterator>::Item, Error>> + Send;
+	) -> impl TryStream<
+		Ok = <I as IntoIterator>::Item,
+		Error = Error,
+		Item = Result<<I as IntoIterator>::Item, Error>,
+	> + Send;
 }
 
 impl<I> IterStream<I> for I
@@ -27,8 +31,11 @@ where
 	#[inline]
 	fn try_stream(
 		self,
-	) -> impl TryStream<Ok = <I as IntoIterator>::Item, Error = Error, Item = Result<<I as IntoIterator>::Item, Error>> + Send
-	{
+	) -> impl TryStream<
+		Ok = <I as IntoIterator>::Item,
+		Error = Error,
+		Item = Result<<I as IntoIterator>::Item, Error>,
+	> + Send {
 		self.stream().map(Ok)
 	}
 }

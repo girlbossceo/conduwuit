@@ -19,9 +19,12 @@ use ruma::{
 		IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
 	},
 	events::{
-		room::power_levels::RoomPowerLevelsEventContent, AnySyncTimelineEvent, StateEventType, TimelineEventType,
+		room::power_levels::RoomPowerLevelsEventContent, AnySyncTimelineEvent, StateEventType,
+		TimelineEventType,
 	},
-	push::{Action, PushConditionPowerLevelsCtx, PushConditionRoomCtx, PushFormat, Ruleset, Tweak},
+	push::{
+		Action, PushConditionPowerLevelsCtx, PushConditionRoomCtx, PushFormat, Ruleset, Tweak,
+	},
 	serde::Raw,
 	uint, RoomId, UInt, UserId,
 };
@@ -55,7 +58,8 @@ impl crate::Service for Service {
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				client: args.depend::<client::Service>("client"),
-				state_accessor: args.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
+				state_accessor: args
+					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 				users: args.depend::<users::Service>("users"),
 				sending: args.depend::<sending::Service>("sending"),
@@ -67,23 +71,31 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub async fn set_pusher(&self, sender: &UserId, pusher: &set_pusher::v3::PusherAction) -> Result {
+	pub async fn set_pusher(
+		&self,
+		sender: &UserId,
+		pusher: &set_pusher::v3::PusherAction,
+	) -> Result {
 		match pusher {
-			set_pusher::v3::PusherAction::Post(data) => {
+			| set_pusher::v3::PusherAction::Post(data) => {
 				let pushkey = data.pusher.ids.pushkey.as_str();
 
 				if pushkey.len() > 512 {
-					return Err!(Request(InvalidParam("Push key length cannot be greater than 512 bytes.")));
+					return Err!(Request(InvalidParam(
+						"Push key length cannot be greater than 512 bytes."
+					)));
 				}
 
 				if data.pusher.ids.app_id.as_str().len() > 64 {
-					return Err!(Request(InvalidParam("App ID length cannot be greater than 64 bytes.")));
+					return Err!(Request(InvalidParam(
+						"App ID length cannot be greater than 64 bytes."
+					)));
 				}
 
 				let key = (sender, data.pusher.ids.pushkey.as_str());
 				self.db.senderkey_pusher.put(key, Json(pusher));
 			},
-			set_pusher::v3::PusherAction::Delete(ids) => {
+			| set_pusher::v3::PusherAction::Delete(ids) => {
 				let key = (sender, ids.pushkey.as_str());
 				self.db.senderkey_pusher.del(key);
 
@@ -118,7 +130,10 @@ impl Service {
 			.await
 	}
 
-	pub fn get_pushkeys<'a>(&'a self, sender: &'a UserId) -> impl Stream<Item = &str> + Send + 'a {
+	pub fn get_pushkeys<'a>(
+		&'a self,
+		sender: &'a UserId,
+	) -> impl Stream<Item = &str> + Send + 'a {
 		let prefix = (sender, Interfix);
 		self.db
 			.senderkey_pusher
@@ -160,14 +175,16 @@ impl Service {
 		let response = self.services.client.pusher.execute(reqwest_request).await;
 
 		match response {
-			Ok(mut response) => {
+			| Ok(mut response) => {
 				// reqwest::Response -> http::Response conversion
 
 				trace!("Checking response destination's IP");
 				if let Some(remote_addr) = response.remote_addr() {
 					if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
 						if !self.services.client.valid_cidr_range(&ip) {
-							return Err!(BadServerResponse("Not allowed to send requests to this IP"));
+							return Err!(BadServerResponse(
+								"Not allowed to send requests to this IP"
+							));
 						}
 					}
 				}
@@ -197,10 +214,13 @@ impl Service {
 						.body(body)
 						.expect("reqwest body is valid http body"),
 				);
-				response
-					.map_err(|e| err!(BadServerResponse(warn!("Push gateway {dest} returned invalid response: {e}"))))
+				response.map_err(|e| {
+					err!(BadServerResponse(warn!(
+						"Push gateway {dest} returned invalid response: {e}"
+					)))
+				})
 			},
-			Err(e) => {
+			| Err(e) => {
 				warn!("Could not send request to pusher {dest}: {e}");
 				Err(e.into())
 			},
@@ -209,7 +229,12 @@ impl Service {
 
 	#[tracing::instrument(skip(self, user, unread, pusher, ruleset, pdu))]
 	pub async fn send_push_notice(
-		&self, user: &UserId, unread: UInt, pusher: &Pusher, ruleset: Ruleset, pdu: &PduEvent,
+		&self,
+		user: &UserId,
+		unread: UInt,
+		pusher: &Pusher,
+		ruleset: Ruleset,
+		pdu: &PduEvent,
 	) -> Result<()> {
 		let mut notify = None;
 		let mut tweaks = Vec::new();
@@ -220,8 +245,9 @@ impl Service {
 			.room_state_get(&pdu.room_id, &StateEventType::RoomPowerLevels, "")
 			.await
 			.and_then(|ev| {
-				serde_json::from_str(ev.content.get())
-					.map_err(|e| err!(Database(error!("invalid m.room.power_levels event: {e:?}"))))
+				serde_json::from_str(ev.content.get()).map_err(|e| {
+					err!(Database(error!("invalid m.room.power_levels event: {e:?}")))
+				})
 			})
 			.unwrap_or_default();
 
@@ -230,12 +256,12 @@ impl Service {
 			.await
 		{
 			let n = match action {
-				Action::Notify => true,
-				Action::SetTweak(tweak) => {
+				| Action::Notify => true,
+				| Action::SetTweak(tweak) => {
 					tweaks.push(tweak.clone());
 					continue;
 				},
-				_ => false,
+				| _ => false,
 			};
 
 			if notify.is_some() {
@@ -257,8 +283,12 @@ impl Service {
 
 	#[tracing::instrument(skip(self, user, ruleset, pdu), level = "debug")]
 	pub async fn get_actions<'a>(
-		&self, user: &UserId, ruleset: &'a Ruleset, power_levels: &RoomPowerLevelsEventContent,
-		pdu: &Raw<AnySyncTimelineEvent>, room_id: &RoomId,
+		&self,
+		user: &UserId,
+		ruleset: &'a Ruleset,
+		power_levels: &RoomPowerLevelsEventContent,
+		pdu: &Raw<AnySyncTimelineEvent>,
+		room_id: &RoomId,
 	) -> &'a [Action] {
 		let power_levels = PushConditionPowerLevelsCtx {
 			users: power_levels.users.clone(),
@@ -294,14 +324,21 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, unread, pusher, tweaks, event))]
-	async fn send_notice(&self, unread: UInt, pusher: &Pusher, tweaks: Vec<Tweak>, event: &PduEvent) -> Result<()> {
+	async fn send_notice(
+		&self,
+		unread: UInt,
+		pusher: &Pusher,
+		tweaks: Vec<Tweak>,
+		event: &PduEvent,
+	) -> Result<()> {
 		// TODO: email
 		match &pusher.kind {
-			PusherKind::Http(http) => {
+			| PusherKind::Http(http) => {
 				// TODO (timo): can pusher/devices have conflicting formats
 				let event_id_only = http.format == Some(PushFormat::EventIdOnly);
 
-				let mut device = Device::new(pusher.ids.app_id.clone(), pusher.ids.pushkey.clone());
+				let mut device =
+					Device::new(pusher.ids.app_id.clone(), pusher.ids.pushkey.clone());
 				device.data.default_payload = http.default_payload.clone();
 				device.data.format.clone_from(&http.format);
 
@@ -319,8 +356,11 @@ impl Service {
 				notifi.counts = NotificationCounts::new(unread, uint!(0));
 
 				if event_id_only {
-					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
-						.await?;
+					self.send_request(
+						&http.url,
+						send_event_notification::v1::Request::new(notifi),
+					)
+					.await?;
 				} else {
 					if event.kind == TimelineEventType::RoomEncrypted
 						|| tweaks
@@ -336,10 +376,12 @@ impl Service {
 					notifi.content = serde_json::value::to_raw_value(&event.content).ok();
 
 					if event.kind == TimelineEventType::RoomMember {
-						notifi.user_is_target = event.state_key.as_deref() == Some(event.sender.as_str());
+						notifi.user_is_target =
+							event.state_key.as_deref() == Some(event.sender.as_str());
 					}
 
-					notifi.sender_display_name = self.services.users.displayname(&event.sender).await.ok();
+					notifi.sender_display_name =
+						self.services.users.displayname(&event.sender).await.ok();
 
 					notifi.room_name = self
 						.services
@@ -355,15 +397,18 @@ impl Service {
 						.await
 						.ok();
 
-					self.send_request(&http.url, send_event_notification::v1::Request::new(notifi))
-						.await?;
+					self.send_request(
+						&http.url,
+						send_event_notification::v1::Request::new(notifi),
+					)
+					.await?;
 				}
 
 				Ok(())
 			},
 			// TODO: Handle email
 			//PusherKind::Email(_) => Ok(()),
-			_ => Ok(()),
+			| _ => Ok(()),
 		}
 	}
 }

@@ -11,7 +11,10 @@ use crate::{
 };
 
 #[implement(super::Map)]
-pub fn rev_keys_from<'a, K, P>(self: &'a Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn rev_keys_from<'a, K, P>(
+	self: &'a Arc<Self>,
+	from: &P,
+) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
@@ -22,7 +25,10 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), level = "trace")]
-pub fn rev_keys_from_raw<P>(self: &Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
+pub fn rev_keys_from_raw<P>(
+	self: &Arc<Self>,
+	from: &P,
+) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -31,7 +37,10 @@ where
 }
 
 #[implement(super::Map)]
-pub fn rev_keys_raw_from<'a, K, P>(self: &'a Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn rev_keys_raw_from<'a, K, P>(
+	self: &'a Arc<Self>,
+	from: &P,
+) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
 	K: Deserialize<'a> + Send,
@@ -42,7 +51,10 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, from), fields(%self), level = "trace")]
-pub fn rev_raw_keys_from<P>(self: &Arc<Self>, from: &P) -> impl Stream<Item = Result<Key<'_>>> + Send
+pub fn rev_raw_keys_from<P>(
+	self: &Arc<Self>,
+	from: &P,
+) -> impl Stream<Item = Result<Key<'_>>> + Send
 where
 	P: AsRef<[u8]> + ?Sized + Debug,
 {

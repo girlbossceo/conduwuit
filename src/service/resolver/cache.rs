@@ -46,7 +46,11 @@ impl Cache {
 }
 
 impl super::Service {
-	pub fn set_cached_destination(&self, name: OwnedServerName, dest: CachedDest) -> Option<CachedDest> {
+	pub fn set_cached_destination(
+		&self,
+		name: OwnedServerName,
+		dest: CachedDest,
+	) -> Option<CachedDest> {
 		trace!(?name, ?dest, "set cached destination");
 		self.cache
 			.destinations
@@ -65,7 +69,11 @@ impl super::Service {
 			.cloned()
 	}
 
-	pub fn set_cached_override(&self, name: &str, over: CachedOverride) -> Option<CachedOverride> {
+	pub fn set_cached_override(
+		&self,
+		name: &str,
+		over: CachedOverride,
+	) -> Option<CachedOverride> {
 		trace!(?name, ?over, "set cached override");
 		self.cache
 			.overrides
@@ -102,7 +110,9 @@ impl CachedDest {
 	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
 
 	#[must_use]
-	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36) }
+	pub(crate) fn default_expire() -> SystemTime {
+		rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36)
+	}
 }
 
 impl CachedOverride {
@@ -113,5 +123,7 @@ impl CachedOverride {
 	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
 
 	#[must_use]
-	pub(crate) fn default_expire() -> SystemTime { rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12) }
+	pub(crate) fn default_expire() -> SystemTime {
+		rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12)
+	}
 }

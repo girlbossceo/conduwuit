@@ -18,7 +18,8 @@ use crate::{Result, Ruma};
 /// - Hides any local users that aren't in any public rooms (i.e. those that
 ///   have the join rule set to public) and don't share a room with the sender
 pub(crate) async fn search_users_route(
-	State(services): State<crate::State>, body: Ruma<search_users::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<search_users::v3::Request>,
 ) -> Result<search_users::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let limit = usize::try_from(body.limit).map_or(10, usize::from).min(100); // default limit is 10
@@ -61,7 +62,11 @@ pub(crate) async fn search_users_route(
 				services
 					.rooms
 					.state_accessor
-					.room_state_get_content::<RoomJoinRulesEventContent>(room, &StateEventType::RoomJoinRules, "")
+					.room_state_get_content::<RoomJoinRulesEventContent>(
+						room,
+						&StateEventType::RoomJoinRules,
+						"",
+					)
 					.map_ok_or(false, |content| content.join_rule == JoinRule::Public)
 			})
 			.await;
@@ -89,8 +94,5 @@ pub(crate) async fn search_users_route(
 
 	let results = users.take(limit).collect().await;
 
-	Ok(search_users::v3::Response {
-		results,
-		limited,
-	})
+	Ok(search_users::v3::Response { results, limited })
 }

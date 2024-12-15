@@ -1,8 +1,8 @@
 use std::sync::OnceLock;
 
 use argon2::{
-	password_hash, password_hash::SaltString, Algorithm, Argon2, Params, PasswordHash, PasswordHasher,
-	PasswordVerifier, Version,
+	password_hash, password_hash::SaltString, Algorithm, Argon2, Params, PasswordHash,
+	PasswordHasher, PasswordVerifier, Version,
 };
 
 use crate::{err, Error, Result};

@@ -69,7 +69,8 @@ pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<ShortId>()];
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
-		let cache_capacity = f64::from(config.stateinfo_cache_capacity) * config.cache_capacity_modifier;
+		let cache_capacity =
+			f64::from(config.stateinfo_cache_capacity) * config.cache_capacity_modifier;
 		Ok(Arc::new(Self {
 			stateinfo_cache: LruCache::new(usize_from_f64(cache_capacity)?).into(),
 			db: Data {
@@ -85,17 +86,16 @@ impl crate::Service for Service {
 	fn memory_usage(&self, out: &mut dyn Write) -> Result {
 		let (cache_len, ents) = {
 			let cache = self.stateinfo_cache.lock().expect("locked");
-			let ents = cache
-				.iter()
-				.map(at!(1))
-				.flat_map(|vec| vec.iter())
-				.fold(HashMap::new(), |mut ents, ssi| {
+			let ents = cache.iter().map(at!(1)).flat_map(|vec| vec.iter()).fold(
+				HashMap::new(),
+				|mut ents, ssi| {
 					for cs in &[&ssi.added, &ssi.removed, &ssi.full_state] {
 						ents.insert(Arc::as_ptr(cs), compressed_state_size(cs));
 					}
 
 					ents
-				});
+				},
+			);
 
 			(cache.len(), ents)
 		};
@@ -117,7 +117,10 @@ impl crate::Service for Service {
 impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
-	pub async fn load_shortstatehash_info(&self, shortstatehash: ShortStateHash) -> Result<ShortStateInfoVec> {
+	pub async fn load_shortstatehash_info(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> Result<ShortStateInfoVec> {
 		if let Some(r) = self
 			.stateinfo_cache
 			.lock()
@@ -143,12 +146,11 @@ impl Service {
 		Ok(stack)
 	}
 
-	async fn new_shortstatehash_info(&self, shortstatehash: ShortStateHash) -> Result<ShortStateInfoVec> {
-		let StateDiff {
-			parent,
-			added,
-			removed,
-		} = self.get_statediff(shortstatehash).await?;
+	async fn new_shortstatehash_info(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> Result<ShortStateInfoVec> {
+		let StateDiff { parent, added, removed } = self.get_statediff(shortstatehash).await?;
 
 		let Some(parent) = parent else {
 			return Ok(vec![ShortStateInfo {
@@ -180,9 +182,17 @@ impl Service {
 		Ok(stack)
 	}
 
-	pub fn compress_state_events<'a, I>(&'a self, state: I) -> impl Stream<Item = CompressedStateEvent> + Send + 'a
+	pub fn compress_state_events<'a, I>(
+		&'a self,
+		state: I,
+	) -> impl Stream<Item = CompressedStateEvent> + Send + 'a
 	where
-		I: Iterator<Item = (&'a ShortStateKey, &'a EventId)> + Clone + Debug + ExactSizeIterator + Send + 'a,
+		I: Iterator<Item = (&'a ShortStateKey, &'a EventId)>
+			+ Clone
+			+ Debug
+			+ ExactSizeIterator
+			+ Send
+			+ 'a,
 	{
 		let event_ids = state.clone().map(at!(1));
 
@@ -195,10 +205,16 @@ impl Service {
 			.stream()
 			.map(at!(0))
 			.zip(short_event_ids)
-			.map(|(shortstatekey, shorteventid)| compress_state_event(*shortstatekey, shorteventid))
+			.map(|(shortstatekey, shorteventid)| {
+				compress_state_event(*shortstatekey, shorteventid)
+			})
 	}
 
-	pub async fn compress_state_event(&self, shortstatekey: ShortStateKey, event_id: &EventId) -> CompressedStateEvent {
+	pub async fn compress_state_event(
+		&self,
+		shortstatekey: ShortStateKey,
+		event_id: &EventId,
+	) -> CompressedStateEvent {
 		let shorteventid = self
 			.services
 			.short
@@ -227,8 +243,11 @@ impl Service {
 	/// * `parent_states` - A stack with info on shortstatehash, full state,
 	///   added diff and removed diff for each parent layer
 	pub fn save_state_from_diff(
-		&self, shortstatehash: ShortStateHash, statediffnew: Arc<HashSet<CompressedStateEvent>>,
-		statediffremoved: Arc<HashSet<CompressedStateEvent>>, diff_to_sibling: usize,
+		&self,
+		shortstatehash: ShortStateHash,
+		statediffnew: Arc<HashSet<CompressedStateEvent>>,
+		statediffremoved: Arc<HashSet<CompressedStateEvent>>,
+		diff_to_sibling: usize,
 		mut parent_states: ParentStatesVec,
 	) -> Result {
 		let statediffnew_len = statediffnew.len();
@@ -274,14 +293,11 @@ impl Service {
 
 		if parent_states.is_empty() {
 			// There is no parent layer, create a new state
-			self.save_statediff(
-				shortstatehash,
-				&StateDiff {
-					parent: None,
-					added: statediffnew,
-					removed: statediffremoved,
-				},
-			);
+			self.save_statediff(shortstatehash, &StateDiff {
+				parent: None,
+				added: statediffnew,
+				removed: statediffremoved,
+			});
 
 			return Ok(());
 		};
@@ -327,14 +343,11 @@ impl Service {
 			)?;
 		} else {
 			// Diff small enough, we add diff as layer on top of parent
-			self.save_statediff(
-				shortstatehash,
-				&StateDiff {
-					parent: Some(parent.shortstatehash),
-					added: statediffnew,
-					removed: statediffremoved,
-				},
-			);
+			self.save_statediff(shortstatehash, &StateDiff {
+				parent: Some(parent.shortstatehash),
+				added: statediffnew,
+				removed: statediffremoved,
+			});
 		}
 
 		Ok(())
@@ -344,7 +357,9 @@ impl Service {
 	/// room state
 	#[tracing::instrument(skip(self, new_state_ids_compressed), level = "debug")]
 	pub async fn save_state(
-		&self, room_id: &RoomId, new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
+		&self,
+		room_id: &RoomId,
+		new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
 	) -> Result<HashSetCompressStateEvent> {
 		let previous_shortstatehash = self
 			.services
@@ -353,7 +368,8 @@ impl Service {
 			.await
 			.ok();
 
-		let state_hash = utils::calculate_hash(new_state_ids_compressed.iter().map(|bytes| &bytes[..]));
+		let state_hash =
+			utils::calculate_hash(new_state_ids_compressed.iter().map(|bytes| &bytes[..]));
 
 		let (new_shortstatehash, already_existed) = self
 			.services
@@ -374,22 +390,23 @@ impl Service {
 			ShortStateInfoVec::new()
 		};
 
-		let (statediffnew, statediffremoved) = if let Some(parent_stateinfo) = states_parents.last() {
-			let statediffnew: HashSet<_> = new_state_ids_compressed
-				.difference(&parent_stateinfo.full_state)
-				.copied()
-				.collect();
+		let (statediffnew, statediffremoved) =
+			if let Some(parent_stateinfo) = states_parents.last() {
+				let statediffnew: HashSet<_> = new_state_ids_compressed
+					.difference(&parent_stateinfo.full_state)
+					.copied()
+					.collect();
 
-			let statediffremoved: HashSet<_> = parent_stateinfo
-				.full_state
-				.difference(&new_state_ids_compressed)
-				.copied()
-				.collect();
+				let statediffremoved: HashSet<_> = parent_stateinfo
+					.full_state
+					.difference(&new_state_ids_compressed)
+					.copied()
+					.collect();
 
-			(Arc::new(statediffnew), Arc::new(statediffremoved))
-		} else {
-			(new_state_ids_compressed, Arc::new(HashSet::new()))
-		};
+				(Arc::new(statediffnew), Arc::new(statediffremoved))
+			} else {
+				(new_state_ids_compressed, Arc::new(HashSet::new()))
+			};
 
 		if !already_existed {
 			self.save_state_from_diff(
@@ -418,7 +435,9 @@ impl Service {
 			.shortstatehash_statediff
 			.aqry::<BUFSIZE, _>(&shortstatehash)
 			.await
-			.map_err(|e| err!(Database("Failed to find StateDiff from short {shortstatehash:?}: {e}")))?;
+			.map_err(|e| {
+				err!(Database("Failed to find StateDiff from short {shortstatehash:?}: {e}"))
+			})?;
 
 		let parent = utils::u64_from_bytes(&value[0..size_of::<u64>()])
 			.ok()
@@ -484,7 +503,10 @@ impl Service {
 
 #[inline]
 #[must_use]
-fn compress_state_event(shortstatekey: ShortStateKey, shorteventid: ShortEventId) -> CompressedStateEvent {
+fn compress_state_event(
+	shortstatekey: ShortStateKey,
+	shorteventid: ShortEventId,
+) -> CompressedStateEvent {
 	const SIZE: usize = size_of::<CompressedStateEvent>();
 
 	let mut v = ArrayVec::<u8, SIZE>::new();
@@ -497,7 +519,9 @@ fn compress_state_event(shortstatekey: ShortStateKey, shorteventid: ShortEventId
 
 #[inline]
 #[must_use]
-pub fn parse_compressed_state_event(compressed_event: CompressedStateEvent) -> (ShortStateKey, ShortEventId) {
+pub fn parse_compressed_state_event(
+	compressed_event: CompressedStateEvent,
+) -> (ShortStateKey, ShortEventId) {
 	use utils::u64_from_u8;
 
 	let shortstatekey = u64_from_u8(&compressed_event[0..size_of::<ShortStateKey>()]);

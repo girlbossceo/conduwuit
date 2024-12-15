@@ -1,6 +1,9 @@
 use std::{fmt::Debug, time::Duration};
 
-use conduwuit::{debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error, Result};
+use conduwuit::{
+	debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error,
+	Result,
+};
 use http::header::{HeaderValue, CONTENT_DISPOSITION, CONTENT_TYPE};
 use ruma::{
 	api::{
@@ -19,7 +22,12 @@ use super::{Dim, FileMeta};
 
 #[implement(super::Service)]
 pub async fn fetch_remote_thumbnail(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, timeout_ms: Duration, dim: &Dim,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	timeout_ms: Duration,
+	dim: &Dim,
 ) -> Result<FileMeta> {
 	self.check_fetch_authorized(mxc)?;
 
@@ -38,7 +46,11 @@ pub async fn fetch_remote_thumbnail(
 
 #[implement(super::Service)]
 pub async fn fetch_remote_content(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, timeout_ms: Duration,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	timeout_ms: Duration,
 ) -> Result<FileMeta> {
 	self.check_fetch_authorized(mxc)?;
 
@@ -57,7 +69,12 @@ pub async fn fetch_remote_content(
 
 #[implement(super::Service)]
 async fn fetch_thumbnail_authenticated(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, timeout_ms: Duration, dim: &Dim,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	timeout_ms: Duration,
+	dim: &Dim,
 ) -> Result<FileMeta> {
 	use federation::authenticated_media::get_content_thumbnail::v1::{Request, Response};
 
@@ -70,20 +87,22 @@ async fn fetch_thumbnail_authenticated(
 		timeout_ms,
 	};
 
-	let Response {
-		content,
-		..
-	} = self.federation_request(mxc, user, server, request).await?;
+	let Response { content, .. } = self.federation_request(mxc, user, server, request).await?;
 
 	match content {
-		FileOrLocation::File(content) => self.handle_thumbnail_file(mxc, user, dim, content).await,
-		FileOrLocation::Location(location) => self.handle_location(mxc, user, &location).await,
+		| FileOrLocation::File(content) =>
+			self.handle_thumbnail_file(mxc, user, dim, content).await,
+		| FileOrLocation::Location(location) => self.handle_location(mxc, user, &location).await,
 	}
 }
 
 #[implement(super::Service)]
 async fn fetch_content_authenticated(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, timeout_ms: Duration,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	timeout_ms: Duration,
 ) -> Result<FileMeta> {
 	use federation::authenticated_media::get_content::v1::{Request, Response};
 
@@ -92,21 +111,23 @@ async fn fetch_content_authenticated(
 		timeout_ms,
 	};
 
-	let Response {
-		content,
-		..
-	} = self.federation_request(mxc, user, server, request).await?;
+	let Response { content, .. } = self.federation_request(mxc, user, server, request).await?;
 
 	match content {
-		FileOrLocation::File(content) => self.handle_content_file(mxc, user, content).await,
-		FileOrLocation::Location(location) => self.handle_location(mxc, user, &location).await,
+		| FileOrLocation::File(content) => self.handle_content_file(mxc, user, content).await,
+		| FileOrLocation::Location(location) => self.handle_location(mxc, user, &location).await,
 	}
 }
 
 #[allow(deprecated)]
 #[implement(super::Service)]
 async fn fetch_thumbnail_unauthenticated(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, timeout_ms: Duration, dim: &Dim,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	timeout_ms: Duration,
+	dim: &Dim,
 ) -> Result<FileMeta> {
 	use media::get_content_thumbnail::v3::{Request, Response};
 
@@ -123,17 +144,10 @@ async fn fetch_thumbnail_unauthenticated(
 	};
 
 	let Response {
-		file,
-		content_type,
-		content_disposition,
-		..
+		file, content_type, content_disposition, ..
 	} = self.federation_request(mxc, user, server, request).await?;
 
-	let content = Content {
-		file,
-		content_type,
-		content_disposition,
-	};
+	let content = Content { file, content_type, content_disposition };
 
 	self.handle_thumbnail_file(mxc, user, dim, content).await
 }
@@ -141,7 +155,11 @@ async fn fetch_thumbnail_unauthenticated(
 #[allow(deprecated)]
 #[implement(super::Service)]
 async fn fetch_content_unauthenticated(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, timeout_ms: Duration,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	timeout_ms: Duration,
 ) -> Result<FileMeta> {
 	use media::get_content::v3::{Request, Response};
 
@@ -154,27 +172,27 @@ async fn fetch_content_unauthenticated(
 	};
 
 	let Response {
-		file,
-		content_type,
-		content_disposition,
-		..
+		file, content_type, content_disposition, ..
 	} = self.federation_request(mxc, user, server, request).await?;
 
-	let content = Content {
-		file,
-		content_type,
-		content_disposition,
-	};
+	let content = Content { file, content_type, content_disposition };
 
 	self.handle_content_file(mxc, user, content).await
 }
 
 #[implement(super::Service)]
 async fn handle_thumbnail_file(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, dim: &Dim, content: Content,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	dim: &Dim,
+	content: Content,
 ) -> Result<FileMeta> {
-	let content_disposition =
-		make_content_disposition(content.content_disposition.as_ref(), content.content_type.as_deref(), None);
+	let content_disposition = make_content_disposition(
+		content.content_disposition.as_ref(),
+		content.content_type.as_deref(),
+		None,
+	);
 
 	self.upload_thumbnail(
 		mxc,
@@ -193,9 +211,17 @@ async fn handle_thumbnail_file(
 }
 
 #[implement(super::Service)]
-async fn handle_content_file(&self, mxc: &Mxc<'_>, user: Option<&UserId>, content: Content) -> Result<FileMeta> {
-	let content_disposition =
-		make_content_disposition(content.content_disposition.as_ref(), content.content_type.as_deref(), None);
+async fn handle_content_file(
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	content: Content,
+) -> Result<FileMeta> {
+	let content_disposition = make_content_disposition(
+		content.content_disposition.as_ref(),
+		content.content_type.as_deref(),
+		None,
+	);
 
 	self.create(
 		mxc,
@@ -213,7 +239,12 @@ async fn handle_content_file(&self, mxc: &Mxc<'_>, user: Option<&UserId>, conten
 }
 
 #[implement(super::Service)]
-async fn handle_location(&self, mxc: &Mxc<'_>, user: Option<&UserId>, location: &str) -> Result<FileMeta> {
+async fn handle_location(
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	location: &str,
+) -> Result<FileMeta> {
 	self.location_request(location).await.map_err(|error| {
 		err!(Request(NotFound(
 			debug_warn!(%mxc, ?user, ?location, ?error, "Fetching media from location failed")
@@ -263,7 +294,11 @@ async fn location_request(&self, location: &str) -> Result<FileMeta> {
 
 #[implement(super::Service)]
 async fn federation_request<Request>(
-	&self, mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, request: Request,
+	&self,
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	request: Request,
 ) -> Result<Request::IncomingResponse>
 where
 	Request: OutgoingRequest + Send + Debug,
@@ -277,7 +312,12 @@ where
 
 // Handles and adjusts the error for the caller to determine if they should
 // request the fallback endpoint or give up.
-fn handle_federation_error(mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<&ServerName>, error: Error) -> Error {
+fn handle_federation_error(
+	mxc: &Mxc<'_>,
+	user: Option<&UserId>,
+	server: Option<&ServerName>,
+	error: Error,
+) -> Error {
 	let fallback = || {
 		err!(Request(NotFound(
 			debug_error!(%mxc, ?user, ?server, ?error, "Remote media not found")
@@ -303,7 +343,8 @@ fn handle_federation_error(mxc: &Mxc<'_>, user: Option<&UserId>, server: Option<
 #[implement(super::Service)]
 #[allow(deprecated)]
 pub async fn fetch_remote_thumbnail_legacy(
-	&self, body: &media::get_content_thumbnail::v3::Request,
+	&self,
+	body: &media::get_content_thumbnail::v3::Request,
 ) -> Result<media::get_content_thumbnail::v3::Response> {
 	let mxc = Mxc {
 		server_name: &body.server_name,
@@ -315,20 +356,17 @@ pub async fn fetch_remote_thumbnail_legacy(
 	let reponse = self
 		.services
 		.sending
-		.send_federation_request(
-			mxc.server_name,
-			media::get_content_thumbnail::v3::Request {
-				allow_remote: body.allow_remote,
-				height: body.height,
-				width: body.width,
-				method: body.method.clone(),
-				server_name: body.server_name.clone(),
-				media_id: body.media_id.clone(),
-				timeout_ms: body.timeout_ms,
-				allow_redirect: body.allow_redirect,
-				animated: body.animated,
-			},
-		)
+		.send_federation_request(mxc.server_name, media::get_content_thumbnail::v3::Request {
+			allow_remote: body.allow_remote,
+			height: body.height,
+			width: body.width,
+			method: body.method.clone(),
+			server_name: body.server_name.clone(),
+			media_id: body.media_id.clone(),
+			timeout_ms: body.timeout_ms,
+			allow_redirect: body.allow_redirect,
+			animated: body.animated,
+		})
 		.await?;
 
 	let dim = Dim::from_ruma(body.width, body.height, body.method.clone())?;
@@ -341,27 +379,30 @@ pub async fn fetch_remote_thumbnail_legacy(
 #[implement(super::Service)]
 #[allow(deprecated)]
 pub async fn fetch_remote_content_legacy(
-	&self, mxc: &Mxc<'_>, allow_redirect: bool, timeout_ms: Duration,
+	&self,
+	mxc: &Mxc<'_>,
+	allow_redirect: bool,
+	timeout_ms: Duration,
 ) -> Result<media::get_content::v3::Response, Error> {
 	self.check_legacy_freeze()?;
 	self.check_fetch_authorized(mxc)?;
 	let response = self
 		.services
 		.sending
-		.send_federation_request(
-			mxc.server_name,
-			media::get_content::v3::Request {
-				allow_remote: true,
-				server_name: mxc.server_name.into(),
-				media_id: mxc.media_id.into(),
-				timeout_ms,
-				allow_redirect,
-			},
-		)
+		.send_federation_request(mxc.server_name, media::get_content::v3::Request {
+			allow_remote: true,
+			server_name: mxc.server_name.into(),
+			media_id: mxc.media_id.into(),
+			timeout_ms,
+			allow_redirect,
+		})
 		.await?;
 
-	let content_disposition =
-		make_content_disposition(response.content_disposition.as_ref(), response.content_type.as_deref(), None);
+	let content_disposition = make_content_disposition(
+		response.content_disposition.as_ref(),
+		response.content_type.as_deref(),
+		None,
+	);
 
 	self.create(
 		mxc,

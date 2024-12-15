@@ -17,7 +17,8 @@ use crate::Ruma;
 ///
 /// Send a to-device event to a set of client devices.
 pub(crate) async fn send_event_to_device_route(
-	State(services): State<crate::State>, body: Ruma<send_event_to_device::v3::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<send_event_to_device::v3::Request>,
 ) -> Result<send_event_to_device::v3::Response> {
 	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
 	let sender_device = body.sender_device.as_deref();
@@ -43,12 +44,14 @@ pub(crate) async fn send_event_to_device_route(
 
 				services.sending.send_edu_server(
 					target_user_id.server_name(),
-					serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(DirectDeviceContent {
-						sender: sender_user.clone(),
-						ev_type: body.event_type.clone(),
-						message_id: count.to_string().into(),
-						messages,
-					}))
+					serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
+						DirectDeviceContent {
+							sender: sender_user.clone(),
+							ev_type: body.event_type.clone(),
+							message_id: count.to_string().into(),
+							messages,
+						},
+					))
 					.expect("DirectToDevice EDU can be serialized"),
 				)?;
 
@@ -62,14 +65,20 @@ pub(crate) async fn send_event_to_device_route(
 				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event is invalid"))?;
 
 			match target_device_id_maybe {
-				DeviceIdOrAllDevices::DeviceId(target_device_id) => {
+				| DeviceIdOrAllDevices::DeviceId(target_device_id) => {
 					services
 						.users
-						.add_to_device_event(sender_user, target_user_id, target_device_id, event_type, event)
+						.add_to_device_event(
+							sender_user,
+							target_user_id,
+							target_device_id,
+							event_type,
+							event,
+						)
 						.await;
 				},
 
-				DeviceIdOrAllDevices::AllDevices => {
+				| DeviceIdOrAllDevices::AllDevices => {
 					let (event_type, event) = (&event_type, &event);
 					services
 						.users

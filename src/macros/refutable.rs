@@ -9,11 +9,7 @@ pub(super) fn refutable(mut item: ItemFn, _args: &[Meta]) -> Result<TokenStream>
 	let stmt = &mut item.block.stmts;
 	let sig = &mut item.sig;
 	for (i, input) in inputs.iter().enumerate() {
-		let Typed(PatType {
-			pat,
-			..
-		}) = input
-		else {
+		let Typed(PatType { pat, .. }) = input else {
 			continue;
 		};
 
@@ -24,11 +20,7 @@ pub(super) fn refutable(mut item: ItemFn, _args: &[Meta]) -> Result<TokenStream>
 		let variant = &pat.path;
 		let fields = &pat.fields;
 
-		let Some(Typed(PatType {
-			ref mut pat,
-			..
-		})) = sig.inputs.get_mut(i)
-		else {
+		let Some(Typed(PatType { ref mut pat, .. })) = sig.inputs.get_mut(i) else {
 			continue;
 		};
 

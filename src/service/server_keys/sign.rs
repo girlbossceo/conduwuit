@@ -10,7 +10,11 @@ pub fn sign_json(&self, object: &mut CanonicalJsonObject) -> Result {
 }
 
 #[implement(super::Service)]
-pub fn hash_and_sign_event(&self, object: &mut CanonicalJsonObject, room_version: &RoomVersionId) -> Result {
+pub fn hash_and_sign_event(
+	&self,
+	object: &mut CanonicalJsonObject,
+	room_version: &RoomVersionId,
+) -> Result {
 	use ruma::signatures::hash_and_sign_event;
 
 	let server_name = self.services.globals.server_name().as_str();
