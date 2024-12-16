@@ -9,6 +9,8 @@ It is recommended to see the [generic deployment guide](../deploying/generic.md)
 for further information if needed as usage of the Debian package is generally
 related.
 
+No `apt` repository is currently offered yet, it is in the works/development.
+
 ### Configuration
 
 When installed, the example config is placed at `/etc/conduwuit/conduwuit.toml`

@@ -22,23 +22,59 @@ conduwuit has moderation admin commands for:
 Any commands with `-list` in them will require a codeblock in the message with
 each object being newline delimited. An example of doing this is:
 
-```` !admin rooms moderation ban-list-of-rooms ``` !roomid1:server.name
-!roomid2:server.name !roomid3:server.name ``` ````
+````
+!admin rooms moderation ban-list-of-rooms
+```
+!roomid1:server.name
+#badroomalias1:server.name
+!roomid2:server.name
+!roomid3:server.name
+#badroomalias2:server.name
+```
+````
 
-## Database
+## Database (RocksDB)
 
-If using RocksDB, there's very little you need to do. Compaction is ran
-automatically based on various defined thresholds tuned for conduwuit to be high
-performance with the least I/O amplifcation or overhead. Manually running
-compaction is not recommended, or compaction via a timer. RocksDB is built with
-io_uring support via liburing for async read I/O.
+Generally there is very little you need to do. [Compaction][rocksdb-compaction]
+is ran automatically based on various defined thresholds tuned for conduwuit to
+be high performance with the least I/O amplifcation or overhead. Manually
+running compaction is not recommended, or compaction via a timer, due to
+creating unnecessary I/O amplification. RocksDB is built with io_uring support
+via liburing for improved read performance.
+
+RocksDB troubleshooting can be found [in the RocksDB section of troubleshooting](troubleshooting.md).
+
+### Compression
 
 Some RocksDB settings can be adjusted such as the compression method chosen. See
-the RocksDB section in the [example config](configuration/examples.md). btrfs
-users may benefit from disabling compression on RocksDB if CoW is in use.
+the RocksDB section in the [example config](configuration/examples.md).
 
-RocksDB troubleshooting can be found [in the RocksDB section of
-troubleshooting](troubleshooting.md).
+btrfs users have reported that database compression does not need to be disabled
+on conduwuit as the filesystem already does not attempt to compress. This can be
+validated by using `filefrag -v` on a `.SST` file in your database, and ensure
+the `physical_offset` matches (no filesystem compression). It is very important
+to ensure no additional filesystem compression takes place as this can render
+unbuffered Direct IO inoperable, significantly slowing down read and write
+performance. See <https://btrfs.readthedocs.io/en/latest/Compression.html#compatibility>
+
+> Compression is done using the COW mechanism so it’s incompatible with
+> nodatacow. Direct IO read works on compressed files but will fall back to
+> buffered writes and leads to no compression even if force compression is set.
+> Currently nodatasum and compression don’t work together.
+
+### Files in database
+
+Do not touch any of the files in the database directory. This must be said due
+to users being mislead by the `.log` files in the RocksDB directory, thinking
+they're server logs or database logs, however they are critical RocksDB files
+related to WAL tracking.
+
+The only safe files that can be deleted are the `LOG` files (all caps). These
+are the real RocksDB telemetry/log files, however conduwuit has already
+configured to only store up to 3 RocksDB `LOG` files due to generall being
+useless for average users unless troubleshooting something low-level. If you
+would like to store nearly none at all, see the `rocksdb_max_log_files`
+config option.
 
 ## Backups
 
@@ -95,3 +131,5 @@ Built-in S3 support is also planned, but for now using a "S3 filesystem" on
 `media/` works. conduwuit also sends a `Cache-Control` header of 1 year and
 immutable for all media requests (download and thumbnail) to reduce unnecessary
 media requests from browsers, reduce bandwidth usage, and reduce load.
+
+[rocksdb-compaction]: https://github.com/facebook/rocksdb/wiki/Compaction

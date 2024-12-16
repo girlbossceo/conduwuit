@@ -1,6 +1,6 @@
 # Generic deployment documentation
 
-> ## Getting help
+> ### Getting help
 >
 > If you run into any problems while setting up conduwuit, ask us in
 > `#conduwuit:puppygock.gay` or [open an issue on
@@ -8,29 +8,50 @@
 
 ## Installing conduwuit
 
-You may simply download the binary that fits your machine. Run `uname -m` to see
-what you need.
+### Static prebuilt binary
+
+You may simply download the binary that fits your machine architecture (x86_64
+or aarch64). Run `uname -m` to see what you need.
 
 Prebuilt fully static musl binaries can be downloaded from the latest tagged
 release [here](https://github.com/girlbossceo/conduwuit/releases/latest) or
-`main` CI branch workflow artifact output. These also include Debian/Ubuntu packages.
+`main` CI branch workflow artifact output. These also include Debian/Ubuntu
+packages.
+
+Binaries are also available on my website directly at: <https://pup.systems/~strawberry/conduwuit/>
+
+These can be curl'd directly from. `ci-bins` are CI workflow binaries by commit
+hash/revision, and `releases` are tagged releases. Sort by descending last
+modified for the latest.
 
 These binaries have jemalloc and io_uring statically linked and included with
 them, so no additional dynamic dependencies need to be installed.
 
+For the **best** performance; if using an `x86_64` CPU made in the last ~15 years,
+we recommend using the `-haswell-` optimised binaries. This sets
+`-march=haswell` which is the most compatible and highest performance with
+optimised binaries. The database backend, RocksDB, most benefits from this as it
+will then use hardware accelerated CRC32 hashing/checksumming which is critical
+for performance.
+
+### Compiling
+
 Alternatively, you may compile the binary yourself. We recommend using
-Nix (or [Lix](https://lix.systems)) to build conduwuit as this has the most guaranteed
-reproducibiltiy and easiest to get a build environment and output going. This also
-allows easy cross-compilation.
+Nix (or [Lix](https://lix.systems)) to build conduwuit as this has the most
+guaranteed reproducibiltiy and easiest to get a build environment and output
+going. This also allows easy cross-compilation.
 
 You can run the `nix build -L .#static-x86_64-linux-musl-all-features` or
 `nix build -L .#static-aarch64-linux-musl-all-features` commands based
 on architecture to cross-compile the necessary static binary located at
-`result/bin/conduwuit`. This is reproducible with the static binaries produced in our CI.
+`result/bin/conduwuit`. This is reproducible with the static binaries produced
+in our CI.
 
-Otherwise, follow standard Rust project build guides (installing git and cloning
-the repo, getting the Rust toolchain via rustup, installing LLVM toolchain +
-libclang for RocksDB, installing liburing for io_uring and RocksDB, etc).
+If wanting to build using standard Rust toolchains, make sure you install:
+- `liburing-dev` on the compiling machine, and `liburing` on the target host
+- LLVM and libclang for RocksDB
+
+You can build conduwuit using `cargo build --release --all-features`
 
 ## Migrating from Conduit
 

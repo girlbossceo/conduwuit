@@ -29,6 +29,12 @@ conduit:Isq8FGyEC6FOXH6nD+BOeAA+bKp6X6UIbupSlGEPuOg=
 conduwuit:lYPVh7o1hLu1idH4Xt2QHaRa49WRGSAqzcfFd94aOTw=
 ```
 
+If needed, we have a binary cache on Cachix but it is only limited to 5GB:
+
+```
+https://conduwuit.cachix.org
+conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+```
 
 If specifying a Git remote URL in your flake, you can use any remotes that
 are specified on the README (the mirrors), such as the GitHub: `github:girlbossceo/conduwuit`

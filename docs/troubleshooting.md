@@ -91,16 +91,6 @@ reliability at a slight performance cost due to TCP overhead.
 
 ## RocksDB / database issues
 
-#### Direct IO
-
-Some filesystems may not like RocksDB using [Direct
-IO](https://github.com/facebook/rocksdb/wiki/Direct-IO). Direct IO is for
-non-buffered I/O which improves conduwuit performance and reduces system CPU
-usage, but at least FUSE and possibly ZFS are filesystems potentially known
-to not like this. See the [example config](configuration/examples.md) for
-disabling it if needed. Issues from Direct IO on unsupported filesystems are
-usually shown as startup errors.
-
 #### Database corruption
 
 If your database is corrupted *and* is failing to start (e.g. checksum

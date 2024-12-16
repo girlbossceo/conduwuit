@@ -24,6 +24,9 @@ OCI images for conduwuit are available in the registries listed below.
 [shield-latest]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/latest
 [shield-main]: https://img.shields.io/docker/image-size/girlbossceo/conduwuit/main
 
+OCI image `.tar.gz` files are also hosted directly at when uploaded by CI with a
+commit hash/revision or a tagged release: <https://pup.systems/~strawberry/conduwuit/>
+
 Use
 
 ```bash
