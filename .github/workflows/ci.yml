@@ -266,6 +266,15 @@ jobs:
                     - target: aarch64-linux-musl
                     - target: x86_64-linux-musl
         steps:
+            - name: Free up a bit of runner space
+              run: |
+                  set +o pipefail
+                  sudo docker image prune --all --force || true
+                  sudo apt purge -y 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-cloud-cli google-chrome-stable firefox powershell microsoft-edge-stable || true
+                  sudo apt clean
+                  sudo rm -v -rf /usr/local/games /usr/local/sqlpackage /usr/local/share/powershell /usr/local/share/edge_driver /usr/local/share/gecko_driver /usr/local/share/chromium /usr/local/share/chromedriver-linux64 /usr/lib/google-cloud-sdk /usr/lib/jvm /usr/lib/mono /usr/lib/heroku
+                  set -o pipefail
+
             - name: Sync repository
               uses: actions/checkout@v4
               with:
