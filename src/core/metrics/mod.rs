@@ -66,8 +66,16 @@ impl Metrics {
 			.expect("next interval")
 	}
 
+	#[inline]
 	pub fn task_root(&self) -> Option<&TaskMonitor> { self.task_monitor.as_ref() }
 
+	#[inline]
+	pub fn num_workers(&self) -> usize {
+		self.runtime_metrics()
+			.map_or(0, runtime::RuntimeMetrics::num_workers)
+	}
+
+	#[inline]
 	pub fn runtime_metrics(&self) -> Option<&runtime::RuntimeMetrics> {
 		self.runtime_metrics.as_ref()
 	}
