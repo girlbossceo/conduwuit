@@ -17,7 +17,7 @@ pub fn intersection<Item, Iter, Iters>(mut input: Iters) -> impl Iterator<Item =
 where
 	Iters: Iterator<Item = Iter> + Clone + Send,
 	Iter: Iterator<Item = Item> + Send,
-	Item: Eq + Send,
+	Item: Eq,
 {
 	input.next().into_iter().flat_map(move |first| {
 		let input = input.clone();
@@ -38,7 +38,7 @@ pub fn intersection_sorted<Item, Iter, Iters>(
 where
 	Iters: Iterator<Item = Iter> + Clone + Send,
 	Iter: Iterator<Item = Item> + Send,
-	Item: Eq + Ord + Send,
+	Item: Eq + Ord,
 {
 	input.next().into_iter().flat_map(move |first| {
 		let mut input = input.clone().collect::<Vec<_>>();
