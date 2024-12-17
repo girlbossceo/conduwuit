@@ -129,6 +129,9 @@ tokio_console = [
 	"dep:console-subscriber",
 	"tokio/tracing",
 ]
+worker_affinity = [
+	"dep:core_affinity",
+]
 zstd_compression = [
     "conduwuit-api/zstd_compression",
 	"conduwuit-core/zstd_compression",
@@ -144,36 +147,34 @@ conduwuit-database.workspace = true
 conduwuit-router.workspace = true
 conduwuit-service.workspace = true
 
-tokio.workspace = true
-log.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
 clap.workspace = true
-const-str.workspace = true
-
-opentelemetry.workspace = true
-opentelemetry.optional = true
-tracing-flame.workspace = true
-tracing-flame.optional = true
-tracing-opentelemetry.workspace = true
-tracing-opentelemetry.optional = true
-opentelemetry_sdk.workspace = true
-opentelemetry_sdk.optional = true
-opentelemetry-jaeger.workspace = true
-opentelemetry-jaeger.optional = true
-
-sentry.workspace = true
-sentry.optional = true
-sentry-tracing.workspace = true
-sentry-tracing.optional = true
-sentry-tower.workspace = true
-sentry-tower.optional = true
-
-tokio-metrics.workspace = true
-tokio-metrics.optional = true
-
-console-subscriber.workspace = true
 console-subscriber.optional = true
+console-subscriber.workspace = true
+const-str.workspace = true
+core_affinity.optional = true
+core_affinity.workspace = true
+log.workspace = true
+opentelemetry-jaeger.optional = true
+opentelemetry-jaeger.workspace = true
+opentelemetry.optional = true
+opentelemetry.workspace = true
+opentelemetry_sdk.optional = true
+opentelemetry_sdk.workspace = true
+sentry-tower.optional = true
+sentry-tower.workspace = true
+sentry-tracing.optional = true
+sentry-tracing.workspace = true
+sentry.optional = true
+sentry.workspace = true
+tokio-metrics.optional = true
+tokio-metrics.workspace = true
+tokio.workspace = true
+tracing-flame.optional = true
+tracing-flame.workspace = true
+tracing-opentelemetry.optional = true
+tracing-opentelemetry.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
 
 [target.'cfg(all(not(target_env = "msvc"), target_os = "linux"))'.dependencies]
 hardened_malloc-rs.workspace = true

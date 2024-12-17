@@ -2,45 +2,24 @@ pub(crate) mod clap;
 mod logging;
 mod mods;
 mod restart;
+mod runtime;
 mod sentry;
 mod server;
 mod signal;
 
 extern crate conduwuit_core as conduwuit;
 
-use std::{
-	sync::{atomic::Ordering, Arc},
-	time::Duration,
-};
+use std::sync::{atomic::Ordering, Arc};
 
 use conduwuit::{debug_info, error, rustc_flags_capture, Error, Result};
 use server::Server;
-use tokio::runtime;
-
-const WORKER_NAME: &str = "conduwuit:worker";
-const WORKER_MIN: usize = 2;
-const WORKER_KEEPALIVE: u64 = 36;
-const GLOBAL_QUEUE_INTERVAL: u32 = 192;
-const SYSTEM_QUEUE_INTERVAL: u32 = 256;
-const SYSTEM_EVENTS_PER_TICK: usize = 512;
 
 rustc_flags_capture! {}
 
 fn main() -> Result<(), Error> {
 	let args = clap::parse();
-	let runtime = runtime::Builder::new_multi_thread()
-		.enable_io()
-		.enable_time()
-		.thread_name(WORKER_NAME)
-		.worker_threads(args.worker_threads.max(WORKER_MIN))
-		.thread_keep_alive(Duration::from_secs(WORKER_KEEPALIVE))
-		.global_queue_interval(GLOBAL_QUEUE_INTERVAL)
-		.event_interval(SYSTEM_QUEUE_INTERVAL)
-		.max_io_events_per_tick(SYSTEM_EVENTS_PER_TICK)
-		.build()
-		.expect("built runtime");
-
-	let server: Arc<Server> = Server::build(&args, Some(runtime.handle()))?;
+	let runtime = runtime::new(&args)?;
+	let server = Server::new(&args, Some(runtime.handle()))?;
 	runtime.spawn(signal::signal(server.clone()));
 	runtime.block_on(async_main(&server))?;
 

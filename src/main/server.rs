@@ -23,7 +23,7 @@ pub(crate) struct Server {
 }
 
 impl Server {
-	pub(crate) fn build(
+	pub(crate) fn new(
 		args: &Args,
 		runtime: Option<&runtime::Handle>,
 	) -> Result<Arc<Self>, Error> {
