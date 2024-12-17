@@ -77,8 +77,10 @@ jobs:
           TAG: ${{ steps.get_ci_id.outputs.tag }}
         run: |
           for file in $(find . -type f); do
-            echo "Uploading $file..."
-            gh release upload $TAG "$file" --clobber --repo="${GH_REPOSITORY}" || echo "Something went wrong, skipping."
+            case "$file" in
+              *json*) echo "Skipping $file...";;
+              *) echo "Uploading $file..."; gh release upload $TAG "$file" --clobber --repo="${GH_REPOSITORY}" || echo "Something went wrong, skipping.";;
+            esac
           done
 
       - name: upload release assets to website
@@ -109,6 +111,8 @@ jobs:
           ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/releases/$TAG/"
 
           for file in $(find . -type f); do
-            echo "Uploading $file to website"
-            scp $file website:/var/www/girlboss.ceo/~strawberry/conduwuit/releases/$TAG/$file
+            case "$file" in
+              *json*) echo "Skipping $file...";;
+              *) echo "Uploading $file to website"; scp $file website:/var/www/girlboss.ceo/~strawberry/conduwuit/releases/$TAG/$file;;
+            esac
           done
