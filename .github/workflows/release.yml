@@ -2,7 +2,7 @@ name: Upload Release Assets
 
 on:
   release:
-    types: [published, prereleased]
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -51,7 +51,7 @@ jobs:
               exit 0
             fi
 
-            tag="${GH_TAG}}"
+            tag="${GH_TAG}"
           fi
 
           echo "ci_id=$id" >> "$GITHUB_OUTPUT"
