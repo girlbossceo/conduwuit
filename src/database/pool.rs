@@ -122,7 +122,15 @@ async fn spawn_until(self: &Arc<Self>, recv: Receiver<Cmd>, max: usize) -> Resul
 fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: Receiver<Cmd>) -> Result {
 	let id = workers.len();
 	let self_ = self.clone();
+
+	#[cfg(not(tokio_unstable))]
 	let _abort = workers.spawn_blocking_on(move || self_.worker(id, recv), self.server.runtime());
+
+	#[cfg(tokio_unstable)]
+	let _abort = workers
+		.build_task()
+		.name("conduwuit:dbpool")
+		.spawn_blocking_on(move || self_.worker(id, recv), self.server.runtime());
 
 	Ok(())
 }
