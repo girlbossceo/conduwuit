@@ -5,14 +5,14 @@ mod keys_rev;
 
 use std::sync::Arc;
 
-use conduwuit::{utils::exchange, Error, Result};
+use conduwuit::{utils::exchange, Result};
 use rocksdb::{ColumnFamily, DBRawIteratorWithThreadMode, ReadOptions};
 
 pub(crate) use self::{items::Items, items_rev::ItemsRev, keys::Keys, keys_rev::KeysRev};
 use crate::{
 	engine::Db,
 	keyval::{Key, KeyVal, Val},
-	util::map_err,
+	util::{is_incomplete, map_err},
 	Engine, Slice,
 };
 
@@ -34,7 +34,7 @@ pub(crate) trait Cursor<'a, T> {
 	fn get(&self) -> Option<Result<T>> {
 		self.fetch()
 			.map(Ok)
-			.or_else(|| self.state().status().map(Err))
+			.or_else(|| self.state().status().map(map_err).map(Err))
 	}
 
 	fn seek_and_get(&mut self) -> Option<Result<T>> {
@@ -91,16 +91,20 @@ impl<'a> State<'a> {
 		}
 	}
 
+	pub(super) fn is_incomplete(&self) -> bool {
+		matches!(self.status(), Some(e) if is_incomplete(&e))
+	}
+
 	fn fetch_key(&self) -> Option<Key<'_>> { self.inner.key().map(Key::from) }
 
 	fn _fetch_val(&self) -> Option<Val<'_>> { self.inner.value().map(Val::from) }
 
 	fn fetch(&self) -> Option<KeyVal<'_>> { self.inner.item().map(KeyVal::from) }
 
-	fn status(&self) -> Option<Error> { self.inner.status().map_err(map_err).err() }
+	pub(super) fn status(&self) -> Option<rocksdb::Error> { self.inner.status().err() }
 
 	#[inline]
-	fn valid(&self) -> bool { self.inner.valid() }
+	pub(super) fn valid(&self) -> bool { self.inner.valid() }
 }
 
 fn keyval_longevity<'a, 'b: 'a>(item: KeyVal<'a>) -> KeyVal<'b> {

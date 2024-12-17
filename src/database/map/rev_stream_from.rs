@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
 	keyval::{result_deserialize, serialize_key, KeyVal},
 	stream,
+	util::is_incomplete,
 };
 
 /// Iterate key-value entries in the map starting from upper-bound.
@@ -83,6 +84,10 @@ where
 
 	let opts = super::iter_options_default();
 	let state = stream::State::new(&self.db, &self.cf, opts);
+	if is_cached(self, from) {
+		return stream::ItemsRev::<'_>::from(state.init_rev(from.as_ref().into())).boxed();
+	};
+
 	let seek = Seek {
 		map: self.clone(),
 		dir: Direction::Reverse,
@@ -98,4 +103,22 @@ where
 		.into_stream()
 		.try_flatten()
 		.boxed()
+}
+
+#[tracing::instrument(
+    name = "cached",
+    level = "trace",
+    skip(map, from),
+    fields(%map),
+)]
+pub(super) fn is_cached<P>(map: &Arc<super::Map>, from: &P) -> bool
+where
+	P: AsRef<[u8]> + ?Sized,
+{
+	let cache_opts = super::cache_read_options_default();
+	let cache_status = stream::State::new(&map.db, &map.cf, cache_opts)
+		.init_rev(from.as_ref().into())
+		.status();
+
+	!matches!(cache_status, Some(e) if is_incomplete(&e))
 }

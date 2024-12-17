@@ -81,6 +81,10 @@ where
 
 	let opts = super::read_options_default();
 	let state = stream::State::new(&self.db, &self.cf, opts);
+	if is_cached(self, from) {
+		return stream::Items::<'_>::from(state.init_fwd(from.as_ref().into())).boxed();
+	};
+
 	let seek = Seek {
 		map: self.clone(),
 		dir: Direction::Forward,
@@ -96,4 +100,20 @@ where
 		.into_stream()
 		.try_flatten()
 		.boxed()
+}
+
+#[tracing::instrument(
+    name = "cached",
+    level = "trace",
+    skip(map, from),
+    fields(%map),
+)]
+pub(super) fn is_cached<P>(map: &Arc<super::Map>, from: &P) -> bool
+where
+	P: AsRef<[u8]> + ?Sized,
+{
+	let opts = super::cache_read_options_default();
+	let state = stream::State::new(&map.db, &map.cf, opts).init_fwd(from.as_ref().into());
+
+	!state.is_incomplete()
 }

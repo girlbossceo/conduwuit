@@ -5,6 +5,7 @@ use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use rocksdb::Direction;
 use serde::{Deserialize, Serialize};
 
+use super::stream_from::is_cached;
 use crate::{
 	keyval::{result_deserialize_key, serialize_key, Key},
 	stream,
@@ -54,6 +55,10 @@ where
 
 	let opts = super::iter_options_default();
 	let state = stream::State::new(&self.db, &self.cf, opts);
+	if is_cached(self, from) {
+		return stream::Keys::<'_>::from(state.init_fwd(from.as_ref().into())).boxed();
+	}
+
 	let seek = Seek {
 		map: self.clone(),
 		dir: Direction::Forward,
