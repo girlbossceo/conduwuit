@@ -56,20 +56,30 @@ impl<'a> State<'a> {
 	}
 
 	pub(super) fn init_fwd(mut self, from: From<'_>) -> Self {
+		debug_assert!(self.init, "init must be set to make this call");
+		debug_assert!(!self.seek, "seek must not be set to make this call");
+
 		if let Some(key) = from {
 			self.inner.seek(key);
-			self.seek = true;
+		} else {
+			self.inner.seek_to_first();
 		}
 
+		self.seek = true;
 		self
 	}
 
 	pub(super) fn init_rev(mut self, from: From<'_>) -> Self {
+		debug_assert!(self.init, "init must be set to make this call");
+		debug_assert!(!self.seek, "seek must not be set to make this call");
+
 		if let Some(key) = from {
 			self.inner.seek_for_prev(key);
-			self.seek = true;
+		} else {
+			self.inner.seek_to_last();
 		}
 
+		self.seek = true;
 		self
 	}
 

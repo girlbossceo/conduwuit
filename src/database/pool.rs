@@ -275,29 +275,6 @@ fn handle_iter(&self, mut cmd: Seek) {
 
 #[implement(Pool)]
 #[tracing::instrument(
-	name = "seek",
-	level = "trace",
-	skip_all,
-	fields(%cmd.map),
-)]
-fn _handle_seek(&self, mut cmd: Seek) {
-	let chan = cmd.res.take().expect("missing result channel");
-
-	if chan.is_canceled() {
-		return;
-	}
-
-	match cmd.dir {
-		| Direction::Forward => cmd.state.seek_fwd(),
-		| Direction::Reverse => cmd.state.seek_rev(),
-	};
-
-	let chan_result = chan.send(into_send_seek(cmd.state));
-	let _chan_sent = chan_result.is_ok();
-}
-
-#[implement(Pool)]
-#[tracing::instrument(
 	name = "get",
 	level = "trace",
 	skip_all,
