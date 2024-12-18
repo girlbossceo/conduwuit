@@ -1,11 +1,7 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
 use conduwuit::{implement, Result};
-use futures::{
-	future,
-	stream::{Stream, StreamExt},
-	TryStreamExt,
-};
+use futures::{future, Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 
 use crate::keyval::{result_deserialize_key, serialize_key, Key};

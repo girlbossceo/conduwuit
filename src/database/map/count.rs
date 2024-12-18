@@ -7,7 +7,9 @@ use serde::Serialize;
 /// Count the total number of entries in the map.
 #[implement(super::Map)]
 #[inline]
-pub fn count(&self) -> impl Future<Output = usize> + Send + '_ { self.raw_keys().count() }
+pub fn count(self: &Arc<Self>) -> impl Future<Output = usize> + Send + '_ {
+	self.raw_keys().count()
+}
 
 /// Count the number of entries in the map starting from a lower-bound.
 ///

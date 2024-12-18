@@ -1,4 +1,4 @@
-use std::{convert, pin::Pin, sync::Arc};
+use std::pin::Pin;
 
 use conduwuit::Result;
 use futures::{
@@ -6,22 +6,15 @@ use futures::{
 	task::{Context, Poll},
 	Stream,
 };
-use rocksdb::{ColumnFamily, ReadOptions};
 
-use super::{slice_longevity, Cursor, From, State};
-use crate::{keyval::Key, Engine};
+use super::{slice_longevity, Cursor, State};
+use crate::keyval::Key;
 
 pub(crate) struct Keys<'a> {
 	state: State<'a>,
 }
 
-impl<'a> Keys<'a> {
-	pub(crate) fn new(db: &'a Arc<Engine>, cf: &'a Arc<ColumnFamily>, opts: ReadOptions) -> Self {
-		Self { state: State::new(db, cf, opts) }
-	}
-}
-
-impl<'a> convert::From<State<'a>> for Keys<'a> {
+impl<'a> From<State<'a>> for Keys<'a> {
 	fn from(state: State<'a>) -> Self { Self { state } }
 }
 
@@ -33,9 +26,6 @@ impl<'a> Cursor<'a, Key<'a>> for Keys<'a> {
 
 	#[inline]
 	fn seek(&mut self) { self.state.seek_fwd(); }
-
-	#[inline]
-	fn init(self, from: From<'a>) -> Self { Self { state: self.state.init_fwd(from) } }
 }
 
 impl<'a> Stream for Keys<'a> {

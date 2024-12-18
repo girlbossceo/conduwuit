@@ -1,11 +1,16 @@
-use conduwuit::{implement, Result};
-use futures::{Stream, StreamExt};
-use serde::Deserialize;
+use std::sync::Arc;
 
-use crate::{keyval, keyval::Key, stream, stream::Cursor};
+use conduwuit::{implement, Result};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
+use rocksdb::Direction;
+use serde::Deserialize;
+use tokio::task;
+
+use super::rev_stream::is_cached;
+use crate::{keyval, keyval::Key, stream};
 
 #[implement(super::Map)]
-pub fn rev_keys<'a, K>(&'a self) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+pub fn rev_keys<'a, K>(self: &'a Arc<Self>) -> impl Stream<Item = Result<Key<'_, K>>> + Send
 where
 	K: Deserialize<'a> + Send,
 {
@@ -14,7 +19,33 @@ where
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self), fields(%self), level = "trace")]
-pub fn rev_raw_keys(&self) -> impl Stream<Item = Result<Key<'_>>> + Send {
+pub fn rev_raw_keys(self: &Arc<Self>) -> impl Stream<Item = Result<Key<'_>>> + Send {
+	use crate::pool::Seek;
+
 	let opts = super::iter_options_default();
-	stream::KeysRev::new(&self.db, &self.cf, opts).init(None)
+	let state = stream::State::new(&self.db, &self.cf, opts);
+	if is_cached(self) {
+		let state = state.init_rev(None);
+		return task::consume_budget()
+			.map(move |()| stream::KeysRev::<'_>::from(state))
+			.into_stream()
+			.flatten()
+			.boxed();
+	}
+
+	let seek = Seek {
+		map: self.clone(),
+		dir: Direction::Reverse,
+		state: crate::pool::into_send_seek(state),
+		key: None,
+		res: None,
+	};
+
+	self.db
+		.pool
+		.execute_iter(seek)
+		.ok_into::<stream::KeysRev<'_>>()
+		.into_stream()
+		.try_flatten()
+		.boxed()
 }

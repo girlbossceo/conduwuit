@@ -29,8 +29,6 @@ pub(crate) trait Cursor<'a, T> {
 
 	fn seek(&mut self);
 
-	fn init(self, from: From<'a>) -> Self;
-
 	fn get(&self) -> Option<Result<T>> {
 		self.fetch()
 			.map(Ok)
