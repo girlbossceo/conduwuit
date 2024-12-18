@@ -1598,6 +1598,15 @@ pub struct Config {
 	#[serde(default = "default_db_pool_queue_size")]
 	pub db_pool_queue_size: usize,
 
+	/// Number of sender task workers; determines sender parallelism. Default is
+	/// '0' which means the value is determined internally, likely matching the
+	/// number of tokio worker-threads or number of cores, etc. Override by
+	/// setting a non-zero value.
+	///
+	/// default: 0
+	#[serde(default)]
+	pub sender_workers: usize,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)]
 	// this is a catchall, the map shouldn't be zero at runtime

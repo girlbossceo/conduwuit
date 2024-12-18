@@ -1410,6 +1410,13 @@
 #
 #db_pool_queue_size = 256
 
+# Number of sender task workers; determines sender parallelism. Default is
+# '0' which means the value is determined internally, likely matching the
+# number of tokio worker-threads or number of cores, etc. Override by
+# setting a non-zero value.
+#
+#sender_workers = 0
+
 [global.tls]
 
 # Path to a valid TLS certificate file.

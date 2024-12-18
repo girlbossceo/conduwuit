@@ -4,20 +4,25 @@ mod dest;
 mod send;
 mod sender;
 
-use std::{fmt::Debug, iter::once, sync::Arc};
+use std::{
+	fmt::Debug,
+	hash::{DefaultHasher, Hash, Hasher},
+	iter::once,
+	sync::Arc,
+};
 
 use async_trait::async_trait;
 use conduwuit::{
-	debug_warn, err,
-	utils::{ReadyExt, TryReadyExt},
+	debug, debug_warn, err, error,
+	utils::{available_parallelism, math::usize_from_u64_truncated, ReadyExt, TryReadyExt},
 	warn, Result, Server,
 };
-use futures::{Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt};
 use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	RoomId, ServerName, UserId,
 };
-use tokio::sync::Mutex;
+use tokio::task::JoinSet;
 
 use self::data::Data;
 pub use self::{
@@ -30,11 +35,10 @@ use crate::{
 };
 
 pub struct Service {
+	pub db: Data,
 	server: Arc<Server>,
 	services: Services,
-	pub db: Data,
-	sender: loole::Sender<Msg>,
-	receiver: Mutex<loole::Receiver<Msg>>,
+	channels: Vec<(loole::Sender<Msg>, loole::Receiver<Msg>)>,
 }
 
 struct Services {
@@ -72,8 +76,9 @@ pub enum SendingEvent {
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let (sender, receiver) = loole::unbounded();
+		let num_senders = num_senders(&args);
 		Ok(Arc::new(Self {
+			db: Data::new(&args),
 			server: args.server.clone(),
 			services: Services {
 				client: args.depend::<client::Service>("client"),
@@ -91,20 +96,41 @@ impl crate::Service for Service {
 				pusher: args.depend::<pusher::Service>("pusher"),
 				server_keys: args.depend::<server_keys::Service>("server_keys"),
 			},
-			db: Data::new(&args),
-			sender,
-			receiver: Mutex::new(receiver),
+			channels: (0..num_senders).map(|_| loole::unbounded()).collect(),
 		}))
 	}
 
-	async fn worker(self: Arc<Self>) -> Result<()> {
-		// trait impl can't be split between files so this just glues to mod sender
-		self.sender().await
+	async fn worker(self: Arc<Self>) -> Result {
+		let mut senders =
+			self.channels
+				.iter()
+				.enumerate()
+				.fold(JoinSet::new(), |mut joinset, (id, _)| {
+					let self_ = self.clone();
+					let runtime = self.server.runtime();
+					let _abort = joinset.spawn_on(self_.sender(id).boxed(), runtime);
+					joinset
+				});
+
+		while let Some(ret) = senders.join_next_with_id().await {
+			match ret {
+				| Ok((id, _)) => {
+					debug!(?id, "sender worker finished");
+				},
+				| Err(error) => {
+					error!(id = ?error.id(), ?error, "sender worker finished");
+				},
+			};
+		}
+
+		Ok(())
 	}
 
 	fn interrupt(&self) {
-		if !self.sender.is_closed() {
-			self.sender.close();
+		for (sender, _) in &self.channels {
+			if !sender.is_closed() {
+				sender.close();
+			}
 		}
 	}
 
@@ -157,7 +183,7 @@ impl Service {
 		let _cork = self.db.db.cork();
 		let requests = servers
 			.map(|server| {
-				(Destination::Normal(server.into()), SendingEvent::Pdu(pdu_id.to_owned()))
+				(Destination::Federation(server.into()), SendingEvent::Pdu(pdu_id.to_owned()))
 			})
 			.collect::<Vec<_>>()
 			.await;
@@ -173,7 +199,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self, server, serialized), level = "debug")]
 	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
-		let dest = Destination::Normal(server.to_owned());
+		let dest = Destination::Federation(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
 		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(once((&event, &dest)));
@@ -203,7 +229,10 @@ impl Service {
 		let _cork = self.db.db.cork();
 		let requests = servers
 			.map(|server| {
-				(Destination::Normal(server.to_owned()), SendingEvent::Edu(serialized.clone()))
+				(
+					Destination::Federation(server.to_owned()),
+					SendingEvent::Edu(serialized.clone()),
+				)
 			})
 			.collect::<Vec<_>>()
 			.await;
@@ -235,7 +264,7 @@ impl Service {
 	{
 		servers
 			.map(ToOwned::to_owned)
-			.map(Destination::Normal)
+			.map(Destination::Federation)
 			.map(Ok)
 			.ready_try_for_each(|dest| {
 				self.dispatch(Msg {
@@ -327,9 +356,49 @@ impl Service {
 		}
 	}
 
-	fn dispatch(&self, msg: Msg) -> Result<()> {
-		debug_assert!(!self.sender.is_full(), "channel full");
-		debug_assert!(!self.sender.is_closed(), "channel closed");
-		self.sender.send(msg).map_err(|e| err!("{e}"))
+	fn dispatch(&self, msg: Msg) -> Result {
+		let shard = self.shard_id(&msg.dest);
+		let sender = &self
+			.channels
+			.get(shard)
+			.expect("missing sender worker channels")
+			.0;
+
+		debug_assert!(!sender.is_full(), "channel full");
+		debug_assert!(!sender.is_closed(), "channel closed");
+		sender.send(msg).map_err(|e| err!("{e}"))
 	}
+
+	pub(super) fn shard_id(&self, dest: &Destination) -> usize {
+		if self.channels.len() <= 1 {
+			return 0;
+		}
+
+		let mut hash = DefaultHasher::default();
+		dest.hash(&mut hash);
+
+		let hash: u64 = hash.finish();
+		let hash = usize_from_u64_truncated(hash);
+
+		let chans = self.channels.len().max(1);
+		hash.overflowing_rem(chans).0
+	}
+}
+
+fn num_senders(args: &crate::Args<'_>) -> usize {
+	const MIN_SENDERS: usize = 1;
+	// Limit the number of senders to the number of workers threads or number of
+	// cores, conservatively.
+	let max_senders = args
+		.server
+		.metrics
+		.num_workers()
+		.min(available_parallelism());
+
+	// If the user doesn't override the default 0, this is intended to then default
+	// to 1 for now as multiple senders is experimental.
+	args.server
+		.config
+		.sender_workers
+		.clamp(MIN_SENDERS, max_senders)
 }

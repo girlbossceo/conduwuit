@@ -4,6 +4,7 @@ use std::{
 };
 
 use conduwuit::{debug, debug_error, debug_info, debug_warn, err, error, trace, Err, Result};
+use futures::FutureExt;
 use hickory_resolver::error::ResolveError;
 use ipaddress::IPAddress;
 use ruma::ServerName;
@@ -32,7 +33,7 @@ impl super::Service {
 			(result, true)
 		} else {
 			self.validate_dest(server_name)?;
-			(self.resolve_actual_dest(server_name, true).await?, false)
+			(self.resolve_actual_dest(server_name, true).boxed().await?, false)
 		};
 
 		let CachedDest { dest, host, .. } = result;

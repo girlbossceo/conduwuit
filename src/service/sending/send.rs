@@ -24,7 +24,10 @@ use crate::{
 };
 
 impl super::Service {
-	#[tracing::instrument(skip_all, level = "debug")]
+	#[tracing::instrument(
+		level = "debug"
+		skip(self, client, request),
+	)]
 	pub async fn send<T>(
 		&self,
 		client: &Client,

@@ -113,7 +113,7 @@ pub(super) async fn process(
 				| (None, Some(server_name), None, None) => services
 					.sending
 					.db
-					.queued_requests(&Destination::Normal(server_name.into())),
+					.queued_requests(&Destination::Federation(server_name.into())),
 				| (None, None, Some(user_id), Some(push_key)) => {
 					if push_key.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(
@@ -183,7 +183,7 @@ pub(super) async fn process(
 				| (None, Some(server_name), None, None) => services
 					.sending
 					.db
-					.active_requests_for(&Destination::Normal(server_name.into())),
+					.active_requests_for(&Destination::Federation(server_name.into())),
 				| (None, None, Some(user_id), Some(push_key)) => {
 					if push_key.is_empty() {
 						return Ok(RoomMessageEventContent::text_plain(

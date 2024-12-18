@@ -7,14 +7,14 @@ use ruma::{OwnedServerName, OwnedUserId};
 pub enum Destination {
 	Appservice(String),
 	Push(OwnedUserId, String), // user and pushkey
-	Normal(OwnedServerName),
+	Federation(OwnedServerName),
 }
 
 #[implement(Destination)]
 #[must_use]
 pub(super) fn get_prefix(&self) -> Vec<u8> {
 	match self {
-		| Self::Normal(server) => {
+		| Self::Federation(server) => {
 			let len = server.as_bytes().len().saturating_add(1);
 
 			let mut p = Vec::with_capacity(len);
