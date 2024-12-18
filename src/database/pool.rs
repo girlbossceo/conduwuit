@@ -2,7 +2,7 @@ use std::{
 	mem::take,
 	sync::{
 		atomic::{AtomicUsize, Ordering},
-		Arc,
+		Arc, Mutex,
 	},
 };
 
@@ -11,7 +11,7 @@ use conduwuit::{debug, debug_warn, defer, err, implement, result::DebugInspect, 
 use futures::{channel::oneshot, TryFutureExt};
 use oneshot::Sender as ResultSender;
 use rocksdb::Direction;
-use tokio::{sync::Mutex, task::JoinSet};
+use tokio::task::JoinSet;
 
 use crate::{keyval::KeyBuf, stream, Handle, Map};
 
@@ -79,7 +79,7 @@ pub(crate) async fn new(server: &Arc<Server>, opts: &Opts) -> Result<Arc<Self>> 
 pub(crate) async fn shutdown(self: &Arc<Self>) {
 	self.close();
 
-	let workers = take(&mut *self.workers.lock().await);
+	let workers = take(&mut *self.workers.lock().expect("locked"));
 	debug!(workers = workers.len(), "Waiting for workers to join...");
 
 	workers.join_all().await;
@@ -92,7 +92,13 @@ pub(crate) fn close(&self) -> bool {
 		return false;
 	}
 
+	let mut workers = take(&mut *self.workers.lock().expect("locked"));
+	debug!(workers = workers.len(), "Waiting for workers to join...");
+	workers.abort_all();
+	drop(workers);
+
 	std::thread::yield_now();
+	debug_assert!(self.queue.is_empty(), "channel is not empty");
 	debug!(
 		senders = self.queue.sender_count(),
 		receivers = self.queue.receiver_count(),
@@ -104,7 +110,7 @@ pub(crate) fn close(&self) -> bool {
 
 #[implement(Pool)]
 async fn spawn_until(self: &Arc<Self>, recv: Receiver<Cmd>, max: usize) -> Result {
-	let mut workers = self.workers.lock().await;
+	let mut workers = self.workers.lock().expect("locked");
 	while workers.len() < max {
 		self.spawn_one(&mut workers, recv.clone())?;
 	}

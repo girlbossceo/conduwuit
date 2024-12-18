@@ -347,7 +347,8 @@ impl Drop for Engine {
 	fn drop(&mut self) {
 		const BLOCKING: bool = true;
 
-		debug_assert!(!self.pool.close(), "request pool was not closed");
+		debug!("Closing frontend pool");
+		self.pool.close();
 
 		debug!("Waiting for background tasks to finish...");
 		self.db.cancel_all_background_work(BLOCKING);
