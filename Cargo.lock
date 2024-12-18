@@ -739,7 +739,7 @@ dependencies = [
  "serde_json",
  "serde_regex",
  "serde_yaml",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
@@ -2954,7 +2954,7 @@ dependencies = [
  "rustc-hash 2.1.0",
  "rustls",
  "socket2",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "tokio",
  "tracing",
 ]
@@ -2973,7 +2973,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "tinyvec",
  "tracing",
  "web-time 1.1.0",
@@ -3211,7 +3211,7 @@ dependencies = [
  "serde",
  "serde_html_form",
  "serde_json",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "url",
  "web-time 1.1.0",
 ]
@@ -3237,7 +3237,7 @@ dependencies = [
  "serde",
  "serde_html_form",
  "serde_json",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "time",
  "tracing",
  "url",
@@ -3263,7 +3263,7 @@ dependencies = [
  "ruma-macros",
  "serde",
  "serde_json",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "tracing",
  "url",
  "web-time 1.1.0",
@@ -3294,7 +3294,7 @@ version = "0.9.5"
 source = "git+https://github.com/girlbossceo/ruwuma?rev=112ccc24cb14de26757715d611285d0806d5d91f#112ccc24cb14de26757715d611285d0806d5d91f"
 dependencies = [
  "js_int",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
@@ -3343,7 +3343,7 @@ dependencies = [
  "http",
  "http-auth",
  "ruma-common",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "tracing",
 ]
 
@@ -3360,7 +3360,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "subslice",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
@@ -3374,7 +3374,7 @@ dependencies = [
  "ruma-events",
  "serde",
  "serde_json",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "tracing",
 ]
 
@@ -3526,7 +3526,7 @@ dependencies = [
  "futures-util",
  "pin-project",
  "thingbuf",
- "thiserror 2.0.7",
+ "thiserror 2.0.8",
  "unicode-segmentation",
  "unicode-width 0.2.0",
 ]
@@ -4111,11 +4111,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.7"
+version = "2.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93605438cbd668185516ab499d589afb7ee1859ea3d5fc8f6b0755e1c7443767"
+checksum = "08f5383f3e0071702bf93ab5ee99b52d26936be9dedd9413067cbdcddcb6141a"
 dependencies = [
- "thiserror-impl 2.0.7",
+ "thiserror-impl 2.0.8",
 ]
 
 [[package]]
@@ -4131,9 +4131,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.7"
+version = "2.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1d8749b4531af2117677a5fcd12b1348a3fe2b81e36e61ffeac5c4aa3273e36"
+checksum = "f2f357fcec90b3caef6623a099691be676d033b40a058ac95d2a6ade6fa0c943"
 dependencies = [
  "proc-macro2",
  "quote",
