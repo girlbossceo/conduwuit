@@ -59,7 +59,7 @@ impl Service {
 			.expect("room flush failed");
 		// update appservices
 		let edu = EphemeralData::Receipt(event);
-		_ = self
+		let _ = self
 			.services
 			.sending
 			.send_edu_appservice_room(

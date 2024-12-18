@@ -722,7 +722,7 @@ async fn load_joined_room(
 				.rooms
 				.typing
 				.typings_all(room_id, sender_user)
-				.await;
+				.await?;
 
 			Ok(vec![serde_json::from_str(&serde_json::to_string(&typings)?)?])
 		})
