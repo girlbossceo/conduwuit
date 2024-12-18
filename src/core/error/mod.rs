@@ -98,6 +98,8 @@ pub enum Error {
 	ContentDisposition(#[from] ruma::http_headers::ContentDispositionParseError),
 	#[error("{0}")]
 	Database(Cow<'static, str>),
+	#[error("Feature '{0}' is not available on this server.")]
+	FeatureDisabled(Cow<'static, str>),
 	#[error("Remote server {0} responded with: {1}")]
 	Federation(ruma::OwnedServerName, ruma::api::client::error::Error),
 	#[error("{0} in {1}")]
@@ -153,12 +155,13 @@ impl Error {
 	/// Returns the Matrix error code / error kind
 	#[inline]
 	pub fn kind(&self) -> ruma::api::client::error::ErrorKind {
-		use ruma::api::client::error::ErrorKind::Unknown;
+		use ruma::api::client::error::ErrorKind::{FeatureDisabled, Unknown};
 
 		match self {
 			| Self::Federation(_, error) | Self::Ruma(error) =>
 				response::ruma_error_kind(error).clone(),
 			| Self::BadRequest(kind, ..) | Self::Request(kind, ..) => kind.clone(),
+			| Self::FeatureDisabled(..) => FeatureDisabled,
 			| _ => Unknown,
 		}
 	}
@@ -172,6 +175,7 @@ impl Error {
 			| Self::Federation(_, error) | Self::Ruma(error) => error.status_code,
 			| Self::Request(kind, _, code) => response::status_code(kind, *code),
 			| Self::BadRequest(kind, ..) => response::bad_request_code(kind),
+			| Self::FeatureDisabled(..) => response::bad_request_code(&self.kind()),
 			| Self::Reqwest(error) => error.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
 			| Self::Conflict(_) => StatusCode::CONFLICT,
 			| _ => StatusCode::INTERNAL_SERVER_ERROR,
