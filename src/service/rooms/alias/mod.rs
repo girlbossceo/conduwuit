@@ -5,12 +5,11 @@ use std::sync::Arc;
 use conduwuit::{
 	err,
 	utils::{stream::TryIgnore, ReadyExt},
-	Err, Error, Result,
+	Err, Result,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
-	api::client::error::ErrorKind,
 	events::{
 		room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		StateEventType,
@@ -72,10 +71,7 @@ impl Service {
 		if alias == self.services.globals.admin_alias
 			&& user_id != self.services.globals.server_user
 		{
-			return Err(Error::BadRequest(
-				ErrorKind::forbidden(),
-				"Only the server user can set this alias",
-			));
+			return Err!(Request(Forbidden("Only the server user can set this alias")));
 		}
 
 		// Comes first as we don't want a stuck alias
@@ -220,7 +216,7 @@ impl Service {
 		}
 
 		// Checking whether the user is able to change canonical aliases of the room
-		if let Ok(content) = self
+		if let Ok(power_levels) = self
 			.services
 			.state_accessor
 			.room_state_get_content::<RoomPowerLevelsEventContent>(
@@ -228,10 +224,12 @@ impl Service {
 				&StateEventType::RoomPowerLevels,
 				"",
 			)
+			.map_ok(RoomPowerLevels::from)
 			.await
 		{
-			return Ok(RoomPowerLevels::from(content)
-				.user_can_send_state(user_id, StateEventType::RoomCanonicalAlias));
+			return Ok(
+				power_levels.user_can_send_state(user_id, StateEventType::RoomCanonicalAlias)
+			);
 		}
 
 		// If there is no power levels event, only the room creator can change
@@ -291,18 +289,12 @@ impl Service {
 			.globals
 			.server_is_ours(room_alias.server_name())
 		{
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Alias is from another server.",
-			));
+			return Err!(Request(InvalidParam("Alias is from another server.")));
 		}
 
-		if let Some(ref info) = appservice_info {
+		if let Some(info) = appservice_info {
 			if !info.aliases.is_match(room_alias.as_str()) {
-				return Err(Error::BadRequest(
-					ErrorKind::Exclusive,
-					"Room alias is not in namespace.",
-				));
+				return Err!(Request(Exclusive("Room alias is not in namespace.")));
 			}
 		} else if self
 			.services
@@ -310,10 +302,7 @@ impl Service {
 			.is_exclusive_alias(room_alias)
 			.await
 		{
-			return Err(Error::BadRequest(
-				ErrorKind::Exclusive,
-				"Room alias reserved by appservice.",
-			));
+			return Err!(Request(Exclusive("Room alias reserved by appservice.")));
 		}
 
 		Ok(())
