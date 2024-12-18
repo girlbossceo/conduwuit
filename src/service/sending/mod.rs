@@ -190,8 +190,8 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, serialized), level = "debug")]
-	pub fn send_edu_appservice(&self, appservice_id: String, serialized: Vec<u8>) -> Result {
-		let dest = Destination::Appservice(appservice_id);
+	pub fn send_edu_appservice(&self, appservice_id: &str, serialized: Vec<u8>) -> Result {
+		let dest = Destination::Appservice(appservice_id.to_owned());
 		let event = SendingEvent::Edu(serialized);
 		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(once((&event, &dest)));
@@ -224,7 +224,7 @@ impl Service {
 					.appservice_in_room(room_id, appservice)
 					.await
 			{
-				self.send_edu_appservice(appservice.registration.id.clone(), serialized.clone())?;
+				self.send_edu_appservice(&appservice.registration.id, serialized.clone())?;
 			}
 		}
 		Ok(())
