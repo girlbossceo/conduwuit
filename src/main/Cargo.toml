@@ -41,8 +41,10 @@ default = [
 	"gzip_compression",
 	"io_uring",
 	"jemalloc",
+	"media_thumbnail",
 	"release_max_log_level",
 	"systemd",
+	"url_preview",
 	"zstd_compression",
 ]
 
@@ -83,6 +85,9 @@ jemalloc_prof = [
 jemalloc_stats = [
 	"conduwuit-core/jemalloc_stats",
 ]
+media_thumbnail = [
+	"conduwuit-service/media_thumbnail",
+]
 perf_measurements = [
 	"dep:opentelemetry",
 	"dep:tracing-flame",
@@ -120,6 +125,9 @@ systemd = [
 tokio_console = [
 	"dep:console-subscriber",
 	"tokio/tracing",
+]
+url_preview = [
+	"conduwuit-service/url_preview",
 ]
 zstd_compression = [
     "conduwuit-api/zstd_compression",

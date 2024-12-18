@@ -71,7 +71,6 @@ figment.workspace = true
 futures.workspace = true
 http-body-util.workspace = true
 http.workspace = true
-image.workspace = true
 ipaddress.workspace = true
 itertools.workspace = true
 libc.workspace = true

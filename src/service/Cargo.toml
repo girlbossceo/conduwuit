@@ -28,14 +28,21 @@ element_hacks = []
 gzip_compression = [
 	"reqwest/gzip",
 ]
-zstd_compression = [
-    "reqwest/zstd",
+media_thumbnail = [
+	"dep:image",
 ]
 release_max_log_level = [
 	"tracing/max_level_trace",
 	"tracing/release_max_level_info",
 	"log/max_level_trace",
 	"log/release_max_level_info",
+]
+url_preview = [
+	"dep:image",
+	"dep:webpage",
+]
+zstd_compression = [
+    "reqwest/zstd",
 ]
 
 [dependencies]
@@ -51,6 +58,7 @@ futures.workspace = true
 hickory-resolver.workspace = true
 http.workspace = true
 image.workspace = true
+image.optional = true
 ipaddress.workspace = true
 itertools.workspace = true
 jsonwebtoken.workspace = true
@@ -73,6 +81,7 @@ tokio.workspace = true
 tracing.workspace = true
 url.workspace = true
 webpage.workspace = true
+webpage.optional = true
 
 [lints]
 workspace = true

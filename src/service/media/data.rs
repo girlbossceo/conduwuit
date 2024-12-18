@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use conduwuit::{
 	debug, debug_info, err,
 	utils::{str_from_bytes, stream::TryIgnore, string_from_bytes, ReadyExt},
-	Err, Error, Result,
+	Err, Result,
 };
 use database::{Database, Interfix, Map};
 use futures::StreamExt;
@@ -123,30 +123,21 @@ impl Data {
 
 		let content_type = parts
 			.next()
-			.map(|bytes| {
-				string_from_bytes(bytes).map_err(|_| {
-					Error::bad_database("Content type in mediaid_file is invalid unicode.")
-				})
-			})
-			.transpose()?;
+			.map(string_from_bytes)
+			.transpose()
+			.map_err(|e| err!(Database(error!(?mxc, "Content-type is invalid: {e}"))))?;
 
-		let content_disposition_bytes = parts
+		let content_disposition = parts
 			.next()
-			.ok_or_else(|| Error::bad_database("Media ID in db is invalid."))?;
-
-		let content_disposition = if content_disposition_bytes.is_empty() {
-			None
-		} else {
-			Some(
-				string_from_bytes(content_disposition_bytes)
-					.map_err(|_| {
-						Error::bad_database(
-							"Content Disposition in mediaid_file is invalid unicode.",
-						)
-					})?
-					.parse()?,
-			)
-		};
+			.map(Some)
+			.ok_or_else(|| err!(Database(error!(?mxc, "Media ID in db is invalid."))))?
+			.filter(|bytes| !bytes.is_empty())
+			.map(string_from_bytes)
+			.transpose()
+			.map_err(|e| err!(Database(error!(?mxc, "Content-type is invalid: {e}"))))?
+			.as_deref()
+			.map(str::parse)
+			.transpose()?;
 
 		Ok(Metadata { content_disposition, content_type, key })
 	}

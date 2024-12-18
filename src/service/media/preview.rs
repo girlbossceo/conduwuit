@@ -1,15 +1,19 @@
-use std::{io::Cursor, time::SystemTime};
+//! URL Previews
+//!
+//! This functionality is gated by 'url_preview', but not at the unit level for
+//! historical and simplicity reasons. Instead the feature gates the inclusion
+//! of dependencies and nulls out results through the existing interface when
+//! not featured.
 
-use conduwuit::{debug, utils, Err, Result};
+use std::time::SystemTime;
+
+use conduwuit::{debug, Err, Result};
 use conduwuit_core::implement;
-use image::ImageReader as ImgReader;
 use ipaddress::IPAddress;
-use ruma::Mxc;
 use serde::Serialize;
 use url::Url;
-use webpage::HTML;
 
-use super::{Service, MXC_LENGTH};
+use super::Service;
 
 #[derive(Serialize, Default)]
 pub struct UrlPreviewData {
@@ -39,34 +43,6 @@ pub async fn set_url_preview(&self, url: &str, data: &UrlPreviewData) -> Result<
 		.duration_since(SystemTime::UNIX_EPOCH)
 		.expect("valid system time");
 	self.db.set_url_preview(url, data, now)
-}
-
-#[implement(Service)]
-pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
-	let client = &self.services.client.url_preview;
-	let image = client.get(url).send().await?.bytes().await?;
-	let mxc = Mxc {
-		server_name: self.services.globals.server_name(),
-		media_id: &utils::random_string(MXC_LENGTH),
-	};
-
-	self.create(&mxc, None, None, None, &image).await?;
-
-	let (width, height) = match ImgReader::new(Cursor::new(&image)).with_guessed_format() {
-		| Err(_) => (None, None),
-		| Ok(reader) => match reader.into_dimensions() {
-			| Err(_) => (None, None),
-			| Ok((width, height)) => (Some(width), Some(height)),
-		},
-	};
-
-	Ok(UrlPreviewData {
-		image: Some(mxc.to_string()),
-		image_size: Some(image.len()),
-		image_width: width,
-		image_height: height,
-		..Default::default()
-	})
 }
 
 #[implement(Service)]
@@ -121,8 +97,51 @@ async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 	Ok(data)
 }
 
+#[cfg(feature = "url_preview")]
+#[implement(Service)]
+pub async fn download_image(&self, url: &str) -> Result<UrlPreviewData> {
+	use conduwuit::utils::random_string;
+	use image::ImageReader;
+	use ruma::Mxc;
+
+	let image = self.services.client.url_preview.get(url).send().await?;
+	let image = image.bytes().await?;
+	let mxc = Mxc {
+		server_name: self.services.globals.server_name(),
+		media_id: &random_string(super::MXC_LENGTH),
+	};
+
+	self.create(&mxc, None, None, None, &image).await?;
+
+	let cursor = std::io::Cursor::new(&image);
+	let (width, height) = match ImageReader::new(cursor).with_guessed_format() {
+		| Err(_) => (None, None),
+		| Ok(reader) => match reader.into_dimensions() {
+			| Err(_) => (None, None),
+			| Ok((width, height)) => (Some(width), Some(height)),
+		},
+	};
+
+	Ok(UrlPreviewData {
+		image: Some(mxc.to_string()),
+		image_size: Some(image.len()),
+		image_width: width,
+		image_height: height,
+		..Default::default()
+	})
+}
+
+#[cfg(not(feature = "url_preview"))]
+#[implement(Service)]
+pub async fn download_image(&self, _url: &str) -> Result<UrlPreviewData> {
+	Err!(FeatureDisabled("url_preview"))
+}
+
+#[cfg(feature = "url_preview")]
 #[implement(Service)]
 async fn download_html(&self, url: &str) -> Result<UrlPreviewData> {
+	use webpage::HTML;
+
 	let client = &self.services.client.url_preview;
 	let mut response = client.get(url).send().await?;
 
@@ -157,6 +176,12 @@ async fn download_html(&self, url: &str) -> Result<UrlPreviewData> {
 	data.description = props.get("description").cloned().or(html.description);
 
 	Ok(data)
+}
+
+#[cfg(not(feature = "url_preview"))]
+#[implement(Service)]
+async fn download_html(&self, _url: &str) -> Result<UrlPreviewData> {
+	Err!(FeatureDisabled("url_preview"))
 }
 
 #[implement(Service)]

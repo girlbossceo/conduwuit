@@ -723,7 +723,6 @@ dependencies = [
  "hardened_malloc-rs",
  "http",
  "http-body-util",
- "image",
  "ipaddress",
  "itertools 0.13.0",
  "libc",

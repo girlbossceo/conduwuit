@@ -48,8 +48,6 @@ pub enum Error {
 	Http(#[from] http::Error),
 	#[error(transparent)]
 	HttpHeader(#[from] http::header::InvalidHeaderValue),
-	#[error("Image error: {0}")]
-	Image(#[from] image::error::ImageError),
 	#[error("Join error: {0}")]
 	JoinError(#[from] tokio::task::JoinError),
 	#[error(transparent)]
