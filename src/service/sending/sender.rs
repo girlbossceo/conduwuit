@@ -1,4 +1,3 @@
-use core::str;
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	fmt::Debug,
@@ -22,7 +21,7 @@ use futures::{
 };
 use ruma::{
 	api::{
-		appservice::event::push_events::v1::EphemeralData,
+		appservice::event::push_events::v1::Edu as RumaEdu,
 		federation::transactions::{
 			edu::{
 				DeviceListUpdateContent, Edu, PresenceContent, PresenceUpdate, ReceiptContent,
@@ -588,7 +587,7 @@ impl Service {
 				.filter(|event| matches!(event, SendingEvent::Pdu(_)))
 				.count(),
 		);
-		let mut edu_jsons: Vec<EphemeralData> = Vec::with_capacity(
+		let mut edu_jsons: Vec<RumaEdu> = Vec::with_capacity(
 			events
 				.iter()
 				.filter(|event| matches!(event, SendingEvent::Edu(_)))
@@ -601,12 +600,16 @@ impl Service {
 						pdu_jsons.push(pdu.to_room_event());
 					}
 				},
-				| SendingEvent::Edu(edu) =>
-					if appservice.receive_ephemeral {
+				| SendingEvent::Edu(edu) => {
+					if appservice
+						.receive_ephemeral
+						.is_some_and(|receive_edus| receive_edus)
+					{
 						if let Ok(edu) = serde_json::from_slice(edu) {
 							edu_jsons.push(edu);
 						}
-					},
+					}
+				},
 				| SendingEvent::Flush => {}, // flush only; no new content
 			}
 		}

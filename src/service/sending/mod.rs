@@ -25,10 +25,7 @@ pub use self::{
 	sender::{EDU_LIMIT, PDU_LIMIT},
 };
 use crate::{
-	account_data,
-	appservice::NamespaceRegex,
-	client, globals, presence, pusher, resolver,
-	rooms::{self, timeline::RawPduId},
+	account_data, client, globals, presence, pusher, resolver, rooms, rooms::timeline::RawPduId,
 	server_keys, users, Dep,
 };
 
@@ -41,7 +38,6 @@ pub struct Service {
 }
 
 struct Services {
-	alias: Dep<rooms::alias::Service>,
 	client: Dep<client::Service>,
 	globals: Dep<globals::Service>,
 	resolver: Dep<resolver::Service>,
@@ -80,7 +76,6 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			server: args.server.clone(),
 			services: Services {
-				alias: args.depend::<rooms::alias::Service>("rooms::alias"),
 				client: args.depend::<client::Service>("client"),
 				globals: args.depend::<globals::Service>("globals"),
 				resolver: args.depend::<resolver::Service>("resolver"),
@@ -187,47 +182,6 @@ impl Service {
 			event,
 			queue_id: keys.into_iter().next().expect("request queue key"),
 		})
-	}
-
-	#[tracing::instrument(skip(self, serialized), level = "debug")]
-	pub fn send_edu_appservice(&self, appservice_id: String, serialized: Vec<u8>) -> Result {
-		let dest = Destination::Appservice(appservice_id);
-		let event = SendingEvent::Edu(serialized);
-		let _cork = self.db.db.cork();
-		let keys = self.db.queue_requests(once((&event, &dest)));
-		self.dispatch(Msg {
-			dest,
-			event,
-			queue_id: keys.into_iter().next().expect("request queue key"),
-		})
-	}
-
-	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
-	pub async fn send_edu_appservice_room(
-		&self,
-		room_id: &RoomId,
-		serialized: Vec<u8>,
-	) -> Result<()> {
-		for appservice in self.services.appservice.read().await.values() {
-			let matching_aliases = |aliases: NamespaceRegex| {
-				self.services
-					.alias
-					.local_aliases_for_room(room_id)
-					.ready_any(move |room_alias| aliases.is_match(room_alias.as_str()))
-			};
-
-			if appservice.rooms.is_match(room_id.as_str())
-				|| matching_aliases(appservice.aliases.clone()).await
-				|| self
-					.services
-					.state_cache
-					.appservice_in_room(room_id, appservice)
-					.await
-			{
-				self.send_edu_appservice(appservice.registration.id.clone(), serialized.clone())?;
-			}
-		}
-		Ok(())
 	}
 
 	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
