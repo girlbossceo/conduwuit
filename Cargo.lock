@@ -4548,8 +4548,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.18"
-source = "git+https://github.com/girlbossceo/tracing?rev=ccc4fbd8238c2d5ba354e61ec17ac610af11401d#ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
+version = "0.3.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8189decb5ac0fa7bc8b96b7cb9b2701d60d48805aca84a238004d665fcc4008"
 dependencies = [
  "matchers",
  "nu-ansi-term",
@@ -5295,3 +5296,8 @@ checksum = "16099418600b4d8f028622f73ff6e3deaabdff330fb9a2a131dea781ee8b0768"
 dependencies = [
  "zune-core",
 ]
+
+[[patch.unused]]
+name = "tracing-subscriber"
+version = "0.3.18"
+source = "git+https://github.com/girlbossceo/tracing?rev=ccc4fbd8238c2d5ba354e61ec17ac610af11401d#ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
