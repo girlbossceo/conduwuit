@@ -275,7 +275,7 @@ async fn handle_edu_receipt(
 					services
 						.rooms
 						.read_receipt
-						.readreceipt_update(&user_id, &room_id, &event)
+						.readreceipt_update(&user_id, &room_id, event)
 						.await;
 				}
 			} else {

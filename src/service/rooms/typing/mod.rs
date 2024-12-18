@@ -7,8 +7,11 @@ use conduwuit::{
 };
 use futures::StreamExt;
 use ruma::{
-	api::federation::transactions::edu::{Edu, TypingContent},
-	events::SyncEphemeralRoomEvent,
+	api::{
+		appservice::event::push_events::v1::EphemeralData,
+		federation::transactions::edu::{Edu, TypingContent},
+	},
+	events::{typing::TypingEventContent, EphemeralRoomEvent, SyncEphemeralRoomEvent},
 	OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
 use tokio::sync::{broadcast, RwLock};
@@ -76,6 +79,9 @@ impl Service {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
 
+		// update appservices
+		self.appservice_send(room_id).await?;
+
 		// update federation
 		if self.services.globals.user_is_local(user_id) {
 			self.federation_send(room_id, user_id, true).await?;
@@ -103,7 +109,8 @@ impl Service {
 		if self.typing_update_sender.send(room_id.to_owned()).is_err() {
 			trace!("receiver found what it was looking for and is no longer interested");
 		}
-
+		// update appservices
+		self.appservice_send(room_id).await?;
 		// update federation
 		if self.services.globals.user_is_local(user_id) {
 			self.federation_send(room_id, user_id, false).await?;
@@ -157,6 +164,9 @@ impl Service {
 				trace!("receiver found what it was looking for and is no longer interested");
 			}
 
+			// update appservices
+			self.appservice_send(room_id).await?;
+
 			// update federation
 			for user in &removable {
 				if self.services.globals.user_is_local(user) {
@@ -181,16 +191,29 @@ impl Service {
 	}
 
 	/// Returns a new typing EDU.
+	pub async fn typings_content(&self, room_id: &RoomId) -> Result<TypingEventContent> {
+		let room_typing_indicators = self.typing.read().await.get(room_id).cloned();
+
+		let Some(typing_indicators) = room_typing_indicators else {
+			return Ok(TypingEventContent { user_ids: Vec::new() });
+		};
+
+		let user_ids: Vec<_> = typing_indicators.into_keys().collect();
+
+		Ok(TypingEventContent { user_ids })
+	}
+
+	/// Returns a new typing EDU.
 	pub async fn typings_all(
 		&self,
 		room_id: &RoomId,
 		sender_user: &UserId,
-	) -> Result<SyncEphemeralRoomEvent<ruma::events::typing::TypingEventContent>> {
+	) -> Result<SyncEphemeralRoomEvent<TypingEventContent>> {
 		let room_typing_indicators = self.typing.read().await.get(room_id).cloned();
 
 		let Some(typing_indicators) = room_typing_indicators else {
 			return Ok(SyncEphemeralRoomEvent {
-				content: ruma::events::typing::TypingEventContent { user_ids: Vec::new() },
+				content: TypingEventContent { user_ids: Vec::new() },
 			});
 		};
 
@@ -208,9 +231,7 @@ impl Service {
 			.collect()
 			.await;
 
-		Ok(SyncEphemeralRoomEvent {
-			content: ruma::events::typing::TypingEventContent { user_ids },
-		})
+		Ok(SyncEphemeralRoomEvent { content: TypingEventContent { user_ids } })
 	}
 
 	async fn federation_send(
@@ -233,6 +254,23 @@ impl Service {
 		self.services
 			.sending
 			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))
+			.await?;
+
+		Ok(())
+	}
+
+	async fn appservice_send(&self, room_id: &RoomId) -> Result<()> {
+		let edu = EphemeralData::Typing(EphemeralRoomEvent {
+			content: self.typings_content(room_id).await?,
+			room_id: room_id.into(),
+		});
+
+		self.services
+			.sending
+			.send_edu_appservice_room(
+				room_id,
+				serde_json::to_vec(&edu).expect("Serialized EphemeralData::Typing"),
+			)
 			.await?;
 
 		Ok(())

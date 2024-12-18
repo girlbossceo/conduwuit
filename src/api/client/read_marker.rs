@@ -72,14 +72,10 @@ pub(crate) async fn set_read_marker_route(
 		services
 			.rooms
 			.read_receipt
-			.readreceipt_update(
-				sender_user,
-				&body.room_id,
-				&ruma::events::receipt::ReceiptEvent {
-					content: ruma::events::receipt::ReceiptEventContent(receipt_content),
-					room_id: body.room_id.clone(),
-				},
-			)
+			.readreceipt_update(sender_user, &body.room_id, ruma::events::receipt::ReceiptEvent {
+				content: ruma::events::receipt::ReceiptEventContent(receipt_content),
+				room_id: body.room_id.clone(),
+			})
 			.await;
 	}
 
@@ -171,7 +167,7 @@ pub(crate) async fn create_receipt_route(
 				.readreceipt_update(
 					sender_user,
 					&body.room_id,
-					&ruma::events::receipt::ReceiptEvent {
+					ruma::events::receipt::ReceiptEvent {
 						content: ruma::events::receipt::ReceiptEventContent(receipt_content),
 						room_id: body.room_id.clone(),
 					},
