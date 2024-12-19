@@ -752,6 +752,7 @@ jobs:
 
             DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
             GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+            GHCR_ENABLED: "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && 'true' || 'false' }}"
         steps:
             - name: Login to GitHub Container Registry
               uses: docker/login-action@v3
@@ -793,8 +794,10 @@ jobs:
                     docker tag $(docker images -q conduwuit:main) ${DOCKER_AMD64}
                     docker push ${DOCKER_AMD64}
                   fi
-                  docker tag $(docker images -q conduwuit:main) ${GHCR_AMD64}
-                  docker push ${GHCR_AMD64}
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker tag $(docker images -q conduwuit:main) ${GHCR_AMD64}
+                    docker push ${GHCR_AMD64}
+                  fi
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker tag $(docker images -q conduwuit:main) ${GLCR_AMD64}
                     docker push ${GLCR_AMD64}
@@ -807,8 +810,10 @@ jobs:
                     docker tag $(docker images -q conduwuit:main) ${DOCKER_ARM64}
                     docker push ${DOCKER_ARM64}
                   fi
-                  docker tag $(docker images -q conduwuit:main) ${GHCR_ARM64}
-                  docker push ${GHCR_ARM64}
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker tag $(docker images -q conduwuit:main) ${GHCR_ARM64}
+                    docker push ${GHCR_ARM64}
+                  fi
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker tag $(docker images -q conduwuit:main) ${GLCR_ARM64}
                     docker push ${GLCR_ARM64}
@@ -821,8 +826,10 @@ jobs:
                     docker tag $(docker images -q conduwuit:main) ${DOCKER_AMD64}-debug
                     docker push ${DOCKER_AMD64}-debug
                   fi
-                  docker tag $(docker images -q conduwuit:main) ${GHCR_AMD64}-debug
-                  docker push ${GHCR_AMD64}-debug
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker tag $(docker images -q conduwuit:main) ${GHCR_AMD64}-debug
+                    docker push ${GHCR_AMD64}-debug
+                  fi
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker tag $(docker images -q conduwuit:main) ${GLCR_AMD64}-debug
                     docker push ${GLCR_AMD64}-debug
@@ -835,8 +842,10 @@ jobs:
                     docker tag $(docker images -q conduwuit:main) ${DOCKER_ARM64}-debug
                     docker push ${DOCKER_ARM64}-debug
                   fi
-                  docker tag $(docker images -q conduwuit:main) ${GHCR_ARM64}-debug
-                  docker push ${GHCR_ARM64}-debug
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker tag $(docker images -q conduwuit:main) ${GHCR_ARM64}-debug
+                    docker push ${GHCR_ARM64}-debug
+                  fi
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker tag $(docker images -q conduwuit:main) ${GLCR_ARM64}-debug
                     docker push ${GLCR_ARM64}-debug
@@ -850,8 +859,10 @@ jobs:
                     docker manifest create ${DOCKER_BRANCH} --amend ${DOCKER_ARM64} --amend ${DOCKER_AMD64}
                   fi
                   # GitHub Container Registry
-                  docker manifest create ${GHCR_TAG} --amend ${GHCR_ARM64} --amend ${GHCR_AMD64}
-                  docker manifest create ${GHCR_BRANCH} --amend ${GHCR_ARM64} --amend ${GHCR_AMD64}
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker manifest create ${GHCR_TAG} --amend ${GHCR_ARM64} --amend ${GHCR_AMD64}
+                    docker manifest create ${GHCR_BRANCH} --amend ${GHCR_ARM64} --amend ${GHCR_AMD64}
+                  fi
                   # GitLab Container Registry
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker manifest create ${GLCR_TAG} --amend ${GLCR_ARM64} --amend ${GLCR_AMD64}
@@ -866,8 +877,10 @@ jobs:
                     docker manifest create ${DOCKER_BRANCH}-debug --amend ${DOCKER_ARM64}-debug --amend ${DOCKER_AMD64}-debug
                   fi
                   # GitHub Container Registry
-                  docker manifest create ${GHCR_TAG}-debug --amend ${GHCR_ARM64}-debug --amend ${GHCR_AMD64}-debug
-                  docker manifest create ${GHCR_BRANCH}-debug --amend ${GHCR_ARM64}-debug --amend ${GHCR_AMD64}-debug
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker manifest create ${GHCR_TAG}-debug --amend ${GHCR_ARM64}-debug --amend ${GHCR_AMD64}-debug
+                    docker manifest create ${GHCR_BRANCH}-debug --amend ${GHCR_ARM64}-debug --amend ${GHCR_AMD64}-debug
+                  fi
                   # GitLab Container Registry
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker manifest create ${GLCR_TAG}-debug --amend ${GLCR_ARM64}-debug --amend ${GLCR_AMD64}-debug
@@ -882,10 +895,12 @@ jobs:
                     docker manifest push ${DOCKER_TAG}-debug
                     docker manifest push ${DOCKER_BRANCH}-debug
                   fi
-                  docker manifest push ${GHCR_TAG}
-                  docker manifest push ${GHCR_BRANCH}
-                  docker manifest push ${GHCR_TAG}-debug
-                  docker manifest push ${GHCR_BRANCH}-debug
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    docker manifest push ${GHCR_TAG}
+                    docker manifest push ${GHCR_BRANCH}
+                    docker manifest push ${GHCR_TAG}-debug
+                    docker manifest push ${GHCR_BRANCH}-debug
+                  fi
                   if [ ! -z $GITLAB_TOKEN ]; then
                     docker manifest push ${GLCR_TAG}
                     docker manifest push ${GLCR_BRANCH}
@@ -899,8 +914,10 @@ jobs:
                     echo "- \`docker pull ${DOCKER_TAG}\`" >> $GITHUB_STEP_SUMMARY
                     echo "- \`docker pull ${DOCKER_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
                   fi
-                  echo "- \`docker pull ${GHCR_TAG}\`" >> $GITHUB_STEP_SUMMARY
-                  echo "- \`docker pull ${GHCR_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
+                  if [ $GHCR_ENABLED = "true" ]; then
+                    echo "- \`docker pull ${GHCR_TAG}\`" >> $GITHUB_STEP_SUMMARY
+                    echo "- \`docker pull ${GHCR_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
+                  fi
                   if [ ! -z $GITLAB_TOKEN ]; then
                     echo "- \`docker pull ${GLCR_TAG}\`" >> $GITHUB_STEP_SUMMARY
                     echo "- \`docker pull ${GLCR_TAG}-debug\`" >> $GITHUB_STEP_SUMMARY
