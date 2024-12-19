@@ -335,7 +335,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "a204cb56dbc20f72a1cbd0e9d6c827bbfd4082f2"
+rev = "112ccc24cb14de26757715d611285d0806d5d91f"
 features = [
     "compat",
     "rand",
@@ -351,7 +351,6 @@ features = [
     "compat-upload-signatures",
     "identifiers-validation",
     "unstable-unspecified",
-    "unstable-msc2409",
     "unstable-msc2448",
     "unstable-msc2666",
     "unstable-msc2867",
@@ -367,6 +366,7 @@ features = [
     "unstable-msc4121",
     "unstable-msc4125",
     "unstable-msc4186",
+    "unstable-msc4203", # sending to-device events to appservices 
     "unstable-msc4210", # remove legacy mentions
     "unstable-extensible-events",
 ]
