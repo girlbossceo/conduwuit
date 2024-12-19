@@ -26,23 +26,23 @@ pub(super) enum MediaCommand {
 	///   filesystem. This will always ignore errors.
 	DeleteList,
 
-	/// - Deletes all remote media in the last/after "X" time using filesystem
-	///   metadata first created at date, or fallback to last modified date.
-	///   This will always ignore errors by default.
-	///
-	/// Synapse
+	/// - Deletes all remote (and optionally local) media created before or
+	///   after \[duration] time using filesystem metadata first created at
+	///   date, or fallback to last modified date. This will always ignore
+	///   errors by default.
 	DeletePastRemoteMedia {
-		/// - The duration (at or after/before), e.g. "5m" to delete all media
-		///   in the past or up to 5 minutes
+		/// - The relative time (e.g. 30s, 5m, 7d) within which to search
 		duration: String,
 
+		/// - Only delete media created more recently than \[duration] ago
 		#[arg(long, short)]
 		before: bool,
 
+		/// - Only delete media created after \[duration] ago
 		#[arg(long, short)]
 		after: bool,
 
-		/// Long argument to delete local media
+		/// - Long argument to additionally delete local media
 		#[arg(long)]
 		yes_i_want_to_delete_local_media: bool,
 	},
