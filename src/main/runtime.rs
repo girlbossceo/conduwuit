@@ -1,4 +1,4 @@
-use std::{thread, time::Duration};
+use std::{sync::OnceLock, thread, time::Duration};
 
 use conduwuit::Result;
 use tokio::runtime::Builder;
@@ -12,9 +12,14 @@ const GLOBAL_QUEUE_INTERVAL: u32 = 192;
 const KERNEL_QUEUE_INTERVAL: u32 = 256;
 const KERNEL_EVENTS_PER_TICK: usize = 512;
 
-pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
-	let mut builder = Builder::new_multi_thread();
+static WORKER_AFFINITY: OnceLock<bool> = OnceLock::new();
 
+pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
+	WORKER_AFFINITY
+		.set(args.worker_affinity)
+		.expect("set WORKER_AFFINITY from program argument");
+
+	let mut builder = Builder::new_multi_thread();
 	builder
 		.enable_io()
 		.enable_time()
@@ -63,7 +68,13 @@ fn enable_histogram(builder: &mut Builder, args: &Args) {
 )]
 fn thread_start() {
 	#[cfg(feature = "worker_affinity")]
-	set_worker_affinity();
+	if WORKER_AFFINITY
+		.get()
+		.copied()
+		.expect("WORKER_AFFINITY initialized by runtime::new()")
+	{
+		set_worker_affinity();
+	}
 }
 
 #[cfg(feature = "worker_affinity")]

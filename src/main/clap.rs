@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use conduwuit::{
 	config::{Figment, FigmentValue},
 	err, toml,
@@ -50,6 +50,19 @@ pub(crate) struct Args {
 	/// Set the histogram bucket count (tokio_unstable). Default is 20.
 	#[arg(long, hide(true), env = "CONDUWUIT_RUNTIME_HISTOGRAM_BUCKETS", default_value = "20")]
 	pub(crate) worker_histogram_buckets: usize,
+
+	/// Toggles worker affinity feature.
+	#[arg(
+		long,
+		hide(true),
+		env = "CONDUWUIT_RUNTIME_WORKER_AFFINITY",
+		action = ArgAction::Set,
+		num_args = 0..=1,
+		require_equals(false),
+		default_value = "true",
+		default_missing_value = "true",
+	)]
+	pub(crate) worker_affinity: bool,
 }
 
 /// Parse commandline arguments into structured data
