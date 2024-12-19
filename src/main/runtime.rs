@@ -35,25 +35,21 @@ pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
 		.on_task_terminate(task_terminate);
 
 	#[cfg(tokio_unstable)]
-	enable_histogram(&mut builder);
+	enable_histogram(&mut builder, args);
 
 	builder.build().map_err(Into::into)
 }
 
 #[cfg(tokio_unstable)]
-fn enable_histogram(builder: &mut Builder) {
-	use tokio::runtime::{HistogramConfiguration, LogHistogram};
+fn enable_histogram(builder: &mut Builder, args: &Args) {
+	use tokio::runtime::HistogramConfiguration;
 
-	let config = LogHistogram::builder()
-		.min_value(Duration::from_micros(10))
-		.max_value(Duration::from_millis(1))
-		.max_error(0.5)
-		.max_buckets(32)
-		.expect("erroneous histogram configuration");
-
+	let buckets = args.worker_histogram_buckets;
+	let interval = Duration::from_micros(args.worker_histogram_interval);
+	let linear = HistogramConfiguration::linear(interval, buckets);
 	builder
 		.enable_metrics_poll_time_histogram()
-		.metrics_poll_time_histogram_configuration(HistogramConfiguration::log(config));
+		.metrics_poll_time_histogram_configuration(linear);
 }
 
 #[tracing::instrument(

@@ -38,6 +38,18 @@ pub(crate) struct Args {
 	/// Override the tokio worker_thread count.
 	#[arg(long, hide(true), env = "TOKIO_WORKER_THREADS", default_value = available_parallelism().to_string())]
 	pub(crate) worker_threads: usize,
+
+	/// Set the histogram bucket size, in microseconds (tokio_unstable). Default
+	/// is 25 microseconds. If the values of the histogram don't approach zero
+	/// with the exception of the last bucket, try increasing this value to e.g.
+	/// 50 or 100. Inversely, decrease to 10 etc if the histogram lacks
+	/// resolution.
+	#[arg(long, hide(true), env = "CONDUWUIT_RUNTIME_HISTOGRAM_INTERVAL", default_value = "25")]
+	pub(crate) worker_histogram_interval: u64,
+
+	/// Set the histogram bucket count (tokio_unstable). Default is 20.
+	#[arg(long, hide(true), env = "CONDUWUIT_RUNTIME_HISTOGRAM_BUCKETS", default_value = "20")]
+	pub(crate) worker_histogram_buckets: usize,
 }
 
 /// Parse commandline arguments into structured data
