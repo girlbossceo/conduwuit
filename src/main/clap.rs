@@ -36,8 +36,25 @@ pub(crate) struct Args {
 	pub(crate) test: Vec<String>,
 
 	/// Override the tokio worker_thread count.
-	#[arg(long, hide(true), env = "TOKIO_WORKER_THREADS", default_value = available_parallelism().to_string())]
+	#[arg(
+		long,
+		hide(true),
+		env = "TOKIO_WORKER_THREADS",
+		default_value = available_parallelism().to_string(),
+	)]
 	pub(crate) worker_threads: usize,
+
+	/// Override the tokio global_queue_interval.
+	#[arg(long, hide(true), env = "TOKIO_GLOBAL_QUEUE_INTERVAL", default_value = "192")]
+	pub(crate) global_event_interval: u32,
+
+	/// Override the tokio event_interval.
+	#[arg(long, hide(true), env = "TOKIO_EVENT_INTERVAL", default_value = "512")]
+	pub(crate) kernel_event_interval: u32,
+
+	/// Override the tokio max_io_events_per_tick.
+	#[arg(long, hide(true), env = "TOKIO_MAX_IO_EVENTS_PER_TICK", default_value = "512")]
+	pub(crate) kernel_events_per_tick: usize,
 
 	/// Set the histogram bucket size, in microseconds (tokio_unstable). Default
 	/// is 25 microseconds. If the values of the histogram don't approach zero

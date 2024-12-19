@@ -8,9 +8,7 @@ use crate::clap::Args;
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
-const GLOBAL_QUEUE_INTERVAL: u32 = 192;
-const KERNEL_QUEUE_INTERVAL: u32 = 256;
-const KERNEL_EVENTS_PER_TICK: usize = 512;
+const MAX_BLOCKING_THREADS: usize = 1024;
 
 static WORKER_AFFINITY: OnceLock<bool> = OnceLock::new();
 
@@ -25,10 +23,11 @@ pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
 		.enable_time()
 		.thread_name(WORKER_NAME)
 		.worker_threads(args.worker_threads.max(WORKER_MIN))
+		.max_blocking_threads(MAX_BLOCKING_THREADS)
 		.thread_keep_alive(Duration::from_secs(WORKER_KEEPALIVE))
-		.max_io_events_per_tick(KERNEL_EVENTS_PER_TICK)
-		.event_interval(KERNEL_QUEUE_INTERVAL)
-		.global_queue_interval(GLOBAL_QUEUE_INTERVAL)
+		.global_queue_interval(args.global_event_interval)
+		.event_interval(args.kernel_event_interval)
+		.max_io_events_per_tick(args.kernel_events_per_tick)
 		.on_thread_start(thread_start)
 		.on_thread_stop(thread_stop)
 		.on_thread_unpark(thread_unpark)
