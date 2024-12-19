@@ -22,6 +22,8 @@ pub(super) enum UserCommand {
 	ResetPassword {
 		/// Username of the user for whom the password should be reset
 		username: String,
+		/// New password for the user, if unspecified one is generated
+		password: Option<String>,
 	},
 
 	/// - Deactivate a user

@@ -242,7 +242,11 @@ pub(super) async fn deactivate(
 }
 
 #[admin_command]
-pub(super) async fn reset_password(&self, username: String) -> Result<RoomMessageEventContent> {
+pub(super) async fn reset_password(
+	&self,
+	username: String,
+	password: Option<String>,
+) -> Result<RoomMessageEventContent> {
 	let user_id = parse_local_user_id(self.services, &username)?;
 
 	if user_id == self.services.globals.server_user {
@@ -252,7 +256,7 @@ pub(super) async fn reset_password(&self, username: String) -> Result<RoomMessag
 		));
 	}
 
-	let new_password = utils::random_string(AUTO_GEN_PASSWORD_LENGTH);
+	let new_password = password.unwrap_or_else(|| utils::random_string(AUTO_GEN_PASSWORD_LENGTH));
 
 	match self
 		.services
