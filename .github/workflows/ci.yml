@@ -727,7 +727,6 @@ jobs:
           id: var
           with:
             script: |
-              console.log('${{ github.repository }}'.toLowerCase())
               core.setOutput('github_repository', '${{ github.repository }}'.toLowerCase())
     docker:
         name: Docker publish
@@ -754,12 +753,6 @@ jobs:
             DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
             GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         steps:
-            - name: log variables
-              uses: actions/github-script@v7
-              id: var
-              with:
-                script: |
-                  console.log(`${{ toJson(needs) }}`)
             - name: Login to GitHub Container Registry
               uses: docker/login-action@v3
               with:
