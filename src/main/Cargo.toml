@@ -129,9 +129,6 @@ tokio_console = [
 	"dep:console-subscriber",
 	"tokio/tracing",
 ]
-worker_affinity = [
-	"dep:core_affinity",
-]
 zstd_compression = [
     "conduwuit-api/zstd_compression",
 	"conduwuit-core/zstd_compression",
@@ -151,8 +148,6 @@ clap.workspace = true
 console-subscriber.optional = true
 console-subscriber.workspace = true
 const-str.workspace = true
-core_affinity.optional = true
-core_affinity.workspace = true
 log.workspace = true
 opentelemetry-jaeger.optional = true
 opentelemetry-jaeger.workspace = true

@@ -1,6 +1,17 @@
-use std::{sync::OnceLock, thread, time::Duration};
+use std::{
+	iter::once,
+	sync::{
+		atomic::{AtomicUsize, Ordering},
+		OnceLock,
+	},
+	thread,
+	time::Duration,
+};
 
-use conduwuit::Result;
+use conduwuit::{
+	utils::sys::compute::{get_core_available, set_affinity},
+	Result,
+};
 use tokio::runtime::Builder;
 
 use crate::clap::Args;
@@ -66,7 +77,6 @@ fn enable_histogram(builder: &mut Builder, args: &Args) {
 	),
 )]
 fn thread_start() {
-	#[cfg(feature = "worker_affinity")]
 	if WORKER_AFFINITY
 		.get()
 		.copied()
@@ -76,24 +86,8 @@ fn thread_start() {
 	}
 }
 
-#[cfg(feature = "worker_affinity")]
 fn set_worker_affinity() {
-	use std::sync::{
-		atomic::{AtomicUsize, Ordering},
-		LazyLock,
-	};
-
 	static CORES_OCCUPIED: AtomicUsize = AtomicUsize::new(0);
-	static CORES_AVAILABLE: LazyLock<Option<Vec<core_affinity::CoreId>>> = LazyLock::new(|| {
-		core_affinity::get_core_ids().map(|mut cores| {
-			cores.sort_unstable();
-			cores
-		})
-	});
-
-	let Some(cores) = CORES_AVAILABLE.as_ref() else {
-		return;
-	};
 
 	if thread::current().name() != Some(WORKER_NAME) {
 		return;
@@ -106,11 +100,11 @@ fn set_worker_affinity() {
 		return;
 	}
 
-	let Some(id) = cores.get(i) else {
+	let Some(id) = get_core_available(i) else {
 		return;
 	};
 
-	let _set = core_affinity::set_for_current(*id);
+	set_affinity(once(id));
 }
 
 #[tracing::instrument(

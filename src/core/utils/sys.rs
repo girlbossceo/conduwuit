@@ -1,3 +1,10 @@
+pub mod compute;
+pub mod storage;
+
+use std::path::PathBuf;
+
+pub use compute::parallelism as available_parallelism;
+
 use crate::{debug, Result};
 
 /// This is needed for opening lots of file descriptors, which tends to
@@ -21,18 +28,6 @@ pub fn maximize_fd_limit() -> Result<(), nix::errno::Errno> {
 	Ok(())
 }
 
-/// Get the number of threads which could execute in parallel based on the
-/// hardware and administrative constraints of this system. This value should be
-/// used to hint the size of thread-pools and divide-and-conquer algorithms.
-///
-/// * <https://doc.rust-lang.org/std/thread/fn.available_parallelism.html>
-#[must_use]
-pub fn available_parallelism() -> usize {
-	std::thread::available_parallelism()
-		.expect("Unable to query for available parallelism.")
-		.get()
-}
-
 /// Return a possibly corrected std::env::current_exe() even if the path is
 /// marked deleted.
 ///
@@ -40,9 +35,7 @@ pub fn available_parallelism() -> usize {
 /// This function is declared unsafe because the original result was altered for
 /// security purposes, and altering it back ignores those urposes and should be
 /// understood by the user.
-pub unsafe fn current_exe() -> Result<std::path::PathBuf> {
-	use std::path::PathBuf;
-
+pub unsafe fn current_exe() -> Result<PathBuf> {
 	let exe = std::env::current_exe()?;
 	match exe.to_str() {
 		| None => Ok(exe),
