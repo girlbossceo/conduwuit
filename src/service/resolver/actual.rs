@@ -232,11 +232,12 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "well-known")]
 	async fn request_well_known(&self, dest: &str) -> Result<Option<String>> {
-		trace!("Requesting well known for {dest}");
 		if !self.has_cached_override(dest) {
 			self.query_and_cache_override(dest, dest, 8448).await?;
 		}
 
+		self.services.server.check_running()?;
+		trace!("Requesting well known for {dest}");
 		let response = self
 			.services
 			.client
@@ -304,6 +305,9 @@ impl super::Service {
 		hostname: &'_ str,
 		port: u16,
 	) -> Result<()> {
+		self.services.server.check_running()?;
+
+		debug!("querying IP for {overname:?} ({hostname:?}:{port})");
 		match self.resolver.resolver.lookup_ip(hostname.to_owned()).await {
 			| Err(e) => Self::handle_resolve_error(&e, hostname),
 			| Ok(override_ip) => {
@@ -328,6 +332,8 @@ impl super::Service {
 			[format!("_matrix-fed._tcp.{hostname}."), format!("_matrix._tcp.{hostname}.")];
 
 		for hostname in hostnames {
+			self.services.server.check_running()?;
+
 			debug!("querying SRV for {hostname:?}");
 			let hostname = hostname.trim_end_matches('.');
 			match self.resolver.resolver.srv_lookup(hostname).await {

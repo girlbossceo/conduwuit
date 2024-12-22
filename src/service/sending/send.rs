@@ -93,6 +93,7 @@ impl super::Service {
 
 		let request = Request::try_from(request)?;
 		self.validate_url(request.url())?;
+		self.server.check_running()?;
 
 		Ok(request)
 	}

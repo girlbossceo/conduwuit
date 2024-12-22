@@ -105,7 +105,8 @@ impl Service {
 			.get(id)
 			.map(|(_, receiver)| receiver.clone())
 			.expect("Missing channel for sender worker");
-		loop {
+
+		while !receiver.is_closed() {
 			tokio::select! {
 				Some(response) = futures.next() => {
 					self.handle_response(response, futures, statuses).await;

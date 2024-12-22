@@ -43,7 +43,7 @@ pub(super) async fn serve(
 	let app = app.into_make_service_with_connect_info::<net::SocketAddr>();
 	let builder = server::conn::auto::Builder::new(executor);
 	let listener = init(server).await?;
-	loop {
+	while server.running() {
 		let app = app.clone();
 		let builder = builder.clone();
 		tokio::select! {
