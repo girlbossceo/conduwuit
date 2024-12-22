@@ -1581,22 +1581,50 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub admin_room_notices: bool,
 
+	/// Enable database pool affinity support. On supporting systems, block
+	/// device queue topologies are detected and the request pool is optimized
+	/// for the hardware; db_pool_workers is determined automatically.
+	///
+	/// default: true
+	#[serde(default = "true_fn")]
+	pub db_pool_affinity: bool,
+
 	/// Sets the number of worker threads in the frontend-pool of the database.
 	/// This number should reflect the I/O capabilities of the system,
-	/// specifically the queue-depth or the number of simultaneous requests in
+	/// such as the queue-depth or the number of simultaneous requests in
 	/// flight. Defaults to 32 or four times the number of CPU cores, whichever
 	/// is greater.
+	///
+	/// Note: This value is only used if db_pool_affinity is disabled or not
+	/// detected on the system, otherwise it is determined automatically.
 	///
 	/// default: 32
 	#[serde(default = "default_db_pool_workers")]
 	pub db_pool_workers: usize,
 
-	/// Size of the queue feeding the database's frontend-pool. Defaults to 256
-	/// or eight times the number of CPU cores, whichever is greater.
+	/// When db_pool_affinity is enabled and detected, the size of any worker
+	/// group will not exceed the determined value. This is necessary when
+	/// thread-pooling approach does not scale to the full capabilities of
+	/// high-end hardware; using detected values without limitation could
+	/// degrade performance.
 	///
-	/// default: 256
-	#[serde(default = "default_db_pool_queue_size")]
-	pub db_pool_queue_size: usize,
+	/// The value is multiplied by the number of cores which share a device
+	/// queue, since group workers can be scheduled on any of those cores.
+	///
+	/// default: 64
+	#[serde(default = "default_db_pool_workers_limit")]
+	pub db_pool_workers_limit: usize,
+
+	/// Determines the size of the queues feeding the database's frontend-pool.
+	/// The size of the queue is determined by multiplying this value with the
+	/// number of pool workers. When this queue is full, tokio tasks conducting
+	/// requests will yield until space is available; this is good for
+	/// flow-control by avoiding buffer-bloat, but can inhibit throughput if
+	/// too low.
+	///
+	/// default: 4
+	#[serde(default = "default_db_pool_queue_mult")]
+	pub db_pool_queue_mult: usize,
 
 	/// Number of sender task workers; determines sender parallelism. Default is
 	/// '0' which means the value is determined internally, likely matching the
@@ -2399,8 +2427,12 @@ fn parallelism_scaled(val: usize) -> usize { val.saturating_mul(sys::available_p
 
 fn default_trusted_server_batch_size() -> usize { 256 }
 
-fn default_db_pool_workers() -> usize { sys::available_parallelism().saturating_mul(4).max(32) }
-
-fn default_db_pool_queue_size() -> usize {
-	sys::available_parallelism().saturating_mul(8).max(256)
+fn default_db_pool_workers() -> usize {
+	sys::available_parallelism()
+		.saturating_mul(4)
+		.clamp(32, 1024)
 }
+
+fn default_db_pool_workers_limit() -> usize { 64 }
+
+fn default_db_pool_queue_mult() -> usize { 4 }

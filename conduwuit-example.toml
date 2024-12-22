@@ -1397,18 +1397,42 @@
 #
 #admin_room_notices = true
 
+# Enable database pool affinity support. On supporting systems, block
+# device queue topologies are detected and the request pool is optimized
+# for the hardware; db_pool_workers is determined automatically.
+#
+#db_pool_affinity = true
+
 # Sets the number of worker threads in the frontend-pool of the database.
 # This number should reflect the I/O capabilities of the system,
-# specifically the queue-depth or the number of simultaneous requests in
+# such as the queue-depth or the number of simultaneous requests in
 # flight. Defaults to 32 or four times the number of CPU cores, whichever
 # is greater.
 #
+# Note: This value is only used if db_pool_affinity is disabled or not
+# detected on the system, otherwise it is determined automatically.
+#
 #db_pool_workers = 32
 
-# Size of the queue feeding the database's frontend-pool. Defaults to 256
-# or eight times the number of CPU cores, whichever is greater.
+# When db_pool_affinity is enabled and detected, the size of any worker
+# group will not exceed the determined value. This is necessary when
+# thread-pooling approach does not scale to the full capabilities of
+# high-end hardware; using detected values without limitation could
+# degrade performance.
 #
-#db_pool_queue_size = 256
+# The value is multiplied by the number of cores which share a device
+# queue, since group workers can be scheduled on any of those cores.
+#
+#db_pool_workers_limit = 64
+
+# Determines the size of the queues feeding the database's frontend-pool.
+# The size of the queue is determined by multiplying this value with the
+# number of pool workers. When this queue is full, tokio tasks conducting
+# requests will yield until space is available; this is good for
+# flow-control by avoiding buffer-bloat, but can inhibit throughput if
+# too low.
+#
+#db_pool_queue_mult = 4
 
 # Number of sender task workers; determines sender parallelism. Default is
 # '0' which means the value is determined internally, likely matching the

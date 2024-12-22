@@ -18,7 +18,7 @@ use rocksdb::{
 
 use crate::{
 	opts::{cf_options, db_options},
-	or_else, pool,
+	or_else,
 	pool::Pool,
 	result,
 	util::map_err,
@@ -87,8 +87,9 @@ impl Engine {
 			.map(|(name, opts)| ColumnFamilyDescriptor::new(name, opts))
 			.collect::<Vec<_>>();
 
-		debug!("Opening database...");
 		let path = &config.database_path;
+
+		debug!("Opening database...");
 		let res = if config.rocksdb_read_only {
 			Db::open_cf_descriptors_read_only(&db_opts, path, cfds, false)
 		} else if config.rocksdb_secondary {
@@ -105,11 +106,6 @@ impl Engine {
 			"Opened database."
 		);
 
-		let pool_opts = pool::Opts {
-			queue_size: config.db_pool_queue_size,
-			worker_num: config.db_pool_workers,
-		};
-
 		Ok(Arc::new(Self {
 			server: server.clone(),
 			row_cache,
@@ -121,7 +117,7 @@ impl Engine {
 			corks: AtomicU32::new(0),
 			read_only: config.rocksdb_read_only,
 			secondary: config.rocksdb_secondary,
-			pool: Pool::new(server, &pool_opts).await?,
+			pool: Pool::new(server).await?,
 		}))
 	}
 

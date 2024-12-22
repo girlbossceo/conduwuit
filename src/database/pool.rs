@@ -1,3 +1,5 @@
+mod configure;
+
 use std::{
 	mem::take,
 	sync::{
@@ -6,39 +8,50 @@ use std::{
 	},
 };
 
-use async_channel::{bounded, Receiver, RecvError, Sender};
-use conduwuit::{debug, debug_warn, defer, err, implement, result::DebugInspect, Result, Server};
+use async_channel::{Receiver, RecvError, Sender};
+use conduwuit::{
+	debug, debug_warn, defer, err, implement,
+	result::DebugInspect,
+	trace,
+	utils::sys::compute::{get_affinity, get_core_available, set_affinity},
+	Result, Server,
+};
 use futures::{channel::oneshot, TryFutureExt};
 use oneshot::Sender as ResultSender;
 use rocksdb::Direction;
 use tokio::task::JoinSet;
 
+use self::configure::configure;
 use crate::{keyval::KeyBuf, stream, Handle, Map};
 
+/// Frontend thread-pool. Operating system threads are used to make database
+/// requests which are not cached. These thread-blocking requests are offloaded
+/// from the tokio async workers and executed on this threadpool.
 pub(crate) struct Pool {
 	server: Arc<Server>,
+	queues: Vec<Sender<Cmd>>,
 	workers: Mutex<JoinSet<()>>,
-	queue: Sender<Cmd>,
+	topology: Vec<usize>,
 	busy: AtomicUsize,
 	queued_max: AtomicUsize,
 }
 
-pub(crate) struct Opts {
-	pub(crate) queue_size: usize,
-	pub(crate) worker_num: usize,
-}
-
+/// Operations which can be submitted to the pool.
 pub(crate) enum Cmd {
 	Get(Get),
 	Iter(Seek),
 }
 
+/// Point-query
 pub(crate) struct Get {
 	pub(crate) map: Arc<Map>,
 	pub(crate) key: KeyBuf,
 	pub(crate) res: Option<ResultSender<Result<Handle<'static>>>>,
 }
 
+/// Iterator-seek.
+/// Note: only initial seek is supported at this time on the assumption rocksdb
+/// prefetching prevents mid-iteration polls from blocking on I/O.
 pub(crate) struct Seek {
 	pub(crate) map: Arc<Map>,
 	pub(crate) state: stream::State<'static>,
@@ -47,32 +60,42 @@ pub(crate) struct Seek {
 	pub(crate) res: Option<ResultSender<stream::State<'static>>>,
 }
 
-const QUEUE_LIMIT: (usize, usize) = (1, 3072);
-const WORKER_LIMIT: (usize, usize) = (1, 512);
-
-impl Drop for Pool {
-	fn drop(&mut self) {
-		debug_assert!(self.queue.is_empty(), "channel must be empty on drop");
-		debug_assert!(self.queue.is_closed(), "channel should be closed on drop");
-	}
-}
+const WORKER_LIMIT: (usize, usize) = (1, 1024);
+const QUEUE_LIMIT: (usize, usize) = (1, 2048);
 
 #[implement(Pool)]
-pub(crate) async fn new(server: &Arc<Server>, opts: &Opts) -> Result<Arc<Self>> {
-	let queue_size = opts.queue_size.clamp(QUEUE_LIMIT.0, QUEUE_LIMIT.1);
-	let (send, recv) = bounded(queue_size);
+pub(crate) async fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
+	let (total_workers, queue_sizes, topology) = configure(server);
+
+	let (senders, receivers) = queue_sizes.into_iter().map(async_channel::bounded).unzip();
+
 	let pool = Arc::new(Self {
 		server: server.clone(),
+
+		queues: senders,
+
 		workers: JoinSet::new().into(),
-		queue: send,
+
+		topology,
+
 		busy: AtomicUsize::default(),
+
 		queued_max: AtomicUsize::default(),
 	});
 
-	let worker_num = opts.worker_num.clamp(WORKER_LIMIT.0, WORKER_LIMIT.1);
-	pool.spawn_until(recv, worker_num).await?;
+	pool.spawn_until(receivers, total_workers).await?;
 
 	Ok(pool)
+}
+
+impl Drop for Pool {
+	fn drop(&mut self) {
+		debug_assert!(self.queues.iter().all(Sender::is_empty), "channel must be empty on drop");
+		debug_assert!(
+			self.queues.iter().all(Sender::is_closed),
+			"channel should be closed on drop"
+		);
+	}
 }
 
 #[implement(Pool)]
@@ -83,36 +106,39 @@ pub(crate) async fn shutdown(self: &Arc<Self>) {
 	debug!(workers = workers.len(), "Waiting for workers to join...");
 
 	workers.join_all().await;
-	debug_assert!(self.queue.is_empty(), "channel is not empty");
 }
 
 #[implement(Pool)]
-pub(crate) fn close(&self) -> bool {
-	if !self.queue.close() {
-		return false;
-	}
+pub(crate) fn close(&self) {
+	let senders = self.queues.iter().map(Sender::sender_count).sum::<usize>();
 
-	let mut workers = take(&mut *self.workers.lock().expect("locked"));
-	debug!(workers = workers.len(), "Waiting for workers to join...");
-	workers.abort_all();
-	drop(workers);
+	let receivers = self
+		.queues
+		.iter()
+		.map(Sender::receiver_count)
+		.sum::<usize>();
 
-	std::thread::yield_now();
-	debug_assert!(self.queue.is_empty(), "channel is not empty");
 	debug!(
-		senders = self.queue.sender_count(),
-		receivers = self.queue.receiver_count(),
-		"Closed pool channel"
+		queues = self.queues.len(),
+		workers = self.workers.lock().expect("locked").len(),
+		?senders,
+		?receivers,
+		"Closing pool..."
 	);
 
-	true
+	for queue in &self.queues {
+		queue.close();
+	}
+
+	self.workers.lock().expect("locked").abort_all();
+	std::thread::yield_now();
 }
 
 #[implement(Pool)]
-async fn spawn_until(self: &Arc<Self>, recv: Receiver<Cmd>, max: usize) -> Result {
+async fn spawn_until(self: &Arc<Self>, recv: Vec<Receiver<Cmd>>, count: usize) -> Result {
 	let mut workers = self.workers.lock().expect("locked");
-	while workers.len() < max {
-		self.spawn_one(&mut workers, recv.clone())?;
+	while workers.len() < count {
+		self.spawn_one(&mut workers, &recv)?;
 	}
 
 	Ok(())
@@ -125,8 +151,13 @@ async fn spawn_until(self: &Arc<Self>, recv: Receiver<Cmd>, max: usize) -> Resul
 	skip_all,
 	fields(id = %workers.len())
 )]
-fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: Receiver<Cmd>) -> Result {
+fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: &[Receiver<Cmd>]) -> Result {
+	debug_assert!(!self.queues.is_empty(), "Must have at least one queue");
+	debug_assert!(!recv.is_empty(), "Must have at least one receiver");
+
 	let id = workers.len();
+	let group = id.overflowing_rem(self.queues.len()).0;
+	let recv = recv[group].clone();
 	let self_ = self.clone();
 
 	#[cfg(not(tokio_unstable))]
@@ -146,7 +177,9 @@ fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: Receiver<Cmd>) -
 pub(crate) async fn execute_get(&self, mut cmd: Get) -> Result<Handle<'_>> {
 	let (send, recv) = oneshot::channel();
 	_ = cmd.res.insert(send);
-	self.execute(Cmd::Get(cmd))
+
+	let queue = self.select_queue();
+	self.execute(queue, Cmd::Get(cmd))
 		.and_then(|()| {
 			recv.map_ok(into_recv_get_result)
 				.map_err(|e| err!(error!("recv failed {e:?}")))
@@ -159,12 +192,21 @@ pub(crate) async fn execute_get(&self, mut cmd: Get) -> Result<Handle<'_>> {
 pub(crate) async fn execute_iter(&self, mut cmd: Seek) -> Result<stream::State<'_>> {
 	let (send, recv) = oneshot::channel();
 	_ = cmd.res.insert(send);
-	self.execute(Cmd::Iter(cmd))
+
+	let queue = self.select_queue();
+	self.execute(queue, Cmd::Iter(cmd))
 		.and_then(|()| {
 			recv.map_ok(into_recv_seek)
 				.map_err(|e| err!(error!("recv failed {e:?}")))
 		})
 		.await
+}
+
+#[implement(Pool)]
+fn select_queue(&self) -> &Sender<Cmd> {
+	let core_id = get_affinity().next().unwrap_or(0);
+	let chan_id = self.topology[core_id];
+	self.queues.get(chan_id).unwrap_or_else(|| &self.queues[0])
 }
 
 #[implement(Pool)]
@@ -174,25 +216,24 @@ pub(crate) async fn execute_iter(&self, mut cmd: Seek) -> Result<stream::State<'
 	skip(self, cmd),
 	fields(
 		task = ?tokio::task::try_id(),
-		receivers = self.queue.receiver_count(),
-		queued = self.queue.len(),
+		receivers = queue.receiver_count(),
+		queued = queue.len(),
 		queued_max = self.queued_max.load(Ordering::Relaxed),
 	),
 )]
-async fn execute(&self, cmd: Cmd) -> Result {
+async fn execute(&self, queue: &Sender<Cmd>, cmd: Cmd) -> Result {
 	if cfg!(debug_assertions) {
-		self.queued_max
-			.fetch_max(self.queue.len(), Ordering::Relaxed);
+		self.queued_max.fetch_max(queue.len(), Ordering::Relaxed);
 	}
 
-	if self.queue.is_full() {
+	if queue.is_full() {
 		debug_warn!(
-			capacity = ?self.queue.capacity(),
+			capacity = ?queue.capacity(),
 			"pool queue is full"
 		);
 	}
 
-	self.queue
+	queue
 		.send(cmd)
 		.await
 		.map_err(|e| err!(error!("send failed {e:?}")))
@@ -208,10 +249,31 @@ async fn execute(&self, cmd: Cmd) -> Result {
 	),
 )]
 fn worker(self: Arc<Self>, id: usize, recv: Receiver<Cmd>) {
-	debug!("worker spawned");
-	defer! {{ debug!("worker finished"); }}
+	defer! {{ trace!("worker finished"); }}
+	trace!("worker spawned");
 
+	self.worker_init(id);
 	self.worker_loop(&recv);
+}
+
+#[implement(Pool)]
+fn worker_init(&self, id: usize) {
+	let group = id.overflowing_rem(self.queues.len()).0;
+	let affinity = self
+		.topology
+		.iter()
+		.enumerate()
+		.filter(|_| self.queues.len() > 1)
+		.filter_map(|(core_id, &queue_id)| (group == queue_id).then_some(core_id))
+		.filter_map(get_core_available);
+
+	// affinity is empty (no-op) if there's only one queue
+	set_affinity(affinity.clone());
+	debug!(
+		?group,
+		affinity = ?affinity.collect::<Vec<_>>(),
+		"worker ready"
+	);
 }
 
 #[implement(Pool)]

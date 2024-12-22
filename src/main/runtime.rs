@@ -19,7 +19,7 @@ use crate::clap::Args;
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
-const MAX_BLOCKING_THREADS: usize = 1024;
+const MAX_BLOCKING_THREADS: usize = 2048;
 
 static WORKER_AFFINITY: OnceLock<bool> = OnceLock::new();
 
