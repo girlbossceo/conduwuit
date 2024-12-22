@@ -2,6 +2,10 @@
 
 /// Boolean extensions and chain.starters
 pub trait BoolExt {
+	fn and<T>(self, t: Option<T>) -> Option<T>;
+
+	fn and_then<T, F: FnOnce() -> Option<T>>(self, f: F) -> Option<T>;
+
 	#[must_use]
 	fn clone_or<T: Clone>(self, err: T, t: &T) -> T;
 
@@ -39,6 +43,12 @@ pub trait BoolExt {
 }
 
 impl BoolExt for bool {
+	#[inline]
+	fn and<T>(self, t: Option<T>) -> Option<T> { self.then_some(t).flatten() }
+
+	#[inline]
+	fn and_then<T, F: FnOnce() -> Option<T>>(self, f: F) -> Option<T> { self.then(f).flatten() }
+
 	#[inline]
 	fn clone_or<T: Clone>(self, err: T, t: &T) -> T { self.map_or(err, || t.clone()) }
 
