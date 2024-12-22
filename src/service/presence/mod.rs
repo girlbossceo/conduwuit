@@ -6,15 +6,15 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use conduwuit::{checked, debug, error, result::LogErr, Error, Result, Server};
 use futures::{stream::FuturesUnordered, Stream, StreamExt, TryFutureExt};
+use loole::{Receiver, Sender};
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
-use tokio::{sync::Mutex, time::sleep};
+use tokio::time::sleep;
 
 use self::{data::Data, presence::Presence};
 use crate::{globals, users, Dep};
 
 pub struct Service {
-	timer_sender: loole::Sender<TimerType>,
-	timer_receiver: Mutex<loole::Receiver<TimerType>>,
+	timer_channel: (Sender<TimerType>, Receiver<TimerType>),
 	timeout_remote_users: bool,
 	idle_timeout: u64,
 	offline_timeout: u64,
@@ -36,10 +36,8 @@ impl crate::Service for Service {
 		let config = &args.server.config;
 		let idle_timeout_s = config.presence_idle_timeout_s;
 		let offline_timeout_s = config.presence_offline_timeout_s;
-		let (timer_sender, timer_receiver) = loole::unbounded();
 		Ok(Arc::new(Self {
-			timer_sender,
-			timer_receiver: Mutex::new(timer_receiver),
+			timer_channel: loole::unbounded(),
 			timeout_remote_users: config.presence_timeout_remote_users,
 			idle_timeout: checked!(idle_timeout_s * 1_000)?,
 			offline_timeout: checked!(offline_timeout_s * 1_000)?,
@@ -53,8 +51,9 @@ impl crate::Service for Service {
 	}
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
+		let receiver = self.timer_channel.1.clone();
+
 		let mut presence_timers = FuturesUnordered::new();
-		let receiver = self.timer_receiver.lock().await;
 		while !receiver.is_closed() {
 			tokio::select! {
 				Some(user_id) = presence_timers.next() => {
@@ -74,8 +73,9 @@ impl crate::Service for Service {
 	}
 
 	fn interrupt(&self) {
-		if !self.timer_sender.is_closed() {
-			self.timer_sender.close();
+		let (timer_sender, _) = &self.timer_channel;
+		if !timer_sender.is_closed() {
+			timer_sender.close();
 		}
 	}
 
@@ -150,7 +150,8 @@ impl Service {
 				| _ => self.services.server.config.presence_offline_timeout_s,
 			};
 
-			self.timer_sender
+			self.timer_channel
+				.0
 				.send((user_id.to_owned(), Duration::from_secs(timeout)))
 				.map_err(|e| {
 					error!("Failed to add presence timer: {}", e);

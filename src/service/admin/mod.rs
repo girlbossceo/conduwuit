@@ -20,14 +20,13 @@ use ruma::{
 	events::room::message::{Relation, RoomMessageEventContent},
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
 };
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use crate::{account_data, globals, rooms, rooms::state::RoomMutexGuard, Dep};
 
 pub struct Service {
 	services: Services,
-	sender: Sender<CommandInput>,
-	receiver: Mutex<Receiver<CommandInput>>,
+	channel: (Sender<CommandInput>, Receiver<CommandInput>),
 	pub handle: RwLock<Option<Processor>>,
 	pub complete: StdRwLock<Option<Completer>>,
 	#[cfg(feature = "console")]
@@ -78,7 +77,6 @@ const COMMAND_QUEUE_LIMIT: usize = 512;
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let (sender, receiver) = loole::bounded(COMMAND_QUEUE_LIMIT);
 		Ok(Arc::new(Self {
 			services: Services {
 				server: args.server.clone(),
@@ -90,8 +88,7 @@ impl crate::Service for Service {
 				account_data: args.depend::<account_data::Service>("account_data"),
 				services: None.into(),
 			},
-			sender,
-			receiver: Mutex::new(receiver),
+			channel: loole::bounded(COMMAND_QUEUE_LIMIT),
 			handle: RwLock::new(None),
 			complete: StdRwLock::new(None),
 			#[cfg(feature = "console")]
@@ -100,8 +97,8 @@ impl crate::Service for Service {
 	}
 
 	async fn worker(self: Arc<Self>) -> Result<()> {
-		let receiver = self.receiver.lock().await;
 		let mut signals = self.services.server.signal.subscribe();
+		let receiver = self.channel.1.clone();
 
 		self.startup_execute().await?;
 		self.console_auto_start().await;
@@ -128,8 +125,9 @@ impl crate::Service for Service {
 		#[cfg(feature = "console")]
 		self.console.interrupt();
 
-		if !self.sender.is_closed() {
-			self.sender.close();
+		let (sender, _) = &self.channel;
+		if !sender.is_closed() {
+			sender.close();
 		}
 	}
 
@@ -159,7 +157,8 @@ impl Service {
 	/// will take place on the service worker's task asynchronously. Errors if
 	/// the queue is full.
 	pub fn command(&self, command: String, reply_id: Option<OwnedEventId>) -> Result<()> {
-		self.sender
+		self.channel
+			.0
 			.send(CommandInput { command, reply_id })
 			.map_err(|e| err!("Failed to enqueue admin command: {e:?}"))
 	}
