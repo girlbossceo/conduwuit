@@ -7,9 +7,7 @@ use futures::{
 	Future,
 };
 
-use super::ReadyExt;
-
-const WIDTH: usize = 32;
+use super::{automatic_width, ReadyExt};
 
 /// Concurrency extensions to augment futures::StreamExt. wideband_ combinators
 /// produce in-order.
@@ -66,7 +64,7 @@ where
 		U: Send,
 	{
 		self.map(f)
-			.buffered(n.into().unwrap_or(WIDTH))
+			.buffered(n.into().unwrap_or_else(automatic_width))
 			.ready_filter_map(identity)
 	}
 
@@ -78,6 +76,7 @@ where
 		Fut: Future<Output = U> + Send,
 		U: Send,
 	{
-		self.map(f).buffered(n.into().unwrap_or(WIDTH))
+		self.map(f)
+			.buffered(n.into().unwrap_or_else(automatic_width))
 	}
 }

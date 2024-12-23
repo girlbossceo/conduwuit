@@ -1,6 +1,10 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduwuit::{err, implement, utils::IterStream, Result};
+use conduwuit::{
+	err, implement,
+	utils::{stream::automatic_width, IterStream},
+	Result,
+};
 use futures::{Stream, StreamExt};
 use serde::Serialize;
 
@@ -18,7 +22,7 @@ where
 {
 	keys.stream()
 		.map(move |key| self.aqry::<MAX, _>(&key))
-		.buffered(self.db.server.config.db_pool_workers.saturating_mul(2))
+		.buffered(automatic_width())
 }
 
 #[implement(super::Map)]
@@ -33,7 +37,7 @@ where
 {
 	keys.stream()
 		.map(move |key| self.get(key))
-		.buffered(self.db.server.config.db_pool_workers.saturating_mul(2))
+		.buffered(automatic_width())
 }
 
 #[implement(super::Map)]

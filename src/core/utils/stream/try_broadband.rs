@@ -2,9 +2,8 @@
 
 use futures::{TryFuture, TryStream, TryStreamExt};
 
+use super::automatic_width;
 use crate::Result;
-
-const WIDTH: usize = 32;
 
 /// Concurrency extensions to augment futures::TryStreamExt. broad_ combinators
 /// produce out-of-order
@@ -49,6 +48,6 @@ where
 		Fut: TryFuture<Ok = U, Error = E, Output = Result<U, E>> + Send,
 	{
 		self.map_ok(f)
-			.try_buffer_unordered(n.into().unwrap_or(WIDTH))
+			.try_buffer_unordered(n.into().unwrap_or_else(automatic_width))
 	}
 }

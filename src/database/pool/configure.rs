@@ -1,8 +1,11 @@
 use std::{ffi::OsStr, sync::Arc};
 
 use conduwuit::{
-	debug_info,
+	debug, debug_info, expected,
 	utils::{
+		math::usize_from_f64,
+		stream,
+		stream::WIDTH_LIMIT,
 		sys::{compute::is_core_available, storage},
 		BoolExt,
 	},
@@ -91,6 +94,13 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
 		.sum::<usize>()
 		.clamp(WORKER_LIMIT.0, max_workers);
 
+	// After computing all of the above we can update the global automatic stream
+	// width, hopefully with a better value tailored to this system.
+	if config.stream_width_scale > 0.0 {
+		let num_queues = queue_sizes.len();
+		update_stream_width(server, num_queues, total_workers);
+	}
+
 	debug_info!(
 		device_name = ?device_name
 			.as_deref()
@@ -99,8 +109,30 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
 		?worker_counts,
 		?queue_sizes,
 		?total_workers,
+		stream_width = ?stream::automatic_width(),
 		"Frontend topology",
 	);
 
 	(total_workers, queue_sizes, topology)
+}
+
+#[allow(clippy::as_conversions, clippy::cast_precision_loss)]
+fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: usize) {
+	let config = &server.config;
+	let scale: f64 = config.stream_width_scale.min(100.0).into();
+	let req_width = expected!(total_workers / num_queues).next_multiple_of(2);
+	let req_width = req_width as f64;
+	let req_width = usize_from_f64(req_width * scale)
+		.expect("failed to convert f64 to usize")
+		.clamp(WIDTH_LIMIT.0, WIDTH_LIMIT.1);
+
+	let (old_width, new_width) = stream::set_width(req_width);
+	debug!(
+		scale = ?config.stream_width_scale,
+		?num_queues,
+		?req_width,
+		?old_width,
+		?new_width,
+		"Updated global stream width"
+	);
 }

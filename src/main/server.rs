@@ -1,6 +1,12 @@
 use std::sync::Arc;
 
-use conduwuit::{config::Config, info, log::Log, utils::sys, Error, Result};
+use conduwuit::{
+	config::Config,
+	info,
+	log::Log,
+	utils::{stream, sys},
+	Error, Result,
+};
 use tokio::{runtime, sync::Mutex};
 
 use crate::{clap::Args, logging::TracingFlameGuard};
@@ -44,6 +50,8 @@ impl Server {
 		#[cfg(unix)]
 		sys::maximize_fd_limit()
 			.expect("Unable to increase maximum soft and hard file descriptor limit");
+
+		let (_old_width, _new_width) = stream::set_width(config.stream_width_default);
 
 		info!(
 			server_name = %config.server_name,

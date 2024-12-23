@@ -1434,6 +1434,29 @@
 #
 #db_pool_queue_mult = 4
 
+# Sets the initial value for the concurrency of streams. This value simply
+# allows overriding the default in the code. The default is 32, which is
+# the same as the default in the code. Note this value is itself
+# overridden by the computed stream_width_scale, unless that is disabled;
+# this value can serve as a fixed-width instead.
+#
+#stream_width_default = 32
+
+# Scales the stream width starting from a base value detected for the
+# specific system. The base value is the database pool worker count
+# determined from the hardware queue size (e.g. 32 for SSD or 64 or 128+
+# for NVMe). This float allows scaling the width up or down by multiplying
+# it (e.g. 1.5, 2.0, etc). The maximum result can be the size of the pool
+# queue (see: db_pool_queue_mult) as any larger value will stall the tokio
+# task. The value can also be scaled down (e.g. 0.5)  to improve
+# responsiveness for many users at the cost of throughput for each.
+#
+# Setting this value to 0.0 causes the stream width to be fixed at the
+# value of stream_width_default. The default is 1.0 to match the
+# capabilities detected for the system.
+#
+#stream_width_scale = 1.0
+
 # Number of sender task workers; determines sender parallelism. Default is
 # '0' which means the value is determined internally, likely matching the
 # number of tokio worker-threads or number of cores, etc. Override by
