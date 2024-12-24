@@ -11,10 +11,7 @@ use conduwuit::{
 	PduEvent, Result,
 };
 use futures::{FutureExt, StreamExt};
-use ruma::{
-	state_res::{self, StateMap},
-	EventId, RoomId, RoomVersionId,
-};
+use ruma::{state_res::StateMap, EventId, RoomId, RoomVersionId};
 
 // TODO: if we know the prev_events of the incoming event we can avoid the
 #[implement(super::Service)]
@@ -157,24 +154,11 @@ pub(super) async fn state_at_incoming_resolved(
 		fork_states.push(state);
 	}
 
-	let lock = self.services.globals.stateres_mutex.lock();
-
-	let event_fetch = |event_id| self.event_fetch(event_id);
-	let event_exists = |event_id| self.event_exists(event_id);
-	let result = state_res::resolve(
-		room_version_id,
-		&fork_states,
-		&auth_chain_sets,
-		&event_fetch,
-		&event_exists,
-	)
-	.boxed()
-	.await
-	.map_err(|e| err!(Database(warn!(?e, "State resolution on prev events failed."))));
-
-	drop(lock);
-
-	let Ok(new_state) = result else {
+	let Ok(new_state) = self
+		.state_resolution(room_version_id, &fork_states, &auth_chain_sets)
+		.boxed()
+		.await
+	else {
 		return Ok(None);
 	};
 

@@ -6,7 +6,7 @@ use std::{
 
 use conduwuit::{
 	debug, err, implement,
-	utils::stream::{IterStream, WidebandExt},
+	utils::stream::{automatic_width, IterStream, WidebandExt},
 	Result,
 };
 use futures::{FutureExt, StreamExt, TryFutureExt};
@@ -75,22 +75,10 @@ pub async fn resolve_state(
 		.await;
 
 	debug!("Resolving state");
-	let lock = self.services.globals.stateres_mutex.lock();
-
-	let event_fetch = |event_id| self.event_fetch(event_id);
-	let event_exists = |event_id| self.event_exists(event_id);
-	let state = state_res::resolve(
-		room_version_id,
-		&fork_states,
-		&auth_chain_sets,
-		&event_fetch,
-		&event_exists,
-	)
-	.boxed()
-	.await
-	.map_err(|e| err!(Database(error!("State resolution failed: {e:?}"))))?;
-
-	drop(lock);
+	let state = self
+		.state_resolution(room_version_id, &fork_states, &auth_chain_sets)
+		.boxed()
+		.await?;
 
 	debug!("State resolution done.");
 	let state_events: Vec<_> = state
@@ -118,4 +106,27 @@ pub async fn resolve_state(
 		.await;
 
 	Ok(Arc::new(new_room_state))
+}
+
+#[implement(super::Service)]
+#[tracing::instrument(name = "ruma", level = "debug", skip_all)]
+pub async fn state_resolution(
+	&self,
+	room_version: &RoomVersionId,
+	state_sets: &[StateMap<Arc<EventId>>],
+	auth_chain_sets: &Vec<HashSet<Arc<EventId>>>,
+) -> Result<StateMap<Arc<EventId>>> {
+	//TODO: ???
+	let _lock = self.services.globals.stateres_mutex.lock();
+
+	state_res::resolve(
+		room_version,
+		state_sets.iter(),
+		auth_chain_sets,
+		&|event_id| self.event_fetch(event_id),
+		&|event_id| self.event_exists(event_id),
+		automatic_width(),
+	)
+	.await
+	.map_err(|e| err!(error!("State resolution failed: {e:?}")))
 }
