@@ -277,7 +277,7 @@ impl Service {
 	}
 
 	/// Sends a request to a federation server
-	#[tracing::instrument(skip_all, name = "request")]
+	#[tracing::instrument(skip_all, name = "request", level = "debug")]
 	pub async fn send_federation_request<T>(
 		&self,
 		dest: &ServerName,
@@ -291,7 +291,7 @@ impl Service {
 	}
 
 	/// Like send_federation_request() but with a very large timeout
-	#[tracing::instrument(skip_all, name = "synapse")]
+	#[tracing::instrument(skip_all, name = "synapse", level = "debug")]
 	pub async fn send_synapse_request<T>(
 		&self,
 		dest: &ServerName,

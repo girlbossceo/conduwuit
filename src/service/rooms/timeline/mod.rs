@@ -859,7 +859,7 @@ impl Service {
 	/// Creates a new persisted data unit and adds it to a room. This function
 	/// takes a roomid_mutex_state, meaning that only this function is able to
 	/// mutate the room state.
-	#[tracing::instrument(skip(self, state_lock))]
+	#[tracing::instrument(skip(self, state_lock), level = "debug")]
 	pub async fn build_and_append_pdu(
 		&self,
 		pdu_builder: PduBuilder,
@@ -1082,7 +1082,7 @@ impl Service {
 		self.replace_pdu(&pdu_id, &obj, &pdu).await
 	}
 
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
 		if self
 			.services
@@ -1194,7 +1194,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, pdu))]
+	#[tracing::instrument(skip(self, pdu), level = "debug")]
 	pub async fn backfill_pdu(&self, origin: &ServerName, pdu: Box<RawJsonValue>) -> Result<()> {
 		let (event_id, value, room_id) =
 			self.services.event_handler.parse_incoming_pdu(&pdu).await?;

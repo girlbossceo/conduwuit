@@ -45,7 +45,7 @@ impl super::Service {
 	/// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 	/// Numbers in comments below refer to bullet points in linked section of
 	/// specification
-	#[tracing::instrument(skip_all, name = "actual")]
+	#[tracing::instrument(skip(self, cache), name = "actual")]
 	pub async fn resolve_actual_dest(
 		&self,
 		dest: &ServerName,
@@ -298,7 +298,7 @@ impl super::Service {
 		}
 	}
 
-	#[tracing::instrument(skip_all, name = "ip")]
+	#[tracing::instrument(skip(self, overname, port), name = "ip")]
 	async fn query_and_cache_override(
 		&self,
 		overname: &'_ str,

@@ -10,7 +10,7 @@ static CORES_AVAILABLE: LazyLock<u128> = LazyLock::new(|| {
 		.unwrap_or_default()
 		.into_iter()
 		.map(|core_id| core_id.id)
-		.inspect(|&id| assert!(id < 128, "Core ID must be < 128 at least for now"))
+		.inspect(|&id| debug_assert!(id < 128, "Core ID must be < 128 at least for now"))
 		.fold(0_u128, |mask, id| mask | (1 << id))
 });
 
