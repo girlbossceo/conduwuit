@@ -8,7 +8,7 @@ use std::{
 	},
 };
 
-use async_channel::{Receiver, RecvError, Sender};
+use async_channel::{Receiver, RecvError, Sched, Sender};
 use conduwuit::{
 	debug, debug_warn, defer, err, implement,
 	result::DebugInspect,
@@ -65,9 +65,14 @@ const QUEUE_LIMIT: (usize, usize) = (1, 2048);
 
 #[implement(Pool)]
 pub(crate) async fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
+	const CHAN_SCHED: (Sched, Sched) = (Sched::Fifo, Sched::Lifo);
+
 	let (total_workers, queue_sizes, topology) = configure(server);
 
-	let (senders, receivers) = queue_sizes.into_iter().map(async_channel::bounded).unzip();
+	let (senders, receivers) = queue_sizes
+		.into_iter()
+		.map(|cap| async_channel::bounded_with_sched(cap, CHAN_SCHED))
+		.unzip();
 
 	let pool = Arc::new(Self {
 		server: server.clone(),

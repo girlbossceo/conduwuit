@@ -95,8 +95,7 @@ checksum = "5f093eed78becd229346bf859eec0aa4dd7ddde0757287b2b4107a1f09c80002"
 [[package]]
 name = "async-channel"
 version = "2.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89b47800b0be77592da0afd425cc03468052844aff33b84e33cc696f64e77b6a"
+source = "git+https://github.com/jevolk/async-channel?rev=fefa543ca5eddf21237d75776fce98b7e09e924a#fefa543ca5eddf21237d75776fce98b7e09e924a"
 dependencies = [
  "concurrent-queue",
  "event-listener-strategy",
@@ -1259,8 +1258,7 @@ dependencies = [
 [[package]]
 name = "event-listener"
 version = "5.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6032be9bd27023a771701cc49f9f053c751055f71efb2e0ae5c15809093675ba"
+source = "git+https://github.com/jevolk/event-listener?rev=96d7e0fc026d8f708b19bc9267a382676a50354c#96d7e0fc026d8f708b19bc9267a382676a50354c"
 dependencies = [
  "concurrent-queue",
  "parking",

@@ -529,6 +529,14 @@ rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
 git = "https://github.com/girlbossceo/rustyline-async"
 rev = "deaeb0694e2083f53d363b648da06e10fc13900c"
 
+# adds LIFO queue scheduling; this should be updated with PR progress.
+[patch.crates-io.event-listener]
+git = "https://github.com/jevolk/event-listener"
+rev = "96d7e0fc026d8f708b19bc9267a382676a50354c"
+[patch.crates-io.async-channel]
+git = "https://github.com/jevolk/async-channel"
+rev = "fefa543ca5eddf21237d75776fce98b7e09e924a"
+
 #
 # Our crates
 #
