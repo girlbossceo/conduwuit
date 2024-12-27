@@ -97,7 +97,7 @@ heavily appreciated! 💜🥺
 
 Original repo and Matrix room picture was from bran (<3). Current banner image
 and logo is directly from [this cohost
-post](https://cohost.org/RatBaby/post/1028290-finally-a-flag-for).
+post](https://web.archive.org/web/20241126004041/https://cohost.org/RatBaby/post/1028290-finally-a-flag-for).
 
 #### Is it conduwuit or Conduwuit?
 
