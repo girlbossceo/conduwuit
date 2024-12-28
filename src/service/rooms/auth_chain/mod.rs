@@ -1,7 +1,7 @@
 mod data;
 
 use std::{
-	collections::{BTreeSet, HashSet},
+	collections::{BTreeSet, HashSet, VecDeque},
 	fmt::Debug,
 	sync::Arc,
 };
@@ -185,10 +185,10 @@ impl Service {
 		room_id: &RoomId,
 		event_id: &EventId,
 	) -> Result<HashSet<ShortEventId>> {
-		let mut todo = vec![event_id.to_owned()];
+		let mut todo: VecDeque<_> = [event_id.to_owned()].into();
 		let mut found = HashSet::new();
 
-		while let Some(event_id) = todo.pop() {
+		while let Some(event_id) = todo.pop_front() {
 			trace!(?event_id, "processing auth event");
 
 			match self.services.timeline.get_pdu(&event_id).await {
@@ -218,7 +218,8 @@ impl Service {
 								?auth_event,
 								"adding auth event to processing queue"
 							);
-							todo.push(auth_event.clone());
+
+							todo.push_back(auth_event.clone());
 						}
 					}
 				},

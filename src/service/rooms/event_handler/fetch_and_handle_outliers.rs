@@ -1,5 +1,5 @@
 use std::{
-	collections::{hash_map, BTreeMap, HashSet},
+	collections::{hash_map, BTreeMap, HashSet, VecDeque},
 	sync::Arc,
 	time::Instant,
 };
@@ -62,10 +62,10 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 		// c. Ask origin server over federation
 		// We also handle its auth chain here so we don't get a stack overflow in
 		// handle_outlier_pdu.
-		let mut todo_auth_events = vec![id.clone()];
+		let mut todo_auth_events: VecDeque<_> = [id.clone()].into();
 		let mut events_in_reverse_order = Vec::with_capacity(todo_auth_events.len());
 		let mut events_all = HashSet::with_capacity(todo_auth_events.len());
-		while let Some(next_id) = todo_auth_events.pop() {
+		while let Some(next_id) = todo_auth_events.pop_front() {
 			if let Some((time, tries)) = self
 				.services
 				.globals
@@ -132,7 +132,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 							if let Ok(auth_event) =
 								serde_json::from_value::<OwnedEventId>(auth_event.clone().into())
 							{
-								todo_auth_events.push(auth_event);
+								todo_auth_events.push_back(auth_event);
 							} else {
 								warn!("Auth event id is not valid");
 							}

@@ -1,5 +1,5 @@
 use std::{
-	collections::{BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet, VecDeque},
 	sync::Arc,
 };
 
@@ -30,13 +30,13 @@ pub(super) async fn fetch_prev(
 )> {
 	let mut graph: HashMap<OwnedEventId, _> = HashMap::with_capacity(initial_set.len());
 	let mut eventid_info = HashMap::new();
-	let mut todo_outlier_stack: Vec<OwnedEventId> = initial_set;
+	let mut todo_outlier_stack: VecDeque<OwnedEventId> = initial_set.into();
 
 	let first_pdu_in_room = self.services.timeline.first_pdu_in_room(room_id).await?;
 
 	let mut amount = 0;
 
-	while let Some(prev_event_id) = todo_outlier_stack.pop() {
+	while let Some(prev_event_id) = todo_outlier_stack.pop_front() {
 		self.services.server.check_running()?;
 
 		if let Some((pdu, mut json_opt)) = self
@@ -74,7 +74,7 @@ pub(super) async fn fetch_prev(
 					amount = amount.saturating_add(1);
 					for prev_prev in &pdu.prev_events {
 						if !graph.contains_key(prev_prev) {
-							todo_outlier_stack.push(prev_prev.clone());
+							todo_outlier_stack.push_back(prev_prev.clone());
 						}
 					}
 
