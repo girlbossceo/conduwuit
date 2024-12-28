@@ -35,6 +35,7 @@ features = [
 	"const_generics",
 	"const_new",
 	"serde",
+	"union",
 	"write",
 ]
 
@@ -335,7 +336,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "d3ed3194ebe96b921d06d1d3e607f0bf7873f792"
+rev = "54da128bbe09a0c6d14c9a6bf7b6b54a2d7c835a"
 features = [
     "compat",
     "rand",

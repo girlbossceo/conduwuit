@@ -147,7 +147,7 @@ pub async fn handle_incoming_pdu<'a>(
 				.bad_event_ratelimiter
 				.write()
 				.expect("locked")
-				.entry(prev_id.into())
+				.entry(prev_id)
 			{
 				| Entry::Vacant(e) => {
 					e.insert((now, 1));

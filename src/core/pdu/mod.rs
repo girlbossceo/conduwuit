@@ -12,11 +12,11 @@ mod strip;
 mod tests;
 mod unsigned;
 
-use std::{cmp::Ordering, sync::Arc};
+use std::cmp::Ordering;
 
 use ruma::{
-	events::TimelineEventType, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedRoomId,
-	OwnedUserId, UInt,
+	events::TimelineEventType, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId,
+	OwnedRoomId, OwnedUserId, UInt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue as RawJsonValue;
@@ -35,7 +35,7 @@ use crate::Result;
 /// Persistent Data Unit (Event)
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Pdu {
-	pub event_id: Arc<EventId>,
+	pub event_id: OwnedEventId,
 	pub room_id: OwnedRoomId,
 	pub sender: OwnedUserId,
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -46,11 +46,11 @@ pub struct Pdu {
 	pub content: Box<RawJsonValue>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub state_key: Option<String>,
-	pub prev_events: Vec<Arc<EventId>>,
+	pub prev_events: Vec<OwnedEventId>,
 	pub depth: UInt,
-	pub auth_events: Vec<Arc<EventId>>,
+	pub auth_events: Vec<OwnedEventId>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub redacts: Option<Arc<EventId>>,
+	pub redacts: Option<OwnedEventId>,
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub unsigned: Option<Box<RawJsonValue>>,
 	pub hashes: EventHash,

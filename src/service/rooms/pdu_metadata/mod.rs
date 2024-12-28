@@ -98,9 +98,11 @@ impl Service {
 		pdus
 	}
 
-	#[inline]
 	#[tracing::instrument(skip_all, level = "debug")]
-	pub fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) {
+	pub fn mark_as_referenced<'a, I>(&self, room_id: &RoomId, event_ids: I)
+	where
+		I: Iterator<Item = &'a EventId>,
+	{
 		self.db.mark_as_referenced(room_id, event_ids);
 	}
 

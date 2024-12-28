@@ -11,7 +11,7 @@ use conduwuit::{
 	PduEvent, Result,
 };
 use futures::{FutureExt, StreamExt};
-use ruma::{state_res::StateMap, EventId, RoomId, RoomVersionId};
+use ruma::{state_res::StateMap, OwnedEventId, RoomId, RoomVersionId};
 
 // TODO: if we know the prev_events of the incoming event we can avoid the
 #[implement(super::Service)]
@@ -20,8 +20,8 @@ use ruma::{state_res::StateMap, EventId, RoomId, RoomVersionId};
 pub(super) async fn state_at_incoming_degree_one(
 	&self,
 	incoming_pdu: &Arc<PduEvent>,
-) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
-	let prev_event = &*incoming_pdu.prev_events[0];
+) -> Result<Option<HashMap<u64, OwnedEventId>>> {
+	let prev_event = &incoming_pdu.prev_events[0];
 	let Ok(prev_event_sstatehash) = self
 		.services
 		.state_accessor
@@ -56,7 +56,7 @@ pub(super) async fn state_at_incoming_degree_one(
 			.get_or_create_shortstatekey(&prev_pdu.kind.to_string().into(), state_key)
 			.await;
 
-		state.insert(shortstatekey, Arc::from(prev_event));
+		state.insert(shortstatekey, prev_event.clone());
 		// Now it's the state after the pdu
 	}
 
@@ -72,7 +72,7 @@ pub(super) async fn state_at_incoming_resolved(
 	incoming_pdu: &Arc<PduEvent>,
 	room_id: &RoomId,
 	room_version_id: &RoomVersionId,
-) -> Result<Option<HashMap<u64, Arc<EventId>>>> {
+) -> Result<Option<HashMap<u64, OwnedEventId>>> {
 	debug!("Calculating state at event using state res");
 	let mut extremity_sstatehashes = HashMap::with_capacity(incoming_pdu.prev_events.len());
 
@@ -142,7 +142,7 @@ pub(super) async fn state_at_incoming_resolved(
 			starting_events.push(id.borrow());
 		}
 
-		let auth_chain: HashSet<Arc<EventId>> = self
+		let auth_chain: HashSet<OwnedEventId> = self
 			.services
 			.auth_chain
 			.get_event_ids(room_id, starting_events.into_iter())

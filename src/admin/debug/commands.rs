@@ -2,7 +2,6 @@ use std::{
 	collections::HashMap,
 	fmt::Write,
 	iter::once,
-	sync::Arc,
 	time::{Instant, SystemTime},
 };
 
@@ -13,7 +12,8 @@ use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
-	CanonicalJsonObject, EventId, OwnedRoomOrAliasId, RoomId, RoomVersionId, ServerName,
+	CanonicalJsonObject, EventId, OwnedEventId, OwnedRoomOrAliasId, RoomId, RoomVersionId,
+	ServerName,
 };
 use service::rooms::state_compressor::HashSetCompressStateEvent;
 use tracing_subscriber::EnvFilter;
@@ -598,14 +598,14 @@ pub(super) async fn force_set_room_state_from_server(
 
 	let room_version = self.services.rooms.state.get_room_version(&room_id).await?;
 
-	let mut state: HashMap<u64, Arc<EventId>> = HashMap::new();
+	let mut state: HashMap<u64, OwnedEventId> = HashMap::new();
 
 	let remote_state_response = self
 		.services
 		.sending
 		.send_federation_request(&server_name, get_room_state::v1::Request {
 			room_id: room_id.clone().into(),
-			event_id: first_pdu.event_id.clone().into(),
+			event_id: first_pdu.event_id.clone(),
 		})
 		.await?;
 
@@ -677,7 +677,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.services
 		.rooms
 		.event_handler
-		.resolve_state(room_id.clone().as_ref(), &room_version, state)
+		.resolve_state(&room_id, &room_version, state)
 		.await?;
 
 	info!("Forcing new room state");

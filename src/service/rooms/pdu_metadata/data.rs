@@ -88,7 +88,11 @@ impl Data {
 		})
 	}
 
-	pub(super) fn mark_as_referenced(&self, room_id: &RoomId, event_ids: &[Arc<EventId>]) {
+	#[inline]
+	pub(super) fn mark_as_referenced<'a, I>(&self, room_id: &RoomId, event_ids: I)
+	where
+		I: Iterator<Item = &'a EventId>,
+	{
 		for prev in event_ids {
 			let key = (room_id, prev);
 			self.referencedevents.put_raw(key, []);

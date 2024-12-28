@@ -8,7 +8,7 @@ use futures::{future, FutureExt};
 use ruma::{
 	int,
 	state_res::{self},
-	uint, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, RoomId, RoomVersionId,
+	uint, CanonicalJsonValue, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, RoomVersionId,
 	ServerName,
 };
 
@@ -23,14 +23,14 @@ pub(super) async fn fetch_prev(
 	create_event: &PduEvent,
 	room_id: &RoomId,
 	room_version_id: &RoomVersionId,
-	initial_set: Vec<Arc<EventId>>,
+	initial_set: Vec<OwnedEventId>,
 ) -> Result<(
-	Vec<Arc<EventId>>,
-	HashMap<Arc<EventId>, (Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>,
+	Vec<OwnedEventId>,
+	HashMap<OwnedEventId, (Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>,
 )> {
-	let mut graph: HashMap<Arc<EventId>, _> = HashMap::with_capacity(initial_set.len());
+	let mut graph: HashMap<OwnedEventId, _> = HashMap::with_capacity(initial_set.len());
 	let mut eventid_info = HashMap::new();
-	let mut todo_outlier_stack: Vec<Arc<EventId>> = initial_set;
+	let mut todo_outlier_stack: Vec<OwnedEventId> = initial_set;
 
 	let first_pdu_in_room = self.services.timeline.first_pdu_in_room(room_id).await?;
 

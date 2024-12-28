@@ -79,19 +79,13 @@ pub(super) async fn handle_outlier_pdu<'a>(
 		//    the auth events are also rejected "due to auth events"
 		// NOTE: Step 5 is not applied anymore because it failed too often
 		debug!("Fetching auth events");
-		Box::pin(
-			self.fetch_and_handle_outliers(
-				origin,
-				&incoming_pdu
-					.auth_events
-					.iter()
-					.map(|x| Arc::from(&**x))
-					.collect::<Vec<Arc<EventId>>>(),
-				create_event,
-				room_id,
-				&room_version_id,
-			),
-		)
+		Box::pin(self.fetch_and_handle_outliers(
+			origin,
+			&incoming_pdu.auth_events,
+			create_event,
+			room_id,
+			&room_version_id,
+		))
 		.await;
 	}
 

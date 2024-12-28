@@ -92,5 +92,5 @@ pub(crate) async fn send_message_event_route(
 
 	drop(state_lock);
 
-	Ok(send_message_event::v3::Response { event_id: event_id.into() })
+	Ok(send_message_event::v3::Response { event_id })
 }

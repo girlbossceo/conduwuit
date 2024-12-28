@@ -77,7 +77,7 @@ impl Service {
 
 		let pdu = self.services.timeline.get_pdu_from_id(&pdu_id).await?;
 
-		let event_id: OwnedEventId = pdu.event_id.into();
+		let event_id: OwnedEventId = pdu.event_id;
 		let user_id: OwnedUserId = user_id.to_owned();
 		let content: BTreeMap<OwnedEventId, Receipts> = BTreeMap::from_iter([(
 			event_id,

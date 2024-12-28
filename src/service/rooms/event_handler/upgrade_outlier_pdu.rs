@@ -282,7 +282,7 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 	}
 
 	trace!("Appending pdu to timeline");
-	extremities.insert(incoming_pdu.event_id.clone().into());
+	extremities.insert(incoming_pdu.event_id.clone());
 
 	// Now that the event has passed all auth it is added into the timeline.
 	// We use the `state_at_event` instead of `state_after` so we accurately

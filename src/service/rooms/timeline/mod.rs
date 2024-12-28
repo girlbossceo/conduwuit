@@ -10,7 +10,7 @@ use std::{
 
 use conduwuit::{
 	debug, debug_warn, err, error, implement, info,
-	pdu::{EventHash, PduBuilder, PduCount, PduEvent},
+	pdu::{gen_event_id, EventHash, PduBuilder, PduCount, PduEvent},
 	utils::{self, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
 	validated, warn, Err, Error, Result, Server,
 };
@@ -371,7 +371,7 @@ impl Service {
 		// We must keep track of all events that have been referenced.
 		self.services
 			.pdu_metadata
-			.mark_as_referenced(&pdu.room_id, &pdu.prev_events);
+			.mark_as_referenced(&pdu.room_id, pdu.prev_events.iter().map(AsRef::as_ref));
 
 		self.services
 			.state
@@ -681,12 +681,12 @@ impl Service {
 			timestamp,
 		} = pdu_builder;
 
-		let prev_events: Vec<_> = self
+		let prev_events: Vec<OwnedEventId> = self
 			.services
 			.state
 			.get_forward_extremities(room_id)
 			.take(20)
-			.map(Arc::from)
+			.map(Into::into)
 			.collect()
 			.await;
 
@@ -834,17 +834,10 @@ impl Service {
 		}
 
 		// Generate event id
-		pdu.event_id = EventId::parse_arc(format!(
-			"${}",
-			ruma::signatures::reference_hash(&pdu_json, &room_version_id)
-				.expect("ruma can calculate reference hashes")
-		))
-		.expect("ruma's reference hashes are valid event ids");
+		pdu.event_id = gen_event_id(&pdu_json, &room_version_id)?;
 
-		pdu_json.insert(
-			"event_id".to_owned(),
-			CanonicalJsonValue::String(pdu.event_id.as_str().to_owned()),
-		);
+		pdu_json
+			.insert("event_id".into(), CanonicalJsonValue::String(pdu.event_id.clone().into()));
 
 		// Generate short event id
 		let _shorteventid = self
@@ -867,7 +860,7 @@ impl Service {
 		room_id: &RoomId,
 		state_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room state
 		                              * mutex */
-	) -> Result<Arc<EventId>> {
+	) -> Result<OwnedEventId> {
 		let (pdu, pdu_json) = self
 			.create_hash_and_sign_event(pdu_builder, sender, room_id, state_lock)
 			.await?;
@@ -987,7 +980,7 @@ impl Service {
 		if soft_fail {
 			self.services
 				.pdu_metadata
-				.mark_as_referenced(&pdu.room_id, &pdu.prev_events);
+				.mark_as_referenced(&pdu.room_id, pdu.prev_events.iter().map(AsRef::as_ref));
 
 			self.services
 				.state
@@ -1170,7 +1163,7 @@ impl Service {
 					backfill_server,
 					federation::backfill::get_backfill::v1::Request {
 						room_id: room_id.to_owned(),
-						v: vec![first_pdu.1.event_id.as_ref().to_owned()],
+						v: vec![first_pdu.1.event_id.clone()],
 						limit: uint!(100),
 					},
 				)

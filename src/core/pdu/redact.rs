@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
 use ruma::{
 	canonical_json::redact_content_in_place,
 	events::{room::redaction::RoomRedactionEventContent, TimelineEventType},
-	EventId, RoomVersionId,
+	OwnedEventId, RoomVersionId,
 };
 use serde::Deserialize;
 use serde_json::{
@@ -73,15 +71,15 @@ pub fn is_redacted(&self) -> bool {
 /// > such events over the Client-Server API.
 #[implement(super::Pdu)]
 #[must_use]
-pub fn copy_redacts(&self) -> (Option<Arc<EventId>>, Box<RawJsonValue>) {
+pub fn copy_redacts(&self) -> (Option<OwnedEventId>, Box<RawJsonValue>) {
 	if self.kind == TimelineEventType::RoomRedaction {
 		if let Ok(mut content) =
 			serde_json::from_str::<RoomRedactionEventContent>(self.content.get())
 		{
 			if let Some(redacts) = content.redacts {
-				return (Some(redacts.into()), self.content.clone());
+				return (Some(redacts), self.content.clone());
 			} else if let Some(redacts) = self.redacts.clone() {
-				content.redacts = Some(redacts.into());
+				content.redacts = Some(redacts);
 				return (
 					self.redacts.clone(),
 					to_raw_value(&content).expect("Must be valid, we only added redacts field"),

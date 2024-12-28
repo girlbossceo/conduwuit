@@ -12,7 +12,7 @@ use conduwuit::{
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	state_res::{self, StateMap},
-	EventId, RoomId, RoomVersionId,
+	OwnedEventId, RoomId, RoomVersionId,
 };
 
 use crate::rooms::state_compressor::CompressedStateEvent;
@@ -23,7 +23,7 @@ pub async fn resolve_state(
 	&self,
 	room_id: &RoomId,
 	room_version_id: &RoomVersionId,
-	incoming_state: HashMap<u64, Arc<EventId>>,
+	incoming_state: HashMap<u64, OwnedEventId>,
 ) -> Result<Arc<HashSet<CompressedStateEvent>>> {
 	debug!("Loading current room state ids");
 	let current_sstatehash = self
@@ -44,7 +44,7 @@ pub async fn resolve_state(
 	for state in &fork_states {
 		let starting_events = state.values().map(Borrow::borrow);
 
-		let auth_chain: HashSet<Arc<EventId>> = self
+		let auth_chain: HashSet<OwnedEventId> = self
 			.services
 			.auth_chain
 			.get_event_ids(room_id, starting_events)
@@ -56,7 +56,7 @@ pub async fn resolve_state(
 	}
 
 	debug!("Loading fork states");
-	let fork_states: Vec<StateMap<Arc<EventId>>> = fork_states
+	let fork_states: Vec<StateMap<OwnedEventId>> = fork_states
 		.into_iter()
 		.stream()
 		.wide_then(|fork_state| {
@@ -113,9 +113,9 @@ pub async fn resolve_state(
 pub async fn state_resolution(
 	&self,
 	room_version: &RoomVersionId,
-	state_sets: &[StateMap<Arc<EventId>>],
-	auth_chain_sets: &Vec<HashSet<Arc<EventId>>>,
-) -> Result<StateMap<Arc<EventId>>> {
+	state_sets: &[StateMap<OwnedEventId>],
+	auth_chain_sets: &Vec<HashSet<OwnedEventId>>,
+) -> Result<StateMap<OwnedEventId>> {
 	//TODO: ???
 	let _lock = self.services.globals.stateres_mutex.lock();
 

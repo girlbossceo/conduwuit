@@ -23,7 +23,7 @@ use conduwuit::{
 };
 use futures::TryFutureExt;
 use ruma::{
-	events::room::create::RoomCreateEventContent, state_res::RoomVersion, EventId, OwnedEventId,
+	events::room::create::RoomCreateEventContent, state_res::RoomVersion, OwnedEventId,
 	OwnedRoomId, RoomId, RoomVersionId,
 };
 
@@ -97,11 +97,11 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	async fn event_exists(&self, event_id: Arc<EventId>) -> bool {
+	async fn event_exists(&self, event_id: OwnedEventId) -> bool {
 		self.services.timeline.pdu_exists(&event_id).await
 	}
 
-	async fn event_fetch(&self, event_id: Arc<EventId>) -> Option<Arc<PduEvent>> {
+	async fn event_fetch(&self, event_id: OwnedEventId) -> Option<Arc<PduEvent>> {
 		self.services
 			.timeline
 			.get_pdu(&event_id)

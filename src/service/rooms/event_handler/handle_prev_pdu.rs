@@ -5,9 +5,9 @@ use std::{
 };
 
 use conduwuit::{
-	debug, implement, utils::math::continue_exponential_backoff_secs, Error, PduEvent, Result,
+	debug, implement, utils::math::continue_exponential_backoff_secs, Err, PduEvent, Result,
 };
-use ruma::{api::client::error::ErrorKind, CanonicalJsonValue, EventId, RoomId, ServerName};
+use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName};
 
 #[implement(super::Service)]
 #[allow(clippy::type_complexity)]
@@ -22,7 +22,7 @@ pub(super) async fn handle_prev_pdu<'a>(
 	event_id: &'a EventId,
 	room_id: &'a RoomId,
 	eventid_info: &mut HashMap<
-		Arc<EventId>,
+		OwnedEventId,
 		(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>),
 	>,
 	create_event: &Arc<PduEvent>,
@@ -31,14 +31,10 @@ pub(super) async fn handle_prev_pdu<'a>(
 ) -> Result {
 	// Check for disabled again because it might have changed
 	if self.services.metadata.is_disabled(room_id).await {
-		debug!(
+		return Err!(Request(Forbidden(debug_warn!(
 			"Federaton of room {room_id} is currently disabled on this server. Request by \
 			 origin {origin} and event ID {event_id}"
-		);
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Federation of this room is currently disabled on this server.",
-		));
+		))));
 	}
 
 	if let Some((time, tries)) = self

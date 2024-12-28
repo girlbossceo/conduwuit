@@ -12,7 +12,7 @@ use conduwuit::{
 	validated, warn, Err, Result,
 };
 use futures::{Stream, StreamExt};
-use ruma::{EventId, RoomId};
+use ruma::{EventId, OwnedEventId, RoomId};
 
 use self::data::Data;
 use crate::{rooms, rooms::short::ShortEventId, Dep};
@@ -46,7 +46,7 @@ impl Service {
 		&'a self,
 		room_id: &RoomId,
 		starting_events: I,
-	) -> Result<impl Stream<Item = Arc<EventId>> + Send + '_>
+	) -> Result<impl Stream<Item = OwnedEventId> + Send + '_>
 	where
 		I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 	{
@@ -63,7 +63,7 @@ impl Service {
 		&'a self,
 		room_id: &RoomId,
 		starting_events: I,
-	) -> Result<Vec<Arc<EventId>>>
+	) -> Result<Vec<OwnedEventId>>
 	where
 		I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 	{
@@ -185,7 +185,7 @@ impl Service {
 		room_id: &RoomId,
 		event_id: &EventId,
 	) -> Result<HashSet<ShortEventId>> {
-		let mut todo = vec![Arc::from(event_id)];
+		let mut todo = vec![event_id.to_owned()];
 		let mut found = HashSet::new();
 
 		while let Some(event_id) = todo.pop() {

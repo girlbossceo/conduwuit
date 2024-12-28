@@ -922,7 +922,7 @@ pub(super) async fn redact_event(
 			PduBuilder {
 				redacts: Some(event.event_id.clone()),
 				..PduBuilder::timeline(&RoomRedactionEventContent {
-					redacts: Some(event.event_id.clone().into()),
+					redacts: Some(event.event_id.clone()),
 					reason: Some(reason),
 				})
 			},

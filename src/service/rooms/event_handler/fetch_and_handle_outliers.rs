@@ -10,7 +10,7 @@ use conduwuit::{
 };
 use futures::TryFutureExt;
 use ruma::{
-	api::federation::event::get_event, CanonicalJsonValue, EventId, RoomId, RoomVersionId,
+	api::federation::event::get_event, CanonicalJsonValue, OwnedEventId, RoomId, RoomVersionId,
 	ServerName,
 };
 
@@ -27,7 +27,7 @@ use ruma::{
 pub(super) async fn fetch_and_handle_outliers<'a>(
 	&self,
 	origin: &'a ServerName,
-	events: &'a [Arc<EventId>],
+	events: &'a [OwnedEventId],
 	create_event: &'a PduEvent,
 	room_id: &'a RoomId,
 	room_version_id: &'a RoomVersionId,
@@ -62,7 +62,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 		// c. Ask origin server over federation
 		// We also handle its auth chain here so we don't get a stack overflow in
 		// handle_outlier_pdu.
-		let mut todo_auth_events = vec![Arc::clone(id)];
+		let mut todo_auth_events = vec![id.clone()];
 		let mut events_in_reverse_order = Vec::with_capacity(todo_auth_events.len());
 		let mut events_all = HashSet::with_capacity(todo_auth_events.len());
 		while let Some(next_id) = todo_auth_events.pop() {
@@ -124,14 +124,15 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 						);
 					}
 
-					if let Some(auth_events) = value.get("auth_events").and_then(|c| c.as_array())
+					if let Some(auth_events) = value
+						.get("auth_events")
+						.and_then(CanonicalJsonValue::as_array)
 					{
 						for auth_event in auth_events {
 							if let Ok(auth_event) =
-								serde_json::from_value(auth_event.clone().into())
+								serde_json::from_value::<OwnedEventId>(auth_event.clone().into())
 							{
-								let a: Arc<EventId> = auth_event;
-								todo_auth_events.push(a);
+								todo_auth_events.push(auth_event);
 							} else {
 								warn!("Auth event id is not valid");
 							}
@@ -201,7 +202,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 					},
 				| Err(e) => {
 					warn!("Authentication of event {next_id} failed: {e:?}");
-					back_off(next_id.into());
+					back_off(next_id);
 				},
 			}
 		}

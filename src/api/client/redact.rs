@@ -24,7 +24,7 @@ pub(crate) async fn redact_event_route(
 		.timeline
 		.build_and_append_pdu(
 			PduBuilder {
-				redacts: Some(body.event_id.clone().into()),
+				redacts: Some(body.event_id.clone()),
 				..PduBuilder::timeline(&RoomRedactionEventContent {
 					redacts: Some(body.event_id.clone()),
 					reason: body.reason.clone(),
@@ -38,5 +38,5 @@ pub(crate) async fn redact_event_route(
 
 	drop(state_lock);
 
-	Ok(redact_event::v3::Response { event_id: event_id.into() })
+	Ok(redact_event::v3::Response { event_id })
 }

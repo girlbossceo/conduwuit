@@ -441,7 +441,7 @@ async fn handle_left_room(
 		// This is just a rejected invite, not a room we know
 		// Insert a leave event anyways
 		let event = PduEvent {
-			event_id: EventId::new(services.globals.server_name()).into(),
+			event_id: EventId::new(services.globals.server_name()),
 			sender: sender_user.to_owned(),
 			origin: None,
 			origin_server_ts: utils::millis_since_unix_epoch()

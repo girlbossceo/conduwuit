@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::extract::State;
 use conduwuit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, PduEvent, Result};
 use ruma::{
@@ -16,7 +14,7 @@ use ruma::{
 		AnyStateEventContent, StateEventType,
 	},
 	serde::Raw,
-	EventId, RoomId, UserId,
+	OwnedEventId, RoomId, UserId,
 };
 use service::Services;
 
@@ -50,8 +48,7 @@ pub(crate) async fn send_state_event_for_key_route(
 				None
 			},
 		)
-		.await?
-		.into(),
+		.await?,
 	})
 }
 
@@ -177,7 +174,7 @@ async fn send_state_event_for_key_helper(
 	json: &Raw<AnyStateEventContent>,
 	state_key: String,
 	timestamp: Option<ruma::MilliSecondsSinceUnixEpoch>,
-) -> Result<Arc<EventId>> {
+) -> Result<OwnedEventId> {
 	allowed_to_send_state_event(services, room_id, event_type, json).await?;
 	let state_lock = services.rooms.state.mutex.lock(room_id).await;
 	let event_id = services

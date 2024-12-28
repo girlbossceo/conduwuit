@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use ruma::{
 	events::{EventContent, MessageLikeEventType, StateEventType, TimelineEventType},
-	EventId, MilliSecondsSinceUnixEpoch,
+	MilliSecondsSinceUnixEpoch, OwnedEventId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
@@ -19,7 +19,7 @@ pub struct Builder {
 
 	pub state_key: Option<String>,
 
-	pub redacts: Option<Arc<EventId>>,
+	pub redacts: Option<OwnedEventId>,
 
 	/// For timestamped messaging, should only be used for appservices.
 	/// Will be set to current time if None

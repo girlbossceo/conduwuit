@@ -6,7 +6,7 @@ use conduwuit::{
 	debug, debug_warn, err, error, result::LogErr, trace, utils::ReadyExt, warn, Err, Error,
 	Result,
 };
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use ruma::{
 	api::{
 		client::error::ErrorKind,
@@ -74,8 +74,13 @@ pub(crate) async fn send_transaction_message_route(
 	);
 
 	let resolved_map =
-		handle_pdus(&services, &client, &body.pdus, body.origin(), &txn_start_time).await?;
-	handle_edus(&services, &client, &body.edus, body.origin()).await;
+		handle_pdus(&services, &client, &body.pdus, body.origin(), &txn_start_time)
+			.boxed()
+			.await?;
+
+	handle_edus(&services, &client, &body.edus, body.origin())
+		.boxed()
+		.await;
 
 	debug!(
 		pdus = ?body.pdus.len(),

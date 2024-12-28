@@ -2,6 +2,7 @@
 
 use axum::extract::State;
 use conduwuit::{err, Err, Result};
+use futures::FutureExt;
 use ruma::{
 	api::federation::membership::create_leave_event,
 	events::{
@@ -154,10 +155,15 @@ async fn create_leave_event(
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(origin, room_id, &event_id, value, true)
+		.boxed()
 		.await?
 		.ok_or_else(|| err!(Request(InvalidParam("Could not accept as timeline event."))))?;
 
 	drop(mutex_lock);
 
-	services.sending.send_pdu_room(room_id, &pdu_id).await
+	services
+		.sending
+		.send_pdu_room(room_id, &pdu_id)
+		.boxed()
+		.await
 }

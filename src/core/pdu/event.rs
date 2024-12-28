@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
 pub use ruma::state_res::Event;
-use ruma::{events::TimelineEventType, EventId, MilliSecondsSinceUnixEpoch, RoomId, UserId};
+use ruma::{events::TimelineEventType, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, UserId};
 use serde_json::value::RawValue as RawJsonValue;
 
 use super::Pdu;
 
 impl Event for Pdu {
-	type Id = Arc<EventId>;
+	type Id = OwnedEventId;
 
 	fn event_id(&self) -> &Self::Id { &self.event_id }
 
