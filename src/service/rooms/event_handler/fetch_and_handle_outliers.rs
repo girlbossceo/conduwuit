@@ -75,8 +75,8 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 				.get(&*next_id)
 			{
 				// Exponential backoff
-				const MIN_DURATION: u64 = 5 * 60;
-				const MAX_DURATION: u64 = 60 * 60 * 24;
+				const MIN_DURATION: u64 = 60 * 2;
+				const MAX_DURATION: u64 = 60 * 60 * 8;
 				if continue_exponential_backoff_secs(
 					MIN_DURATION,
 					MAX_DURATION,
