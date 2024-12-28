@@ -18,7 +18,7 @@ use ruma::{
 		},
 		uiaa::UserIdentifier,
 	},
-	UserId,
+	OwnedUserId, UserId,
 };
 use serde::Deserialize;
 
@@ -83,7 +83,7 @@ pub(crate) async fn login_route(
 					services.globals.server_name(),
 				)
 			} else if let Some(user) = user {
-				UserId::parse(user)
+				OwnedUserId::parse(user)
 			} else {
 				warn!("Bad login type: {:?}", &body.login_info);
 				return Err!(Request(Forbidden("Bad login type.")));
@@ -147,7 +147,7 @@ pub(crate) async fn login_route(
 					services.globals.server_name(),
 				)
 			} else if let Some(user) = user {
-				UserId::parse(user)
+				OwnedUserId::parse(user)
 			} else {
 				warn!("Bad login type: {:?}", &body.login_info);
 				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));

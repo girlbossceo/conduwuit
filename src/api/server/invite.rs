@@ -6,7 +6,7 @@ use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	serde::JsonObject,
-	CanonicalJsonValue, EventId, OwnedUserId, UserId,
+	CanonicalJsonValue, OwnedEventId, OwnedUserId, UserId,
 };
 
 use crate::Ruma;
@@ -86,7 +86,7 @@ pub(crate) async fn create_invite_route(
 		.map_err(|e| err!(Request(InvalidParam("Failed to sign event: {e}"))))?;
 
 	// Generate event id
-	let event_id = EventId::parse(format!(
+	let event_id = OwnedEventId::parse(format!(
 		"${}",
 		ruma::signatures::reference_hash(&signed_event, &body.room_version)
 			.expect("ruma can calculate reference hashes")

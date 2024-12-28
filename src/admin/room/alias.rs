@@ -4,8 +4,7 @@ use clap::Subcommand;
 use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{
-	events::room::message::RoomMessageEventContent, OwnedRoomAliasId, OwnedRoomId, RoomAliasId,
-	RoomId,
+	events::room::message::RoomMessageEventContent, OwnedRoomAliasId, OwnedRoomId, RoomId,
 };
 
 use crate::{escape_html, Command};
@@ -58,7 +57,7 @@ pub(super) async fn process(
 		| RoomAliasCommand::Which { ref room_alias_localpart } => {
 			let room_alias_str =
 				format!("#{}:{}", room_alias_localpart, services.globals.server_name());
-			let room_alias = match RoomAliasId::parse_box(room_alias_str) {
+			let room_alias = match OwnedRoomAliasId::parse(room_alias_str) {
 				| Ok(alias) => alias,
 				| Err(err) =>
 					return Ok(RoomMessageEventContent::text_plain(format!(

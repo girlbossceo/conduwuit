@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduwuit::{debug_info, debug_warn, error, info, pdu::PduBuilder, warn, Err, Error, Result};
+use conduwuit::{
+	debug_info, debug_warn, err, error, info, pdu::PduBuilder, warn, Err, Error, Result,
+};
 use futures::FutureExt;
 use ruma::{
 	api::client::{
@@ -24,8 +26,7 @@ use ruma::{
 	},
 	int,
 	serde::{JsonObject, Raw},
-	CanonicalJsonObject, Int, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomAliasId, RoomId,
-	RoomVersionId,
+	CanonicalJsonObject, Int, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
 use service::{appservice::RegistrationInfo, Services};
@@ -554,14 +555,15 @@ async fn room_alias_check(
 		return Err(Error::BadRequest(ErrorKind::Unknown, "Room alias name is forbidden."));
 	}
 
-	let full_room_alias = RoomAliasId::parse(format!(
-		"#{}:{}",
-		room_alias_name, services.globals.config.server_name
-	))
-	.map_err(|e| {
-		info!("Failed to parse room alias {room_alias_name}: {e}");
-		Error::BadRequest(ErrorKind::InvalidParam, "Invalid room alias specified.")
-	})?;
+	let server_name = services.globals.server_name();
+	let full_room_alias = OwnedRoomAliasId::parse(format!("#{room_alias_name}:{server_name}"))
+		.map_err(|e| {
+			err!(Request(InvalidParam(debug_error!(
+				?e,
+				?room_alias_name,
+				"Failed to parse room alias.",
+			))))
+		})?;
 
 	if services
 		.rooms
@@ -620,15 +622,11 @@ fn custom_room_id_check(services: &Services, custom_room_id: &str) -> Result<Own
 		));
 	}
 
-	let full_room_id = format!("!{}:{}", custom_room_id, services.globals.config.server_name);
+	let server_name = services.globals.server_name();
+	let full_room_id = format!("!{custom_room_id}:{server_name}");
 
-	debug_info!("Full custom room ID: {full_room_id}");
-
-	RoomId::parse(full_room_id).map_err(|e| {
-		info!(
-			"User attempted to create room with custom room ID {custom_room_id} but failed \
-			 parsing: {e}"
-		);
-		Error::BadRequest(ErrorKind::InvalidParam, "Custom room ID could not be parsed")
-	})
+	OwnedRoomId::parse(full_room_id)
+		.map_err(Into::into)
+		.inspect(|full_room_id| debug_info!(?full_room_id, "Full custom room ID"))
+		.inspect_err(|e| warn!(?e, ?custom_room_id, "Failed to create room with custom room ID",))
 }

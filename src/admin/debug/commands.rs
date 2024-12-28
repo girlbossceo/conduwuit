@@ -75,7 +75,7 @@ pub(super) async fn parse_pdu(&self) -> Result<RoomMessageEventContent> {
 	match serde_json::from_str(&string) {
 		| Ok(value) => match ruma::signatures::reference_hash(&value, &RoomVersionId::V6) {
 			| Ok(hash) => {
-				let event_id = EventId::parse(format!("${hash}"));
+				let event_id = OwnedEventId::parse(format!("${hash}"));
 
 				match serde_json::from_value::<PduEvent>(
 					serde_json::to_value(value).expect("value is json"),

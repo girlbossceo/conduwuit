@@ -962,7 +962,7 @@ async fn calculate_state_initial(
 				};
 
 				// This check is in case a bad user ID made it into the database
-				if let Ok(uid) = UserId::parse(&state_key) {
+				if let Ok(uid) = OwnedUserId::parse(&state_key) {
 					lazy_loaded.insert(uid);
 				}
 
@@ -1079,7 +1079,7 @@ async fn calculate_state_incremental(
 			}
 
 			if let Some(state_key) = &state_event.state_key {
-				let user_id = UserId::parse(state_key.clone())
+				let user_id = UserId::parse(state_key)
 					.map_err(|_| Error::bad_database("Invalid UserId in member PDU."))?;
 
 				if user_id == sender_user {
@@ -1091,15 +1091,15 @@ async fn calculate_state_incremental(
 				match content.membership {
 					| MembershipState::Join => {
 						// A new user joined an encrypted room
-						if !share_encrypted_room(services, sender_user, &user_id, Some(room_id))
+						if !share_encrypted_room(services, sender_user, user_id, Some(room_id))
 							.await
 						{
-							device_list_updates.insert(user_id);
+							device_list_updates.insert(user_id.into());
 						}
 					},
 					| MembershipState::Leave => {
 						// Write down users that have left encrypted rooms we are in
-						left_encrypted_users.insert(user_id);
+						left_encrypted_users.insert(user_id.into());
 					},
 					| _ => {},
 				}

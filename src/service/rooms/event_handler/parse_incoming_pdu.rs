@@ -1,5 +1,5 @@
 use conduwuit::{err, implement, pdu::gen_event_id_canonical_json, result::FlatOk, Result};
-use ruma::{CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId, RoomId};
+use ruma::{CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId};
 use serde_json::value::RawValue as RawJsonValue;
 
 #[implement(super::Service)]
@@ -14,7 +14,7 @@ pub async fn parse_incoming_pdu(
 	let room_id: OwnedRoomId = value
 		.get("room_id")
 		.and_then(CanonicalJsonValue::as_str)
-		.map(RoomId::parse)
+		.map(OwnedRoomId::parse)
 		.flat_ok_or(err!(Request(InvalidParam("Invalid room_id in pdu"))))?;
 
 	let room_version_id = self

@@ -129,10 +129,10 @@ impl Service {
 		servers: Option<Vec<OwnedServerName>>,
 	) -> Result<(OwnedRoomId, Vec<OwnedServerName>)> {
 		if room.is_room_id() {
-			let room_id = RoomId::parse(room).expect("valid RoomId");
-			Ok((room_id, servers.unwrap_or_default()))
+			let room_id: &RoomId = room.try_into().expect("valid RoomId");
+			Ok((room_id.to_owned(), servers.unwrap_or_default()))
 		} else {
-			let alias = &RoomAliasId::parse(room).expect("valid RoomAliasId");
+			let alias: &RoomAliasId = room.try_into().expect("valid RoomAliasId");
 			self.resolve_alias(alias, servers).await
 		}
 	}

@@ -7,7 +7,7 @@ use conduwuit::{
 };
 use database::{Database, Deserialized, Map};
 use futures::{Stream, StreamExt};
-use ruma::{ServerName, UserId};
+use ruma::{OwnedServerName, ServerName, UserId};
 
 use super::{Destination, SendingEvent};
 use crate::{globals, Dep};
@@ -209,7 +209,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 		let mut parts = key[1..].splitn(3, |&b| b == 0xFF);
 
 		let user = parts.next().expect("splitn always returns one element");
-		let user_string = utils::string_from_bytes(user)
+		let user_string = utils::str_from_bytes(user)
 			.map_err(|_| Error::bad_database("Invalid user string in servercurrentevent"))?;
 		let user_id = UserId::parse(user_string)
 			.map_err(|_| Error::bad_database("Invalid user id in servercurrentevent"))?;
@@ -225,7 +225,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 			.ok_or_else(|| Error::bad_database("Invalid bytes in servercurrentpdus."))?;
 
 		(
-			Destination::Push(user_id, pushkey_string),
+			Destination::Push(user_id.to_owned(), pushkey_string),
 			if value.is_empty() {
 				SendingEvent::Pdu(event.into())
 			} else {
@@ -246,7 +246,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 		})?;
 
 		(
-			Destination::Federation(ServerName::parse(server).map_err(|_| {
+			Destination::Federation(OwnedServerName::parse(&server).map_err(|_| {
 				Error::bad_database("Invalid server string in server_currenttransaction")
 			})?),
 			if value.is_empty() {

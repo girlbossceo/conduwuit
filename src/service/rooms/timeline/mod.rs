@@ -35,7 +35,7 @@ use ruma::{
 	push::{Action, Ruleset, Tweak},
 	state_res::{self, Event, RoomVersion},
 	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
-	OwnedServerName, RoomId, RoomVersionId, ServerName, UserId,
+	OwnedServerName, OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
@@ -424,7 +424,7 @@ impl Service {
 
 		if pdu.kind == TimelineEventType::RoomMember {
 			if let Some(state_key) = &pdu.state_key {
-				let target_user_id = UserId::parse(state_key.clone())?;
+				let target_user_id = OwnedUserId::parse(state_key)?;
 
 				if self.services.users.is_active_local(&target_user_id).await {
 					push_target.insert(target_user_id);
@@ -534,7 +534,7 @@ impl Service {
 			| TimelineEventType::RoomMember => {
 				if let Some(state_key) = &pdu.state_key {
 					// if the state_key fails
-					let target_user_id = UserId::parse(state_key.clone())
+					let target_user_id = UserId::parse(state_key)
 						.expect("This state_key was previously validated");
 
 					let content: RoomMemberEventContent = pdu.get_content()?;
@@ -550,7 +550,7 @@ impl Service {
 						.state_cache
 						.update_membership(
 							&pdu.room_id,
-							&target_user_id,
+							target_user_id,
 							content,
 							&pdu.sender,
 							invite_state,
@@ -627,7 +627,7 @@ impl Service {
 					.and_then(|state_key| UserId::parse(state_key.as_str()).ok())
 				{
 					let appservice_uid = appservice.registration.sender_localpart.as_str();
-					if state_key_uid == appservice_uid {
+					if state_key_uid == &appservice_uid {
 						self.services
 							.sending
 							.send_pdu_appservice(appservice.registration.id.clone(), pdu_id)?;

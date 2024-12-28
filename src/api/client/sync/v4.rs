@@ -30,7 +30,7 @@ use ruma::{
 		TimelineEventType::{self, *},
 	},
 	serde::Raw,
-	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, UInt, UserId,
+	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
 };
 use service::{rooms::read_receipt::pack_receipts, Services};
 
@@ -243,7 +243,7 @@ pub(crate) async fn sync_events_v4_route(
 							if pdu.kind == RoomMember {
 								if let Some(state_key) = &pdu.state_key {
 									let user_id =
-										UserId::parse(state_key.clone()).map_err(|_| {
+										OwnedUserId::parse(state_key.clone()).map_err(|_| {
 											Error::bad_database("Invalid UserId in member PDU.")
 										})?;
 

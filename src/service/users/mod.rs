@@ -937,7 +937,7 @@ impl Service {
 		let user_string = utils::string_from_bytes(user_bytes)
 			.map_err(|e| err!(Database("User ID in openid_userid is invalid unicode. {e}")))?;
 
-		UserId::parse(user_string)
+		OwnedUserId::try_from(user_string)
 			.map_err(|e| err!(Database("User ID in openid_userid is invalid. {e}")))
 	}
 

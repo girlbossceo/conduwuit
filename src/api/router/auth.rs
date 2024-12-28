@@ -212,7 +212,7 @@ async fn auth_appservice(
 		.query
 		.user_id
 		.clone()
-		.map_or_else(user_id_default, UserId::parse)
+		.map_or_else(user_id_default, OwnedUserId::parse)
 	else {
 		return Err!(Request(InvalidUsername("Username is invalid.")));
 	};

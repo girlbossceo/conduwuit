@@ -10,9 +10,7 @@ use std::{
 use conduwuit::{error, Config, Result};
 use data::Data;
 use regex::RegexSet;
-use ruma::{
-	OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, RoomAliasId, ServerName, UserId,
-};
+use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, ServerName, UserId};
 use tokio::sync::Mutex;
 
 use crate::service;
@@ -73,7 +71,7 @@ impl crate::Service for Service {
 			jwt_decoding_key,
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			stateres_mutex: Arc::new(Mutex::new(())),
-			admin_alias: RoomAliasId::parse(format!("#admins:{}", &config.server_name))
+			admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
 			server_user: UserId::parse_with_server_name(
 				String::from("conduit"),
