@@ -187,12 +187,7 @@ impl Service {
 		state: I,
 	) -> impl Stream<Item = CompressedStateEvent> + Send + 'a
 	where
-		I: Iterator<Item = (&'a ShortStateKey, &'a EventId)>
-			+ Clone
-			+ Debug
-			+ ExactSizeIterator
-			+ Send
-			+ 'a,
+		I: Iterator<Item = (&'a ShortStateKey, &'a EventId)> + Clone + Debug + Send + 'a,
 	{
 		let event_ids = state.clone().map(at!(1));
 

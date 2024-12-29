@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
 pub use conduwuit::pdu::{ShortEventId, ShortId, ShortRoomId};
-use conduwuit::{err, implement, utils, utils::stream::ReadyExt, Result};
+use conduwuit::{err, implement, utils, utils::IterStream, Result};
 use database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{events::StateEventType, EventId, RoomId};
@@ -65,16 +65,13 @@ pub fn multi_get_or_create_shorteventid<'a, I>(
 	event_ids: I,
 ) -> impl Stream<Item = ShortEventId> + Send + '_
 where
-	I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
-	<I as Iterator>::Item: AsRef<[u8]> + Send + Sync + 'a,
+	I: Iterator<Item = &'a EventId> + Clone + Debug + Send + 'a,
 {
 	self.db
 		.eventid_shorteventid
 		.get_batch(event_ids.clone())
-		.ready_scan(event_ids, |event_ids, result| {
-			event_ids.next().map(|event_id| (event_id, result))
-		})
-		.map(|(event_id, result)| match result {
+		.zip(event_ids.into_iter().stream())
+		.map(|(result, event_id)| match result {
 			| Ok(ref short) => utils::u64_from_u8(short),
 			| Err(_) => self.create_shorteventid(event_id),
 		})
@@ -90,6 +87,7 @@ fn create_shorteventid(&self, event_id: &EventId) -> ShortEventId {
 	self.db
 		.eventid_shorteventid
 		.raw_aput::<BUFSIZE, _, _>(event_id, short);
+
 	self.db
 		.shorteventid_eventid
 		.aput_raw::<BUFSIZE, _, _>(short, event_id);
