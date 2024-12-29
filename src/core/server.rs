@@ -1,5 +1,8 @@
 use std::{
-	sync::atomic::{AtomicBool, Ordering},
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 	time::SystemTime,
 };
 
@@ -100,6 +103,13 @@ impl Server {
 		}
 
 		Ok(())
+	}
+
+	#[inline]
+	pub async fn until_shutdown(self: Arc<Self>) {
+		while self.running() {
+			self.signal.subscribe().recv().await.ok();
+		}
 	}
 
 	#[inline]
