@@ -141,7 +141,7 @@ async fn create_join_event(
 	if let Some(authorising_user) = content.join_authorized_via_users_server {
 		use ruma::RoomVersionId::*;
 
-		if !matches!(room_version_id, V1 | V2 | V3 | V4 | V5 | V6 | V7) {
+		if matches!(room_version_id, V1 | V2 | V3 | V4 | V5 | V6 | V7) {
 			return Err!(Request(InvalidParam(
 				"Room version {room_version_id} does not support restricted rooms but \
 				 join_authorised_via_users_server ({authorising_user}) was found in the event."
