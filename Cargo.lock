@@ -937,8 +937,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 [[package]]
 name = "core_affinity"
 version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "622892f5635ce1fc38c8f16dfc938553ed64af482edb5e150bf4caedbfcb2304"
+source = "git+https://github.com/jevolk/core_affinity_rs?rev=9c8e51510c35077df888ee72a36b4b05637147da#9c8e51510c35077df888ee72a36b4b05637147da"
 dependencies = [
  "libc",
  "num_cpus",

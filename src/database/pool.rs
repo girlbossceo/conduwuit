@@ -13,7 +13,7 @@ use conduwuit::{
 	debug, debug_warn, defer, err, implement,
 	result::DebugInspect,
 	trace,
-	utils::sys::compute::{get_affinity, get_core_available, set_affinity},
+	utils::sys::compute::{get_affinity, nth_core_available, set_affinity},
 	Result, Server,
 };
 use futures::{channel::oneshot, TryFutureExt};
@@ -270,7 +270,7 @@ fn worker_init(&self, id: usize) {
 		.enumerate()
 		.filter(|_| self.queues.len() > 1)
 		.filter_map(|(core_id, &queue_id)| (group == queue_id).then_some(core_id))
-		.filter_map(get_core_available);
+		.filter_map(nth_core_available);
 
 	// affinity is empty (no-op) if there's only one queue
 	set_affinity(affinity.clone());

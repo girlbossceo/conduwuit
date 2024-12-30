@@ -535,6 +535,10 @@ rev = "96d7e0fc026d8f708b19bc9267a382676a50354c"
 git = "https://github.com/jevolk/async-channel"
 rev = "fefa543ca5eddf21237d75776fce98b7e09e924a"
 
+[patch.crates-io.core_affinity]
+git = "https://github.com/jevolk/core_affinity_rs"
+rev = "9c8e51510c35077df888ee72a36b4b05637147da"
+
 #
 # Our crates
 #

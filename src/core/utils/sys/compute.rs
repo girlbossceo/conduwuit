@@ -1,6 +1,6 @@
 //! System utilities related to compute/processing
 
-use std::{cell::Cell, sync::LazyLock};
+use std::{cell::Cell, fmt::Debug, sync::LazyLock};
 
 use crate::is_equal_to;
 
@@ -22,17 +22,34 @@ thread_local! {
 
 /// Set the core affinity for this thread. The ID should be listed in
 /// CORES_AVAILABLE. Empty input is a no-op; prior affinity unchanged.
-pub fn set_affinity<I>(ids: I)
+#[tracing::instrument(
+	level = "debug",
+	skip_all,
+	fields(
+		id = ?std::thread::current().id(),
+		name = %std::thread::current().name().unwrap_or("None"),
+		set = ?ids.by_ref().collect::<Vec<_>>(),
+		CURRENT = %format!("[b{:b}]", CORE_AFFINITY.get()),
+		AVAILABLE = %format!("[b{:b}]", *CORES_AVAILABLE),
+	),
+)]
+pub fn set_affinity<I>(mut ids: I)
 where
-	I: Iterator<Item = usize>,
+	I: Iterator<Item = usize> + Clone + Debug,
 {
-	use core_affinity::{set_for_current, CoreId};
+	use core_affinity::{set_each_for_current, set_for_current, CoreId};
 
-	let mask: u128 = ids.fold(0, |mask, id| {
+	let n = ids.clone().count();
+	let mask: u128 = ids.clone().fold(0, |mask, id| {
 		debug_assert!(is_core_available(id), "setting affinity to unavailable core");
-		set_for_current(CoreId { id });
 		mask | (1 << id)
 	});
+
+	if n > 1 {
+		set_each_for_current(ids.map(|id| CoreId { id }));
+	} else if n > 0 {
+		set_for_current(CoreId { id: ids.next().expect("n > 0") });
+	}
 
 	if mask.count_ones() > 0 {
 		CORE_AFFINITY.replace(mask);
@@ -40,15 +57,13 @@ where
 }
 
 /// Get the core affinity for this thread.
-pub fn get_affinity() -> impl Iterator<Item = usize> {
-	(0..128).filter(|&i| ((CORE_AFFINITY.get() & (1 << i)) != 0))
-}
+pub fn get_affinity() -> impl Iterator<Item = usize> { iter_bits(CORE_AFFINITY.get()) }
 
 /// Gets the ID of the nth core available. This bijects our sequence of cores to
 /// actual ID's which may have gaps for cores which are not available.
 #[inline]
 #[must_use]
-pub fn get_core_available(i: usize) -> Option<usize> { cores_available().nth(i) }
+pub fn nth_core_available(i: usize) -> Option<usize> { cores_available().nth(i) }
 
 /// Determine if core (by id) is available to the process.
 #[inline]
@@ -57,9 +72,7 @@ pub fn is_core_available(id: usize) -> bool { cores_available().any(is_equal_to!
 
 /// Get the list of cores available. The values were recorded at program start.
 #[inline]
-pub fn cores_available() -> impl Iterator<Item = usize> {
-	(0..128).filter(|&i| ((*CORES_AVAILABLE & (1 << i)) != 0))
-}
+pub fn cores_available() -> impl Iterator<Item = usize> { iter_bits(*CORES_AVAILABLE) }
 
 /// Get the number of threads which could execute in parallel based on the
 /// hardware and administrative constraints of this system. This value should be
@@ -71,4 +84,8 @@ pub fn parallelism() -> usize {
 	std::thread::available_parallelism()
 		.expect("Unable to query for available parallelism.")
 		.get()
+}
+
+fn iter_bits(v: u128) -> impl Iterator<Item = usize> {
+	(0..128).filter(move |&i| (v & (1 << i)) != 0)
 }

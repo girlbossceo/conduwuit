@@ -9,7 +9,7 @@ use std::{
 };
 
 use conduwuit::{
-	utils::sys::compute::{get_core_available, set_affinity},
+	utils::sys::compute::{nth_core_available, set_affinity},
 	Result,
 };
 use tokio::runtime::Builder;
@@ -100,7 +100,7 @@ fn set_worker_affinity() {
 		return;
 	}
 
-	let Some(id) = get_core_available(i) else {
+	let Some(id) = nth_core_available(i) else {
 		return;
 	};
 
