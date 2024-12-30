@@ -5,7 +5,7 @@ use std::{
 };
 
 use conduwuit::{
-	debug, debug_error, implement, info, pdu, trace,
+	debug, debug_error, debug_warn, implement, pdu, trace,
 	utils::math::continue_exponential_backoff_secs, warn, PduEvent,
 };
 use futures::TryFutureExt;
@@ -83,7 +83,11 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 					time.elapsed(),
 					*tries,
 				) {
-					info!("Backing off from {next_id}");
+					debug_warn!(
+						tried = ?*tries,
+						elapsed = ?time.elapsed(),
+						"Backing off from {next_id}",
+					);
 					continue;
 				}
 			}
