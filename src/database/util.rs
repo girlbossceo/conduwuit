@@ -1,4 +1,4 @@
-use conduwuit::{err, Result};
+use conduwuit::Result;
 use rocksdb::{Direction, ErrorKind, IteratorMode};
 
 //#[cfg(debug_assertions)]
@@ -51,6 +51,28 @@ pub(crate) fn or_else<T>(e: rocksdb::Error) -> Result<T, conduwuit::Error> { Err
 pub(crate) fn is_incomplete(e: &rocksdb::Error) -> bool { e.kind() == ErrorKind::Incomplete }
 
 pub(crate) fn map_err(e: rocksdb::Error) -> conduwuit::Error {
+	let kind = io_error_kind(&e.kind());
 	let string = e.into_string();
-	err!(Database(error!("{string}")))
+
+	std::io::Error::new(kind, string).into()
+}
+
+fn io_error_kind(e: &ErrorKind) -> std::io::ErrorKind {
+	use std::io;
+
+	match e {
+		| ErrorKind::NotFound => io::ErrorKind::NotFound,
+		| ErrorKind::Corruption => io::ErrorKind::InvalidData,
+		| ErrorKind::InvalidArgument => io::ErrorKind::InvalidInput,
+		| ErrorKind::Aborted => io::ErrorKind::Interrupted,
+		| ErrorKind::NotSupported => io::ErrorKind::Unsupported,
+		| ErrorKind::CompactionTooLarge => io::ErrorKind::FileTooLarge,
+		| ErrorKind::MergeInProgress | ErrorKind::Busy => io::ErrorKind::ResourceBusy,
+		| ErrorKind::Expired | ErrorKind::TimedOut => io::ErrorKind::TimedOut,
+		| ErrorKind::Incomplete | ErrorKind::TryAgain => io::ErrorKind::WouldBlock,
+		| ErrorKind::ColumnFamilyDropped
+		| ErrorKind::ShutdownInProgress
+		| ErrorKind::IOError
+		| ErrorKind::Unknown => io::ErrorKind::Other,
+	}
 }

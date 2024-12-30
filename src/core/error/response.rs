@@ -95,3 +95,17 @@ pub(super) fn ruma_error_message(error: &ruma::api::client::error::Error) -> Str
 pub(super) fn ruma_error_kind(e: &ruma::api::client::error::Error) -> &ErrorKind {
 	e.error_kind().unwrap_or(&ErrorKind::Unknown)
 }
+
+pub(super) fn io_error_code(kind: std::io::ErrorKind) -> StatusCode {
+	use std::io::ErrorKind;
+
+	match kind {
+		| ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
+		| ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
+		| ErrorKind::NotFound => StatusCode::NOT_FOUND,
+		| ErrorKind::TimedOut => StatusCode::GATEWAY_TIMEOUT,
+		| ErrorKind::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+		| ErrorKind::StorageFull => StatusCode::INSUFFICIENT_STORAGE,
+		| _ => StatusCode::INTERNAL_SERVER_ERROR,
+	}
+}
