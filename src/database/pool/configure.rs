@@ -1,9 +1,10 @@
-use std::{ffi::OsStr, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use conduwuit::{
 	debug, debug_info, expected,
 	utils::{
 		math::usize_from_f64,
+		result::LogDebugErr,
 		stream,
 		stream::WIDTH_LIMIT,
 		sys::{compute::is_core_available, storage},
@@ -20,8 +21,12 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
 	// This finds the block device and gathers all the properties we need.
 	let (device_name, device_prop) = config
 		.db_pool_affinity
-		.and_then(|| storage::name_from_path(&config.database_path))
-		.map(|device_name| (device_name.clone(), storage::parallelism(&device_name)))
+		.and_then(|| {
+			let path: PathBuf = config.database_path.clone();
+			let name = storage::name_from_path(&path).log_debug_err().ok();
+			let prop = storage::parallelism(&path);
+			name.map(|name| (name, prop))
+		})
 		.unzip();
 
 	// The default worker count is masked-on if we didn't find better information.
@@ -104,7 +109,6 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
 	debug_info!(
 		device_name = ?device_name
 			.as_deref()
-			.and_then(OsStr::to_str)
 			.unwrap_or("None"),
 		?worker_counts,
 		?queue_sizes,

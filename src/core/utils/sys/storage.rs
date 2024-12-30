@@ -1,14 +1,20 @@
 //! System utilities related to devices/peripherals
 
 use std::{
-	ffi::{OsStr, OsString},
+	ffi::OsStr,
 	fs,
 	fs::{read_to_string, FileType},
 	iter::IntoIterator,
-	path::Path,
+	path::{Path, PathBuf},
 };
 
-use crate::{result::FlatOk, Result};
+use libc::dev_t;
+
+use crate::{
+	result::FlatOk,
+	utils::{result::LogDebugErr, string::SplitInfallible},
+	Result,
+};
 
 /// Device characteristics useful for random access throughput
 #[derive(Clone, Debug, Default)]
@@ -35,16 +41,12 @@ pub struct Queue {
 
 /// Get device characteristics useful for random access throughput by name.
 #[must_use]
-pub fn parallelism(name: &OsStr) -> Parallelism {
-	let name = name
-		.to_str()
-		.expect("device name expected to be utf-8 representable");
+pub fn parallelism(path: &Path) -> Parallelism {
+	let dev_id = dev_from_path(path).log_debug_err().unwrap_or_default();
 
-	let block_path = Path::new("/").join("sys/").join("block/");
+	let mq_path = block_path(dev_id).join("mq/");
 
-	let mq_path = Path::new(&block_path).join(format!("{name}/mq/"));
-
-	let nr_requests_path = Path::new(&block_path).join(format!("{name}/queue/nr_requests"));
+	let nr_requests_path = block_path(dev_id).join("queue/nr_requests");
 
 	Parallelism {
 		nr_requests: read_to_string(&nr_requests_path)
@@ -96,17 +98,39 @@ fn queue_parallelism(dir: &Path) -> Queue {
 	}
 }
 
-/// Get the name of the device on which Path is mounted.
-#[must_use]
-pub fn name_from_path(path: &Path) -> Option<OsString> {
-	sysinfo::Disks::new_with_refreshed_list()
-		.into_iter()
-		.filter(|disk| path.starts_with(disk.mount_point()))
-		.max_by(|a, b| {
-			let a = a.mount_point().ancestors().count();
-			let b = b.mount_point().ancestors().count();
-			a.cmp(&b)
-		})
-		.map(|disk| Path::new(disk.name()))
-		.and_then(|path| path.file_name().map(ToOwned::to_owned))
+/// Get the name of the block device on which Path is mounted.
+pub fn name_from_path(path: &Path) -> Result<String> {
+	use std::io::{Error, ErrorKind::NotFound};
+
+	let (major, minor) = dev_from_path(path)?;
+	let path = block_path((major, minor)).join("uevent");
+	read_to_string(path)
+		.iter()
+		.map(String::as_str)
+		.flat_map(str::lines)
+		.map(|line| line.split_once_infallible("="))
+		.find_map(|(key, val)| (key == "DEVNAME").then_some(val))
+		.ok_or_else(|| Error::new(NotFound, "DEVNAME not found."))
+		.map_err(Into::into)
+		.map(Into::into)
+}
+
+/// Get the (major, minor) of the block device on which Path is mounted.
+#[allow(clippy::useless_conversion, clippy::unnecessary_fallible_conversions)]
+pub fn dev_from_path(path: &Path) -> Result<(dev_t, dev_t)> {
+	#[cfg(target_family = "unix")]
+	use std::os::unix::fs::MetadataExt;
+
+	let stat = fs::metadata(path)?;
+	let dev_id = stat.dev().try_into()?;
+
+	// SAFETY: These functions may not need to be marked as unsafe.
+	// see: https://github.com/rust-lang/libc/issues/3759
+	let (major, minor) = unsafe { (libc::major(dev_id), libc::minor(dev_id)) };
+
+	Ok((major.try_into()?, minor.try_into()?))
+}
+
+fn block_path((major, minor): (dev_t, dev_t)) -> PathBuf {
+	format!("/sys/dev/block/{major}:{minor}/").into()
 }
