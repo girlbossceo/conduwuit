@@ -4,12 +4,12 @@ use either::Either;
 use figment::Figment;
 
 use super::DEPRECATED_KEYS;
-use crate::{debug, debug_info, error, info, warn, Config, Err, Result};
+use crate::{debug, debug_info, debug_warn, error, warn, Config, Err, Result};
 
 #[allow(clippy::cognitive_complexity)]
 pub fn check(config: &Config) -> Result<()> {
 	if cfg!(debug_assertions) {
-		info!("Note: conduwuit was built without optimisations (i.e. debug build)");
+		warn!("Note: conduwuit was built without optimisations (i.e. debug build)");
 	}
 
 	warn_deprecated(config);
@@ -23,7 +23,7 @@ pub fn check(config: &Config) -> Result<()> {
 	}
 
 	if cfg!(all(feature = "hardened_malloc", feature = "jemalloc")) {
-		info!(
+		debug_warn!(
 			"hardened_malloc and jemalloc compile-time features are both enabled, this causes \
 			 jemalloc to be used."
 		);
