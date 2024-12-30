@@ -55,14 +55,6 @@ brotli_compression = [
 console = [
 	"conduwuit-service/console",
 ]
-#dev_release_log_level = [
-#	"conduwuit-admin/dev_release_log_level",
-#	"conduwuit-api/dev_release_log_level",
-#	"conduwuit-core/dev_release_log_level",
-#	"conduwuit-database/dev_release_log_level",
-#	"conduwuit-router/dev_release_log_level",
-#	"conduwuit-service/dev_release_log_level",
-#]
 direct_tls = [
     "conduwuit-router/direct_tls"
 ]

@@ -18,7 +18,6 @@ crate-type = [
 
 [features]
 element_hacks = []
-#dev_release_log_level = []
 release_max_log_level = [
 	"tracing/max_level_trace",
 	"tracing/release_max_level_info",

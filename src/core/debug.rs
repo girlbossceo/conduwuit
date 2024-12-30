@@ -10,9 +10,6 @@ pub use crate::{result::DebugInspect, utils::debug::*};
 
 /// Log event at given level in debug-mode (when debug-assertions are enabled).
 /// In release-mode it becomes DEBUG level, and possibly subject to elision.
-///
-/// Release-mode can be simulated in debug-mode builds by enabling the feature
-/// 'dev_release_log_level'.
 #[macro_export]
 macro_rules! debug_event {
 	( $level:expr, $($x:tt)+ ) => {
@@ -98,6 +95,4 @@ pub fn type_name<T: ?Sized>() -> &'static str { std::any::type_name::<T>() }
 
 #[must_use]
 #[inline]
-pub const fn logging() -> bool {
-	cfg!(debug_assertions) && cfg!(not(feature = "dev_release_log_level"))
-}
+pub const fn logging() -> bool { cfg!(debug_assertions) }

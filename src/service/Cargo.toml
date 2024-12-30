@@ -24,7 +24,6 @@ console = [
 	"dep:rustyline-async",
 	"dep:termimad",
 ]
-#dev_release_log_level = []
 element_hacks = []
 gzip_compression = [
 	"reqwest/gzip",
