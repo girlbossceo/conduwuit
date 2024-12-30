@@ -17,7 +17,7 @@ pub use crate::{result::DebugInspect, utils::debug::*};
 macro_rules! debug_event {
 	( $level:expr, $($x:tt)+ ) => {
 		if $crate::debug::logging() {
-			::tracing::event!( $level, $($x)+ )
+			::tracing::event!( $level, _debug = true, $($x)+ )
 		} else {
 			::tracing::debug!( $($x)+ )
 		}

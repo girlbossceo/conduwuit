@@ -3,11 +3,11 @@ use std::sync::Arc;
 use conduwuit::{
 	config::Config,
 	debug_warn, err,
-	log::{capture, fmt_span, LogLevelReloadHandles},
+	log::{capture, fmt_span, ConsoleFormat, LogLevelReloadHandles},
 	result::UnwrapOrErr,
 	Result,
 };
-use tracing_subscriber::{layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
+use tracing_subscriber::{fmt, layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
 
 #[cfg(feature = "perf_measurements")]
 pub(crate) type TracingFlameGuard =
@@ -26,10 +26,12 @@ pub(crate) fn init(
 		.with_regex(config.log_filter_regex)
 		.parse(&config.log)
 		.map_err(|e| err!(Config("log", "{e}.")))?;
-	let console_layer = tracing_subscriber::fmt::Layer::new()
-		.with_ansi(config.log_colors)
+	let console_layer = fmt::Layer::new()
 		.with_span_events(console_span_events)
-		.with_thread_ids(config.log_thread_ids);
+		.event_format(ConsoleFormat::new(config))
+		.fmt_fields(ConsoleFormat::new(config))
+		.map_writer(|w| w);
+
 	let (console_reload_filter, console_reload_handle) =
 		reload::Layer::new(console_filter.clone());
 	reload_handles.add("console", Box::new(console_reload_handle));

@@ -2,12 +2,14 @@
 
 pub mod capture;
 pub mod color;
+mod console;
 pub mod fmt;
 pub mod fmt_span;
 mod reload;
 mod suppress;
 
 pub use capture::Capture;
+pub use console::ConsoleFormat;
 pub use reload::{LogLevelReloadHandles, ReloadHandle};
 pub use suppress::Suppress;
 pub use tracing::Level;
