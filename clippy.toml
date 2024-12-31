@@ -15,5 +15,5 @@ disallowed-macros = [
 ]
 
 disallowed-methods = [
-    { path = "tokio::spawn", reason = "use and pass conduuwit_core::server::Server::runtime() to spawn from"},
+    { path = "tokio::spawn", reason = "use and pass conduuwit_core::server::Server::runtime() to spawn from" },
 ]

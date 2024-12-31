@@ -28,7 +28,7 @@ pub use self::check::check;
 use self::proxy::ProxyConfig;
 use crate::{err, error::Error, utils::sys, Result};
 
-/// all the config options for conduwuit
+/// All the config options for conduwuit.
 #[allow(clippy::struct_excessive_bools)]
 #[allow(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
 #[derive(Clone, Debug, Deserialize)]
@@ -36,19 +36,32 @@ use crate::{err, error::Error, utils::sys, Result};
 	filename = "conduwuit-example.toml",
 	section = "global",
 	undocumented = "# This item is undocumented. Please contribute documentation for it.",
-	header = "### conduwuit Configuration\n###\n### THIS FILE IS GENERATED. CHANGES/CONTRIBUTIONS IN THE REPO WILL\n### BE \
-	          OVERWRITTEN!\n###\n### You should rename this file before configuring your server. Changes\n### to \
-	          documentation and defaults can be contributed in source code at\n### src/core/config/mod.rs. This file \
-	          is generated when building.\n###\n### Any values pre-populated are the default values for said config \
-	          option.\n###\n### At the minimum, you MUST edit all the config options to your environment\n### that say \
-	          \"YOU NEED TO EDIT THIS\".\n### See https://conduwuit.puppyirl.gay/configuration.html for ways to\n### configure conduwuit\n",
+	header = r#"### conduwuit Configuration
+###
+### THIS FILE IS GENERATED. CHANGES/CONTRIBUTIONS IN THE REPO WILL BE
+### OVERWRITTEN!
+###
+### You should rename this file before configuring your server. Changes to
+### documentation and defaults can be contributed in source code at
+### src/core/config/mod.rs. This file is generated when building.
+###
+### Any values pre-populated are the default values for said config option.
+###
+### At the minimum, you MUST edit all the config options to your environment
+### that say "YOU NEED TO EDIT THIS".
+###
+### For more information, see:
+### https://conduwuit.puppyirl.gay/configuration.html
+"#,
 	ignore = "catchall well_known tls"
 )]
 pub struct Config {
 	/// The server_name is the pretty name of this server. It is used as a
 	/// suffix for user and room IDs/aliases.
 	///
-	/// See the docs for reverse proxying and delegation: https://conduwuit.puppyirl.gay/deploying/generic.html#setting-up-the-reverse-proxy
+	/// See the docs for reverse proxying and delegation:
+	/// https://conduwuit.puppyirl.gay/deploying/generic.html#setting-up-the-reverse-proxy
+	///
 	/// Also see the `[global.well_known]` config section at the very bottom.
 	///
 	/// Examples of delegation:
@@ -61,7 +74,7 @@ pub struct Config {
 	/// example: "conduwuit.woof"
 	pub server_name: OwnedServerName,
 
-	/// default address (IPv4 or IPv6) conduwuit will listen on.
+	/// The default address (IPv4 or IPv6) conduwuit will listen on.
 	///
 	/// If you are using Docker or a container NAT networking setup, this must
 	/// be "0.0.0.0".
@@ -73,12 +86,13 @@ pub struct Config {
 	#[serde(default = "default_address")]
 	address: ListeningAddr,
 
-	/// The port(s) conduwuit will be running on.
+	/// The port(s) conduwuit will listen on.
 	///
-	/// See https://conduwuit.puppyirl.gay/deploying/generic.html#setting-up-the-reverse-proxy for reverse proxying.
+	/// For reverse proxying, see:
+	/// https://conduwuit.puppyirl.gay/deploying/generic.html#setting-up-the-reverse-proxy
 	///
-	/// Docker users: Don't change this, you'll need to map an external port to
-	/// this.
+	/// If you are using Docker, don't change this, you'll need to map an
+	/// external port to this.
 	///
 	/// To listen on multiple ports, specify a vector e.g. [8080, 8448]
 	///
@@ -90,11 +104,14 @@ pub struct Config {
 	#[serde(default)]
 	pub tls: TlsConfig,
 
-	/// Uncomment unix_socket_path to listen on a UNIX socket at the specified
-	/// path. If listening on a UNIX socket, you MUST remove/comment the
-	/// 'address' key if definedm AND add your reverse proxy to the 'conduwuit'
-	/// group, unless world RW permissions are specified with unix_socket_perms
-	/// (666 minimum).
+	/// The UNIX socket conduwuit will listen on.
+	///
+	/// conduwuit cannot listen on both an IP address and a UNIX socket. If
+	/// listening on a UNIX socket, you MUST remove/comment the `address` key.
+	///
+	/// Remember to make sure that your reverse proxy has access to this socket
+	/// file, either by adding your reverse proxy to the 'conduwuit' group or
+	/// granting world R/W permissions with `unix_socket_perms` (666 minimum).
 	///
 	/// example: "/run/conduwuit/conduwuit.sock"
 	pub unix_socket_path: Option<PathBuf>,
@@ -106,8 +123,7 @@ pub struct Config {
 	pub unix_socket_perms: u32,
 
 	/// This is the only directory where conduwuit will save its data, including
-	/// media.
-	/// Note: this was previously "/var/lib/matrix-conduit"
+	/// media. Note: this was previously "/var/lib/matrix-conduit".
 	///
 	/// YOU NEED TO EDIT THIS.
 	///
@@ -118,7 +134,8 @@ pub struct Config {
 	/// API. To use this, set a database backup path that conduwuit can write
 	/// to.
 	///
-	/// See https://conduwuit.puppyirl.gay/maintenance.html#backups for more information.
+	/// For more information, see:
+	/// https://conduwuit.puppyirl.gay/maintenance.html#backups
 	///
 	/// example: "/opt/conduwuit-db-backups"
 	pub database_backup_path: Option<PathBuf>,
@@ -140,16 +157,17 @@ pub struct Config {
 	/// Similar to the individual LRU caches, this is scaled up with your CPU
 	/// core count.
 	///
-	/// This defaults to 128.0 + (64.0 * CPU core count)
+	/// This defaults to 128.0 + (64.0 * CPU core count).
 	///
 	/// default: varies by system
 	#[serde(default = "default_db_cache_capacity_mb")]
 	pub db_cache_capacity_mb: f64,
 
-	/// Option to control adding arbitrary text to the end of the user's
-	/// displayname upon registration with a space before the text. This was the
-	/// lightning bolt emoji option, just replaced with support for adding your
-	/// own custom text or emojis. To disable, set this to "" (an empty string).
+	/// Text which will be added to the end of the user's displayname upon
+	/// registration with a space before the text. In Conduit, this was the
+	/// lightning bolt emoji.
+	///
+	/// To disable, set this to "" (an empty string).
 	///
 	/// The default is the trans pride flag.
 	///
@@ -237,8 +255,8 @@ pub struct Config {
 
 	/// Maximum entries stored in DNS memory-cache. The size of an entry may
 	/// vary so please take care if raising this value excessively. Only
-	/// decrease this when using an external DNS cache. Please note
-	/// that systemd-resolved does *not* count as an external cache, even when
+	/// decrease this when using an external DNS cache. Please note that
+	/// systemd-resolved does *not* count as an external cache, even when
 	/// configured to do so.
 	///
 	/// default: 32768
@@ -257,8 +275,8 @@ pub struct Config {
 
 	/// Minimum time-to-live in seconds for NXDOMAIN entries in the DNS cache.
 	/// This value is critical for the server to federate efficiently.
-	/// NXDOMAIN's are assumed to not be returning to the federation
-	/// and aggressively cached rather than constantly rechecked.
+	/// NXDOMAIN's are assumed to not be returning to the federation and
+	/// aggressively cached rather than constantly rechecked.
 	///
 	/// Defaults to 3 days as these are *very rarely* false negatives.
 	///
@@ -293,10 +311,12 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub query_all_nameservers: bool,
 
-	/// Enables using *only* TCP for querying your specified nameservers instead
+	/// Enable using *only* TCP for querying your specified nameservers instead
 	/// of UDP.
 	///
-	/// If you are running conduwuit in a container environment, this config option may need to be enabled. See https://conduwuit.puppyirl.gay/troubleshooting.html#potential-dns-issues-when-using-docker for more details.
+	/// If you are running conduwuit in a container environment, this config
+	/// option may need to be enabled. For more details, see:
+	/// https://conduwuit.puppyirl.gay/troubleshooting.html#potential-dns-issues-when-using-docker
 	#[serde(default)]
 	pub query_over_tcp_only: bool,
 
@@ -352,8 +372,8 @@ pub struct Config {
 
 	/// Default/base request total timeout (seconds). The time limit for a whole
 	/// request. This is set very high to not cancel healthy requests while
-	/// serving as a backstop. This is used only by URL previews and
-	/// update/news endpoint checks.
+	/// serving as a backstop. This is used only by URL previews and update/news
+	/// endpoint checks.
 	///
 	/// default: 320
 	#[serde(default = "default_request_total_timeout")]
@@ -374,13 +394,13 @@ pub struct Config {
 	#[serde(default = "default_request_idle_per_host")]
 	pub request_idle_per_host: u16,
 
-	/// Federation well-known resolution connection timeout (seconds)
+	/// Federation well-known resolution connection timeout (seconds).
 	///
 	/// default: 6
 	#[serde(default = "default_well_known_conn_timeout")]
 	pub well_known_conn_timeout: u64,
 
-	/// Federation HTTP well-known resolution request timeout (seconds)
+	/// Federation HTTP well-known resolution request timeout (seconds).
 	///
 	/// default: 10
 	#[serde(default = "default_well_known_timeout")]
@@ -394,14 +414,14 @@ pub struct Config {
 	#[serde(default = "default_federation_timeout")]
 	pub federation_timeout: u64,
 
-	/// Federation client idle connection pool timeout (seconds)
+	/// Federation client idle connection pool timeout (seconds).
 	///
 	/// default: 25
 	#[serde(default = "default_federation_idle_timeout")]
 	pub federation_idle_timeout: u64,
 
 	/// Federation client max idle connections per host. Defaults to 1 as
-	/// generally the same open connection can be re-used
+	/// generally the same open connection can be re-used.
 	///
 	/// default: 1
 	#[serde(default = "default_federation_idle_per_host")]
@@ -414,13 +434,13 @@ pub struct Config {
 	#[serde(default = "default_sender_timeout")]
 	pub sender_timeout: u64,
 
-	/// Federation sender idle connection pool timeout (seconds)
+	/// Federation sender idle connection pool timeout (seconds).
 	///
 	/// default: 180
 	#[serde(default = "default_sender_idle_timeout")]
 	pub sender_idle_timeout: u64,
 
-	/// Federation sender transaction retry backoff limit (seconds)
+	/// Federation sender transaction retry backoff limit (seconds).
 	///
 	/// default: 86400
 	#[serde(default = "default_sender_retry_backoff_limit")]
@@ -433,13 +453,13 @@ pub struct Config {
 	#[serde(default = "default_appservice_timeout")]
 	pub appservice_timeout: u64,
 
-	/// Appservice URL idle connection pool timeout (seconds)
+	/// Appservice URL idle connection pool timeout (seconds).
 	///
 	/// default: 300
 	#[serde(default = "default_appservice_idle_timeout")]
 	pub appservice_idle_timeout: u64,
 
-	/// Notification gateway pusher idle connection pool timeout
+	/// Notification gateway pusher idle connection pool timeout.
 	///
 	/// default: 15
 	#[serde(default = "default_pusher_idle_timeout")]
@@ -449,9 +469,8 @@ pub struct Config {
 	/// server.
 	///
 	/// If set to true without a token configured, users can register with no
-	/// form of 2nd-step only if you set
-	/// `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse` to
-	/// true in your config.
+	/// form of 2nd-step only if you set the following option to true:
+	/// `yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse`
 	///
 	/// If you would like registration only via token reg, please configure
 	/// `registration_token` or `registration_token_file`.
@@ -501,8 +520,8 @@ pub struct Config {
 	/// Set this to true to allow your server's public room directory to be
 	/// federated. Set this to false to protect against /publicRooms spiders,
 	/// but will forbid external users from viewing your server's public room
-	/// directory. If federation is disabled entirely (`allow_federation`),
-	/// this is inherently false.
+	/// directory. If federation is disabled entirely (`allow_federation`), this
+	/// is inherently false.
 	#[serde(default)]
 	pub allow_public_room_directory_over_federation: bool,
 
@@ -512,10 +531,10 @@ pub struct Config {
 	#[serde(default)]
 	pub allow_public_room_directory_without_auth: bool,
 
-	/// allow guests/unauthenticated users to access TURN credentials
+	/// Allow guests/unauthenticated users to access TURN credentials.
 	///
-	/// this is the equivalent of Synapse's `turn_allow_guests` config option.
-	/// this allows any unauthenticated user to call the endpoint
+	/// This is the equivalent of Synapse's `turn_allow_guests` config option.
+	/// This allows any unauthenticated user to call the endpoint
 	/// `/_matrix/client/v3/voip/turnServer`.
 	///
 	/// It is unlikely you need to enable this as all major clients support
@@ -550,24 +569,24 @@ pub struct Config {
 	#[serde(default = "true_fn", alias = "allow_profile_lookup_federation_requests")]
 	pub allow_inbound_profile_lookup_federation_requests: bool,
 
-	/// controls whether standard users are allowed to create rooms. appservices
-	/// and admins are always allowed to create rooms
+	/// Allow standard users to create rooms. Appservices and admins are always
+	/// allowed to create rooms
 	#[serde(default = "true_fn")]
 	pub allow_room_creation: bool,
 
 	/// Set to false to disable users from joining or creating room versions
-	/// that aren't 100% officially supported by conduwuit.
+	/// that aren't officially supported by conduwuit.
 	///
 	/// conduwuit officially supports room versions 6 - 11.
 	///
 	/// conduwuit has slightly experimental (though works fine in practice)
-	/// support for versions 3 - 5
+	/// support for versions 3 - 5.
 	#[serde(default = "true_fn")]
 	pub allow_unstable_room_versions: bool,
 
-	/// default room version conduwuit will create rooms with.
+	/// Default room version conduwuit will create rooms with.
 	///
-	/// per spec, room version 10 is the default.
+	/// Per spec, room version 10 is the default.
 	///
 	/// default: 10
 	#[serde(default = "default_default_room_version")]
@@ -603,22 +622,28 @@ pub struct Config {
 	pub tracing_flame_output_path: String,
 
 	/// Examples:
+	///
 	/// - No proxy (default):
-	/// proxy ="none"
+	///
+	///       proxy = "none"
 	///
 	/// - For global proxy, create the section at the bottom of this file:
-	/// [global.proxy]
-	/// global = { url = "socks5h://localhost:9050" }
+	///
+	///       [global.proxy]
+	///       global = { url = "socks5h://localhost:9050" }
 	///
 	/// - To proxy some domains:
-	/// [global.proxy]
-	/// [[global.proxy.by_domain]]
-	/// url = "socks5h://localhost:9050"
-	/// include = ["*.onion", "matrix.myspecial.onion"]
-	/// exclude = ["*.myspecial.onion"]
+	///
+	///       [global.proxy]
+	///       [[global.proxy.by_domain]]
+	///       url = "socks5h://localhost:9050"
+	///       include = ["*.onion", "matrix.myspecial.onion"]
+	///       exclude = ["*.myspecial.onion"]
 	///
 	/// Include vs. Exclude:
+	///
 	/// - If include is an empty list, it is assumed to be `["*"]`.
+	///
 	/// - If a domain matches both the exclude and include list, the proxy will
 	///   only be used if it was included because of a more specific rule than
 	///   it was excluded. In the above example, the proxy would be used for
@@ -635,7 +660,7 @@ pub struct Config {
 	/// (notary trusted key servers).
 	///
 	/// Currently, conduwuit doesn't support inbound batched key requests, so
-	/// this list should only contain other Synapse servers
+	/// this list should only contain other Synapse servers.
 	///
 	/// example: ["matrix.org", "envs.net", "constellatory.net", "tchncs.de"]
 	///
@@ -658,10 +683,10 @@ pub struct Config {
 	/// compromised trusted server to room joins only. The join operation
 	/// requires gathering keys from many origin servers which can cause
 	/// significant delays. Therefor this defaults to true to mitigate
-	/// unexpected delays out-of-the-box. The security-paranoid or those
-	/// willing to tolerate delays are advised to set this to false. Note that
-	/// setting query_trusted_key_servers_first to true causes this option to
-	/// be ignored.
+	/// unexpected delays out-of-the-box. The security-paranoid or those willing
+	/// to tolerate delays are advised to set this to false. Note that setting
+	/// query_trusted_key_servers_first to true causes this option to be
+	/// ignored.
 	#[serde(default = "true_fn")]
 	pub query_trusted_key_servers_first_on_join: bool,
 
@@ -679,8 +704,10 @@ pub struct Config {
 	#[serde(default = "default_trusted_server_batch_size")]
 	pub trusted_server_batch_size: usize,
 
-	/// max log level for conduwuit. allows debug, info, warn, or error
-	/// see also: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
+	/// Max log level for conduwuit. Allows debug, info, warn, or error.
+	///
+	/// See also:
+	/// https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
 	///
 	/// **Caveat**:
 	/// For release builds, the tracing crate is configured to only implement
@@ -692,56 +719,56 @@ pub struct Config {
 	#[serde(default = "default_log")]
 	pub log: String,
 
-	/// controls whether logs will be outputted with ANSI colours
+	/// Output logs with ANSI colours.
 	#[serde(default = "true_fn", alias = "log_colours")]
 	pub log_colors: bool,
 
-	/// configures the span events which will be outputted with the log
+	/// Configures the span events which will be outputted with the log.
 	///
 	/// default: "none"
 	#[serde(default = "default_log_span_events")]
 	pub log_span_events: String,
 
-	/// configures whether CONDUWUIT_LOG EnvFilter matches values using regular
+	/// Configures whether CONDUWUIT_LOG EnvFilter matches values using regular
 	/// expressions. See the tracing_subscriber documentation on Directives.
 	///
 	/// default: true
 	#[serde(default = "true_fn")]
 	pub log_filter_regex: bool,
 
-	/// toggles the display of ThreadId in tracing log output
+	/// Toggles the display of ThreadId in tracing log output.
 	///
 	/// default: false
 	#[serde(default)]
 	pub log_thread_ids: bool,
 
-	/// OpenID token expiration/TTL in seconds
+	/// OpenID token expiration/TTL in seconds.
 	///
 	/// These are the OpenID tokens that are primarily used for Matrix account
 	/// integrations (e.g. Vector Integrations in Element), *not* OIDC/OpenID
-	/// Connect/etc
+	/// Connect/etc.
 	///
 	/// default: 3600
 	#[serde(default = "default_openid_token_ttl")]
 	pub openid_token_ttl: u64,
 
-	/// static TURN username to provide the client if not using a shared secret
+	/// Static TURN username to provide the client if not using a shared secret
 	/// ("turn_secret"), It is recommended to use a shared secret over static
 	/// credentials.
 	#[serde(default)]
 	pub turn_username: String,
 
-	/// static TURN password to provide the client if not using a shared secret
+	/// Static TURN password to provide the client if not using a shared secret
 	/// ("turn_secret"). It is recommended to use a shared secret over static
 	/// credentials.
 	#[serde(default)]
 	pub turn_password: String,
 
-	/// vector list of TURN URIs/servers to use
+	/// Vector list of TURN URIs/servers to use.
 	///
-	/// replace "example.turn.uri" with your TURN domain, such as the coturn
-	/// "realm" config option. if using TURN over TLS, replace the URI prefix
-	/// "turn:" with "turns:"
+	/// Replace "example.turn.uri" with your TURN domain, such as the coturn
+	/// "realm" config option. If using TURN over TLS, replace the URI prefix
+	/// "turn:" with "turns:".
 	///
 	/// example: ["turn:example.turn.uri?transport=udp",
 	/// "turn:example.turn.uri?transport=tcp"]
@@ -751,30 +778,30 @@ pub struct Config {
 	pub turn_uris: Vec<String>,
 
 	/// TURN secret to use for generating the HMAC-SHA1 hash apart of username
-	/// and password generation
+	/// and password generation.
 	///
-	/// this is more secure, but if needed you can use traditional
-	/// static username/password credentials.
+	/// This is more secure, but if needed you can use traditional static
+	/// username/password credentials.
 	#[serde(default)]
 	pub turn_secret: String,
 
-	/// TURN secret to use that's read from the file path specified
+	/// TURN secret to use that's read from the file path specified.
 	///
-	/// this takes priority over "turn_secret" first, and falls back to
+	/// This takes priority over "turn_secret" first, and falls back to
 	/// "turn_secret" if invalid or failed to open.
 	///
 	/// example: "/etc/conduwuit/.turn_secret"
 	pub turn_secret_file: Option<PathBuf>,
 
-	/// TURN TTL in seconds
+	/// TURN TTL, in seconds.
 	///
 	/// default: 86400
 	#[serde(default = "default_turn_ttl")]
 	pub turn_ttl: u64,
 
 	/// List/vector of room IDs or room aliases that conduwuit will make newly
-	/// registered users join. The rooms specified must be rooms that you
-	/// have joined at least once on the server, and must be public.
+	/// registered users join. The rooms specified must be rooms that you have
+	/// joined at least once on the server, and must be public.
 	///
 	/// example: ["#conduwuit:puppygock.gay",
 	/// "!eoIzvAvVwY23LPDay8:puppygock.gay"]
@@ -798,7 +825,7 @@ pub struct Config {
 	/// room invites) are ignored here.
 	///
 	/// Defaults to false as rooms can be banned for non-moderation-related
-	/// reasons and this performs a full user deactivation
+	/// reasons and this performs a full user deactivation.
 	#[serde(default)]
 	pub auto_deactivate_banned_room_attempts: bool,
 
@@ -828,7 +855,7 @@ pub struct Config {
 	pub rocksdb_log_time_to_roll: usize,
 
 	/// Set this to true to use RocksDB config options that are tailored to HDDs
-	/// (slower device storage)
+	/// (slower device storage).
 	///
 	/// It is worth noting that by default, conduwuit will use RocksDB with
 	/// Direct IO enabled. *Generally* speaking this improves performance as it
@@ -841,13 +868,15 @@ pub struct Config {
 	/// feel free to report in the conduwuit Matrix room if this option fixes
 	/// your DB issues.
 	///
-	/// See https://github.com/facebook/rocksdb/wiki/Direct-IO for more information.
+	/// For more information, see:
+	/// https://github.com/facebook/rocksdb/wiki/Direct-IO
 	#[serde(default)]
 	pub rocksdb_optimize_for_spinning_disks: bool,
 
 	/// Enables direct-io to increase database performance via unbuffered I/O.
 	///
-	/// See https://github.com/facebook/rocksdb/wiki/Direct-IO for more details about Direct IO and RocksDB.
+	/// For more details about direct I/O and RockDB, see:
+	/// https://github.com/facebook/rocksdb/wiki/Direct-IO
 	///
 	/// Set this option to false if the database resides on a filesystem which
 	/// does not support direct-io like FUSE, or any form of complex filesystem
@@ -856,8 +885,8 @@ pub struct Config {
 	pub rocksdb_direct_io: bool,
 
 	/// Amount of threads that RocksDB will use for parallelism on database
-	/// operatons such as cleanup, sync, flush, compaction, etc. Set to 0 to use
-	/// all your logical threads. Defaults to your CPU logical thread count.
+	/// operations such as cleanup, sync, flush, compaction, etc. Set to 0 to
+	/// use all your logical threads. Defaults to your CPU logical thread count.
 	///
 	/// default: varies by system
 	#[serde(default = "default_rocksdb_parallelism_threads")]
@@ -865,7 +894,7 @@ pub struct Config {
 
 	/// Maximum number of LOG files RocksDB will keep. This must *not* be set to
 	/// 0. It must be at least 1. Defaults to 3 as these are not very useful
-	///    unless troubleshooting/debugging a RocksDB bug.
+	/// unless troubleshooting/debugging a RocksDB bug.
 	///
 	/// default: 3
 	#[serde(default = "default_rocksdb_max_log_files")]
@@ -873,12 +902,15 @@ pub struct Config {
 
 	/// Type of RocksDB database compression to use.
 	///
-	/// Available options are "zstd", "zlib", "bz2", "lz4", or "none"
+	/// Available options are "zstd", "zlib", "bz2", "lz4", or "none".
 	///
 	/// It is best to use ZSTD as an overall good balance between
-	/// speed/performance, storage, IO amplification, and CPU usage.
-	/// For more performance but less compression (more storage used) and less
-	/// CPU usage, use LZ4. See https://github.com/facebook/rocksdb/wiki/Compression for more details.
+	/// speed/performance, storage, IO amplification, and CPU usage. For more
+	/// performance but less compression (more storage used) and less CPU usage,
+	/// use LZ4.
+	///
+	/// For more details, see:
+	/// https://github.com/facebook/rocksdb/wiki/Compression
 	///
 	/// "none" will disable compression.
 	///
@@ -889,10 +921,9 @@ pub struct Config {
 	/// Level of compression the specified compression algorithm for RocksDB to
 	/// use.
 	///
-	/// Default is 32767, which is internally read by RocksDB as the
-	/// default magic number and translated to the library's default
-	/// compression level as they all differ.
-	/// See their `kDefaultCompressionLevel`.
+	/// Default is 32767, which is internally read by RocksDB as the default
+	/// magic number and translated to the library's default compression level
+	/// as they all differ. See their `kDefaultCompressionLevel`.
 	///
 	/// default: 32767
 	#[serde(default = "default_rocksdb_compression_level")]
@@ -900,13 +931,13 @@ pub struct Config {
 
 	/// Level of compression the specified compression algorithm for the
 	/// bottommost level/data for RocksDB to use. Default is 32767, which is
-	/// internally read by RocksDB as the default magic number and translated
-	/// to the library's default compression level as they all differ.
-	/// See their `kDefaultCompressionLevel`.
+	/// internally read by RocksDB as the default magic number and translated to
+	/// the library's default compression level as they all differ. See their
+	/// `kDefaultCompressionLevel`.
 	///
 	/// Since this is the bottommost level (generally old and least used data),
 	/// it may be desirable to have a very high compression level here as it's
-	/// lesss likely for this data to be used. Research your chosen compression
+	/// less likely for this data to be used. Research your chosen compression
 	/// algorithm.
 	///
 	/// default: 32767
@@ -924,7 +955,7 @@ pub struct Config {
 	#[serde(default)]
 	pub rocksdb_bottommost_compression: bool,
 
-	/// Database recovery mode (for RocksDB WAL corruption)
+	/// Database recovery mode (for RocksDB WAL corruption).
 	///
 	/// Use this option when the server reports corruption and refuses to start.
 	/// Set mode 2 (PointInTime) to cleanly recover from this corruption. The
@@ -932,8 +963,8 @@ pub struct Config {
 	/// minutes prior to the crash. Clients may have to run "clear-cache &
 	/// reload" to account for the rollback. Upon success, you may reset the
 	/// mode back to default and restart again. Please note in some cases the
-	/// corruption error may not be cleared for at least 30 minutes of
-	/// operation in PointInTime mode.
+	/// corruption error may not be cleared for at least 30 minutes of operation
+	/// in PointInTime mode.
 	///
 	/// As a very last ditch effort, if PointInTime does not fix or resolve
 	/// anything, you can try mode 3 (SkipAnyCorruptedRecord) but this will
@@ -951,9 +982,11 @@ pub struct Config {
 	/// 2 = PointInTime (use me if trying to recover)
 	/// 3 = SkipAnyCorruptedRecord (you now voided your Conduwuit warranty)
 	///
-	/// See https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes for more information on these modes.
+	/// For more information on these modes, see:
+	/// https://github.com/facebook/rocksdb/wiki/WAL-Recovery-Modes
 	///
-	/// See https://conduwuit.puppyirl.gay/troubleshooting.html#database-corruption for more details on recovering a corrupt database.
+	/// For more details on recovering a corrupt database, see:
+	/// https://conduwuit.puppyirl.gay/troubleshooting.html#database-corruption
 	///
 	/// default: 1
 	#[serde(default = "default_rocksdb_recovery_mode")]
@@ -963,11 +996,12 @@ pub struct Config {
 	/// database consistency at a potential performance impact due to further
 	/// safety checks ran.
 	///
-	/// See https://github.com/facebook/rocksdb/wiki/Online-Verification#columnfamilyoptionsparanoid_file_checks for more information.
+	/// For more information, see:
+	/// https://github.com/facebook/rocksdb/wiki/Online-Verification#columnfamilyoptionsparanoid_file_checks
 	#[serde(default)]
 	pub rocksdb_paranoid_file_checks: bool,
 
-	/// Database repair mode (for RocksDB SST corruption)
+	/// Database repair mode (for RocksDB SST corruption).
 	///
 	/// Use this option when the server reports corruption while running or
 	/// panics. If the server refuses to start use the recovery mode options
@@ -976,6 +1010,7 @@ pub struct Config {
 	///
 	/// - Backing up your database directory is recommended prior to running the
 	///   repair.
+	///
 	/// - Disabling repair mode and restarting the server is recommended after
 	///   running the repair.
 	///
@@ -1001,10 +1036,10 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub rocksdb_compaction_ioprio_idle: bool,
 
-	/// Config option to disable RocksDB compaction. You should never ever have
-	/// to disable this. If you for some reason find yourself needing to disable
-	/// this as part of troubleshooting or a bug, please reach out to us in the
-	/// conduwuit Matrix room with information and details.
+	/// Disables RocksDB compaction. You should never ever have to set this
+	/// option to true. If you for some reason find yourself needing to use this
+	/// option as part of troubleshooting or a bug, please reach out to us in
+	/// the conduwuit Matrix room with information and details.
 	///
 	/// Disabling compaction will lead to a significantly bloated and
 	/// explosively large database, gradually poor performance, unnecessarily
@@ -1044,87 +1079,84 @@ pub struct Config {
 	#[serde(default = "default_notification_push_path")]
 	pub notification_push_path: String,
 
-	/// Config option to control local (your server only) presence
-	/// updates/requests. Note that presence on conduwuit is
-	/// very fast unlike Synapse's. If using outgoing presence, this MUST be
-	/// enabled.
+	/// Allow local (your server only) presence updates/requests.
+	///
+	/// Note that presence on conduwuit is very fast unlike Synapse's. If using
+	/// outgoing presence, this MUST be enabled.
 	#[serde(default = "true_fn")]
 	pub allow_local_presence: bool,
 
-	/// Config option to control incoming federated presence updates/requests.
+	/// Allow incoming federated presence updates/requests.
 	///
-	/// This option receives presence updates from other
-	/// servers, but does not send any unless `allow_outgoing_presence` is true.
-	/// Note that presence on conduwuit is very fast unlike Synapse's.
+	/// This option receives presence updates from other servers, but does not
+	/// send any unless `allow_outgoing_presence` is true. Note that presence on
+	/// conduwuit is very fast unlike Synapse's.
 	#[serde(default = "true_fn")]
 	pub allow_incoming_presence: bool,
 
-	/// Config option to control outgoing presence updates/requests.
+	/// Allow outgoing presence updates/requests.
 	///
 	/// This option sends presence updates to other servers, but does not
-	/// receive any unless `allow_incoming_presence` is true.
-	/// Note that presence on conduwuit is very fast unlike Synapse's.
-	/// If using outgoing presence, you MUST enable `allow_local_presence` as
-	/// well.
+	/// receive any unless `allow_incoming_presence` is true. Note that presence
+	/// on conduwuit is very fast unlike Synapse's. If using outgoing presence,
+	/// you MUST enable `allow_local_presence` as well.
 	#[serde(default = "true_fn")]
 	pub allow_outgoing_presence: bool,
 
-	/// Config option to control how many seconds before presence updates that
-	/// you are idle. Defaults to 5 minutes.
+	/// How many seconds without presence updates before you become idle.
+	/// Defaults to 5 minutes.
 	///
 	/// default: 300
 	#[serde(default = "default_presence_idle_timeout_s")]
 	pub presence_idle_timeout_s: u64,
 
-	/// Config option to control how many seconds before presence updates that
-	/// you are offline. Defaults to 30 minutes.
+	/// How many seconds without presence updates before you become offline.
+	/// Defaults to 30 minutes.
 	///
 	/// default: 1800
 	#[serde(default = "default_presence_offline_timeout_s")]
 	pub presence_offline_timeout_s: u64,
 
-	/// Config option to enable the presence idle timer for remote users.
+	/// Enable the presence idle timer for remote users.
+	///
 	/// Disabling is offered as an optimization for servers participating in
 	/// many large rooms or when resources are limited. Disabling it may cause
-	/// incorrect presence states (i.e. stuck online) to be seen for some
-	/// remote users.
+	/// incorrect presence states (i.e. stuck online) to be seen for some remote
+	/// users.
 	#[serde(default = "true_fn")]
 	pub presence_timeout_remote_users: bool,
 
-	/// Config option to control whether we should receive remote incoming read
-	/// receipts.
+	/// Allow receiving incoming read receipts from remote servers.
 	#[serde(default = "true_fn")]
 	pub allow_incoming_read_receipts: bool,
 
-	/// Config option to control whether we should send read receipts to remote
-	/// servers.
+	/// Allow sending read receipts to remote servers.
 	#[serde(default = "true_fn")]
 	pub allow_outgoing_read_receipts: bool,
 
-	/// Config option to control outgoing typing updates to federation.
+	/// Allow outgoing typing updates to federation.
 	#[serde(default = "true_fn")]
 	pub allow_outgoing_typing: bool,
 
-	/// Config option to control incoming typing updates from federation.
+	/// Allow incoming typing updates from federation.
 	#[serde(default = "true_fn")]
 	pub allow_incoming_typing: bool,
 
-	/// Config option to control maximum time federation user can indicate
-	/// typing.
+	/// Maximum time federation user can indicate typing.
 	///
 	/// default: 30
 	#[serde(default = "default_typing_federation_timeout_s")]
 	pub typing_federation_timeout_s: u64,
 
-	/// Config option to control minimum time local client can indicate typing.
-	/// This does not override a client's request to stop typing. It only
-	/// enforces a minimum value in case of no stop request.
+	/// Minimum time local client can indicate typing. This does not override a
+	/// client's request to stop typing. It only enforces a minimum value in
+	/// case of no stop request.
 	///
 	/// default: 15
 	#[serde(default = "default_typing_client_timeout_min_s")]
 	pub typing_client_timeout_min_s: u64,
 
-	/// Config option to control maximum time local client can indicate typing.
+	/// Maximum time local client can indicate typing.
 	///
 	/// default: 45
 	#[serde(default = "default_typing_client_timeout_max_s")]
@@ -1155,8 +1187,8 @@ pub struct Config {
 	/// brotli. This option does nothing if conduwuit was not built with
 	/// `brotli_compression` feature. Please be aware that enabling HTTP
 	/// compression may weaken TLS. Most users should not need to enable this.
-	/// See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH before
-	/// deciding to enable this.
+	/// See https://breachattack.com/ and https://wikipedia.org/wiki/BREACH
+	/// before deciding to enable this.
 	#[serde(default)]
 	pub brotli_compression: bool,
 
@@ -1175,8 +1207,8 @@ pub struct Config {
 	#[serde(default)]
 	pub allow_guests_auto_join_rooms: bool,
 
-	/// Config option to control whether the legacy unauthenticated Matrix media
-	/// repository endpoints will be enabled. These endpoints consist of:
+	/// Enable the legacy unauthenticated Matrix media repository endpoints.
+	/// These endpoints consist of:
 	/// - /_matrix/media/*/config
 	/// - /_matrix/media/*/upload
 	/// - /_matrix/media/*/preview_url
@@ -1193,8 +1225,8 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub freeze_legacy_media: bool,
 
-	/// Checks consistency of the media directory at startup:
-	/// 1. When `media_compat_file_link` is enbled, this check will upgrade
+	/// Check consistency of the media directory at startup:
+	/// 1. When `media_compat_file_link` is enabled, this check will upgrade
 	///    media when switching back and forth between Conduit and conduwuit.
 	///    Both options must be enabled to handle this.
 	/// 2. When media is deleted from the directory, this check will also delete
@@ -1207,18 +1239,22 @@ pub struct Config {
 	pub media_startup_check: bool,
 
 	/// Enable backward-compatibility with Conduit's media directory by creating
-	/// symlinks of media. This option is only necessary if you plan on using
-	/// Conduit again. Otherwise setting this to false reduces filesystem
-	/// clutter and overhead for managing these symlinks in the directory. This
-	/// is now disabled by default. You may still return to upstream Conduit
-	/// but you have to run conduwuit at least once with this set to true and
-	/// allow the media_startup_check to take place before shutting
-	/// down to return to Conduit.
+	/// symlinks of media.
+	///
+	/// This option is only necessary if you plan on using Conduit again.
+	/// Otherwise setting this to false reduces filesystem clutter and overhead
+	/// for managing these symlinks in the directory. This is now disabled by
+	/// default. You may still return to upstream Conduit but you have to run
+	/// conduwuit at least once with this set to true and allow the
+	/// media_startup_check to take place before shutting down to return to
+	/// Conduit.
 	#[serde(default)]
 	pub media_compat_file_link: bool,
 
-	/// Prunes missing media from the database as part of the media startup
-	/// checks. This means if you delete files from the media directory the
+	/// Prune missing media from the database as part of the media startup
+	/// checks.
+	///
+	/// This means if you delete files from the media directory the
 	/// corresponding entries will be removed from the database. This is
 	/// disabled by default because if the media directory is accidentally moved
 	/// or inaccessible, the metadata entries in the database will be lost with
@@ -1291,34 +1327,37 @@ pub struct Config {
 	pub url_preview_bound_interface: Option<Either<IpAddr, String>>,
 
 	/// Vector list of domains allowed to send requests to for URL previews.
-	/// Defaults to none. Note: this is a *contains* match, not an explicit
-	/// match. Putting "google.com" will match "https://google.com" and
+	///
+	/// This is a *contains* match, not an explicit match. Putting "google.com"
+	/// will match "https://google.com" and
 	/// "http://mymaliciousdomainexamplegoogle.com" Setting this to "*" will
 	/// allow all URL previews. Please note that this opens up significant
-	/// attack surface to your server, you are expected to be aware of the
-	/// risks by doing so.
+	/// attack surface to your server, you are expected to be aware of the risks
+	/// by doing so.
 	///
 	/// default: []
 	#[serde(default)]
 	pub url_preview_domain_contains_allowlist: Vec<String>,
 
 	/// Vector list of explicit domains allowed to send requests to for URL
-	/// previews. Defaults to none. Note: This is an *explicit* match, not a
-	/// contains match. Putting "google.com" will match "https://google.com",
-	/// "http://google.com", but not
+	/// previews.
+	///
+	/// This is an *explicit* match, not a contains match. Putting "google.com"
+	/// will match "https://google.com", "http://google.com", but not
 	/// "https://mymaliciousdomainexamplegoogle.com". Setting this to "*" will
 	/// allow all URL previews. Please note that this opens up significant
-	/// attack surface to your server, you are expected to be aware of the
-	/// risks by doing so.
+	/// attack surface to your server, you are expected to be aware of the risks
+	/// by doing so.
 	///
 	/// default: []
 	#[serde(default)]
 	pub url_preview_domain_explicit_allowlist: Vec<String>,
 
 	/// Vector list of explicit domains not allowed to send requests to for URL
-	/// previews. Defaults to none. Note: This is an *explicit* match, not a
-	/// contains match. Putting "google.com" will match "https://google.com",
-	/// "http://google.com", but not
+	/// previews.
+	///
+	/// This is an *explicit* match, not a contains match. Putting "google.com"
+	/// will match "https://google.com", "http://google.com", but not
 	/// "https://mymaliciousdomainexamplegoogle.com". The denylist is checked
 	/// first before allowlist. Setting this to "*" will not do anything.
 	///
@@ -1327,14 +1366,14 @@ pub struct Config {
 	pub url_preview_domain_explicit_denylist: Vec<String>,
 
 	/// Vector list of URLs allowed to send requests to for URL previews.
-	/// Defaults to none. Note that this is a *contains* match, not an
-	/// explicit match. Putting "google.com" will match
-	/// "https://google.com/",
+	///
+	/// Note that this is a *contains* match, not an explicit match. Putting
+	/// "google.com" will match "https://google.com/",
 	/// "https://google.com/url?q=https://mymaliciousdomainexample.com", and
-	/// "https://mymaliciousdomainexample.com/hi/google.com" Setting this to
-	/// "*" will allow all URL previews. Please note that this opens up
-	/// significant attack surface to your server, you are expected to be
-	/// aware of the risks by doing so.
+	/// "https://mymaliciousdomainexample.com/hi/google.com" Setting this to "*"
+	/// will allow all URL previews. Please note that this opens up significant
+	/// attack surface to your server, you are expected to be aware of the risks
+	/// by doing so.
 	///
 	/// default: []
 	#[serde(default)]
@@ -1351,21 +1390,20 @@ pub struct Config {
 	/// checks (contains and explicit) on the root domain or not. Does not apply
 	/// to URL contains allowlist. Defaults to false.
 	///
-	/// Example usecase: If this is
-	/// enabled and you have "wikipedia.org" allowed in the explicit and/or
-	/// contains domain allowlist, it will allow all subdomains under
-	/// "wikipedia.org" such as "en.m.wikipedia.org" as the root domain is
-	/// checked and matched. Useful if the domain contains allowlist is still
-	/// too broad for you but you still want to allow all the subdomains under a
-	/// root domain.
+	/// Example usecase: If this is enabled and you have "wikipedia.org" allowed
+	/// in the explicit and/or contains domain allowlist, it will allow all
+	/// subdomains under "wikipedia.org" such as "en.m.wikipedia.org" as the
+	/// root domain is checked and matched. Useful if the domain contains
+	/// allowlist is still too broad for you but you still want to allow all the
+	/// subdomains under a root domain.
 	#[serde(default)]
 	pub url_preview_check_root_domain: bool,
 
 	/// List of forbidden room aliases and room IDs as strings of regex
 	/// patterns.
 	///
-	/// Regex can be used or explicit contains matches can be done by
-	/// just specifying the words (see example).
+	/// Regex can be used or explicit contains matches can be done by just
+	/// specifying the words (see example).
 	///
 	/// This is checked upon room alias creation, custom room ID creation if
 	/// used, and startup as warnings if any room aliases in your database have
@@ -1395,15 +1433,15 @@ pub struct Config {
 	pub forbidden_usernames: RegexSet,
 
 	/// Retry failed and incomplete messages to remote servers immediately upon
-	/// startup. This is called bursting. If this is disabled, said messages
-	/// may not be delivered until more messages are queued for that server. Do
-	/// not change this option unless server resources are extremely limited or
-	/// the scale of the server's deployment is huge. Do not disable this
-	/// unless you know what you are doing.
+	/// startup. This is called bursting. If this is disabled, said messages may
+	/// not be delivered until more messages are queued for that server. Do not
+	/// change this option unless server resources are extremely limited or the
+	/// scale of the server's deployment is huge. Do not disable this unless you
+	/// know what you are doing.
 	#[serde(default = "true_fn")]
 	pub startup_netburst: bool,
 
-	/// messages are dropped and not reattempted. The `startup_netburst` option
+	/// Messages are dropped and not reattempted. The `startup_netburst` option
 	/// must be enabled for this value to have any effect. Do not change this
 	/// value unless you know what you are doing. Set this value to -1 to
 	/// reattempt every message without trimming the queues; this may consume
@@ -1414,37 +1452,35 @@ pub struct Config {
 	#[serde(default = "default_startup_netburst_keep")]
 	pub startup_netburst_keep: i64,
 
-	/// controls whether non-admin local users are forbidden from sending room
-	/// invites (local and remote), and if non-admin users can receive remote
-	/// room invites. admins are always allowed to send and receive all room
-	/// invites.
+	/// Block non-admin local users from sending room invites (local and
+	/// remote), and block non-admin users from receiving remote room invites.
+	///
+	/// Admins are always allowed to send and receive all room invites.
 	#[serde(default)]
 	pub block_non_admin_invites: bool,
 
-	/// Allows admins to enter commands in rooms other than "#admins" (admin
-	/// room) by prefixing your message with "\!admin" or "\\!admin" followed
-	/// up a normal conduwuit admin command. The reply will be publicly visible
-	/// to the room, originating from the sender.
+	/// Allow admins to enter commands in rooms other than "#admins" (admin
+	/// room) by prefixing your message with "\!admin" or "\\!admin" followed up
+	/// a normal conduwuit admin command. The reply will be publicly visible to
+	/// the room, originating from the sender.
 	///
 	/// example: \\!admin debug ping puppygock.gay
 	#[serde(default = "true_fn")]
 	pub admin_escape_commands: bool,
 
-	/// Controls whether the conduwuit admin room console / CLI will immediately
-	/// activate on startup. This option can also be enabled with `--console`
-	/// conduwuit argument.
+	/// Automatically activate the conduwuit admin room console / CLI on
+	/// startup. This option can also be enabled with `--console` conduwuit
+	/// argument.
 	#[serde(default)]
 	pub admin_console_automatic: bool,
 
-	/// Controls what admin commands will be executed on startup. This is a
-	/// vector list of strings of admin commands to run.
-	///
+	/// List of admin commands to execute on startup.
 	///
 	/// This option can also be configured with the `--execute` conduwuit
 	/// argument and can take standard shell commands and environment variables
 	///
-	/// Such example could be: `./conduwuit --execute "server admin-notice
-	/// conduwuit has started up at $(date)"`
+	/// For example: `./conduwuit --execute "server admin-notice conduwuit has
+	/// started up at $(date)"`
 	///
 	/// example: admin_execute = ["debug ping puppygock.gay", "debug echo hi"]`
 	///
@@ -1452,8 +1488,10 @@ pub struct Config {
 	#[serde(default)]
 	pub admin_execute: Vec<String>,
 
-	/// Controls whether conduwuit should error and fail to start if an admin
-	/// execute command (`--execute` / `admin_execute`) fails.
+	/// Ignore errors in startup commands.
+	///
+	/// If false, conduwuit will error and fail to start if an admin execute
+	/// command (`--execute` / `admin_execute`) fails.
 	#[serde(default)]
 	pub admin_execute_errors_ignore: bool,
 
@@ -1478,21 +1516,22 @@ pub struct Config {
 
 	/// Sentry.io crash/panic reporting, performance monitoring/metrics, etc.
 	/// This is NOT enabled by default. conduwuit's default Sentry reporting
-	/// endpoint domain is o4506996327251968.ingest.us.sentry.io
+	/// endpoint domain is `o4506996327251968.ingest.us.sentry.io`.
 	#[serde(default)]
 	pub sentry: bool,
 
-	/// Sentry reporting URL if a custom one is desired
+	/// Sentry reporting URL, if a custom one is desired.
 	///
 	/// default: "https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536"
 	#[serde(default = "default_sentry_endpoint")]
 	pub sentry_endpoint: Option<Url>,
 
-	/// Report your conduwuit server_name in Sentry.io crash reports and metrics
+	/// Report your conduwuit server_name in Sentry.io crash reports and
+	/// metrics.
 	#[serde(default)]
 	pub sentry_send_server_name: bool,
 
-	/// Performance monitoring/tracing sample rate for Sentry.io
+	/// Performance monitoring/tracing sample rate for Sentry.io.
 	///
 	/// Note that too high values may impact performance, and can be disabled by
 	/// setting it to 0.0 (0%) This value is read as a percentage to Sentry,
@@ -1506,8 +1545,8 @@ pub struct Config {
 	#[serde(default)]
 	pub sentry_attach_stacktrace: bool,
 
-	/// Send panics to sentry. This is true by default, but sentry has to be
-	/// enabled. The global "sentry" config option must be enabled to send any
+	/// Send panics to Sentry. This is true by default, but Sentry has to be
+	/// enabled. The global `sentry` config option must be enabled to send any
 	/// data.
 	#[serde(default = "true_fn")]
 	pub sentry_send_panic: bool,
@@ -1526,7 +1565,9 @@ pub struct Config {
 	pub sentry_filter: String,
 
 	/// Enable the tokio-console. This option is only relevant to developers.
-	/// See https://conduwuit.puppyirl.gay/development.html#debugging-with-tokio-console for more information.
+	///
+	///	For more information, see:
+	/// https://conduwuit.puppyirl.gay/development.html#debugging-with-tokio-console
 	#[serde(default)]
 	pub tokio_console: bool,
 
@@ -1534,8 +1575,8 @@ pub struct Config {
 	pub test: BTreeSet<String>,
 
 	/// Controls whether admin room notices like account registrations, password
-	/// changes, account deactivations, room directory publications, etc will
-	/// be sent to the admin room. Update notices and normal admin command
+	/// changes, account deactivations, room directory publications, etc will be
+	/// sent to the admin room. Update notices and normal admin command
 	/// responses will still be sent.
 	#[serde(default = "true_fn")]
 	pub admin_room_notices: bool,
