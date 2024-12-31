@@ -4,8 +4,11 @@
 // caller only ever caring about result status while discarding all contents.
 #![allow(clippy::wrong_self_convention)]
 
+use std::marker::Unpin;
+
 use futures::{
-	future::{MapOkOrElse, UnwrapOrElse},
+	future,
+	future::{MapOkOrElse, TrySelect, UnwrapOrElse},
 	TryFuture, TryFutureExt,
 };
 
@@ -45,6 +48,13 @@ where
 	>
 	where
 		Self: Sized;
+
+	fn try_until<A, B, F>(self, f: F) -> TrySelect<A, B>
+	where
+		Self: Sized,
+		F: FnOnce() -> B,
+		A: TryFuture<Ok = Self::Ok> + From<Self> + Send + Unpin,
+		B: TryFuture<Ok = (), Error = Self::Error> + Send + Unpin;
 
 	fn unwrap_or(
 		self,
@@ -108,6 +118,17 @@ where
 		Self: Sized,
 	{
 		self.map_ok_or(None, Some)
+	}
+
+	#[inline]
+	fn try_until<A, B, F>(self, f: F) -> TrySelect<A, B>
+	where
+		Self: Sized,
+		F: FnOnce() -> B,
+		A: TryFuture<Ok = Self::Ok> + From<Self> + Send + Unpin,
+		B: TryFuture<Ok = (), Error = Self::Error> + Send + Unpin,
+	{
+		future::try_select(self.into(), f())
 	}
 
 	#[inline]

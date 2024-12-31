@@ -3,7 +3,7 @@
 
 use futures::{
 	future::{ready, Ready},
-	stream::{AndThen, TryFilterMap, TryFold, TryForEach, TryStream, TryStreamExt},
+	stream::{AndThen, TryFilterMap, TryFold, TryForEach, TryStream, TryStreamExt, TryTakeWhile},
 };
 
 use crate::Result;
@@ -56,6 +56,13 @@ where
 	) -> TryForEach<Self, Ready<Result<(), E>>, impl FnMut(S::Ok) -> Ready<Result<(), E>>>
 	where
 		F: FnMut(S::Ok) -> Result<(), E>;
+
+	fn ready_try_take_while<F>(
+		self,
+		f: F,
+	) -> TryTakeWhile<Self, Ready<Result<bool, E>>, impl FnMut(&S::Ok) -> Ready<Result<bool, E>>>
+	where
+		F: Fn(&S::Ok) -> Result<bool, E>;
 }
 
 impl<T, E, S> TryReadyExt<T, E, S> for S
@@ -121,5 +128,16 @@ where
 		F: FnMut(S::Ok) -> Result<(), E>,
 	{
 		self.try_for_each(move |t| ready(f(t)))
+	}
+
+	#[inline]
+	fn ready_try_take_while<F>(
+		self,
+		f: F,
+	) -> TryTakeWhile<Self, Ready<Result<bool, E>>, impl FnMut(&S::Ok) -> Ready<Result<bool, E>>>
+	where
+		F: Fn(&S::Ok) -> Result<bool, E>,
+	{
+		self.try_take_while(move |t| ready(f(t)))
 	}
 }
