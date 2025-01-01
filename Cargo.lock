@@ -730,6 +730,7 @@ dependencies = [
  "libloading",
  "log",
  "nix",
+ "num-traits",
  "rand",
  "regex",
  "reqwest",

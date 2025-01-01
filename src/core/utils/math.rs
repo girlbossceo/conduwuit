@@ -1,7 +1,10 @@
+mod expected;
+
 use std::{cmp, convert::TryFrom};
 
 pub use checked_ops::checked_ops;
 
+pub use self::expected::Expected;
 use crate::{debug::type_name, err, Err, Error, Result};
 
 /// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
