@@ -13,7 +13,7 @@ use conduwuit::{
 	debug, err, error,
 	result::LogErr,
 	trace,
-	utils::{calculate_hash, math::continue_exponential_backoff_secs, ReadyExt},
+	utils::{calculate_hash, continue_exponential_backoff_secs, ReadyExt},
 	warn, Error, Result,
 };
 use futures::{

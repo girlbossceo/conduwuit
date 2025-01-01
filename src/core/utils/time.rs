@@ -1,3 +1,5 @@
+pub mod exponential_backoff;
+
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{err, Result};

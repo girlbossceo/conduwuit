@@ -6,7 +6,7 @@ use std::{
 
 use conduwuit::{
 	debug, debug_error, debug_warn, implement, pdu, trace,
-	utils::math::continue_exponential_backoff_secs, warn, PduEvent,
+	utils::continue_exponential_backoff_secs, warn, PduEvent,
 };
 use futures::TryFutureExt;
 use ruma::{

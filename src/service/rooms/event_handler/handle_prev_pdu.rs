@@ -5,7 +5,7 @@ use std::{
 };
 
 use conduwuit::{
-	debug, implement, utils::math::continue_exponential_backoff_secs, Err, PduEvent, Result,
+	debug, implement, utils::continue_exponential_backoff_secs, Err, PduEvent, Result,
 };
 use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName};
 
