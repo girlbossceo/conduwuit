@@ -5,6 +5,7 @@ use std::{
 };
 
 use arrayvec::ArrayString;
+use conduwuit::utils::math::Expected;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FedDest {
@@ -75,6 +76,15 @@ impl FedDest {
 	#[must_use]
 	pub fn default_port() -> PortString {
 		PortString::from(DEFAULT_PORT).expect("default port string")
+	}
+
+	#[inline]
+	#[must_use]
+	pub fn size(&self) -> usize {
+		match self {
+			| Self::Literal(saddr) => size_of_val(saddr),
+			| Self::Named(host, port) => host.len().expected_add(port.capacity()),
+		}
 	}
 }
 

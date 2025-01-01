@@ -6,7 +6,10 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use conduwuit::{trace, utils::rand};
+use conduwuit::{
+	trace,
+	utils::{math::Expected, rand},
+};
 use ruma::{OwnedServerName, ServerName};
 
 use super::fed::FedDest;
@@ -113,6 +116,15 @@ impl CachedDest {
 	pub(crate) fn default_expire() -> SystemTime {
 		rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36)
 	}
+
+	#[inline]
+	#[must_use]
+	pub fn size(&self) -> usize {
+		self.dest
+			.size()
+			.expected_add(self.host.len())
+			.expected_add(size_of_val(&self.expire))
+	}
 }
 
 impl CachedOverride {
@@ -126,4 +138,8 @@ impl CachedOverride {
 	pub(crate) fn default_expire() -> SystemTime {
 		rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12)
 	}
+
+	#[inline]
+	#[must_use]
+	pub fn size(&self) -> usize { size_of_val(self) }
 }

@@ -6,7 +6,7 @@ mod tests;
 
 use std::{fmt::Write, sync::Arc};
 
-use conduwuit::{Result, Server};
+use conduwuit::{utils, utils::math::Expected, Result, Server};
 
 use self::{cache::Cache, dns::Resolver};
 use crate::{client, Dep};
@@ -36,22 +36,25 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
-		let resolver_overrides_cache = self
-			.cache
-			.overrides
-			.read()
-			.expect("locked for reading")
-			.len();
-		writeln!(out, "resolver_overrides_cache: {resolver_overrides_cache}")?;
+	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+		use utils::bytes::pretty;
 
-		let resolver_destinations_cache = self
-			.cache
-			.destinations
-			.read()
-			.expect("locked for reading")
-			.len();
-		writeln!(out, "resolver_destinations_cache: {resolver_destinations_cache}")?;
+		let (oc_count, oc_bytes) = self.cache.overrides.read()?.iter().fold(
+			(0_usize, 0_usize),
+			|(count, bytes), (key, val)| {
+				(count.expected_add(1), bytes.expected_add(key.len()).expected_add(val.size()))
+			},
+		);
+
+		let (dc_count, dc_bytes) = self.cache.destinations.read()?.iter().fold(
+			(0_usize, 0_usize),
+			|(count, bytes), (key, val)| {
+				(count.expected_add(1), bytes.expected_add(key.len()).expected_add(val.size()))
+			},
+		);
+
+		writeln!(out, "resolver_overrides_cache: {oc_count} ({})", pretty(oc_bytes))?;
+		writeln!(out, "resolver_destinations_cache: {dc_count} ({})", pretty(dc_bytes))?;
 
 		Ok(())
 	}

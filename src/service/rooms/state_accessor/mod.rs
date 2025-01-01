@@ -10,7 +10,11 @@ use std::{
 use conduwuit::{
 	err, error,
 	pdu::PduBuilder,
-	utils::{math::usize_from_f64, ReadyExt},
+	utils,
+	utils::{
+		math::{usize_from_f64, Expected},
+		ReadyExt,
+	},
 	Err, Error, PduEvent, Result,
 };
 use futures::StreamExt;
@@ -84,12 +88,35 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
-		let server_visibility_cache = self.server_visibility_cache.lock().expect("locked").len();
-		writeln!(out, "server_visibility_cache: {server_visibility_cache}")?;
+	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+		use utils::bytes::pretty;
 
-		let user_visibility_cache = self.user_visibility_cache.lock().expect("locked").len();
-		writeln!(out, "user_visibility_cache: {user_visibility_cache}")?;
+		let (svc_count, svc_bytes) = self.server_visibility_cache.lock()?.iter().fold(
+			(0_usize, 0_usize),
+			|(count, bytes), (key, _)| {
+				(
+					count.expected_add(1),
+					bytes
+						.expected_add(key.0.capacity())
+						.expected_add(size_of_val(&key.1)),
+				)
+			},
+		);
+
+		let (uvc_count, uvc_bytes) = self.user_visibility_cache.lock()?.iter().fold(
+			(0_usize, 0_usize),
+			|(count, bytes), (key, _)| {
+				(
+					count.expected_add(1),
+					bytes
+						.expected_add(key.0.capacity())
+						.expected_add(size_of_val(&key.1)),
+				)
+			},
+		);
+
+		writeln!(out, "server_visibility_cache: {svc_count} ({})", pretty(svc_bytes))?;
+		writeln!(out, "user_visibility_cache: {uvc_count} ({})", pretty(uvc_bytes))?;
 
 		Ok(())
 	}
