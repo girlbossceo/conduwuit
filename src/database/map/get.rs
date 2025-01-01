@@ -2,7 +2,7 @@ use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
 use arrayvec::ArrayVec;
 use conduwuit::{err, implement, utils::result::MapExpect, Err, Result};
-use futures::{Future, FutureExt};
+use futures::{future::ready, Future, FutureExt, TryFutureExt};
 use serde::Serialize;
 use tokio::task;
 
@@ -79,11 +79,15 @@ where
 	debug_assert!(matches!(cached, Ok(None)), "expected status Incomplete");
 	let cmd = Get {
 		map: self.clone(),
-		key: key.as_ref().into(),
+		key: [key.as_ref().into()].into(),
 		res: None,
 	};
 
-	self.db.pool.execute_get(cmd).boxed()
+	self.db
+		.pool
+		.execute_get(cmd)
+		.and_then(|mut res| ready(res.remove(0)))
+		.boxed()
 }
 
 /// Fetch a value from the database into cache, returning a reference-handle.

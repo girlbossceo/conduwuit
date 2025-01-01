@@ -6,7 +6,7 @@ use conduwuit::{
 		math::usize_from_f64,
 		result::LogDebugErr,
 		stream,
-		stream::WIDTH_LIMIT,
+		stream::{AMPLIFICATION_LIMIT, WIDTH_LIMIT},
 		sys::{compute::is_core_available, storage},
 		BoolExt,
 	},
@@ -124,19 +124,28 @@ pub(super) fn configure(server: &Arc<Server>) -> (usize, Vec<usize>, Vec<usize>)
 fn update_stream_width(server: &Arc<Server>, num_queues: usize, total_workers: usize) {
 	let config = &server.config;
 	let scale: f64 = config.stream_width_scale.min(100.0).into();
+
 	let req_width = expected!(total_workers / num_queues).next_multiple_of(2);
 	let req_width = req_width as f64;
 	let req_width = usize_from_f64(req_width * scale)
 		.expect("failed to convert f64 to usize")
 		.clamp(WIDTH_LIMIT.0, WIDTH_LIMIT.1);
 
+	let req_amp = config.stream_amplification as f64;
+	let req_amp = usize_from_f64(req_amp * scale)
+		.expect("failed to convert f64 to usize")
+		.clamp(AMPLIFICATION_LIMIT.0, AMPLIFICATION_LIMIT.1);
+
 	let (old_width, new_width) = stream::set_width(req_width);
+	let (old_amp, new_amp) = stream::set_amplification(req_amp);
 	debug!(
 		scale = ?config.stream_width_scale,
 		?num_queues,
 		?req_width,
 		?old_width,
 		?new_width,
+		?old_amp,
+		?new_amp,
 		"Updated global stream width"
 	);
 }

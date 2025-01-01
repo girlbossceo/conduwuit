@@ -52,6 +52,7 @@ impl Server {
 			.expect("Unable to increase maximum soft and hard file descriptor limit");
 
 		let (_old_width, _new_width) = stream::set_width(config.stream_width_default);
+		let (_old_amp, _new_amp) = stream::set_amplification(config.stream_amplification);
 
 		info!(
 			server_name = %config.server_name,

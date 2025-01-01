@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 use conduwuit::{
-	at, err, ref_at,
+	at, err,
 	utils::stream::{BroadbandExt, IterStream, ReadyExt},
 	PduEvent, Result,
 };
@@ -69,7 +69,7 @@ impl Data {
 		let full_pdus = self
 			.services
 			.short
-			.multi_get_eventid_from_short(short_ids.iter().map(ref_at!(1)))
+			.multi_get_eventid_from_short(short_ids.into_iter().map(at!(1)).stream())
 			.ready_filter_map(Result::ok)
 			.broad_filter_map(|event_id: OwnedEventId| async move {
 				self.services.timeline.get_pdu(&event_id).await.ok()
@@ -93,7 +93,7 @@ impl Data {
 		let full_ids = self
 			.services
 			.short
-			.multi_get_eventid_from_short(short_ids.iter().map(ref_at!(1)))
+			.multi_get_eventid_from_short(short_ids.iter().map(at!(1)).stream())
 			.zip(short_ids.iter().stream().map(at!(0)))
 			.ready_filter_map(|(event_id, shortstatekey)| Some((shortstatekey, event_id.ok()?)))
 			.collect()

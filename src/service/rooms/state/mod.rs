@@ -467,7 +467,7 @@ impl Service {
 		let auth_pdus = self
 			.services
 			.short
-			.multi_get_eventid_from_short(event_ids.iter())
+			.multi_get_eventid_from_short(event_ids.into_iter().stream())
 			.zip(state_keys.into_iter().stream())
 			.ready_filter_map(|(event_id, tsk)| Some((tsk, event_id.ok()?)))
 			.broad_filter_map(|(tsk, event_id): (_, OwnedEventId)| async move {

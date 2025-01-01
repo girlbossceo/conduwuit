@@ -19,6 +19,7 @@ use conduwuit::{
 use futures::{channel::oneshot, TryFutureExt};
 use oneshot::Sender as ResultSender;
 use rocksdb::Direction;
+use smallvec::SmallVec;
 use tokio::task::JoinSet;
 
 use self::configure::configure;
@@ -42,11 +43,11 @@ pub(crate) enum Cmd {
 	Iter(Seek),
 }
 
-/// Point-query
+/// Multi-point-query
 pub(crate) struct Get {
 	pub(crate) map: Arc<Map>,
-	pub(crate) key: KeyBuf,
-	pub(crate) res: Option<ResultSender<Result<Handle<'static>>>>,
+	pub(crate) key: BatchQuery<'static>,
+	pub(crate) res: Option<ResultSender<BatchResult<'static>>>,
 }
 
 /// Iterator-seek.
@@ -60,8 +61,13 @@ pub(crate) struct Seek {
 	pub(crate) res: Option<ResultSender<stream::State<'static>>>,
 }
 
+pub(crate) type BatchQuery<'a> = SmallVec<[KeyBuf; BATCH_INLINE]>;
+pub(crate) type BatchResult<'a> = SmallVec<[ResultHandle<'a>; BATCH_INLINE]>;
+pub(crate) type ResultHandle<'a> = Result<Handle<'a>>;
+
 const WORKER_LIMIT: (usize, usize) = (1, 1024);
 const QUEUE_LIMIT: (usize, usize) = (1, 2048);
+const BATCH_INLINE: usize = 1;
 
 #[implement(Pool)]
 pub(crate) async fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
@@ -179,22 +185,24 @@ fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: &[Receiver<Cmd>]
 
 #[implement(Pool)]
 #[tracing::instrument(level = "trace", name = "get", skip(self, cmd))]
-pub(crate) async fn execute_get(&self, mut cmd: Get) -> Result<Handle<'_>> {
+pub(crate) async fn execute_get(self: &Arc<Self>, mut cmd: Get) -> Result<BatchResult<'_>> {
 	let (send, recv) = oneshot::channel();
 	_ = cmd.res.insert(send);
 
 	let queue = self.select_queue();
 	self.execute(queue, Cmd::Get(cmd))
-		.and_then(|()| {
-			recv.map_ok(into_recv_get_result)
+		.and_then(move |()| {
+			recv.map_ok(into_recv_get)
 				.map_err(|e| err!(error!("recv failed {e:?}")))
 		})
-		.await?
+		.await
+		.map(Into::into)
+		.map_err(Into::into)
 }
 
 #[implement(Pool)]
 #[tracing::instrument(level = "trace", name = "iter", skip(self, cmd))]
-pub(crate) async fn execute_iter(&self, mut cmd: Seek) -> Result<stream::State<'_>> {
+pub(crate) async fn execute_iter(self: &Arc<Self>, mut cmd: Seek) -> Result<stream::State<'_>> {
 	let (send, recv) = oneshot::channel();
 	_ = cmd.res.insert(send);
 
@@ -282,7 +290,7 @@ fn worker_init(&self, id: usize) {
 }
 
 #[implement(Pool)]
-fn worker_loop(&self, recv: &Receiver<Cmd>) {
+fn worker_loop(self: &Arc<Self>, recv: &Receiver<Cmd>) {
 	// initial +1 needed prior to entering wait
 	self.busy.fetch_add(1, Ordering::Relaxed);
 
@@ -302,18 +310,19 @@ fn worker_loop(&self, recv: &Receiver<Cmd>) {
 		busy = self.busy.fetch_sub(1, Ordering::Relaxed) - 1,
 	),
 )]
-fn worker_wait(&self, recv: &Receiver<Cmd>) -> Result<Cmd, RecvError> {
+fn worker_wait(self: &Arc<Self>, recv: &Receiver<Cmd>) -> Result<Cmd, RecvError> {
 	recv.recv_blocking().debug_inspect(|_| {
 		self.busy.fetch_add(1, Ordering::Relaxed);
 	})
 }
 
 #[implement(Pool)]
-fn worker_handle(&self, cmd: Cmd) {
+fn worker_handle(self: &Arc<Self>, cmd: Cmd) {
 	match cmd {
-		| Cmd::Get(cmd) => self.handle_get(cmd),
+		| Cmd::Get(cmd) if cmd.key.len() == 1 => self.handle_get(cmd),
+		| Cmd::Get(cmd) => self.handle_batch(cmd),
 		| Cmd::Iter(cmd) => self.handle_iter(cmd),
-	}
+	};
 }
 
 #[implement(Pool)]
@@ -331,12 +340,43 @@ fn handle_iter(&self, mut cmd: Seek) {
 	}
 
 	let from = cmd.key.as_deref().map(Into::into);
+
 	let result = match cmd.dir {
 		| Direction::Forward => cmd.state.init_fwd(from),
 		| Direction::Reverse => cmd.state.init_rev(from),
 	};
 
 	let chan_result = chan.send(into_send_seek(result));
+
+	let _chan_sent = chan_result.is_ok();
+}
+
+#[implement(Pool)]
+#[tracing::instrument(
+	name = "batch",
+	level = "trace",
+	skip_all,
+	fields(
+		%cmd.map,
+		keys = %cmd.key.len(),
+	),
+)]
+fn handle_batch(self: &Arc<Self>, mut cmd: Get) {
+	debug_assert!(cmd.key.len() > 1, "should have more than one key");
+	debug_assert!(!cmd.key.iter().any(SmallVec::is_empty), "querying for empty key");
+
+	let chan = cmd.res.take().expect("missing result channel");
+
+	if chan.is_canceled() {
+		return;
+	}
+
+	let keys = cmd.key.iter().map(Into::into);
+
+	let result: SmallVec<_> = cmd.map.get_batch_blocking(keys).collect();
+
+	let chan_result = chan.send(into_send_get(result));
+
 	let _chan_sent = chan_result.is_ok();
 }
 
@@ -348,7 +388,7 @@ fn handle_iter(&self, mut cmd: Seek) {
 	fields(%cmd.map),
 )]
 fn handle_get(&self, mut cmd: Get) {
-	debug_assert!(!cmd.key.is_empty(), "querying for empty key");
+	debug_assert!(!cmd.key[0].is_empty(), "querying for empty key");
 
 	// Obtain the result channel.
 	let chan = cmd.res.take().expect("missing result channel");
@@ -362,16 +402,16 @@ fn handle_get(&self, mut cmd: Get) {
 	// Perform the actual database query. We reuse our database::Map interface but
 	// limited to the blocking calls, rather than creating another surface directly
 	// with rocksdb here.
-	let result = cmd.map.get_blocking(&cmd.key);
+	let result = cmd.map.get_blocking(&cmd.key[0]);
 
 	// Send the result back to the submitter.
-	let chan_result = chan.send(into_send_get_result(result));
+	let chan_result = chan.send(into_send_get([result].into()));
 
 	// If the future was dropped during the query this will fail acceptably.
 	let _chan_sent = chan_result.is_ok();
 }
 
-fn into_send_get_result(result: Result<Handle<'_>>) -> Result<Handle<'static>> {
+fn into_send_get(result: BatchResult<'_>) -> BatchResult<'static> {
 	// SAFETY: Necessary to send the Handle (rust_rocksdb::PinnableSlice) through
 	// the channel. The lifetime on the handle is a device by rust-rocksdb to
 	// associate a database lifetime with its assets. The Handle must be dropped
@@ -379,7 +419,7 @@ fn into_send_get_result(result: Result<Handle<'_>>) -> Result<Handle<'static>> {
 	unsafe { std::mem::transmute(result) }
 }
 
-fn into_recv_get_result(result: Result<Handle<'static>>) -> Result<Handle<'_>> {
+fn into_recv_get<'a>(result: BatchResult<'static>) -> BatchResult<'a> {
 	// SAFETY: This is to receive the Handle from the channel.
 	unsafe { std::mem::transmute(result) }
 }

@@ -71,7 +71,7 @@ impl Service {
 		let event_ids = self
 			.services
 			.short
-			.multi_get_eventid_from_short(chain.iter())
+			.multi_get_eventid_from_short(chain.into_iter().stream())
 			.ready_filter_map(Result::ok)
 			.collect()
 			.await;

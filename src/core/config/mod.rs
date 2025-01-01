@@ -1653,6 +1653,21 @@ pub struct Config {
 	#[serde(default = "default_stream_width_scale")]
 	pub stream_width_scale: f32,
 
+	/// Sets the initial amplification factor. This controls batch sizes of
+	/// requests made by each pool worker, multiplying the throughput of each
+	/// stream. This value is somewhat abstract from specific hardware
+	/// characteristics and can be significantly larger than any thread count or
+	/// queue size. This is because each database query may require several
+	/// index lookups, thus many database queries in a batch may make progress
+	/// independently while also sharing index and data blocks which may or may
+	/// not be cached. It is worthwhile to submit huge batches to reduce
+	/// complexity. The maximum value is 32768, though sufficient hardware is
+	/// still advised for that.
+	///
+	/// default: 1024
+	#[serde(default = "default_stream_amplification")]
+	pub stream_amplification: usize,
+
 	/// Number of sender task workers; determines sender parallelism. Default is
 	/// '0' which means the value is determined internally, likely matching the
 	/// number of tokio worker-threads or number of cores, etc. Override by
@@ -2467,3 +2482,5 @@ fn default_db_pool_queue_mult() -> usize { 4 }
 fn default_stream_width_default() -> usize { 32 }
 
 fn default_stream_width_scale() -> f32 { 1.0 }
+
+fn default_stream_amplification() -> usize { 1024 }

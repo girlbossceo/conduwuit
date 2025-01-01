@@ -10,7 +10,10 @@ mod try_broadband;
 mod try_ready;
 mod wideband;
 
-pub use band::{automatic_width, set_width, WIDTH_LIMIT};
+pub use band::{
+	automatic_amplification, automatic_width, set_amplification, set_width, AMPLIFICATION_LIMIT,
+	WIDTH_LIMIT,
+};
 pub use broadband::BroadbandExt;
 pub use cloned::Cloned;
 pub use expect::TryExpect;

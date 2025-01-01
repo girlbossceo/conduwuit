@@ -69,7 +69,7 @@ where
 {
 	self.db
 		.eventid_shorteventid
-		.get_batch(event_ids.clone())
+		.get_batch(event_ids.clone().stream())
 		.zip(event_ids.into_iter().stream())
 		.map(|(result, event_id)| match result {
 			| Ok(ref short) => utils::u64_from_u8(short),
@@ -162,20 +162,18 @@ where
 }
 
 #[implement(Service)]
-pub fn multi_get_eventid_from_short<'a, Id, I>(
+pub fn multi_get_eventid_from_short<'a, Id, S>(
 	&'a self,
-	shorteventid: I,
+	shorteventid: S,
 ) -> impl Stream<Item = Result<Id>> + Send + 'a
 where
-	I: Iterator<Item = &'a ShortEventId> + Send + 'a,
+	S: Stream<Item = ShortEventId> + Send + 'a,
 	Id: for<'de> Deserialize<'de> + Sized + ToOwned + 'a,
 	<Id as ToOwned>::Owned: Borrow<EventId>,
 {
-	const BUFSIZE: usize = size_of::<ShortEventId>();
-
 	self.db
 		.shorteventid_eventid
-		.aqry_batch::<BUFSIZE, _, _>(shorteventid)
+		.qry_batch(shorteventid)
 		.map(Deserialized::deserialized)
 }
 
