@@ -6,7 +6,7 @@ use ruma::{
 
 /// Returns Ok if the acl allows the server
 #[implement(super::Service)]
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, level = "debug")]
 pub async fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Result {
 	let Ok(acl_event_content) = self
 		.services

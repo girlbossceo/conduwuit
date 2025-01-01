@@ -114,7 +114,7 @@ pub async fn state_resolution(
 	&self,
 	room_version: &RoomVersionId,
 	state_sets: &[StateMap<OwnedEventId>],
-	auth_chain_sets: &Vec<HashSet<OwnedEventId>>,
+	auth_chain_sets: &[HashSet<OwnedEventId>],
 ) -> Result<StateMap<OwnedEventId>> {
 	//TODO: ???
 	let _lock = self.services.globals.stateres_mutex.lock();
