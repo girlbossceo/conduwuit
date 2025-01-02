@@ -106,7 +106,10 @@ async fn accepted(
 	trace!(?socket, ?handler, "serving connection");
 
 	// bug on darwin causes all results to be errors. do not unwrap this
-	_ = builder.serve_connection(socket, handler).await;
+	tokio::select! {
+		() = server.until_shutdown() => (),
+		_ = builder.serve_connection(socket, handler) => (),
+	};
 }
 
 async fn init(server: &Arc<Server>) -> Result<UnixListener> {
