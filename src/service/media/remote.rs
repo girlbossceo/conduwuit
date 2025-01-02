@@ -331,7 +331,10 @@ fn handle_federation_error(
 
 	// If we get these from any middleware we'll try the other endpoint rather than
 	// giving up too early.
-	if error.status_code().is_client_error() || error.status_code().is_redirection() {
+	if error.status_code().is_redirection()
+		|| error.status_code().is_client_error()
+		|| error.status_code().is_server_error()
+	{
 		return fallback();
 	}
 
