@@ -2,6 +2,7 @@
 
 use std::{
 	net::{self, IpAddr, Ipv4Addr},
+	os::fd::AsRawFd,
 	path::Path,
 	sync::{atomic::Ordering, Arc},
 };
@@ -60,29 +61,52 @@ pub(super) async fn serve(
 	Ok(())
 }
 
+#[tracing::instrument(
+	level = "trace",
+	skip_all,
+	fields(
+		?listener,
+		socket = ?conn.0,
+	),
+)]
 async fn accept(
 	server: &Arc<Server>,
 	listener: &UnixListener,
 	tasks: &mut JoinSet<()>,
-	mut app: MakeService,
+	app: MakeService,
 	builder: server::conn::auto::Builder<TokioExecutor>,
 	conn: (UnixStream, SocketAddr),
 ) {
-	let (socket, remote) = conn;
-	let socket = TokioIo::new(socket);
-	trace!(?listener, ?socket, ?remote, "accepted");
-
-	let called = app.call(NULL_ADDR).await.unwrap_infallible();
-
-	let service = move |req: Request<Incoming>| called.clone().oneshot(req);
-	let handler = service_fn(service);
-	let task = async move {
-		// bug on darwin causes all results to be errors. do not unwrap this
-		_ = builder.serve_connection(socket, handler).await;
-	};
+	let (socket, _) = conn;
+	let server_ = server.clone();
+	let task = async move { accepted(server_, builder, socket, app).await };
 
 	_ = tasks.spawn_on(task, server.runtime());
 	while tasks.try_join_next().is_some() {}
+}
+
+#[tracing::instrument(
+	level = "trace",
+	skip_all,
+	fields(
+		fd = %socket.as_raw_fd(),
+		path = ?socket.local_addr(),
+	),
+)]
+async fn accepted(
+	server: Arc<Server>,
+	builder: server::conn::auto::Builder<TokioExecutor>,
+	socket: UnixStream,
+	mut app: MakeService,
+) {
+	let socket = TokioIo::new(socket);
+	let called = app.call(NULL_ADDR).await.unwrap_infallible();
+	let service = move |req: Request<Incoming>| called.clone().oneshot(req);
+	let handler = service_fn(service);
+	trace!(?socket, ?handler, "serving connection");
+
+	// bug on darwin causes all results to be errors. do not unwrap this
+	_ = builder.serve_connection(socket, handler).await;
 }
 
 async fn init(server: &Arc<Server>) -> Result<UnixListener> {

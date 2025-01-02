@@ -12,6 +12,18 @@ use http::{Method, StatusCode, Uri};
 	parent = None,
 	level = "trace",
 	skip_all,
+	fields(
+		handled = %services
+			.server
+			.metrics
+			.requests_spawn_finished
+			.fetch_add(1, Ordering::Relaxed),
+		active = %services
+			.server
+			.metrics
+			.requests_spawn_active
+			.fetch_add(1, Ordering::Relaxed),
+	)
 )]
 pub(crate) async fn spawn(
 	State(services): State<Arc<Services>>,
@@ -19,34 +31,56 @@ pub(crate) async fn spawn(
 	next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
 	let server = &services.server;
+
+	#[cfg(debug_assertions)]
+	defer! {{
+		_ = server
+			.metrics
+			.requests_spawn_active
+			.fetch_sub(1, Ordering::Relaxed);
+	}};
+
 	if !server.running() {
 		debug_warn!("unavailable pending shutdown");
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
-
-	let active = server
-		.metrics
-		.requests_spawn_active
-		.fetch_add(1, Ordering::Relaxed);
-	trace!(active, "enter");
-	defer! {{
-		let active = server.metrics.requests_spawn_active.fetch_sub(1, Ordering::Relaxed);
-		let finished = server.metrics.requests_spawn_finished.fetch_add(1, Ordering::Relaxed);
-		trace!(active, finished, "leave");
-	}};
 
 	let fut = next.run(req);
 	let task = server.runtime().spawn(fut);
 	task.await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-#[tracing::instrument(level = "debug", skip_all)]
+#[tracing::instrument(
+	level = "debug",
+	skip_all,
+	fields(
+		handled = %services
+			.server
+			.metrics
+			.requests_handle_finished
+			.fetch_add(1, Ordering::Relaxed),
+		active = %services
+			.server
+			.metrics
+			.requests_handle_active
+			.fetch_add(1, Ordering::Relaxed),
+	)
+)]
 pub(crate) async fn handle(
 	State(services): State<Arc<Services>>,
 	req: http::Request<axum::body::Body>,
 	next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
 	let server = &services.server;
+
+	#[cfg(debug_assertions)]
+	defer! {{
+		_ = server
+			.metrics
+			.requests_handle_active
+			.fetch_sub(1, Ordering::Relaxed);
+	}};
+
 	if !server.running() {
 		debug_warn!(
 			method = %req.method(),
@@ -56,17 +90,6 @@ pub(crate) async fn handle(
 
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
-
-	let active = server
-		.metrics
-		.requests_handle_active
-		.fetch_add(1, Ordering::Relaxed);
-	trace!(active, "enter");
-	defer! {{
-		let active = server.metrics.requests_handle_active.fetch_sub(1, Ordering::Relaxed);
-		let finished = server.metrics.requests_handle_finished.fetch_add(1, Ordering::Relaxed);
-		trace!(active, finished, "leave");
-	}};
 
 	let uri = req.uri().clone();
 	let method = req.method().clone();
