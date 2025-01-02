@@ -15,8 +15,12 @@ use ruma::{
 use super::check_room_id;
 
 #[implement(super::Service)]
+#[tracing::instrument(
+    level = "warn",
+	skip_all,
+	fields(%origin),
+)]
 #[allow(clippy::type_complexity)]
-#[tracing::instrument(skip_all)]
 pub(super) async fn fetch_prev(
 	&self,
 	origin: &ServerName,

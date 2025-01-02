@@ -15,10 +15,12 @@ pub(crate) struct Keys<'a> {
 }
 
 impl<'a> From<State<'a>> for Keys<'a> {
+	#[inline]
 	fn from(state: State<'a>) -> Self { Self { state } }
 }
 
 impl<'a> Cursor<'a, Key<'a>> for Keys<'a> {
+	#[inline]
 	fn state(&self) -> &State<'a> { &self.state }
 
 	#[inline]

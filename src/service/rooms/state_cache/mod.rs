@@ -95,7 +95,16 @@ impl crate::Service for Service {
 
 impl Service {
 	/// Update current membership data.
-	#[tracing::instrument(skip(self, last_state))]
+	#[tracing::instrument(
+		level = "debug",
+		skip_all,
+		fields(
+			%room_id,
+			%user_id,
+			%sender,
+			?membership_event,
+		),
+	)]
 	#[allow(clippy::too_many_arguments)]
 	pub async fn update_membership(
 		&self,
@@ -265,7 +274,7 @@ impl Service {
 		Ok(())
 	}
 
-	#[tracing::instrument(skip(self, room_id, appservice), level = "debug")]
+	#[tracing::instrument(level = "trace", skip_all)]
 	pub async fn appservice_in_room(
 		&self,
 		room_id: &RoomId,
@@ -383,7 +392,7 @@ impl Service {
 			.map(|(_, server): (Ignore, &ServerName)| server)
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn server_in_room<'a>(
 		&'a self,
 		server: &'a ServerName,
@@ -409,7 +418,7 @@ impl Service {
 	}
 
 	/// Returns true if server can see user by sharing at least one room.
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn server_sees_user(&self, server: &ServerName, user_id: &UserId) -> bool {
 		self.server_rooms(server)
 			.any(|room_id| self.is_joined(user_id, room_id))
@@ -417,7 +426,7 @@ impl Service {
 	}
 
 	/// Returns true if user_a and user_b share at least one room.
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn user_sees_user(&self, user_a: &UserId, user_b: &UserId) -> bool {
 		let get_shared_rooms = self.get_shared_rooms(user_a, user_b);
 
@@ -426,6 +435,7 @@ impl Service {
 	}
 
 	/// List the rooms common between two users
+	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn get_shared_rooms<'a>(
 		&'a self,
 		user_a: &'a UserId,
@@ -453,7 +463,7 @@ impl Service {
 	}
 
 	/// Returns the number of users which are currently in a room
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn room_joined_count(&self, room_id: &RoomId) -> Result<u64> {
 		self.db.roomid_joinedcount.get(room_id).await.deserialized()
 	}
@@ -469,9 +479,9 @@ impl Service {
 			.ready_filter(|user| self.services.globals.user_is_local(user))
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
 	/// Returns an iterator of all our local joined users in a room who are
 	/// active (not deactivated, not guest)
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub fn active_local_users_in_room<'a>(
 		&'a self,
 		room_id: &'a RoomId,
@@ -481,7 +491,7 @@ impl Service {
 	}
 
 	/// Returns the number of users which are currently invited to a room
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn room_invited_count(&self, room_id: &RoomId) -> Result<u64> {
 		self.db
 			.roomid_invitedcount
@@ -518,7 +528,7 @@ impl Service {
 			.map(|(_, user_id): (Ignore, &UserId)| user_id)
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn get_invite_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
 		let key = (room_id, user_id);
 		self.db
@@ -528,7 +538,7 @@ impl Service {
 			.deserialized()
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn get_left_count(&self, room_id: &RoomId, user_id: &UserId) -> Result<u64> {
 		let key = (room_id, user_id);
 		self.db.roomuserid_leftcount.qry(&key).await.deserialized()
@@ -566,7 +576,7 @@ impl Service {
 			.ignore_err()
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn invite_state(
 		&self,
 		user_id: &UserId,
@@ -583,7 +593,7 @@ impl Service {
 			})
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn left_state(
 		&self,
 		user_id: &UserId,
@@ -625,24 +635,25 @@ impl Service {
 		self.db.roomuseroncejoinedids.qry(&key).await.is_ok()
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn is_joined<'a>(&'a self, user_id: &'a UserId, room_id: &'a RoomId) -> bool {
 		let key = (user_id, room_id);
 		self.db.userroomid_joined.qry(&key).await.is_ok()
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn is_invited(&self, user_id: &UserId, room_id: &RoomId) -> bool {
 		let key = (user_id, room_id);
 		self.db.userroomid_invitestate.qry(&key).await.is_ok()
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn is_left(&self, user_id: &UserId, room_id: &RoomId) -> bool {
 		let key = (user_id, room_id);
 		self.db.userroomid_leftstate.qry(&key).await.is_ok()
 	}
 
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn user_membership(
 		&self,
 		user_id: &UserId,
@@ -683,7 +694,7 @@ impl Service {
 	/// distant future.
 	///
 	/// See <https://spec.matrix.org/latest/appendices/#routing>
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "trace")]
 	pub async fn servers_route_via(&self, room_id: &RoomId) -> Result<Vec<OwnedServerName>> {
 		let most_powerful_user_server = self
 			.services
@@ -724,6 +735,7 @@ impl Service {
 		(cache.len(), cache.capacity())
 	}
 
+	#[tracing::instrument(level = "debug", skip_all)]
 	pub fn clear_appservice_in_room_cache(&self) {
 		self.appservice_in_room_cache
 			.write()
@@ -731,6 +743,7 @@ impl Service {
 			.clear();
 	}
 
+	#[tracing::instrument(level = "debug", skip(self))]
 	pub async fn update_joined_count(&self, room_id: &RoomId) {
 		let mut joinedcount = 0_u64;
 		let mut invitedcount = 0_u64;
@@ -784,11 +797,13 @@ impl Service {
 			.remove(room_id);
 	}
 
+	#[tracing::instrument(level = "debug", skip(self))]
 	fn mark_as_once_joined(&self, user_id: &UserId, room_id: &RoomId) {
 		let key = (user_id, room_id);
 		self.db.roomuseroncejoinedids.put_raw(key, []);
 	}
 
+	#[tracing::instrument(level = "debug", skip(self, last_state, invite_via))]
 	pub async fn mark_as_invited(
 		&self,
 		user_id: &UserId,
@@ -821,7 +836,7 @@ impl Service {
 		}
 	}
 
-	#[tracing::instrument(skip(self, servers), level = "debug")]
+	#[tracing::instrument(level = "debug", skip(self, servers))]
 	pub async fn add_servers_invite_via(&self, room_id: &RoomId, servers: Vec<OwnedServerName>) {
 		let mut servers: Vec<_> = self
 			.servers_invite_via(room_id)

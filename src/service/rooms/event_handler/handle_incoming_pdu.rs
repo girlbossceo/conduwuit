@@ -39,7 +39,12 @@ use crate::rooms::timeline::RawPduId;
 /// 14. Check if the event passes auth based on the "current state" of the room,
 ///     if not soft fail it
 #[implement(super::Service)]
-#[tracing::instrument(skip(self, origin, value, is_timeline_event), name = "pdu")]
+#[tracing::instrument(
+	name = "pdu",
+	level = "warn",
+	skip_all,
+	fields(%room_id, %event_id),
+)]
 pub async fn handle_incoming_pdu<'a>(
 	&self,
 	origin: &'a ServerName,

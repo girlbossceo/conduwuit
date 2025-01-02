@@ -80,7 +80,9 @@ impl Service {
 
 		self.work_loop(id, &mut futures, &mut statuses).await;
 
-		self.finish_responses(&mut futures).boxed().await;
+		if !futures.is_empty() {
+			self.finish_responses(&mut futures).boxed().await;
+		}
 
 		Ok(())
 	}

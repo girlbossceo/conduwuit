@@ -22,7 +22,9 @@ where
 	Ok(buf)
 }
 
+/// Serialize T into Writer W
 #[inline]
+#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 pub fn serialize<'a, W, T>(out: &'a mut W, val: T) -> Result<&'a [u8]>
 where
 	W: Write + AsRef<[u8]> + 'a,

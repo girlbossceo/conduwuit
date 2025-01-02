@@ -15,12 +15,15 @@ pub(crate) struct ItemsRev<'a> {
 }
 
 impl<'a> From<State<'a>> for ItemsRev<'a> {
+	#[inline]
 	fn from(state: State<'a>) -> Self { Self { state } }
 }
 
 impl<'a> Cursor<'a, KeyVal<'a>> for ItemsRev<'a> {
+	#[inline]
 	fn state(&self) -> &State<'a> { &self.state }
 
+	#[inline]
 	fn fetch(&self) -> Option<KeyVal<'a>> { self.state.fetch().map(keyval_longevity) }
 
 	#[inline]

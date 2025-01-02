@@ -29,12 +29,14 @@ pub(crate) trait Cursor<'a, T> {
 
 	fn seek(&mut self);
 
+	#[inline]
 	fn get(&self) -> Option<Result<T>> {
 		self.fetch()
 			.map(Ok)
 			.or_else(|| self.state().status().map(map_err).map(Err))
 	}
 
+	#[inline]
 	fn seek_and_get(&mut self) -> Option<Result<T>> {
 		self.seek();
 		self.get()
@@ -45,6 +47,7 @@ type Inner<'a> = DBRawIteratorWithThreadMode<'a, Db>;
 type From<'a> = Option<Key<'a>>;
 
 impl<'a> State<'a> {
+	#[inline]
 	pub(super) fn new(map: &'a Arc<Map>, opts: ReadOptions) -> Self {
 		Self {
 			inner: map.db().db.raw_iterator_cf_opt(&map.cf(), opts),
@@ -53,6 +56,8 @@ impl<'a> State<'a> {
 		}
 	}
 
+	#[inline]
+	#[tracing::instrument(level = "trace", skip_all)]
 	pub(super) fn init_fwd(mut self, from: From<'_>) -> Self {
 		debug_assert!(self.init, "init must be set to make this call");
 		debug_assert!(!self.seek, "seek must not be set to make this call");
@@ -67,6 +72,8 @@ impl<'a> State<'a> {
 		self
 	}
 
+	#[inline]
+	#[tracing::instrument(level = "trace", skip_all)]
 	pub(super) fn init_rev(mut self, from: From<'_>) -> Self {
 		debug_assert!(self.init, "init must be set to make this call");
 		debug_assert!(!self.seek, "seek must not be set to make this call");
@@ -82,6 +89,7 @@ impl<'a> State<'a> {
 	}
 
 	#[inline]
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	pub(super) fn seek_fwd(&mut self) {
 		if !exchange(&mut self.init, false) {
 			self.inner.next();
@@ -91,6 +99,7 @@ impl<'a> State<'a> {
 	}
 
 	#[inline]
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	pub(super) fn seek_rev(&mut self) {
 		if !exchange(&mut self.init, false) {
 			self.inner.prev();
@@ -103,12 +112,16 @@ impl<'a> State<'a> {
 		matches!(self.status(), Some(e) if is_incomplete(&e))
 	}
 
+	#[inline]
 	fn fetch_key(&self) -> Option<Key<'_>> { self.inner.key().map(Key::from) }
 
+	#[inline]
 	fn _fetch_val(&self) -> Option<Val<'_>> { self.inner.value().map(Val::from) }
 
+	#[inline]
 	fn fetch(&self) -> Option<KeyVal<'_>> { self.inner.item().map(KeyVal::from) }
 
+	#[inline]
 	pub(super) fn status(&self) -> Option<rocksdb::Error> { self.inner.status().err() }
 
 	#[inline]

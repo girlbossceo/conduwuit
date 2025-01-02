@@ -13,8 +13,10 @@ use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName};
 #[allow(clippy::type_complexity)]
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
-	skip(self, origin, event_id, room_id, eventid_info, create_event, first_pdu_in_room),
-	name = "prev"
+	name = "prev",
+	level = "warn",
+	skip_all,
+	fields(%prev_id),
 )]
 pub(super) async fn handle_prev_pdu<'a>(
 	&self,

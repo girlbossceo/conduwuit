@@ -9,6 +9,15 @@ use serde::{
 use crate::util::unhandled;
 
 /// Deserialize into T from buffer.
+#[cfg_attr(
+	unabridged,
+	tracing::instrument(
+		name = "deserialize",
+		level = "trace",
+		skip_all,
+		fields(len = %buf.len()),
+	)
+)]
 pub(crate) fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
 where
 	T: Deserialize<'a>,
@@ -132,6 +141,17 @@ impl<'de> Deserializer<'de> {
 
 	/// Increment the position pointer.
 	#[inline]
+	#[cfg_attr(
+		unabridged,
+		tracing::instrument(
+			level = "trace",
+			skip(self),
+			fields(
+				len = self.buf.len(),
+				rem = self.remaining().unwrap_or_default().saturating_sub(n),
+			),
+		)
+	)]
 	fn inc_pos(&mut self, n: usize) {
 		self.pos = self.pos.saturating_add(n);
 		debug_assert!(self.pos <= self.buf.len(), "pos out of range");
@@ -149,6 +169,7 @@ impl<'de> Deserializer<'de> {
 impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	type Error = Error;
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
@@ -157,6 +178,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_seq(self)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, visitor)))]
 	fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
@@ -165,6 +187,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_seq(self)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, visitor)))]
 	fn deserialize_tuple_struct<V>(
 		self,
 		_name: &'static str,
@@ -178,6 +201,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_seq(self)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_map<V>(self, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
@@ -187,6 +211,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		d.deserialize_map(visitor).map_err(Into::into)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, visitor)))]
 	fn deserialize_struct<V>(
 		self,
 		name: &'static str,
@@ -202,6 +227,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 			.map_err(Into::into)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, visitor)))]
 	fn deserialize_unit_struct<V>(self, name: &'static str, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
@@ -215,6 +241,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_unit()
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, visitor)))]
 	fn deserialize_newtype_struct<V>(self, name: &'static str, visitor: V) -> Result<V::Value>
 	where
 		V: Visitor<'de>,
@@ -225,6 +252,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		}
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, _visitor)))]
 	fn deserialize_enum<V>(
 		self,
 		_name: &'static str,
@@ -237,26 +265,32 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		unhandled!("deserialize Enum not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize Option not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_bool<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize bool not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_i8<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize i8 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_i16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize i16 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_i32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize i32 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		const BYTES: usize = size_of::<i64>();
 
@@ -268,6 +302,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_i64(i64::from_be_bytes(bytes))
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_u8<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!(
 			"deserialize u8 not implemented; try dereferencing the Handle for [u8] access \
@@ -275,14 +310,17 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_u16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize u16 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_u32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize u32 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		const BYTES: usize = size_of::<u64>();
 
@@ -294,53 +332,67 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 		visitor.visit_u64(u64::from_be_bytes(bytes))
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_f32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize f32 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_f64<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize f64 not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_char<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize char not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let input = self.record_next();
 		let out = deserialize_str(input)?;
 		visitor.visit_borrowed_str(out)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let input = self.record_next();
 		let out = string::string_from_bytes(input)?;
 		visitor.visit_string(out)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let input = self.record_trail();
 		visitor.visit_borrowed_bytes(input)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_byte_buf<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize Byte Buf not implemented")
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize Unit not implemented")
 	}
 
 	// this only used for $serde_json::private::RawValue at this time; see MapAccess
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		let input = "$serde_json::private::RawValue";
 		visitor.visit_borrowed_str(input)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
 	fn deserialize_ignored_any<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
 		unhandled!("deserialize Ignored Any not implemented")
 	}
 
+	#[cfg_attr(
+		unabridged,
+		tracing::instrument(level = "trace", skip_all, fields(?self.buf))
+	)]
 	fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		debug_assert_eq!(
 			conduwuit::debug::type_name::<V>(),
@@ -363,6 +415,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 impl<'a, 'de: 'a> de::SeqAccess<'de> for &'a mut Deserializer<'de> {
 	type Error = Error;
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, seed)))]
 	fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
 	where
 		T: DeserializeSeed<'de>,
@@ -381,6 +434,7 @@ impl<'a, 'de: 'a> de::SeqAccess<'de> for &'a mut Deserializer<'de> {
 impl<'a, 'de: 'a> de::MapAccess<'de> for &'a mut Deserializer<'de> {
 	type Error = Error;
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, seed)))]
 	fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
 	where
 		K: DeserializeSeed<'de>,
@@ -388,6 +442,7 @@ impl<'a, 'de: 'a> de::MapAccess<'de> for &'a mut Deserializer<'de> {
 		seed.deserialize(&mut **self).map(Some)
 	}
 
+	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip(self, seed)))]
 	fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
 	where
 		V: DeserializeSeed<'de>,

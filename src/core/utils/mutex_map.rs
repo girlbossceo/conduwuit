@@ -19,8 +19,8 @@ type Value<Val> = Arc<tokio::sync::Mutex<Val>>;
 
 impl<Key, Val> MutexMap<Key, Val>
 where
-	Key: Send + Hash + Eq + Clone,
-	Val: Send + Default,
+	Key: Clone + Eq + Hash + Send,
+	Val: Default + Send,
 {
 	#[must_use]
 	pub fn new() -> Self {
@@ -29,10 +29,10 @@ where
 		}
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(level = "trace", skip(self))]
 	pub async fn lock<K>(&self, k: &K) -> Guard<Key, Val>
 	where
-		K: ?Sized + Send + Sync + Debug,
+		K: Debug + Send + ?Sized + Sync,
 		Key: for<'a> From<&'a K>,
 	{
 		let val = self
@@ -61,13 +61,14 @@ where
 
 impl<Key, Val> Default for MutexMap<Key, Val>
 where
-	Key: Send + Hash + Eq + Clone,
-	Val: Send + Default,
+	Key: Clone + Eq + Hash + Send,
+	Val: Default + Send,
 {
 	fn default() -> Self { Self::new() }
 }
 
 impl<Key, Val> Drop for Guard<Key, Val> {
+	#[tracing::instrument(name = "unlock", level = "trace", skip_all)]
 	fn drop(&mut self) {
 		if Arc::strong_count(Omg::mutex(&self.val)) <= 2 {
 			self.map.lock().expect("locked").retain(|_, val| {

@@ -1,6 +1,6 @@
 use std::collections::{hash_map, HashMap};
 
-use conduwuit::{debug, implement, warn, Err, Error, PduEvent, Result};
+use conduwuit::{debug, debug_warn, implement, Err, Error, PduEvent, Result};
 use futures::FutureExt;
 use ruma::{
 	api::federation::event::get_room_state_ids, events::StateEventType, EventId, OwnedEventId,
@@ -13,7 +13,11 @@ use crate::rooms::short::ShortStateKey;
 /// server's response to some extend (sic), but we still do a lot of checks
 /// on the events
 #[implement(super::Service)]
-#[tracing::instrument(skip(self, create_event, room_version_id))]
+#[tracing::instrument(
+	level = "warn",
+	skip_all,
+	fields(%origin),
+)]
 pub(super) async fn fetch_state(
 	&self,
 	origin: &ServerName,
@@ -22,7 +26,6 @@ pub(super) async fn fetch_state(
 	room_version_id: &RoomVersionId,
 	event_id: &EventId,
 ) -> Result<Option<HashMap<u64, OwnedEventId>>> {
-	debug!("Fetching state ids");
 	let res = self
 		.services
 		.sending
@@ -31,7 +34,7 @@ pub(super) async fn fetch_state(
 			event_id: event_id.to_owned(),
 		})
 		.await
-		.inspect_err(|e| warn!("Fetching state for event failed: {e}"))?;
+		.inspect_err(|e| debug_warn!("Fetching state for event failed: {e}"))?;
 
 	debug!("Fetching state events");
 	let state_vec = self

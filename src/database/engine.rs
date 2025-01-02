@@ -157,11 +157,13 @@ impl Engine {
 	#[inline]
 	pub fn corked(&self) -> bool { self.corks.load(std::sync::atomic::Ordering::Relaxed) > 0 }
 
+	#[inline]
 	pub(crate) fn cork(&self) {
 		self.corks
 			.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 	}
 
+	#[inline]
 	pub(crate) fn uncork(&self) {
 		self.corks
 			.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);

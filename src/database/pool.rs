@@ -207,8 +207,6 @@ pub(crate) async fn execute_get(self: &Arc<Self>, mut cmd: Get) -> Result<BatchR
 				.map_err(|e| err!(error!("recv failed {e:?}")))
 		})
 		.await
-		.map(Into::into)
-		.map_err(Into::into)
 }
 
 #[implement(Pool)]
