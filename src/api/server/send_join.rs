@@ -61,12 +61,11 @@ async fn create_join_event(
 	};
 
 	let event_room_id: OwnedRoomId = serde_json::from_value(
-		serde_json::to_value(
-			value
-				.get("room_id")
-				.ok_or_else(|| err!(Request(BadJson("Event missing room_id property."))))?,
-		)
-		.expect("CanonicalJson is valid json value"),
+		value
+			.get("room_id")
+			.ok_or_else(|| err!(Request(BadJson("Event missing room_id property."))))?
+			.clone()
+			.into(),
 	)
 	.map_err(|e| err!(Request(BadJson(warn!("room_id field is not a valid room ID: {e}")))))?;
 

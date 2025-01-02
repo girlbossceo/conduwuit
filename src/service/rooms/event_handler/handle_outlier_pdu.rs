@@ -68,7 +68,7 @@ pub(super) async fn handle_outlier_pdu<'a>(
 	let incoming_pdu = serde_json::from_value::<PduEvent>(
 		serde_json::to_value(&val).expect("CanonicalJsonObj is a valid JsonValue"),
 	)
-	.map_err(|_| Error::bad_database("Event is not a valid PDU."))?;
+	.map_err(|e| err!(Request(BadJson(debug_warn!("Event is not a valid PDU: {e}")))))?;
 
 	check_room_id(room_id, &incoming_pdu)?;
 

@@ -901,6 +901,29 @@ impl Service {
 			}
 		};
 
+		if pdu.kind == TimelineEventType::RoomMember {
+			let content: RoomMemberEventContent = pdu.get_content()?;
+
+			if content.join_authorized_via_users_server.is_some()
+				&& content.membership != MembershipState::Join
+			{
+				return Err!(Request(BadJson(
+					"join_authorised_via_users_server is only for member joins"
+				)));
+			}
+
+			if content
+				.join_authorized_via_users_server
+				.as_ref()
+				.is_some_and(|authorising_user| {
+					!self.services.globals.user_is_local(authorising_user)
+				}) {
+				return Err!(Request(InvalidParam(
+					"Authorising user does not belong to this homeserver"
+				)));
+			}
+		}
+
 		// We append to state before appending the pdu, so we don't have a moment in
 		// time with the pdu without it's state. This is okay because append_pdu can't
 		// fail.

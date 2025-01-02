@@ -739,7 +739,12 @@ impl Service {
 			));
 		};
 
-		let mut pdus = Vec::new();
+		let mut pdus = Vec::with_capacity(
+			events
+				.iter()
+				.filter(|event| matches!(event, SendingEvent::Pdu(_)))
+				.count(),
+		);
 		for event in &events {
 			match event {
 				| SendingEvent::Pdu(pdu_id) => {

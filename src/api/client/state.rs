@@ -1,15 +1,13 @@
 use axum::extract::State;
-use conduwuit::{err, pdu::PduBuilder, utils::BoolExt, Err, Error, PduEvent, Result};
+use conduwuit::{err, pdu::PduBuilder, utils::BoolExt, Err, PduEvent, Result};
 use ruma::{
-	api::client::{
-		error::ErrorKind,
-		state::{get_state_events, get_state_events_for_key, send_state_event},
-	},
+	api::client::state::{get_state_events, get_state_events_for_key, send_state_event},
 	events::{
 		room::{
 			canonical_alias::RoomCanonicalAliasEventContent,
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
+			member::{MembershipState, RoomMemberEventContent},
 		},
 		AnyStateEventContent, StateEventType,
 	},
@@ -23,11 +21,6 @@ use crate::{Ruma, RumaResponse};
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}/{stateKey}`
 ///
 /// Sends a state event into the room.
-///
-/// - The only requirement for the content is that it has to be valid json
-/// - Tries to send the event into the room, auth rules will determine if it is
-///   allowed
-/// - If event is new `canonical_alias`: Rejects if alias is incorrect
 pub(crate) async fn send_state_event_for_key_route(
 	State(services): State<crate::State>,
 	body: Ruma<send_state_event::v3::Request>,
@@ -41,7 +34,7 @@ pub(crate) async fn send_state_event_for_key_route(
 			&body.room_id,
 			&body.event_type,
 			&body.body.body,
-			body.state_key.clone(),
+			&body.state_key,
 			if body.appservice_info.is_some() {
 				body.timestamp
 			} else {
@@ -55,11 +48,6 @@ pub(crate) async fn send_state_event_for_key_route(
 /// # `PUT /_matrix/client/*/rooms/{roomId}/state/{eventType}`
 ///
 /// Sends a state event into the room.
-///
-/// - The only requirement for the content is that it has to be valid json
-/// - Tries to send the event into the room, auth rules will determine if it is
-///   allowed
-/// - If event is new `canonical_alias`: Rejects if alias is incorrect
 pub(crate) async fn send_state_event_for_empty_key_route(
 	State(services): State<crate::State>,
 	body: Ruma<send_state_event::v3::Request>,
@@ -172,10 +160,10 @@ async fn send_state_event_for_key_helper(
 	room_id: &RoomId,
 	event_type: &StateEventType,
 	json: &Raw<AnyStateEventContent>,
-	state_key: String,
+	state_key: &str,
 	timestamp: Option<ruma::MilliSecondsSinceUnixEpoch>,
 ) -> Result<OwnedEventId> {
-	allowed_to_send_state_event(services, room_id, event_type, json).await?;
+	allowed_to_send_state_event(services, room_id, event_type, state_key, json).await?;
 	let state_lock = services.rooms.state.mutex.lock(room_id).await;
 	let event_id = services
 		.rooms
@@ -184,7 +172,7 @@ async fn send_state_event_for_key_helper(
 			PduBuilder {
 				event_type: event_type.to_string().into(),
 				content: serde_json::from_str(json.json().get())?,
-				state_key: Some(state_key),
+				state_key: Some(String::from(state_key)),
 				timestamp,
 				..Default::default()
 			},
@@ -201,6 +189,7 @@ async fn allowed_to_send_state_event(
 	services: &Services,
 	room_id: &RoomId,
 	event_type: &StateEventType,
+	state_key: &str,
 	json: &Raw<AnyStateEventContent>,
 ) -> Result {
 	match event_type {
@@ -212,10 +201,7 @@ async fn allowed_to_send_state_event(
 		// Forbid m.room.encryption if encryption is disabled
 		| StateEventType::RoomEncryption =>
 			if !services.globals.allow_encryption() {
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
-					"Encryption has been disabled",
-				));
+				return Err!(Request(Forbidden("Encryption is disabled on this homeserver.")));
 			},
 		// admin room is a sensitive room, it should not ever be made public
 		| StateEventType::RoomJoinRules => {
@@ -225,10 +211,9 @@ async fn allowed_to_send_state_event(
 						serde_json::from_str::<RoomJoinRulesEventContent>(json.json().get())
 					{
 						if join_rule.join_rule == JoinRule::Public {
-							return Err(Error::BadRequest(
-								ErrorKind::forbidden(),
-								"Admin room is not allowed to be public.",
-							));
+							return Err!(Request(Forbidden(
+								"Admin room is a sensitive room, it cannot be made public"
+							)));
 						}
 					}
 				}
@@ -236,26 +221,22 @@ async fn allowed_to_send_state_event(
 		},
 		// admin room is a sensitive room, it should not ever be made world readable
 		| StateEventType::RoomHistoryVisibility => {
-			if let Ok(admin_room_id) = services.admin.get_admin_room().await {
-				if admin_room_id == room_id {
-					if let Ok(visibility_content) = serde_json::from_str::<
-						RoomHistoryVisibilityEventContent,
-					>(json.json().get())
-					{
-						if visibility_content.history_visibility
+			if let Ok(visibility_content) =
+				serde_json::from_str::<RoomHistoryVisibilityEventContent>(json.json().get())
+			{
+				if let Ok(admin_room_id) = services.admin.get_admin_room().await {
+					if admin_room_id == room_id
+						&& visibility_content.history_visibility
 							== HistoryVisibility::WorldReadable
-						{
-							return Err(Error::BadRequest(
-								ErrorKind::forbidden(),
-								"Admin room is not allowed to be made world readable (public \
-								 room history).",
-							));
-						}
+					{
+						return Err!(Request(Forbidden(
+							"Admin room is a sensitive room, it cannot be made world readable \
+							 (public room history)."
+						)));
 					}
 				}
 			}
 		},
-		// TODO: allow alias if it previously existed
 		| StateEventType::RoomCanonicalAlias => {
 			if let Ok(canonical_alias) =
 				serde_json::from_str::<RoomCanonicalAliasEventContent>(json.json().get())
@@ -286,6 +267,59 @@ async fn allowed_to_send_state_event(
 							 aliases already exist"
 						)));
 					}
+				}
+			}
+		},
+		| StateEventType::RoomMember => {
+			let Ok(membership_content) =
+				serde_json::from_str::<RoomMemberEventContent>(json.json().get())
+			else {
+				return Err!(Request(BadJson(
+					"Membership content must have a valid JSON body with at least a valid \
+					 membership state."
+				)));
+			};
+
+			let Ok(state_key) = UserId::parse(state_key) else {
+				return Err!(Request(BadJson(
+					"Membership event has invalid or non-existent state key"
+				)));
+			};
+
+			if let Some(authorising_user) = membership_content.join_authorized_via_users_server {
+				if membership_content.membership != MembershipState::Join {
+					return Err!(Request(BadJson(
+						"join_authorised_via_users_server is only for member joins"
+					)));
+				}
+
+				if services
+					.rooms
+					.state_cache
+					.is_joined(state_key, room_id)
+					.await
+				{
+					return Err!(Request(InvalidParam(
+						"{state_key} is already joined, an authorising user is not required."
+					)));
+				}
+
+				if !services.globals.user_is_local(&authorising_user) {
+					return Err!(Request(InvalidParam(
+						"Authorising user {authorising_user} does not belong to this homeserver"
+					)));
+				}
+
+				if !services
+					.rooms
+					.state_cache
+					.is_joined(&authorising_user, room_id)
+					.await
+				{
+					return Err!(Request(InvalidParam(
+						"Authorising user {authorising_user} is not in the room, they cannot \
+						 authorise the join."
+					)));
 				}
 			}
 		},

@@ -4,12 +4,9 @@ use std::{
 	time::Instant,
 };
 
-use conduwuit::{debug, err, implement, warn, Error, Result};
+use conduwuit::{debug, err, implement, warn, Err, Result};
 use futures::{FutureExt, TryFutureExt};
-use ruma::{
-	api::client::error::ErrorKind, events::StateEventType, CanonicalJsonValue, EventId, RoomId,
-	ServerName, UserId,
-};
+use ruma::{events::StateEventType, CanonicalJsonValue, EventId, RoomId, ServerName, UserId};
 
 use super::{check_room_id, get_room_version_id};
 use crate::rooms::timeline::RawPduId;
@@ -58,15 +55,14 @@ pub async fn handle_incoming_pdu<'a>(
 
 	// 1.1 Check the server is in the room
 	if !self.services.metadata.exists(room_id).await {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server"));
+		return Err!(Request(NotFound("Room is unknown to this server")));
 	}
 
 	// 1.2 Check if the room is disabled
 	if self.services.metadata.is_disabled(room_id).await {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Federation of this room is currently disabled on this server.",
-		));
+		return Err!(Request(Forbidden(
+			"Federation of this room is currently disabled on this server."
+		)));
 	}
 
 	// 1.3.1 Check room ACL on origin field/server
