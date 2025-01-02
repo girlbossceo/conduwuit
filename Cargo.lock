@@ -95,7 +95,7 @@ checksum = "5f093eed78becd229346bf859eec0aa4dd7ddde0757287b2b4107a1f09c80002"
 [[package]]
 name = "async-channel"
 version = "2.3.1"
-source = "git+https://github.com/jevolk/async-channel?rev=fefa543ca5eddf21237d75776fce98b7e09e924a#fefa543ca5eddf21237d75776fce98b7e09e924a"
+source = "git+https://github.com/girlbossceo/async-channel?rev=92e5e74063bf2a3b10414bcc8a0d68b235644280#92e5e74063bf2a3b10414bcc8a0d68b235644280"
 dependencies = [
  "concurrent-queue",
  "event-listener-strategy",
@@ -938,7 +938,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 [[package]]
 name = "core_affinity"
 version = "0.8.1"
-source = "git+https://github.com/jevolk/core_affinity_rs?rev=9c8e51510c35077df888ee72a36b4b05637147da#9c8e51510c35077df888ee72a36b4b05637147da"
+source = "git+https://github.com/girlbossceo/core_affinity_rs?rev=9c8e51510c35077df888ee72a36b4b05637147da#9c8e51510c35077df888ee72a36b4b05637147da"
 dependencies = [
  "libc",
  "num_cpus",
@@ -1258,7 +1258,7 @@ dependencies = [
 [[package]]
 name = "event-listener"
 version = "5.3.1"
-source = "git+https://github.com/jevolk/event-listener?rev=96d7e0fc026d8f708b19bc9267a382676a50354c#96d7e0fc026d8f708b19bc9267a382676a50354c"
+source = "git+https://github.com/girlbossceo/event-listener?rev=fe4aebeeaae435af60087ddd56b573a2e0be671d#fe4aebeeaae435af60087ddd56b573a2e0be671d"
 dependencies = [
  "concurrent-queue",
  "parking",

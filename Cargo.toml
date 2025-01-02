@@ -532,14 +532,14 @@ rev = "deaeb0694e2083f53d363b648da06e10fc13900c"
 
 # adds LIFO queue scheduling; this should be updated with PR progress.
 [patch.crates-io.event-listener]
-git = "https://github.com/jevolk/event-listener"
-rev = "96d7e0fc026d8f708b19bc9267a382676a50354c"
+git = "https://github.com/girlbossceo/event-listener"
+rev = "fe4aebeeaae435af60087ddd56b573a2e0be671d"
 [patch.crates-io.async-channel]
-git = "https://github.com/jevolk/async-channel"
-rev = "fefa543ca5eddf21237d75776fce98b7e09e924a"
+git = "https://github.com/girlbossceo/async-channel"
+rev = "92e5e74063bf2a3b10414bcc8a0d68b235644280"
 
 [patch.crates-io.core_affinity]
-git = "https://github.com/jevolk/core_affinity_rs"
+git = "https://github.com/girlbossceo/core_affinity_rs"
 rev = "9c8e51510c35077df888ee72a36b4b05637147da"
 
 #

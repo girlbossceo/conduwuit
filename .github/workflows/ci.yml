@@ -188,13 +188,13 @@ jobs:
             - name: Run sccache-cache
               if: (env.SCCACHE_GHA_ENABLED == 'true')
               uses: mozilla-actions/sccache-action@main
-              with:
-                version: "v0.8.2"
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
               with:
                 cache-all-crates: "true"
+                cache-on-failure: "true"
+                cache-targets: "true"
 
             - name: Run CI tests
               env:
@@ -366,13 +366,13 @@ jobs:
             - name: Run sccache-cache
               if: (env.SCCACHE_GHA_ENABLED == 'true')
               uses: mozilla-actions/sccache-action@main
-              with:
-                version: "v0.8.2"
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
               with:
                 cache-all-crates: "true"
+                cache-on-failure: "true"
+                cache-targets: "true"
 
             - name: Build static ${{ matrix.target }}-all-features
               run: |
@@ -660,6 +660,8 @@ jobs:
             - uses: Swatinem/rust-cache@v2
               with:
                 cache-all-crates: "true"
+                cache-on-failure: "true"
+                cache-targets: "true"
 
             # Nix can't do portable macOS builds yet
             - name: Build macOS x86_64 binary
