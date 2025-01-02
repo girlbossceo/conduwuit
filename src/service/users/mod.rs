@@ -947,12 +947,13 @@ impl Service {
 		user_id: &UserId,
 		profile_key: &str,
 	) -> Result<serde_json::Value> {
-		let key = (user_id, profile_key);
 		self.db
 			.useridprofilekey_value
-			.qry(&key)
+			.qry(&(user_id, profile_key))
 			.await
-			.deserialized()
+			.deserialized::<Raw<serde_json::Value>>()
+			.map(serde_json::to_value)?
+			.map_err(Into::into)
 	}
 
 	/// Gets all the user's profile keys and values in an iterator
@@ -960,14 +961,16 @@ impl Service {
 		&'a self,
 		user_id: &'a UserId,
 	) -> impl Stream<Item = (String, serde_json::Value)> + 'a + Send {
-		type KeyVal = ((Ignore, String), serde_json::Value);
+		type KeyVal = ((Ignore, String), Raw<serde_json::Value>);
 
 		let prefix = (user_id, Interfix);
 		self.db
 			.useridprofilekey_value
 			.stream_prefix(&prefix)
 			.ignore_err()
-			.map(|((_, key), val): KeyVal| (key, val))
+			.ready_filter_map(|((_, key), val): KeyVal| {
+				Some((key, serde_json::to_value(val).ok()?))
+			})
 	}
 
 	/// Sets a new profile key value, removes the key if value is None

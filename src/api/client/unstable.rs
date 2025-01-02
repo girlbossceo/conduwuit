@@ -506,6 +506,10 @@ pub(crate) async fn get_profile_key_route(
 				return Err!(Request(NotFound("The requested profile key does not exist.")));
 			}
 
+			if profile_key_value.is_empty() {
+				return Err!(Request(NotFound("The requested profile key does not exist.")));
+			}
+
 			return Ok(get_profile_key::unstable::Response { value: profile_key_value });
 		}
 	}
@@ -519,6 +523,10 @@ pub(crate) async fn get_profile_key_route(
 	if let Ok(value) = services.users.profile_key(&body.user_id, &body.key).await {
 		profile_key_value.insert(body.key.clone(), value);
 	} else {
+		return Err!(Request(NotFound("The requested profile key does not exist.")));
+	}
+
+	if profile_key_value.is_empty() {
 		return Err!(Request(NotFound("The requested profile key does not exist.")));
 	}
 
