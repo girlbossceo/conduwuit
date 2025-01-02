@@ -351,6 +351,10 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
 		match self.record_peek_byte() {
 			| Some(b'{') => self.deserialize_map(visitor),
+			| Some(b'[') => serde_json::Deserializer::from_slice(self.record_next())
+				.deserialize_seq(visitor)
+				.map_err(Into::into),
+
 			| _ => self.deserialize_str(visitor),
 		}
 	}
