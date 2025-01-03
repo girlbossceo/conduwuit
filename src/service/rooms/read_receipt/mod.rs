@@ -155,6 +155,7 @@ where
 	}
 	let content = ReceiptEventContent::from_iter(json);
 
+	conduwuit::trace!(?content);
 	Raw::from_json(
 		serde_json::value::to_raw_value(&SyncEphemeralRoomEvent { content })
 			.expect("received valid json"),

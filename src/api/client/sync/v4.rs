@@ -23,24 +23,23 @@ use ruma::{
 			DeviceLists, UnreadNotificationsCount,
 		},
 	},
-	directory::RoomTypeFilter,
 	events::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType,
-		TimelineEventType::{self, *},
+		TimelineEventType::*,
 	},
 	serde::Raw,
-	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
+	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UInt,
 };
-use service::{rooms::read_receipt::pack_receipts, Services};
+use service::rooms::read_receipt::pack_receipts;
 
 use super::{load_timeline, share_encrypted_room};
-use crate::{client::ignored_filter, Ruma};
+use crate::{
+	client::{filter_rooms, ignored_filter, sync::v5::TodoRooms, DEFAULT_BUMP_TYPES},
+	Ruma,
+};
 
-const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
-
-const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
-	&[CallInvite, PollStart, Beacon, RoomEncrypted, RoomMessage, Sticker];
+pub(crate) const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
 
 /// POST `/_matrix/client/unstable/org.matrix.msc3575/sync`
 ///
@@ -113,11 +112,16 @@ pub(crate) async fn sync_events_v4_route(
 		.collect()
 		.await;
 
-	let all_rooms = all_joined_rooms
+	let all_invited_rooms: Vec<&RoomId> = all_invited_rooms.iter().map(AsRef::as_ref).collect();
+
+	let all_rooms: Vec<&RoomId> = all_joined_rooms
 		.iter()
-		.chain(all_invited_rooms.iter())
-		.map(Clone::clone)
+		.map(AsRef::as_ref)
+		.chain(all_invited_rooms.iter().map(AsRef::as_ref))
 		.collect();
+
+	let all_joined_rooms = all_joined_rooms.iter().map(AsRef::as_ref).collect();
+	let all_invited_rooms = all_invited_rooms.iter().map(AsRef::as_ref).collect();
 
 	if body.extensions.to_device.enabled.unwrap_or(false) {
 		services
@@ -171,6 +175,7 @@ pub(crate) async fn sync_events_v4_route(
 		);
 
 		for room_id in &all_joined_rooms {
+			let room_id: &&RoomId = room_id;
 			let Ok(current_shortstatehash) =
 				services.rooms.state.get_room_shortstatehash(room_id).await
 			else {
@@ -323,7 +328,7 @@ pub(crate) async fn sync_events_v4_route(
 	}
 
 	let mut lists = BTreeMap::new();
-	let mut todo_rooms = BTreeMap::new(); // and required state
+	let mut todo_rooms: TodoRooms = BTreeMap::new(); // and required state
 
 	for (list_id, list) in &body.lists {
 		let active_rooms = match list.filters.clone().and_then(|f| f.is_invite) {
@@ -344,7 +349,7 @@ pub(crate) async fn sync_events_v4_route(
 			| None => active_rooms,
 		};
 
-		let mut new_known_rooms = BTreeSet::new();
+		let mut new_known_rooms: BTreeSet<OwnedRoomId> = BTreeSet::new();
 
 		let ranges = list.ranges.clone();
 		lists.insert(list_id.clone(), sync_events::v4::SyncList {
@@ -366,9 +371,9 @@ pub(crate) async fn sync_events_v4_route(
 						Vec::new()
 					};
 
-					new_known_rooms.extend(room_ids.iter().cloned());
+					new_known_rooms.extend(room_ids.clone().into_iter().map(ToOwned::to_owned));
 					for room_id in &room_ids {
-						let todo_room = todo_rooms.entry(room_id.clone()).or_insert((
+						let todo_room = todo_rooms.entry((*room_id).to_owned()).or_insert((
 							BTreeSet::new(),
 							0_usize,
 							u64::MAX,
@@ -390,7 +395,7 @@ pub(crate) async fn sync_events_v4_route(
 						todo_room.2 = todo_room.2.min(
 							known_rooms
 								.get(list_id.as_str())
-								.and_then(|k| k.get(room_id))
+								.and_then(|k| k.get(*room_id))
 								.copied()
 								.unwrap_or(0),
 						);
@@ -399,7 +404,7 @@ pub(crate) async fn sync_events_v4_route(
 						op: SlidingOp::Sync,
 						range: Some(r),
 						index: None,
-						room_ids,
+						room_ids: room_ids.into_iter().map(ToOwned::to_owned).collect(),
 						room_id: None,
 					}
 				})
@@ -409,8 +414,8 @@ pub(crate) async fn sync_events_v4_route(
 
 		if let Some(conn_id) = &body.conn_id {
 			services.sync.update_sync_known_rooms(
-				sender_user.clone(),
-				sender_device.clone(),
+				sender_user,
+				&sender_device,
 				conn_id.clone(),
 				list_id.clone(),
 				new_known_rooms,
@@ -455,8 +460,8 @@ pub(crate) async fn sync_events_v4_route(
 
 	if let Some(conn_id) = &body.conn_id {
 		services.sync.update_sync_known_rooms(
-			sender_user.clone(),
-			sender_device.clone(),
+			sender_user,
+			&sender_device,
 			conn_id.clone(),
 			"subscriptions".to_owned(),
 			known_subscription_rooms,
@@ -480,7 +485,8 @@ pub(crate) async fn sync_events_v4_route(
 		let mut timestamp: Option<_> = None;
 		let mut invite_state = None;
 		let (timeline_pdus, limited);
-		if all_invited_rooms.contains(room_id) {
+		let new_room_id: &RoomId = (*room_id).as_ref();
+		if all_invited_rooms.contains(&new_room_id) {
 			// TODO: figure out a timestamp we can use for remote invites
 			invite_state = services
 				.rooms
@@ -510,7 +516,7 @@ pub(crate) async fn sync_events_v4_route(
 		}
 
 		account_data.rooms.insert(
-			room_id.clone(),
+			room_id.to_owned(),
 			services
 				.account_data
 				.changes_since(Some(room_id), sender_user, *roomsince)
@@ -740,10 +746,9 @@ pub(crate) async fn sync_events_v4_route(
 		});
 	}
 
-	if rooms
-		.iter()
-		.all(|(_, r)| r.timeline.is_empty() && r.required_state.is_empty())
-	{
+	if rooms.iter().all(|(id, r)| {
+		r.timeline.is_empty() && r.required_state.is_empty() && !receipts.rooms.contains_key(id)
+	}) {
 		// Hang a few seconds so requests are not spammed
 		// Stop hanging if new info arrives
 		let default = Duration::from_secs(30);
@@ -788,34 +793,4 @@ pub(crate) async fn sync_events_v4_route(
 		},
 		delta_token: None,
 	})
-}
-
-async fn filter_rooms(
-	services: &Services,
-	rooms: &[OwnedRoomId],
-	filter: &[RoomTypeFilter],
-	negate: bool,
-) -> Vec<OwnedRoomId> {
-	rooms
-		.iter()
-		.stream()
-		.filter_map(|r| async move {
-			let room_type = services.rooms.state_accessor.get_room_type(r).await;
-
-			if room_type.as_ref().is_err_and(|e| !e.is_not_found()) {
-				return None;
-			}
-
-			let room_type_filter = RoomTypeFilter::from(room_type.ok());
-
-			let include = if negate {
-				!filter.contains(&room_type_filter)
-			} else {
-				filter.is_empty() || filter.contains(&room_type_filter)
-			};
-
-			include.then_some(r.to_owned())
-		})
-		.collect()
-		.await
 }
