@@ -4,7 +4,7 @@ use axum::{
 	extract::State,
 	response::{IntoResponse, Response},
 };
-use conduwuit::{debug, debug_error, debug_warn, defer, err, error, trace, Result};
+use conduwuit::{debug, debug_error, debug_warn, err, error, trace, Result};
 use conduwuit_service::Services;
 use http::{Method, StatusCode, Uri};
 
@@ -33,7 +33,7 @@ pub(crate) async fn spawn(
 	let server = &services.server;
 
 	#[cfg(debug_assertions)]
-	defer! {{
+	conduwuit::defer! {{
 		_ = server
 			.metrics
 			.requests_spawn_active
@@ -74,7 +74,7 @@ pub(crate) async fn handle(
 	let server = &services.server;
 
 	#[cfg(debug_assertions)]
-	defer! {{
+	conduwuit::defer! {{
 		_ = server
 			.metrics
 			.requests_handle_active
