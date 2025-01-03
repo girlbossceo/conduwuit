@@ -124,7 +124,7 @@ pub(crate) async fn sync_events_route(
 	// Setup watchers, so if there's no response, we can wait for them
 	let watcher = services.sync.watch(sender_user, sender_device);
 
-	let response = build_sync_events(services, &body).await?;
+	let response = build_sync_events(&services, &body).await?;
 	if body.body.full_state
 		|| !(response.rooms.is_empty()
 			&& response.presence.is_empty()
@@ -142,11 +142,11 @@ pub(crate) async fn sync_events_route(
 	_ = tokio::time::timeout(duration, watcher).await;
 
 	// Retry returning data
-	build_sync_events(services, &body).await
+	build_sync_events(&services, &body).await
 }
 
 pub(crate) async fn build_sync_events(
-	services: crate::State,
+	services: &Services,
 	body: &Ruma<sync_events::v3::Request>,
 ) -> Result<sync_events::v3::Response, RumaResponse<UiaaResponse>> {
 	let (sender_user, sender_device) = body.sender();
