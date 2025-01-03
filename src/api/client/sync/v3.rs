@@ -190,7 +190,7 @@ pub(crate) async fn build_sync_events(
 		.map(ToOwned::to_owned)
 		.broad_filter_map(|room_id| {
 			load_joined_room(
-				&services,
+				services,
 				sender_user,
 				sender_device,
 				room_id.clone(),
@@ -223,7 +223,7 @@ pub(crate) async fn build_sync_events(
 		.rooms_left(sender_user)
 		.broad_filter_map(|(room_id, _)| {
 			handle_left_room(
-				&services,
+				services,
 				since,
 				room_id.clone(),
 				sender_user,
@@ -269,7 +269,7 @@ pub(crate) async fn build_sync_events(
 	let presence_updates: OptionFuture<_> = services
 		.globals
 		.allow_local_presence()
-		.then(|| process_presence_updates(&services, since, sender_user))
+		.then(|| process_presence_updates(services, since, sender_user))
 		.into();
 
 	let account_data = services
@@ -319,7 +319,7 @@ pub(crate) async fn build_sync_events(
 		.stream()
 		.broad_filter_map(|user_id| async move {
 			let no_shared_encrypted_room =
-				!share_encrypted_room(&services, sender_user, &user_id, None).await;
+				!share_encrypted_room(services, sender_user, &user_id, None).await;
 			no_shared_encrypted_room.then_some(user_id)
 		})
 		.ready_fold(HashSet::new(), |mut device_list_left, user_id| {
