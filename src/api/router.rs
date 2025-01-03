@@ -145,6 +145,7 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 		)
 		.ruma_route(&client::sync_events_route)
 		.ruma_route(&client::sync_events_v4_route)
+		.ruma_route(&client::sync_events_v5_route)
 		.ruma_route(&client::get_context_route)
 		.ruma_route(&client::get_message_events_route)
 		.ruma_route(&client::search_events_route)

@@ -1,15 +1,30 @@
 mod v3;
 mod v4;
+mod v5;
 
 use conduwuit::{
-	utils::stream::{BroadbandExt, ReadyExt, TryIgnore},
+	utils::{
+		stream::{BroadbandExt, ReadyExt, TryIgnore},
+		IterStream,
+	},
 	PduCount,
 };
 use futures::{pin_mut, StreamExt};
-use ruma::{RoomId, UserId};
+use ruma::{
+	directory::RoomTypeFilter,
+	events::TimelineEventType::{
+		self, Beacon, CallInvite, PollStart, RoomEncrypted, RoomMessage, Sticker,
+	},
+	RoomId, UserId,
+};
 
-pub(crate) use self::{v3::sync_events_route, v4::sync_events_v4_route};
+pub(crate) use self::{
+	v3::sync_events_route, v4::sync_events_v4_route, v5::sync_events_v5_route,
+};
 use crate::{service::Services, Error, PduEvent, Result};
+
+pub(crate) const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
+	&[CallInvite, PollStart, Beacon, RoomEncrypted, RoomMessage, Sticker];
 
 async fn load_timeline(
 	services: &Services,
@@ -67,5 +82,35 @@ async fn share_encrypted_room(
 				.state_accessor
 				.is_encrypted_room(other_room_id)
 		})
+		.await
+}
+
+pub(crate) async fn filter_rooms<'a>(
+	services: &Services,
+	rooms: &[&'a RoomId],
+	filter: &[RoomTypeFilter],
+	negate: bool,
+) -> Vec<&'a RoomId> {
+	rooms
+		.iter()
+		.stream()
+		.filter_map(|r| async move {
+			let room_type = services.rooms.state_accessor.get_room_type(r).await;
+
+			if room_type.as_ref().is_err_and(|e| !e.is_not_found()) {
+				return None;
+			}
+
+			let room_type_filter = RoomTypeFilter::from(room_type.ok());
+
+			let include = if negate {
+				!filter.contains(&room_type_filter)
+			} else {
+				filter.is_empty() || filter.contains(&room_type_filter)
+			};
+
+			include.then_some(r)
+		})
+		.collect()
 		.await
 }
