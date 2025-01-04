@@ -3,10 +3,13 @@ mod appservice;
 mod globals;
 mod presence;
 mod pusher;
+mod raw;
 mod resolver;
 mod room_alias;
 mod room_state_cache;
+mod room_timeline;
 mod sending;
+mod short;
 mod users;
 
 use clap::Subcommand;
@@ -14,9 +17,10 @@ use conduwuit::Result;
 
 use self::{
 	account_data::AccountDataCommand, appservice::AppserviceCommand, globals::GlobalsCommand,
-	presence::PresenceCommand, pusher::PusherCommand, resolver::ResolverCommand,
+	presence::PresenceCommand, pusher::PusherCommand, raw::RawCommand, resolver::ResolverCommand,
 	room_alias::RoomAliasCommand, room_state_cache::RoomStateCacheCommand,
-	sending::SendingCommand, users::UsersCommand,
+	room_timeline::RoomTimelineCommand, sending::SendingCommand, short::ShortCommand,
+	users::UsersCommand,
 };
 use crate::admin_command_dispatch;
 
@@ -44,6 +48,10 @@ pub(super) enum QueryCommand {
 	#[command(subcommand)]
 	RoomStateCache(RoomStateCacheCommand),
 
+	/// - rooms/timeline iterators and getters
+	#[command(subcommand)]
+	RoomTimeline(RoomTimelineCommand),
+
 	/// - globals.rs iterators and getters
 	#[command(subcommand)]
 	Globals(GlobalsCommand),
@@ -63,4 +71,12 @@ pub(super) enum QueryCommand {
 	/// - pusher service
 	#[command(subcommand)]
 	Pusher(PusherCommand),
+
+	/// - short service
+	#[command(subcommand)]
+	Short(ShortCommand),
+
+	/// - raw service
+	#[command(subcommand)]
+	Raw(RawCommand),
 }

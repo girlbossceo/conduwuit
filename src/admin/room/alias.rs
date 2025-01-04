@@ -44,7 +44,14 @@ pub(crate) enum RoomAliasCommand {
 	},
 }
 
-pub(super) async fn process(
+pub(super) async fn process(command: RoomAliasCommand, context: &Command<'_>) -> Result {
+	let c = reprocess(command, context).await?;
+	context.write_str(c.body()).await?;
+
+	Ok(())
+}
+
+pub(super) async fn reprocess(
 	command: RoomAliasCommand,
 	context: &Command<'_>,
 ) -> Result<RoomMessageEventContent> {

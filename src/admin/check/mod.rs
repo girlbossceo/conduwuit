@@ -2,20 +2,11 @@ mod commands;
 
 use clap::Subcommand;
 use conduwuit::Result;
-use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::Command;
+use crate::admin_command_dispatch;
 
+#[admin_command_dispatch]
 #[derive(Debug, Subcommand)]
 pub(super) enum CheckCommand {
-	AllUsers,
-}
-
-pub(super) async fn process(
-	command: CheckCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
-	Ok(match command {
-		| CheckCommand::AllUsers => context.check_all_users().await?,
-	})
+	CheckAllUsers,
 }

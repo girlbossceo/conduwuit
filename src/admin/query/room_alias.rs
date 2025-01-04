@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use conduwuit::Result;
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, RoomAliasId, RoomId};
+use ruma::{RoomAliasId, RoomId};
 
 use crate::Command;
 
@@ -24,10 +24,7 @@ pub(crate) enum RoomAliasCommand {
 }
 
 /// All the getters and iterators in src/database/key_value/rooms/alias.rs
-pub(super) async fn process(
-	subcommand: RoomAliasCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: RoomAliasCommand, context: &Command<'_>) -> Result {
 	let services = context.services;
 
 	match subcommand {
@@ -36,9 +33,7 @@ pub(super) async fn process(
 			let results = services.rooms.alias.resolve_local_alias(&alias).await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```")
 		},
 		| RoomAliasCommand::LocalAliasesForRoom { room_id } => {
 			let timer = tokio::time::Instant::now();
@@ -51,9 +46,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```")
 		},
 		| RoomAliasCommand::AllLocalAliases => {
 			let timer = tokio::time::Instant::now();
@@ -66,9 +59,8 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{aliases:#?}\n```")
 		},
 	}
+	.await
 }

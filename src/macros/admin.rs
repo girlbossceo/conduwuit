@@ -22,7 +22,7 @@ pub(super) fn command_dispatch(item: ItemEnum, _args: &[Meta]) -> Result<TokenSt
 		pub(super) async fn process(
 			command: #name,
 			context: &crate::Command<'_>
-		) -> Result<ruma::events::room::message::RoomMessageEventContent> {
+		) -> Result {
 			use #name::*;
 			#[allow(non_snake_case)]
 			Ok(match command {
@@ -46,7 +46,10 @@ fn dispatch_arm(v: &Variant) -> Result<TokenStream2> {
 			let field = fields.named.iter().filter_map(|f| f.ident.as_ref());
 			let arg = field.clone();
 			quote! {
-				#name { #( #field ),* } => Box::pin(context.#handler(#( #arg ),*)).await?,
+				#name { #( #field ),* } => {
+					let c = Box::pin(context.#handler(#( #arg ),*)).await?;
+					Box::pin(context.write_str(c.body())).await?;
+				},
 			}
 		},
 		| Fields::Unnamed(fields) => {
@@ -54,12 +57,17 @@ fn dispatch_arm(v: &Variant) -> Result<TokenStream2> {
 				return Err(Error::new(Span::call_site().into(), "One unnamed field required"));
 			};
 			quote! {
-				#name ( #field ) => Box::pin(#handler::process(#field, context)).await?,
+				#name ( #field ) => {
+					Box::pin(#handler::process(#field, context)).await?;
+				}
 			}
 		},
 		| Fields::Unit => {
 			quote! {
-				#name => Box::pin(context.#handler()).await?,
+				#name => {
+					let c = Box::pin(context.#handler()).await?;
+					Box::pin(context.write_str(c.body())).await?;
+				},
 			}
 		},
 	};

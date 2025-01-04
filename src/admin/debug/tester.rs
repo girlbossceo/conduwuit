@@ -31,7 +31,7 @@ async fn failure(&self) -> Result<RoomMessageEventContent> {
 #[admin_command]
 async fn tester(&self) -> Result<RoomMessageEventContent> {
 
-	Ok(RoomMessageEventContent::notice_plain("completed"))
+	Ok(RoomMessageEventContent::notice_plain("legacy"))
 }
 
 #[inline(never)]

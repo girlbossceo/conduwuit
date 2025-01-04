@@ -28,56 +28,66 @@ async fn destinations_cache(
 ) -> Result<RoomMessageEventContent> {
 	use service::resolver::cache::CachedDest;
 
+	writeln!(self, "| Server Name | Destination | Hostname | Expires |").await?;
+	writeln!(self, "| ----------- | ----------- | -------- | ------- |").await?;
+
 	let mut out = String::new();
-	writeln!(out, "| Server Name | Destination | Hostname | Expires |")?;
-	writeln!(out, "| ----------- | ----------- | -------- | ------- |")?;
-	let row = |(name, &CachedDest { ref dest, ref host, expire })| {
-		let expire = time::format(expire, "%+");
-		writeln!(out, "| {name} | {dest} | {host} | {expire} |").expect("wrote line");
-	};
+	{
+		let map = self
+			.services
+			.resolver
+			.cache
+			.destinations
+			.read()
+			.expect("locked");
 
-	let map = self
-		.services
-		.resolver
-		.cache
-		.destinations
-		.read()
-		.expect("locked");
+		for (name, &CachedDest { ref dest, ref host, expire }) in map.iter() {
+			if let Some(server_name) = server_name.as_ref() {
+				if name != server_name {
+					continue;
+				}
+			}
 
-	if let Some(server_name) = server_name.as_ref() {
-		map.get_key_value(server_name).map(row);
-	} else {
-		map.iter().for_each(row);
+			let expire = time::format(expire, "%+");
+			writeln!(out, "| {name} | {dest} | {host} | {expire} |")?;
+		}
 	}
 
-	Ok(RoomMessageEventContent::notice_markdown(out))
+	self.write_str(out.as_str()).await?;
+
+	Ok(RoomMessageEventContent::notice_plain(""))
 }
 
 #[admin_command]
 async fn overrides_cache(&self, server_name: Option<String>) -> Result<RoomMessageEventContent> {
 	use service::resolver::cache::CachedOverride;
 
+	writeln!(self, "| Server Name | IP  | Port | Expires |").await?;
+	writeln!(self, "| ----------- | --- | ----:| ------- |").await?;
+
 	let mut out = String::new();
-	writeln!(out, "| Server Name | IP  | Port | Expires |")?;
-	writeln!(out, "| ----------- | --- | ----:| ------- |")?;
-	let row = |(name, &CachedOverride { ref ips, port, expire })| {
-		let expire = time::format(expire, "%+");
-		writeln!(out, "| {name} | {ips:?} | {port} | {expire} |").expect("wrote line");
-	};
+	{
+		let map = self
+			.services
+			.resolver
+			.cache
+			.overrides
+			.read()
+			.expect("locked");
 
-	let map = self
-		.services
-		.resolver
-		.cache
-		.overrides
-		.read()
-		.expect("locked");
+		for (name, &CachedOverride { ref ips, port, expire }) in map.iter() {
+			if let Some(server_name) = server_name.as_ref() {
+				if name != server_name {
+					continue;
+				}
+			}
 
-	if let Some(server_name) = server_name.as_ref() {
-		map.get_key_value(server_name).map(row);
-	} else {
-		map.iter().for_each(row);
+			let expire = time::format(expire, "%+");
+			writeln!(out, "| {name} | {ips:?} | {port} | {expire} |")?;
+		}
 	}
 
-	Ok(RoomMessageEventContent::notice_markdown(out))
+	self.write_str(out.as_str()).await?;
+
+	Ok(RoomMessageEventContent::notice_plain(""))
 }

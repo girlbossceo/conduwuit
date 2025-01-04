@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use conduwuit::Result;
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, UserId};
+use ruma::UserId;
 
 use crate::Command;
 
@@ -23,10 +23,7 @@ pub(crate) enum PresenceCommand {
 }
 
 /// All the getters and iterators in key_value/presence.rs
-pub(super) async fn process(
-	subcommand: PresenceCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: PresenceCommand, context: &Command<'_>) -> Result {
 	let services = context.services;
 
 	match subcommand {
@@ -35,9 +32,7 @@ pub(super) async fn process(
 			let results = services.presence.get_presence(&user_id).await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```")
 		},
 		| PresenceCommand::PresenceSince { since } => {
 			let timer = tokio::time::Instant::now();
@@ -49,9 +44,8 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```")
 		},
 	}
+	.await
 }

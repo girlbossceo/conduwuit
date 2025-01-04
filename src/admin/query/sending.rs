@@ -62,7 +62,14 @@ pub(crate) enum SendingCommand {
 }
 
 /// All the getters and iterators in key_value/sending.rs
-pub(super) async fn process(
+pub(super) async fn process(subcommand: SendingCommand, context: &Command<'_>) -> Result {
+	let c = reprocess(subcommand, context).await?;
+	context.write_str(c.body()).await?;
+	Ok(())
+}
+
+/// All the getters and iterators in key_value/sending.rs
+pub(super) async fn reprocess(
 	subcommand: SendingCommand,
 	context: &Command<'_>,
 ) -> Result<RoomMessageEventContent> {

@@ -31,19 +31,21 @@ const BULK_JOIN_REASON: &str = "Bulk force joining this room as initiated by the
 
 #[admin_command]
 pub(super) async fn list_users(&self) -> Result<RoomMessageEventContent> {
-	let users = self
+	let users: Vec<_> = self
 		.services
 		.users
 		.list_local_users()
 		.map(ToString::to_string)
-		.collect::<Vec<_>>()
+		.collect()
 		.await;
 
 	let mut plain_msg = format!("Found {} local user account(s):\n```\n", users.len());
 	plain_msg += users.join("\n").as_str();
 	plain_msg += "\n```";
 
-	Ok(RoomMessageEventContent::notice_markdown(plain_msg))
+	self.write_str(plain_msg.as_str()).await?;
+
+	Ok(RoomMessageEventContent::text_plain(""))
 }
 
 #[admin_command]
@@ -912,29 +914,30 @@ pub(super) async fn redact_event(
 		self.services.globals.server_name()
 	);
 
-	let state_lock = self.services.rooms.state.mutex.lock(&room_id).await;
+	let redaction_event_id = {
+		let state_lock = self.services.rooms.state.mutex.lock(&room_id).await;
 
-	let redaction_event_id = self
-		.services
-		.rooms
-		.timeline
-		.build_and_append_pdu(
-			PduBuilder {
-				redacts: Some(event.event_id.clone()),
-				..PduBuilder::timeline(&RoomRedactionEventContent {
+		self.services
+			.rooms
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder {
 					redacts: Some(event.event_id.clone()),
-					reason: Some(reason),
-				})
-			},
-			&sender_user,
-			&room_id,
-			&state_lock,
-		)
-		.await?;
+					..PduBuilder::timeline(&RoomRedactionEventContent {
+						redacts: Some(event.event_id.clone()),
+						reason: Some(reason),
+					})
+				},
+				&sender_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?
+	};
 
-	drop(state_lock);
+	let out = format!("Successfully redacted event. Redaction event ID: {redaction_event_id}");
 
-	Ok(RoomMessageEventContent::text_plain(format!(
-		"Successfully redacted event. Redaction event ID: {redaction_event_id}"
-	)))
+	self.write_str(out.as_str()).await?;
+
+	Ok(RoomMessageEventContent::text_plain(""))
 }

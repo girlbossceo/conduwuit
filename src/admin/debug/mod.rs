@@ -4,6 +4,7 @@ pub(crate) mod tester;
 use clap::Subcommand;
 use conduwuit::Result;
 use ruma::{EventId, OwnedRoomOrAliasId, RoomId, ServerName};
+use service::rooms::short::{ShortEventId, ShortRoomId};
 
 use self::tester::TesterCommand;
 use crate::admin_command_dispatch;
@@ -31,10 +32,19 @@ pub(super) enum DebugCommand {
 	/// the command.
 	ParsePdu,
 
-	/// - Retrieve and print a PDU by ID from the conduwuit database
+	/// - Retrieve and print a PDU by EventID from the conduwuit database
 	GetPdu {
 		/// An event ID (a $ followed by the base64 reference hash)
 		event_id: Box<EventId>,
+	},
+
+	/// - Retrieve and print a PDU by PduId from the conduwuit database
+	GetShortPdu {
+		/// Shortroomid integer
+		shortroomid: ShortRoomId,
+
+		/// Shorteventid integer
+		shorteventid: ShortEventId,
 	},
 
 	/// - Attempts to retrieve a PDU from a remote server. Inserts it into our

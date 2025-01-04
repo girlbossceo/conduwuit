@@ -3,8 +3,9 @@ use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, UserId};
 
-use crate::Command;
+use crate::{admin_command, admin_command_dispatch};
 
+#[admin_command_dispatch]
 #[derive(Debug, Subcommand)]
 /// All the getters and iterators from src/database/key_value/account_data.rs
 pub(crate) enum AccountDataCommand {
@@ -19,7 +20,7 @@ pub(crate) enum AccountDataCommand {
 	},
 
 	/// - Searches the account data for a specific kind.
-	Get {
+	AccountDataGet {
 		/// Full user ID
 		user_id: Box<UserId>,
 		/// Account data event type
@@ -29,38 +30,43 @@ pub(crate) enum AccountDataCommand {
 	},
 }
 
-/// All the getters and iterators from src/database/key_value/account_data.rs
-pub(super) async fn process(
-	subcommand: AccountDataCommand,
-	context: &Command<'_>,
+#[admin_command]
+async fn changes_since(
+	&self,
+	user_id: Box<UserId>,
+	since: u64,
+	room_id: Option<Box<RoomId>>,
 ) -> Result<RoomMessageEventContent> {
-	let services = context.services;
+	let timer = tokio::time::Instant::now();
+	let results: Vec<_> = self
+		.services
+		.account_data
+		.changes_since(room_id.as_deref(), &user_id, since)
+		.collect()
+		.await;
+	let query_time = timer.elapsed();
 
-	match subcommand {
-		| AccountDataCommand::ChangesSince { user_id, since, room_id } => {
-			let timer = tokio::time::Instant::now();
-			let results: Vec<_> = services
-				.account_data
-				.changes_since(room_id.as_deref(), &user_id, since)
-				.collect()
-				.await;
-			let query_time = timer.elapsed();
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+	)))
+}
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
-		},
-		| AccountDataCommand::Get { user_id, kind, room_id } => {
-			let timer = tokio::time::Instant::now();
-			let results = services
-				.account_data
-				.get_raw(room_id.as_deref(), &user_id, &kind)
-				.await;
-			let query_time = timer.elapsed();
+#[admin_command]
+async fn account_data_get(
+	&self,
+	user_id: Box<UserId>,
+	kind: String,
+	room_id: Option<Box<RoomId>>,
+) -> Result<RoomMessageEventContent> {
+	let timer = tokio::time::Instant::now();
+	let results = self
+		.services
+		.account_data
+		.get_raw(room_id.as_deref(), &user_id, &kind)
+		.await;
+	let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
-		},
-	}
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
+	)))
 }

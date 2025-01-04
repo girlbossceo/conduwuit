@@ -6,7 +6,8 @@ use std::{
 };
 
 use conduwuit::{
-	debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, Result,
+	debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, PduId,
+	RawPduId, Result,
 };
 use futures::{FutureExt, StreamExt};
 use ruma::{
@@ -15,7 +16,10 @@ use ruma::{
 	CanonicalJsonObject, EventId, OwnedEventId, OwnedRoomOrAliasId, RoomId, RoomVersionId,
 	ServerName,
 };
-use service::rooms::state_compressor::HashSetCompressStateEvent;
+use service::rooms::{
+	short::{ShortEventId, ShortRoomId},
+	state_compressor::HashSetCompressStateEvent,
+};
 use tracing_subscriber::EnvFilter;
 
 use crate::admin_command;
@@ -126,6 +130,35 @@ pub(super) async fn get_pdu(&self, event_id: Box<EventId>) -> Result<RoomMessage
 				},
 				json_text
 			)))
+		},
+		| Err(_) => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
+	}
+}
+
+#[admin_command]
+pub(super) async fn get_short_pdu(
+	&self,
+	shortroomid: ShortRoomId,
+	shorteventid: ShortEventId,
+) -> Result<RoomMessageEventContent> {
+	let pdu_id: RawPduId = PduId {
+		shortroomid,
+		shorteventid: shorteventid.into(),
+	}
+	.into();
+
+	let pdu_json = self
+		.services
+		.rooms
+		.timeline
+		.get_pdu_json_from_id(&pdu_id)
+		.await;
+
+	match pdu_json {
+		| Ok(json) => {
+			let json_text =
+				serde_json::to_string_pretty(&json).expect("canonical json is valid json");
+			Ok(RoomMessageEventContent::notice_markdown(format!("```json\n{json_text}\n```",)))
 		},
 		| Err(_) => Ok(RoomMessageEventContent::text_plain("PDU not found locally.")),
 	}
@@ -895,7 +928,7 @@ pub(super) async fn list_dependencies(&self, names: bool) -> Result<RoomMessageE
 		} else {
 			String::new()
 		};
-		writeln!(out, "{name} | {version} | {feats}")?;
+		writeln!(out, "| {name} | {version} | {feats} |")?;
 	}
 
 	Ok(RoomMessageEventContent::notice_markdown(out))

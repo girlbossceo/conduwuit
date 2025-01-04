@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use conduwuit::Result;
+use conduwuit::{Error, Result};
 use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
 
@@ -76,13 +76,10 @@ pub(crate) enum RoomStateCacheCommand {
 	},
 }
 
-pub(super) async fn process(
-	subcommand: RoomStateCacheCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: RoomStateCacheCommand, context: &Command<'_>) -> Result {
 	let services = context.services;
 
-	match subcommand {
+	let c = match subcommand {
 		| RoomStateCacheCommand::ServerInRoom { server, room_id } => {
 			let timer = tokio::time::Instant::now();
 			let result = services
@@ -92,7 +89,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{result:#?}\n```"
 			)))
 		},
@@ -107,7 +104,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -122,7 +119,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -137,7 +134,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -152,7 +149,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -167,7 +164,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -176,7 +173,7 @@ pub(super) async fn process(
 			let results = services.rooms.state_cache.room_joined_count(&room_id).await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -189,7 +186,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -204,7 +201,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -219,7 +216,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -232,7 +229,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -245,7 +242,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -260,7 +257,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -274,7 +271,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -288,7 +285,7 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
@@ -301,9 +298,13 @@ pub(super) async fn process(
 				.await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
+			Result::<_, Error>::Ok(RoomMessageEventContent::notice_markdown(format!(
 				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
 			)))
 		},
-	}
+	}?;
+
+	context.write_str(c.body()).await?;
+
+	Ok(())
 }

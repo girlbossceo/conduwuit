@@ -1,6 +1,5 @@
 use clap::Subcommand;
 use conduwuit::Result;
-use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::Command;
 
@@ -18,10 +17,7 @@ pub(crate) enum AppserviceCommand {
 }
 
 /// All the getters and iterators from src/database/key_value/appservice.rs
-pub(super) async fn process(
-	subcommand: AppserviceCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: AppserviceCommand, context: &Command<'_>) -> Result {
 	let services = context.services;
 
 	match subcommand {
@@ -31,18 +27,15 @@ pub(super) async fn process(
 
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```")
 		},
 		| AppserviceCommand::All => {
 			let timer = tokio::time::Instant::now();
 			let results = services.appservice.all().await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```")
 		},
 	}
+	.await
 }

@@ -1,6 +1,5 @@
 use clap::Parser;
 use conduwuit::Result;
-use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::{
 	appservice, appservice::AppserviceCommand, check, check::CheckCommand, command::Command,
@@ -50,13 +49,10 @@ pub(super) enum AdminCommand {
 }
 
 #[tracing::instrument(skip_all, name = "command")]
-pub(super) async fn process(
-	command: AdminCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(command: AdminCommand, context: &Command<'_>) -> Result {
 	use AdminCommand::*;
 
-	Ok(match command {
+	match command {
 		| Appservices(command) => appservice::process(command, context).await?,
 		| Media(command) => media::process(command, context).await?,
 		| Users(command) => user::process(command, context).await?,
@@ -66,5 +62,7 @@ pub(super) async fn process(
 		| Debug(command) => debug::process(command, context).await?,
 		| Query(command) => query::process(command, context).await?,
 		| Check(command) => check::process(command, context).await?,
-	})
+	};
+
+	Ok(())
 }

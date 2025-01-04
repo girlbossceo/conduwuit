@@ -1,6 +1,6 @@
 use clap::Subcommand;
 use conduwuit::Result;
-use ruma::{events::room::message::RoomMessageEventContent, UserId};
+use ruma::UserId;
 
 use crate::Command;
 
@@ -13,10 +13,7 @@ pub(crate) enum PusherCommand {
 	},
 }
 
-pub(super) async fn process(
-	subcommand: PusherCommand,
-	context: &Command<'_>,
-) -> Result<RoomMessageEventContent> {
+pub(super) async fn process(subcommand: PusherCommand, context: &Command<'_>) -> Result {
 	let services = context.services;
 
 	match subcommand {
@@ -25,9 +22,8 @@ pub(super) async fn process(
 			let results = services.pusher.get_pushers(&user_id).await;
 			let query_time = timer.elapsed();
 
-			Ok(RoomMessageEventContent::notice_markdown(format!(
-				"Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"
-			)))
+			write!(context, "Query completed in {query_time:?}:\n\n```rs\n{results:#?}\n```")
 		},
 	}
+	.await
 }

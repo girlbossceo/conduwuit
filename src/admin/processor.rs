@@ -1,5 +1,6 @@
 use std::{
 	fmt::Write,
+	mem::take,
 	panic::AssertUnwindSafe,
 	sync::{Arc, Mutex},
 	time::SystemTime,
@@ -17,7 +18,7 @@ use conduwuit::{
 	utils::string::{collect_stream, common_prefix},
 	warn, Error, Result,
 };
-use futures::future::FutureExt;
+use futures::{future::FutureExt, io::BufWriter, AsyncWriteExt};
 use ruma::{
 	events::{
 		relation::InReplyTo,
@@ -62,9 +63,32 @@ async fn process_command(services: Arc<Services>, input: &CommandInput) -> Proce
 		body: &body,
 		timer: SystemTime::now(),
 		reply_id: input.reply_id.as_deref(),
+		output: BufWriter::new(Vec::new()).into(),
 	};
 
-	process(&context, command, &args).await
+	let (result, mut logs) = process(&context, command, &args).await;
+
+	let output = &mut context.output.lock().await;
+	output.flush().await.expect("final flush of output stream");
+
+	let output =
+		String::from_utf8(take(output.get_mut())).expect("invalid utf8 in command output stream");
+
+	match result {
+		| Ok(()) if logs.is_empty() =>
+			Ok(Some(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id))),
+
+		| Ok(()) => {
+			logs.write_str(output.as_str()).expect("output buffer");
+			Ok(Some(reply(RoomMessageEventContent::notice_markdown(logs), context.reply_id)))
+		},
+		| Err(error) => {
+			write!(&mut logs, "Command failed with error:\n```\n{error:#?}\n```")
+				.expect("output buffer");
+
+			Err(reply(RoomMessageEventContent::notice_markdown(logs), context.reply_id))
+		},
+	}
 }
 
 fn handle_panic(error: &Error, command: &CommandInput) -> ProcessorResult {
@@ -81,7 +105,7 @@ async fn process(
 	context: &Command<'_>,
 	command: AdminCommand,
 	args: &[String],
-) -> ProcessorResult {
+) -> (Result, String) {
 	let (capture, logs) = capture_create(context);
 
 	let capture_scope = capture.start();
@@ -104,18 +128,7 @@ async fn process(
 	}
 	drop(logs);
 
-	match result {
-		| Ok(content) => {
-			write!(&mut output, "{0}", content.body())
-				.expect("failed to format command result to output buffer");
-			Ok(Some(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id)))
-		},
-		| Err(error) => {
-			write!(&mut output, "Command failed with error:\n```\n{error:#?}\n```")
-				.expect("failed to format command result to output");
-			Err(reply(RoomMessageEventContent::notice_markdown(output), context.reply_id))
-		},
-	}
+	(result, output)
 }
 
 fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {

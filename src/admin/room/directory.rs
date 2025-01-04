@@ -25,7 +25,13 @@ pub(crate) enum RoomDirectoryCommand {
 	},
 }
 
-pub(super) async fn process(
+pub(super) async fn process(command: RoomDirectoryCommand, context: &Command<'_>) -> Result {
+	let c = reprocess(command, context).await?;
+	context.write_str(c.body()).await?;
+	Ok(())
+}
+
+pub(super) async fn reprocess(
 	command: RoomDirectoryCommand,
 	context: &Command<'_>,
 ) -> Result<RoomMessageEventContent> {
