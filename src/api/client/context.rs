@@ -1,14 +1,12 @@
-use std::iter::once;
-
 use axum::extract::State;
 use conduwuit::{
 	at, err, ref_at,
 	utils::{
 		future::TryExtExt,
-		stream::{BroadbandExt, ReadyExt, WidebandExt},
+		stream::{BroadbandExt, ReadyExt, TryIgnore, WidebandExt},
 		IterStream,
 	},
-	Err, Result,
+	Err, PduEvent, Result,
 };
 use futures::{join, try_join, FutureExt, StreamExt, TryFutureExt};
 use ruma::{
@@ -59,13 +57,13 @@ pub(crate) async fn get_context_route(
 		false
 	};
 
-	let base_token = services
+	let base_id = services
 		.rooms
 		.timeline
-		.get_pdu_count(&body.event_id)
+		.get_pdu_id(&body.event_id)
 		.map_err(|_| err!(Request(NotFound("Event not found."))));
 
-	let base_event = services
+	let base_pdu = services
 		.rooms
 		.timeline
 		.get_pdu(&body.event_id)
@@ -77,48 +75,44 @@ pub(crate) async fn get_context_route(
 		.user_can_see_event(sender_user, &body.room_id, &body.event_id)
 		.map(Ok);
 
-	let (base_token, base_event, visible) = try_join!(base_token, base_event, visible)?;
+	let (base_id, base_pdu, visible) = try_join!(base_id, base_pdu, visible)?;
 
-	if base_event.room_id != body.room_id || base_event.event_id != body.event_id {
+	if base_pdu.room_id != body.room_id || base_pdu.event_id != body.event_id {
 		return Err!(Request(NotFound("Base event not found.")));
 	}
 
-	if !visible
-		|| ignored_filter(&services, (base_token, base_event.clone()), sender_user)
-			.await
-			.is_none()
-	{
+	if !visible {
 		return Err!(Request(Forbidden("You don't have permission to view this event.")));
 	}
 
-	let events_before =
-		services
-			.rooms
-			.timeline
-			.pdus_rev(Some(sender_user), room_id, Some(base_token));
+	let base_count = base_id.pdu_count();
+
+	let base_event = ignored_filter(&services, (base_count, base_pdu), sender_user);
+
+	let events_before = services
+		.rooms
+		.timeline
+		.pdus_rev(Some(sender_user), room_id, Some(base_count))
+		.ignore_err()
+		.ready_filter_map(|item| event_filter(item, filter))
+		.wide_filter_map(|item| ignored_filter(&services, item, sender_user))
+		.wide_filter_map(|item| visibility_filter(&services, item, sender_user))
+		.take(limit / 2)
+		.collect();
 
 	let events_after = services
 		.rooms
 		.timeline
-		.pdus(Some(sender_user), room_id, Some(base_token));
-
-	let (events_before, events_after) = try_join!(events_before, events_after)?;
-
-	let events_before = events_before
+		.pdus(Some(sender_user), room_id, Some(base_count))
+		.ignore_err()
 		.ready_filter_map(|item| event_filter(item, filter))
 		.wide_filter_map(|item| ignored_filter(&services, item, sender_user))
 		.wide_filter_map(|item| visibility_filter(&services, item, sender_user))
 		.take(limit / 2)
 		.collect();
 
-	let events_after = events_after
-		.ready_filter_map(|item| event_filter(item, filter))
-		.wide_filter_map(|item| ignored_filter(&services, item, sender_user))
-		.wide_filter_map(|item| visibility_filter(&services, item, sender_user))
-		.take(limit / 2)
-		.collect();
-
-	let (events_before, events_after): (Vec<_>, Vec<_>) = join!(events_before, events_after);
+	let (base_event, events_before, events_after): (_, Vec<_>, Vec<_>) =
+		join!(base_event, events_before, events_after);
 
 	let state_at = events_after
 		.last()
@@ -134,7 +128,8 @@ pub(crate) async fn get_context_route(
 		.map_err(|e| err!(Database("State not found: {e}")))
 		.await?;
 
-	let lazy = once(&(base_token, base_event.clone()))
+	let lazy = base_event
+		.iter()
 		.chain(events_before.iter())
 		.chain(events_after.iter())
 		.stream()
@@ -175,19 +170,19 @@ pub(crate) async fn get_context_route(
 		.await;
 
 	Ok(get_context::v3::Response {
-		event: Some(base_event.to_room_event()),
+		event: base_event.map(at!(1)).as_ref().map(PduEvent::to_room_event),
 
 		start: events_before
 			.last()
 			.map(at!(0))
-			.or(Some(base_token))
+			.or(Some(base_count))
 			.as_ref()
 			.map(ToString::to_string),
 
 		end: events_after
 			.last()
 			.map(at!(0))
-			.or(Some(base_token))
+			.or(Some(base_count))
 			.as_ref()
 			.map(ToString::to_string),
 

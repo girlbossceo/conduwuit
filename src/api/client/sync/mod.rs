@@ -2,10 +2,10 @@ mod v3;
 mod v4;
 
 use conduwuit::{
-	utils::stream::{BroadbandExt, ReadyExt},
+	utils::stream::{BroadbandExt, ReadyExt, TryIgnore},
 	PduCount,
 };
-use futures::StreamExt;
+use futures::{pin_mut, StreamExt};
 use ruma::{RoomId, UserId};
 
 pub(crate) use self::{v3::sync_events_route, v4::sync_events_v4_route};
@@ -29,23 +29,19 @@ async fn load_timeline(
 		return Ok((Vec::new(), false));
 	}
 
-	let mut non_timeline_pdus = services
+	let non_timeline_pdus = services
 		.rooms
 		.timeline
 		.pdus_rev(Some(sender_user), room_id, None)
-		.await?
+		.ignore_err()
 		.ready_skip_while(|&(pducount, _)| pducount > next_batch.unwrap_or_else(PduCount::max))
 		.ready_take_while(|&(pducount, _)| pducount > roomsincecount);
 
 	// Take the last events for the timeline
-	let timeline_pdus: Vec<_> = non_timeline_pdus
-		.by_ref()
-		.take(limit)
-		.collect::<Vec<_>>()
-		.await
-		.into_iter()
-		.rev()
-		.collect();
+	pin_mut!(non_timeline_pdus);
+	let timeline_pdus: Vec<_> = non_timeline_pdus.by_ref().take(limit).collect().await;
+
+	let timeline_pdus: Vec<_> = timeline_pdus.into_iter().rev().collect();
 
 	// They /sync response doesn't always return all messages, so we say the output
 	// is limited unless there are events in non_timeline_pdus

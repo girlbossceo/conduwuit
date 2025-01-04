@@ -135,6 +135,7 @@ async fn handle_pdus(
 			.rooms
 			.event_handler
 			.handle_incoming_pdu(origin, &room_id, &event_id, value, true)
+			.boxed()
 			.await
 			.map(|_| ());
 

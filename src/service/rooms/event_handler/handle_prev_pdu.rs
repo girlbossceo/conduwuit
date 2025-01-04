@@ -26,7 +26,7 @@ pub(super) async fn handle_prev_pdu<'a>(
 		(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>),
 	>,
 	create_event: &Arc<PduEvent>,
-	first_pdu_in_room: &Arc<PduEvent>,
+	first_pdu_in_room: &PduEvent,
 	prev_id: &EventId,
 ) -> Result {
 	// Check for disabled again because it might have changed

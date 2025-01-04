@@ -9,14 +9,16 @@ use std::{
 };
 
 use conduwuit::{
-	debug, debug_warn, err, error, implement, info,
+	at, debug, debug_warn, err, error, implement, info,
 	pdu::{gen_event_id, EventHash, PduBuilder, PduCount, PduEvent},
-	utils::{self, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt},
+	utils::{
+		self, future::TryExtExt, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt,
+	},
 	validated, warn, Err, Error, Result, Server,
 };
 pub use conduwuit::{PduId, RawPduId};
 use futures::{
-	future, future::ready, Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
+	future, future::ready, pin_mut, Future, FutureExt, Stream, StreamExt, TryStreamExt,
 };
 use ruma::{
 	api::federation,
@@ -34,7 +36,7 @@ use ruma::{
 	},
 	push::{Action, Ruleset, Tweak},
 	state_res::{self, Event, RoomVersion},
-	uint, user_id, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
+	uint, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
 	OwnedServerName, OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
 };
 use serde::Deserialize;
@@ -139,30 +141,10 @@ impl crate::Service for Service {
 	}
 
 	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
-		/*
-		let lasttimelinecount_cache = self
-			.db
-			.lasttimelinecount_cache
-			.lock()
-			.expect("locked")
-			.len();
-		writeln!(out, "lasttimelinecount_cache: {lasttimelinecount_cache}")?;
-		*/
-
 		let mutex_insert = self.mutex_insert.len();
 		writeln!(out, "insert_mutex: {mutex_insert}")?;
 
 		Ok(())
-	}
-
-	fn clear_cache(&self) {
-		/*
-		self.db
-			.lasttimelinecount_cache
-			.lock()
-			.expect("locked")
-			.clear();
-		*/
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
@@ -170,22 +152,23 @@ impl crate::Service for Service {
 
 impl Service {
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
-		self.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
-			.next()
-			.await
-			.map(|(_, p)| Arc::new(p))
+	pub async fn first_pdu_in_room(&self, room_id: &RoomId) -> Result<PduEvent> {
+		self.first_item_in_room(room_id).await.map(at!(1))
+	}
+
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn first_item_in_room(&self, room_id: &RoomId) -> Result<(PduCount, PduEvent)> {
+		let pdus = self.pdus(None, room_id, None);
+
+		pin_mut!(pdus);
+		pdus.try_next()
+			.await?
 			.ok_or_else(|| err!(Request(NotFound("No PDU found in room"))))
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<Arc<PduEvent>> {
-		self.pdus_rev(None, room_id, None)
-			.await?
-			.next()
-			.await
-			.map(|(_, p)| Arc::new(p))
-			.ok_or_else(|| err!(Request(NotFound("No PDU found in room"))))
+	pub async fn latest_pdu_in_room(&self, room_id: &RoomId) -> Result<PduEvent> {
+		self.db.latest_pdu_in_room(None, room_id).await
 	}
 
 	#[tracing::instrument(skip(self), level = "debug")]
@@ -201,29 +184,6 @@ impl Service {
 	pub async fn get_pdu_count(&self, event_id: &EventId) -> Result<PduCount> {
 		self.db.get_pdu_count(event_id).await
 	}
-
-	// TODO Is this the same as the function above?
-	/*
-	#[tracing::instrument(skip(self))]
-	pub fn latest_pdu_count(&self, room_id: &RoomId) -> Result<u64> {
-		let prefix = self
-			.get_shortroomid(room_id)?
-			.expect("room exists")
-			.to_be_bytes()
-			.to_vec();
-
-		let mut last_possible_key = prefix.clone();
-		last_possible_key.extend_from_slice(&u64::MAX.to_be_bytes());
-
-		self.pduid_pdu
-			.iter_from(&last_possible_key, true)
-			.take_while(move |(k, _)| k.starts_with(&prefix))
-			.next()
-			.map(|b| self.pdu_count(&b.0))
-			.transpose()
-			.map(|op| op.unwrap_or_default())
-	}
-	*/
 
 	/// Returns the json of a pdu.
 	pub async fn get_pdu_json(&self, event_id: &EventId) -> Result<CanonicalJsonObject> {
@@ -260,16 +220,6 @@ impl Service {
 		self.db.get_pdu(event_id).await
 	}
 
-	/// Checks if pdu exists
-	///
-	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
-	pub fn pdu_exists<'a>(
-		&'a self,
-		event_id: &'a EventId,
-	) -> impl Future<Output = bool> + Send + 'a {
-		self.db.pdu_exists(event_id)
-	}
-
 	/// Returns the pdu.
 	///
 	/// This does __NOT__ check the outliers `Tree`.
@@ -280,6 +230,16 @@ impl Service {
 	/// Returns the pdu as a `BTreeMap<String, CanonicalJsonValue>`.
 	pub async fn get_pdu_json_from_id(&self, pdu_id: &RawPduId) -> Result<CanonicalJsonObject> {
 		self.db.get_pdu_json_from_id(pdu_id).await
+	}
+
+	/// Checks if pdu exists
+	///
+	/// Checks the `eventid_outlierpdu` Tree if not found in the timeline.
+	pub fn pdu_exists<'a>(
+		&'a self,
+		event_id: &'a EventId,
+	) -> impl Future<Output = bool> + Send + 'a {
+		self.db.pdu_exists(event_id).is_ok()
 	}
 
 	/// Removes a pdu and creates a new one with the same id.
@@ -1027,38 +987,32 @@ impl Service {
 		&'a self,
 		user_id: &'a UserId,
 		room_id: &'a RoomId,
-	) -> impl Stream<Item = PdusIterItem> + Send + Unpin + 'a {
-		self.pdus(Some(user_id), room_id, None)
-			.map_ok(|stream| stream.map(Ok))
-			.try_flatten_stream()
-			.ignore_err()
-			.boxed()
+	) -> impl Stream<Item = PdusIterItem> + Send + 'a {
+		self.pdus(Some(user_id), room_id, None).ignore_err()
 	}
 
 	/// Reverse iteration starting at from.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn pdus_rev<'a>(
+	pub fn pdus_rev<'a>(
 		&'a self,
 		user_id: Option<&'a UserId>,
 		room_id: &'a RoomId,
 		until: Option<PduCount>,
-	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
+	) -> impl Stream<Item = Result<PdusIterItem>> + Send + 'a {
 		self.db
 			.pdus_rev(user_id, room_id, until.unwrap_or_else(PduCount::max))
-			.await
 	}
 
 	/// Forward iteration starting at from.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn pdus<'a>(
+	pub fn pdus<'a>(
 		&'a self,
 		user_id: Option<&'a UserId>,
 		room_id: &'a RoomId,
 		from: Option<PduCount>,
-	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
+	) -> impl Stream<Item = Result<PdusIterItem>> + Send + 'a {
 		self.db
 			.pdus(user_id, room_id, from.unwrap_or_else(PduCount::min))
-			.await
 	}
 
 	/// Replace a PDU with the redacted form.
@@ -1117,8 +1071,7 @@ impl Service {
 		}
 
 		let first_pdu = self
-			.all_pdus(user_id!("@doesntmatter:conduit.rs"), room_id)
-			.next()
+			.first_item_in_room(room_id)
 			.await
 			.expect("Room is not empty");
 
@@ -1232,20 +1185,14 @@ impl Service {
 		self.services
 			.event_handler
 			.handle_incoming_pdu(origin, &room_id, &event_id, value, false)
+			.boxed()
 			.await?;
 
-		let value = self
-			.get_pdu_json(&event_id)
-			.await
-			.expect("We just created it");
-		let pdu = self.get_pdu(&event_id).await.expect("We just created it");
+		let value = self.get_pdu_json(&event_id).await?;
 
-		let shortroomid = self
-			.services
-			.short
-			.get_shortroomid(&room_id)
-			.await
-			.expect("room exists");
+		let pdu = self.get_pdu(&event_id).await?;
+
+		let shortroomid = self.services.short.get_shortroomid(&room_id).await?;
 
 		let insert_lock = self.mutex_insert.lock(&room_id).await;
 

@@ -1314,6 +1314,7 @@ async fn join_room_by_id_helper_local(
 			.rooms
 			.event_handler
 			.handle_incoming_pdu(&remote_server, room_id, &signed_event_id, signed_value, true)
+			.boxed()
 			.await?;
 	} else {
 		return Err(error);
@@ -1491,6 +1492,7 @@ pub(crate) async fn invite_helper(
 			.rooms
 			.event_handler
 			.handle_incoming_pdu(&origin, room_id, &event_id, value, true)
+			.boxed()
 			.await?
 			.ok_or_else(|| {
 				err!(Request(InvalidParam("Could not accept incoming PDU as timeline event.")))

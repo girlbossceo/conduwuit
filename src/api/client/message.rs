@@ -5,7 +5,7 @@ use conduwuit::{
 	at, is_equal_to,
 	utils::{
 		result::{FlatOk, LogErr},
-		stream::{BroadbandExt, WidebandExt},
+		stream::{BroadbandExt, TryIgnore, WidebandExt},
 		IterStream, ReadyExt,
 	},
 	Event, PduCount, Result,
@@ -107,14 +107,14 @@ pub(crate) async fn get_message_events_route(
 			.rooms
 			.timeline
 			.pdus(Some(sender_user), room_id, Some(from))
-			.await?
+			.ignore_err()
 			.boxed(),
 
 		| Direction::Backward => services
 			.rooms
 			.timeline
 			.pdus_rev(Some(sender_user), room_id, Some(from))
-			.await?
+			.ignore_err()
 			.boxed(),
 	};
 

@@ -1,6 +1,10 @@
 use axum::extract::State;
-use conduwuit::{at, utils::BoolExt, Err, Result};
-use futures::StreamExt;
+use conduwuit::{
+	at,
+	utils::{stream::TryTools, BoolExt},
+	Err, Result,
+};
+use futures::TryStreamExt;
 use ruma::api::client::room::initial_sync::v3::{PaginationChunk, Request, Response};
 
 use crate::Ruma;
@@ -27,10 +31,9 @@ pub(crate) async fn room_initial_sync_route(
 		.rooms
 		.timeline
 		.pdus_rev(None, room_id, None)
-		.await?
-		.take(limit)
-		.collect()
-		.await;
+		.try_take(limit)
+		.try_collect()
+		.await?;
 
 	let state: Vec<_> = services
 		.rooms

@@ -2,10 +2,10 @@ use std::cmp;
 
 use axum::extract::State;
 use conduwuit::{
-	utils::{IterStream, ReadyExt},
+	utils::{stream::TryTools, IterStream, ReadyExt},
 	PduCount, Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{api::federation::backfill::get_backfill, uint, MilliSecondsSinceUnixEpoch};
 
 use super::AccessCheck;
@@ -57,26 +57,30 @@ pub(crate) async fn get_backfill_route(
 			.rooms
 			.timeline
 			.pdus_rev(None, &body.room_id, Some(from.saturating_add(1)))
-			.await?
-			.take(limit)
-			.filter_map(|(_, pdu)| async move {
-				services
+			.try_take(limit)
+			.try_filter_map(|(_, pdu)| async move {
+				Ok(services
 					.rooms
 					.state_accessor
 					.server_can_see_event(body.origin(), &pdu.room_id, &pdu.event_id)
 					.await
-					.then_some(pdu)
+					.then_some(pdu))
 			})
-			.filter_map(|pdu| async move {
-				services
+			.try_filter_map(|pdu| async move {
+				Ok(services
 					.rooms
 					.timeline
 					.get_pdu_json(&pdu.event_id)
 					.await
-					.ok()
+					.ok())
 			})
-			.then(|pdu| services.sending.convert_to_outgoing_federation_event(pdu))
-			.collect()
-			.await,
+			.and_then(|pdu| {
+				services
+					.sending
+					.convert_to_outgoing_federation_event(pdu)
+					.map(Ok)
+			})
+			.try_collect()
+			.await?,
 	})
 }

@@ -1,22 +1,15 @@
-use std::{
-	borrow::Borrow,
-	collections::{hash_map, HashMap},
-	sync::Arc,
-};
+use std::{borrow::Borrow, sync::Arc};
 
 use conduwuit::{
 	at, err,
 	result::{LogErr, NotFound},
 	utils,
-	utils::{future::TryExtExt, stream::TryIgnore, ReadyExt},
+	utils::stream::TryReadyExt,
 	Err, PduCount, PduEvent, Result,
 };
 use database::{Database, Deserialized, Json, KeyVal, Map};
-use futures::{future::select_ok, FutureExt, Stream, StreamExt};
-use ruma::{
-	api::Direction, CanonicalJsonObject, EventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
-};
-use tokio::sync::Mutex;
+use futures::{future::select_ok, pin_mut, FutureExt, Stream, TryFutureExt, TryStreamExt};
+use ruma::{api::Direction, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
 
 use super::{PduId, RawPduId};
 use crate::{rooms, rooms::short::ShortRoomId, Dep};
@@ -27,7 +20,6 @@ pub(super) struct Data {
 	pduid_pdu: Arc<Map>,
 	userroomid_highlightcount: Arc<Map>,
 	userroomid_notificationcount: Arc<Map>,
-	pub(super) lasttimelinecount_cache: LastTimelineCountCache,
 	pub(super) db: Arc<Database>,
 	services: Services,
 }
@@ -37,7 +29,6 @@ struct Services {
 }
 
 pub type PdusIterItem = (PduCount, PduEvent);
-type LastTimelineCountCache = Mutex<HashMap<OwnedRoomId, PduCount>>;
 
 impl Data {
 	pub(super) fn new(args: &crate::Args<'_>) -> Self {
@@ -48,7 +39,6 @@ impl Data {
 			pduid_pdu: db["pduid_pdu"].clone(),
 			userroomid_highlightcount: db["userroomid_highlightcount"].clone(),
 			userroomid_notificationcount: db["userroomid_notificationcount"].clone(),
-			lasttimelinecount_cache: Mutex::new(HashMap::new()),
 			db: args.db.clone(),
 			services: Services {
 				short: args.depend::<rooms::short::Service>("rooms::short"),
@@ -56,27 +46,39 @@ impl Data {
 		}
 	}
 
+	#[inline]
 	pub(super) async fn last_timeline_count(
 		&self,
 		sender_user: Option<&UserId>,
 		room_id: &RoomId,
 	) -> Result<PduCount> {
-		match self
-			.lasttimelinecount_cache
-			.lock()
-			.await
-			.entry(room_id.into())
-		{
-			| hash_map::Entry::Occupied(o) => Ok(*o.get()),
-			| hash_map::Entry::Vacant(v) => Ok(self
-				.pdus_rev(sender_user, room_id, PduCount::max())
-				.await?
-				.next()
-				.await
-				.map(at!(0))
-				.filter(|&count| matches!(count, PduCount::Normal(_)))
-				.map_or_else(PduCount::max, |count| *v.insert(count))),
-		}
+		let pdus_rev = self.pdus_rev(sender_user, room_id, PduCount::max());
+
+		pin_mut!(pdus_rev);
+		let last_count = pdus_rev
+			.try_next()
+			.await?
+			.map(at!(0))
+			.filter(|&count| matches!(count, PduCount::Normal(_)))
+			.unwrap_or_else(PduCount::max);
+
+		Ok(last_count)
+	}
+
+	#[inline]
+	pub(super) async fn latest_pdu_in_room(
+		&self,
+		sender_user: Option<&UserId>,
+		room_id: &RoomId,
+	) -> Result<PduEvent> {
+		let pdus_rev = self.pdus_rev(sender_user, room_id, PduCount::max());
+
+		pin_mut!(pdus_rev);
+		pdus_rev
+			.try_next()
+			.await?
+			.map(at!(1))
+			.ok_or_else(|| err!(Request(NotFound("no PDU's found in room"))))
 	}
 
 	/// Returns the `count` of this pdu's id.
@@ -129,7 +131,7 @@ impl Data {
 	pub(super) async fn non_outlier_pdu_exists(&self, event_id: &EventId) -> Result {
 		let pduid = self.get_pdu_id(event_id).await?;
 
-		self.pduid_pdu.get(&pduid).await.map(|_| ())
+		self.pduid_pdu.exists(&pduid).await
 	}
 
 	/// Returns the pdu.
@@ -148,17 +150,17 @@ impl Data {
 
 	/// Like get_non_outlier_pdu(), but without the expense of fetching and
 	/// parsing the PduEvent
+	#[inline]
 	pub(super) async fn outlier_pdu_exists(&self, event_id: &EventId) -> Result {
-		self.eventid_outlierpdu.get(event_id).await.map(|_| ())
+		self.eventid_outlierpdu.exists(event_id).await
 	}
 
 	/// Like get_pdu(), but without the expense of fetching and parsing the data
-	pub(super) async fn pdu_exists(&self, event_id: &EventId) -> bool {
-		let non_outlier = self.non_outlier_pdu_exists(event_id).is_ok();
-		let outlier = self.outlier_pdu_exists(event_id).is_ok();
+	pub(super) async fn pdu_exists(&self, event_id: &EventId) -> Result {
+		let non_outlier = self.non_outlier_pdu_exists(event_id).boxed();
+		let outlier = self.outlier_pdu_exists(event_id).boxed();
 
-		//TODO: parallelize
-		non_outlier.await || outlier.await
+		select_ok([non_outlier, outlier]).await.map(at!(0))
 	}
 
 	/// Returns the pdu.
@@ -186,11 +188,6 @@ impl Data {
 		debug_assert!(matches!(count, PduCount::Normal(_)), "PduCount not Normal");
 
 		self.pduid_pdu.raw_put(pdu_id, Json(json));
-		self.lasttimelinecount_cache
-			.lock()
-			.await
-			.insert(pdu.room_id.clone(), count);
-
 		self.eventid_pduid.insert(pdu.event_id.as_bytes(), pdu_id);
 		self.eventid_outlierpdu.remove(pdu.event_id.as_bytes());
 	}
@@ -225,49 +222,44 @@ impl Data {
 	/// Returns an iterator over all events and their tokens in a room that
 	/// happened before the event with id `until` in reverse-chronological
 	/// order.
-	pub(super) async fn pdus_rev<'a>(
+	pub(super) fn pdus_rev<'a>(
 		&'a self,
 		user_id: Option<&'a UserId>,
 		room_id: &'a RoomId,
 		until: PduCount,
-	) -> Result<impl Stream<Item = PdusIterItem> + Send + 'a> {
-		let current = self
-			.count_to_id(room_id, until, Direction::Backward)
-			.await?;
-		let prefix = current.shortroomid();
-		let stream = self
-			.pduid_pdu
-			.rev_raw_stream_from(&current)
-			.ignore_err()
-			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
-			.map(move |item| Self::each_pdu(item, user_id));
-
-		Ok(stream)
+	) -> impl Stream<Item = Result<PdusIterItem>> + Send + 'a {
+		self.count_to_id(room_id, until, Direction::Backward)
+			.map_ok(move |current| {
+				let prefix = current.shortroomid();
+				self.pduid_pdu
+					.rev_raw_stream_from(&current)
+					.ready_try_take_while(move |(key, _)| Ok(key.starts_with(&prefix)))
+					.ready_and_then(move |item| Self::each_pdu(item, user_id))
+			})
+			.try_flatten_stream()
 	}
 
-	pub(super) async fn pdus<'a>(
+	pub(super) fn pdus<'a>(
 		&'a self,
 		user_id: Option<&'a UserId>,
 		room_id: &'a RoomId,
 		from: PduCount,
-	) -> Result<impl Stream<Item = PdusIterItem> + Send + Unpin + 'a> {
-		let current = self.count_to_id(room_id, from, Direction::Forward).await?;
-		let prefix = current.shortroomid();
-		let stream = self
-			.pduid_pdu
-			.raw_stream_from(&current)
-			.ignore_err()
-			.ready_take_while(move |(key, _)| key.starts_with(&prefix))
-			.map(move |item| Self::each_pdu(item, user_id));
-
-		Ok(stream)
+	) -> impl Stream<Item = Result<PdusIterItem>> + Send + 'a {
+		self.count_to_id(room_id, from, Direction::Forward)
+			.map_ok(move |current| {
+				let prefix = current.shortroomid();
+				self.pduid_pdu
+					.raw_stream_from(&current)
+					.ready_try_take_while(move |(key, _)| Ok(key.starts_with(&prefix)))
+					.ready_and_then(move |item| Self::each_pdu(item, user_id))
+			})
+			.try_flatten_stream()
 	}
 
-	fn each_pdu((pdu_id, pdu): KeyVal<'_>, user_id: Option<&UserId>) -> PdusIterItem {
+	fn each_pdu((pdu_id, pdu): KeyVal<'_>, user_id: Option<&UserId>) -> Result<PdusIterItem> {
 		let pdu_id: RawPduId = pdu_id.into();
 
-		let mut pdu = serde_json::from_slice::<PduEvent>(pdu)
-			.expect("PduEvent in pduid_pdu database column is invalid JSON");
+		let mut pdu = serde_json::from_slice::<PduEvent>(pdu)?;
 
 		if Some(pdu.sender.borrow()) != user_id {
 			pdu.remove_transaction_id().log_err().ok();
@@ -275,7 +267,7 @@ impl Data {
 
 		pdu.add_age().log_err().ok();
 
-		(pdu_id.pdu_count(), pdu)
+		Ok((pdu_id.pdu_count(), pdu))
 	}
 
 	pub(super) fn increment_notification_counts(
