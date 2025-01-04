@@ -3,7 +3,7 @@ pub mod storage;
 
 use std::path::PathBuf;
 
-pub use compute::parallelism as available_parallelism;
+pub use compute::available_parallelism;
 
 use crate::{debug, Result};
 

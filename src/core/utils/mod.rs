@@ -37,7 +37,7 @@ pub use self::{
 	rand::{shuffle, string as random_string},
 	stream::{IterStream, ReadyExt, Tools as StreamTools, TryReadyExt},
 	string::{str_from_bytes, string_from_bytes},
-	sys::compute::parallelism as available_parallelism,
+	sys::compute::available_parallelism,
 	time::{
 		exponential_backoff::{continue_exponential_backoff, continue_exponential_backoff_secs},
 		now_millis as millis_since_unix_epoch, timepoint_ago, timepoint_from_now,
