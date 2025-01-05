@@ -3,7 +3,7 @@ extern crate conduwuit_core as conduwuit;
 extern crate conduwuit_service as service;
 
 use std::{
-	sync::{atomic::Ordering, Arc},
+	sync::{atomic::Ordering, Arc, Weak},
 	time::Duration,
 };
 
@@ -92,11 +92,11 @@ pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 		);
 	}
 
-	// The db threadpool requires async join if we use tokio/spawn_blocking to
-	// manage the threads. Without async-drop we have to wait here; for symmetry
-	// with Services construction it can't be done in services.stop().
-	if let Some(db) = db.upgrade() {
-		db.db.shutdown_pool().await;
+	if Weak::strong_count(&db) > 0 {
+		debug_error!(
+			"{} dangling references to Database after shutdown",
+			Weak::strong_count(&db)
+		);
 	}
 
 	#[cfg(feature = "systemd")]

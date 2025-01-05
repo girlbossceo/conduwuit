@@ -6,21 +6,22 @@ use std::{
 		atomic::{AtomicUsize, Ordering},
 		Arc, Mutex,
 	},
+	thread,
+	thread::JoinHandle,
 };
 
 use async_channel::{QueueStrategy, Receiver, RecvError, Sender};
 use conduwuit::{
-	debug, debug_warn, defer, err, implement,
+	debug, debug_warn, defer, err, error, implement,
 	result::DebugInspect,
 	trace,
 	utils::sys::compute::{get_affinity, nth_core_available, set_affinity},
-	Result, Server,
+	Error, Result, Server,
 };
 use futures::{channel::oneshot, TryFutureExt};
 use oneshot::Sender as ResultSender;
 use rocksdb::Direction;
 use smallvec::SmallVec;
-use tokio::task::JoinSet;
 
 use self::configure::configure;
 use crate::{keyval::KeyBuf, stream, Handle, Map};
@@ -29,9 +30,9 @@ use crate::{keyval::KeyBuf, stream, Handle, Map};
 /// requests which are not cached. These thread-blocking requests are offloaded
 /// from the tokio async workers and executed on this threadpool.
 pub(crate) struct Pool {
-	server: Arc<Server>,
+	_server: Arc<Server>,
 	queues: Vec<Sender<Cmd>>,
-	workers: Mutex<JoinSet<()>>,
+	workers: Mutex<Vec<JoinHandle<()>>>,
 	topology: Vec<usize>,
 	busy: AtomicUsize,
 	queued_max: AtomicUsize,
@@ -69,39 +70,42 @@ const WORKER_LIMIT: (usize, usize) = (1, 1024);
 const QUEUE_LIMIT: (usize, usize) = (1, 2048);
 const BATCH_INLINE: usize = 1;
 
+const WORKER_STACK_SIZE: usize = 1_048_576;
+const WORKER_NAME: &str = "conduwuit:db";
+
 #[implement(Pool)]
-pub(crate) async fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
+pub(crate) fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
 	const CHAN_SCHED: (QueueStrategy, QueueStrategy) = (QueueStrategy::Fifo, QueueStrategy::Lifo);
 
 	let (total_workers, queue_sizes, topology) = configure(server);
 
-	let (senders, receivers) = queue_sizes
+	let (senders, receivers): (Vec<_>, Vec<_>) = queue_sizes
 		.into_iter()
 		.map(|cap| async_channel::bounded_with_queue_strategy(cap, CHAN_SCHED))
 		.unzip();
 
 	let pool = Arc::new(Self {
-		server: server.clone(),
-
+		_server: server.clone(),
 		queues: senders,
-
-		workers: JoinSet::new().into(),
-
+		workers: Vec::new().into(),
 		topology,
-
 		busy: AtomicUsize::default(),
-
 		queued_max: AtomicUsize::default(),
 	});
 
-	pool.spawn_until(receivers, total_workers).await?;
+	pool.spawn_until(&receivers, total_workers)?;
 
 	Ok(pool)
 }
 
 impl Drop for Pool {
 	fn drop(&mut self) {
-		debug_assert!(self.queues.iter().all(Sender::is_empty), "channel must be empty on drop");
+		self.close();
+
+		debug_assert!(
+			self.queues.iter().all(Sender::is_empty),
+			"channel must should not have requests queued on drop"
+		);
 		debug_assert!(
 			self.queues.iter().all(Sender::is_closed),
 			"channel should be closed on drop"
@@ -110,17 +114,10 @@ impl Drop for Pool {
 }
 
 #[implement(Pool)]
-pub(crate) async fn shutdown(self: &Arc<Self>) {
-	self.close();
-
-	let workers = take(&mut *self.workers.lock().expect("locked"));
-	debug!(workers = workers.len(), "Waiting for workers to join...");
-
-	workers.join_all().await;
-}
-
-#[implement(Pool)]
+#[tracing::instrument(skip_all)]
 pub(crate) fn close(&self) {
+	let workers = take(&mut *self.workers.lock().expect("locked"));
+
 	let senders = self.queues.iter().map(Sender::sender_count).sum::<usize>();
 
 	let receivers = self
@@ -129,27 +126,40 @@ pub(crate) fn close(&self) {
 		.map(Sender::receiver_count)
 		.sum::<usize>();
 
-	debug!(
-		queues = self.queues.len(),
-		workers = self.workers.lock().expect("locked").len(),
-		?senders,
-		?receivers,
-		"Closing pool..."
-	);
-
 	for queue in &self.queues {
 		queue.close();
 	}
 
-	self.workers.lock().expect("locked").abort_all();
-	std::thread::yield_now();
+	if workers.is_empty() {
+		return;
+	}
+
+	debug!(
+		senders,
+		receivers,
+		queues = self.queues.len(),
+		workers = workers.len(),
+		"Closing pool. Waiting for workers to join..."
+	);
+
+	workers
+		.into_iter()
+		.map(JoinHandle::join)
+		.map(|result| result.map_err(Error::from_panic))
+		.enumerate()
+		.for_each(|(id, result)| {
+			match result {
+				| Ok(()) => trace!(?id, "worker joined"),
+				| Err(error) => error!(?id, "worker joined with error: {error}"),
+			};
+		});
 }
 
 #[implement(Pool)]
-async fn spawn_until(self: &Arc<Self>, recv: Vec<Receiver<Cmd>>, count: usize) -> Result {
+fn spawn_until(self: &Arc<Self>, recv: &[Receiver<Cmd>], count: usize) -> Result {
 	let mut workers = self.workers.lock().expect("locked");
 	while workers.len() < count {
-		self.spawn_one(&mut workers, &recv)?;
+		self.clone().spawn_one(&mut workers, recv)?;
 	}
 
 	Ok(())
@@ -162,23 +172,24 @@ async fn spawn_until(self: &Arc<Self>, recv: Vec<Receiver<Cmd>>, count: usize) -
 	skip_all,
 	fields(id = %workers.len())
 )]
-fn spawn_one(self: &Arc<Self>, workers: &mut JoinSet<()>, recv: &[Receiver<Cmd>]) -> Result {
+fn spawn_one(
+	self: Arc<Self>,
+	workers: &mut Vec<JoinHandle<()>>,
+	recv: &[Receiver<Cmd>],
+) -> Result {
 	debug_assert!(!self.queues.is_empty(), "Must have at least one queue");
 	debug_assert!(!recv.is_empty(), "Must have at least one receiver");
 
 	let id = workers.len();
 	let group = id.overflowing_rem(self.queues.len()).0;
 	let recv = recv[group].clone();
-	let self_ = self.clone();
 
-	#[cfg(not(tokio_unstable))]
-	let _abort = workers.spawn_blocking_on(move || self_.worker(id, recv), self.server.runtime());
+	let handle = thread::Builder::new()
+		.name(WORKER_NAME.into())
+		.stack_size(WORKER_STACK_SIZE)
+		.spawn(move || self.worker(id, recv))?;
 
-	#[cfg(tokio_unstable)]
-	let _abort = workers
-		.build_task()
-		.name("conduwuit:dbpool")
-		.spawn_blocking_on(move || self_.worker(id, recv), self.server.runtime());
+	workers.push(handle);
 
 	Ok(())
 }
@@ -258,7 +269,7 @@ async fn execute(&self, queue: &Sender<Cmd>, cmd: Cmd) -> Result {
 	level = "debug",
 	skip(self, recv),
 	fields(
-		tid = ?std::thread::current().id(),
+		tid = ?thread::current().id(),
 	),
 )]
 fn worker(self: Arc<Self>, id: usize, recv: Receiver<Cmd>) {

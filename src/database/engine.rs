@@ -31,11 +31,11 @@ pub struct Engine {
 	opts: Options,
 	env: Env,
 	cfs: Mutex<BTreeSet<String>>,
+	pub(crate) pool: Arc<Pool>,
 	pub(crate) db: Db,
 	corks: AtomicU32,
 	pub(super) read_only: bool,
 	pub(super) secondary: bool,
-	pub(crate) pool: Arc<Pool>,
 }
 
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
@@ -44,6 +44,8 @@ impl Engine {
 	#[tracing::instrument(skip_all)]
 	pub(crate) async fn open(server: &Arc<Server>) -> Result<Arc<Self>> {
 		let config = &server.config;
+		let path = &config.database_path;
+
 		let cache_capacity_bytes = config.db_cache_capacity_mb * 1024.0 * 1024.0;
 
 		#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
@@ -64,30 +66,32 @@ impl Engine {
 			col_cache.get("primary").expect("primary cache exists"),
 		)?;
 
-		let load_time = std::time::Instant::now();
-		if config.rocksdb_repair {
-			repair(&db_opts, &config.database_path)?;
-		}
-
 		debug!("Listing column families in database");
 		let cfs = Db::list_cf(&db_opts, &config.database_path)
 			.unwrap_or_default()
 			.into_iter()
 			.collect::<BTreeSet<_>>();
 
-		debug!("Opening {} column family descriptors in database", cfs.len());
+		debug!("Configuring {} column families found in database", cfs.len());
 		let cfopts = cfs
 			.iter()
 			.map(|name| cf_options(config, name, db_opts.clone(), &mut col_cache))
 			.collect::<Result<Vec<_>>>()?;
 
+		debug!("Opening {} column family descriptors in database", cfs.len());
 		let cfds = cfs
 			.iter()
 			.zip(cfopts.into_iter())
 			.map(|(name, opts)| ColumnFamilyDescriptor::new(name, opts))
 			.collect::<Vec<_>>();
 
-		let path = &config.database_path;
+		debug!("Starting frontend request pool");
+		let pool = Pool::new(server)?;
+
+		let load_time = std::time::Instant::now();
+		if config.rocksdb_repair {
+			repair(&db_opts, &config.database_path)?;
+		}
 
 		debug!("Opening database...");
 		let res = if config.rocksdb_read_only {
@@ -113,11 +117,11 @@ impl Engine {
 			opts: db_opts,
 			env: db_env,
 			cfs: Mutex::new(cfs),
-			db,
 			corks: AtomicU32::new(0),
 			read_only: config.rocksdb_read_only,
 			secondary: config.rocksdb_secondary,
-			pool: Pool::new(server).await?,
+			pool,
+			db,
 		}))
 	}
 
@@ -145,8 +149,6 @@ impl Engine {
 			.cf_handle(name)
 			.expect("column was created and exists")
 	}
-
-	pub async fn shutdown_pool(&self) { self.pool.shutdown().await; }
 
 	pub fn flush(&self) -> Result<()> { result(DBCommon::flush_wal(&self.db, false)) }
 
