@@ -11,7 +11,6 @@ use conduwuit::{error, utils::bytes::pretty, Config, Result};
 use data::Data;
 use regex::RegexSet;
 use ruma::{OwnedEventId, OwnedRoomAliasId, OwnedServerName, OwnedUserId, ServerName, UserId};
-use tokio::sync::Mutex;
 
 use crate::service;
 
@@ -21,7 +20,6 @@ pub struct Service {
 	pub config: Config,
 	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
-	pub stateres_mutex: Arc<Mutex<()>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
 	pub turn_secret: String,
@@ -70,7 +68,6 @@ impl crate::Service for Service {
 			config: config.clone(),
 			jwt_decoding_key,
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			stateres_mutex: Arc::new(Mutex::new(())),
 			admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
 			server_user: UserId::parse_with_server_name(
