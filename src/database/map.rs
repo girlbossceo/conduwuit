@@ -6,6 +6,8 @@ mod insert;
 mod keys;
 mod keys_from;
 mod keys_prefix;
+mod open;
+mod options;
 mod remove;
 mod rev_keys;
 mod rev_keys_from;
@@ -28,12 +30,15 @@ use std::{
 };
 
 use conduwuit::Result;
-use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, ReadTier, WriteOptions};
+use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, WriteOptions};
 
+pub(crate) use self::options::{
+	cache_read_options_default, iter_options_default, read_options_default, write_options_default,
+};
 use crate::{watchers::Watchers, Engine};
 
 pub struct Map {
-	name: String,
+	name: &'static str,
 	db: Arc<Engine>,
 	cf: Arc<ColumnFamily>,
 	watchers: Watchers,
@@ -43,11 +48,11 @@ pub struct Map {
 }
 
 impl Map {
-	pub(crate) fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<Self>> {
+	pub(crate) fn open(db: &Arc<Engine>, name: &'static str) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			name: name.to_owned(),
+			name,
 			db: db.clone(),
-			cf: open(db, name)?,
+			cf: open::open(db, name),
 			watchers: Watchers::default(),
 			write_options: write_options_default(),
 			read_options: read_options_default(),
@@ -75,7 +80,7 @@ impl Map {
 	pub fn property(&self, name: &str) -> Result<String> { self.db.property(&self.cf(), name) }
 
 	#[inline]
-	pub fn name(&self) -> &str { &self.name }
+	pub fn name(&self) -> &str { self.name }
 
 	#[inline]
 	pub(crate) fn db(&self) -> &Arc<Engine> { &self.db }
@@ -93,60 +98,3 @@ impl Debug for Map {
 impl Display for Map {
 	fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result { write!(out, "{0}", self.name) }
 }
-
-fn open(db: &Arc<Engine>, name: &str) -> Result<Arc<ColumnFamily>> {
-	let bounded_arc = db.open_cf(name)?;
-	let bounded_ptr = Arc::into_raw(bounded_arc);
-	let cf_ptr = bounded_ptr.cast::<ColumnFamily>();
-
-	// SAFETY: Column family handles out of RocksDB are basic pointers and can
-	// be invalidated: 1. when the database closes. 2. when the column is dropped or
-	// closed. rust_rocksdb wraps this for us by storing handles in their own
-	// `RwLock<BTreeMap>` map and returning an Arc<BoundColumnFamily<'_>>` to
-	// provide expected safety. Similarly in "single-threaded mode" we would
-	// receive `&'_ ColumnFamily`.
-	//
-	// PROBLEM: We need to hold these handles in a field, otherwise we have to take
-	// a lock and get them by name from this map for every query, which is what
-	// conduit was doing, but we're not going to make a query for every query so we
-	// need to be holding it right. The lifetime parameter on these references makes
-	// that complicated. If this can be done without polluting the userspace
-	// with lifetimes on every instance of `Map` then this `unsafe` might not be
-	// necessary.
-	//
-	// SOLUTION: After investigating the underlying types it appears valid to
-	// Arc-swap `BoundColumnFamily<'_>` for `ColumnFamily`. They have the
-	// same inner data, the same Drop behavior, Deref, etc. We're just losing the
-	// lifetime parameter. We should not hold this handle, even in its Arc, after
-	// closing the database (dropping `Engine`). Since `Arc<Engine>` is a sibling
-	// member along with this handle in `Map`, that is prevented.
-	Ok(unsafe {
-		Arc::increment_strong_count(cf_ptr);
-		Arc::from_raw(cf_ptr)
-	})
-}
-
-#[inline]
-pub(crate) fn iter_options_default() -> ReadOptions {
-	let mut read_options = read_options_default();
-	read_options.set_background_purge_on_iterator_cleanup(true);
-	//read_options.set_pin_data(true);
-	read_options
-}
-
-#[inline]
-pub(crate) fn cache_read_options_default() -> ReadOptions {
-	let mut read_options = read_options_default();
-	read_options.set_read_tier(ReadTier::BlockCache);
-	read_options
-}
-
-#[inline]
-pub(crate) fn read_options_default() -> ReadOptions {
-	let mut read_options = ReadOptions::default();
-	read_options.set_total_order_seek(true);
-	read_options
-}
-
-#[inline]
-pub(crate) fn write_options_default() -> WriteOptions { WriteOptions::default() }

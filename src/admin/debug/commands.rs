@@ -911,8 +911,8 @@ pub(super) async fn database_stats(
 	let map_name = map.as_ref().map_or(EMPTY, String::as_str);
 
 	let mut out = String::new();
-	for (name, map) in self.services.db.iter() {
-		if !map_name.is_empty() && *map_name != *name {
+	for (&name, map) in self.services.db.iter() {
+		if !map_name.is_empty() && map_name != name {
 			continue;
 		}
 

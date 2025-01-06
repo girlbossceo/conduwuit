@@ -124,7 +124,7 @@ impl Services {
 			.await?;
 
 		// set the server user as online
-		if self.server.config.allow_local_presence {
+		if self.server.config.allow_local_presence && !self.db.is_read_only() {
 			_ = self
 				.presence
 				.ping_presence(&self.globals.server_user, &ruma::presence::PresenceState::Online)
@@ -139,7 +139,7 @@ impl Services {
 		info!("Shutting down services...");
 
 		// set the server user as offline
-		if self.server.config.allow_local_presence {
+		if self.server.config.allow_local_presence && !self.db.is_read_only() {
 			_ = self
 				.presence
 				.ping_presence(&self.globals.server_user, &ruma::presence::PresenceState::Offline)
