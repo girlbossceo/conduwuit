@@ -58,6 +58,7 @@ impl Console {
 
 	pub async fn close(self: &Arc<Self>) {
 		self.interrupt();
+
 		let Some(worker_join) = self.worker_join.lock().expect("locked").take() else {
 			return;
 		};
@@ -92,6 +93,12 @@ impl Console {
 	#[tracing::instrument(skip_all, name = "console", level = "trace")]
 	async fn worker(self: Arc<Self>) {
 		debug!("session starting");
+
+		self.output
+			.print_inline(&format!("**conduwuit {}** admin console\n", conduwuit::version()));
+		self.output
+			.print_text("\"help\" for help, ^D to exit the console, ^\\ to stop the server\n");
+
 		while self.server.running() {
 			match self.readline().await {
 				| Ok(event) => match event {
@@ -147,6 +154,7 @@ impl Console {
 
 		self.add_history(line.clone());
 		let future = self.clone().process(line);
+
 		let (abort, abort_reg) = AbortHandle::new_pair();
 		let future = Abortable::new(future, abort_reg);
 		_ = self.command_abort.lock().expect("locked").insert(abort);
