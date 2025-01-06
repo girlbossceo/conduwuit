@@ -77,7 +77,11 @@ impl Map {
 	#[inline]
 	pub fn name(&self) -> &str { &self.name }
 
-	fn cf(&self) -> impl AsColumnFamilyRef + '_ { &*self.cf }
+	#[inline]
+	pub(crate) fn db(&self) -> &Arc<Engine> { &self.db }
+
+	#[inline]
+	pub(crate) fn cf(&self) -> impl AsColumnFamilyRef + '_ { &*self.cf }
 }
 
 impl Debug for Map {

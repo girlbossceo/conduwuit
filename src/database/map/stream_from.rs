@@ -78,7 +78,7 @@ where
 	use crate::pool::Seek;
 
 	let opts = super::read_options_default();
-	let state = stream::State::new(&self.db, &self.cf, opts);
+	let state = stream::State::new(self, opts);
 	if is_cached(self, from) {
 		let state = state.init_fwd(from.as_ref().into());
 		return task::consume_budget()
@@ -116,7 +116,7 @@ where
 	P: AsRef<[u8]> + ?Sized,
 {
 	let opts = super::cache_read_options_default();
-	let state = stream::State::new(&map.db, &map.cf, opts).init_fwd(from.as_ref().into());
+	let state = stream::State::new(map, opts).init_fwd(from.as_ref().into());
 
 	!state.is_incomplete()
 }

@@ -6,14 +6,14 @@ mod keys_rev;
 use std::sync::Arc;
 
 use conduwuit::{utils::exchange, Result};
-use rocksdb::{ColumnFamily, DBRawIteratorWithThreadMode, ReadOptions};
+use rocksdb::{DBRawIteratorWithThreadMode, ReadOptions};
 
 pub(crate) use self::{items::Items, items_rev::ItemsRev, keys::Keys, keys_rev::KeysRev};
 use crate::{
 	engine::Db,
 	keyval::{Key, KeyVal, Val},
 	util::{is_incomplete, map_err},
-	Engine, Slice,
+	Map, Slice,
 };
 
 pub(crate) struct State<'a> {
@@ -45,9 +45,9 @@ type Inner<'a> = DBRawIteratorWithThreadMode<'a, Db>;
 type From<'a> = Option<Key<'a>>;
 
 impl<'a> State<'a> {
-	pub(super) fn new(db: &'a Arc<Engine>, cf: &'a Arc<ColumnFamily>, opts: ReadOptions) -> Self {
+	pub(super) fn new(map: &'a Arc<Map>, opts: ReadOptions) -> Self {
 		Self {
-			inner: db.db.raw_iterator_cf_opt(&**cf, opts),
+			inner: map.db().db.raw_iterator_cf_opt(&map.cf(), opts),
 			init: true,
 			seek: false,
 		}

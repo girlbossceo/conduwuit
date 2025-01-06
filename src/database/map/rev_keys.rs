@@ -23,7 +23,7 @@ pub fn rev_raw_keys(self: &Arc<Self>) -> impl Stream<Item = Result<Key<'_>>> + S
 	use crate::pool::Seek;
 
 	let opts = super::iter_options_default();
-	let state = stream::State::new(&self.db, &self.cf, opts);
+	let state = stream::State::new(self, opts);
 	if is_cached(self) {
 		let state = state.init_rev(None);
 		return task::consume_budget()

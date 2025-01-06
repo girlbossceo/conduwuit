@@ -32,7 +32,7 @@ pub fn rev_raw_stream(self: &Arc<Self>) -> impl Stream<Item = Result<KeyVal<'_>>
 	use crate::pool::Seek;
 
 	let opts = super::read_options_default();
-	let state = stream::State::new(&self.db, &self.cf, opts);
+	let state = stream::State::new(self, opts);
 	if is_cached(self) {
 		let state = state.init_rev(None);
 		return task::consume_budget()
@@ -65,9 +65,9 @@ pub fn rev_raw_stream(self: &Arc<Self>) -> impl Stream<Item = Result<KeyVal<'_>>
     skip_all,
     fields(%map),
 )]
-pub(super) fn is_cached(map: &super::Map) -> bool {
+pub(super) fn is_cached(map: &Arc<super::Map>) -> bool {
 	let opts = super::cache_read_options_default();
-	let state = stream::State::new(&map.db, &map.cf, opts).init_rev(None);
+	let state = stream::State::new(map, opts).init_rev(None);
 
 	!state.is_incomplete()
 }
