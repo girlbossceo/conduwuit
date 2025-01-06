@@ -1,0 +1,174 @@
+name: Release Docker Image
+
+on:
+  pull_request:
+  push:
+    paths-ignore:
+      - '.gitlab-ci.yml'
+      - '.gitignore'
+      - 'renovate.json'
+      - 'debian/**'
+      - 'docker/**'
+    branches:
+      - main
+    tags:
+      - '*'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+      GHCR_ENABLED: "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && 'true' || 'false' }}"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      # Uses the `docker/login-action` action to log in to the Container registry registry using the account and password that will publish the packages. Once published, the packages are scoped to the account defined here.
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: ${{ (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '') }}
+        uses: docker/login-action@v3
+        with:
+            registry: docker.io
+            username: ${{ vars.DOCKER_USERNAME }}
+            password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitLab Container Registry
+        if: ${{ (vars.GITLAB_USERNAME != '') && (env.GITLAB_TOKEN != '') }}
+        uses: docker/login-action@v3
+        with:
+            registry: registry.gitlab.com
+            username: ${{ vars.GITLAB_USERNAME }}
+            password: ${{ secrets.GITLAB_TOKEN }}
+            
+      - name: Setting variables
+        uses: actions/github-script@v7
+        id: var
+        with:
+          script: |
+            const githubRepo = '${{ github.repository }}'.toLowerCase()
+            const repoId = githubRepo.split('/')[1]
+            
+            core.setOutput('github_repository', githubRepo)
+            const ghcrImage = 'ghcr.io/' + githubRepo
+            const glhrImage = 'registry.gitlab.com/' + '${{ vars.GITLAB_USERNAME }}'.toLowerCase() + '/' + repoId
+            const dockerImage = 'docker.io/' + '${{ vars.DOCKER_USERNAME }}'.toLowerCase() + '/' + repoId
+            core.setOutput('ghcr_image', ghcrImage)
+            core.setOutput('docker_image', dockerImage)
+            core.setOutput('glhr_image', glhrImage)
+            let images = []
+            if (process.env.GHCR_ENABLED === "true") {
+              images.push(ghcrImage)
+            }
+            if (process.env.DOCKERHUB_TOKEN) {
+              images.push(dockerImage)
+            }
+            if (process.env.GITLAB_TOKEN) {
+              images.push(glhrImage)
+            }
+            core.setOutput('images', images.join("\n"))
+
+      # This step uses [docker/metadata-action](https://github.com/docker/metadata-action#about) to extract tags and labels that will be applied to the specified image. The `id` "meta" allows the output of this step to be referenced in a subsequent step. The `images` value provides the base name for the tags and labels.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            suffix=-tiny
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.0.') }}
+            type=semver,pattern=v{{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=ref,event=branch
+            type=ref,event=pr
+          images: ${{steps.var.outputs.images}}
+          # default labels & annotations: https://github.com/docker/metadata-action/blob/master/src/meta.ts#L509
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+      - name: Extract metadata (tags, labels) for Docker (optimised)
+        id: meta-x86-64-v3
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            suffix=-tiny-x86-64-v3
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.0.') }}
+            type=semver,pattern=v{{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=ref,event=branch
+            type=ref,event=pr
+          images: ${{steps.var.outputs.images}}
+          # default labels & annotations: https://github.com/docker/metadata-action/blob/master/src/meta.ts#L509
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      # These steps work around docker mount caches not being cached between runs in CI providers.
+      # It manually injects the mounts into Docker.
+      # We use 
+      - uses: Swatinem/rust-cache@v2
+        id: rust-cache
+      
+      - name: inject cache into docker
+        uses: reproducible-containers/buildkit-cache-dance@v3.1.2
+        with:
+          cache-map: |
+            {
+              "/home/runner/.cargo/registry": "/usr/local/cargo/registry",
+              "/home/runner/.cargo/git/db": "/usr/local/cargo/git/db",
+              "./target": "/app/target"
+            }
+          # skip-extraction: ${{ steps.rust-cache.outputs.cache-hit }}
+      # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
+      # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
+      # It will not push images generated from a pull request
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: "Containerfile"
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+      
+      - name: Build and push Docker image (x86-64-v3)
+        id: push-x86-64-v3
+        uses: docker/build-push-action@v6
+        with:
+          build-args: TARGET_CPU=x86-64-v3
+          context: .
+          file: "Containerfile"
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-x86-64-v3.outputs.tags }}
+          labels: ${{ steps.meta-x86-64-v3.outputs.labels }}
+          annotations: ${{ steps.meta-x86-64-v3.outputs.annotations }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+
