@@ -30,6 +30,11 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
       GHCR_ENABLED: "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && 'true' || 'false' }}"
+    strategy:
+      matrix:
+        target:
+          - base
+          - haswell
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -91,7 +96,8 @@ jobs:
 
       # This step uses [docker/metadata-action](https://github.com/docker/metadata-action#about) to extract tags and labels that will be applied to the specified image. The `id` "meta" allows the output of this step to be referenced in a subsequent step. The `images` value provides the base name for the tags and labels.
       - name: Extract metadata (tags, labels) for Docker
-        id: meta
+        id: meta-base
+        if: ${{ matrix.target == 'base' }}
         uses: docker/metadata-action@v5
         with:
           flavor: |
@@ -106,12 +112,14 @@ jobs:
           # default labels & annotations: https://github.com/docker/metadata-action/blob/master/src/meta.ts#L509
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
       - name: Extract metadata (tags, labels) for Docker (optimised)
-        id: meta-x86-64-v3
+        id: meta
+        if: ${{ matrix.target != 'base' }}
         uses: docker/metadata-action@v5
         with:
           flavor: |
-            suffix=-tiny-x86-64-v3
+            suffix=-tiny-${{ matrix.target }}
           tags: |
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.0.') }}
@@ -127,9 +135,11 @@ jobs:
       # It manually injects the mounts into Docker.
       # We use 
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust-${{matrix.target}}
         id: rust-cache
-      
-      - name: inject cache into docker
+
+      - name: Inject cache into Docker
         uses: reproducible-containers/buildkit-cache-dance@v3.1.2
         with:
           cache-map: |
@@ -149,26 +159,11 @@ jobs:
         with:
           context: .
           file: "Containerfile"
+          build-args: ${{ matrix.target != 'base' && format('TARGET_CPU={0}', matrix.target) || '' }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          tags: ${{ matrix.target == 'base' && steps.meta-base.outputs.tags || steps.meta.outputs.tags }}
+          labels: ${{ matrix.target == 'base' && steps.meta-base.outputs.labels || steps.meta.outputs.labels }}
+          annotations: ${{ matrix.target == 'base' && steps.meta-base.outputs.annotations || steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           sbom: true
-      
-      - name: Build and push Docker image (x86-64-v3)
-        id: push-x86-64-v3
-        uses: docker/build-push-action@v6
-        with:
-          build-args: TARGET_CPU=x86-64-v3
-          context: .
-          file: "Containerfile"
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-x86-64-v3.outputs.tags }}
-          labels: ${{ steps.meta-x86-64-v3.outputs.labels }}
-          annotations: ${{ steps.meta-x86-64-v3.outputs.annotations }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          sbom: true
-
