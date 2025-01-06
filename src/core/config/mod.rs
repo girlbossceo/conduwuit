@@ -1646,7 +1646,7 @@ pub struct Config {
 	/// responsiveness for many users at the cost of throughput for each.
 	///
 	/// Setting this value to 0.0 causes the stream width to be fixed at the
-	/// value of stream_width_default. The default is 1.0 to match the
+	/// value of stream_width_default. The default scale is 1.0 to match the
 	/// capabilities detected for the system.
 	///
 	/// default: 1.0

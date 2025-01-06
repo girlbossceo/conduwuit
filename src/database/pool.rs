@@ -30,7 +30,7 @@ use crate::{keyval::KeyBuf, stream, Handle, Map};
 /// requests which are not cached. These thread-blocking requests are offloaded
 /// from the tokio async workers and executed on this threadpool.
 pub(crate) struct Pool {
-	_server: Arc<Server>,
+	server: Arc<Server>,
 	queues: Vec<Sender<Cmd>>,
 	workers: Mutex<Vec<JoinHandle<()>>>,
 	topology: Vec<usize>,
@@ -67,7 +67,7 @@ pub(crate) type BatchResult<'a> = SmallVec<[ResultHandle<'a>; BATCH_INLINE]>;
 pub(crate) type ResultHandle<'a> = Result<Handle<'a>>;
 
 const WORKER_LIMIT: (usize, usize) = (1, 1024);
-const QUEUE_LIMIT: (usize, usize) = (1, 2048);
+const QUEUE_LIMIT: (usize, usize) = (1, 4096);
 const BATCH_INLINE: usize = 1;
 
 const WORKER_STACK_SIZE: usize = 1_048_576;
@@ -85,7 +85,7 @@ pub(crate) fn new(server: &Arc<Server>) -> Result<Arc<Self>> {
 		.unzip();
 
 	let pool = Arc::new(Self {
-		_server: server.clone(),
+		server: server.clone(),
 		queues: senders,
 		workers: Vec::new().into(),
 		topology,
@@ -288,6 +288,7 @@ fn worker_init(&self, id: usize) {
 		.iter()
 		.enumerate()
 		.filter(|_| self.queues.len() > 1)
+		.filter(|_| self.server.config.db_pool_affinity)
 		.filter_map(|(core_id, &queue_id)| (group == queue_id).then_some(core_id))
 		.filter_map(nth_core_available);
 
