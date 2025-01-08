@@ -170,6 +170,44 @@ impl Service {
 		self.db.remove_presence(user_id).await;
 	}
 
+	// Unset online/unavailable presence to offline on startup
+	pub async fn unset_all_presence(&self) -> Result<()> {
+		for user_id in &self
+			.services
+			.users
+			.list_local_users()
+			.map(UserId::to_owned)
+			.collect::<Vec<_>>()
+			.await
+		{
+			let presence = self.db.get_presence(user_id).await;
+
+			let presence = match presence {
+				| Ok((_, ref presence)) => &presence.content,
+				| _ => return Ok(()),
+			};
+
+			let need_reset = match presence.presence {
+				| PresenceState::Unavailable | PresenceState::Online => true,
+				| _ => false,
+			};
+
+			if !need_reset {
+				return Ok(());
+			}
+
+			self.set_presence(
+				user_id,
+				&PresenceState::Offline,
+				Some(false),
+				presence.last_active_ago,
+				presence.status_msg.clone(),
+			)
+			.await?;
+		}
+		Ok(())
+	}
+
 	/// Returns the most recent presence updates that happened after the event
 	/// with id `since`.
 	pub fn presence_since(
