@@ -621,6 +621,7 @@ pub struct Config {
 	#[serde(default = "default_tracing_flame_output_path")]
 	pub tracing_flame_output_path: String,
 
+	#[cfg(not(doctest))]
 	/// Examples:
 	///
 	/// - No proxy (default):
