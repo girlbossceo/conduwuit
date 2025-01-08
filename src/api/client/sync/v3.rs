@@ -1235,7 +1235,7 @@ async fn calculate_counts(
 	let (joined_member_count, invited_member_count) =
 		join(joined_member_count, invited_member_count).await;
 
-	let small_room = joined_member_count.saturating_add(invited_member_count) > 5;
+	let small_room = joined_member_count.saturating_add(invited_member_count) <= 5;
 
 	let heroes: OptionFuture<_> = small_room
 		.then(|| calculate_heroes(services, room_id, sender_user))
