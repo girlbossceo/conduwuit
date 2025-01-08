@@ -1,14 +1,71 @@
-FROM rust:latest AS builder
+
+ARG BUILDPLATFORM
+
+FROM --platform=$BUILDPLATFORM rust:latest AS builder
+
+ARG TARGETPLATFORM
+# Determine target platform identifiers
+RUN RUST_TARGET=$(case $TARGETPLATFORM in \
+    "linux/amd64") echo x86_64-unknown-linux-gnu ;; \
+    "linux/arm64") echo aarch64-unknown-linux-gnu ;; \
+    *) echo "Unsupported target platform $TARGETPLATFORM" 1>&2; exit 1 ;; \
+    esac) && \
+    echo "RUST_TARGET=$RUST_TARGET" >> /etc/environment
+
+RUN DEB_ARCH=$(case $TARGETPLATFORM in \
+    "linux/amd64") echo amd64 ;; \
+    "linux/arm64") echo arm64 ;; \
+    *) exit 1 ;; \
+    esac) && \
+    echo "DEB_ARCH=$DEB_ARCH" >> /etc/environment
+
+RUN GCC_TARGET=$(case $TARGETPLATFORM in \
+    "linux/amd64") echo x86-64-linux-gnu ;; \
+    "linux/arm64") echo aarch64-linux-gnu ;; \
+    *) exit 1 ;; \
+    esac) && \
+    echo "GCC_TARGET=$GCC_TARGET" >> /etc/environment
 
 # install build-time deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    lld \ 
-    libclang-dev liburing-dev
+RUN set -o allexport && \
+    . /etc/environment && \
+    dpkg --add-architecture $DEB_ARCH && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        lld \ 
+        gcc-$GCC_TARGET g++-$GCC_TARGET \
+        libc6-dev-$DEB_ARCH-cross \
+        libclang-dev liburing-dev \
+        liburing-dev:$DEB_ARCH && \
+    rm -rf /var/lib/apt/lists/*
+
+# set linkers, compilers and pkg-config libdir
+RUN VARS=$(case $TARGETPLATFORM in \
+    "linux/amd64") \
+        echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc" && \
+        echo "CC_x86_64_unknown_linux_gnu=x86_64-linux-gnu-gcc" && \
+        echo "CXX_x86_64_unknown_linux_gnu=\"x86_64-linux-gnu-g++\"" && \
+        echo "PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig" \
+    ;; \
+    "linux/arm64") \
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" && \
+        echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" && \
+        echo "CXX_aarch64_unknown_linux_gnu=\"aarch64-linux-gnu-g++\"" && \
+        echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig"  \
+    ;; \
+    *) exit 1 ;; \
+    esac) && \
+    echo "$VARS" >> /etc/environment
+
+# enable cross-platform linking of libraries
+RUN echo "PKG_CONFIG_ALLOW_CROSS=true" >> /etc/environment
 
 # Set up Rust toolchain
 WORKDIR /app
 COPY ./rust-toolchain.toml .
 RUN rustc --version
+RUN set -o allexport && \
+    . /etc/environment && \
+    rustup target add $RUST_TARGET
 
 # Developer tool versions
 # renovate: datasource=github-releases depName=cargo-binstall packageName=cargo-bins/cargo-binstall
@@ -26,21 +83,22 @@ COPY . .
 # We disable incremental compilation to save disk space, as it only produces a minimal speedup for this case.
 ENV CARGO_INCREMENTAL=0
 
-ARG TARGET_CPU
+ARG TARGET_CPU=
 RUN if [ -n "${TARGET_CPU}" ]; then \
     echo "CFLAGS='-march=${TARGET_CPU}'" >> /etc/environment && \
     echo "CXXFLAGS='-march=${TARGET_CPU}'" >> /etc/environment && \
     echo "RUSTFLAGS='-C target-cpu=${TARGET_CPU}'" >> /etc/environment; \
 fi
 
+RUN cat /etc/environment
 RUN mkdir /out
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git/db \
     --mount=type=cache,target=/app/target \
     set -o allexport && \
     . /etc/environment && \
-    cargo build --locked --release && \
-    cp ./target/release/conduwuit /out/app
+    cargo build --locked --release --target $RUST_TARGET && \
+    cp ./target/$RUST_TARGET/release/conduwuit /out/app
 
 RUN cargo sbom > /out/sbom.spdx.json
 
