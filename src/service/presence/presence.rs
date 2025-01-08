@@ -46,11 +46,7 @@ impl Presence {
 		users: &users::Service,
 	) -> PresenceEvent {
 		let now = utils::millis_since_unix_epoch();
-		let last_active_ago = if self.currently_active {
-			None
-		} else {
-			Some(UInt::new_saturating(now.saturating_sub(self.last_active_ts)))
-		};
+		let last_active_ago = Some(UInt::new_saturating(now.saturating_sub(self.last_active_ts)));
 
 		PresenceEvent {
 			sender: user_id.to_owned(),

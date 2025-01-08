@@ -382,7 +382,16 @@ async fn process_presence_updates(
 		.ready_fold(PresenceUpdates::new(), |mut updates, (user_id, event)| {
 			match updates.entry(user_id.into()) {
 				| Entry::Vacant(slot) => {
-					slot.insert(event);
+					let mut new_event = event;
+					new_event.content.last_active_ago = match new_event.content.currently_active {
+						| Some(true) => None,
+						| _ => new_event
+							.content
+							.last_active_ago
+							.or(new_event.content.last_active_ago),
+					};
+
+					slot.insert(new_event);
 				},
 				| Entry::Occupied(mut slot) => {
 					let curr_event = slot.get_mut();
@@ -394,8 +403,6 @@ async fn process_presence_updates(
 					curr_content.status_msg = new_content
 						.status_msg
 						.or_else(|| curr_content.status_msg.take());
-					curr_content.last_active_ago =
-						new_content.last_active_ago.or(curr_content.last_active_ago);
 					curr_content.displayname = new_content
 						.displayname
 						.or_else(|| curr_content.displayname.take());
@@ -405,6 +412,10 @@ async fn process_presence_updates(
 					curr_content.currently_active = new_content
 						.currently_active
 						.or(curr_content.currently_active);
+					curr_content.last_active_ago = match curr_content.currently_active {
+						| Some(true) => None,
+						| _ => new_content.last_active_ago.or(curr_content.last_active_ago),
+					};
 				},
 			};
 
