@@ -16,6 +16,7 @@ pub mod set;
 pub mod stream;
 pub mod string;
 pub mod sys;
+#[cfg(test)]
 mod tests;
 pub mod time;
 

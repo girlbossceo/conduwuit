@@ -11,6 +11,7 @@ mod opts;
 mod pool;
 mod ser;
 mod stream;
+#[cfg(test)]
 mod tests;
 pub(crate) mod util;
 mod watchers;

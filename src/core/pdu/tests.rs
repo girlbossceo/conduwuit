@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::Count;
 
 #[test]

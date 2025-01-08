@@ -9,6 +9,7 @@ mod raw_id;
 mod redact;
 mod relation;
 mod strip;
+#[cfg(test)]
 mod tests;
 mod unsigned;
 

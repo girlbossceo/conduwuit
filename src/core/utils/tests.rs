@@ -1,4 +1,3 @@
-#![cfg(test)]
 #![allow(clippy::disallowed_methods)]
 
 use crate::utils;
