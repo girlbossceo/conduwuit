@@ -59,6 +59,9 @@ RUN VARS=$(case $TARGETPLATFORM in \
 # enable cross-platform linking of libraries
 RUN echo "PKG_CONFIG_ALLOW_CROSS=true" >> /etc/environment
 
+
+ARG CONDUWUIT_VERSION_EXTRA=
+ENV CONDUWUIT_VERSION_EXTRA=$CONDUWUIT_VERSION_EXTRA
 # Set up Rust toolchain
 WORKDIR /app
 COPY ./rust-toolchain.toml .

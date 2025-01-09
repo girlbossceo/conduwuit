@@ -161,13 +161,20 @@ jobs:
       # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
       # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
       # It will not push images generated from a pull request
+      - name: Set short git commit SHA
+        id: sha
+        run: |
+          calculatedSha=$(git rev-parse --short ${{ github.sha }})
+          echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
       - name: Build and push Docker image by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: "Containerfile"
-          build-args: ${{ matrix.target_cpu != 'base' && format('TARGET_CPU={0}', matrix.target_cpu) || '' }}
+          build-args: |
+            ${{ matrix.target_cpu != 'base' && format('TARGET_CPU={0}', matrix.target_cpu) || '' }}
+            CONDUWUIT_VERSION_EXTRA=${{ env.COMMIT_SHORT_SHA }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
