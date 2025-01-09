@@ -29,6 +29,9 @@ jobs:
       images_list: ${{ steps.var.outputs.images_list }}
       build_matrix: ${{ steps.var.outputs.build_matrix }}
       merge_matrix: ${{ steps.var.outputs.merge_matrix }}
+      ghcr_image: ${{ steps.var.outputs.ghcr_image }}
+      docker_image: ${{ steps.var.outputs.docker_image }}
+      glhr_image: ${{ steps.var.outputs.glhr_image }}
 
     steps:
       - name: Setting variables
@@ -182,6 +185,30 @@ jobs:
           cache-to: type=gha,mode=max
           sbom: true
           outputs: type=image,"name=${{ needs.define-variables.outputs.images_list }}",push-by-digest=true,name-canonical=true,push=true
+
+      # This step generates an artifact attestation for the image, which is an unforgeable statement about where and how it was built. It increases supply chain security for people who consume the image. For more information, see "[Using artifact attestations to establish provenance for builds](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds)." 
+      - name: Generate artifact attestation (${{ needs.define-variables.outputs.ghcr_image}})
+        uses: actions/attest-build-provenance@v2
+        if: env.GHCR_ENABLED == 'true'
+        with:
+          subject-name: ${{ needs.define-variables.outputs.ghcr_image}}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Generate artifact attestation (index.${{ needs.define-variables.outputs.docker_image}})
+        uses: actions/attest-build-provenance@v2
+        if: (vars.DOCKER_USERNAME != '') && (env.DOCKERHUB_TOKEN != '')
+        with:
+          # see action readme (we need to use index.docker.io rather than docker.io)
+          subject-name: index.${{ needs.define-variables.outputs.docker_image}}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Generate artifact attestation (${{ needs.define-variables.outputs.glhr_image}})
+        uses: actions/attest-build-provenance@v2
+        if: (vars.GITLAB_USERNAME != '') && (env.GITLAB_TOKEN != '')
+        with:
+          subject-name: ${{ needs.define-variables.outputs.glhr_image}}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
       # For publishing multi-platform manifests
       - name: Export digest
