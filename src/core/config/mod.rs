@@ -147,22 +147,6 @@ pub struct Config {
 	#[serde(default = "default_database_backups_to_keep")]
 	pub database_backups_to_keep: i16,
 
-	/// Set this to any float value in megabytes for conduwuit to tell the
-	/// database engine that this much memory is available for database-related
-	/// caches.
-	///
-	/// May be useful if you have significant memory to spare to increase
-	/// performance.
-	///
-	/// Similar to the individual LRU caches, this is scaled up with your CPU
-	/// core count.
-	///
-	/// This defaults to 128.0 + (64.0 * CPU core count).
-	///
-	/// default: varies by system
-	#[serde(default = "default_db_cache_capacity_mb")]
-	pub db_cache_capacity_mb: f64,
-
 	/// Text which will be added to the end of the user's displayname upon
 	/// registration with a space before the text. In Conduit, this was the
 	/// lightning bolt emoji.
@@ -204,6 +188,38 @@ pub struct Config {
 		alias = "conduit_cache_capacity_modifier"
 	)]
 	pub cache_capacity_modifier: f64,
+
+	/// Set this to any float value in megabytes for conduwuit to tell the
+	/// database engine that this much memory is available for database read
+	/// caches.
+	///
+	/// May be useful if you have significant memory to spare to increase
+	/// performance.
+	///
+	/// Similar to the individual LRU caches, this is scaled up with your CPU
+	/// core count.
+	///
+	/// This defaults to 128.0 + (64.0 * CPU core count).
+	///
+	/// default: varies by system
+	#[serde(default = "default_db_cache_capacity_mb")]
+	pub db_cache_capacity_mb: f64,
+
+	/// Set this to any float value in megabytes for conduwuit to tell the
+	/// database engine that this much memory is available for database write
+	/// caches.
+	///
+	/// May be useful if you have significant memory to spare to increase
+	/// performance.
+	///
+	/// Similar to the individual LRU caches, this is scaled up with your CPU
+	/// core count.
+	///
+	/// This defaults to 48.0 + (4.0 * CPU core count).
+	///
+	/// default: varies by system
+	#[serde(default = "default_db_write_buffer_capacity_mb")]
+	pub db_write_buffer_capacity_mb: f64,
 
 	/// default: varies by system
 	#[serde(default = "default_pdu_cache_capacity")]
@@ -2232,6 +2248,8 @@ fn default_port() -> ListeningPort { ListeningPort { ports: Left(8008) } }
 fn default_unix_socket_perms() -> u32 { 660 }
 
 fn default_database_backups_to_keep() -> i16 { 1 }
+
+fn default_db_write_buffer_capacity_mb() -> f64 { 48.0 + parallelism_scaled_f64(4.0) }
 
 fn default_db_cache_capacity_mb() -> f64 { 128.0 + parallelism_scaled_f64(64.0) }
 

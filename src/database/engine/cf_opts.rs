@@ -10,7 +10,7 @@ use rocksdb::{
 };
 
 use super::descriptor::{CacheDisp, Descriptor};
-use crate::Context;
+use crate::{util::map_err, Context};
 
 /// Adjust options for the specific column by name. Provide the result of
 /// db_options() as the argument to this function and use the return value in
@@ -28,7 +28,7 @@ fn descriptor_cf_options(
 	cache: Option<&Cache>,
 ) -> Result<Options> {
 	set_compression(&mut desc, config);
-	set_table_options(&mut opts, &desc, cache);
+	set_table_options(&mut opts, &desc, cache)?;
 
 	opts.set_min_write_buffer_number(1);
 	opts.set_max_write_buffer_number(2);
@@ -65,10 +65,13 @@ fn descriptor_cf_options(
 		);
 	}
 
+	opts.set_options_from_string("{{arena_block_size=2097152;}}")
+		.map_err(map_err)?;
+
 	Ok(opts)
 }
 
-fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache>) {
+fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache>) -> Result {
 	let mut table = table_options(desc);
 	if let Some(cache) = cache {
 		table.set_block_cache(cache);
@@ -76,7 +79,15 @@ fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache
 		table.disable_cache();
 	}
 
+	opts.set_options_from_string(
+		"{{block_based_table_factory={num_file_reads_for_auto_readahead=0;\
+		 max_auto_readahead_size=524288;initial_auto_readahead_size=16384}}}",
+	)
+	.map_err(map_err)?;
+
 	opts.set_block_based_table_factory(&table);
+
+	Ok(())
 }
 
 fn set_compression(desc: &mut Descriptor, config: &Config) {
@@ -121,6 +132,7 @@ fn table_options(desc: &Descriptor) -> BlockBasedOptions {
 	opts.set_unpartitioned_pinning_tier(BlockBasedPinningTier::None);
 	opts.set_top_level_index_pinning_tier(BlockBasedPinningTier::None);
 
+	opts.set_partition_filters(true);
 	opts.set_use_delta_encoding(false);
 	opts.set_index_type(BlockBasedIndexType::TwoLevelIndexSearch);
 	opts.set_data_block_index_type(
@@ -203,9 +215,13 @@ fn get_cache(ctx: &Context, desc: &Descriptor) -> Option<Cache> {
 	}
 }
 
-#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 pub(crate) fn cache_size(config: &Config, base_size: u32, entity_size: usize) -> usize {
-	let ents = f64::from(base_size) * config.cache_capacity_modifier;
+	cache_size_f64(config, f64::from(base_size), entity_size)
+}
+
+#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+pub(crate) fn cache_size_f64(config: &Config, base_size: f64, entity_size: usize) -> usize {
+	let ents = base_size * config.cache_capacity_modifier;
 
 	(ents as usize)
 		.checked_mul(entity_size)

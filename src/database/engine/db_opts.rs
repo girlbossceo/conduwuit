@@ -3,7 +3,7 @@ use std::{cmp, convert::TryFrom};
 use conduwuit::{utils, Config, Result};
 use rocksdb::{statistics::StatsLevel, Cache, DBRecoveryMode, Env, LogLevel, Options};
 
-use super::{cf_opts::cache_size, logger::handle as handle_log};
+use super::{cf_opts::cache_size_f64, logger::handle as handle_log};
 
 /// Create database-wide options suitable for opening the database. This also
 /// sets our default column options in case of opening a column with the same
@@ -41,16 +41,23 @@ pub(crate) fn db_options(config: &Config, env: &Env, row_cache: &Cache) -> Resul
 		opts.set_skip_checking_sst_file_sizes_on_db_open(true);
 		opts.set_skip_stats_update_on_db_open(true);
 		//opts.set_max_file_opening_threads(threads.try_into().unwrap());
+	} else {
+		opts.set_compaction_readahead_size(1024 * 512);
 	}
 
 	// Blocks
 	opts.set_row_cache(row_cache);
+	opts.set_db_write_buffer_size(cache_size_f64(
+		config,
+		config.db_write_buffer_capacity_mb,
+		1_048_576,
+	));
 
 	// Files
 	opts.set_table_cache_num_shard_bits(7);
 	opts.set_wal_size_limit_mb(1024 * 1024 * 1024);
 	opts.set_max_total_wal_size(1024 * 1024 * 512);
-	opts.set_db_write_buffer_size(cache_size(config, 1024 * 1024 * 32, 1));
+	opts.set_writable_file_max_buffer_size(1024 * 1024 * 2);
 
 	// Misc
 	opts.set_disable_auto_compactions(!config.rocksdb_compaction);
