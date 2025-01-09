@@ -1710,6 +1710,11 @@ pub struct Config {
 	#[serde(default)]
 	pub sender_workers: usize,
 
+	/// Enables listener sockets; can be set to false to disable listening. This
+	/// option is intended for developer/diagnostic purposes only.
+	#[serde(default = "true_fn")]
+	pub listening: bool,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)]
 	// this is a catchall, the map shouldn't be zero at runtime
