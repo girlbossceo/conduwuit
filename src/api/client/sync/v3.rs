@@ -385,10 +385,7 @@ async fn process_presence_updates(
 					let mut new_event = event;
 					new_event.content.last_active_ago = match new_event.content.currently_active {
 						| Some(true) => None,
-						| _ => new_event
-							.content
-							.last_active_ago
-							.or(new_event.content.last_active_ago),
+						| _ => new_event.content.last_active_ago,
 					};
 
 					slot.insert(new_event);

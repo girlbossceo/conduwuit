@@ -193,7 +193,7 @@ impl Service {
 			};
 
 			if !need_reset {
-				return Ok(());
+				continue;
 			}
 
 			self.set_presence(
