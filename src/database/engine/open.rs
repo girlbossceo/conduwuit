@@ -4,11 +4,15 @@ use std::{
 	sync::{atomic::AtomicU32, Arc},
 };
 
-use conduwuit::{debug, debug_warn, implement, info, warn, Result};
+use conduwuit::{debug, implement, info, warn, Result};
 use rocksdb::{ColumnFamilyDescriptor, Options};
 
 use super::{
-	cf_opts::cf_options, db_opts::db_options, descriptor::Descriptor, repair::repair, Db, Engine,
+	cf_opts::cf_options,
+	db_opts::db_options,
+	descriptor::{self, Descriptor},
+	repair::repair,
+	Db, Engine,
 };
 use crate::{or_else, Context};
 
@@ -72,38 +76,46 @@ fn configure_cfds(
 	let config = &server.config;
 	let path = &config.database_path;
 	let existing = Self::discover_cfs(path, db_opts);
-	debug!(
-		"Found {} existing columns; have {} described columns",
-		existing.len(),
-		desc.len()
-	);
 
-	existing
+	let creating = desc.iter().filter(|desc| !existing.contains(desc.name));
+
+	let missing = existing
 		.iter()
 		.filter(|&name| name != "default")
-		.filter(|&name| !desc.iter().any(|desc| desc.name == name))
-		.for_each(|name| {
-			debug_warn!("Found unknown column {name:?} in database which will not be opened.");
-		});
+		.filter(|&name| !desc.iter().any(|desc| desc.name == name));
 
-	desc.iter()
-		.filter(|desc| !existing.contains(desc.name))
-		.for_each(|desc| {
-			debug!(
-				"Creating new column {:?} which was not found in the existing database.",
-				desc.name,
-			);
-		});
+	debug!(
+		existing = existing.len(),
+		described = desc.len(),
+		missing = missing.clone().count(),
+		creating = creating.clone().count(),
+		"Discovered database columns"
+	);
+
+	missing.clone().for_each(|name| {
+		debug!("Found unrecognized column {name:?} in existing database.");
+	});
+
+	creating.map(|desc| desc.name).for_each(|name| {
+		debug!("Creating new column {name:?} not previously found in existing database.");
+	});
+
+	let missing_descriptors = missing
+		.clone()
+		.map(|_| Descriptor { dropped: true, ..descriptor::BASE });
 
 	let cfopts: Vec<_> = desc
 		.iter()
-		.map(|desc| cf_options(ctx, db_opts.clone(), desc))
+		.cloned()
+		.chain(missing_descriptors)
+		.map(|ref desc| cf_options(ctx, db_opts.clone(), desc))
 		.collect::<Result<_>>()?;
 
 	let cfds: Vec<_> = desc
 		.iter()
 		.map(|desc| desc.name)
 		.map(ToOwned::to_owned)
+		.chain(missing.cloned())
 		.zip(cfopts.into_iter())
 		.map(|(name, opts)| ColumnFamilyDescriptor::new(name, opts))
 		.collect();

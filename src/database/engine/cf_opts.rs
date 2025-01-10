@@ -72,7 +72,7 @@ fn descriptor_cf_options(
 }
 
 fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache>) -> Result {
-	let mut table = table_options(desc);
+	let mut table = table_options(desc, cache.is_some());
 	if let Some(cache) = cache {
 		table.set_block_cache(cache);
 	} else {
@@ -119,13 +119,13 @@ fn uc_options(desc: &Descriptor) -> UniversalCompactOptions {
 	opts
 }
 
-fn table_options(desc: &Descriptor) -> BlockBasedOptions {
+fn table_options(desc: &Descriptor, has_cache: bool) -> BlockBasedOptions {
 	let mut opts = BlockBasedOptions::default();
 
 	opts.set_block_size(desc.block_size);
 	opts.set_metadata_block_size(desc.index_size);
 
-	opts.set_cache_index_and_filter_blocks(true);
+	opts.set_cache_index_and_filter_blocks(has_cache);
 	opts.set_pin_top_level_index_and_filter(false);
 	opts.set_pin_l0_filter_and_index_blocks_in_cache(false);
 	opts.set_partition_pinning_tier(BlockBasedPinningTier::None);
@@ -144,10 +144,13 @@ fn table_options(desc: &Descriptor) -> BlockBasedOptions {
 }
 
 fn get_cache(ctx: &Context, desc: &Descriptor) -> Option<Cache> {
-	let config = &ctx.server.config;
+	if desc.dropped {
+		return None;
+	}
 
 	// Some cache capacities are overriden by server config in a strange but
 	// legacy-compat way
+	let config = &ctx.server.config;
 	let cap = match desc.name {
 		| "eventid_pduid" => Some(config.eventid_pdu_cache_capacity),
 		| "eventid_shorteventid" => Some(config.eventidshort_cache_capacity),

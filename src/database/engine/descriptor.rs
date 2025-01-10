@@ -14,6 +14,7 @@ pub(crate) enum CacheDisp {
 #[derive(Debug, Clone)]
 pub(crate) struct Descriptor {
 	pub(crate) name: &'static str,
+	pub(crate) dropped: bool,
 	pub(crate) cache_disp: CacheDisp,
 	pub(crate) key_size_hint: Option<usize>,
 	pub(crate) val_size_hint: Option<usize>,
@@ -39,6 +40,7 @@ pub(crate) struct Descriptor {
 
 pub(crate) static BASE: Descriptor = Descriptor {
 	name: EMPTY,
+	dropped: false,
 	cache_disp: CacheDisp::Shared,
 	key_size_hint: None,
 	val_size_hint: None,
