@@ -9,7 +9,7 @@ use syn::{
 };
 
 use crate::{
-	utils::{get_simple_settings, is_cargo_build},
+	utils::{get_simple_settings, is_cargo_build, is_cargo_test},
 	Result,
 };
 
@@ -17,7 +17,7 @@ const UNDOCUMENTED: &str = "# This item is undocumented. Please contribute docum
 
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<TokenStream> {
-	if is_cargo_build() {
+	if is_cargo_build() && !is_cargo_test() {
 		generate_example(&input, args)?;
 	}
 
