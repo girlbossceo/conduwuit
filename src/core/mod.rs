@@ -25,7 +25,7 @@ pub use crate as conduwuit_core;
 
 rustc_flags_capture! {}
 
-#[cfg(not(conduwuit_mods))]
+#[cfg(any(not(conduwuit_mods), not(feature = "conduwuit_mods")))]
 pub mod mods {
 	#[macro_export]
 	macro_rules! mod_ctor {

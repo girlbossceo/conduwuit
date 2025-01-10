@@ -135,6 +135,9 @@ zstd_compression = [
 	"conduwuit-database/zstd_compression",
 	"conduwuit-router/zstd_compression",
 ]
+conduwuit_mods = [
+    "conduwuit-core/conduwuit_mods",
+]
 
 [dependencies]
 conduwuit-admin.workspace = true

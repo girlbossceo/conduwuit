@@ -1,4 +1,4 @@
-#![cfg(conduwuit_mods)]
+#![cfg(all(conduwuit_mods, feature = "conduwuit_mods"))]
 
 #[unsafe(no_link)]
 extern crate conduwuit_service;

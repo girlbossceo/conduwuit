@@ -37,7 +37,7 @@ fn main() -> Result<(), Error> {
 
 /// Operate the server normally in release-mode static builds. This will start,
 /// run and stop the server within the asynchronous runtime.
-#[cfg(not(conduwuit_mods))]
+#[cfg(any(not(conduwuit_mods), not(feature = "conduwuit_mods")))]
 #[tracing::instrument(
 	name = "main",
 	parent = None,
@@ -89,7 +89,7 @@ async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 /// Operate the server in developer-mode dynamic builds. This will start, run,
 /// and hot-reload portions of the server as-needed before returning for an
 /// actual shutdown. This is not available in release-mode or static builds.
-#[cfg(conduwuit_mods)]
+#[cfg(all(conduwuit_mods, feature = "conduwuit_mods"))]
 async fn async_main(server: &Arc<Server>) -> Result<(), Error> {
 	let mut starts = true;
 	let mut reloads = true;
