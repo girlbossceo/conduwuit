@@ -733,7 +733,7 @@ jobs:
     docker:
         name: Docker publish
         runs-on: ubuntu-24.04
-        needs: [build, variables]
+        needs: [build, variables, tests]
         permissions:
           packages: write
           contents: read
