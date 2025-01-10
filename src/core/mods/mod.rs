@@ -1,4 +1,4 @@
-#![cfg(conduwuit_mods)]
+#![cfg(all(conduwuit_mods, feature = "conduwuit_mods"))]
 
 pub(crate) use libloading::os::unix::{Library, Symbol};
 

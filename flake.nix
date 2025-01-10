@@ -212,6 +212,8 @@
                 # be expected on non-debug builds.
                 "jemalloc_prof"
                 "jemalloc_stats"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
             ];
         };
         all-features-debug = scopeHost.main.override {
@@ -224,6 +226,8 @@
                 "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
             ];
         };
         hmalloc = scopeHost.main.override { features = ["hardened_malloc"]; };
@@ -241,6 +245,8 @@
                 # be expected on non-debug builds.
                 "jemalloc_prof"
                 "jemalloc_stats"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
             ];
           };
         };
@@ -255,6 +261,8 @@
                 "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
             ];
           };
         };
@@ -330,6 +338,8 @@
                         # be expected on non-debug builds.
                         "jemalloc_prof"
                         "jemalloc_stats"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
                     ];
                   };
                 }
@@ -349,6 +359,8 @@
                         # be expected on non-debug builds.
                         "jemalloc_prof"
                         "jemalloc_stats"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
                     ];
                     x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
                   };
@@ -367,6 +379,8 @@
                         "hardened_malloc"
                         # dont include experimental features
                         "experimental"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
                     ];
                   };
                 }
@@ -423,6 +437,8 @@
                           # be expected on non-debug builds.
                           "jemalloc_prof"
                           "jemalloc_stats"
+                          # conduwuit_mods is a development-only hot reload feature
+                          "conduwuit_mods"
                       ];
                     };
                   };
@@ -444,6 +460,8 @@
                           # be expected on non-debug builds.
                           "jemalloc_prof"
                           "jemalloc_stats"
+                          # conduwuit_mods is a development-only hot reload feature
+                          "conduwuit_mods"
                       ];
                       x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
                     };
@@ -464,6 +482,8 @@
                           "hardened_malloc"
                           # dont include experimental features
                           "experimental"
+                          # conduwuit_mods is a development-only hot reload feature
+                          "conduwuit_mods"
                       ];
                     };
                   };
@@ -510,6 +530,8 @@
                 # be expected on non-debug builds.
                 "jemalloc_prof"
                 "jemalloc_stats"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
             ];
         };
         }));

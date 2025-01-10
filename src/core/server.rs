@@ -59,7 +59,7 @@ impl Server {
 	}
 
 	pub fn reload(&self) -> Result<()> {
-		if cfg!(not(conduwuit_mods)) {
+		if cfg!(any(not(conduwuit_mods), not(feature = "conduwuit_mods"))) {
 			return Err!("Reloading not enabled");
 		}
 
