@@ -63,7 +63,7 @@ pub(crate) async fn start(server: Arc<Server>) -> Result<Arc<Services>> {
 
 	let services = Services::build(server).await?.start().await?;
 
-	#[cfg(feature = "systemd")]
+	#[cfg(all(feature = "systemd", target_os = "linux"))]
 	sd_notify::notify(true, &[sd_notify::NotifyState::Ready])
 		.expect("failed to notify systemd of ready state");
 
@@ -99,7 +99,7 @@ pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 		);
 	}
 
-	#[cfg(feature = "systemd")]
+	#[cfg(all(feature = "systemd", target_os = "linux"))]
 	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping])
 		.expect("failed to notify systemd of stopping state");
 
