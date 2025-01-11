@@ -366,6 +366,10 @@ pub(super) static MAPS: &[Descriptor] = &[
 		..descriptor::RANDOM_SMALL
 	},
 	Descriptor {
+		name: "logintoken_expiresatuserid",
+		..descriptor::RANDOM_SMALL
+	},
+	Descriptor {
 		name: "userroomid_highlightcount",
 		..descriptor::RANDOM
 	},

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{debug, err, info, utils::ReadyExt, warn, Err};
@@ -6,9 +8,10 @@ use ruma::{
 	api::client::{
 		error::ErrorKind,
 		session::{
+			get_login_token,
 			get_login_types::{
 				self,
-				v3::{ApplicationServiceLoginType, PasswordLoginType},
+				v3::{ApplicationServiceLoginType, PasswordLoginType, TokenLoginType},
 			},
 			login::{
 				self,
@@ -16,10 +19,11 @@ use ruma::{
 			},
 			logout, logout_all,
 		},
-		uiaa::UserIdentifier,
+		uiaa,
 	},
 	OwnedUserId, UserId,
 };
+use service::uiaa::SESSION_ID_LENGTH;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{utils, utils::hash, Error, Result, Ruma};
@@ -30,12 +34,16 @@ use crate::{utils, utils::hash, Error, Result, Ruma};
 /// the `type` field when logging in.
 #[tracing::instrument(skip_all, fields(%client), name = "login")]
 pub(crate) async fn get_login_types_route(
+	State(services): State<crate::State>,
 	InsecureClientIp(client): InsecureClientIp,
 	_body: Ruma<get_login_types::v3::Request>,
 ) -> Result<get_login_types::v3::Response> {
 	Ok(get_login_types::v3::Response::new(vec![
 		get_login_types::v3::LoginType::Password(PasswordLoginType::default()),
 		get_login_types::v3::LoginType::ApplicationService(ApplicationServiceLoginType::default()),
+		get_login_types::v3::LoginType::Token(TokenLoginType {
+			get_login_token: services.server.config.login_via_existing_session,
+		}),
 	]))
 }
 
@@ -70,7 +78,9 @@ pub(crate) async fn login_route(
 			..
 		}) => {
 			debug!("Got password login type");
-			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+			let user_id = if let Some(uiaa::UserIdentifier::UserIdOrLocalpart(user_id)) =
+				identifier
+			{
 				UserId::parse_with_server_name(
 					user_id.to_lowercase(),
 					services.globals.server_name(),
@@ -99,11 +109,12 @@ pub(crate) async fn login_route(
 
 			user_id
 		},
-		| login::v3::LoginInfo::Token(login::v3::Token { token: _ }) => {
+		| login::v3::LoginInfo::Token(login::v3::Token { token }) => {
 			debug!("Got token login type");
-			return Err!(Request(Unknown(
-				"Token login is not supported."
-			)));
+			if !services.server.config.login_via_existing_session {
+				return Err!(Request(Unknown("Token login is not enabled.")));
+			}
+			services.users.find_from_login_token(token).await?
 		},
 		#[allow(deprecated)]
 		| login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService {
@@ -111,21 +122,22 @@ pub(crate) async fn login_route(
 			user,
 		}) => {
 			debug!("Got appservice login type");
-			let user_id = if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-				UserId::parse_with_server_name(
-					user_id.to_lowercase(),
-					services.globals.server_name(),
-				)
-			} else if let Some(user) = user {
-				OwnedUserId::parse(user)
-			} else {
-				warn!("Bad login type: {:?}", &body.login_info);
-				return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
-			}
-			.map_err(|e| {
-				warn!("Failed to parse username from appservice logging in: {e}");
-				Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-			})?;
+			let user_id =
+				if let Some(uiaa::UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+					UserId::parse_with_server_name(
+						user_id.to_lowercase(),
+						services.globals.server_name(),
+					)
+				} else if let Some(user) = user {
+					OwnedUserId::parse(user)
+				} else {
+					warn!("Bad login type: {:?}", &body.login_info);
+					return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
+				}
+				.map_err(|e| {
+					warn!("Failed to parse username from appservice logging in: {e}");
+					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
+				})?;
 
 			if let Some(ref info) = body.appservice_info {
 				if !info.is_user_match(&user_id) {
@@ -214,6 +226,74 @@ pub(crate) async fn login_route(
 		expires_in: None,
 		home_server: Some(services.globals.server_name().to_owned()),
 		refresh_token: None,
+	})
+}
+
+/// # `POST /_matrix/client/v1/login/get_token`
+///
+/// Allows a logged-in user to get a short-lived token which can be used
+/// to log in with the m.login.token flow.
+///
+/// <https://spec.matrix.org/v1.13/client-server-api/#post_matrixclientv1loginget_token>
+#[tracing::instrument(skip_all, fields(%client), name = "login_token")]
+pub(crate) async fn login_token_route(
+	State(services): State<crate::State>,
+	InsecureClientIp(client): InsecureClientIp,
+	body: Ruma<get_login_token::v1::Request>,
+) -> Result<get_login_token::v1::Response> {
+	if !services.server.config.login_via_existing_session {
+		return Err!(Request(Unknown("Login via an existing session is not enabled")));
+	}
+	// Authentication for this endpoint was made optional, but we need
+	// authentication.
+	let sender_user = body
+		.sender_user
+		.as_ref()
+		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
+	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+
+	// This route SHOULD have UIA
+	// TODO: How do we make only UIA sessions that have not been used before valid?
+
+	let mut uiaainfo = uiaa::UiaaInfo {
+		flows: vec![uiaa::AuthFlow { stages: vec![uiaa::AuthType::Password] }],
+		completed: Vec::new(),
+		params: Box::default(),
+		session: None,
+		auth_error: None,
+	};
+
+	if let Some(auth) = &body.auth {
+		let (worked, uiaainfo) = services
+			.uiaa
+			.try_auth(sender_user, sender_device, auth, &uiaainfo)
+			.await?;
+
+		if !worked {
+			return Err(Error::Uiaa(uiaainfo));
+		}
+
+		// Success!
+	} else if let Some(json) = body.json_body {
+		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+		services
+			.uiaa
+			.create(sender_user, sender_device, &uiaainfo, &json);
+
+		return Err(Error::Uiaa(uiaainfo));
+	} else {
+		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+	}
+
+	let login_token = utils::random_string(TOKEN_LENGTH);
+
+	let expires_in = services
+		.users
+		.create_login_token(sender_user, &login_token)?;
+
+	Ok(get_login_token::v1::Response {
+		expires_in: Duration::from_millis(expires_in),
+		login_token,
 	})
 }
 
