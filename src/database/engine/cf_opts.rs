@@ -32,9 +32,7 @@ fn descriptor_cf_options(
 
 	opts.set_min_write_buffer_number(1);
 	opts.set_max_write_buffer_number(2);
-	if let Some(write_size) = desc.write_size {
-		opts.set_write_buffer_size(write_size);
-	}
+	opts.set_write_buffer_size(desc.write_size);
 
 	opts.set_target_file_size_base(desc.file_size);
 	opts.set_target_file_size_multiplier(desc.file_shape[0]);

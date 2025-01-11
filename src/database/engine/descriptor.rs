@@ -20,7 +20,7 @@ pub(crate) struct Descriptor {
 	pub(crate) val_size_hint: Option<usize>,
 	pub(crate) block_size: usize,
 	pub(crate) index_size: usize,
-	pub(crate) write_size: Option<usize>,
+	pub(crate) write_size: usize,
 	pub(crate) cache_size: usize,
 	pub(crate) level_size: u64,
 	pub(crate) level_shape: [i32; 7],
@@ -46,7 +46,7 @@ pub(crate) static BASE: Descriptor = Descriptor {
 	val_size_hint: None,
 	block_size: 1024 * 4,
 	index_size: 1024 * 4,
-	write_size: None,
+	write_size: 1024 * 1024 * 2,
 	cache_size: 1024 * 1024 * 4,
 	level_size: 1024 * 1024 * 8,
 	level_shape: [1, 1, 1, 3, 7, 15, 31],
@@ -66,11 +66,13 @@ pub(crate) static BASE: Descriptor = Descriptor {
 
 pub(crate) static RANDOM: Descriptor = Descriptor {
 	compaction_pri: CompactionPri::OldestSmallestSeqFirst,
+	write_size: 1024 * 1024 * 32,
 	..BASE
 };
 
 pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	compaction_pri: CompactionPri::OldestLargestSeqFirst,
+	write_size: 1024 * 1024 * 64,
 	level_size: 1024 * 1024 * 32,
 	file_size: 1024 * 1024 * 2,
 	..BASE
@@ -78,6 +80,7 @@ pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 
 pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	compaction: CompactionStyle::Universal,
+	write_size: 1024 * 1024 * 16,
 	level_size: 1024 * 512,
 	file_size: 1024 * 128,
 	..RANDOM
@@ -85,6 +88,7 @@ pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 
 pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	compaction: CompactionStyle::Universal,
+	write_size: 1024 * 1024 * 16,
 	level_size: 1024 * 1024,
 	file_size: 1024 * 512,
 	..SEQUENTIAL
