@@ -20,6 +20,8 @@ let
     disable_features = [
         # no reason to use jemalloc for complement, just has compatibility/build issues
         "jemalloc"
+        "jemalloc_stats"
+        "jemalloc_prof"
         # console/CLI stuff isn't used or relevant for complement
         "console"
         "tokio_console"
@@ -32,6 +34,14 @@ let
         "hardened_malloc"
         # dont include experimental features
         "experimental"
+        # compression isn't needed for complement
+        "brotli_compression"
+        "gzip_compression"
+        "zstd_compression"
+        # complement doesn't need hot reloading
+        "conduwuit_mods"
+        # complement doesn't have URL preview media tests
+        "url_preview"
     ];
   };
 

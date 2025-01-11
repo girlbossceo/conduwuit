@@ -15,7 +15,19 @@
 # Options (keep sorted)
 , all_features ? false
 , default_features ? true
-, disable_features ? []
+# default list of disabled features
+, disable_features ? [
+  # dont include experimental features
+  "experimental"
+  # jemalloc profiling/stats features are expensive and shouldn't
+  # be expected on non-debug builds.
+  "jemalloc_prof"
+  "jemalloc_stats"
+  # this is non-functional on nix for some reason
+  "hardened_malloc"
+  # conduwuit_mods is a development-only hot reload feature
+  "conduwuit_mods"
+]
 , disable_release_max_log_level ? false
 , features ? []
 , profile ? "release"

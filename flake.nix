@@ -191,27 +191,57 @@
     in
     {
       packages = {
-        default = scopeHost.main;
-        default-debug = scopeHost.main.override {
-            profile = "dev";
-            # debug build users expect full logs
-            disable_release_max_log_level = true;
-        };
-        default-test = scopeHost.main.override {
-            profile = "test";
-            disable_release_max_log_level = true;
-        };
-        all-features = scopeHost.main.override {
-            all_features = true;
+        default = scopeHost.main.override {
             disable_features = [
-                # this is non-functional on nix for some reason
-                "hardened_malloc"
                 # dont include experimental features
                 "experimental"
                 # jemalloc profiling/stats features are expensive and shouldn't
                 # be expected on non-debug builds.
                 "jemalloc_prof"
                 "jemalloc_stats"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
+            ];
+        };
+        default-debug = scopeHost.main.override {
+            profile = "dev";
+            # debug build users expect full logs
+            disable_release_max_log_level = true;
+            disable_features = [
+                # dont include experimental features
+                "experimental"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
+            ];
+        };
+        # just a test profile used for things like CI and complement
+        default-test = scopeHost.main.override {
+            profile = "test";
+            disable_release_max_log_level = true;
+            disable_features = [
+                # dont include experimental features
+                "experimental"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
+                # conduwuit_mods is a development-only hot reload feature
+                "conduwuit_mods"
+            ];
+        };
+        all-features = scopeHost.main.override {
+            all_features = true;
+            disable_features = [
+                # dont include experimental features
+                "experimental"
+                # jemalloc profiling/stats features are expensive and shouldn't
+                # be expected on non-debug builds.
+                "jemalloc_prof"
+                "jemalloc_stats"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
                 # conduwuit_mods is a development-only hot reload feature
                 "conduwuit_mods"
             ];
@@ -222,10 +252,10 @@
             # debug build users expect full logs
             disable_release_max_log_level = true;
             disable_features = [
-                # this is non-functional on nix for some reason
-                "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
                 # conduwuit_mods is a development-only hot reload feature
                 "conduwuit_mods"
             ];
@@ -237,14 +267,14 @@
           main = scopeHost.main.override {
             all_features = true;
             disable_features = [
-                # this is non-functional on nix for some reason
-                "hardened_malloc"
                 # dont include experimental features
                 "experimental"
                 # jemalloc profiling/stats features are expensive and shouldn't
                 # be expected on non-debug builds.
                 "jemalloc_prof"
                 "jemalloc_stats"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
                 # conduwuit_mods is a development-only hot reload feature
                 "conduwuit_mods"
             ];
@@ -257,10 +287,10 @@
             # debug build users expect full logs
             disable_release_max_log_level = true;
             disable_features = [
-                # this is non-functional on nix for some reason
-                "hardened_malloc"
                 # dont include experimental features
                 "experimental"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
                 # conduwuit_mods is a development-only hot reload feature
                 "conduwuit_mods"
             ];
@@ -321,6 +351,14 @@
                   value = scopeCrossStatic.main.override {
                     profile = "test";
                     disable_release_max_log_level = true;
+                    disable_features = [
+                        # dont include experimental features
+                        "experimental"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
+                    ];
                   };
                 }
 
@@ -330,14 +368,14 @@
                   value = scopeCrossStatic.main.override {
                     all_features = true;
                     disable_features = [
-                        # this is non-functional on nix for some reason
-                        "hardened_malloc"
                         # dont include experimental features
                         "experimental"
                         # jemalloc profiling/stats features are expensive and shouldn't
                         # be expected on non-debug builds.
                         "jemalloc_prof"
                         "jemalloc_stats"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
                         # conduwuit_mods is a development-only hot reload feature
                         "conduwuit_mods"
                     ];
@@ -351,14 +389,14 @@
                   value = scopeCrossStatic.main.override {
                     all_features = true;
                     disable_features = [
-                        # this is non-functional on nix for some reason
-                        "hardened_malloc"
                         # dont include experimental features
                         "experimental"
                         # jemalloc profiling/stats features are expensive and shouldn't
                         # be expected on non-debug builds.
                         "jemalloc_prof"
                         "jemalloc_stats"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
                         # conduwuit_mods is a development-only hot reload feature
                         "conduwuit_mods"
                     ];
@@ -375,10 +413,10 @@
                     # debug build users expect full logs
                     disable_release_max_log_level = true;
                     disable_features = [
-                        # this is non-functional on nix for some reason
-                        "hardened_malloc"
                         # dont include experimental features
                         "experimental"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
                         # conduwuit_mods is a development-only hot reload feature
                         "conduwuit_mods"
                     ];
@@ -429,16 +467,16 @@
                     main = scopeCrossStatic.main.override {
                       all_features = true;
                       disable_features = [
-                          # this is non-functional on nix for some reason
-                          "hardened_malloc"
-                          # dont include experimental features
-                          "experimental"
-                          # jemalloc profiling/stats features are expensive and shouldn't
-                          # be expected on non-debug builds.
-                          "jemalloc_prof"
-                          "jemalloc_stats"
-                          # conduwuit_mods is a development-only hot reload feature
-                          "conduwuit_mods"
+                        # dont include experimental features
+                        "experimental"
+                        # jemalloc profiling/stats features are expensive and shouldn't
+                        # be expected on non-debug builds.
+                        "jemalloc_prof"
+                        "jemalloc_stats"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
                       ];
                     };
                   };
@@ -452,16 +490,16 @@
                     main = scopeCrossStatic.main.override {
                       all_features = true;
                       disable_features = [
-                          # this is non-functional on nix for some reason
-                          "hardened_malloc"
-                          # dont include experimental features
-                          "experimental"
-                          # jemalloc profiling/stats features are expensive and shouldn't
-                          # be expected on non-debug builds.
-                          "jemalloc_prof"
-                          "jemalloc_stats"
-                          # conduwuit_mods is a development-only hot reload feature
-                          "conduwuit_mods"
+                        # dont include experimental features
+                        "experimental"
+                        # jemalloc profiling/stats features are expensive and shouldn't
+                        # be expected on non-debug builds.
+                        "jemalloc_prof"
+                        "jemalloc_stats"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
                       ];
                       x86_64_haswell_target_optimised = (if (crossSystem == "x86_64-linux-gnu" || crossSystem == "x86_64-linux-musl") then true else false);
                     };
@@ -478,12 +516,12 @@
                       # debug build users expect full logs
                       disable_release_max_log_level = true;
                       disable_features = [
-                          # this is non-functional on nix for some reason
-                          "hardened_malloc"
-                          # dont include experimental features
-                          "experimental"
-                          # conduwuit_mods is a development-only hot reload feature
-                          "conduwuit_mods"
+                        # dont include experimental features
+                        "experimental"
+                        # this is non-functional on nix for some reason
+                        "hardened_malloc"
+                        # conduwuit_mods is a development-only hot reload feature
+                        "conduwuit_mods"
                       ];
                     };
                   };
@@ -522,14 +560,14 @@
           main = prev.main.override {
             all_features = true;
             disable_features = [
-                # this is non-functional on nix for some reason
-                "hardened_malloc"
                 # dont include experimental features
                 "experimental"
                 # jemalloc profiling/stats features are expensive and shouldn't
                 # be expected on non-debug builds.
                 "jemalloc_prof"
                 "jemalloc_stats"
+                # this is non-functional on nix for some reason
+                "hardened_malloc"
                 # conduwuit_mods is a development-only hot reload feature
                 "conduwuit_mods"
             ];
