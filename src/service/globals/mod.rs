@@ -18,7 +18,6 @@ pub struct Service {
 	pub db: Data,
 
 	pub config: Config,
-	jwt_decoding_key: Option<jsonwebtoken::DecodingKey>,
 	pub bad_event_ratelimiter: Arc<RwLock<HashMap<OwnedEventId, RateLimitState>>>,
 	pub server_user: OwnedUserId,
 	pub admin_alias: OwnedRoomAliasId,
@@ -32,11 +31,6 @@ impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let db = Data::new(&args);
 		let config = &args.server.config;
-
-		let jwt_decoding_key = config
-			.jwt_secret
-			.as_ref()
-			.map(|secret| jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()));
 
 		let turn_secret =
 			config
@@ -66,7 +60,6 @@ impl crate::Service for Service {
 		let mut s = Self {
 			db,
 			config: config.clone(),
-			jwt_decoding_key,
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
 			admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", &config.server_name))
 				.expect("#admins:server_name is valid alias name"),
@@ -157,10 +150,6 @@ impl Service {
 	pub fn allow_check_for_updates(&self) -> bool { self.config.allow_check_for_updates }
 
 	pub fn trusted_servers(&self) -> &[OwnedServerName] { &self.config.trusted_servers }
-
-	pub fn jwt_decoding_key(&self) -> Option<&jsonwebtoken::DecodingKey> {
-		self.jwt_decoding_key.as_ref()
-	}
 
 	pub fn turn_password(&self) -> &String { &self.config.turn_password }
 

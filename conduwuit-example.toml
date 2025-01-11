@@ -563,10 +563,6 @@
 #
 #proxy = "none"
 
-# This item is undocumented. Please contribute documentation for it.
-#
-#jwt_secret =
-
 # Servers listed here will be used to gather public keys of other servers
 # (notary trusted key servers).
 #
