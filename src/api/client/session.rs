@@ -20,16 +20,9 @@ use ruma::{
 	},
 	OwnedUserId, UserId,
 };
-use serde::Deserialize;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::{utils, utils::hash, Error, Result, Ruma};
-
-#[derive(Debug, Deserialize)]
-struct Claims {
-	sub: String,
-	//exp: usize,
-}
 
 /// # `GET /_matrix/client/v3/login`
 ///
@@ -106,34 +99,11 @@ pub(crate) async fn login_route(
 
 			user_id
 		},
-		| login::v3::LoginInfo::Token(login::v3::Token { token }) => {
+		| login::v3::LoginInfo::Token(login::v3::Token { token: _ }) => {
 			debug!("Got token login type");
-			if let Some(jwt_decoding_key) = services.globals.jwt_decoding_key() {
-				let token = jsonwebtoken::decode::<Claims>(
-					token,
-					jwt_decoding_key,
-					&jsonwebtoken::Validation::default(),
-				)
-				.map_err(|e| {
-					warn!("Failed to parse JWT token from user logging in: {e}");
-					Error::BadRequest(ErrorKind::InvalidUsername, "Token is invalid.")
-				})?;
-
-				let username = token.claims.sub.to_lowercase();
-
-				UserId::parse_with_server_name(username, services.globals.server_name()).map_err(
-					|e| {
-						err!(Request(InvalidUsername(debug_error!(
-							?e,
-							"Failed to parse login username"
-						))))
-					},
-				)?
-			} else {
-				return Err!(Request(Unknown(
-					"Token login is not supported (server has no jwt decoding key)."
-				)));
-			}
+			return Err!(Request(Unknown(
+				"Token login is not supported."
+			)));
 		},
 		#[allow(deprecated)]
 		| login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService {
