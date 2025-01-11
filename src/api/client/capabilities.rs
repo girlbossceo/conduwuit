@@ -32,8 +32,9 @@ pub(crate) async fn get_capabilities_route(
 	// we do not implement 3PID stuff
 	capabilities.thirdparty_id_changes = ThirdPartyIdChangesCapability { enabled: false };
 
-	// we dont support generating tokens yet
-	capabilities.get_login_token = GetLoginTokenCapability { enabled: false };
+	capabilities.get_login_token = GetLoginTokenCapability {
+		enabled: services.server.config.login_via_existing_session,
+	};
 
 	// MSC4133 capability
 	capabilities

@@ -96,6 +96,7 @@ pub const MAPS: &[&str] = &[
 	"userid_usersigningkeyid",
 	"useridprofilekey_value",
 	"openidtoken_expiresatuserid",
+	"logintoken_expiresatuserid",
 	"userroomid_highlightcount",
 	"userroomid_invitestate",
 	"userroomid_joined",
