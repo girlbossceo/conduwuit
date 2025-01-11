@@ -671,8 +671,6 @@ pub struct Config {
 	#[serde(default)]
 	pub proxy: ProxyConfig,
 
-	pub jwt_secret: Option<String>,
-
 	/// Servers listed here will be used to gather public keys of other servers
 	/// (notary trusted key servers).
 	///
@@ -2005,10 +2003,6 @@ impl fmt::Display for Config {
 			"Lockdown public room directory (only allow admins to publish)",
 			&self.lockdown_public_room_directory.to_string(),
 		);
-		line("JWT secret", match self.jwt_secret {
-			| Some(_) => "set",
-			| None => "not set",
-		});
 		line(
 			"Trusted key servers",
 			&self

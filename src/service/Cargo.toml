@@ -61,7 +61,6 @@ image.workspace = true
 image.optional = true
 ipaddress.workspace = true
 itertools.workspace = true
-jsonwebtoken.workspace = true
 log.workspace = true
 loole.workspace = true
 lru-cache.workspace = true
