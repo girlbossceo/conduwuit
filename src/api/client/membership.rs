@@ -439,6 +439,16 @@ pub(crate) async fn kick_user_route(
 		return Ok(kick_user::v3::Response::new());
 	};
 
+	if !matches!(
+		event.membership,
+		MembershipState::Invite | MembershipState::Knock | MembershipState::Join,
+	) {
+		return Err!(Request(Forbidden(
+			"Cannot kick a user who is not apart of the room (current membership: {})",
+			event.membership
+		)));
+	}
+
 	services
 		.rooms
 		.timeline
@@ -527,7 +537,7 @@ pub(crate) async fn unban_user_route(
 
 	if current_member_content.membership != MembershipState::Ban {
 		return Err!(Request(Forbidden(
-			"Cannot ban a user who is not banned (current membership: {})",
+			"Cannot unban a user who is not banned (current membership: {})",
 			current_member_content.membership
 		)));
 	}
