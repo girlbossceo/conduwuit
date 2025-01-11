@@ -9,7 +9,7 @@ use serde_json::value::to_raw_value;
 use super::make_join::maybe_strip_event_id;
 use crate::{service::pdu::PduBuilder, Ruma};
 
-/// # `PUT /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
+/// # `GET /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
 ///
 /// Creates a leave template.
 pub(crate) async fn create_leave_event_template_route(
@@ -21,7 +21,9 @@ pub(crate) async fn create_leave_event_template_route(
 	}
 
 	if body.user_id.server_name() != body.origin() {
-		return Err!(Request(BadJson("Not allowed to leave on behalf of another server/user.")));
+		return Err!(Request(Forbidden(
+			"Not allowed to leave on behalf of another server/user."
+		)));
 	}
 
 	// ACL check origin

@@ -113,9 +113,18 @@ pub(crate) async fn sync_events_v4_route(
 		.collect()
 		.await;
 
+	let all_knocked_rooms: Vec<_> = services
+		.rooms
+		.state_cache
+		.rooms_knocked(sender_user)
+		.map(|r| r.0)
+		.collect()
+		.await;
+
 	let all_rooms = all_joined_rooms
 		.iter()
 		.chain(all_invited_rooms.iter())
+		.chain(all_knocked_rooms.iter())
 		.map(Clone::clone)
 		.collect();
 

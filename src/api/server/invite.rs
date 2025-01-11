@@ -6,8 +6,9 @@ use ruma::{
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	serde::JsonObject,
-	CanonicalJsonValue, OwnedEventId, OwnedUserId, UserId,
+	CanonicalJsonValue, OwnedUserId, UserId,
 };
+use service::pdu::gen_event_id;
 
 use crate::Ruma;
 
@@ -86,12 +87,7 @@ pub(crate) async fn create_invite_route(
 		.map_err(|e| err!(Request(InvalidParam("Failed to sign event: {e}"))))?;
 
 	// Generate event id
-	let event_id = OwnedEventId::parse(format!(
-		"${}",
-		ruma::signatures::reference_hash(&signed_event, &body.room_version)
-			.expect("ruma can calculate reference hashes")
-	))
-	.expect("ruma's reference hashes are valid event ids");
+	let event_id = gen_event_id(&signed_event, &body.room_version)?;
 
 	// Add event_id back
 	signed_event.insert("event_id".to_owned(), CanonicalJsonValue::String(event_id.to_string()));
@@ -115,12 +111,12 @@ pub(crate) async fn create_invite_route(
 	let mut invite_state = body.invite_room_state.clone();
 
 	let mut event: JsonObject = serde_json::from_str(body.event.get())
-		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event bytes."))?;
+		.map_err(|e| err!(Request(BadJson("Invalid invite event PDU: {e}"))))?;
 
 	event.insert("event_id".to_owned(), "$placeholder".into());
 
 	let pdu: PduEvent = serde_json::from_value(event.into())
-		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid invite event."))?;
+		.map_err(|e| err!(Request(BadJson("Invalid invite event PDU: {e}"))))?;
 
 	invite_state.push(pdu.to_stripped_state_event());
 

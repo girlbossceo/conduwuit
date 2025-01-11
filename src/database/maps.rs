@@ -185,6 +185,10 @@ pub(super) static MAPS: &[Descriptor] = &[
 		..descriptor::RANDOM
 	},
 	Descriptor {
+		name: "roomuserid_knockedcount",
+		..descriptor::RANDOM_SMALL
+	},
+	Descriptor {
 		name: "roomuserid_privateread",
 		..descriptor::RANDOM_SMALL
 	},
@@ -376,6 +380,10 @@ pub(super) static MAPS: &[Descriptor] = &[
 	Descriptor {
 		name: "userroomid_leftstate",
 		..descriptor::RANDOM
+	},
+	Descriptor {
+		name: "userroomid_knockedstate",
+		..descriptor::RANDOM_SMALL
 	},
 	Descriptor {
 		name: "userroomid_notificationcount",

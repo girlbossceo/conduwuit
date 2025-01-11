@@ -33,8 +33,8 @@ use ruma::{
 			self,
 			v3::{
 				Ephemeral, Filter, GlobalAccountData, InviteState, InvitedRoom, JoinedRoom,
-				LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms, State as RoomState,
-				Timeline, ToDevice,
+				KnockState, KnockedRoom, LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms,
+				State as RoomState, Timeline, ToDevice,
 			},
 			DeviceLists, UnreadNotificationsCount,
 		},
@@ -266,6 +266,35 @@ pub(crate) async fn build_sync_events(
 			invited_rooms
 		});
 
+	let knocked_rooms = services
+		.rooms
+		.state_cache
+		.rooms_knocked(sender_user)
+		.fold_default(|mut knocked_rooms: BTreeMap<_, _>, (room_id, knock_state)| async move {
+			// Get and drop the lock to wait for remaining operations to finish
+			let insert_lock = services.rooms.timeline.mutex_insert.lock(&room_id).await;
+			drop(insert_lock);
+
+			let knock_count = services
+				.rooms
+				.state_cache
+				.get_knock_count(&room_id, sender_user)
+				.await
+				.ok();
+
+			// Knocked before last sync
+			if Some(since) >= knock_count {
+				return knocked_rooms;
+			}
+
+			let knocked_room = KnockedRoom {
+				knock_state: KnockState { events: knock_state },
+			};
+
+			knocked_rooms.insert(room_id, knocked_room);
+			knocked_rooms
+		});
+
 	let presence_updates: OptionFuture<_> = services
 		.globals
 		.allow_local_presence()
@@ -300,7 +329,7 @@ pub(crate) async fn build_sync_events(
 			.users
 			.remove_to_device_events(sender_user, sender_device, since);
 
-	let rooms = join3(joined_rooms, left_rooms, invited_rooms);
+	let rooms = join4(joined_rooms, left_rooms, invited_rooms, knocked_rooms);
 	let ephemeral = join3(remove_to_device_events, to_device_events, presence_updates);
 	let top = join5(account_data, ephemeral, device_one_time_keys_count, keys_changed, rooms)
 		.boxed()
@@ -308,7 +337,7 @@ pub(crate) async fn build_sync_events(
 
 	let (account_data, ephemeral, device_one_time_keys_count, keys_changed, rooms) = top;
 	let ((), to_device_events, presence_updates) = ephemeral;
-	let (joined_rooms, left_rooms, invited_rooms) = rooms;
+	let (joined_rooms, left_rooms, invited_rooms, knocked_rooms) = rooms;
 	let (joined_rooms, mut device_list_updates, left_encrypted_users) = joined_rooms;
 	device_list_updates.extend(keys_changed);
 
@@ -349,7 +378,7 @@ pub(crate) async fn build_sync_events(
 			leave: left_rooms,
 			join: joined_rooms,
 			invite: invited_rooms,
-			knock: BTreeMap::new(), // TODO
+			knock: knocked_rooms,
 		},
 		to_device: ToDevice { events: to_device_events },
 	};

@@ -186,14 +186,13 @@ async fn create_join_event(
 		.map_err(|e| err!(Request(InvalidParam(warn!("Failed to sign send_join event: {e}")))))?;
 
 	let origin: OwnedServerName = serde_json::from_value(
-		serde_json::to_value(
-			value
-				.get("origin")
-				.ok_or_else(|| err!(Request(BadJson("Event missing origin property."))))?,
-		)
-		.expect("CanonicalJson is valid json value"),
+		value
+			.get("origin")
+			.ok_or_else(|| err!(Request(BadJson("Event does not have an origin server name."))))?
+			.clone()
+			.into(),
 	)
-	.map_err(|e| err!(Request(BadJson(warn!("origin field is not a valid server name: {e}")))))?;
+	.map_err(|e| err!(Request(BadJson("Event has an invalid origin server name: {e}"))))?;
 
 	let mutex_lock = services
 		.rooms

@@ -1,7 +1,8 @@
 use axum::extract::State;
-use conduwuit::{err, pdu::gen_event_id_canonical_json, warn, Err, Error, PduEvent, Result};
+use conduwuit::{err, pdu::gen_event_id_canonical_json, warn, Err, PduEvent, Result};
+use futures::FutureExt;
 use ruma::{
-	api::{client::error::ErrorKind, federation::knock::send_knock},
+	api::federation::knock::send_knock,
 	events::{
 		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
@@ -17,7 +18,8 @@ use crate::Ruma;
 ///
 /// Submits a signed knock event.
 pub(crate) async fn create_knock_event_v1_route(
-	State(services): State<crate::State>, body: Ruma<send_knock::v1::Request>,
+	State(services): State<crate::State>,
+	body: Ruma<send_knock::v1::Request>,
 ) -> Result<send_knock::v1::Response> {
 	if services
 		.globals
@@ -26,7 +28,8 @@ pub(crate) async fn create_knock_event_v1_route(
 		.contains(body.origin())
 	{
 		warn!(
-			"Server {} tried knocking room ID {} who has a server name that is globally forbidden. Rejecting.",
+			"Server {} tried knocking room ID {} who has a server name that is globally \
+			 forbidden. Rejecting.",
 			body.origin(),
 			&body.room_id,
 		);
@@ -41,7 +44,8 @@ pub(crate) async fn create_knock_event_v1_route(
 			.contains(&server.to_owned())
 		{
 			warn!(
-				"Server {} tried knocking room ID {} which has a server name that is globally forbidden. Rejecting.",
+				"Server {} tried knocking room ID {} which has a server name that is globally \
+				 forbidden. Rejecting.",
 				body.origin(),
 				&body.room_id,
 			);
@@ -50,7 +54,7 @@ pub(crate) async fn create_knock_event_v1_route(
 	}
 
 	if !services.rooms.metadata.exists(&body.room_id).await {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server."));
+		return Err!(Request(NotFound("Room is unknown to this server.")));
 	}
 
 	// ACL check origin server
@@ -74,44 +78,42 @@ pub(crate) async fn create_knock_event_v1_route(
 	let event_type: StateEventType = serde_json::from_value(
 		value
 			.get("type")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing type property."))?
+			.ok_or_else(|| err!(Request(InvalidParam("Event has no event type."))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event has invalid event type."))?;
+	.map_err(|e| err!(Request(InvalidParam("Event has invalid event type: {e}"))))?;
 
 	if event_type != StateEventType::RoomMember {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
+		return Err!(Request(InvalidParam(
 			"Not allowed to send non-membership state event to knock endpoint.",
-		));
+		)));
 	}
 
 	let content: RoomMemberEventContent = serde_json::from_value(
 		value
 			.get("content")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing content property"))?
+			.ok_or_else(|| err!(Request(InvalidParam("Membership event has no content"))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Event content is empty or invalid"))?;
+	.map_err(|e| err!(Request(InvalidParam("Event has invalid membership content: {e}"))))?;
 
 	if content.membership != MembershipState::Knock {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to send a non-knock membership event to knock endpoint.",
-		));
+		return Err!(Request(InvalidParam(
+			"Not allowed to send a non-knock membership event to knock endpoint."
+		)));
 	}
 
 	// ACL check sender server name
 	let sender: OwnedUserId = serde_json::from_value(
 		value
 			.get("sender")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing sender property."))?
+			.ok_or_else(|| err!(Request(InvalidParam("Event has no sender user ID."))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "sender is not a valid user ID."))?;
+	.map_err(|e| err!(Request(BadJson("Event sender is not a valid user ID: {e}"))))?;
 
 	services
 		.rooms
@@ -127,36 +129,32 @@ pub(crate) async fn create_knock_event_v1_route(
 	let state_key: OwnedUserId = serde_json::from_value(
 		value
 			.get("state_key")
-			.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing state_key property."))?
+			.ok_or_else(|| err!(Request(InvalidParam("Event does not have a state_key"))))?
 			.clone()
 			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::BadJson, "state_key is invalid or not a user ID."))?;
+	.map_err(|e| err!(Request(BadJson("Event does not have a valid state_key: {e}"))))?;
 
 	if state_key != sender {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"State key does not match sender user",
-		));
+		return Err!(Request(InvalidParam("state_key does not match sender user of event.")));
 	};
 
 	let origin: OwnedServerName = serde_json::from_value(
-		serde_json::to_value(
-			value
-				.get("origin")
-				.ok_or_else(|| Error::BadRequest(ErrorKind::InvalidParam, "Event missing origin property."))?,
-		)
-		.expect("CanonicalJson is valid json value"),
+		value
+			.get("origin")
+			.ok_or_else(|| err!(Request(BadJson("Event does not have an origin server name."))))?
+			.clone()
+			.into(),
 	)
-	.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "origin is not a server name."))?;
+	.map_err(|e| err!(Request(BadJson("Event has an invalid origin server name: {e}"))))?;
 
 	let mut event: JsonObject = serde_json::from_str(body.pdu.get())
-		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid knock event PDU."))?;
+		.map_err(|e| err!(Request(InvalidParam("Invalid knock event PDU: {e}"))))?;
 
 	event.insert("event_id".to_owned(), "$placeholder".into());
 
 	let pdu: PduEvent = serde_json::from_value(event.into())
-		.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid knock event PDU."))?;
+		.map_err(|e| err!(Request(InvalidParam("Invalid knock event PDU: {e}"))))?;
 
 	let mutex_lock = services
 		.rooms
@@ -169,19 +167,18 @@ pub(crate) async fn create_knock_event_v1_route(
 		.rooms
 		.event_handler
 		.handle_incoming_pdu(&origin, &body.room_id, &event_id, value.clone(), true)
+		.boxed()
 		.await?
 		.ok_or_else(|| err!(Request(InvalidParam("Could not accept as timeline event."))))?;
 
 	drop(mutex_lock);
-
-	let knock_room_state = services.rooms.state.summary_stripped(&pdu).await;
 
 	services
 		.sending
 		.send_pdu_room(&body.room_id, &pdu_id)
 		.await?;
 
-	Ok(send_knock::v1::Response {
-		knock_room_state,
-	})
+	let knock_room_state = services.rooms.state.summary_stripped(&pdu).await;
+
+	Ok(send_knock::v1::Response { knock_room_state })
 }
