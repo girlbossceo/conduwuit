@@ -97,6 +97,7 @@ env DIRENV_DEVSHELL=all-features \
 name = "clippy/default"
 group = "lints"
 script = """
+direnv exec . \
 cargo clippy \
     --workspace \
     --profile test \
@@ -126,6 +127,7 @@ env DIRENV_DEVSHELL=all-features \
 name = "clippy/jemalloc"
 group = "lints"
 script = """
+direnv exec . \
 cargo clippy \
     --workspace \
     --profile test \
@@ -179,13 +181,15 @@ env DIRENV_DEVSHELL=all-features \
 name = "cargo/default"
 group = "tests"
 script = """
-cargo test \
-    --workspace \
-    --profile test \
-    --all-targets \
-    --color=always \
-    -- \
-    --color=always
+env DIRENV_DEVSHELL=default \
+    direnv exec . \
+    cargo test \
+        --workspace \
+        --profile test \
+        --all-targets \
+        --color=always \
+        -- \
+        --color=always
 """
 
 # Checks if the generated example config differs from the checked in repo's

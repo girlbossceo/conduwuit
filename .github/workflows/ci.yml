@@ -50,8 +50,6 @@ env:
       experimental-features = nix-command flakes
       extra-experimental-features = nix-command flakes
       accept-flake-config = true
-    # complement uses libolm
-    NIXPKGS_ALLOW_INSECURE: 1
     WEB_UPLOAD_SSH_USERNAME: ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
     GH_SHA: ${{ github.sha }}
     GH_REF_NAME: ${{ github.ref_name }}
