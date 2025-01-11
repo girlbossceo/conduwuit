@@ -654,8 +654,6 @@ pub struct Config {
 	#[serde(default)]
 	pub proxy: ProxyConfig,
 
-	pub jwt_secret: Option<String>,
-
 	/// Servers listed here will be used to gather public keys of other servers
 	/// (notary trusted key servers).
 	///
@@ -751,6 +749,24 @@ pub struct Config {
 	/// default: 3600
 	#[serde(default = "default_openid_token_ttl")]
 	pub openid_token_ttl: u64,
+
+	/// Allow an existing session to mint a login token for another client.
+	/// This requires interactive authentication, but has security ramifications
+	/// as a malicious client could use the mechanism to spawn more than one
+	/// session.
+	/// Enabled by default.
+	#[serde(default = "true_fn")]
+	pub login_via_existing_session: bool,
+
+	/// Login token expiration/TTL in milliseconds.
+	///
+	/// These are short-lived tokens for the m.login.token endpoint.
+	/// This is used to allow existing sessions to create new sessions.
+	/// see login_via_existing_session.
+	///
+	/// default: 120000
+	#[serde(default = "default_login_token_ttl")]
+	pub login_token_ttl: u64,
 
 	/// Static TURN username to provide the client if not using a shared secret
 	/// ("turn_secret"), It is recommended to use a shared secret over static
@@ -1988,10 +2004,6 @@ impl fmt::Display for Config {
 			"Lockdown public room directory (only allow admins to publish)",
 			&self.lockdown_public_room_directory.to_string(),
 		);
-		line("JWT secret", match self.jwt_secret {
-			| Some(_) => "set",
-			| None => "not set",
-		});
 		line(
 			"Trusted key servers",
 			&self
@@ -2359,6 +2371,8 @@ pub fn default_log_span_events() -> String { "none".into() }
 fn default_notification_push_path() -> String { "/_matrix/push/v1/notify".to_owned() }
 
 fn default_openid_token_ttl() -> u64 { 60 * 60 }
+
+fn default_login_token_ttl() -> u64 { 2 * 60 * 1000 }
 
 fn default_turn_ttl() -> u64 { 60 * 60 * 24 }
 
