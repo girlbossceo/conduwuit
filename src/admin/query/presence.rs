@@ -32,7 +32,7 @@ pub(super) async fn process(
 	match subcommand {
 		| PresenceCommand::GetPresence { user_id } => {
 			let timer = tokio::time::Instant::now();
-			let results = services.presence.db.get_presence(&user_id).await;
+			let results = services.presence.get_presence(&user_id).await;
 			let query_time = timer.elapsed();
 
 			Ok(RoomMessageEventContent::notice_markdown(format!(

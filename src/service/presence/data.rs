@@ -12,7 +12,7 @@ use ruma::{events::presence::PresenceEvent, presence::PresenceState, UInt, UserI
 use super::Presence;
 use crate::{globals, users, Dep};
 
-pub struct Data {
+pub(crate) struct Data {
 	presenceid_presence: Arc<Map>,
 	userid_presenceid: Arc<Map>,
 	services: Services,
@@ -36,7 +36,7 @@ impl Data {
 		}
 	}
 
-	pub async fn get_presence(&self, user_id: &UserId) -> Result<(u64, PresenceEvent)> {
+	pub(super) async fn get_presence(&self, user_id: &UserId) -> Result<(u64, PresenceEvent)> {
 		let count = self
 			.userid_presenceid
 			.get(user_id)

@@ -123,13 +123,10 @@ impl Services {
 			.start()
 			.await?;
 
-		// clear online statuses
-		if self.server.config.allow_local_presence {
-			_ = self.presence.unset_all_presence().await;
-		}
-
-		// set the server user as online
+		// reset dormant online/away statuses to offline, and set the server user as
+		// online
 		if self.server.config.allow_local_presence && !self.db.is_read_only() {
+			self.presence.unset_all_presence().await;
 			_ = self
 				.presence
 				.ping_presence(&self.globals.server_user, &ruma::presence::PresenceState::Online)

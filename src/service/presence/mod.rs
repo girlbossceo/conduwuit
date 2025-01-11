@@ -4,7 +4,10 @@ mod presence;
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduwuit::{checked, debug, error, result::LogErr, Error, Result, Server};
+use conduwuit::{
+	checked, debug, debug_warn, error, result::LogErr, trace, Error, Result, Server,
+};
+use database::Database;
 use futures::{stream::FuturesUnordered, Stream, StreamExt, TryFutureExt};
 use loole::{Receiver, Sender};
 use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
@@ -18,12 +21,13 @@ pub struct Service {
 	timeout_remote_users: bool,
 	idle_timeout: u64,
 	offline_timeout: u64,
-	pub db: Data,
+	db: Data,
 	services: Services,
 }
 
 struct Services {
 	server: Arc<Server>,
+	db: Arc<Database>,
 	globals: Dep<globals::Service>,
 	users: Dep<users::Service>,
 }
@@ -44,6 +48,7 @@ impl crate::Service for Service {
 			db: Data::new(&args),
 			services: Services {
 				server: args.server.clone(),
+				db: args.db.clone(),
 				globals: args.depend::<globals::Service>("globals"),
 				users: args.depend::<users::Service>("users"),
 			},
@@ -171,7 +176,9 @@ impl Service {
 	}
 
 	// Unset online/unavailable presence to offline on startup
-	pub async fn unset_all_presence(&self) -> Result<()> {
+	pub async fn unset_all_presence(&self) {
+		let _cork = self.services.db.cork();
+
 		for user_id in &self
 			.services
 			.users
@@ -184,28 +191,36 @@ impl Service {
 
 			let presence = match presence {
 				| Ok((_, ref presence)) => &presence.content,
-				| _ => return Ok(()),
+				| _ => continue,
 			};
 
-			let need_reset = match presence.presence {
-				| PresenceState::Unavailable | PresenceState::Online => true,
-				| _ => false,
-			};
-
-			if !need_reset {
+			if !matches!(
+				presence.presence,
+				PresenceState::Unavailable | PresenceState::Online | PresenceState::Busy
+			) {
+				trace!(?user_id, ?presence, "Skipping user");
 				continue;
 			}
 
-			self.set_presence(
-				user_id,
-				&PresenceState::Offline,
-				Some(false),
-				presence.last_active_ago,
-				presence.status_msg.clone(),
-			)
-			.await?;
+			trace!(?user_id, ?presence, "Resetting presence to offline");
+
+			_ = self
+				.set_presence(
+					user_id,
+					&PresenceState::Offline,
+					Some(false),
+					presence.last_active_ago,
+					presence.status_msg.clone(),
+				)
+				.await
+				.inspect_err(|e| {
+					debug_warn!(
+						?presence,
+						"{user_id} has invalid presence in database and failed to reset it to \
+						 offline: {e}"
+					);
+				});
 		}
-		Ok(())
 	}
 
 	/// Returns the most recent presence updates that happened after the event
