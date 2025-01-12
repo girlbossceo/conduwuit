@@ -12,8 +12,8 @@ variables:
   TRANSFER_METER_FREQUENCY: 5s
   NIX_CONFIG: |
     show-trace = true
-    extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://cache.lix.systems https://conduwuit.cachix.org
-    extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+    extra-substituters = https://attic.kennel.juneis.dog/conduit https://attic.kennel.juneis.dog/conduwuit https://conduwuit.cachix.org
+    extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
     experimental-features = nix-command flakes
     extra-experimental-features = nix-command flakes
     accept-flake-config = true
@@ -44,10 +44,6 @@ before_script:
   # Add alternate binary cache
   - if command -v nix > /dev/null && [ -n "$ATTIC_ENDPOINT" ]; then echo "extra-substituters = $ATTIC_ENDPOINT" >> /etc/nix/nix.conf; fi
   - if command -v nix > /dev/null && [ -n "$ATTIC_PUBLIC_KEY" ]; then echo "extra-trusted-public-keys = $ATTIC_PUBLIC_KEY" >> /etc/nix/nix.conf; fi
-
-  # Add Lix binary cache
-  - if command -v nix > /dev/null; then echo "extra-substituters = https://cache.lix.systems" >> /etc/nix/nix.conf; fi
-  - if command -v nix > /dev/null; then echo "extra-trusted-public-keys = cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o=" >> /etc/nix/nix.conf; fi
 
   # Add crane binary cache
   - if command -v nix > /dev/null; then echo "extra-substituters = https://crane.cachix.org" >> /etc/nix/nix.conf; fi

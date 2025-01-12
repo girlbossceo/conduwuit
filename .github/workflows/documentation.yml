@@ -24,7 +24,7 @@ env:
   # Get error output from nix that we can actually use, and use our binary caches for the earlier CI steps
   NIX_CONFIG: |
     show-trace = true
-    extra-substituters = extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://cache.lix.systems https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
+    extra-substituters = extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
     extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
     experimental-features = nix-command flakes
     extra-experimental-features = nix-command flakes
@@ -102,7 +102,7 @@ jobs:
       - name: Apply Nix binary cache configuration
         run: |
             sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-            extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://cache.lix.systems https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
+            extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
             extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
             experimental-features = nix-command flakes
             extra-experimental-features = nix-command flakes
