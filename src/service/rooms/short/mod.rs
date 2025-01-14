@@ -196,6 +196,20 @@ pub async fn get_statekey_from_short(
 		})
 }
 
+#[implement(Service)]
+pub fn multi_get_statekey_from_short<'a, S>(
+	&'a self,
+	shortstatekey: S,
+) -> impl Stream<Item = Result<(StateEventType, String)>> + Send + 'a
+where
+	S: Stream<Item = ShortStateKey> + Send + 'a,
+{
+	self.db
+		.shortstatekey_statekey
+		.qry_batch(shortstatekey)
+		.map(Deserialized::deserialized)
+}
+
 /// Returns (shortstatehash, already_existed)
 #[implement(Service)]
 pub async fn get_or_create_shortstatehash(&self, state_hash: &[u8]) -> (ShortStateHash, bool) {
