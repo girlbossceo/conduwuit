@@ -90,6 +90,13 @@ macro_rules! ref_at {
 	};
 }
 
+#[macro_export]
+macro_rules! deref_at {
+	($idx:tt) => {
+		|t| *t.$idx
+	};
+}
+
 /// Functor for equality i.e. .is_some_and(is_equal!(2))
 #[macro_export]
 macro_rules! is_equal_to {
