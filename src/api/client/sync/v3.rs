@@ -242,10 +242,6 @@ pub(crate) async fn build_sync_events(
 		.state_cache
 		.rooms_invited(sender_user)
 		.fold_default(|mut invited_rooms: BTreeMap<_, _>, (room_id, invite_state)| async move {
-			// Get and drop the lock to wait for remaining operations to finish
-			let insert_lock = services.rooms.timeline.mutex_insert.lock(&room_id).await;
-			drop(insert_lock);
-
 			let invite_count = services
 				.rooms
 				.state_cache
@@ -271,10 +267,6 @@ pub(crate) async fn build_sync_events(
 		.state_cache
 		.rooms_knocked(sender_user)
 		.fold_default(|mut knocked_rooms: BTreeMap<_, _>, (room_id, knock_state)| async move {
-			// Get and drop the lock to wait for remaining operations to finish
-			let insert_lock = services.rooms.timeline.mutex_insert.lock(&room_id).await;
-			drop(insert_lock);
-
 			let knock_count = services
 				.rooms
 				.state_cache
@@ -470,10 +462,6 @@ async fn handle_left_room(
 	full_state: bool,
 	lazy_load_enabled: bool,
 ) -> Result<Option<LeftRoom>> {
-	// Get and drop the lock to wait for remaining operations to finish
-	let insert_lock = services.rooms.timeline.mutex_insert.lock(room_id).await;
-	drop(insert_lock);
-
 	let left_count = services
 		.rooms
 		.state_cache
@@ -627,11 +615,6 @@ async fn load_joined_room(
 	lazy_load_send_redundant: bool,
 	full_state: bool,
 ) -> Result<(JoinedRoom, HashSet<OwnedUserId>, HashSet<OwnedUserId>)> {
-	// Get and drop the lock to wait for remaining operations to finish
-	// This will make sure the we have all events until next_batch
-	let insert_lock = services.rooms.timeline.mutex_insert.lock(room_id).await;
-	drop(insert_lock);
-
 	let sincecount = PduCount::Normal(since);
 	let next_batchcount = PduCount::Normal(next_batch);
 
