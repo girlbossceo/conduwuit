@@ -7,7 +7,7 @@ use std::{
 
 use arrayvec::ArrayVec;
 use conduwuit::{
-	at, checked, debug, err, expected, utils,
+	at, checked, err, expected, utils,
 	utils::{bytes, math::usize_from_f64, stream::IterStream},
 	Result,
 };
@@ -117,33 +117,42 @@ impl crate::Service for Service {
 impl Service {
 	/// Returns a stack with info on shortstatehash, full state, added diff and
 	/// removed diff for the selected shortstatehash and each parent layer.
+	#[tracing::instrument(name = "load", level = "debug", skip(self))]
 	pub async fn load_shortstatehash_info(
 		&self,
 		shortstatehash: ShortStateHash,
 	) -> Result<ShortStateInfoVec> {
-		if let Some(r) = self
-			.stateinfo_cache
-			.lock()
-			.expect("locked")
-			.get_mut(&shortstatehash)
-		{
+		if let Some(r) = self.stateinfo_cache.lock()?.get_mut(&shortstatehash) {
 			return Ok(r.clone());
 		}
 
 		let stack = self.new_shortstatehash_info(shortstatehash).await?;
 
-		debug!(
-			?shortstatehash,
-			len = %stack.len(),
-			"cache update"
-		);
-
-		self.stateinfo_cache
-			.lock()
-			.expect("locked")
-			.insert(shortstatehash, stack.clone());
+		self.cache_shortstatehash_info(shortstatehash, stack.clone())
+			.await?;
 
 		Ok(stack)
+	}
+
+	/// Returns a stack with info on shortstatehash, full state, added diff and
+	/// removed diff for the selected shortstatehash and each parent layer.
+	#[tracing::instrument(
+		name = "cache",
+		level = "debug",
+		skip_all,
+		fields(
+			?shortstatehash,
+			stack = stack.len(),
+		),
+	)]
+	async fn cache_shortstatehash_info(
+		&self,
+		shortstatehash: ShortStateHash,
+		stack: ShortStateInfoVec,
+	) -> Result {
+		self.stateinfo_cache.lock()?.insert(shortstatehash, stack);
+
+		Ok(())
 	}
 
 	async fn new_shortstatehash_info(

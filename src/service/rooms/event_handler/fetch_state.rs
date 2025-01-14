@@ -14,7 +14,7 @@ use crate::rooms::short::ShortStateKey;
 /// on the events
 #[implement(super::Service)]
 #[tracing::instrument(
-	level = "warn",
+	level = "debug",
 	skip_all,
 	fields(%origin),
 )]

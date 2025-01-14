@@ -16,7 +16,7 @@ use ruma::{state_res::StateMap, OwnedEventId, RoomId, RoomVersionId};
 // TODO: if we know the prev_events of the incoming event we can avoid the
 #[implement(super::Service)]
 // request and build the state from a known point and resolve if > 1 prev_event
-#[tracing::instrument(skip_all, name = "state")]
+#[tracing::instrument(name = "state", level = "debug", skip_all)]
 pub(super) async fn state_at_incoming_degree_one(
 	&self,
 	incoming_pdu: &Arc<PduEvent>,
@@ -66,7 +66,7 @@ pub(super) async fn state_at_incoming_degree_one(
 }
 
 #[implement(super::Service)]
-#[tracing::instrument(skip_all, name = "state")]
+#[tracing::instrument(name = "state", level = "debug", skip_all)]
 pub(super) async fn state_at_incoming_resolved(
 	&self,
 	incoming_pdu: &Arc<PduEvent>,

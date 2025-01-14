@@ -14,7 +14,7 @@ use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName};
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
 	name = "prev",
-	level = "warn",
+	level = "debug",
 	skip_all,
 	fields(%prev_id),
 )]

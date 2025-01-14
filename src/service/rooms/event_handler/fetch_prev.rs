@@ -16,7 +16,7 @@ use super::check_room_id;
 
 #[implement(super::Service)]
 #[tracing::instrument(
-    level = "warn",
+    level = "debug",
 	skip_all,
 	fields(%origin),
 )]

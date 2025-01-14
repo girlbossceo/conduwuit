@@ -259,7 +259,7 @@ impl Service {
 	/// happens in `append_pdu`.
 	///
 	/// Returns pdu id
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(level = "debug", skip_all)]
 	pub async fn append_pdu(
 		&self,
 		pdu: &PduEvent,
@@ -942,7 +942,7 @@ impl Service {
 
 	/// Append the incoming event setting the state snapshot to the state from
 	/// the server that sent the event.
-	#[tracing::instrument(skip_all)]
+	#[tracing::instrument(level = "debug", skip_all)]
 	pub async fn append_incoming_pdu(
 		&self,
 		pdu: &PduEvent,

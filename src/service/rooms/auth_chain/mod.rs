@@ -79,7 +79,7 @@ impl Service {
 		Ok(event_ids)
 	}
 
-	#[tracing::instrument(skip_all, name = "auth_chain")]
+	#[tracing::instrument(name = "auth_chain", level = "debug", skip_all)]
 	pub async fn get_auth_chain<'a, I>(
 		&'a self,
 		room_id: &RoomId,
@@ -179,7 +179,7 @@ impl Service {
 		Ok(full_auth_chain)
 	}
 
-	#[tracing::instrument(skip(self, room_id))]
+	#[tracing::instrument(name = "inner", level = "trace", skip(self, room_id))]
 	async fn get_auth_chain_inner(
 		&self,
 		room_id: &RoomId,

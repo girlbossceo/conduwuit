@@ -18,7 +18,7 @@ use ruma::{
 use crate::rooms::state_compressor::CompressedStateEvent;
 
 #[implement(super::Service)]
-#[tracing::instrument(skip_all, name = "resolve")]
+#[tracing::instrument(name = "resolve", level = "debug", skip_all)]
 pub async fn resolve_state(
 	&self,
 	room_id: &RoomId,

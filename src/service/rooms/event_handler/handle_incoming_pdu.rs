@@ -41,7 +41,7 @@ use crate::rooms::timeline::RawPduId;
 #[implement(super::Service)]
 #[tracing::instrument(
 	name = "pdu",
-	level = "warn",
+	level = "debug",
 	skip_all,
 	fields(%room_id, %event_id),
 )]

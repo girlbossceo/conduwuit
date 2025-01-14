@@ -12,7 +12,7 @@ use std::{
 
 use async_channel::{QueueStrategy, Receiver, RecvError, Sender};
 use conduwuit::{
-	debug, debug_warn, defer, err, error, implement,
+	debug, debug_warn, err, error, implement,
 	result::DebugInspect,
 	trace,
 	utils::sys::compute::{get_affinity, nth_core_available, set_affinity},
@@ -271,9 +271,6 @@ async fn execute(&self, queue: &Sender<Cmd>, cmd: Cmd) -> Result {
 	),
 )]
 fn worker(self: Arc<Self>, id: usize, recv: Receiver<Cmd>) {
-	defer! {{ trace!("worker finished"); }}
-	trace!("worker spawned");
-
 	self.worker_init(id);
 	self.worker_loop(&recv);
 }

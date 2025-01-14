@@ -39,7 +39,15 @@ type ResolvedMap = BTreeMap<OwnedEventId, Result<()>>;
 /// # `PUT /_matrix/federation/v1/send/{txnId}`
 ///
 /// Push EDUs and PDUs to this server.
-#[tracing::instrument(skip_all, fields(%client, origin = body.origin().as_str()), name = "send")]
+#[tracing::instrument(
+	name = "send",
+	level = "debug",
+	skip_all,
+	fields(
+		%client,
+		origin = body.origin().as_str()
+	),
+)]
 pub(crate) async fn send_transaction_message_route(
 	State(services): State<crate::State>,
 	InsecureClientIp(client): InsecureClientIp,
