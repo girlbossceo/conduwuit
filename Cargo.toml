@@ -19,7 +19,7 @@ license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.83.0"
+rust-version = "1.84.0"
 version = "0.5.0"
 
 [workspace.metadata.crane]
@@ -513,16 +513,16 @@ version = "0.2"
 # https://github.com/girlbossceo/tracing/commit/b348dca742af641c47bc390261f60711c2af573c
 [patch.crates-io.tracing-subscriber]
 git = "https://github.com/girlbossceo/tracing"
-rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
+rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
 [patch.crates-io.tracing]
 git = "https://github.com/girlbossceo/tracing"
-rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
+rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
 [patch.crates-io.tracing-core]
 git = "https://github.com/girlbossceo/tracing"
-rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
+rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
 [patch.crates-io.tracing-log]
 git = "https://github.com/girlbossceo/tracing"
-rev = "ccc4fbd8238c2d5ba354e61ec17ac610af11401d"
+rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
 
 # adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
 # adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b
