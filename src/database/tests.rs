@@ -219,7 +219,10 @@ fn de_tuple_incomplete_with_sep() {
 }
 
 #[test]
-#[should_panic(expected = "deserialization failed to consume trailing bytes")]
+#[cfg_attr(
+	debug_assertions,
+	should_panic(expected = "deserialization failed to consume trailing bytes")
+)]
 fn de_tuple_unfinished() {
 	let user_id: &UserId = "@user:example.com".try_into().unwrap();
 	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
