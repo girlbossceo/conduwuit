@@ -4,7 +4,7 @@ mod panic;
 mod response;
 mod serde;
 
-use std::{any::Any, borrow::Cow, convert::Infallible, fmt, sync::PoisonError};
+use std::{any::Any, borrow::Cow, convert::Infallible, sync::PoisonError};
 
 pub use self::{err::visit, log::*};
 
@@ -17,7 +17,7 @@ pub enum Error {
 
 	// std
 	#[error(transparent)]
-	Fmt(#[from] fmt::Error),
+	Fmt(#[from] std::fmt::Error),
 	#[error(transparent)]
 	FromUtf8(#[from] std::string::FromUtf8Error),
 	#[error("I/O error: {0}")]
@@ -26,6 +26,10 @@ pub enum Error {
 	ParseFloat(#[from] std::num::ParseFloatError),
 	#[error(transparent)]
 	ParseInt(#[from] std::num::ParseIntError),
+	#[error(transparent)]
+	Std(#[from] Box<dyn std::error::Error + Send>),
+	#[error(transparent)]
+	ThreadAccessError(#[from] std::thread::AccessError),
 	#[error(transparent)]
 	TryFromInt(#[from] std::num::TryFromIntError),
 	#[error(transparent)]
@@ -189,8 +193,10 @@ impl Error {
 	pub fn is_not_found(&self) -> bool { self.status_code() == http::StatusCode::NOT_FOUND }
 }
 
-impl fmt::Debug for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.message()) }
+impl std::fmt::Debug for Error {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.message())
+	}
 }
 
 impl<T> From<PoisonError<T>> for Error {
