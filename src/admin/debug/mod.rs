@@ -207,6 +207,9 @@ pub(super) enum DebugCommand {
 		map: Option<String>,
 	},
 
+	/// - Trim memory usage
+	TrimMemory,
+
 	/// - Developer test stubs
 	#[command(subcommand)]
 	#[allow(non_snake_case)]

@@ -3,6 +3,8 @@
 #[global_allocator]
 static HMALLOC: hardened_malloc_rs::HardenedMalloc = hardened_malloc_rs::HardenedMalloc;
 
+pub fn trim() -> crate::Result { Ok(()) }
+
 #[must_use]
 //TODO: get usage
 pub fn memory_usage() -> Option<string> { None }

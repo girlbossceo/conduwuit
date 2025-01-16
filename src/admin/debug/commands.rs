@@ -923,3 +923,12 @@ pub(super) async fn database_stats(
 
 	Ok(RoomMessageEventContent::notice_markdown(out))
 }
+
+#[admin_command]
+pub(super) async fn trim_memory(&self) -> Result<RoomMessageEventContent> {
+	conduwuit::alloc::trim()?;
+
+	writeln!(self, "done").await?;
+
+	Ok(RoomMessageEventContent::notice_plain(""))
+}
