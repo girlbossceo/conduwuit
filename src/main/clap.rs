@@ -80,6 +80,18 @@ pub(crate) struct Args {
 		default_missing_value = "true",
 	)]
 	pub(crate) worker_affinity: bool,
+
+	/// Toggles feature to promote memory reclamation by the operating system
+	/// when tokio worker runs out of work.
+	#[arg(
+		long,
+		hide(true),
+		env = "CONDUWUIT_RUNTIME_GC_ON_PARK",
+		action = ArgAction::Set,
+		num_args = 0..=1,
+		require_equals(false),
+	)]
+	pub(crate) gc_on_park: Option<bool>,
 }
 
 /// Parse commandline arguments into structured data

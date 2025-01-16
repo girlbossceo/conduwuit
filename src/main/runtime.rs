@@ -9,6 +9,7 @@ use std::{
 };
 
 use conduwuit::{
+	result::LogErr,
 	utils::sys::compute::{nth_core_available, set_affinity},
 	Result,
 };
@@ -22,11 +23,16 @@ const WORKER_KEEPALIVE: u64 = 36;
 const MAX_BLOCKING_THREADS: usize = 1024;
 
 static WORKER_AFFINITY: OnceLock<bool> = OnceLock::new();
+static GC_ON_PARK: OnceLock<Option<bool>> = OnceLock::new();
 
 pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
 	WORKER_AFFINITY
 		.set(args.worker_affinity)
 		.expect("set WORKER_AFFINITY from program argument");
+
+	GC_ON_PARK
+		.set(args.gc_on_park)
+		.expect("set GC_ON_PARK from program argument");
 
 	let mut builder = Builder::new_multi_thread();
 	builder
@@ -138,7 +144,21 @@ fn thread_unpark() {}
 		name = %thread::current().name().unwrap_or("None"),
 	),
 )]
-fn thread_park() {}
+fn thread_park() {
+	match GC_ON_PARK
+		.get()
+		.as_ref()
+		.expect("GC_ON_PARK initialized by runtime::new()")
+	{
+		| Some(true) | None if cfg!(feature = "jemalloc_conf") => gc_on_park(),
+		| _ => (),
+	}
+}
+
+fn gc_on_park() {
+	#[cfg(feature = "jemalloc")]
+	conduwuit::alloc::je::this_thread::decay().log_err().ok();
+}
 
 #[cfg(tokio_unstable)]
 #[tracing::instrument(
