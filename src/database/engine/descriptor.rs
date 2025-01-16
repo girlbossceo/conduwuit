@@ -83,6 +83,9 @@ pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	write_size: 1024 * 1024 * 16,
 	level_size: 1024 * 512,
 	file_size: 1024 * 128,
+	index_size: 512,
+	block_size: 512,
+	cache_shards: 64,
 	..RANDOM
 };
 
@@ -91,5 +94,7 @@ pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	write_size: 1024 * 1024 * 16,
 	level_size: 1024 * 1024,
 	file_size: 1024 * 512,
+	block_size: 512,
+	cache_shards: 64,
 	..SEQUENTIAL
 };

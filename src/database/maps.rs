@@ -58,6 +58,8 @@ pub(super) static MAPS: &[Descriptor] = &[
 		cache_disp: CacheDisp::SharedWith("pduid_pdu"),
 		key_size_hint: Some(48),
 		val_size_hint: Some(1488),
+		block_size: 1024,
+		index_size: 512,
 		..descriptor::RANDOM
 	},
 	Descriptor {
@@ -65,6 +67,8 @@ pub(super) static MAPS: &[Descriptor] = &[
 		cache_disp: CacheDisp::Unique,
 		key_size_hint: Some(48),
 		val_size_hint: Some(16),
+		block_size: 512,
+		index_size: 512,
 		..descriptor::RANDOM
 	},
 	Descriptor {
@@ -72,6 +76,8 @@ pub(super) static MAPS: &[Descriptor] = &[
 		cache_disp: CacheDisp::Unique,
 		key_size_hint: Some(48),
 		val_size_hint: Some(8),
+		block_size: 512,
+		index_size: 512,
 		..descriptor::RANDOM
 	},
 	Descriptor {
@@ -111,6 +117,8 @@ pub(super) static MAPS: &[Descriptor] = &[
 		cache_disp: CacheDisp::SharedWith("eventid_outlierpdu"),
 		key_size_hint: Some(16),
 		val_size_hint: Some(1520),
+		block_size: 2048,
+		index_size: 512,
 		..descriptor::SEQUENTIAL
 	},
 	Descriptor {
@@ -162,6 +170,7 @@ pub(super) static MAPS: &[Descriptor] = &[
 	Descriptor {
 		name: "roomsynctoken_shortstatehash",
 		val_size_hint: Some(8),
+		block_size: 512,
 		..descriptor::SEQUENTIAL
 	},
 	Descriptor {
@@ -243,6 +252,8 @@ pub(super) static MAPS: &[Descriptor] = &[
 		name: "shorteventid_shortstatehash",
 		key_size_hint: Some(8),
 		val_size_hint: Some(8),
+		block_size: 512,
+		index_size: 512,
 		..descriptor::SEQUENTIAL
 	},
 	Descriptor {
@@ -292,7 +303,11 @@ pub(super) static MAPS: &[Descriptor] = &[
 		name: "token_userdeviceid",
 		..descriptor::RANDOM_SMALL
 	},
-	Descriptor { name: "tokenids", ..descriptor::RANDOM },
+	Descriptor {
+		name: "tokenids",
+		block_size: 512,
+		..descriptor::RANDOM
+	},
 	Descriptor {
 		name: "url_previews",
 		..descriptor::RANDOM
