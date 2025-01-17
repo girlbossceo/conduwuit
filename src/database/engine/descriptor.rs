@@ -34,7 +34,7 @@ pub(crate) struct Descriptor {
 	pub(crate) compression: CompressionType,
 	pub(crate) compression_level: i32,
 	pub(crate) bottommost_level: Option<i32>,
-	pub(crate) block_index_hashing: bool,
+	pub(crate) block_index_hashing: Option<bool>,
 	pub(crate) cache_shards: u32,
 }
 
@@ -60,7 +60,7 @@ pub(crate) static BASE: Descriptor = Descriptor {
 	compression: CompressionType::Zstd,
 	compression_level: 32767,
 	bottommost_level: Some(32767),
-	block_index_hashing: false,
+	block_index_hashing: None,
 	cache_shards: 64,
 };
 
@@ -96,5 +96,6 @@ pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	file_size: 1024 * 512,
 	block_size: 512,
 	cache_shards: 64,
+	block_index_hashing: Some(false),
 	..SEQUENTIAL
 };

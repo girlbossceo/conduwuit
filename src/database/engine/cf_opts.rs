@@ -1,8 +1,4 @@
-use conduwuit::{
-	err,
-	utils::{math::Expected, BoolExt},
-	Config, Result,
-};
+use conduwuit::{err, utils::math::Expected, Config, Result};
 use rocksdb::{
 	BlockBasedIndexType, BlockBasedOptions, BlockBasedPinningTier, Cache,
 	DBCompressionType as CompressionType, DataBlockIndexType, LruCacheOptions, Options,
@@ -133,10 +129,12 @@ fn table_options(desc: &Descriptor, has_cache: bool) -> BlockBasedOptions {
 	opts.set_partition_filters(true);
 	opts.set_use_delta_encoding(false);
 	opts.set_index_type(BlockBasedIndexType::TwoLevelIndexSearch);
-	opts.set_data_block_index_type(
-		desc.block_index_hashing
-			.map_or(DataBlockIndexType::BinarySearch, || DataBlockIndexType::BinaryAndHash),
-	);
+
+	opts.set_data_block_index_type(match desc.block_index_hashing {
+		| None if desc.index_size > 512 => DataBlockIndexType::BinaryAndHash,
+		| Some(enable) if enable => DataBlockIndexType::BinaryAndHash,
+		| Some(_) | None => DataBlockIndexType::BinarySearch,
+	});
 
 	opts
 }
