@@ -242,15 +242,11 @@ pub(crate) async fn login_token_route(
 	body: Ruma<get_login_token::v1::Request>,
 ) -> Result<get_login_token::v1::Response> {
 	if !services.server.config.login_via_existing_session {
-		return Err!(Request(Unknown("Login via an existing session is not enabled")));
+		return Err!(Request(Forbidden("Login via an existing session is not enabled")));
 	}
-	// Authentication for this endpoint was made optional, but we need
-	// authentication.
-	let sender_user = body
-		.sender_user
-		.as_ref()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+
+	let sender_user = body.sender_user();
+	let sender_device = body.sender_device();
 
 	// This route SHOULD have UIA
 	// TODO: How do we make only UIA sessions that have not been used before valid?
@@ -274,22 +270,19 @@ pub(crate) async fn login_token_route(
 		}
 
 		// Success!
-	} else if let Some(json) = body.json_body {
+	} else if let Some(json) = body.json_body.as_ref() {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
 			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json);
+			.create(sender_user, sender_device, &uiaainfo, json);
 
 		return Err(Error::Uiaa(uiaainfo));
 	} else {
-		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+		return Err!(Request(NotJson("No JSON body was sent when required.")));
 	}
 
 	let login_token = utils::random_string(TOKEN_LENGTH);
-
-	let expires_in = services
-		.users
-		.create_login_token(sender_user, &login_token)?;
+	let expires_in = services.users.create_login_token(sender_user, &login_token);
 
 	Ok(get_login_token::v1::Response {
 		expires_in: Duration::from_millis(expires_in),
