@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, mem, mem::size_of, sync::Arc};
 
 use conduwuit::{
-	debug_warn, err, utils,
-	utils::{stream::TryIgnore, string::Unquoted, ReadyExt},
+	debug_warn, err, trace,
+	utils::{self, stream::TryIgnore, string::Unquoted, ReadyExt},
 	Err, Error, Result, Server,
 };
 use database::{Database, Deserialized, Ignore, Interfix, Json, Map};
@@ -945,50 +945,37 @@ impl Service {
 
 	/// Creates a short-lived login token, which can be used to log in using the
 	/// `m.login.token` mechanism.
-	pub fn create_login_token(&self, user_id: &UserId, token: &str) -> Result<u64> {
+	pub fn create_login_token(&self, user_id: &UserId, token: &str) -> u64 {
 		use std::num::Saturating as Sat;
 
 		let expires_in = self.services.server.config.login_token_ttl;
 		let expires_at = Sat(utils::millis_since_unix_epoch()) + Sat(expires_in);
 
-		let mut value = expires_at.0.to_be_bytes().to_vec();
-		value.extend_from_slice(user_id.as_bytes());
+		let value = (expires_at.0, user_id);
+		self.db.logintoken_expiresatuserid.raw_put(token, value);
 
-		self.db
-			.logintoken_expiresatuserid
-			.insert(token.as_bytes(), value.as_slice());
-
-		Ok(expires_in)
+		expires_in
 	}
 
 	/// Find out which user a login token belongs to.
 	/// Removes the token to prevent double-use attacks.
 	pub async fn find_from_login_token(&self, token: &str) -> Result<OwnedUserId> {
 		let Ok(value) = self.db.logintoken_expiresatuserid.get(token).await else {
-			return Err!(Request(Unauthorized("Login token is unrecognised")));
+			return Err!(Request(Forbidden("Login token is unrecognised")));
 		};
-
-		let (expires_at_bytes, user_bytes) = value.split_at(0_u64.to_be_bytes().len());
-		let expires_at = u64::from_be_bytes(
-			expires_at_bytes
-				.try_into()
-				.map_err(|e| err!(Database("expires_at in login_userid is invalid u64. {e}")))?,
-		);
+		let (expires_at, user_id): (u64, OwnedUserId) = value.deserialized()?;
 
 		if expires_at < utils::millis_since_unix_epoch() {
-			debug_warn!("Login token is expired, removing");
-			self.db.openidtoken_expiresatuserid.remove(token.as_bytes());
+			trace!(?user_id, ?token, "Removing expired login token");
 
-			return Err!(Request(Unauthorized("Login token is expired")));
+			self.db.logintoken_expiresatuserid.remove(token);
+
+			return Err!(Request(Forbidden("Login token is expired")));
 		}
 
-		self.db.openidtoken_expiresatuserid.remove(token.as_bytes());
+		self.db.logintoken_expiresatuserid.remove(token);
 
-		let user_string = utils::string_from_bytes(user_bytes)
-			.map_err(|e| err!(Database("User ID in login_userid is invalid unicode. {e}")))?;
-
-		OwnedUserId::try_from(user_string)
-			.map_err(|e| err!(Database("User ID in login_userid is invalid. {e}")))
+		Ok(user_id)
 	}
 
 	/// Gets a specific user profile key
