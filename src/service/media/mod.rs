@@ -157,7 +157,7 @@ impl Service {
 		if let Ok(Metadata { content_disposition, content_type, key }) =
 			self.db.search_file_metadata(mxc, &Dim::default()).await
 		{
-			let mut content = Vec::new();
+			let mut content = Vec::with_capacity(8192);
 			let path = self.get_media_file(&key);
 			BufReader::new(fs::File::open(path).await?)
 				.read_to_end(&mut content)
