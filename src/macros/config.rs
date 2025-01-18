@@ -1,8 +1,8 @@
 use std::{collections::HashSet, fmt::Write as _, fs::OpenOptions, io::Write as _};
 
 use proc_macro::TokenStream;
-use proc_macro2::Span;
-use quote::ToTokens;
+use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::{quote, ToTokens};
 use syn::{
 	parse::Parser, punctuated::Punctuated, spanned::Spanned, Error, Expr, ExprLit, Field, Fields,
 	FieldsNamed, ItemStruct, Lit, Meta, MetaList, MetaNameValue, Type, TypePath,
@@ -19,17 +19,23 @@ const HIDDEN: &[&str] = &["default"];
 
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<TokenStream> {
-	if is_cargo_build() && !is_cargo_test() {
-		generate_example(&input, args)?;
-	}
+	let write = is_cargo_build() && !is_cargo_test();
+	let additional = generate_example(&input, args, write)?;
 
-	Ok(input.to_token_stream().into())
+	Ok([input.to_token_stream(), additional]
+		.into_iter()
+		.collect::<TokenStream2>()
+		.into())
 }
 
 #[allow(clippy::needless_pass_by_value)]
 #[allow(unused_variables)]
-fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
+fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<TokenStream2> {
 	let settings = get_simple_settings(args);
+
+	let section = settings.get("section").ok_or_else(|| {
+		Error::new(args[0].span(), "missing required 'section' attribute argument")
+	})?;
 
 	let filename = settings.get("filename").ok_or_else(|| {
 		Error::new(args[0].span(), "missing required 'filename' attribute argument")
@@ -45,31 +51,33 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 		.split(' ')
 		.collect();
 
-	let section = settings.get("section").ok_or_else(|| {
-		Error::new(args[0].span(), "missing required 'section' attribute argument")
-	})?;
-
-	let mut file = OpenOptions::new()
+	let fopts = OpenOptions::new()
 		.write(true)
 		.create(section == "global")
 		.truncate(section == "global")
 		.append(section != "global")
-		.open(filename)
-		.map_err(|e| {
-			Error::new(
-				Span::call_site(),
-				format!("Failed to open config file for generation: {e}"),
-			)
-		})?;
+		.clone();
 
-	if let Some(header) = settings.get("header") {
-		file.write_all(header.as_bytes())
+	let mut file = write
+		.then(|| {
+			fopts.open(filename).map_err(|e| {
+				let msg = format!("Failed to open file for config generation: {e}");
+				Error::new(Span::call_site(), msg)
+			})
+		})
+		.transpose()?;
+
+	if let Some(file) = file.as_mut() {
+		if let Some(header) = settings.get("header") {
+			file.write_all(header.as_bytes())
+				.expect("written to config file");
+		}
+
+		file.write_fmt(format_args!("\n[{section}]\n"))
 			.expect("written to config file");
 	}
 
-	file.write_fmt(format_args!("\n[{section}]\n"))
-		.expect("written to config file");
-
+	let mut summary: Vec<TokenStream2> = Vec::new();
 	if let Fields::Named(FieldsNamed { named, .. }) = &input.fields {
 		for field in named {
 			let Some(ident) = &field.ident else {
@@ -105,20 +113,41 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 				default
 			};
 
-			file.write_fmt(format_args!("\n{doc}"))
-				.expect("written to config file");
+			if let Some(file) = file.as_mut() {
+				file.write_fmt(format_args!("\n{doc}"))
+					.expect("written to config file");
 
-			file.write_fmt(format_args!("#{ident} ={default}\n"))
+				file.write_fmt(format_args!("#{ident} ={default}\n"))
+					.expect("written to config file");
+			}
+
+			let name = ident.to_string();
+			summary.push(quote! {
+				writeln!(out, "| {} | {:?} |", #name, self.#ident)?;
+			});
+		}
+	}
+
+	if let Some(file) = file.as_mut() {
+		if let Some(footer) = settings.get("footer") {
+			file.write_all(footer.as_bytes())
 				.expect("written to config file");
 		}
 	}
 
-	if let Some(footer) = settings.get("footer") {
-		file.write_all(footer.as_bytes())
-			.expect("written to config file");
-	}
+	let struct_name = &input.ident;
+	let display = quote! {
+		impl std::fmt::Display for #struct_name {
+			fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+				writeln!(out, "| name | value |")?;
+				writeln!(out, "| :--- | :---  |")?;
+				#( #summary )*
+				Ok(())
+			}
+		}
+	};
 
-	Ok(())
+	Ok(display)
 }
 
 fn get_default(field: &Field) -> Option<String> {

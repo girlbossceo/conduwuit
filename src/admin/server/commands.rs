@@ -22,8 +22,8 @@ pub(super) async fn uptime(&self) -> Result<RoomMessageEventContent> {
 pub(super) async fn show_config(&self) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
 	Ok(RoomMessageEventContent::text_markdown(format!(
-		"```\n{}\n```",
-		self.services.globals.config
+		"{}",
+		self.services.server.config
 	)))
 }
 
