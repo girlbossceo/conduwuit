@@ -23,6 +23,16 @@ pub(crate) fn get_simple_settings(args: &[Meta]) -> HashMap<String, String> {
 }
 
 pub(crate) fn is_cargo_build() -> bool {
+	legacy_is_cargo_build()
+		|| std::env::args()
+			.skip_while(|flag| !flag.starts_with("--emit"))
+			.nth(1)
+			.iter()
+			.flat_map(|flag| flag.split(','))
+			.any(|elem| elem == "link")
+}
+
+pub(crate) fn legacy_is_cargo_build() -> bool {
 	std::env::args()
 		.find(|flag| flag.starts_with("--emit"))
 		.as_ref()
