@@ -3,6 +3,7 @@ use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 use arrayvec::ArrayVec;
 use conduwuit::{err, implement, utils::result::MapExpect, Err, Result};
 use futures::{future::ready, Future, FutureExt, TryFutureExt};
+use rocksdb::{DBPinnableSlice, ReadOptions};
 use serde::Serialize;
 use tokio::task;
 
@@ -90,6 +91,17 @@ where
 		.boxed()
 }
 
+/// Fetch a value from the cache without I/O.
+#[implement(super::Map)]
+#[tracing::instrument(skip(self, key), name = "cache", level = "trace")]
+pub(crate) fn get_cached<K>(&self, key: &K) -> Result<Option<Handle<'_>>>
+where
+	K: AsRef<[u8]> + Debug + ?Sized,
+{
+	let res = self.get_blocking_opts(key, &self.cache_read_options);
+	cached_handle_from(res)
+}
+
 /// Fetch a value from the database into cache, returning a reference-handle.
 /// The key is referenced directly to perform the query. This is a thread-
 /// blocking call.
@@ -99,37 +111,47 @@ pub fn get_blocking<K>(&self, key: &K) -> Result<Handle<'_>>
 where
 	K: AsRef<[u8]> + ?Sized,
 {
-	self.db
-		.db
-		.get_pinned_cf_opt(&self.cf(), key, &self.read_options)
+	let res = self.get_blocking_opts(key, &self.read_options);
+	handle_from(res)
+}
+
+#[implement(super::Map)]
+fn get_blocking_opts<K>(
+	&self,
+	key: &K,
+	read_options: &ReadOptions,
+) -> Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>
+where
+	K: AsRef<[u8]> + ?Sized,
+{
+	self.db.db.get_pinned_cf_opt(&self.cf(), key, read_options)
+}
+
+#[inline]
+pub(super) fn handle_from(
+	result: Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>,
+) -> Result<Handle<'_>> {
+	result
 		.map_err(map_err)?
 		.map(Handle::from)
 		.ok_or(err!(Request(NotFound("Not found in database"))))
 }
 
-/// Fetch a value from the cache without I/O.
-#[implement(super::Map)]
-#[tracing::instrument(skip(self, key), name = "cache", level = "trace")]
-pub(crate) fn get_cached<K>(&self, key: &K) -> Result<Option<Handle<'_>>>
-where
-	K: AsRef<[u8]> + Debug + ?Sized,
-{
-	let res = self
-		.db
-		.db
-		.get_pinned_cf_opt(&self.cf(), key, &self.cache_read_options);
-
-	match res {
+#[inline]
+pub(super) fn cached_handle_from(
+	result: Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>,
+) -> Result<Option<Handle<'_>>> {
+	match result {
 		// cache hit; not found
 		| Ok(None) => Err!(Request(NotFound("Not found in database"))),
 
 		// cache hit; value found
-		| Ok(Some(res)) => Ok(Some(Handle::from(res))),
+		| Ok(Some(result)) => Ok(Some(Handle::from(result))),
 
 		// cache miss; unknown
-		| Err(e) if is_incomplete(&e) => Ok(None),
+		| Err(error) if is_incomplete(&error) => Ok(None),
 
 		// some other error occurred
-		| Err(e) => or_else(e),
+		| Err(error) => or_else(error),
 	}
 }

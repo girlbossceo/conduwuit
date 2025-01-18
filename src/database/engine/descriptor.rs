@@ -67,6 +67,7 @@ pub(crate) static BASE: Descriptor = Descriptor {
 pub(crate) static RANDOM: Descriptor = Descriptor {
 	compaction_pri: CompactionPri::OldestSmallestSeqFirst,
 	write_size: 1024 * 1024 * 32,
+	cache_shards: 128,
 	..BASE
 };
 
@@ -75,6 +76,7 @@ pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	write_size: 1024 * 1024 * 64,
 	level_size: 1024 * 1024 * 32,
 	file_size: 1024 * 1024 * 2,
+	cache_shards: 128,
 	..BASE
 };
 

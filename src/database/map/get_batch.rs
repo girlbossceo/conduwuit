@@ -1,7 +1,7 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
 use conduwuit::{
-	err, implement,
+	implement,
 	utils::{
 		stream::{automatic_amplification, automatic_width, WidebandExt},
 		IterStream,
@@ -9,9 +9,11 @@ use conduwuit::{
 	Result,
 };
 use futures::{Stream, StreamExt, TryStreamExt};
+use rocksdb::{DBPinnableSlice, ReadOptions};
 use serde::Serialize;
 
-use crate::{keyval::KeyBuf, ser, util::map_err, Handle};
+use super::get::{cached_handle_from, handle_from};
+use crate::{keyval::KeyBuf, ser, Handle};
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
@@ -67,6 +69,20 @@ where
 }
 
 #[implement(super::Map)]
+#[tracing::instrument(name = "batch_cached", level = "trace", skip_all)]
+pub(crate) fn get_batch_cached<'a, I, K>(
+	&self,
+	keys: I,
+) -> impl Iterator<Item = Result<Option<Handle<'_>>>> + Send
+where
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
+	K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,
+{
+	self.get_batch_blocking_opts(keys, &self.cache_read_options)
+		.map(cached_handle_from)
+}
+
+#[implement(super::Map)]
 #[tracing::instrument(name = "batch_blocking", level = "trace", skip_all)]
 pub(crate) fn get_batch_blocking<'a, I, K>(
 	&self,
@@ -76,19 +92,26 @@ where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
 	K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,
 {
+	self.get_batch_blocking_opts(keys, &self.read_options)
+		.map(handle_from)
+}
+
+#[implement(super::Map)]
+fn get_batch_blocking_opts<'a, I, K>(
+	&self,
+	keys: I,
+	read_options: &ReadOptions,
+) -> impl Iterator<Item = Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>> + Send
+where
+	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
+	K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,
+{
 	// Optimization can be `true` if key vector is pre-sorted **by the column
 	// comparator**.
 	const SORTED: bool = false;
 
-	let read_options = &self.read_options;
 	self.db
 		.db
 		.batched_multi_get_cf_opt(&self.cf(), keys, SORTED, read_options)
 		.into_iter()
-		.map(|result| {
-			result
-				.map_err(map_err)?
-				.map(Handle::from)
-				.ok_or(err!(Request(NotFound("Not found in database"))))
-		})
 }

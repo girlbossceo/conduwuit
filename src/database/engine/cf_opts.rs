@@ -178,7 +178,7 @@ fn get_cache(ctx: &Context, desc: &Descriptor) -> Option<Cache> {
 		.try_into()
 		.expect("u32 to i32 conversion");
 
-	debug_assert!(shard_bits <= 6, "cache shards limited to 64");
+	debug_assert!(shard_bits <= 10, "cache shards probably too large");
 	let mut cache_opts = LruCacheOptions::default();
 	cache_opts.set_num_shard_bits(shard_bits);
 	cache_opts.set_capacity(size);
