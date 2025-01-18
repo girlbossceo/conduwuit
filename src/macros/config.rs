@@ -15,6 +15,8 @@ use crate::{
 
 const UNDOCUMENTED: &str = "# This item is undocumented. Please contribute documentation for it.";
 
+const HIDDEN: &[&str] = &["default"];
+
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<TokenStream> {
 	if is_cargo_build() && !is_cargo_test() {
@@ -93,7 +95,7 @@ fn generate_example(input: &ItemStruct, args: &[Meta]) -> Result<()> {
 				format!("{doc}\n#\n")
 			};
 
-			let default = get_doc_default(field)
+			let default = get_doc_comment_line(field, "default")
 				.or_else(|| get_default(field))
 				.unwrap_or_default();
 
@@ -163,40 +165,40 @@ fn get_default(field: &Field) -> Option<String> {
 	None
 }
 
-fn get_doc_default(field: &Field) -> Option<String> {
-	for attr in &field.attrs {
-		let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta else {
-			continue;
-		};
+fn get_doc_comment(field: &Field) -> Option<String> {
+	let comment = get_doc_comment_full(field)?;
 
-		if path.segments.iter().next().is_none_or(|s| s.ident != "doc") {
-			continue;
-		}
+	let out = comment
+		.lines()
+		.filter(|line| {
+			!HIDDEN.iter().any(|key| {
+				line.trim().starts_with(key) && line.trim().chars().nth(key.len()) == Some(':')
+			})
+		})
+		.fold(String::new(), |full, line| full + "#" + line + "\n");
 
-		let Expr::Lit(ExprLit { lit, .. }) = &value else {
-			continue;
-		};
-
-		let Lit::Str(token) = &lit else {
-			continue;
-		};
-
-		let value = token.value();
-		if !value.trim().starts_with("default:") {
-			continue;
-		}
-
-		return value
-			.split_once(':')
-			.map(|(_, v)| v)
-			.map(str::trim)
-			.map(ToOwned::to_owned);
-	}
-
-	None
+	(!out.is_empty()).then_some(out)
 }
 
-fn get_doc_comment(field: &Field) -> Option<String> {
+fn get_doc_comment_line(field: &Field, label: &str) -> Option<String> {
+	let comment = get_doc_comment_full(field)?;
+
+	comment
+		.lines()
+		.map(str::trim)
+		.filter(|line| line.starts_with(label))
+		.filter(|line| line.chars().nth(label.len()) == Some(':'))
+		.map(|line| {
+			line.split_once(':')
+				.map(|(_, v)| v)
+				.map(str::trim)
+				.map(ToOwned::to_owned)
+		})
+		.next()
+		.flatten()
+}
+
+fn get_doc_comment_full(field: &Field) -> Option<String> {
 	let mut out = String::new();
 	for attr in &field.attrs {
 		let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta else {
@@ -216,11 +218,7 @@ fn get_doc_comment(field: &Field) -> Option<String> {
 		};
 
 		let value = token.value();
-		if value.trim().starts_with("default:") {
-			continue;
-		}
-
-		writeln!(&mut out, "#{value}").expect("wrote to output string buffer");
+		writeln!(&mut out, "{value}").expect("wrote to output string buffer");
 	}
 
 	(!out.is_empty()).then_some(out)
