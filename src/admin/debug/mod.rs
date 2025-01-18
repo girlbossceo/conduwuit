@@ -191,7 +191,13 @@ pub(super) enum DebugCommand {
 	},
 
 	/// - Print extended memory usage
-	MemoryStats,
+	///
+	/// Optional argument is a character mask (a sequence of characters in any
+	/// order) which enable additional extended statistics. Known characters are
+	/// "abdeglmx". For convenience, a '*' will enable everything.
+	MemoryStats {
+		opts: Option<String>,
+	},
 
 	/// - Print general tokio runtime metric totals.
 	RuntimeMetrics,

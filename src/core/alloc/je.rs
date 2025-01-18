@@ -3,7 +3,7 @@
 use std::{
 	cell::OnceCell,
 	ffi::{c_char, c_void},
-	fmt::{Debug, Write},
+	fmt::Debug,
 };
 
 use arrayvec::ArrayVec;
@@ -66,15 +66,12 @@ pub fn memory_usage() -> Option<String> {
 #[cfg(not(feature = "jemalloc_stats"))]
 pub fn memory_usage() -> Option<String> { None }
 
-#[must_use]
-pub fn memory_stats() -> Option<String> {
-	const MAX_LENGTH: usize = 65536 - 4096;
+pub fn memory_stats(opts: &str) -> Option<String> {
+	const MAX_LENGTH: usize = 1_048_576;
 
-	let opts_s = "d";
 	let mut str = String::new();
-
 	let opaque = std::ptr::from_mut(&mut str).cast::<c_void>();
-	let opts_p: *const c_char = std::ffi::CString::new(opts_s)
+	let opts_p: *const c_char = std::ffi::CString::new(opts)
 		.expect("cstring")
 		.into_raw()
 		.cast_const();
@@ -84,7 +81,8 @@ pub fn memory_stats() -> Option<String> {
 	unsafe { ffi::malloc_stats_print(Some(malloc_stats_cb), opaque, opts_p) };
 
 	str.truncate(MAX_LENGTH);
-	Some(format!("<pre><code>{str}</code></pre>"))
+
+	Some(str)
 }
 
 unsafe extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
