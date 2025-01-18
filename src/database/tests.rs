@@ -36,6 +36,29 @@ fn ser_tuple() {
 }
 
 #[test]
+fn ser_tuple_option() {
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let mut a = Vec::<u8>::new();
+	a.push(0xFF);
+	a.extend_from_slice(user_id.as_bytes());
+
+	let mut aa = Vec::<u8>::new();
+	aa.extend_from_slice(room_id.as_bytes());
+	aa.push(0xFF);
+	aa.extend_from_slice(user_id.as_bytes());
+
+	let b: (Option<&RoomId>, &UserId) = (None, user_id);
+	let b = serialize_to_vec(&b).expect("failed to serialize tuple");
+	assert_eq!(a, b);
+
+	let bb: (Option<&RoomId>, &UserId) = (Some(room_id), user_id);
+	let bb = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bb);
+}
+
+#[test]
 #[should_panic(expected = "I/O error: failed to write whole buffer")]
 fn ser_overflow() {
 	const BUFSIZE: usize = 10;
@@ -284,6 +307,8 @@ fn ser_array() {
 	let b: u64 = 987_654;
 
 	let arr: &[u64] = &[a, b];
+	let vec: Vec<u64> = vec![a, b];
+	let arv: ArrayVec<u64, 2> = [a, b].into();
 
 	let mut v = Vec::new();
 	v.extend_from_slice(&a.to_be_bytes());
@@ -291,4 +316,76 @@ fn ser_array() {
 
 	let s = serialize_to_vec(arr).expect("failed to serialize");
 	assert_eq!(&s, &v, "serialization does not match");
+
+	let s = serialize_to_vec(arv.as_slice()).expect("failed to serialize arrayvec");
+	assert_eq!(&s, &v, "arrayvec serialization does not match");
+
+	let s = serialize_to_vec(&vec).expect("failed to serialize vec");
+	assert_eq!(&s, &v, "vec serialization does not match");
+}
+
+#[cfg(todo)]
+#[test]
+fn de_array() {
+	let a: u64 = 123_456;
+	let b: u64 = 987_654;
+
+	let mut v: Vec<u8> = Vec::new();
+	v.extend_from_slice(&a.to_be_bytes());
+	v.extend_from_slice(&b.to_be_bytes());
+
+	let arv: ArrayVec<u64, 2> = de::from_slice::<ArrayVec<u64, 2>>(v.as_slice())
+		.map(TryInto::try_into)
+		.expect("failed to deserialize to arrayvec")
+		.expect("failed to deserialize into");
+
+	assert_eq!(arv[0], a, "deserialized arv [0] does not match");
+	assert_eq!(arv[1], b, "deserialized arv [1] does not match");
+
+	let arr: [u64; 2] = de::from_slice::<[u64; 2]>(v.as_slice())
+		.map(TryInto::try_into)
+		.expect("failed to deserialize to array")
+		.expect("failed to deserialize into");
+
+	assert_eq!(arr[0], a, "deserialized arr [0] does not match");
+	assert_eq!(arr[1], b, "deserialized arr [1] does not match");
+
+	let vec: Vec<u64> = de::from_slice(v.as_slice()).expect("failed to deserialize to vec");
+
+	assert_eq!(vec[0], a, "deserialized vec [0] does not match");
+	assert_eq!(vec[1], b, "deserialized vec [1] does not match");
+}
+
+#[cfg(todo)]
+#[test]
+fn de_complex() {
+	type Key<'a> = (&'a UserId, ArrayVec<u64, 2>, &'a RoomId);
+
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+	let a: u64 = 123_456;
+	let b: u64 = 987_654;
+
+	let mut v = Vec::new();
+	v.extend_from_slice(user_id.as_bytes());
+	v.extend_from_slice(b"\xFF");
+	v.extend_from_slice(&a.to_be_bytes());
+	v.extend_from_slice(&b.to_be_bytes());
+	v.extend_from_slice(b"\xFF");
+	v.extend_from_slice(room_id.as_bytes());
+
+	let arr: &[u64] = &[a, b];
+	let key = (user_id, arr, room_id);
+	let s = serialize_to_vec(&key).expect("failed to serialize");
+
+	assert_eq!(&s, &v, "serialization does not match");
+
+	let key = (user_id, [a, b].into(), room_id);
+	let arr: Key<'_> = de::from_slice(&v).expect("failed to deserialize");
+
+	assert_eq!(arr, key, "deserialization does not match");
+
+	let arr: Key<'_> = de::from_slice(&s).expect("failed to deserialize");
+
+	assert_eq!(arr, key, "deserialization of serialization does not match");
 }
