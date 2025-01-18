@@ -1,6 +1,6 @@
 use axum::extract::State;
 use conduwuit::{
-	at, is_equal_to,
+	at,
 	utils::{
 		result::{FlatOk, LogErr},
 		stream::{BroadbandExt, TryIgnore, WidebandExt},
@@ -241,11 +241,8 @@ pub(crate) async fn ignored_filter(
 	if IGNORED_MESSAGE_TYPES.binary_search(&pdu.kind).is_ok()
 		&& (services.users.user_is_ignored(&pdu.sender, user_id).await
 			|| services
-				.server
-				.config
-				.forbidden_remote_server_names
-				.iter()
-				.any(is_equal_to!(pdu.sender().server_name())))
+				.moderation
+				.is_remote_server_forbidden(pdu.sender().server_name()))
 	{
 		return None;
 	}

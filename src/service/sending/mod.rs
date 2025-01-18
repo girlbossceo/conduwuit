@@ -30,8 +30,9 @@ pub use self::{
 	sender::{EDU_LIMIT, PDU_LIMIT},
 };
 use crate::{
-	account_data, client, federation, globals, presence, pusher, rooms,
-	rooms::timeline::RawPduId, users, Dep,
+	account_data, client, federation, globals, presence, pusher,
+	rooms::{self, timeline::RawPduId},
+	users, Dep,
 };
 
 pub struct Service {

@@ -270,10 +270,8 @@ pub(crate) async fn create_join_event_v1_route(
 	body: Ruma<create_join_event::v1::Request>,
 ) -> Result<create_join_event::v1::Response> {
 	if services
-		.server
-		.config
-		.forbidden_remote_server_names
-		.contains(body.origin())
+		.moderation
+		.is_remote_server_forbidden(body.origin())
 	{
 		warn!(
 			"Server {} tried joining room ID {} through us who has a server name that is \
@@ -285,12 +283,7 @@ pub(crate) async fn create_join_event_v1_route(
 	}
 
 	if let Some(server) = body.room_id.server_name() {
-		if services
-			.server
-			.config
-			.forbidden_remote_server_names
-			.contains(&server.to_owned())
-		{
+		if services.moderation.is_remote_server_forbidden(server) {
 			warn!(
 				"Server {} tried joining room ID {} through us which has a server name that is \
 				 globally forbidden. Rejecting.",
@@ -318,21 +311,14 @@ pub(crate) async fn create_join_event_v2_route(
 	body: Ruma<create_join_event::v2::Request>,
 ) -> Result<create_join_event::v2::Response> {
 	if services
-		.server
-		.config
-		.forbidden_remote_server_names
-		.contains(body.origin())
+		.moderation
+		.is_remote_server_forbidden(body.origin())
 	{
 		return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 	}
 
 	if let Some(server) = body.room_id.server_name() {
-		if services
-			.server
-			.config
-			.forbidden_remote_server_names
-			.contains(&server.to_owned())
-		{
+		if services.moderation.is_remote_server_forbidden(server) {
 			warn!(
 				"Server {} tried joining room ID {} through us which has a server name that is \
 				 globally forbidden. Rejecting.",
