@@ -2,13 +2,13 @@ use std::{borrow::Cow, collections::BTreeMap, ops::Deref};
 
 use clap::Subcommand;
 use conduwuit::{
-	apply, at,
+	apply, at, is_zero,
 	utils::{
-		stream::{ReadyExt, TryIgnore},
+		stream::{ReadyExt, TryIgnore, TryParallelExt},
 		string::EMPTY,
 		IterStream,
 	},
-	Result,
+	Err, Result,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::events::room::message::RoomMessageEventContent;
@@ -121,6 +121,104 @@ pub(crate) enum RawCommand {
 		/// Key prefix
 		prefix: Option<String>,
 	},
+
+	/// - Compact database
+	Compact {
+		#[arg(short, long, alias("column"))]
+		map: Option<Vec<String>>,
+
+		#[arg(long)]
+		start: Option<String>,
+
+		#[arg(long)]
+		stop: Option<String>,
+
+		#[arg(long)]
+		from: Option<usize>,
+
+		#[arg(long)]
+		into: Option<usize>,
+
+		/// There is one compaction job per column; then this controls how many
+		/// columns are compacted in parallel. If zero, one compaction job is
+		/// still run at a time here, but in exclusive-mode blocking any other
+		/// automatic compaction jobs until complete.
+		#[arg(long)]
+		parallelism: Option<usize>,
+
+		#[arg(long, default_value("false"))]
+		exhaustive: bool,
+	},
+}
+
+#[admin_command]
+pub(super) async fn compact(
+	&self,
+	map: Option<Vec<String>>,
+	start: Option<String>,
+	stop: Option<String>,
+	from: Option<usize>,
+	into: Option<usize>,
+	parallelism: Option<usize>,
+	exhaustive: bool,
+) -> Result<RoomMessageEventContent> {
+	use conduwuit_database::compact::Options;
+
+	let default_all_maps = map
+		.is_none()
+		.then(|| {
+			self.services
+				.db
+				.keys()
+				.map(Deref::deref)
+				.map(ToOwned::to_owned)
+		})
+		.into_iter()
+		.flatten();
+
+	let maps: Vec<_> = map
+		.unwrap_or_default()
+		.into_iter()
+		.chain(default_all_maps)
+		.map(|map| self.services.db.get(&map))
+		.filter_map(Result::ok)
+		.cloned()
+		.collect();
+
+	if maps.is_empty() {
+		return Err!("--map argument invalid. not found in database");
+	}
+
+	let range = (
+		start.as_ref().map(String::as_bytes).map(Into::into),
+		stop.as_ref().map(String::as_bytes).map(Into::into),
+	);
+
+	let options = Options {
+		range,
+		level: (from, into),
+		exclusive: parallelism.is_some_and(is_zero!()),
+		exhaustive,
+	};
+
+	let runtime = self.services.server.runtime().clone();
+	let parallelism = parallelism.unwrap_or(1);
+	let results = maps
+		.into_iter()
+		.try_stream()
+		.paralleln_and_then(runtime, parallelism, move |map| {
+			map.compact_blocking(options.clone())?;
+			Ok(map.name().to_owned())
+		})
+		.collect::<Vec<_>>();
+
+	let timer = Instant::now();
+	let results = results.await;
+	let query_time = timer.elapsed();
+	self.write_str(&format!("Jobs completed in {query_time:?}:\n\n```rs\n{results:#?}\n```"))
+		.await?;
+
+	Ok(RoomMessageEventContent::text_plain(""))
 }
 
 #[admin_command]

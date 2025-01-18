@@ -1,3 +1,4 @@
+pub mod compact;
 mod contains;
 mod count;
 mod get;

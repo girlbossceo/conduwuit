@@ -18,9 +18,16 @@ use std::{
 };
 
 use conduwuit::{debug, info, warn, Err, Result};
-use rocksdb::{AsColumnFamilyRef, BoundColumnFamily, DBCommon, DBWithThreadMode, MultiThreaded};
+use rocksdb::{
+	AsColumnFamilyRef, BoundColumnFamily, DBCommon, DBWithThreadMode, MultiThreaded,
+	WaitForCompactOptions,
+};
 
-use crate::{pool::Pool, result, Context};
+use crate::{
+	pool::Pool,
+	util::{map_err, result},
+	Context,
+};
 
 pub struct Engine {
 	pub(super) read_only: bool,
@@ -55,10 +62,20 @@ impl Engine {
 	#[tracing::instrument(skip(self), level = "debug")]
 	pub fn flush(&self) -> Result { result(DBCommon::flush_wal(&self.db, false)) }
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(skip(self), level = "info")]
 	pub fn sort(&self) -> Result {
 		let flushoptions = rocksdb::FlushOptions::default();
 		result(DBCommon::flush_opt(&self.db, &flushoptions))
+	}
+
+	#[tracing::instrument(skip(self), level = "info")]
+	pub fn wait_compactions(&self) -> Result {
+		let mut opts = WaitForCompactOptions::default();
+		opts.set_abort_on_pause(true);
+		opts.set_flush(false);
+		opts.set_timeout(0);
+
+		self.db.wait_for_compact(&opts).map_err(map_err)
 	}
 
 	/// Query for database property by null-terminated name which is expected to

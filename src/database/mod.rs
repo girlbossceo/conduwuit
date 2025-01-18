@@ -30,12 +30,12 @@ pub use self::{
 	deserialized::Deserialized,
 	handle::Handle,
 	keyval::{serialize_key, serialize_val, KeyVal, Slice},
-	map::Map,
+	map::{compact, Map},
 	ser::{serialize, serialize_to, serialize_to_vec, Interfix, Json, Separator, SEP},
 };
 pub(crate) use self::{
 	engine::{context::Context, Engine},
-	util::{or_else, result},
+	util::or_else,
 };
 use crate::maps::{Maps, MapsKey, MapsVal};
 
