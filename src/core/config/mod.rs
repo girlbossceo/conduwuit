@@ -1324,6 +1324,8 @@ pub struct Config {
 	/// Vector list of servers that conduwuit will refuse to download remote
 	/// media from.
 	///
+	/// This is in addition to `forbidden_remote_server_names`.
+	///
 	/// default: []
 	#[serde(default)]
 	pub prevent_media_downloads_from: HashSet<OwnedServerName>,
@@ -1354,6 +1356,8 @@ pub struct Config {
 	/// List of forbidden server names that we will block all outgoing federated
 	/// room directory requests for. Useful for preventing our users from
 	/// wandering into bad servers or spaces.
+	///
+	/// This is in addition to `forbidden_remote_server_names`.
 	///
 	/// default: []
 	#[serde(default = "HashSet::new")]
