@@ -28,5 +28,11 @@ dockerTools.buildLayeredImage {
     Env = [
       "RUST_BACKTRACE=full"
     ];
+    Labels = {
+      org.opencontainers.image.title = main.pname;
+      org.opencontainers.image.version = main.version;
+      org.opencontainers.image.revision = inputs.self.rev or inputs.self.dirtyRev or "";
+      org.opencontainers.image.created = "@${toString inputs.self.lastModified}";
+    }
   };
 }
