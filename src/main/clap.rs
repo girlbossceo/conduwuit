@@ -92,6 +92,22 @@ pub(crate) struct Args {
 		require_equals(false),
 	)]
 	pub(crate) gc_on_park: Option<bool>,
+
+	/// Toggles muzzy decay for jemalloc arenas associated with a tokio
+	/// worker (when worker-affinity is enabled). Setting to false releases
+	/// memory to the operating system using MADV_FREE without MADV_DONTNEED.
+	/// Setting to false increases performance by reducing pagefaults, but
+	/// resident memory usage appears high until there is memory pressure. The
+	/// default is true unless the system has four or more cores.
+	#[arg(
+		long,
+		hide(true),
+		env = "CONDUWUIT_RUNTIME_GC_MUZZY",
+		action = ArgAction::Set,
+		num_args = 0..=1,
+		require_equals(false),
+	)]
+	pub(crate) gc_muzzy: Option<bool>,
 }
 
 /// Parse commandline arguments into structured data

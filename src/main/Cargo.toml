@@ -41,6 +41,7 @@ default = [
 	"gzip_compression",
 	"io_uring",
 	"jemalloc",
+	"jemalloc_conf",
 	"media_thumbnail",
 	"release_max_log_level",
 	"systemd",
@@ -84,6 +85,9 @@ jemalloc_prof = [
 ]
 jemalloc_stats = [
 	"conduwuit-core/jemalloc_stats",
+]
+jemalloc_conf = [
+	"conduwuit-core/jemalloc_conf",
 ]
 media_thumbnail = [
 	"conduwuit-service/media_thumbnail",

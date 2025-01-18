@@ -36,6 +36,7 @@ jemalloc_stats = [
     "tikv-jemalloc-ctl/stats",
     "tikv-jemallocator/stats",
 ]
+jemalloc_conf = []
 hardened_malloc = [
 	"dep:hardened_malloc-rs"
 ]

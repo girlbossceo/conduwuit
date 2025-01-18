@@ -431,17 +431,23 @@ version = "0.35.0"
 # jemalloc usage
 [workspace.dependencies.tikv-jemalloc-sys]
 git = "https://github.com/girlbossceo/jemallocator"
-rev = "d87938bfddc26377dd7fdf14bbcd345f3ab19442"
+rev = "82af58d6a13ddd5dcdc7d4e91eae3b63292995b8"
 default-features = false
-features = ["unprefixed_malloc_on_supported_platforms"]
+features = [
+	"background_threads_runtime_support",
+	"unprefixed_malloc_on_supported_platforms",
+]
 [workspace.dependencies.tikv-jemallocator]
 git = "https://github.com/girlbossceo/jemallocator"
-rev = "d87938bfddc26377dd7fdf14bbcd345f3ab19442"
+rev = "82af58d6a13ddd5dcdc7d4e91eae3b63292995b8"
 default-features = false
-features = ["unprefixed_malloc_on_supported_platforms"]
+features = [
+	"background_threads_runtime_support",
+	"unprefixed_malloc_on_supported_platforms",
+]
 [workspace.dependencies.tikv-jemalloc-ctl]
 git = "https://github.com/girlbossceo/jemallocator"
-rev = "d87938bfddc26377dd7fdf14bbcd345f3ab19442"
+rev = "82af58d6a13ddd5dcdc7d4e91eae3b63292995b8"
 default-features = false
 features = ["use_std"]
 

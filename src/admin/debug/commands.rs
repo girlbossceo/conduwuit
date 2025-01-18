@@ -967,7 +967,7 @@ pub(super) async fn database_stats(
 
 #[admin_command]
 pub(super) async fn trim_memory(&self) -> Result<RoomMessageEventContent> {
-	conduwuit::alloc::trim()?;
+	conduwuit::alloc::trim(None)?;
 
 	writeln!(self, "done").await?;
 

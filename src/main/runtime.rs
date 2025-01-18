@@ -9,8 +9,12 @@ use std::{
 };
 
 use conduwuit::{
-	result::LogErr,
-	utils::sys::compute::{nth_core_available, set_affinity},
+	is_true,
+	result::LogDebugErr,
+	utils::{
+		available_parallelism,
+		sys::compute::{nth_core_available, set_affinity},
+	},
 	Result,
 };
 use tokio::runtime::Builder;
@@ -21,9 +25,11 @@ const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
 const MAX_BLOCKING_THREADS: usize = 1024;
+const DISABLE_MUZZY_THRESHOLD: usize = 4;
 
 static WORKER_AFFINITY: OnceLock<bool> = OnceLock::new();
 static GC_ON_PARK: OnceLock<Option<bool>> = OnceLock::new();
+static GC_MUZZY: OnceLock<Option<bool>> = OnceLock::new();
 
 pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
 	WORKER_AFFINITY
@@ -33,6 +39,10 @@ pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
 	GC_ON_PARK
 		.set(args.gc_on_park)
 		.expect("set GC_ON_PARK from program argument");
+
+	GC_MUZZY
+		.set(args.gc_muzzy)
+		.expect("set GC_MUZZY from program argument");
 
 	let mut builder = Builder::new_multi_thread();
 	builder
@@ -83,21 +93,19 @@ fn enable_histogram(builder: &mut Builder, args: &Args) {
 	),
 )]
 fn thread_start() {
-	if WORKER_AFFINITY
-		.get()
-		.copied()
-		.expect("WORKER_AFFINITY initialized by runtime::new()")
-	{
+	debug_assert_eq!(
+		Some(WORKER_NAME),
+		thread::current().name(),
+		"tokio worker name mismatch at thread start"
+	);
+
+	if WORKER_AFFINITY.get().is_some_and(is_true!()) {
 		set_worker_affinity();
 	}
 }
 
 fn set_worker_affinity() {
 	static CORES_OCCUPIED: AtomicUsize = AtomicUsize::new(0);
-
-	if thread::current().name() != Some(WORKER_NAME) {
-		return;
-	}
 
 	let handle = tokio::runtime::Handle::current();
 	let num_workers = handle.metrics().num_workers();
@@ -111,7 +119,32 @@ fn set_worker_affinity() {
 	};
 
 	set_affinity(once(id));
+	set_worker_mallctl(id);
 }
+
+#[cfg(feature = "jemalloc")]
+fn set_worker_mallctl(id: usize) {
+	use conduwuit::alloc::je::{
+		is_affine_arena,
+		this_thread::{set_arena, set_muzzy_decay},
+	};
+
+	if is_affine_arena() {
+		set_arena(id).log_debug_err().ok();
+	}
+
+	let muzzy_option = GC_MUZZY
+		.get()
+		.expect("GC_MUZZY initialized by runtime::new()");
+
+	let muzzy_auto_disable = available_parallelism() >= DISABLE_MUZZY_THRESHOLD;
+	if matches!(muzzy_option, Some(false) | None if muzzy_auto_disable) {
+		set_muzzy_decay(-1).log_debug_err().ok();
+	}
+}
+
+#[cfg(not(feature = "jemalloc"))]
+fn set_worker_mallctl(_: usize) {}
 
 #[tracing::instrument(
 	name = "join",
@@ -157,7 +190,9 @@ fn thread_park() {
 
 fn gc_on_park() {
 	#[cfg(feature = "jemalloc")]
-	conduwuit::alloc::je::this_thread::decay().log_err().ok();
+	conduwuit::alloc::je::this_thread::decay()
+		.log_debug_err()
+		.ok();
 }
 
 #[cfg(tokio_unstable)]
