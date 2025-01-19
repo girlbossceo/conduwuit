@@ -569,7 +569,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised
-                  path: oci-image-x86_64-linux-musl-x86_64-haswell-optimised.tar.gz
+                  path: oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
                   if-no-files-found: error
                   compression-level: 0
             - name: Upload OCI image ${{ matrix.target }}-all-features to GitHub
