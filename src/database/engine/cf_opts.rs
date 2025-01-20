@@ -8,6 +8,8 @@ use rocksdb::{
 use super::descriptor::{CacheDisp, Descriptor};
 use crate::{util::map_err, Context};
 
+pub(super) const SENTINEL_COMPRESSION_LEVEL: i32 = 32767;
+
 /// Adjust options for the specific column by name. Provide the result of
 /// db_options() as the argument to this function and use the return value in
 /// the arguments to open the specific column.
@@ -45,7 +47,15 @@ fn descriptor_cf_options(
 	opts.set_compaction_pri(desc.compaction_pri);
 	opts.set_universal_compaction_options(&uc_options(&desc));
 
+	let compression_shape: Vec<_> = desc
+		.compression_shape
+		.into_iter()
+		.map(|val| (val > 0).then_some(desc.compression))
+		.map(|val| val.unwrap_or(CompressionType::None))
+		.collect();
+
 	opts.set_compression_type(desc.compression);
+	opts.set_compression_per_level(compression_shape.as_slice());
 	opts.set_compression_options(-14, desc.compression_level, 0, 0); // -14 w_bits used by zlib.
 	if let Some(&bottommost_level) = desc.bottommost_level.as_ref() {
 		opts.set_bottommost_compression_type(desc.compression);
@@ -95,10 +105,24 @@ fn set_compression(desc: &mut Descriptor, config: &Config) {
 		| _ => CompressionType::Zstd,
 	};
 
-	desc.compression_level = config.rocksdb_compression_level;
-	desc.bottommost_level = config
-		.rocksdb_bottommost_compression
-		.then_some(config.rocksdb_bottommost_compression_level);
+	let can_override_level = config.rocksdb_compression_level == SENTINEL_COMPRESSION_LEVEL
+		&& desc.compression == CompressionType::Zstd;
+
+	if !can_override_level {
+		desc.compression_level = config.rocksdb_compression_level;
+	}
+
+	let can_override_bottom = config.rocksdb_bottommost_compression_level
+		== SENTINEL_COMPRESSION_LEVEL
+		&& desc.compression == CompressionType::Zstd;
+
+	if !can_override_bottom {
+		desc.bottommost_level = Some(config.rocksdb_bottommost_compression_level);
+	}
+
+	if !config.rocksdb_bottommost_compression {
+		desc.bottommost_level = None;
+	}
 }
 
 fn uc_options(desc: &Descriptor) -> UniversalCompactOptions {

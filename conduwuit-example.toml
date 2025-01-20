@@ -818,6 +818,9 @@
 # magic number and translated to the library's default compression level
 # as they all differ. See their `kDefaultCompressionLevel`.
 #
+# Note when using the default value we may override it with a setting
+# tailored specifically conduwuit.
+#
 #rocksdb_compression_level = 32767
 
 # Level of compression the specified compression algorithm for the
@@ -831,6 +834,9 @@
 # less likely for this data to be used. Research your chosen compression
 # algorithm.
 #
+# Note when using the default value we may override it with a setting
+# tailored specifically conduwuit.
+#
 #rocksdb_bottommost_compression_level = 32767
 
 # Whether to enable RocksDB's "bottommost_compression".
@@ -842,7 +848,7 @@
 #
 # See https://github.com/facebook/rocksdb/wiki/Compression for more details.
 #
-#rocksdb_bottommost_compression = false
+#rocksdb_bottommost_compression = true
 
 # Database recovery mode (for RocksDB WAL corruption).
 #

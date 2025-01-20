@@ -958,6 +958,9 @@ pub struct Config {
 	/// magic number and translated to the library's default compression level
 	/// as they all differ. See their `kDefaultCompressionLevel`.
 	///
+	/// Note when using the default value we may override it with a setting
+	/// tailored specifically conduwuit.
+	///
 	/// default: 32767
 	#[serde(default = "default_rocksdb_compression_level")]
 	pub rocksdb_compression_level: i32,
@@ -973,6 +976,9 @@ pub struct Config {
 	/// less likely for this data to be used. Research your chosen compression
 	/// algorithm.
 	///
+	/// Note when using the default value we may override it with a setting
+	/// tailored specifically conduwuit.
+	///
 	/// default: 32767
 	#[serde(default = "default_rocksdb_bottommost_compression_level")]
 	pub rocksdb_bottommost_compression_level: i32,
@@ -985,7 +991,7 @@ pub struct Config {
 	/// if you're trying to reduce storage usage from the database.
 	///
 	/// See https://github.com/facebook/rocksdb/wiki/Compression for more details.
-	#[serde(default)]
+	#[serde(default = "true_fn")]
 	pub rocksdb_bottommost_compression: bool,
 
 	/// Database recovery mode (for RocksDB WAL corruption).

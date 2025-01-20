@@ -4,6 +4,8 @@ use rocksdb::{
 	DBCompressionType as CompressionType,
 };
 
+use super::cf_opts::SENTINEL_COMPRESSION_LEVEL;
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum CacheDisp {
 	Unique,
@@ -32,6 +34,7 @@ pub(crate) struct Descriptor {
 	pub(crate) compaction: CompactionStyle,
 	pub(crate) compaction_pri: CompactionPri,
 	pub(crate) compression: CompressionType,
+	pub(crate) compression_shape: [i32; 7],
 	pub(crate) compression_level: i32,
 	pub(crate) bottommost_level: Option<i32>,
 	pub(crate) block_index_hashing: Option<bool>,
@@ -58,8 +61,9 @@ pub(crate) static BASE: Descriptor = Descriptor {
 	compaction: CompactionStyle::Level,
 	compaction_pri: CompactionPri::MinOverlappingRatio,
 	compression: CompressionType::Zstd,
-	compression_level: 32767,
-	bottommost_level: Some(32767),
+	compression_shape: [0, 0, 0, 1, 1, 1, 1],
+	compression_level: SENTINEL_COMPRESSION_LEVEL,
+	bottommost_level: Some(SENTINEL_COMPRESSION_LEVEL),
 	block_index_hashing: None,
 	cache_shards: 64,
 };
@@ -68,6 +72,8 @@ pub(crate) static RANDOM: Descriptor = Descriptor {
 	compaction_pri: CompactionPri::OldestSmallestSeqFirst,
 	write_size: 1024 * 1024 * 32,
 	cache_shards: 128,
+	compression_level: -3,
+	bottommost_level: Some(4),
 	..BASE
 };
 
@@ -77,6 +83,9 @@ pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	level_size: 1024 * 1024 * 32,
 	file_size: 1024 * 1024 * 2,
 	cache_shards: 128,
+	compression_level: -1,
+	bottommost_level: Some(6),
+	compression_shape: [0, 0, 1, 1, 1, 1, 1],
 	..BASE
 };
 
@@ -88,6 +97,9 @@ pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	index_size: 512,
 	block_size: 512,
 	cache_shards: 64,
+	compression_level: -4,
+	bottommost_level: Some(1),
+	compression_shape: [0, 0, 0, 0, 0, 1, 1],
 	..RANDOM
 };
 
@@ -99,5 +111,8 @@ pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	block_size: 512,
 	cache_shards: 64,
 	block_index_hashing: Some(false),
+	compression_level: -2,
+	bottommost_level: Some(4),
+	compression_shape: [0, 0, 0, 0, 1, 1, 1],
 	..SEQUENTIAL
 };
