@@ -6,10 +6,10 @@ use std::{
 
 use conduwuit::{
 	debug, err, implement,
-	utils::stream::{automatic_width, IterStream, ReadyExt, WidebandExt},
+	utils::stream::{automatic_width, IterStream, ReadyExt, TryWidebandExt, WidebandExt},
 	Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
 	state_res::{self, StateMap},
 	OwnedEventId, RoomId, RoomVersionId,
@@ -40,20 +40,24 @@ pub async fn resolve_state(
 		.await?;
 
 	let fork_states = [current_state_ids, incoming_state];
-	let mut auth_chain_sets = Vec::with_capacity(fork_states.len());
-	for state in &fork_states {
-		let starting_events = state.values().map(Borrow::borrow);
+	let auth_chain_sets: Vec<HashSet<OwnedEventId>> = fork_states
+		.iter()
+		.try_stream()
+		.wide_and_then(|state| async move {
+			let starting_events = state.values().map(Borrow::borrow);
 
-		let auth_chain: HashSet<OwnedEventId> = self
-			.services
-			.auth_chain
-			.get_event_ids(room_id, starting_events)
-			.await?
-			.into_iter()
-			.collect();
+			let auth_chain = self
+				.services
+				.auth_chain
+				.get_event_ids(room_id, starting_events)
+				.await?
+				.into_iter()
+				.collect();
 
-		auth_chain_sets.push(auth_chain);
-	}
+			Ok(auth_chain)
+		})
+		.try_collect()
+		.await?;
 
 	debug!("Loading fork states");
 	let fork_states: Vec<StateMap<OwnedEventId>> = fork_states
