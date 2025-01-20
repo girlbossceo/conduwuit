@@ -34,11 +34,15 @@ pub(crate) struct Descriptor {
 	pub(crate) compaction: CompactionStyle,
 	pub(crate) compaction_pri: CompactionPri,
 	pub(crate) compression: CompressionType,
+	pub(crate) compressed_index: bool,
 	pub(crate) compression_shape: [i32; 7],
 	pub(crate) compression_level: i32,
 	pub(crate) bottommost_level: Option<i32>,
 	pub(crate) block_index_hashing: Option<bool>,
 	pub(crate) cache_shards: u32,
+	pub(crate) auto_readahead_thresh: u32,
+	pub(crate) auto_readahead_init: usize,
+	pub(crate) auto_readahead_max: usize,
 }
 
 pub(crate) static BASE: Descriptor = Descriptor {
@@ -61,11 +65,15 @@ pub(crate) static BASE: Descriptor = Descriptor {
 	compaction: CompactionStyle::Level,
 	compaction_pri: CompactionPri::MinOverlappingRatio,
 	compression: CompressionType::Zstd,
+	compressed_index: true,
 	compression_shape: [0, 0, 0, 1, 1, 1, 1],
 	compression_level: SENTINEL_COMPRESSION_LEVEL,
 	bottommost_level: Some(SENTINEL_COMPRESSION_LEVEL),
 	block_index_hashing: None,
 	cache_shards: 64,
+	auto_readahead_thresh: 0,
+	auto_readahead_init: 1024 * 16,
+	auto_readahead_max: 1024 * 1024 * 2,
 };
 
 pub(crate) static RANDOM: Descriptor = Descriptor {
@@ -74,6 +82,7 @@ pub(crate) static RANDOM: Descriptor = Descriptor {
 	cache_shards: 128,
 	compression_level: -3,
 	bottommost_level: Some(4),
+	compressed_index: true,
 	..BASE
 };
 
@@ -86,6 +95,7 @@ pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	compression_level: -1,
 	bottommost_level: Some(6),
 	compression_shape: [0, 0, 1, 1, 1, 1, 1],
+	compressed_index: false,
 	..BASE
 };
 
@@ -100,6 +110,7 @@ pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	compression_level: -4,
 	bottommost_level: Some(1),
 	compression_shape: [0, 0, 0, 0, 0, 1, 1],
+	compressed_index: false,
 	..RANDOM
 };
 
@@ -114,5 +125,6 @@ pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	compression_level: -2,
 	bottommost_level: Some(4),
 	compression_shape: [0, 0, 0, 0, 1, 1, 1],
+	compressed_index: false,
 	..SEQUENTIAL
 };

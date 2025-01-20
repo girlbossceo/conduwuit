@@ -83,11 +83,17 @@ fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache
 		table.disable_cache();
 	}
 
-	opts.set_options_from_string(
-		"{{block_based_table_factory={num_file_reads_for_auto_readahead=0;\
-		 max_auto_readahead_size=524288;initial_auto_readahead_size=16384}}}",
-	)
-	.map_err(map_err)?;
+	let string = format!(
+		"{{block_based_table_factory={{num_file_reads_for_auto_readahead={0};\
+		 max_auto_readahead_size={1};initial_auto_readahead_size={2};\
+		 enable_index_compression={3}}}}}",
+		desc.auto_readahead_thresh,
+		desc.auto_readahead_max,
+		desc.auto_readahead_init,
+		desc.compressed_index,
+	);
+
+	opts.set_options_from_string(&string).map_err(map_err)?;
 
 	opts.set_block_based_table_factory(&table);
 
