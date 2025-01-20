@@ -57,6 +57,14 @@ macro_rules! extract_variant {
 	};
 }
 
+/// Functor for !is_empty()
+#[macro_export]
+macro_rules! is_not_empty {
+	() => {
+		|x| !x.is_empty()
+	};
+}
+
 #[macro_export]
 macro_rules! apply {
 	(1, $($idx:tt)+) => {
@@ -76,24 +84,35 @@ macro_rules! apply {
 	};
 }
 
+/// Functor for truthy
 #[macro_export]
-macro_rules! at {
-	($idx:tt) => {
-		|t| t.$idx
+macro_rules! is_true {
+	() => {
+		|x| !!x
 	};
 }
 
+/// Functor for falsy
 #[macro_export]
-macro_rules! ref_at {
-	($idx:tt) => {
-		|ref t| &t.$idx
+macro_rules! is_false {
+	() => {
+		|x| !x
 	};
 }
 
+/// Functor for equality to non-zero
 #[macro_export]
-macro_rules! deref_at {
-	($idx:tt) => {
-		|t| *t.$idx
+macro_rules! is_nonzero {
+	() => {
+		|x| x != 0
+	};
+}
+
+/// Functor for equality to zero
+#[macro_export]
+macro_rules! is_zero {
+	() => {
+		$crate::is_matching!(0)
 	};
 }
 
@@ -121,14 +140,6 @@ macro_rules! is_less_than {
 	};
 }
 
-/// Functor for equality to zero
-#[macro_export]
-macro_rules! is_zero {
-	() => {
-		$crate::is_matching!(0)
-	};
-}
-
 /// Functor for matches! i.e. .is_some_and(is_matching!('A'..='Z'))
 #[macro_export]
 macro_rules! is_matching {
@@ -141,14 +152,6 @@ macro_rules! is_matching {
 	};
 }
 
-/// Functor for !is_empty()
-#[macro_export]
-macro_rules! is_not_empty {
-	() => {
-		|x| !x.is_empty()
-	};
-}
-
 /// Functor for equality i.e. (a, b).map(is_equal!())
 #[macro_export]
 macro_rules! is_equal {
@@ -157,18 +160,34 @@ macro_rules! is_equal {
 	};
 }
 
-/// Functor for truthy
+/// Functor for |x| *x.$i
 #[macro_export]
-macro_rules! is_true {
-	() => {
-		|x| !!x
+macro_rules! deref_at {
+	($idx:tt) => {
+		|t| *t.$idx
 	};
 }
 
-/// Functor for falsy
+/// Functor for |ref x| x.$i
 #[macro_export]
-macro_rules! is_false {
-	() => {
-		|x| !x
+macro_rules! ref_at {
+	($idx:tt) => {
+		|ref t| &t.$idx
+	};
+}
+
+/// Functor for |&x| x.$i
+#[macro_export]
+macro_rules! val_at {
+	($idx:tt) => {
+		|&t| t.$idx
+	};
+}
+
+/// Functor for |x| x.$i
+#[macro_export]
+macro_rules! at {
+	($idx:tt) => {
+		|t| t.$idx
 	};
 }
