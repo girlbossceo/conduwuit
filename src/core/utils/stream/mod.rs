@@ -9,6 +9,7 @@ mod tools;
 mod try_broadband;
 mod try_ready;
 mod try_tools;
+mod try_wideband;
 mod wideband;
 
 pub use band::{
@@ -25,4 +26,5 @@ pub use tools::Tools;
 pub use try_broadband::TryBroadbandExt;
 pub use try_ready::TryReadyExt;
 pub use try_tools::TryTools;
+pub use try_wideband::TryWidebandExt;
 pub use wideband::WidebandExt;
