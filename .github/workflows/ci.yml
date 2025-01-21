@@ -306,6 +306,8 @@ jobs:
                   echo "Checking connection"
                   ssh -q website "echo test"
 
+                  echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
+
             - uses: nixbuild/nix-quick-install-action@master
 
             - name: Restore and cache Nix store
@@ -489,7 +491,7 @@ jobs:
             - name: Upload static-x86_64-linux-musl-all-features-x86_64-haswell-optimised to webserver
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x static-x86_64-linux-musl-x86_64-haswell-optimised
                     scp static-x86_64-linux-musl-x86_64-haswell-optimised website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-x86_64-linux-musl-x86_64-haswell-optimised
                   fi
@@ -497,7 +499,7 @@ jobs:
             - name: Upload static-${{ matrix.target }}-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x static-${{ matrix.target }}
                     scp static-${{ matrix.target }} website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-${{ matrix.target }}
                   fi
@@ -505,14 +507,14 @@ jobs:
             - name: Upload static deb x86_64-linux-musl-all-features-x86_64-haswell-optimised to webserver
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     scp x86_64-linux-musl-x86_64-haswell-optimised.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/x86_64-linux-musl-x86_64-haswell-optimised.deb
                   fi
 
             - name: Upload static deb ${{ matrix.target }}-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     scp ${{ matrix.target }}.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/${{ matrix.target }}.deb
                   fi
 
@@ -534,14 +536,14 @@ jobs:
             - name: Upload static-${{ matrix.target }}-debug-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     scp static-${{ matrix.target }}-debug website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-${{ matrix.target }}-debug
                   fi
 
             - name: Upload static deb ${{ matrix.target }}-debug-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE]; then
                     scp ${{ matrix.target }}-debug.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/${{ matrix.target }}-debug.deb
                   fi
 
@@ -583,21 +585,21 @@ jobs:
             - name: Upload OCI image x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz to webserver
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     scp oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
                   fi
 
             - name: Upload OCI image ${{ matrix.target }}-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     scp oci-image-${{ matrix.target }}.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-${{ matrix.target }}.tar.gz
                   fi
 
             - name: Upload OCI image ${{ matrix.target }}-debug-all-features to webserver
               if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     scp oci-image-${{ matrix.target }}-debug.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-${{ matrix.target }}-debug.tar.gz
                   fi
 
@@ -693,7 +695,7 @@ jobs:
             - name: Upload macOS x86_64 binary to webserver
               if: ${{ matrix.os == 'macos-13' }}
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x conduwuit-macos-x86_64
                     scp conduwuit-macos-x86_64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/conduwuit-macos-x86_64
                   fi
@@ -701,7 +703,7 @@ jobs:
             - name: Upload macOS arm64 binary to webserver
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
-                  if [ ! -z $WEB_UPLOAD_SSH_USERNAME ]; then
+                  if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x conduwuit-macos-arm64
                     scp conduwuit-macos-arm64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/conduwuit-macos-arm64
                   fi
