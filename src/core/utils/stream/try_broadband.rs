@@ -18,7 +18,7 @@ where
 	) -> impl TryStream<Ok = U, Error = E, Item = Result<U, E>> + Send
 	where
 		N: Into<Option<usize>>,
-		F: Fn(Self::Ok) -> Fut + Send + Sync,
+		F: Fn(Self::Ok) -> Fut + Send,
 		Fut: TryFuture<Ok = U, Error = E, Output = Result<U, E>> + Send;
 
 	fn broad_and_then<U, F, Fut>(
@@ -26,7 +26,7 @@ where
 		f: F,
 	) -> impl TryStream<Ok = U, Error = E, Item = Result<U, E>> + Send
 	where
-		F: Fn(Self::Ok) -> Fut + Send + Sync,
+		F: Fn(Self::Ok) -> Fut + Send,
 		Fut: TryFuture<Ok = U, Error = E, Output = Result<U, E>> + Send,
 	{
 		self.broadn_and_then(None, f)
@@ -44,7 +44,7 @@ where
 	) -> impl TryStream<Ok = U, Error = E, Item = Result<U, E>> + Send
 	where
 		N: Into<Option<usize>>,
-		F: Fn(Self::Ok) -> Fut + Send + Sync,
+		F: Fn(Self::Ok) -> Fut + Send,
 		Fut: TryFuture<Ok = U, Error = E, Output = Result<U, E>> + Send,
 	{
 		self.map_ok(f)
