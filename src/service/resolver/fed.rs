@@ -6,8 +6,9 @@ use std::{
 
 use arrayvec::ArrayString;
 use conduwuit::utils::math::Expected;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum FedDest {
 	Literal(SocketAddr),
 	Named(String, PortString),

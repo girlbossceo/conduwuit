@@ -222,7 +222,15 @@ pub(super) static MAPS: &[Descriptor] = &[
 		..descriptor::RANDOM_SMALL
 	},
 	Descriptor {
+		name: "servername_destination",
+		..descriptor::RANDOM_SMALL
+	},
+	Descriptor {
 		name: "servername_educount",
+		..descriptor::RANDOM_SMALL
+	},
+	Descriptor {
+		name: "servername_override",
 		..descriptor::RANDOM_SMALL
 	},
 	Descriptor {

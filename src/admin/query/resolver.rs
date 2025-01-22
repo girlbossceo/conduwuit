@@ -1,7 +1,6 @@
-use std::fmt::Write;
-
 use clap::Subcommand;
 use conduwuit::{utils::time, Result};
+use futures::StreamExt;
 use ruma::{events::room::message::RoomMessageEventContent, OwnedServerName};
 
 use crate::{admin_command, admin_command_dispatch};
@@ -31,29 +30,19 @@ async fn destinations_cache(
 	writeln!(self, "| Server Name | Destination | Hostname | Expires |").await?;
 	writeln!(self, "| ----------- | ----------- | -------- | ------- |").await?;
 
-	let mut out = String::new();
-	{
-		let map = self
-			.services
-			.resolver
-			.cache
-			.destinations
-			.read()
-			.expect("locked");
+	let mut destinations = self.services.resolver.cache.destinations().boxed();
 
-		for (name, &CachedDest { ref dest, ref host, expire }) in map.iter() {
-			if let Some(server_name) = server_name.as_ref() {
-				if name != server_name {
-					continue;
-				}
+	while let Some((name, CachedDest { dest, host, expire })) = destinations.next().await {
+		if let Some(server_name) = server_name.as_ref() {
+			if name != server_name {
+				continue;
 			}
-
-			let expire = time::format(expire, "%+");
-			writeln!(out, "| {name} | {dest} | {host} | {expire} |")?;
 		}
-	}
 
-	self.write_str(out.as_str()).await?;
+		let expire = time::format(expire, "%+");
+		self.write_str(&format!("| {name} | {dest} | {host} | {expire} |\n"))
+			.await?;
+	}
 
 	Ok(RoomMessageEventContent::notice_plain(""))
 }
@@ -65,29 +54,19 @@ async fn overrides_cache(&self, server_name: Option<String>) -> Result<RoomMessa
 	writeln!(self, "| Server Name | IP  | Port | Expires |").await?;
 	writeln!(self, "| ----------- | --- | ----:| ------- |").await?;
 
-	let mut out = String::new();
-	{
-		let map = self
-			.services
-			.resolver
-			.cache
-			.overrides
-			.read()
-			.expect("locked");
+	let mut overrides = self.services.resolver.cache.overrides().boxed();
 
-		for (name, &CachedOverride { ref ips, port, expire }) in map.iter() {
-			if let Some(server_name) = server_name.as_ref() {
-				if name != server_name {
-					continue;
-				}
+	while let Some((name, CachedOverride { ips, port, expire })) = overrides.next().await {
+		if let Some(server_name) = server_name.as_ref() {
+			if name != server_name {
+				continue;
 			}
-
-			let expire = time::format(expire, "%+");
-			writeln!(out, "| {name} | {ips:?} | {port} | {expire} |")?;
 		}
-	}
 
-	self.write_str(out.as_str()).await?;
+		let expire = time::format(expire, "%+");
+		self.write_str(&format!("| {name} | {ips:?} | {port} | {expire} |\n"))
+			.await?;
+	}
 
 	Ok(RoomMessageEventContent::notice_plain(""))
 }

@@ -1,108 +1,103 @@
-use std::{
-	collections::HashMap,
-	net::IpAddr,
-	sync::{Arc, RwLock},
-	time::SystemTime,
-};
+use std::{net::IpAddr, sync::Arc, time::SystemTime};
 
 use arrayvec::ArrayVec;
 use conduwuit::{
-	trace,
-	utils::{math::Expected, rand},
+	at, implement,
+	utils::{math::Expected, rand, stream::TryIgnore},
+	Result,
 };
-use ruma::{OwnedServerName, ServerName};
+use database::{Cbor, Deserialized, Map};
+use futures::{Stream, StreamExt};
+use ruma::ServerName;
+use serde::{Deserialize, Serialize};
 
 use super::fed::FedDest;
 
 pub struct Cache {
-	pub destinations: RwLock<WellKnownMap>, // actual_destination, host
-	pub overrides: RwLock<TlsNameMap>,
+	destinations: Arc<Map>,
+	overrides: Arc<Map>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CachedDest {
 	pub dest: FedDest,
 	pub host: String,
 	pub expire: SystemTime,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CachedOverride {
 	pub ips: IpAddrs,
 	pub port: u16,
 	pub expire: SystemTime,
 }
 
-pub type WellKnownMap = HashMap<OwnedServerName, CachedDest>;
-pub type TlsNameMap = HashMap<String, CachedOverride>;
-
 pub type IpAddrs = ArrayVec<IpAddr, MAX_IPS>;
 pub(crate) const MAX_IPS: usize = 3;
 
 impl Cache {
-	pub(super) fn new() -> Arc<Self> {
+	pub(super) fn new(args: &crate::Args<'_>) -> Arc<Self> {
 		Arc::new(Self {
-			destinations: RwLock::new(WellKnownMap::new()),
-			overrides: RwLock::new(TlsNameMap::new()),
+			destinations: args.db["servername_destination"].clone(),
+			overrides: args.db["servername_override"].clone(),
 		})
 	}
 }
 
-impl super::Service {
-	pub fn set_cached_destination(
-		&self,
-		name: OwnedServerName,
-		dest: CachedDest,
-	) -> Option<CachedDest> {
-		trace!(?name, ?dest, "set cached destination");
-		self.cache
-			.destinations
-			.write()
-			.expect("locked for writing")
-			.insert(name, dest)
-	}
+#[implement(Cache)]
+pub fn set_destination(&self, name: &ServerName, dest: CachedDest) {
+	self.destinations.raw_put(name, Cbor(dest));
+}
 
-	#[must_use]
-	pub fn get_cached_destination(&self, name: &ServerName) -> Option<CachedDest> {
-		self.cache
-			.destinations
-			.read()
-			.expect("locked for reading")
-			.get(name)
-			.cloned()
-	}
+#[implement(Cache)]
+pub fn set_override(&self, name: &str, over: CachedOverride) {
+	self.overrides.raw_put(name, Cbor(over));
+}
 
-	pub fn set_cached_override(
-		&self,
-		name: &str,
-		over: CachedOverride,
-	) -> Option<CachedOverride> {
-		trace!(?name, ?over, "set cached override");
-		self.cache
-			.overrides
-			.write()
-			.expect("locked for writing")
-			.insert(name.into(), over)
-	}
+#[implement(Cache)]
+pub async fn get_destination(&self, name: &ServerName) -> Result<CachedDest> {
+	self.destinations
+		.get(name)
+		.await
+		.deserialized::<Cbor<_>>()
+		.map(at!(0))
+}
 
-	#[must_use]
-	pub fn get_cached_override(&self, name: &str) -> Option<CachedOverride> {
-		self.cache
-			.overrides
-			.read()
-			.expect("locked for reading")
-			.get(name)
-			.cloned()
-	}
+#[implement(Cache)]
+pub async fn get_override(&self, name: &str) -> Result<CachedOverride> {
+	self.overrides
+		.get(name)
+		.await
+		.deserialized::<Cbor<_>>()
+		.map(at!(0))
+}
 
-	#[must_use]
-	pub fn has_cached_override(&self, name: &str) -> bool {
-		self.cache
-			.overrides
-			.read()
-			.expect("locked for reading")
-			.contains_key(name)
-	}
+#[implement(Cache)]
+#[must_use]
+pub async fn has_destination(&self, destination: &str) -> bool {
+	self.destinations.exists(destination).await.is_ok()
+}
+
+#[implement(Cache)]
+#[must_use]
+pub async fn has_override(&self, destination: &str) -> bool {
+	self.overrides.exists(destination).await.is_ok()
+}
+
+#[implement(Cache)]
+pub fn destinations(&self) -> impl Stream<Item = (&ServerName, CachedDest)> + Send + '_ {
+	self.destinations
+		.stream()
+		.ignore_err()
+		.map(|item: (&ServerName, Cbor<_>)| (item.0, item.1 .0))
+}
+
+#[implement(Cache)]
+pub fn overrides(&self) -> impl Stream<Item = (&ServerName, CachedOverride)> + Send + '_ {
+	self.overrides
+		.stream()
+		.ignore_err()
+		.map(|item: (&ServerName, Cbor<_>)| (item.0, item.1 .0))
 }
 
 impl CachedDest {

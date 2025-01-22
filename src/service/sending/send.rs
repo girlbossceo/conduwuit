@@ -125,7 +125,7 @@ where
 	let result = T::IncomingResponse::try_from_http_response(response);
 
 	if result.is_ok() && !actual.cached {
-		resolver.set_cached_destination(dest.to_owned(), CachedDest {
+		resolver.cache.set_destination(dest, CachedDest {
 			dest: actual.dest.clone(),
 			host: actual.host.clone(),
 			expire: CachedDest::default_expire(),

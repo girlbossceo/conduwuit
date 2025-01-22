@@ -29,7 +29,7 @@ impl ActualDest {
 impl super::Service {
 	#[tracing::instrument(skip_all, level = "debug", name = "resolve")]
 	pub(crate) async fn get_actual_dest(&self, server_name: &ServerName) -> Result<ActualDest> {
-		let (result, cached) = if let Some(result) = self.get_cached_destination(server_name) {
+		let (result, cached) = if let Ok(result) = self.cache.get_destination(server_name).await {
 			(result, true)
 		} else {
 			self.validate_dest(server_name)?;
@@ -232,7 +232,7 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "well-known")]
 	async fn request_well_known(&self, dest: &str) -> Result<Option<String>> {
-		if !self.has_cached_override(dest) {
+		if !self.cache.has_override(dest).await {
 			self.query_and_cache_override(dest, dest, 8448).await?;
 		}
 
@@ -315,7 +315,7 @@ impl super::Service {
 					debug_info!("{overname:?} overriden by {hostname:?}");
 				}
 
-				self.set_cached_override(overname, CachedOverride {
+				self.cache.set_override(overname, CachedOverride {
 					ips: override_ip.into_iter().take(MAX_IPS).collect(),
 					port,
 					expire: CachedOverride::default_expire(),

@@ -88,18 +88,20 @@ impl Resolve for Resolver {
 
 impl Resolve for Hooked {
 	fn resolve(&self, name: Name) -> Resolving {
-		let cached: Option<CachedOverride> = self
-			.cache
-			.overrides
-			.read()
-			.expect("locked for reading")
-			.get(name.as_str())
-			.cloned();
+		hooked_resolve(self.cache.clone(), self.server.clone(), self.resolver.clone(), name)
+			.boxed()
+	}
+}
 
-		cached.map_or_else(
-			|| resolve_to_reqwest(self.server.clone(), self.resolver.clone(), name).boxed(),
-			|cached| cached_to_reqwest(cached).boxed(),
-		)
+async fn hooked_resolve(
+	cache: Arc<Cache>,
+	server: Arc<Server>,
+	resolver: Arc<TokioAsyncResolver>,
+	name: Name,
+) -> Result<Addrs, Box<dyn std::error::Error + Send + Sync>> {
+	match cache.get_override(name.as_str()).await {
+		| Ok(cached) => cached_to_reqwest(cached).await,
+		| Err(_) => resolve_to_reqwest(server, resolver, name).boxed().await,
 	}
 }
 
