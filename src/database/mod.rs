@@ -31,7 +31,7 @@ pub use self::{
 	handle::Handle,
 	keyval::{serialize_key, serialize_val, KeyVal, Slice},
 	map::{compact, Map},
-	ser::{serialize, serialize_to, serialize_to_vec, Interfix, Json, Separator, SEP},
+	ser::{serialize, serialize_to, serialize_to_vec, Cbor, Interfix, Json, Separator, SEP},
 };
 pub(crate) use self::{
 	engine::{context::Context, Engine},

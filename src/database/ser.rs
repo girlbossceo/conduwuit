@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use conduwuit::{debug::type_name, err, result::DebugInspect, utils::exchange, Error, Result};
-use serde::{ser, Serialize};
+use serde::{ser, Deserialize, Serialize};
 
 use crate::util::unhandled;
 
@@ -54,6 +54,10 @@ pub(crate) struct Serializer<'a, W: Write> {
 /// Newtype for JSON serialization.
 #[derive(Debug, Serialize)]
 pub struct Json<T>(pub T);
+
+/// Newtype for CBOR serialization.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Cbor<T>(pub T);
 
 /// Directive to force separator serialization specifically for prefix keying
 /// use. This is a quirk of the database schema and prefix iterations.
@@ -189,6 +193,14 @@ impl<W: Write> ser::Serializer for &mut Serializer<'_, W> {
 
 		match name {
 			| "Json" => serde_json::to_writer(&mut self.out, value).map_err(Into::into),
+			| "Cbor" => {
+				use minicbor::encode::write::Writer;
+				use minicbor_serde::Serializer;
+
+				value
+					.serialize(&mut Serializer::new(&mut Writer::new(&mut self.out)))
+					.map_err(|e| Self::Error::SerdeSer(e.to_string().into()))
+			},
 			| _ => unhandled!("Unrecognized serialization Newtype {name:?}"),
 		}
 	}
