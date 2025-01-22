@@ -33,6 +33,15 @@ pub(crate) enum RawCommand {
 		key: String,
 	},
 
+	/// - Raw database delete (for string keys)
+	RawDel {
+		/// Map name
+		map: String,
+
+		/// Key
+		key: String,
+	},
+
 	/// - Raw database keys iteration
 	RawKeys {
 		/// Map name
@@ -531,6 +540,18 @@ pub(super) async fn raw_iter_from(
 	let query_time = timer.elapsed();
 	Ok(RoomMessageEventContent::notice_markdown(format!(
 		"Query completed in {query_time:?}:\n\n```rs\n{result:#?}\n```"
+	)))
+}
+
+#[admin_command]
+pub(super) async fn raw_del(&self, map: String, key: String) -> Result<RoomMessageEventContent> {
+	let map = self.services.db.get(&map)?;
+	let timer = Instant::now();
+	map.remove(&key);
+	let query_time = timer.elapsed();
+
+	Ok(RoomMessageEventContent::notice_markdown(format!(
+		"Operation completed in {query_time:?}"
 	)))
 }
 
