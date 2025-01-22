@@ -18,7 +18,6 @@ use super::{
 pub(crate) struct ActualDest {
 	pub(crate) dest: FedDest,
 	pub(crate) host: String,
-	pub(crate) cached: bool,
 }
 
 impl ActualDest {
@@ -29,10 +28,10 @@ impl ActualDest {
 impl super::Service {
 	#[tracing::instrument(skip_all, level = "debug", name = "resolve")]
 	pub(crate) async fn get_actual_dest(&self, server_name: &ServerName) -> Result<ActualDest> {
-		let (CachedDest { dest, host, .. }, cached) =
+		let (CachedDest { dest, host, .. }, _cached) =
 			self.lookup_actual_dest(server_name).await?;
 
-		Ok(ActualDest { dest, host, cached })
+		Ok(ActualDest { dest, host })
 	}
 
 	pub(crate) async fn lookup_actual_dest(
@@ -49,6 +48,7 @@ impl super::Service {
 		}
 
 		self.resolve_actual_dest(server_name, true)
+			.inspect_ok(|result| self.cache.set_destination(server_name, result))
 			.map_ok(|result| (result, false))
 			.boxed()
 			.await
@@ -334,7 +334,7 @@ impl super::Service {
 					debug_info!("{overname:?} overriden by {hostname:?}");
 				}
 
-				self.cache.set_override(overname, CachedOverride {
+				self.cache.set_override(overname, &CachedOverride {
 					ips: override_ip.into_iter().take(MAX_IPS).collect(),
 					port,
 					expire: CachedOverride::default_expire(),

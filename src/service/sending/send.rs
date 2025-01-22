@@ -18,10 +18,7 @@ use ruma::{
 	CanonicalJsonObject, CanonicalJsonValue, ServerName, ServerSigningKeyId,
 };
 
-use crate::{
-	resolver,
-	resolver::{actual::ActualDest, cache::CachedDest},
-};
+use crate::resolver::actual::ActualDest;
 
 impl super::Service {
 	#[tracing::instrument(
@@ -73,16 +70,7 @@ impl super::Service {
 
 		debug!(?method, ?url, "Sending request");
 		match client.execute(request).await {
-			| Ok(response) =>
-				handle_response::<T>(
-					&self.services.resolver,
-					dest,
-					actual,
-					&method,
-					&url,
-					response,
-				)
-				.await,
+			| Ok(response) => handle_response::<T>(dest, actual, &method, &url, response).await,
 			| Err(error) =>
 				Err(handle_error(actual, &method, &url, error).expect_err("always returns error")),
 		}
@@ -111,7 +99,6 @@ impl super::Service {
 }
 
 async fn handle_response<T>(
-	resolver: &resolver::Service,
 	dest: &ServerName,
 	actual: &ActualDest,
 	method: &Method,
@@ -122,17 +109,9 @@ where
 	T: OutgoingRequest + Send,
 {
 	let response = into_http_response(dest, actual, method, url, response).await?;
-	let result = T::IncomingResponse::try_from_http_response(response);
 
-	if result.is_ok() && !actual.cached {
-		resolver.cache.set_destination(dest, CachedDest {
-			dest: actual.dest.clone(),
-			host: actual.host.clone(),
-			expire: CachedDest::default_expire(),
-		});
-	}
-
-	result.map_err(|e| err!(BadServerResponse("Server returned bad 200 response: {e:?}")))
+	T::IncomingResponse::try_from_http_response(response)
+		.map_err(|e| err!(BadServerResponse("Server returned bad 200 response: {e:?}")))
 }
 
 async fn into_http_response(

@@ -45,12 +45,12 @@ impl Cache {
 }
 
 #[implement(Cache)]
-pub fn set_destination(&self, name: &ServerName, dest: CachedDest) {
+pub fn set_destination(&self, name: &ServerName, dest: &CachedDest) {
 	self.destinations.raw_put(name, Cbor(dest));
 }
 
 #[implement(Cache)]
-pub fn set_override(&self, name: &str, over: CachedOverride) {
+pub fn set_override(&self, name: &str, over: &CachedOverride) {
 	self.overrides.raw_put(name, Cbor(over));
 }
 
