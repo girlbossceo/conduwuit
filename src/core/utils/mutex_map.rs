@@ -1,6 +1,12 @@
-use std::{fmt::Debug, hash::Hash, sync::Arc};
+use std::{
+	fmt::Debug,
+	hash::Hash,
+	sync::{Arc, TryLockError::WouldBlock},
+};
 
 use tokio::sync::OwnedMutexGuard as Omg;
+
+use crate::{err, Result};
 
 /// Map of Mutexes
 pub struct MutexMap<Key, Val> {
@@ -30,16 +36,17 @@ where
 	}
 
 	#[tracing::instrument(level = "trace", skip(self))]
-	pub async fn lock<K>(&self, k: &K) -> Guard<Key, Val>
+	pub async fn lock<'a, K>(&'a self, k: &'a K) -> Guard<Key, Val>
 	where
 		K: Debug + Send + ?Sized + Sync,
-		Key: for<'a> From<&'a K>,
+		Key: TryFrom<&'a K>,
+		<Key as TryFrom<&'a K>>::Error: Debug,
 	{
 		let val = self
 			.map
 			.lock()
 			.expect("locked")
-			.entry(k.into())
+			.entry(k.try_into().expect("failed to construct key"))
 			.or_default()
 			.clone();
 
@@ -47,6 +54,51 @@ where
 			map: Arc::clone(&self.map),
 			val: val.lock_owned().await,
 		}
+	}
+
+	#[tracing::instrument(level = "trace", skip(self))]
+	pub fn try_lock<'a, K>(&self, k: &'a K) -> Result<Guard<Key, Val>>
+	where
+		K: Debug + Send + ?Sized + Sync,
+		Key: TryFrom<&'a K>,
+		<Key as TryFrom<&'a K>>::Error: Debug,
+	{
+		let val = self
+			.map
+			.lock()
+			.expect("locked")
+			.entry(k.try_into().expect("failed to construct key"))
+			.or_default()
+			.clone();
+
+		Ok(Guard::<Key, Val> {
+			map: Arc::clone(&self.map),
+			val: val.try_lock_owned().map_err(|_| err!("would yield"))?,
+		})
+	}
+
+	#[tracing::instrument(level = "trace", skip(self))]
+	pub fn try_try_lock<'a, K>(&self, k: &'a K) -> Result<Guard<Key, Val>>
+	where
+		K: Debug + Send + ?Sized + Sync,
+		Key: TryFrom<&'a K>,
+		<Key as TryFrom<&'a K>>::Error: Debug,
+	{
+		let val = self
+			.map
+			.try_lock()
+			.map_err(|e| match e {
+				| WouldBlock => err!("would block"),
+				| _ => panic!("{e:?}"),
+			})?
+			.entry(k.try_into().expect("failed to construct key"))
+			.or_default()
+			.clone();
+
+		Ok(Guard::<Key, Val> {
+			map: Arc::clone(&self.map),
+			val: val.try_lock_owned().map_err(|_| err!("would yield"))?,
+		})
 	}
 
 	#[must_use]

@@ -725,7 +725,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.save_state(room_id.clone().as_ref(), new_room_state)
 		.await?;
 
-	let state_lock = self.services.rooms.state.mutex.lock(&room_id).await;
+	let state_lock = self.services.rooms.state.mutex.lock(&*room_id).await;
 	self.services
 		.rooms
 		.state
