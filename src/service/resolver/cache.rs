@@ -2,7 +2,7 @@ use std::{net::IpAddr, sync::Arc, time::SystemTime};
 
 use arrayvec::ArrayVec;
 use conduwuit::{
-	at, implement,
+	at, err, implement,
 	utils::{math::Expected, rand, stream::TryIgnore},
 	Result,
 };
@@ -55,12 +55,27 @@ pub fn set_override(&self, name: &str, over: &CachedOverride) {
 }
 
 #[implement(Cache)]
+#[must_use]
+pub async fn has_destination(&self, destination: &ServerName) -> bool {
+	self.get_destination(destination).await.is_ok()
+}
+
+#[implement(Cache)]
+#[must_use]
+pub async fn has_override(&self, destination: &str) -> bool {
+	self.get_override(destination).await.is_ok()
+}
+
+#[implement(Cache)]
 pub async fn get_destination(&self, name: &ServerName) -> Result<CachedDest> {
 	self.destinations
 		.get(name)
 		.await
 		.deserialized::<Cbor<_>>()
 		.map(at!(0))
+		.into_iter()
+		.find(CachedDest::valid)
+		.ok_or(err!(Request(NotFound("Expired from cache"))))
 }
 
 #[implement(Cache)]
@@ -70,18 +85,9 @@ pub async fn get_override(&self, name: &str) -> Result<CachedOverride> {
 		.await
 		.deserialized::<Cbor<_>>()
 		.map(at!(0))
-}
-
-#[implement(Cache)]
-#[must_use]
-pub async fn has_destination(&self, destination: &str) -> bool {
-	self.destinations.exists(destination).await.is_ok()
-}
-
-#[implement(Cache)]
-#[must_use]
-pub async fn has_override(&self, destination: &str) -> bool {
-	self.overrides.exists(destination).await.is_ok()
+		.into_iter()
+		.find(CachedOverride::valid)
+		.ok_or(err!(Request(NotFound("Expired from cache"))))
 }
 
 #[implement(Cache)]
@@ -103,13 +109,11 @@ pub fn overrides(&self) -> impl Stream<Item = (&ServerName, CachedOverride)> + S
 impl CachedDest {
 	#[inline]
 	#[must_use]
-	pub fn valid(&self) -> bool { true }
-
-	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+	pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
 
 	#[must_use]
 	pub(crate) fn default_expire() -> SystemTime {
-		rand::timepoint_secs(60 * 60 * 18..60 * 60 * 36)
+		rand::time_from_now_secs(60 * 60 * 18..60 * 60 * 36)
 	}
 
 	#[inline]
@@ -125,13 +129,11 @@ impl CachedDest {
 impl CachedOverride {
 	#[inline]
 	#[must_use]
-	pub fn valid(&self) -> bool { true }
-
-	//pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
+	pub fn valid(&self) -> bool { self.expire > SystemTime::now() }
 
 	#[must_use]
 	pub(crate) fn default_expire() -> SystemTime {
-		rand::timepoint_secs(60 * 60 * 6..60 * 60 * 12)
+		rand::time_from_now_secs(60 * 60 * 6..60 * 60 * 12)
 	}
 
 	#[inline]

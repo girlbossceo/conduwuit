@@ -33,7 +33,7 @@ pub fn string_array<const LENGTH: usize>() -> ArrayString<LENGTH> {
 
 #[inline]
 #[must_use]
-pub fn timepoint_secs(range: Range<u64>) -> SystemTime {
+pub fn time_from_now_secs(range: Range<u64>) -> SystemTime {
 	SystemTime::now()
 		.checked_add(secs(range))
 		.expect("range does not overflow SystemTime")
