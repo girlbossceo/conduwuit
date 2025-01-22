@@ -30,6 +30,7 @@ pub struct CachedOverride {
 	pub ips: IpAddrs,
 	pub port: u16,
 	pub expire: SystemTime,
+	pub overriding: Option<String>,
 }
 
 pub type IpAddrs = ArrayVec<IpAddr, MAX_IPS>;
@@ -63,7 +64,10 @@ pub async fn has_destination(&self, destination: &ServerName) -> bool {
 #[implement(Cache)]
 #[must_use]
 pub async fn has_override(&self, destination: &str) -> bool {
-	self.get_override(destination).await.is_ok()
+	self.get_override(destination)
+		.await
+		.iter()
+		.any(CachedOverride::valid)
 }
 
 #[implement(Cache)]
@@ -85,9 +89,6 @@ pub async fn get_override(&self, name: &str) -> Result<CachedOverride> {
 		.await
 		.deserialized::<Cbor<_>>()
 		.map(at!(0))
-		.into_iter()
-		.find(CachedOverride::valid)
-		.ok_or(err!(Request(NotFound("Expired from cache"))))
 }
 
 #[implement(Cache)]

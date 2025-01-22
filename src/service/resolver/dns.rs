@@ -93,6 +93,11 @@ impl Resolve for Hooked {
 	}
 }
 
+#[tracing::instrument(
+	level = "debug",
+	skip_all,
+	fields(name = ?name.as_str())
+)]
 async fn hooked_resolve(
 	cache: Arc<Cache>,
 	server: Arc<Server>,
@@ -100,8 +105,21 @@ async fn hooked_resolve(
 	name: Name,
 ) -> Result<Addrs, Box<dyn std::error::Error + Send + Sync>> {
 	match cache.get_override(name.as_str()).await {
-		| Ok(cached) => cached_to_reqwest(cached).await,
-		| Err(_) => resolve_to_reqwest(server, resolver, name).boxed().await,
+		| Ok(cached) if cached.valid() => cached_to_reqwest(cached).await,
+		| Ok(CachedOverride { overriding, .. }) if overriding.is_some() =>
+			resolve_to_reqwest(
+				server,
+				resolver,
+				overriding
+					.as_deref()
+					.map(str::parse)
+					.expect("overriding is set for this record")
+					.expect("overriding is a valid internet name"),
+			)
+			.boxed()
+			.await,
+
+		| _ => resolve_to_reqwest(server, resolver, name).boxed().await,
 	}
 }
 

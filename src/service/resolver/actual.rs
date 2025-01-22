@@ -112,13 +112,8 @@ impl super::Service {
 	async fn actual_dest_2(&self, dest: &ServerName, cache: bool, pos: usize) -> Result<FedDest> {
 		debug!("2: Hostname with included port");
 		let (host, port) = dest.as_str().split_at(pos);
-		self.conditional_query_and_cache_override(
-			host,
-			host,
-			port.parse::<u16>().unwrap_or(8448),
-			cache,
-		)
-		.await?;
+		self.conditional_query_and_cache(host, port.parse::<u16>().unwrap_or(8448), cache)
+			.await?;
 
 		Ok(FedDest::Named(
 			host.to_owned(),
@@ -163,13 +158,8 @@ impl super::Service {
 	) -> Result<FedDest> {
 		debug!("3.2: Hostname with port in .well-known file");
 		let (host, port) = delegated.split_at(pos);
-		self.conditional_query_and_cache_override(
-			host,
-			host,
-			port.parse::<u16>().unwrap_or(8448),
-			cache,
-		)
-		.await?;
+		self.conditional_query_and_cache(host, port.parse::<u16>().unwrap_or(8448), cache)
+			.await?;
 
 		Ok(FedDest::Named(
 			host.to_owned(),
@@ -208,7 +198,7 @@ impl super::Service {
 
 	async fn actual_dest_3_4(&self, cache: bool, delegated: String) -> Result<FedDest> {
 		debug!("3.4: No SRV records, just use the hostname from .well-known");
-		self.conditional_query_and_cache_override(&delegated, &delegated, 8448, cache)
+		self.conditional_query_and_cache(&delegated, 8448, cache)
 			.await?;
 		Ok(add_port_to_hostname(&delegated))
 	}
@@ -243,7 +233,7 @@ impl super::Service {
 
 	async fn actual_dest_5(&self, dest: &ServerName, cache: bool) -> Result<FedDest> {
 		debug!("5: No SRV record found");
-		self.conditional_query_and_cache_override(dest.as_str(), dest.as_str(), 8448, cache)
+		self.conditional_query_and_cache(dest.as_str(), 8448, cache)
 			.await?;
 
 		Ok(add_port_to_hostname(dest.as_str()))
@@ -251,9 +241,7 @@ impl super::Service {
 
 	#[tracing::instrument(skip_all, name = "well-known")]
 	async fn request_well_known(&self, dest: &str) -> Result<Option<String>> {
-		if !self.cache.has_override(dest).await {
-			self.query_and_cache_override(dest, dest, 8448).await?;
-		}
+		self.conditional_query_and_cache(dest, 8448, true).await?;
 
 		self.services.server.check_running()?;
 		trace!("Requesting well known for {dest}");
@@ -302,19 +290,34 @@ impl super::Service {
 	}
 
 	#[inline]
+	async fn conditional_query_and_cache(
+		&self,
+		hostname: &str,
+		port: u16,
+		cache: bool,
+	) -> Result {
+		self.conditional_query_and_cache_override(hostname, hostname, port, cache)
+			.await
+	}
+
+	#[inline]
 	async fn conditional_query_and_cache_override(
 		&self,
 		overname: &str,
 		hostname: &str,
 		port: u16,
 		cache: bool,
-	) -> Result<()> {
-		if cache {
-			self.query_and_cache_override(overname, hostname, port)
-				.await
-		} else {
-			Ok(())
+	) -> Result {
+		if !cache {
+			return Ok(());
 		}
+
+		if self.cache.has_override(overname).await {
+			return Ok(());
+		}
+
+		self.query_and_cache_override(overname, hostname, port)
+			.await
 	}
 
 	#[tracing::instrument(skip(self, overname, port), name = "ip")]
@@ -323,21 +326,20 @@ impl super::Service {
 		overname: &'_ str,
 		hostname: &'_ str,
 		port: u16,
-	) -> Result<()> {
+	) -> Result {
 		self.services.server.check_running()?;
 
 		debug!("querying IP for {overname:?} ({hostname:?}:{port})");
 		match self.resolver.resolver.lookup_ip(hostname.to_owned()).await {
 			| Err(e) => Self::handle_resolve_error(&e, hostname),
 			| Ok(override_ip) => {
-				if hostname != overname {
-					debug_info!("{overname:?} overriden by {hostname:?}");
-				}
-
 				self.cache.set_override(overname, &CachedOverride {
 					ips: override_ip.into_iter().take(MAX_IPS).collect(),
 					port,
 					expire: CachedOverride::default_expire(),
+					overriding: (hostname != overname)
+						.then_some(hostname.into())
+						.inspect(|_| debug_info!("{overname:?} overriden by {hostname:?}")),
 				});
 
 				Ok(())

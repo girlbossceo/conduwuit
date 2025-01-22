@@ -51,12 +51,14 @@ async fn destinations_cache(
 async fn overrides_cache(&self, server_name: Option<String>) -> Result<RoomMessageEventContent> {
 	use service::resolver::cache::CachedOverride;
 
-	writeln!(self, "| Server Name | IP  | Port | Expires |").await?;
-	writeln!(self, "| ----------- | --- | ----:| ------- |").await?;
+	writeln!(self, "| Server Name | IP  | Port | Expires | Overriding |").await?;
+	writeln!(self, "| ----------- | --- | ----:| ------- | ---------- |").await?;
 
 	let mut overrides = self.services.resolver.cache.overrides().boxed();
 
-	while let Some((name, CachedOverride { ips, port, expire })) = overrides.next().await {
+	while let Some((name, CachedOverride { ips, port, expire, overriding })) =
+		overrides.next().await
+	{
 		if let Some(server_name) = server_name.as_ref() {
 			if name != server_name {
 				continue;
@@ -64,7 +66,7 @@ async fn overrides_cache(&self, server_name: Option<String>) -> Result<RoomMessa
 		}
 
 		let expire = time::format(expire, "%+");
-		self.write_str(&format!("| {name} | {ips:?} | {port} | {expire} |\n"))
+		self.write_str(&format!("| {name} | {ips:?} | {port} | {expire} | {overriding:?} |\n"))
 			.await?;
 	}
 
