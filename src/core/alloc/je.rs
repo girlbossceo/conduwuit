@@ -26,10 +26,11 @@ metadata_thp:always\
 ,background_thread:true\
 ,max_background_threads:-1\
 ,lg_extent_max_active_fit:4\
-,oversize_threshold:33554432\
-,tcache_max:1048576\
+,oversize_threshold:16777216\
+,tcache_max:2097152\
 ,dirty_decay_ms:16000\
 ,muzzy_decay_ms:144000\
+,prof_active:false\
 \0";
 
 #[global_allocator]
@@ -120,7 +121,7 @@ unsafe extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
 }
 
 macro_rules! mallctl {
-	($name:literal) => {{
+	($name:expr) => {{
 		thread_local! {
 			static KEY: OnceCell<Key> = OnceCell::default();
 		};
@@ -134,6 +135,13 @@ macro_rules! mallctl {
 
 pub mod this_thread {
 	use super::{is_nonzero, key, math, Debug, Key, OnceCell, Result};
+
+	thread_local! {
+		static ALLOCATED_BYTES: OnceCell<&'static u64> = const { OnceCell::new() };
+		static DEALLOCATED_BYTES: OnceCell<&'static u64> = const { OnceCell::new() };
+	}
+
+	pub fn idle() -> Result { super::notify(&mallctl!("thread.idle")) }
 
 	pub fn trim() -> Result { notify(mallctl!("arena.0.purge")) }
 
@@ -153,7 +161,7 @@ pub mod this_thread {
 
 	pub fn get_dirty_decay() -> Result<isize> { get(mallctl!("arena.0.dirty_decay_ms")) }
 
-	pub fn enable_cache(enable: bool) -> Result<bool> {
+	pub fn cache_enable(enable: bool) -> Result<bool> {
 		super::set::<u8>(&mallctl!("thread.tcache.enabled"), enable.into()).map(is_nonzero!())
 	}
 
@@ -169,9 +177,29 @@ pub mod this_thread {
 		super::get::<u32>(&mallctl!("thread.arena")).and_then(math::try_into)
 	}
 
-	pub fn allocated() -> Result<u64> { super::get(&mallctl!("thread.allocated")) }
+	pub fn prof_enable(enable: bool) -> Result<bool> {
+		super::set::<u8>(&mallctl!("thread.prof.active"), enable.into()).map(is_nonzero!())
+	}
 
-	pub fn deallocated() -> Result<u64> { super::get(&mallctl!("thread.deallocated")) }
+	pub fn is_prof_enabled() -> Result<bool> {
+		super::get::<u8>(&mallctl!("thread.prof.active")).map(is_nonzero!())
+	}
+
+	pub fn reset_peak() -> Result { super::notify(&mallctl!("thread.peak.reset")) }
+
+	pub fn peak() -> Result<u64> { super::get(&mallctl!("thread.peak.read")) }
+
+	#[inline]
+	#[must_use]
+	pub fn allocated() -> u64 {
+		*ALLOCATED_BYTES.with(|once| init_tls_cell(once, "thread.allocatedp"))
+	}
+
+	#[inline]
+	#[must_use]
+	pub fn deallocated() -> u64 {
+		*DEALLOCATED_BYTES.with(|once| init_tls_cell(once, "thread.deallocatedp"))
+	}
 
 	fn notify(key: Key) -> Result { super::notify_by_arena(Some(arena_id()?), key) }
 
@@ -188,6 +216,27 @@ pub mod this_thread {
 	{
 		super::get_by_arena(Some(arena_id()?), key)
 	}
+
+	fn init_tls_cell(cell: &OnceCell<&'static u64>, name: &str) -> &'static u64 {
+		cell.get_or_init(|| {
+			let ptr: *const u64 = super::get(&mallctl!(name)).expect("failed to obtain pointer");
+
+			// SAFETY: ptr points directly to the internal state of jemalloc for this thread
+			unsafe { ptr.as_ref() }.expect("pointer must not be null")
+		})
+	}
+}
+
+pub fn stats_reset() -> Result { notify(&mallctl!("stats.mutexes.reset")) }
+
+pub fn prof_reset() -> Result { notify(&mallctl!("prof.reset")) }
+
+pub fn prof_enable(enable: bool) -> Result<bool> {
+	set::<u8>(&mallctl!("prof.active"), enable.into()).map(is_nonzero!())
+}
+
+pub fn is_prof_enabled() -> Result<bool> {
+	get::<u8>(&mallctl!("prof.active")).map(is_nonzero!())
 }
 
 pub fn trim<I: Into<Option<usize>>>(arena: I) -> Result {
