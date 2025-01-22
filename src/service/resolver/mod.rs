@@ -6,7 +6,8 @@ mod tests;
 
 use std::sync::Arc;
 
-use conduwuit::{Result, Server};
+use arrayvec::ArrayString;
+use conduwuit::{utils::MutexMap, Result, Server};
 
 use self::{cache::Cache, dns::Resolver};
 use crate::{client, Dep};
@@ -14,6 +15,7 @@ use crate::{client, Dep};
 pub struct Service {
 	pub cache: Arc<Cache>,
 	pub resolver: Arc<Resolver>,
+	resolving: Resolving,
 	services: Services,
 }
 
@@ -22,6 +24,9 @@ struct Services {
 	client: Dep<client::Service>,
 }
 
+type Resolving = MutexMap<NameBuf, ()>;
+type NameBuf = ArrayString<256>;
+
 impl crate::Service for Service {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -29,6 +34,7 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			cache: cache.clone(),
 			resolver: Resolver::build(args.server, cache)?,
+			resolving: MutexMap::new(),
 			services: Services {
 				server: args.server.clone(),
 				client: args.depend::<client::Service>("client"),
