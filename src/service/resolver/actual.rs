@@ -58,7 +58,7 @@ impl super::Service {
 	/// Implemented according to the specification at <https://matrix.org/docs/spec/server_server/r0.1.4#resolving-server-names>
 	/// Numbers in comments below refer to bullet points in linked section of
 	/// specification
-	#[tracing::instrument(skip(self, cache), name = "actual")]
+	#[tracing::instrument(name = "actual", level = "debug", skip(self, cache))]
 	pub async fn resolve_actual_dest(
 		&self,
 		dest: &ServerName,
@@ -239,7 +239,7 @@ impl super::Service {
 		Ok(add_port_to_hostname(dest.as_str()))
 	}
 
-	#[tracing::instrument(skip_all, name = "well-known")]
+	#[tracing::instrument(name = "well-known", level = "debug", skip(self, dest))]
 	async fn request_well_known(&self, dest: &str) -> Result<Option<String>> {
 		self.conditional_query_and_cache(dest, 8448, true).await?;
 
@@ -303,7 +303,7 @@ impl super::Service {
 	#[inline]
 	async fn conditional_query_and_cache_override(
 		&self,
-		overname: &str,
+		untername: &str,
 		hostname: &str,
 		port: u16,
 		cache: bool,
@@ -312,34 +312,34 @@ impl super::Service {
 			return Ok(());
 		}
 
-		if self.cache.has_override(overname).await {
+		if self.cache.has_override(untername).await {
 			return Ok(());
 		}
 
-		self.query_and_cache_override(overname, hostname, port)
+		self.query_and_cache_override(untername, hostname, port)
 			.await
 	}
 
-	#[tracing::instrument(skip(self, overname, port), name = "ip")]
+	#[tracing::instrument(name = "ip", level = "debug", skip(self))]
 	async fn query_and_cache_override(
 		&self,
-		overname: &'_ str,
+		untername: &'_ str,
 		hostname: &'_ str,
 		port: u16,
 	) -> Result {
 		self.services.server.check_running()?;
 
-		debug!("querying IP for {overname:?} ({hostname:?}:{port})");
+		debug!("querying IP for {untername:?} ({hostname:?}:{port})");
 		match self.resolver.resolver.lookup_ip(hostname.to_owned()).await {
 			| Err(e) => Self::handle_resolve_error(&e, hostname),
 			| Ok(override_ip) => {
-				self.cache.set_override(overname, &CachedOverride {
+				self.cache.set_override(untername, &CachedOverride {
 					ips: override_ip.into_iter().take(MAX_IPS).collect(),
 					port,
 					expire: CachedOverride::default_expire(),
-					overriding: (hostname != overname)
+					overriding: (hostname != untername)
 						.then_some(hostname.into())
-						.inspect(|_| debug_info!("{overname:?} overriden by {hostname:?}")),
+						.inspect(|_| debug_info!("{untername:?} overriden by {hostname:?}")),
 				});
 
 				Ok(())
@@ -347,7 +347,7 @@ impl super::Service {
 		}
 	}
 
-	#[tracing::instrument(skip_all, name = "srv")]
+	#[tracing::instrument(name = "srv", level = "debug", skip(self))]
 	async fn query_srv_record(&self, hostname: &'_ str) -> Result<Option<FedDest>> {
 		let hostnames =
 			[format!("_matrix-fed._tcp.{hostname}."), format!("_matrix._tcp.{hostname}.")];

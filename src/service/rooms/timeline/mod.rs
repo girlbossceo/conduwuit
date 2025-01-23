@@ -1017,7 +1017,7 @@ impl Service {
 	}
 
 	/// Replace a PDU with the redacted form.
-	#[tracing::instrument(skip(self, reason))]
+	#[tracing::instrument(name = "redact", level = "debug", skip(self))]
 	pub async fn redact_pdu(
 		&self,
 		event_id: &EventId,
@@ -1053,7 +1053,7 @@ impl Service {
 		self.replace_pdu(&pdu_id, &obj, &pdu).await
 	}
 
-	#[tracing::instrument(skip(self), level = "debug")]
+	#[tracing::instrument(name = "backfill", level = "debug", skip(self))]
 	pub async fn backfill_if_required(&self, room_id: &RoomId, from: PduCount) -> Result<()> {
 		if self
 			.services

@@ -14,7 +14,12 @@ use crate::Ruma;
 /// # `GET /_matrix/federation/v1/media/download/{mediaId}`
 ///
 /// Load media from our server.
-#[tracing::instrument(skip_all, fields(%client), name = "media_get")]
+#[tracing::instrument(
+	name = "media_get",
+	level = "debug",
+	skip_all,
+	fields(%client)
+)]
 pub(crate) async fn get_content_route(
 	State(services): State<crate::State>,
 	InsecureClientIp(client): InsecureClientIp,
@@ -51,7 +56,12 @@ pub(crate) async fn get_content_route(
 /// # `GET /_matrix/federation/v1/media/thumbnail/{mediaId}`
 ///
 /// Load media thumbnail from our server.
-#[tracing::instrument(skip_all, fields(%client), name = "media_thumbnail_get")]
+#[tracing::instrument(
+	name = "media_thumbnail_get",
+	level = "debug",
+	skip_all,
+	fields(%client)
+)]
 pub(crate) async fn get_content_thumbnail_route(
 	State(services): State<crate::State>,
 	InsecureClientIp(client): InsecureClientIp,
