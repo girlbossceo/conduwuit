@@ -34,7 +34,8 @@ use conduwuit::Result;
 use rocksdb::{AsColumnFamilyRef, ColumnFamily, ReadOptions, WriteOptions};
 
 pub(crate) use self::options::{
-	cache_read_options_default, iter_options_default, read_options_default, write_options_default,
+	cache_iter_options_default, cache_read_options_default, iter_options_default,
+	read_options_default, write_options_default,
 };
 use crate::{watchers::Watchers, Engine};
 

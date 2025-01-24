@@ -118,7 +118,7 @@ pub(super) fn is_cached<P>(map: &Arc<super::Map>, from: &P) -> bool
 where
 	P: AsRef<[u8]> + ?Sized,
 {
-	let cache_opts = super::cache_read_options_default();
+	let cache_opts = super::cache_iter_options_default();
 	let cache_status = stream::State::new(map, cache_opts)
 		.init_rev(from.as_ref().into())
 		.status();
