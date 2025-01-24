@@ -1,4 +1,5 @@
 pub mod check;
+pub mod manager;
 pub mod proxy;
 
 use std::{
@@ -22,8 +23,8 @@ use ruma::{
 use serde::{de::IgnoredAny, Deserialize};
 use url::Url;
 
-pub use self::check::check;
 use self::proxy::ProxyConfig;
+pub use self::{check::check, manager::Manager};
 use crate::{err, error::Error, utils::sys, Result};
 
 /// All the config options for conduwuit.
