@@ -141,11 +141,13 @@ pub mod this_thread {
 		static DEALLOCATED_BYTES: OnceCell<&'static u64> = const { OnceCell::new() };
 	}
 
-	pub fn idle() -> Result { super::notify(&mallctl!("thread.idle")) }
+	pub fn trim() -> Result { decay().and_then(|()| purge()) }
 
-	pub fn trim() -> Result { notify(mallctl!("arena.0.purge")) }
+	pub fn purge() -> Result { notify(mallctl!("arena.0.purge")) }
 
 	pub fn decay() -> Result { notify(mallctl!("arena.0.decay")) }
+
+	pub fn idle() -> Result { super::notify(&mallctl!("thread.idle")) }
 
 	pub fn flush() -> Result { super::notify(&mallctl!("thread.tcache.flush")) }
 
@@ -239,7 +241,11 @@ pub fn is_prof_enabled() -> Result<bool> {
 	get::<u8>(&mallctl!("prof.active")).map(is_nonzero!())
 }
 
-pub fn trim<I: Into<Option<usize>>>(arena: I) -> Result {
+pub fn trim<I: Into<Option<usize>> + Copy>(arena: I) -> Result {
+	decay(arena).and_then(|()| purge(arena))
+}
+
+pub fn purge<I: Into<Option<usize>>>(arena: I) -> Result {
 	notify_by_arena(arena.into(), mallctl!("arena.4096.purge"))
 }
 
