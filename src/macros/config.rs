@@ -15,7 +15,7 @@ use crate::{
 
 const UNDOCUMENTED: &str = "# This item is undocumented. Please contribute documentation for it.";
 
-const HIDDEN: &[&str] = &["default"];
+const HIDDEN: &[&str] = &["default", "display"];
 
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn example_generator(input: ItemStruct, args: &[Meta]) -> Result<TokenStream> {
@@ -121,10 +121,27 @@ fn generate_example(input: &ItemStruct, args: &[Meta], write: bool) -> Result<To
 					.expect("written to config file");
 			}
 
-			let name = ident.to_string();
-			summary.push(quote! {
-				writeln!(out, "| {} | {:?} |", #name, self.#ident)?;
-			});
+			let display = get_doc_comment_line(field, "display");
+			let display_directive = |key| {
+				display
+					.as_ref()
+					.into_iter()
+					.flat_map(|display| display.split(' '))
+					.any(|directive| directive == key)
+			};
+
+			if !display_directive("hidden") {
+				let value = if display_directive("sensitive") {
+					quote! { "***********" }
+				} else {
+					quote! { format_args!("{:?}", self.#ident) }
+				};
+
+				let name = ident.to_string();
+				summary.push(quote! {
+					writeln!(out, "| {} | {} |", #name, #value)?;
+				});
+			}
 		}
 	}
 

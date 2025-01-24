@@ -502,6 +502,8 @@ pub struct Config {
 	/// YOU NEED TO EDIT THIS OR USE registration_token_file.
 	///
 	/// example: "o&^uCtes4HPf0Vu@F20jQeeWE7"
+	///
+	/// display: sensitive
 	pub registration_token: Option<String>,
 
 	/// Path to a file on the system that gets read for the registration token.
@@ -793,6 +795,8 @@ pub struct Config {
 	/// Static TURN password to provide the client if not using a shared secret
 	/// ("turn_secret"). It is recommended to use a shared secret over static
 	/// credentials.
+	///
+	/// display: sensitive
 	#[serde(default)]
 	pub turn_password: String,
 
@@ -814,6 +818,8 @@ pub struct Config {
 	///
 	/// This is more secure, but if needed you can use traditional static
 	/// username/password credentials.
+	///
+	/// display: sensitive
 	#[serde(default)]
 	pub turn_secret: String,
 
@@ -1111,6 +1117,8 @@ pub struct Config {
 	/// security purposes.
 	///
 	/// example: "F670$2CP@Hw8mG7RY1$%!#Ic7YA"
+	///
+	/// display: sensitive
 	pub emergency_password: Option<String>,
 
 	/// default: "/_matrix/push/v1/notify"
@@ -1560,6 +1568,7 @@ pub struct Config {
 
 	/// Sentry reporting URL, if a custom one is desired.
 	///
+	/// display: sensitive
 	/// default: "https://fe2eb4536aa04949e28eff3128d64757@o4506996327251968.ingest.us.sentry.io/4506996334657536"
 	#[serde(default = "default_sentry_endpoint")]
 	pub sentry_endpoint: Option<Url>,
