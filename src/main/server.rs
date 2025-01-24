@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use conduwuit::{
 	config::Config,
@@ -35,9 +35,16 @@ impl Server {
 	) -> Result<Arc<Self>, Error> {
 		let _runtime_guard = runtime.map(runtime::Handle::enter);
 
-		let raw_config = Config::load(args.config.as_deref())?;
-		let raw_config = crate::clap::update(raw_config, args)?;
-		let config = Config::new(&raw_config)?;
+		let config_paths = args
+			.config
+			.as_deref()
+			.into_iter()
+			.flat_map(<[_]>::iter)
+			.map(PathBuf::as_path);
+
+		let config = Config::load(config_paths)
+			.and_then(|raw| crate::clap::update(raw, args))
+			.and_then(|raw| Config::new(&raw))?;
 
 		#[cfg(feature = "sentry_telemetry")]
 		let sentry_guard = crate::sentry::init(&config);

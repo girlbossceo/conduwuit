@@ -4,7 +4,7 @@ pub mod proxy;
 use std::{
 	collections::{BTreeMap, BTreeSet, HashSet},
 	net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-	path::PathBuf,
+	path::{Path, PathBuf},
 };
 
 use conduwuit_macros::config_example_generator;
@@ -1797,14 +1797,17 @@ const DEPRECATED_KEYS: &[&str; 9] = &[
 
 impl Config {
 	/// Pre-initialize config
-	pub fn load(paths: Option<&[PathBuf]>) -> Result<Figment> {
-		let paths_files = paths.into_iter().flatten().map(Toml::file);
-
+	pub fn load<'a, I>(paths: I) -> Result<Figment>
+	where
+		I: Iterator<Item = &'a Path>,
+	{
 		let envs = [Env::var("CONDUIT_CONFIG"), Env::var("CONDUWUIT_CONFIG")];
-		let envs_files = envs.into_iter().flatten().map(Toml::file);
 
-		let config = envs_files
-			.chain(paths_files)
+		let config = envs
+			.into_iter()
+			.flatten()
+			.map(Toml::file)
+			.chain(paths.map(Toml::file))
 			.fold(Figment::new(), |config, file| config.merge(file.nested()))
 			.merge(Env::prefixed("CONDUIT_").global().split("__"))
 			.merge(Env::prefixed("CONDUWUIT_").global().split("__"));
