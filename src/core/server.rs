@@ -8,12 +8,12 @@ use std::{
 
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config::Config, err, log::Log, metrics::Metrics, Err, Result};
+use crate::{config, config::Config, err, log::Log, metrics::Metrics, Err, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
 	/// Server-wide configuration instance
-	pub config: Config,
+	pub config: config::Manager,
 
 	/// Timestamp server was started; used for uptime.
 	pub started: SystemTime,
@@ -46,7 +46,7 @@ impl Server {
 	#[must_use]
 	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: Log) -> Self {
 		Self {
-			config,
+			config: config::Manager::new(config),
 			started: SystemTime::now(),
 			stopping: AtomicBool::new(false),
 			reloading: AtomicBool::new(false),

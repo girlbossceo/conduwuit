@@ -1,5 +1,7 @@
 mod commands;
 
+use std::path::PathBuf;
+
 use clap::Subcommand;
 use conduwuit::Result;
 
@@ -13,6 +15,11 @@ pub(super) enum ServerCommand {
 
 	/// - Show configuration values
 	ShowConfig,
+
+	/// - Reload configuration values
+	ReloadConfig {
+		path: Option<PathBuf>,
+	},
 
 	/// - List the features built into the server
 	ListFeatures {

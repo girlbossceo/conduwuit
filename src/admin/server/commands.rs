@@ -1,6 +1,6 @@
-use std::{fmt::Write, sync::Arc};
+use std::{fmt::Write, path::PathBuf, sync::Arc};
 
-use conduwuit::{info, utils::time, warn, Err, Result};
+use conduwuit::{info, utils::time, warn, Config, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::admin_command;
@@ -23,8 +23,24 @@ pub(super) async fn show_config(&self) -> Result<RoomMessageEventContent> {
 	// Construct and send the response
 	Ok(RoomMessageEventContent::text_markdown(format!(
 		"{}",
-		self.services.server.config
+		*self.services.server.config
 	)))
+}
+
+#[admin_command]
+pub(super) async fn reload_config(
+	&self,
+	path: Option<PathBuf>,
+) -> Result<RoomMessageEventContent> {
+	let path = path.as_deref().into_iter();
+	let config = Config::load(path).and_then(|raw| Config::new(&raw))?;
+	if config.server_name != self.services.server.config.server_name {
+		return Err!("You can't change the server name.");
+	}
+
+	let _old = self.services.server.config.update(config)?;
+
+	Ok(RoomMessageEventContent::text_plain("Successfully reconfigured."))
 }
 
 #[admin_command]
