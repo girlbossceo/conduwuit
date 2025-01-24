@@ -4,7 +4,7 @@ use either::Either;
 use figment::Figment;
 
 use super::DEPRECATED_KEYS;
-use crate::{debug, debug_info, debug_warn, error, warn, Config, Err, Result};
+use crate::{debug, debug_info, debug_warn, error, warn, Config, Err, Result, Server};
 
 #[allow(clippy::cognitive_complexity)]
 pub fn check(config: &Config) -> Result<()> {
@@ -231,6 +231,16 @@ pub fn check(config: &Config) -> Result<()> {
 				"Not a valid IP address. Interface names not supported on {OS}."
 			));
 		}
+	}
+
+	if !Server::available_room_versions()
+		.any(|(version, _)| version == config.default_room_version)
+	{
+		return Err!(Config(
+			"default_room_version",
+			"Room version {:?} is not available",
+			config.default_room_version
+		));
 	}
 
 	Ok(())

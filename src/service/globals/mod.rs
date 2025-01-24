@@ -72,14 +72,6 @@ impl crate::Service for Service {
 			registration_token,
 		};
 
-		if !args
-			.server
-			.supported_room_version(&config.default_room_version)
-		{
-			error!(config=?s.config.default_room_version, fallback=?conduwuit::config::default_default_room_version(), "Room version in config isn't supported, falling back to default version");
-			s.config.default_room_version = conduwuit::config::default_default_room_version();
-		};
-
 		Ok(Arc::new(s))
 	}
 

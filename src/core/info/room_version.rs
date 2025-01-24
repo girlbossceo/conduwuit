@@ -20,6 +20,8 @@ pub const STABLE_ROOM_VERSIONS: &[RoomVersionId] = &[
 pub const UNSTABLE_ROOM_VERSIONS: &[RoomVersionId] =
 	&[RoomVersionId::V2, RoomVersionId::V3, RoomVersionId::V4, RoomVersionId::V5];
 
+type RoomVersion = (RoomVersionId, RoomVersionStability);
+
 impl crate::Server {
 	#[inline]
 	pub fn supported_room_version(&self, version: &RoomVersionId) -> bool {
@@ -28,15 +30,13 @@ impl crate::Server {
 
 	#[inline]
 	pub fn supported_room_versions(&self) -> impl Iterator<Item = RoomVersionId> + '_ {
-		self.available_room_versions()
+		Self::available_room_versions()
 			.filter(|(_, stability)| self.supported_stability(stability))
 			.map(at!(0))
 	}
 
 	#[inline]
-	pub fn available_room_versions(
-		&self,
-	) -> impl Iterator<Item = (RoomVersionId, RoomVersionStability)> {
+	pub fn available_room_versions() -> impl Iterator<Item = RoomVersion> {
 		available_room_versions()
 	}
 
@@ -46,7 +46,7 @@ impl crate::Server {
 	}
 }
 
-pub fn available_room_versions() -> impl Iterator<Item = (RoomVersionId, RoomVersionStability)> {
+pub fn available_room_versions() -> impl Iterator<Item = RoomVersion> {
 	let unstable_room_versions = UNSTABLE_ROOM_VERSIONS
 		.iter()
 		.cloned()

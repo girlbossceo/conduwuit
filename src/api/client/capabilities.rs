@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
+use conduwuit::{Result, Server};
 use ruma::{
 	api::client::discovery::get_capabilities::{
 		self, Capabilities, GetLoginTokenCapability, RoomVersionStability,
@@ -10,7 +11,7 @@ use ruma::{
 };
 use serde_json::json;
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/v3/capabilities`
 ///
@@ -21,7 +22,7 @@ pub(crate) async fn get_capabilities_route(
 	_body: Ruma<get_capabilities::v3::Request>,
 ) -> Result<get_capabilities::v3::Response> {
 	let available: BTreeMap<RoomVersionId, RoomVersionStability> =
-		services.server.available_room_versions().collect();
+		Server::available_room_versions().collect();
 
 	let mut capabilities = Capabilities::default();
 	capabilities.room_versions = RoomVersionsCapability {
