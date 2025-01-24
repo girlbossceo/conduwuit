@@ -309,7 +309,7 @@ async fn handle_edu_typing(
 	origin: &ServerName,
 	typing: TypingContent,
 ) {
-	if !services.globals.config.allow_incoming_typing {
+	if !services.server.config.allow_incoming_typing {
 		return;
 	}
 
@@ -344,7 +344,7 @@ async fn handle_edu_typing(
 		if typing.typing {
 			let timeout = utils::millis_since_unix_epoch().saturating_add(
 				services
-					.globals
+					.server
 					.config
 					.typing_federation_timeout_s
 					.saturating_mul(1000),

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use conduwuit::{
 	err,
 	utils::{stream::TryIgnore, ReadyExt},
-	Err, Result,
+	Err, Result, Server,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
 use futures::{Stream, StreamExt, TryFutureExt};
@@ -31,6 +31,7 @@ struct Data {
 }
 
 struct Services {
+	server: Arc<Server>,
 	admin: Dep<admin::Service>,
 	appservice: Dep<appservice::Service>,
 	globals: Dep<globals::Service>,
@@ -47,6 +48,7 @@ impl crate::Service for Service {
 				aliasid_alias: args.db["aliasid_alias"].clone(),
 			},
 			services: Services {
+				server: args.server.clone(),
 				admin: args.depend::<admin::Service>("admin"),
 				appservice: args.depend::<appservice::Service>("appservice"),
 				globals: args.depend::<globals::Service>("globals"),
@@ -146,9 +148,9 @@ impl Service {
 		let server_name = room_alias.server_name();
 		let server_is_ours = self.services.globals.server_is_ours(server_name);
 		let servers_contains_ours = || {
-			servers.as_ref().is_some_and(|servers| {
-				servers.contains(&self.services.globals.config.server_name)
-			})
+			servers
+				.as_ref()
+				.is_some_and(|servers| servers.contains(&self.services.server.config.server_name))
 		};
 
 		if !server_is_ours && !servers_contains_ours() {

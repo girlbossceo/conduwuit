@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduwuit::Err;
+use conduwuit::{utils::math::Tried, Err};
 use ruma::api::client::typing::create_typing_event;
 
 use crate::{utils, Result, Ruma};
@@ -31,17 +31,15 @@ pub(crate) async fn create_typing_event_route(
 		let duration = utils::clamp(
 			duration.as_millis().try_into().unwrap_or(u64::MAX),
 			services
-				.globals
+				.server
 				.config
 				.typing_client_timeout_min_s
-				.checked_mul(1000)
-				.unwrap(),
+				.try_mul(1000)?,
 			services
-				.globals
+				.server
 				.config
 				.typing_client_timeout_max_s
-				.checked_mul(1000)
-				.unwrap(),
+				.try_mul(1000)?,
 		);
 		services
 			.rooms

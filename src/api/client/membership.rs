@@ -71,7 +71,7 @@ async fn banned_room_check(
 	if let Some(room_id) = room_id {
 		if services.rooms.metadata.is_banned(room_id).await
 			|| services
-				.globals
+				.server
 				.config
 				.forbidden_remote_server_names
 				.contains(&room_id.server_name().unwrap().to_owned())
@@ -81,12 +81,12 @@ async fn banned_room_check(
 				 attempted to join a banned room or banned room server name: {room_id}"
 			);
 
-			if services.globals.config.auto_deactivate_banned_room_attempts {
+			if services.server.config.auto_deactivate_banned_room_attempts {
 				warn!(
 					"Automatically deactivating user {user_id} due to attempted banned room join"
 				);
 
-				if services.globals.config.admin_room_notices {
+				if services.server.config.admin_room_notices {
 					services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(
@@ -112,7 +112,7 @@ async fn banned_room_check(
 		}
 	} else if let Some(server_name) = server_name {
 		if services
-			.globals
+			.server
 			.config
 			.forbidden_remote_server_names
 			.contains(&server_name.to_owned())
@@ -122,12 +122,12 @@ async fn banned_room_check(
 				 name {server_name} that is globally forbidden. Rejecting.",
 			);
 
-			if services.globals.config.auto_deactivate_banned_room_attempts {
+			if services.server.config.auto_deactivate_banned_room_attempts {
 				warn!(
 					"Automatically deactivating user {user_id} due to attempted banned room join"
 				);
 
-				if services.globals.config.admin_room_notices {
+				if services.server.config.admin_room_notices {
 					services
 						.admin
 						.send_message(RoomMessageEventContent::text_plain(format!(

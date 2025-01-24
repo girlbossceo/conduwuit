@@ -83,12 +83,12 @@ pub(super) async fn create_user(
 	// content is set to the user's display name with a space before it
 	if !self
 		.services
-		.globals
+		.server
 		.config
 		.new_user_displayname_suffix
 		.is_empty()
 	{
-		write!(displayname, " {}", self.services.globals.config.new_user_displayname_suffix)
+		write!(displayname, " {}", self.services.server.config.new_user_displayname_suffix)
 			.expect("should be able to write to string buffer");
 	}
 
@@ -114,8 +114,8 @@ pub(super) async fn create_user(
 		)
 		.await?;
 
-	if !self.services.globals.config.auto_join_rooms.is_empty() {
-		for room in &self.services.globals.config.auto_join_rooms {
+	if !self.services.server.config.auto_join_rooms.is_empty() {
+		for room in &self.services.server.config.auto_join_rooms {
 			let Ok(room_id) = self.services.rooms.alias.resolve(room).await else {
 				error!(%user_id, "Failed to resolve room alias to room ID when attempting to auto join {room}, skipping");
 				continue;

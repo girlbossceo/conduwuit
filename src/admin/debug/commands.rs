@@ -170,7 +170,7 @@ pub(super) async fn get_remote_pdu_list(
 	server: Box<ServerName>,
 	force: bool,
 ) -> Result<RoomMessageEventContent> {
-	if !self.services.globals.config.allow_federation {
+	if !self.services.server.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Federation is disabled on this homeserver.",
 		));
@@ -235,7 +235,7 @@ pub(super) async fn get_remote_pdu(
 	event_id: Box<EventId>,
 	server: Box<ServerName>,
 ) -> Result<RoomMessageEventContent> {
-	if !self.services.globals.config.allow_federation {
+	if !self.services.server.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Federation is disabled on this homeserver.",
 		));
@@ -419,7 +419,7 @@ pub(super) async fn change_log_level(
 	let handles = &["console"];
 
 	if reset {
-		let old_filter_layer = match EnvFilter::try_new(&self.services.globals.config.log) {
+		let old_filter_layer = match EnvFilter::try_new(&self.services.server.config.log) {
 			| Ok(s) => s,
 			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
@@ -438,7 +438,7 @@ pub(super) async fn change_log_level(
 			| Ok(()) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Successfully changed log level back to config value {}",
-					self.services.globals.config.log
+					self.services.server.config.log
 				)));
 			},
 			| Err(e) => {
@@ -554,7 +554,7 @@ pub(super) async fn first_pdu_in_room(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.globals.config.server_name, &room_id)
+		.server_in_room(&self.services.server.config.server_name, &room_id)
 		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -583,7 +583,7 @@ pub(super) async fn latest_pdu_in_room(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.globals.config.server_name, &room_id)
+		.server_in_room(&self.services.server.config.server_name, &room_id)
 		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -613,7 +613,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.globals.config.server_name, &room_id)
+		.server_in_room(&self.services.server.config.server_name, &room_id)
 		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -818,13 +818,13 @@ pub(super) async fn resolve_true_destination(
 	server_name: Box<ServerName>,
 	no_cache: bool,
 ) -> Result<RoomMessageEventContent> {
-	if !self.services.globals.config.allow_federation {
+	if !self.services.server.config.allow_federation {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Federation is disabled on this homeserver.",
 		));
 	}
 
-	if server_name == self.services.globals.config.server_name {
+	if server_name == self.services.server.config.server_name {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for \
 			 fetching local PDUs.",

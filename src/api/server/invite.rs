@@ -37,7 +37,7 @@ pub(crate) async fn create_invite_route(
 
 	if let Some(server) = body.room_id.server_name() {
 		if services
-			.globals
+			.server
 			.config
 			.forbidden_remote_server_names
 			.contains(&server.to_owned())
@@ -47,7 +47,7 @@ pub(crate) async fn create_invite_route(
 	}
 
 	if services
-		.globals
+		.server
 		.config
 		.forbidden_remote_server_names
 		.contains(body.origin())

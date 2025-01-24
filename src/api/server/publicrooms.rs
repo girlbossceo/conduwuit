@@ -20,7 +20,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	body: Ruma<get_public_rooms_filtered::v1::Request>,
 ) -> Result<get_public_rooms_filtered::v1::Response> {
 	if !services
-		.globals
+		.server
 		.config
 		.allow_public_room_directory_over_federation
 	{

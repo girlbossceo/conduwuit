@@ -63,7 +63,7 @@ pub(crate) async fn get_profile_information_route(
 	body: Ruma<get_profile_information::v1::Request>,
 ) -> Result<get_profile_information::v1::Response> {
 	if !services
-		.globals
+		.server
 		.config
 		.allow_inbound_profile_lookup_federation_requests
 	{

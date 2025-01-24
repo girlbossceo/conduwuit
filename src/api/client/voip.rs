@@ -38,7 +38,7 @@ pub(crate) async fn turn_server_route(
 		let user = body.sender_user.unwrap_or_else(|| {
 			UserId::parse_with_server_name(
 				utils::random_string(RANDOM_USER_ID_LENGTH).to_lowercase(),
-				&services.globals.config.server_name,
+				&services.server.config.server_name,
 			)
 			.unwrap()
 		});

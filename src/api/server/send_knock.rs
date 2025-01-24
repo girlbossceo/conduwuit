@@ -22,7 +22,7 @@ pub(crate) async fn create_knock_event_v1_route(
 	body: Ruma<send_knock::v1::Request>,
 ) -> Result<send_knock::v1::Response> {
 	if services
-		.globals
+		.server
 		.config
 		.forbidden_remote_server_names
 		.contains(body.origin())
@@ -38,7 +38,7 @@ pub(crate) async fn create_knock_event_v1_route(
 
 	if let Some(server) = body.room_id.server_name() {
 		if services
-			.globals
+			.server
 			.config
 			.forbidden_remote_server_names
 			.contains(&server.to_owned())

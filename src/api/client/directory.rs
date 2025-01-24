@@ -152,7 +152,7 @@ pub(crate) async fn set_room_visibility_route(
 
 	match &body.visibility {
 		| room::Visibility::Public => {
-			if services.globals.config.lockdown_public_room_directory
+			if services.server.config.lockdown_public_room_directory
 				&& !services.users.is_admin(sender_user).await
 				&& body.appservice_info.is_none()
 			{
@@ -162,7 +162,7 @@ pub(crate) async fn set_room_visibility_route(
 					body.room_id
 				);
 
-				if services.globals.config.admin_room_notices {
+				if services.server.config.admin_room_notices {
 					services
 						.admin
 						.send_text(&format!(
@@ -181,7 +181,7 @@ pub(crate) async fn set_room_visibility_route(
 
 			services.rooms.directory.set_public(&body.room_id);
 
-			if services.globals.config.admin_room_notices {
+			if services.server.config.admin_room_notices {
 				services
 					.admin
 					.send_text(&format!(

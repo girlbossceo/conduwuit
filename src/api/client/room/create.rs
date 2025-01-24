@@ -71,7 +71,7 @@ pub(crate) async fn create_room_route(
 	let room_id: OwnedRoomId = if let Some(custom_room_id) = &body.room_id {
 		custom_room_id_check(&services, custom_room_id)?
 	} else {
-		RoomId::new(&services.globals.config.server_name)
+		RoomId::new(&services.server.config.server_name)
 	};
 
 	// check if room ID doesn't already exist instead of erroring on auth check
@@ -83,7 +83,7 @@ pub(crate) async fn create_room_route(
 	}
 
 	if body.visibility == room::Visibility::Public
-		&& services.globals.config.lockdown_public_room_directory
+		&& services.server.config.lockdown_public_room_directory
 		&& !services.users.is_admin(sender_user).await
 		&& body.appservice_info.is_none()
 	{
@@ -93,7 +93,7 @@ pub(crate) async fn create_room_route(
 			&room_id
 		);
 
-		if services.globals.config.admin_room_notices {
+		if services.server.config.admin_room_notices {
 			services
 				.admin
 				.send_text(&format!(
@@ -450,7 +450,7 @@ pub(crate) async fn create_room_route(
 	if body.visibility == room::Visibility::Public {
 		services.rooms.directory.set_public(&room_id);
 
-		if services.globals.config.admin_room_notices {
+		if services.server.config.admin_room_notices {
 			services
 				.admin
 				.send_text(&format!(

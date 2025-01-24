@@ -338,7 +338,7 @@ impl Service {
 		}
 
 		// Check if server-side command-escape is disabled by configuration
-		if is_public_escape && !self.services.globals.config.admin_escape_commands {
+		if is_public_escape && !self.services.server.config.admin_escape_commands {
 			return false;
 		}
 
