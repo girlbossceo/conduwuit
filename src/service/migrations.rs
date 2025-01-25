@@ -218,8 +218,6 @@ async fn migrate(services: &Services) -> Result<()> {
 }
 
 async fn db_lt_12(services: &Services) -> Result<()> {
-	let config = &services.server.config;
-
 	for username in &services
 		.users
 		.list_local_users()
@@ -227,7 +225,8 @@ async fn db_lt_12(services: &Services) -> Result<()> {
 		.collect::<Vec<_>>()
 		.await
 	{
-		let user = match UserId::parse_with_server_name(username.as_str(), &config.server_name) {
+		let user = match UserId::parse_with_server_name(username.as_str(), &services.server.name)
+		{
 			| Ok(u) => u,
 			| Err(e) => {
 				warn!("Invalid username {username}: {e}");
@@ -297,8 +296,6 @@ async fn db_lt_12(services: &Services) -> Result<()> {
 }
 
 async fn db_lt_13(services: &Services) -> Result<()> {
-	let config = &services.server.config;
-
 	for username in &services
 		.users
 		.list_local_users()
@@ -306,7 +303,8 @@ async fn db_lt_13(services: &Services) -> Result<()> {
 		.collect::<Vec<_>>()
 		.await
 	{
-		let user = match UserId::parse_with_server_name(username.as_str(), &config.server_name) {
+		let user = match UserId::parse_with_server_name(username.as_str(), &services.server.name)
+		{
 			| Ok(u) => u,
 			| Err(e) => {
 				warn!("Invalid username {username}: {e}");

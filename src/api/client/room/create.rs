@@ -71,7 +71,7 @@ pub(crate) async fn create_room_route(
 	let room_id: OwnedRoomId = if let Some(custom_room_id) = &body.room_id {
 		custom_room_id_check(&services, custom_room_id)?
 	} else {
-		RoomId::new(&services.server.config.server_name)
+		RoomId::new(&services.server.name)
 	};
 
 	// check if room ID doesn't already exist instead of erroring on auth check

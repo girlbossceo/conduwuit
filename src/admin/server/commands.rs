@@ -34,7 +34,7 @@ pub(super) async fn reload_config(
 ) -> Result<RoomMessageEventContent> {
 	let path = path.as_deref().into_iter();
 	let config = Config::load(path).and_then(|raw| Config::new(&raw))?;
-	if config.server_name != self.services.server.config.server_name {
+	if config.server_name != self.services.server.name {
 		return Err!("You can't change the server name.");
 	}
 

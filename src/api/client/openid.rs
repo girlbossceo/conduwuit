@@ -37,7 +37,7 @@ pub(crate) async fn create_openid_token_route(
 	Ok(account::request_openid_token::v3::Response {
 		access_token,
 		token_type: TokenType::Bearer,
-		matrix_server_name: services.server.config.server_name.clone(),
+		matrix_server_name: services.server.name.clone(),
 		expires_in: Duration::from_secs(expires_in),
 	})
 }

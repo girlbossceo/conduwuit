@@ -850,7 +850,7 @@ impl Service {
 		let txn_id = &*general_purpose::URL_SAFE_NO_PAD.encode(txn_hash);
 
 		let request = send_transaction_message::v1::Request {
-			origin: self.server.config.server_name.clone(),
+			origin: self.server.name.clone(),
 			pdus: pdu_jsons,
 			edus: edu_jsons,
 			origin_server_ts: MilliSecondsSinceUnixEpoch::now(),

@@ -554,7 +554,7 @@ pub(super) async fn first_pdu_in_room(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.server.config.server_name, &room_id)
+		.server_in_room(&self.services.server.name, &room_id)
 		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -583,7 +583,7 @@ pub(super) async fn latest_pdu_in_room(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.server.config.server_name, &room_id)
+		.server_in_room(&self.services.server.name, &room_id)
 		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -613,7 +613,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.services
 		.rooms
 		.state_cache
-		.server_in_room(&self.services.server.config.server_name, &room_id)
+		.server_in_room(&self.services.server.name, &room_id)
 		.await
 	{
 		return Ok(RoomMessageEventContent::text_plain(
@@ -757,7 +757,7 @@ pub(super) async fn get_signing_keys(
 	query: bool,
 ) -> Result<RoomMessageEventContent> {
 	let server_name =
-		server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
+		server_name.unwrap_or_else(|| self.services.server.name.clone().into());
 
 	if let Some(notary) = notary {
 		let signing_keys = self
@@ -794,7 +794,7 @@ pub(super) async fn get_verify_keys(
 	server_name: Option<Box<ServerName>>,
 ) -> Result<RoomMessageEventContent> {
 	let server_name =
-		server_name.unwrap_or_else(|| self.services.server.config.server_name.clone().into());
+		server_name.unwrap_or_else(|| self.services.server.name.clone().into());
 
 	let keys = self
 		.services
@@ -824,7 +824,7 @@ pub(super) async fn resolve_true_destination(
 		));
 	}
 
-	if server_name == self.services.server.config.server_name {
+	if server_name == self.services.server.name {
 		return Ok(RoomMessageEventContent::text_plain(
 			"Not allowed to send federation requests to ourselves. Please use `get-pdu` for \
 			 fetching local PDUs.",

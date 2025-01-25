@@ -6,12 +6,17 @@ use std::{
 	time::SystemTime,
 };
 
+use ruma::OwnedServerName;
 use tokio::{runtime, sync::broadcast};
 
 use crate::{config, config::Config, err, log::Log, metrics::Metrics, Err, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
+	/// Configured name of server. This is the same as the one in the config
+	/// but developers can (and should) reference this string instead.
+	pub name: OwnedServerName,
+
 	/// Server-wide configuration instance
 	pub config: config::Manager,
 
@@ -46,6 +51,7 @@ impl Server {
 	#[must_use]
 	pub fn new(config: Config, runtime: Option<runtime::Handle>, log: Log) -> Self {
 		Self {
+			name: config.server_name.clone(),
 			config: config::Manager::new(config),
 			started: SystemTime::now(),
 			stopping: AtomicBool::new(false),

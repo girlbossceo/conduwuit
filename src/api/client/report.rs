@@ -50,7 +50,7 @@ pub(crate) async fn report_room_route(
 	if !services
 		.rooms
 		.state_cache
-		.server_in_room(&services.server.config.server_name, &body.room_id)
+		.server_in_room(&services.server.name, &body.room_id)
 		.await
 	{
 		return Err!(Request(NotFound(

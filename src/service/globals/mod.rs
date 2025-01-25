@@ -61,11 +61,11 @@ impl crate::Service for Service {
 			db,
 			server: args.server.clone(),
 			bad_event_ratelimiter: Arc::new(RwLock::new(HashMap::new())),
-			admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", &config.server_name))
+			admin_alias: OwnedRoomAliasId::try_from(format!("#admins:{}", &args.server.name))
 				.expect("#admins:server_name is valid alias name"),
 			server_user: UserId::parse_with_server_name(
 				String::from("conduit"),
-				&config.server_name,
+				&args.server.name,
 			)
 			.expect("@conduit:server_name is valid"),
 			turn_secret,
@@ -107,7 +107,7 @@ impl Service {
 	pub fn current_count(&self) -> Result<u64> { Ok(self.db.current_count()) }
 
 	#[inline]
-	pub fn server_name(&self) -> &ServerName { self.server.config.server_name.as_ref() }
+	pub fn server_name(&self) -> &ServerName { self.server.name.as_ref() }
 
 	pub fn allow_registration(&self) -> bool { self.server.config.allow_registration }
 
@@ -207,7 +207,7 @@ impl Service {
 
 	#[inline]
 	pub fn server_is_ours(&self, server_name: &ServerName) -> bool {
-		server_name == self.server.config.server_name
+		server_name == self.server_name()
 	}
 
 	#[inline]

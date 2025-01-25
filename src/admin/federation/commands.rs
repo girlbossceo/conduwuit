@@ -92,7 +92,7 @@ pub(super) async fn remote_user_in_rooms(
 	&self,
 	user_id: Box<UserId>,
 ) -> Result<RoomMessageEventContent> {
-	if user_id.server_name() == self.services.server.config.server_name {
+	if user_id.server_name() == self.services.server.name {
 		return Ok(RoomMessageEventContent::text_plain(
 			"User belongs to our server, please use `list-joined-rooms` user admin command \
 			 instead.",

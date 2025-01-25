@@ -150,7 +150,7 @@ impl Service {
 		let servers_contains_ours = || {
 			servers
 				.as_ref()
-				.is_some_and(|servers| servers.contains(&self.services.server.config.server_name))
+				.is_some_and(|servers| servers.contains(&self.services.server.name))
 		};
 
 		if !server_is_ours && !servers_contains_ours() {
