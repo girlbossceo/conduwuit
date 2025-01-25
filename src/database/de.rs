@@ -298,9 +298,11 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		const BYTES: usize = size_of::<i64>();
 
-		let end = self.pos.saturating_add(BYTES);
+		let end = self.pos.saturating_add(BYTES).min(self.buf.len());
 		let bytes: ArrayVec<u8, BYTES> = self.buf[self.pos..end].try_into()?;
-		let bytes = bytes.into_inner().expect("array size matches i64");
+		let bytes = bytes
+			.into_inner()
+			.map_err(|_| Self::Error::SerdeDe("i64 buffer underflow".into()))?;
 
 		self.inc_pos(BYTES);
 		visitor.visit_i64(i64::from_be_bytes(bytes))
@@ -328,9 +330,11 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
 		const BYTES: usize = size_of::<u64>();
 
-		let end = self.pos.saturating_add(BYTES);
+		let end = self.pos.saturating_add(BYTES).min(self.buf.len());
 		let bytes: ArrayVec<u8, BYTES> = self.buf[self.pos..end].try_into()?;
-		let bytes = bytes.into_inner().expect("array size matches u64");
+		let bytes = bytes
+			.into_inner()
+			.map_err(|_| Self::Error::SerdeDe("u64 buffer underflow".into()))?;
 
 		self.inc_pos(BYTES);
 		visitor.visit_u64(u64::from_be_bytes(bytes))
