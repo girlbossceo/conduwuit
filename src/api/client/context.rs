@@ -1,6 +1,6 @@
 use axum::extract::State;
 use conduwuit::{
-	at, err, ref_at,
+	at, deref_at, err, ref_at,
 	utils::{
 		future::TryExtExt,
 		stream::{BroadbandExt, ReadyExt, TryIgnore, WidebandExt},
@@ -8,15 +8,15 @@ use conduwuit::{
 	},
 	Err, PduEvent, Result,
 };
-use futures::{join, try_join, FutureExt, StreamExt, TryFutureExt};
-use ruma::{
-	api::client::{context::get_context, filter::LazyLoadOptions},
-	events::StateEventType,
-	OwnedEventId, UserId,
+use futures::{
+	future::{join, join3, try_join3, OptionFuture},
+	FutureExt, StreamExt, TryFutureExt,
 };
+use ruma::{api::client::context::get_context, events::StateEventType, OwnedEventId, UserId};
+use service::rooms::{lazy_loading, lazy_loading::Options};
 
 use crate::{
-	client::message::{event_filter, ignored_filter, update_lazy, visibility_filter, LazySet},
+	client::message::{event_filter, ignored_filter, lazy_loading_witness, visibility_filter},
 	Ruma,
 };
 
@@ -33,10 +33,10 @@ pub(crate) async fn get_context_route(
 	State(services): State<crate::State>,
 	body: Ruma<get_context::v3::Request>,
 ) -> Result<get_context::v3::Response> {
-	let filter = &body.filter;
 	let sender = body.sender();
-	let (sender_user, _) = sender;
+	let (sender_user, sender_device) = sender;
 	let room_id = &body.room_id;
+	let filter = &body.filter;
 
 	// Use limit or else 10, with maximum 100
 	let limit: usize = body
@@ -44,18 +44,6 @@ pub(crate) async fn get_context_route(
 		.try_into()
 		.unwrap_or(LIMIT_DEFAULT)
 		.min(LIMIT_MAX);
-
-	// some clients, at least element, seem to require knowledge of redundant
-	// members for "inline" profiles on the timeline to work properly
-	let lazy_load_enabled = matches!(filter.lazy_load_options, LazyLoadOptions::Enabled { .. });
-
-	let lazy_load_redundant = if let LazyLoadOptions::Enabled { include_redundant_members } =
-		filter.lazy_load_options
-	{
-		include_redundant_members
-	} else {
-		false
-	};
 
 	let base_id = services
 		.rooms
@@ -75,7 +63,7 @@ pub(crate) async fn get_context_route(
 		.user_can_see_event(sender_user, &body.room_id, &body.event_id)
 		.map(Ok);
 
-	let (base_id, base_pdu, visible) = try_join!(base_id, base_pdu, visible)?;
+	let (base_id, base_pdu, visible) = try_join3(base_id, base_pdu, visible).await?;
 
 	if base_pdu.room_id != body.room_id || base_pdu.event_id != body.event_id {
 		return Err!(Request(NotFound("Base event not found.")));
@@ -112,12 +100,32 @@ pub(crate) async fn get_context_route(
 		.collect();
 
 	let (base_event, events_before, events_after): (_, Vec<_>, Vec<_>) =
-		join!(base_event, events_before, events_after);
+		join3(base_event, events_before, events_after).await;
+
+	let lazy_loading_context = lazy_loading::Context {
+		user_id: sender_user,
+		device_id: sender_device,
+		room_id,
+		token: Some(base_count.into_unsigned()),
+		options: Some(&filter.lazy_load_options),
+	};
+
+	let lazy_loading_witnessed: OptionFuture<_> = filter
+		.lazy_load_options
+		.is_enabled()
+		.then_some(
+			base_event
+				.iter()
+				.chain(events_before.iter())
+				.chain(events_after.iter()),
+		)
+		.map(|witnessed| lazy_loading_witness(&services, &lazy_loading_context, witnessed))
+		.into();
 
 	let state_at = events_after
 		.last()
 		.map(ref_at!(1))
-		.map_or(body.event_id.as_ref(), |e| e.event_id.as_ref());
+		.map_or(body.event_id.as_ref(), |pdu| pdu.event_id.as_ref());
 
 	let state_ids = services
 		.rooms
@@ -126,41 +134,32 @@ pub(crate) async fn get_context_route(
 		.or_else(|_| services.rooms.state.get_room_shortstatehash(room_id))
 		.and_then(|shortstatehash| services.rooms.state_accessor.state_full_ids(shortstatehash))
 		.map_err(|e| err!(Database("State not found: {e}")))
-		.await?;
+		.boxed();
 
-	let lazy = base_event
-		.iter()
-		.chain(events_before.iter())
-		.chain(events_after.iter())
-		.stream()
-		.fold(LazySet::new(), |lazy, item| {
-			update_lazy(&services, room_id, sender, lazy, item, lazy_load_redundant)
-		})
-		.await;
+	let (lazy_loading_witnessed, state_ids) = join(lazy_loading_witnessed, state_ids).await;
 
-	let lazy = &lazy;
-	let state: Vec<_> = state_ids
-		.iter()
-		.stream()
-		.broad_filter_map(|(shortstatekey, event_id)| {
-			services
-				.rooms
-				.short
-				.get_statekey_from_short(*shortstatekey)
-				.map_ok(move |(event_type, state_key)| (event_type, state_key, event_id))
-				.ok()
-		})
-		.ready_filter_map(|(event_type, state_key, event_id)| {
-			if !lazy_load_enabled || event_type != StateEventType::RoomMember {
-				return Some(event_id);
+	let state_ids = state_ids?;
+	let lazy_loading_witnessed = lazy_loading_witnessed.unwrap_or_default();
+	let shortstatekeys = state_ids.iter().stream().map(deref_at!(0));
+
+	let state: Vec<_> = services
+		.rooms
+		.short
+		.multi_get_statekey_from_short(shortstatekeys)
+		.zip(state_ids.iter().stream().map(at!(1)))
+		.ready_filter_map(|item| Some((item.0.ok()?, item.1)))
+		.ready_filter_map(|((event_type, state_key), event_id)| {
+			if filter.lazy_load_options.is_enabled()
+				&& event_type == StateEventType::RoomMember
+				&& state_key
+					.as_str()
+					.try_into()
+					.is_ok_and(|user_id: &UserId| !lazy_loading_witnessed.contains(user_id))
+			{
+				return None;
 			}
 
-			state_key
-				.as_str()
-				.try_into()
-				.ok()
-				.filter(|&user_id: &&UserId| lazy.contains(user_id))
-				.map(|_| event_id)
+			Some(event_id)
 		})
 		.broad_filter_map(|event_id: &OwnedEventId| {
 			services.rooms.timeline.get_pdu(event_id).ok()

@@ -1,113 +1,155 @@
-use std::{
-	collections::{HashMap, HashSet},
-	fmt::Write,
-	sync::{Arc, Mutex},
-};
+//! Lazy Loading
+
+use std::{collections::HashSet, sync::Arc};
 
 use conduwuit::{
 	implement,
-	utils::{stream::TryIgnore, ReadyExt},
-	PduCount, Result,
+	utils::{stream::TryIgnore, IterStream, ReadyExt},
+	Result,
 };
-use database::{Interfix, Map};
-use ruma::{DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, RoomId, UserId};
+use database::{Database, Deserialized, Handle, Interfix, Map};
+use futures::{pin_mut, Stream, StreamExt};
+use ruma::{api::client::filter::LazyLoadOptions, DeviceId, OwnedUserId, RoomId, UserId};
 
 pub struct Service {
-	lazy_load_waiting: Mutex<LazyLoadWaiting>,
 	db: Data,
 }
 
 struct Data {
 	lazyloadedids: Arc<Map>,
+	db: Arc<Database>,
 }
 
-type LazyLoadWaiting = HashMap<LazyLoadWaitingKey, LazyLoadWaitingVal>;
-type LazyLoadWaitingKey = (OwnedUserId, OwnedDeviceId, OwnedRoomId, PduCount);
-type LazyLoadWaitingVal = HashSet<OwnedUserId>;
+pub trait Options: Send + Sync {
+	fn is_enabled(&self) -> bool;
+	fn include_redundant_members(&self) -> bool;
+}
+
+#[derive(Clone, Debug)]
+pub struct Context<'a> {
+	pub user_id: &'a UserId,
+	pub device_id: &'a DeviceId,
+	pub room_id: &'a RoomId,
+	pub token: Option<u64>,
+	pub options: Option<&'a LazyLoadOptions>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Status {
+	Unseen,
+	Seen(u64),
+}
+
+pub type Witness = HashSet<OwnedUserId>;
+type Key<'a> = (&'a UserId, &'a DeviceId, &'a RoomId, &'a UserId);
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
-			lazy_load_waiting: LazyLoadWaiting::new().into(),
 			db: Data {
 				lazyloadedids: args.db["lazyloadedids"].clone(),
+				db: args.db.clone(),
 			},
 		}))
 	}
-
-	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
-		let lazy_load_waiting = self.lazy_load_waiting.lock().expect("locked").len();
-		writeln!(out, "lazy_load_waiting: {lazy_load_waiting}")?;
-
-		Ok(())
-	}
-
-	fn clear_cache(&self) { self.lazy_load_waiting.lock().expect("locked").clear(); }
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }
 
 #[implement(Service)]
 #[tracing::instrument(skip(self), level = "debug")]
-#[inline]
-pub async fn lazy_load_was_sent_before(
-	&self,
-	user_id: &UserId,
-	device_id: &DeviceId,
-	room_id: &RoomId,
-	ll_user: &UserId,
-) -> bool {
-	let key = (user_id, device_id, room_id, ll_user);
-	self.db.lazyloadedids.qry(&key).await.is_ok()
-}
-
-#[implement(Service)]
-#[tracing::instrument(skip(self), level = "debug")]
-pub fn lazy_load_mark_sent(
-	&self,
-	user_id: &UserId,
-	device_id: &DeviceId,
-	room_id: &RoomId,
-	lazy_load: HashSet<OwnedUserId>,
-	count: PduCount,
-) {
-	let key = (user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), count);
-
-	self.lazy_load_waiting
-		.lock()
-		.expect("locked")
-		.insert(key, lazy_load);
-}
-
-#[implement(Service)]
-#[tracing::instrument(skip(self), level = "debug")]
-pub fn lazy_load_confirm_delivery(
-	&self,
-	user_id: &UserId,
-	device_id: &DeviceId,
-	room_id: &RoomId,
-	since: PduCount,
-) {
-	let key = (user_id.to_owned(), device_id.to_owned(), room_id.to_owned(), since);
-
-	let Some(user_ids) = self.lazy_load_waiting.lock().expect("locked").remove(&key) else {
-		return;
-	};
-
-	for ll_id in &user_ids {
-		let key = (user_id, device_id, room_id, ll_id);
-		self.db.lazyloadedids.put_raw(key, []);
-	}
-}
-
-#[implement(Service)]
-#[tracing::instrument(skip(self), level = "debug")]
-pub async fn lazy_load_reset(&self, user_id: &UserId, device_id: &DeviceId, room_id: &RoomId) {
-	let prefix = (user_id, device_id, room_id, Interfix);
+pub async fn reset(&self, ctx: &Context<'_>) {
+	let prefix = (ctx.user_id, ctx.device_id, ctx.room_id, Interfix);
 	self.db
 		.lazyloadedids
 		.keys_prefix_raw(&prefix)
 		.ignore_err()
 		.ready_for_each(|key| self.db.lazyloadedids.remove(key))
 		.await;
+}
+
+#[implement(Service)]
+#[tracing::instrument(name = "retain", level = "debug", skip_all)]
+pub async fn witness_retain(&self, senders: Witness, ctx: &Context<'_>) -> Witness {
+	debug_assert!(
+		ctx.options.is_none_or(Options::is_enabled),
+		"lazy loading should be enabled by your options"
+	);
+
+	let include_redundant = cfg!(feature = "element_hacks")
+		|| ctx.options.is_some_and(Options::include_redundant_members);
+
+	let witness = self
+		.witness(ctx, senders.iter().map(AsRef::as_ref))
+		.zip(senders.iter().stream());
+
+	pin_mut!(witness);
+	let _cork = self.db.db.cork();
+	let mut senders = Witness::with_capacity(senders.len());
+	while let Some((status, sender)) = witness.next().await {
+		if include_redundant || status == Status::Unseen {
+			senders.insert(sender.into());
+			continue;
+		}
+
+		if let Status::Seen(seen) = status {
+			if seen == 0 || ctx.token == Some(seen) {
+				senders.insert(sender.into());
+				continue;
+			}
+		}
+	}
+
+	senders
+}
+
+#[implement(Service)]
+fn witness<'a, I>(
+	&'a self,
+	ctx: &'a Context<'a>,
+	senders: I,
+) -> impl Stream<Item = Status> + Send + 'a
+where
+	I: Iterator<Item = &'a UserId> + Send + Clone + 'a,
+{
+	let make_key =
+		|sender: &'a UserId| -> Key<'a> { (ctx.user_id, ctx.device_id, ctx.room_id, sender) };
+
+	self.db
+		.lazyloadedids
+		.qry_batch(senders.clone().stream().map(make_key))
+		.map(into_status)
+		.zip(senders.stream())
+		.map(move |(status, sender)| {
+			if matches!(status, Status::Unseen) {
+				self.db
+					.lazyloadedids
+					.put_aput::<8, _, _>(make_key(sender), 0_u64);
+			} else if matches!(status, Status::Seen(0)) {
+				self.db
+					.lazyloadedids
+					.put_aput::<8, _, _>(make_key(sender), ctx.token.unwrap_or(0_u64));
+			}
+
+			status
+		})
+}
+
+fn into_status(result: Result<Handle<'_>>) -> Status {
+	match result.and_then(|handle| handle.deserialized()) {
+		| Ok(seen) => Status::Seen(seen),
+		| Err(_) => Status::Unseen,
+	}
+}
+
+impl Options for LazyLoadOptions {
+	fn include_redundant_members(&self) -> bool {
+		if let Self::Enabled { include_redundant_members } = self {
+			*include_redundant_members
+		} else {
+			false
+		}
+	}
+
+	fn is_enabled(&self) -> bool { !self.is_disabled() }
 }

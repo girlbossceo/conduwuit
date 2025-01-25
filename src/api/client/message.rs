@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use axum::extract::State;
 use conduwuit::{
 	at, is_equal_to,
@@ -10,7 +8,7 @@ use conduwuit::{
 	},
 	Event, PduCount, Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{future::OptionFuture, pin_mut, FutureExt, StreamExt};
 use ruma::{
 	api::{
 		client::{filter::RoomEventFilter, message::get_message_events},
@@ -18,13 +16,18 @@ use ruma::{
 	},
 	events::{AnyStateEvent, StateEventType, TimelineEventType, TimelineEventType::*},
 	serde::Raw,
-	DeviceId, OwnedUserId, RoomId, UserId,
+	RoomId, UserId,
 };
-use service::{rooms::timeline::PdusIterItem, Services};
+use service::{
+	rooms::{
+		lazy_loading,
+		lazy_loading::{Options, Witness},
+		timeline::PdusIterItem,
+	},
+	Services,
+};
 
 use crate::Ruma;
-
-pub(crate) type LazySet = HashSet<OwnedUserId>;
 
 /// list of safe and common non-state events to ignore if the user is ignored
 const IGNORED_MESSAGE_TYPES: &[TimelineEventType; 17] = &[
@@ -84,13 +87,6 @@ pub(crate) async fn get_message_events_route(
 		.unwrap_or(LIMIT_DEFAULT)
 		.min(LIMIT_MAX);
 
-	services.rooms.lazy_loading.lazy_load_confirm_delivery(
-		sender_user,
-		sender_device,
-		room_id,
-		from,
-	);
-
 	if matches!(body.dir, Direction::Backward) {
 		services
 			.rooms
@@ -127,34 +123,33 @@ pub(crate) async fn get_message_events_route(
 		.collect()
 		.await;
 
-	let lazy = events
-		.iter()
-		.stream()
-		.fold(LazySet::new(), |lazy, item| {
-			update_lazy(&services, room_id, sender, lazy, item, false)
-		})
-		.await;
+	let lazy_loading_context = lazy_loading::Context {
+		user_id: sender_user,
+		device_id: sender_device,
+		room_id,
+		token: Some(from.into_unsigned()),
+		options: Some(&filter.lazy_load_options),
+	};
 
-	let state = lazy
-		.iter()
-		.stream()
-		.broad_filter_map(|user_id| get_member_event(&services, room_id, user_id))
+	let witness: OptionFuture<_> = filter
+		.lazy_load_options
+		.is_enabled()
+		.then(|| lazy_loading_witness(&services, &lazy_loading_context, events.iter()))
+		.into();
+
+	let state = witness
+		.map(Option::into_iter)
+		.map(|option| option.flat_map(Witness::into_iter))
+		.map(IterStream::stream)
+		.into_stream()
+		.flatten()
+		.broad_filter_map(|user_id| async move {
+			get_member_event(&services, room_id, &user_id).await
+		})
 		.collect()
 		.await;
 
 	let next_token = events.last().map(at!(0));
-
-	if !cfg!(feature = "element_hacks") {
-		if let Some(next_token) = next_token {
-			services.rooms.lazy_loading.lazy_load_mark_sent(
-				sender_user,
-				sender_device,
-				room_id,
-				lazy,
-				next_token,
-			);
-		}
-	}
 
 	let chunk = events
 		.into_iter()
@@ -170,6 +165,52 @@ pub(crate) async fn get_message_events_route(
 	})
 }
 
+pub(crate) async fn lazy_loading_witness<'a, I>(
+	services: &Services,
+	lazy_loading_context: &lazy_loading::Context<'_>,
+	events: I,
+) -> Witness
+where
+	I: Iterator<Item = &'a PdusIterItem> + Clone + Send,
+{
+	let oldest = events
+		.clone()
+		.map(|(count, _)| count)
+		.copied()
+		.min()
+		.unwrap_or_else(PduCount::max);
+
+	let newest = events
+		.clone()
+		.map(|(count, _)| count)
+		.copied()
+		.max()
+		.unwrap_or_else(PduCount::max);
+
+	let receipts = services
+		.rooms
+		.read_receipt
+		.readreceipts_since(lazy_loading_context.room_id, oldest.into_unsigned());
+
+	pin_mut!(receipts);
+	let witness: Witness = events
+		.stream()
+		.map(|(_, pdu)| pdu.sender.clone())
+		.chain(
+			receipts
+				.ready_take_while(|(_, c, _)| *c <= newest.into_unsigned())
+				.map(|(user_id, ..)| user_id.to_owned()),
+		)
+		.collect()
+		.await;
+
+	services
+		.rooms
+		.lazy_loading
+		.witness_retain(witness, lazy_loading_context)
+		.await
+}
+
 async fn get_member_event(
 	services: &Services,
 	room_id: &RoomId,
@@ -182,42 +223,6 @@ async fn get_member_event(
 		.await
 		.map(|member_event| member_event.to_state_event())
 		.ok()
-}
-
-pub(crate) async fn update_lazy(
-	services: &Services,
-	room_id: &RoomId,
-	sender: (&UserId, &DeviceId),
-	mut lazy: LazySet,
-	item: &PdusIterItem,
-	force: bool,
-) -> LazySet {
-	let (_, event) = &item;
-	let (sender_user, sender_device) = sender;
-
-	/* TODO: Remove the "element_hacks" check when these are resolved:
-	 * https://github.com/vector-im/element-android/issues/3417
-	 * https://github.com/vector-im/element-web/issues/21034
-	 */
-	if force || cfg!(features = "element_hacks") {
-		lazy.insert(event.sender().into());
-		return lazy;
-	}
-
-	if lazy.contains(event.sender()) {
-		return lazy;
-	}
-
-	if !services
-		.rooms
-		.lazy_loading
-		.lazy_load_was_sent_before(sender_user, sender_device, room_id, event.sender())
-		.await
-	{
-		lazy.insert(event.sender().into());
-	}
-
-	lazy
 }
 
 pub(crate) async fn ignored_filter(
