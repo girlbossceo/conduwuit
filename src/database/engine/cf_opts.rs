@@ -77,20 +77,24 @@ fn descriptor_cf_options(
 
 fn set_table_options(opts: &mut Options, desc: &Descriptor, cache: Option<&Cache>) -> Result {
 	let mut table = table_options(desc, cache.is_some());
+
 	if let Some(cache) = cache {
 		table.set_block_cache(cache);
 	} else {
 		table.disable_cache();
 	}
 
+	let prepopulate = if desc.write_to_cache { "kFlushOnly" } else { "kDisable" };
+
 	let string = format!(
 		"{{block_based_table_factory={{num_file_reads_for_auto_readahead={0};\
 		 max_auto_readahead_size={1};initial_auto_readahead_size={2};\
-		 enable_index_compression={3}}}}}",
+		 enable_index_compression={3};prepopulate_block_cache={4}}}}}",
 		desc.auto_readahead_thresh,
 		desc.auto_readahead_max,
 		desc.auto_readahead_init,
 		desc.compressed_index,
+		prepopulate,
 	);
 
 	opts.set_options_from_string(&string).map_err(map_err)?;
