@@ -109,7 +109,8 @@ Both, but I prefer conduwuit.
 - GitLab: <https://gitlab.com/conduwuit/conduwuit>
 - git.girlcock.ceo: <https://git.girlcock.ceo/strawberry/conduwuit>
 - git.gay: <https://git.gay/june/conduwuit>
-- Codeberg: <https://codeberg.org/girlbossceo/conduwuit>
+- mau.dev: <https://mau.dev/june/conduwuit>
+- Codeberg: <https://codeberg.org/arf/conduwuit>
 - sourcehut: <https://git.sr.ht/~girlbossceo/conduwuit>
 
 <!-- ANCHOR_END: footer -->
