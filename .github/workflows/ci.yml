@@ -669,7 +669,7 @@ jobs:
             - name: Build macOS x86_64 binary
               if: ${{ matrix.os == 'macos-13' }}
               run: |
-                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release
+                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release --locked --features=perf_measurements,sentry_telemetry,direct_tls
                   cp -v -f target/release/conduwuit conduwuit-macos-x86_64
                   otool -L conduwuit-macos-x86_64
 
@@ -677,12 +677,13 @@ jobs:
             - name: Run x86_64 macOS release binary
               if: ${{ matrix.os == 'macos-13' }}
               run: |
+                  ./conduwuit-macos-x86_64 --help
                   ./conduwuit-macos-x86_64 --version
 
             - name: Build macOS arm64 binary
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
-                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release
+                  CONDUWUIT_VERSION_EXTRA="$(git rev-parse --short ${{ github.sha }})" cargo build --release --locked --features=perf_measurements,sentry_telemetry,direct_tls
                   cp -v -f target/release/conduwuit conduwuit-macos-arm64
                   otool -L conduwuit-macos-arm64
 
@@ -690,6 +691,7 @@ jobs:
             - name: Run arm64 macOS release binary
               if: ${{ matrix.os == 'macos-latest' }}
               run: |
+                  ./conduwuit-macos-arm64 --help
                   ./conduwuit-macos-arm64 --version
 
             - name: Upload macOS x86_64 binary to webserver
