@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, net::IpAddr, time::Instant};
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	debug, debug_warn, err, error,
+	debug,
+	debug::INFO_SPAN_LEVEL,
+	debug_warn, err, error,
 	result::LogErr,
 	trace,
 	utils::{
@@ -49,8 +51,8 @@ type Pdu = (OwnedRoomId, OwnedEventId, CanonicalJsonObject);
 ///
 /// Push EDUs and PDUs to this server.
 #[tracing::instrument(
-	name = "send",
-	level = "debug",
+	name = "txn",
+	level = INFO_SPAN_LEVEL,
 	skip_all,
 	fields(
 		%client,

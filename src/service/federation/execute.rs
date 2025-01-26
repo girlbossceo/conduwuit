@@ -2,8 +2,8 @@ use std::{fmt::Debug, mem};
 
 use bytes::Bytes;
 use conduwuit::{
-	debug, debug_error, debug_warn, err, error::inspect_debug_log, implement, trace,
-	utils::string::EMPTY, Err, Error, Result,
+	debug, debug::INFO_SPAN_LEVEL, debug_error, debug_warn, err, error::inspect_debug_log,
+	implement, trace, utils::string::EMPTY, Err, Error, Result,
 };
 use http::{header::AUTHORIZATION, HeaderValue};
 use ipaddress::IPAddress;
@@ -48,7 +48,8 @@ where
 
 #[implement(super::Service)]
 #[tracing::instrument(
-		level = "debug"
+		name = "fed",
+		level = INFO_SPAN_LEVEL,
 		skip(self, client, request),
 	)]
 pub async fn execute_on<T>(

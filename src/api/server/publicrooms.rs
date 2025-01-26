@@ -13,7 +13,7 @@ use crate::{Error, Result, Ruma};
 /// # `POST /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[tracing::instrument(skip_all, fields(%client), name = "publicrooms")]
+#[tracing::instrument(name = "publicrooms", level = "debug", skip_all, fields(%client))]
 pub(crate) async fn get_public_rooms_filtered_route(
 	State(services): State<crate::State>,
 	InsecureClientIp(client): InsecureClientIp,
@@ -51,7 +51,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 /// # `GET /_matrix/federation/v1/publicRooms`
 ///
 /// Lists the public rooms on this server.
-#[tracing::instrument(skip_all, fields(%client), "publicrooms")]
+#[tracing::instrument(name = "publicrooms", level = "debug", skip_all, fields(%client))]
 pub(crate) async fn get_public_rooms_route(
 	State(services): State<crate::State>,
 	InsecureClientIp(client): InsecureClientIp,

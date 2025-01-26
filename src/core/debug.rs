@@ -4,6 +4,7 @@ use std::{any::Any, panic};
 
 // Export debug proc_macros
 pub use conduwuit_macros::recursion_depth;
+use tracing::Level;
 
 // Export all of the ancillary tools from here as well.
 pub use crate::{result::DebugInspect, utils::debug::*};
@@ -50,6 +51,12 @@ macro_rules! debug_info {
 		$crate::debug_event!(::tracing::Level::INFO, $($x)+ )
 	}
 }
+
+pub const INFO_SPAN_LEVEL: Level = if cfg!(debug_assertions) {
+	Level::INFO
+} else {
+	Level::DEBUG
+};
 
 pub fn set_panic_trap() {
 	let next = panic::take_hook();

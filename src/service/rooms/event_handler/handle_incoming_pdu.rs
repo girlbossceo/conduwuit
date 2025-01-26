@@ -3,7 +3,7 @@ use std::{
 	time::Instant,
 };
 
-use conduwuit::{debug, err, implement, warn, Err, Result};
+use conduwuit::{debug, debug::INFO_SPAN_LEVEL, err, implement, warn, Err, Result};
 use futures::{
 	future::{try_join5, OptionFuture},
 	FutureExt,
@@ -42,7 +42,7 @@ use crate::rooms::timeline::RawPduId;
 #[implement(super::Service)]
 #[tracing::instrument(
 	name = "pdu",
-	level = "debug",
+	level = INFO_SPAN_LEVEL,
 	skip_all,
 	fields(%room_id, %event_id),
 )]

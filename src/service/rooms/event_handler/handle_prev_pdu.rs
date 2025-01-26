@@ -5,7 +5,8 @@ use std::{
 };
 
 use conduwuit::{
-	debug, implement, utils::continue_exponential_backoff_secs, Err, PduEvent, Result,
+	debug, debug::INFO_SPAN_LEVEL, implement, utils::continue_exponential_backoff_secs, Err,
+	PduEvent, Result,
 };
 use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName, UInt};
 
@@ -14,7 +15,7 @@ use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName, UInt};
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
 	name = "prev",
-	level = "debug",
+	level = INFO_SPAN_LEVEL,
 	skip_all,
 	fields(%prev_id),
 )]

@@ -268,7 +268,7 @@ impl Service {
 	}
 
 	/// Gets the summary of a space using solely federation
-	#[tracing::instrument(skip(self))]
+	#[tracing::instrument(level = "debug", skip(self))]
 	async fn get_summary_and_children_federation(
 		&self,
 		current_room: &OwnedRoomId,
