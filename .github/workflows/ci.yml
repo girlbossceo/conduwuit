@@ -22,8 +22,8 @@ concurrency:
 
 env:
     # sccache only on main repo
-    SCCACHE_GHA_ENABLED: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'true' || 'false' }}"
-    RUSTC_WRAPPER: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' || '' }}"
+    SCCACHE_GHA_ENABLED: "${{ !startsWith(github.ref, 'refs/tags/') && (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'true' || 'false' }}"
+    RUSTC_WRAPPER: "${{ !startsWith(github.ref, 'refs/tags/') && (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' || '' }}"
     SCCACHE_BUCKET: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' || '' }}"
     SCCACHE_S3_USE_SSL: ${{ vars.SCCACHE_S3_USE_SSL }}
     SCCACHE_REGION: ${{ vars.SCCACHE_REGION }}
@@ -51,8 +51,8 @@ env:
       extra-experimental-features = nix-command flakes
       accept-flake-config = true
     WEB_UPLOAD_SSH_USERNAME: ${{ secrets.WEB_UPLOAD_SSH_USERNAME }}
-    GH_SHA: ${{ github.sha }}
     GH_REF_NAME: ${{ github.ref_name }}
+    WEBSERVER_DIR_NAME: ${{ (github.head_ref != '' && format('merge-{0}-{1}', github.event.number, github.event.pull_request.user.login)) || github.ref_name }}-${{ github.sha }}
 
 permissions: {}
 
@@ -85,11 +85,13 @@ jobs:
                   END
 
                   echo "Checking connection"
-                  ssh -q website "echo test"
+                  ssh -q website "echo test" || ssh -q website "echo test"
 
                   echo "Creating commit rev directory on web server"
-                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/$GITHUB_SHA/"
-                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/$GITHUB_SHA/"
+                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/"
+                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/"
+
+                  echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
 
             - name: Install liburing
               run: |
@@ -124,6 +126,9 @@ jobs:
             - uses: nixbuild/nix-quick-install-action@master
 
             - name: Restore and cache Nix store
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ !startsWith(github.ref, 'refs/tags/') }}
               uses: nix-community/cache-nix-action@v5.1.0
               with:
                 # restore and save a cache using this key
@@ -184,11 +189,16 @@ jobs:
 
             # use sccache for Rust
             - name: Run sccache-cache
-              if: (env.SCCACHE_GHA_ENABLED == 'true')
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ (env.SCCACHE_GHA_ENABLED == 'true') && !startsWith(github.ref, 'refs/tags/') }}
               uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ !startsWith(github.ref, 'refs/tags/') }}
               with:
                 cache-all-crates: "true"
                 cache-on-failure: "true"
@@ -304,13 +314,16 @@ jobs:
                   END
 
                   echo "Checking connection"
-                  ssh -q website "echo test"
+                  ssh -q website "echo test" || ssh -q website "echo test"
 
                   echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
 
             - uses: nixbuild/nix-quick-install-action@master
 
             - name: Restore and cache Nix store
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ !startsWith(github.ref, 'refs/tags/') }}
               uses: nix-community/cache-nix-action@v5.1.0
               with:
                 # restore and save a cache using this key
@@ -364,11 +377,16 @@ jobs:
 
             # use sccache for Rust
             - name: Run sccache-cache
-              if: (env.SCCACHE_GHA_ENABLED == 'true')
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ (env.SCCACHE_GHA_ENABLED == 'true') && !startsWith(github.ref, 'refs/tags/') }}
               uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ !startsWith(github.ref, 'refs/tags/') }}
               with:
                 cache-all-crates: "true"
                 cache-on-failure: "true"
@@ -493,29 +511,27 @@ jobs:
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x static-x86_64-linux-musl-x86_64-haswell-optimised
-                    scp static-x86_64-linux-musl-x86_64-haswell-optimised website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-x86_64-linux-musl-x86_64-haswell-optimised
+                    scp static-x86_64-linux-musl-x86_64-haswell-optimised website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/static-x86_64-linux-musl-x86_64-haswell-optimised
                   fi
 
             - name: Upload static-${{ matrix.target }}-all-features to webserver
-              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x static-${{ matrix.target }}
-                    scp static-${{ matrix.target }} website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-${{ matrix.target }}
+                    scp static-${{ matrix.target }} website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/static-${{ matrix.target }}
                   fi
 
             - name: Upload static deb x86_64-linux-musl-all-features-x86_64-haswell-optimised to webserver
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
-                    scp x86_64-linux-musl-x86_64-haswell-optimised.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/x86_64-linux-musl-x86_64-haswell-optimised.deb
+                    scp x86_64-linux-musl-x86_64-haswell-optimised.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/x86_64-linux-musl-x86_64-haswell-optimised.deb
                   fi
 
             - name: Upload static deb ${{ matrix.target }}-all-features to webserver
-              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
-                    scp ${{ matrix.target }}.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/${{ matrix.target }}.deb
+                    scp ${{ matrix.target }}.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/${{ matrix.target }}.deb
                   fi
 
             - name: Upload static-${{ matrix.target }}-debug-all-features to GitHub
@@ -534,17 +550,15 @@ jobs:
                   compression-level: 0
 
             - name: Upload static-${{ matrix.target }}-debug-all-features to webserver
-              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
-                    scp static-${{ matrix.target }}-debug website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/static-${{ matrix.target }}-debug
+                    scp static-${{ matrix.target }}-debug website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/static-${{ matrix.target }}-debug
                   fi
 
             - name: Upload static deb ${{ matrix.target }}-debug-all-features to webserver
-              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
-                  if [ ! -z $SSH_WEBSITE]; then
-                    scp ${{ matrix.target }}-debug.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/${{ matrix.target }}-debug.deb
+                  if [ ! -z $SSH_WEBSITE ]; then
+                    scp ${{ matrix.target }}-debug.deb website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/${{ matrix.target }}-debug.deb
                   fi
 
             - name: Build OCI image ${{ matrix.target }}-all-features
@@ -594,21 +608,19 @@ jobs:
               if: ${{ matrix.target == 'x86_64-linux-musl' }}
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
-                    scp oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
+                    scp oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/oci-image-x86_64-linux-musl-all-features-x86_64-haswell-optimised.tar.gz
                   fi
 
             - name: Upload OCI image ${{ matrix.target }}-all-features to webserver
-              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
-                    scp oci-image-${{ matrix.target }}.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-${{ matrix.target }}.tar.gz
+                    scp oci-image-${{ matrix.target }}.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/oci-image-${{ matrix.target }}.tar.gz
                   fi
 
             - name: Upload OCI image ${{ matrix.target }}-debug-all-features to webserver
-              if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event.pull_request.draft != true)) && (env.web_upload_ssh_private_key != '') && github.event.pull_request.user.login != 'renovate[bot]'
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
-                    scp oci-image-${{ matrix.target }}-debug.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/oci-image-${{ matrix.target }}-debug.tar.gz
+                    scp oci-image-${{ matrix.target }}-debug.tar.gz website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/oci-image-${{ matrix.target }}-debug.tar.gz
                   fi
 
     build_mac_binaries:
@@ -647,7 +659,9 @@ jobs:
                   END
 
                   echo "Checking connection"
-                  ssh -q website "echo test"
+                  ssh -q website "echo test" || ssh -q website "echo test"
+
+                  echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
 
             - name: Tag comparison check
               if: ${{ startsWith(github.ref, 'refs/tags/v') && !endsWith(github.ref, '-rc') }}
@@ -663,7 +677,9 @@ jobs:
 
             # use sccache for Rust
             - name: Run sccache-cache
-              if: (env.SCCACHE_GHA_ENABLED == 'true')
+              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
+              # releases and tags
+              if: ${{ (env.SCCACHE_GHA_ENABLED == 'true') && !startsWith(github.ref, 'refs/tags/') }}
               uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
@@ -707,7 +723,7 @@ jobs:
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x conduwuit-macos-x86_64
-                    scp conduwuit-macos-x86_64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/conduwuit-macos-x86_64
+                    scp conduwuit-macos-x86_64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/conduwuit-macos-x86_64
                   fi
 
             - name: Upload macOS arm64 binary to webserver
@@ -715,7 +731,7 @@ jobs:
               run: |
                   if [ ! -z $SSH_WEBSITE ]; then
                     chmod +x conduwuit-macos-arm64
-                    scp conduwuit-macos-arm64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${GH_SHA}/conduwuit-macos-arm64
+                    scp conduwuit-macos-arm64 website:/var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/conduwuit-macos-arm64
                   fi
 
             - name: Upload macOS x86_64 binary
@@ -881,15 +897,15 @@ jobs:
               run: |
                   # Dockerhub Container Registry
                   if [ ! -z $DOCKERHUB_TOKEN ]; then
-                    docker manifest create ${DOCKER_HUB_REPO}:${BRANCH_TAG}-haswell --amend ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell
+                    docker manifest create ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell --amend ${DOCKER_HUB_REPO}:${BRANCH_TAG}-haswell
                   fi
                   # GitHub Container Registry
                   if [ $GHCR_ENABLED = "true" ]; then
-                    docker manifest create ${GHCR_REPO}:${BRANCH_TAG}-haswell --amend ${GHCR_REPO}:${UNIQUE_TAG}-haswell
+                    docker manifest create ${GHCR_REPO}:${UNIQUE_TAG}-haswell --amend ${GHCR_REPO}:${BRANCH_TAG}-haswell
                   fi
                   # GitLab Container Registry
                   if [ ! -z $GITLAB_TOKEN ]; then
-                    docker manifest create ${GLCR_REPO}:${BRANCH_TAG}-haswell --amend ${GLCR_REPO}:${UNIQUE_TAG}-haswell
+                    docker manifest create ${GLCR_REPO}:${UNIQUE_TAG}-haswell --amend ${GLCR_REPO}:${BRANCH_TAG}-haswell
                   fi
 
             - name: Create Docker combined manifests
