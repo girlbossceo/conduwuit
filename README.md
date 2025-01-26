@@ -4,7 +4,7 @@
 
 <!-- ANCHOR: catchphrase -->
 
-### a very cool, featureful fork of [Conduit](https://conduit.rs/)
+### a very cool [Matrix](https://matrix.org/) chat homeserver written in Rust
 
 <!-- ANCHOR_END: catchphrase -->
 
@@ -15,16 +15,15 @@ information and how to deploy/setup conduwuit.
 
 #### What is Matrix?
 
-[Matrix](https://matrix.org) is an open network for secure and decentralized
-communication. Users from every Matrix homeserver can chat with users from all
-other Matrix servers. You can even use bridges (also called Matrix Appservices)
-to communicate with users outside of Matrix, like a community on Discord.
+[Matrix](https://matrix.org) is an open, federated, and extensible network for
+decentralised communication. Users from any Matrix homeserver can chat with users from all
+other homeservers over federation. Matrix is designed to be extensible and built on top of.
+You can even use bridges such as Matrix Appservices to communicate with users outside of Matrix, like a community on Discord.
 
 #### What is the goal?
 
-A high-performance and efficient Matrix homeserver that's easy to set up and
-just works. You can install it on a mini-computer like the Raspberry Pi to
-host Matrix for your family, friends or company.
+A high-performance, efficient, low-cost, and featureful Matrix homeserver that's
+easy to set up and just works with minimal configuration needed.
 
 #### Can I try it out?
 
@@ -37,17 +36,22 @@ homeserver". This means there are rules, so please read the rules:
 [https://transfem.dev/homeserver_rules.txt](https://transfem.dev/homeserver_rules.txt)
 
 transfem.dev is also listed at
-[servers.joinmatrix.org](https://servers.joinmatrix.org/)
+[servers.joinmatrix.org](https://servers.joinmatrix.org/), which is a list of
+popular public Matrix homeservers, including some others that run conduwuit.
 
 #### What is the current status?
 
-conduwuit is technically a hard fork of Conduit, which is in Beta. The Beta status
-initially was inherited from Conduit, however overtime this Beta status is rapidly
-becoming less and less relevant as our codebase significantly diverges more and more.
+conduwuit is technically a hard fork of [Conduit](https://conduit.rs/), which is in beta.
+The beta status initially was inherited from Conduit, however the huge amount of
+codebase divergance, changes, fixes, and improvements have effectively made this
+beta status not entirely applicable to us anymore.
 
-conduwuit is quite stable and very usable as a daily driver and for a low-medium
-sized homeserver. There is still a lot of more work to be done, but it is in a far
-better place than the project was in early 2024.
+conduwuit is very stable based on our rapidly growing userbase, has lots of features that users
+expect, and very usable as a daily driver for small, medium, and upper-end medium sized homeservers.
+
+A lot of critical stability and performance issues have been fixed, and a lot of
+necessary groundwork has finished; making this project way better than it was
+back in the start at ~early 2024.
 
 #### How is conduwuit funded? Is conduwuit sustainable?
 
@@ -72,16 +76,37 @@ Conduit like before. If you are truly finding yourself wanting to migrate back
 to Conduit, we would appreciate all your feedback and if we can assist with
 any issues or concerns.
 
+#### Can I migrate from Synapse or Dendrite?
+
+Currently there is no known way to seamlessly migrate all user data from the old
+homeserver to conduwuit. However it is perfectly acceptable to replace the old
+homeserver software with conduwuit using the same server name and there will not
+be any issues with federation.
+
+There is an interest in developing a built-in seamless user data migration
+method into conduwuit, however there is no concrete ETA or timeline for this.
+
+
 <!-- ANCHOR_END: body -->
 
 <!-- ANCHOR: footer -->
 
 #### Contact
 
-If you run into any question, feel free to
+[`#conduwuit:puppygock.gay`](https://matrix.to/#/#conduwuit:puppygock.gay)
+is the official project Matrix room. You can get support here, ask questions or
+concerns, get assistance setting up conduwuit, etc.
 
-- Ask us in `#conduwuit:puppygock.gay` on Matrix
-- [Open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new)
+This room should stay relevant and focused on conduwuit. An offtopic general
+chatter room can be found there as well.
+
+Please keep the issue trackers focused on bug reports and enhancement requests.
+General support is extremely difficult to be offered over an issue tracker, and
+simple questions should be asked directly in an interactive platform like our
+Matrix room above as they can turn into a relevant discussion and/or may not be
+simple to answer. If you're not sure, just ask in the Matrix room.
+
+If you have a bug or feature to request: [Open an issue on GitHub](https://github.com/girlbossceo/conduwuit/issues/new)
 
 #### Donate
 
@@ -89,9 +114,11 @@ conduwuit development is purely made possible by myself and contributors. I do
 not get paid to work on this, and I work on it in my free time. Donations are
 heavily appreciated! 💜🥺
 
-- Liberapay: <https://liberapay.com/girlbossceo>
-- Ko-fi (note they take a fee): <https://ko-fi.com/puppygock>
-- GitHub Sponsors: <https://github.com/sponsors/girlbossceo>
+- Liberapay (preferred): <https://liberapay.com/girlbossceo>
+- GitHub Sponsors (preferred): <https://github.com/sponsors/girlbossceo>
+- Ko-fi: <https://ko-fi.com/puppygock>
+
+I do not and will not accept cryptocurrency donations, including things related.
 
 #### Logo
 
@@ -104,6 +131,9 @@ post](https://web.archive.org/web/20241126004041/https://cohost.org/RatBaby/post
 Both, but I prefer conduwuit.
 
 #### Mirrors of conduwuit
+
+If GitHub is unavailable in your country, or has poor connectivity, conduwuit's
+source code is mirrored onto the following additional platforms I maintain:
 
 - GitHub: <https://github.com/girlbossceo/conduwuit>
 - GitLab: <https://gitlab.com/conduwuit/conduwuit>
