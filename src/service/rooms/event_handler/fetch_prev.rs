@@ -8,8 +8,7 @@ use futures::{future, FutureExt};
 use ruma::{
 	int,
 	state_res::{self},
-	uint, CanonicalJsonValue, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, RoomVersionId,
-	ServerName,
+	uint, CanonicalJsonValue, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, ServerName, UInt,
 };
 
 use super::check_room_id;
@@ -26,7 +25,7 @@ pub(super) async fn fetch_prev(
 	origin: &ServerName,
 	create_event: &PduEvent,
 	room_id: &RoomId,
-	room_version_id: &RoomVersionId,
+	first_ts_in_room: UInt,
 	initial_set: Vec<OwnedEventId>,
 ) -> Result<(
 	Vec<OwnedEventId>,
@@ -36,21 +35,13 @@ pub(super) async fn fetch_prev(
 	let mut eventid_info = HashMap::new();
 	let mut todo_outlier_stack: VecDeque<OwnedEventId> = initial_set.into();
 
-	let first_pdu_in_room = self.services.timeline.first_pdu_in_room(room_id).await?;
-
 	let mut amount = 0;
 
 	while let Some(prev_event_id) = todo_outlier_stack.pop_front() {
 		self.services.server.check_running()?;
 
 		if let Some((pdu, mut json_opt)) = self
-			.fetch_and_handle_outliers(
-				origin,
-				&[prev_event_id.clone()],
-				create_event,
-				room_id,
-				room_version_id,
-			)
+			.fetch_and_handle_outliers(origin, &[prev_event_id.clone()], create_event, room_id)
 			.boxed()
 			.await
 			.pop()
@@ -74,7 +65,7 @@ pub(super) async fn fetch_prev(
 			}
 
 			if let Some(json) = json_opt {
-				if pdu.origin_server_ts > first_pdu_in_room.origin_server_ts {
+				if pdu.origin_server_ts > first_ts_in_room {
 					amount = amount.saturating_add(1);
 					for prev_prev in &pdu.prev_events {
 						if !graph.contains_key(prev_prev) {

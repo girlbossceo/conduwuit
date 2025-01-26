@@ -1,14 +1,15 @@
 use std::{
 	collections::{hash_map, BTreeMap},
-	sync::Arc,
 	time::Instant,
 };
 
 use conduwuit::{debug, err, implement, warn, Err, Result};
-use futures::{FutureExt, TryFutureExt};
+use futures::{
+	future::{try_join5, OptionFuture},
+	FutureExt,
+};
 use ruma::{events::StateEventType, CanonicalJsonValue, EventId, RoomId, ServerName, UserId};
 
-use super::{check_room_id, get_room_version_id};
 use crate::rooms::timeline::RawPduId;
 
 /// When receiving an event one needs to:
@@ -59,19 +60,13 @@ pub async fn handle_incoming_pdu<'a>(
 	}
 
 	// 1.1 Check the server is in the room
-	if !self.services.metadata.exists(room_id).await {
-		return Err!(Request(NotFound("Room is unknown to this server")));
-	}
+	let meta_exists = self.services.metadata.exists(room_id).map(Ok);
 
 	// 1.2 Check if the room is disabled
-	if self.services.metadata.is_disabled(room_id).await {
-		return Err!(Request(Forbidden(
-			"Federation of this room is currently disabled on this server."
-		)));
-	}
+	let is_disabled = self.services.metadata.is_disabled(room_id).map(Ok);
 
 	// 1.3.1 Check room ACL on origin field/server
-	self.acl_check(origin, room_id).await?;
+	let origin_acl_check = self.acl_check(origin, room_id);
 
 	// 1.3.2 Check room ACL on sender's server name
 	let sender: &UserId = value
@@ -79,36 +74,53 @@ pub async fn handle_incoming_pdu<'a>(
 		.try_into()
 		.map_err(|e| err!(Request(InvalidParam("PDU does not have a valid sender key: {e}"))))?;
 
-	if sender.server_name() != origin {
-		self.acl_check(sender.server_name(), room_id).await?;
-	}
+	let sender_acl_check: OptionFuture<_> = sender
+		.server_name()
+		.ne(origin)
+		.then(|| self.acl_check(sender.server_name(), room_id))
+		.into();
 
 	// Fetch create event
-	let create_event = self
-		.services
-		.state_accessor
-		.room_state_get(room_id, &StateEventType::RoomCreate, "")
-		.map_ok(Arc::new)
-		.await?;
+	let create_event =
+		self.services
+			.state_accessor
+			.room_state_get(room_id, &StateEventType::RoomCreate, "");
 
-	// Procure the room version
-	let room_version_id = get_room_version_id(&create_event)?;
+	let (meta_exists, is_disabled, (), (), create_event) = try_join5(
+		meta_exists,
+		is_disabled,
+		origin_acl_check,
+		sender_acl_check.map(|o| o.unwrap_or(Ok(()))),
+		create_event,
+	)
+	.await?;
 
-	let first_pdu_in_room = self.services.timeline.first_pdu_in_room(room_id).await?;
+	if !meta_exists {
+		return Err!(Request(NotFound("Room is unknown to this server")));
+	}
+
+	if is_disabled {
+		return Err!(Request(Forbidden("Federation of this room is disabled by this server.")));
+	}
 
 	let (incoming_pdu, val) = self
 		.handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false)
-		.boxed()
 		.await?;
-
-	check_room_id(room_id, &incoming_pdu)?;
 
 	// 8. if not timeline event: stop
 	if !is_timeline_event {
 		return Ok(None);
 	}
+
 	// Skip old events
-	if incoming_pdu.origin_server_ts < first_pdu_in_room.origin_server_ts {
+	let first_ts_in_room = self
+		.services
+		.timeline
+		.first_pdu_in_room(room_id)
+		.await?
+		.origin_server_ts;
+
+	if incoming_pdu.origin_server_ts < first_ts_in_room {
 		return Ok(None);
 	}
 
@@ -119,7 +131,7 @@ pub async fn handle_incoming_pdu<'a>(
 			origin,
 			&create_event,
 			room_id,
-			&room_version_id,
+			first_ts_in_room,
 			incoming_pdu.prev_events.clone(),
 		)
 		.await?;
@@ -134,7 +146,7 @@ pub async fn handle_incoming_pdu<'a>(
 				room_id,
 				&mut eventid_info,
 				&create_event,
-				&first_pdu_in_room,
+				first_ts_in_room,
 				&prev_id,
 			)
 			.await

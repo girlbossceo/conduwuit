@@ -63,7 +63,7 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 
 	if state_at_incoming_event.is_none() {
 		state_at_incoming_event = self
-			.fetch_state(origin, create_event, room_id, &room_version_id, &incoming_pdu.event_id)
+			.fetch_state(origin, create_event, room_id, &incoming_pdu.event_id)
 			.await?;
 	}
 

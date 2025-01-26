@@ -10,9 +10,10 @@ use conduwuit::{
 };
 use futures::TryFutureExt;
 use ruma::{
-	api::federation::event::get_event, CanonicalJsonValue, OwnedEventId, RoomId, RoomVersionId,
-	ServerName,
+	api::federation::event::get_event, CanonicalJsonValue, OwnedEventId, RoomId, ServerName,
 };
+
+use super::get_room_version_id;
 
 /// Find the event and auth it. Once the event is validated (steps 1 - 8)
 /// it is appended to the outliers Tree.
@@ -30,7 +31,6 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 	events: &'a [OwnedEventId],
 	create_event: &'a PduEvent,
 	room_id: &'a RoomId,
-	room_version_id: &'a RoomVersionId,
 ) -> Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)> {
 	let back_off = |id| match self
 		.services
@@ -113,8 +113,13 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 			{
 				| Ok(res) => {
 					debug!("Got {next_id} over federation");
+					let Ok(room_version_id) = get_room_version_id(create_event) else {
+						back_off((*next_id).to_owned());
+						continue;
+					};
+
 					let Ok((calculated_event_id, value)) =
-						pdu::gen_event_id_canonical_json(&res.pdu, room_version_id)
+						pdu::gen_event_id_canonical_json(&res.pdu, &room_version_id)
 					else {
 						back_off((*next_id).to_owned());
 						continue;

@@ -84,7 +84,6 @@ pub(super) async fn handle_outlier_pdu<'a>(
 			&incoming_pdu.auth_events,
 			create_event,
 			room_id,
-			&room_version_id,
 		))
 		.await;
 	}

@@ -7,7 +7,7 @@ use std::{
 use conduwuit::{
 	debug, implement, utils::continue_exponential_backoff_secs, Err, PduEvent, Result,
 };
-use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName};
+use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName, UInt};
 
 #[implement(super::Service)]
 #[allow(clippy::type_complexity)]
@@ -27,8 +27,8 @@ pub(super) async fn handle_prev_pdu<'a>(
 		OwnedEventId,
 		(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>),
 	>,
-	create_event: &Arc<PduEvent>,
-	first_pdu_in_room: &PduEvent,
+	create_event: &PduEvent,
+	first_ts_in_room: UInt,
 	prev_id: &EventId,
 ) -> Result {
 	// Check for disabled again because it might have changed
@@ -62,7 +62,7 @@ pub(super) async fn handle_prev_pdu<'a>(
 
 	if let Some((pdu, json)) = eventid_info.remove(prev_id) {
 		// Skip old events
-		if pdu.origin_server_ts < first_pdu_in_room.origin_server_ts {
+		if pdu.origin_server_ts < first_ts_in_room {
 			return Ok(());
 		}
 

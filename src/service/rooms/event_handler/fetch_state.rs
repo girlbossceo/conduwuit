@@ -4,7 +4,7 @@ use conduwuit::{debug, debug_warn, implement, Err, Error, PduEvent, Result};
 use futures::FutureExt;
 use ruma::{
 	api::federation::event::get_room_state_ids, events::StateEventType, EventId, OwnedEventId,
-	RoomId, RoomVersionId, ServerName,
+	RoomId, ServerName,
 };
 
 use crate::rooms::short::ShortStateKey;
@@ -23,7 +23,6 @@ pub(super) async fn fetch_state(
 	origin: &ServerName,
 	create_event: &PduEvent,
 	room_id: &RoomId,
-	room_version_id: &RoomVersionId,
 	event_id: &EventId,
 ) -> Result<Option<HashMap<u64, OwnedEventId>>> {
 	let res = self
@@ -38,7 +37,7 @@ pub(super) async fn fetch_state(
 
 	debug!("Fetching state events");
 	let state_vec = self
-		.fetch_and_handle_outliers(origin, &res.pdu_ids, create_event, room_id, room_version_id)
+		.fetch_and_handle_outliers(origin, &res.pdu_ids, create_event, room_id)
 		.boxed()
 		.await;
 
