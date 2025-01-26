@@ -10,21 +10,33 @@ CONDUWUIT_DATABASE_PATH_SYMLINK=/var/lib/matrix-conduit
 case $1 in
   purge)
     # Remove debconf changes from the db
-    db_purge
+    #db_purge
 
     # Per https://www.debian.org/doc/debian-policy/ch-files.html#behavior
     # "configuration files must be preserved when the package is removed, and
     #  only deleted when the package is purged."
+
+    #
+
     if [ -d "$CONDUWUIT_CONFIG_PATH" ]; then
-      rm -v -r "$CONDUWUIT_CONFIG_PATH"
+      if test -L "$CONDUWUIT_CONFIG_PATH"; then
+        echo "Deleting conduwuit configuration files"
+        rm -v -r "$CONDUWUIT_CONFIG_PATH"
+      fi
     fi
 
     if [ -d "$CONDUWUIT_DATABASE_PATH" ]; then
-      rm -v -r "$CONDUWUIT_DATABASE_PATH"
+      if test -L "$CONDUWUIT_DATABASE_PATH"; then
+        echo "Deleting conduwuit database directory"
+        rm -r "$CONDUWUIT_DATABASE_PATH"
+      fi
     fi
 
     if [ -d "$CONDUWUIT_DATABASE_PATH_SYMLINK" ]; then
-      rm -v -r "$CONDUWUIT_DATABASE_PATH_SYMLINK"
+      if test -L "$CONDUWUIT_DATABASE_SYMLINK"; then
+        echo "Removing matrix-conduit symlink"
+        rm -r "$CONDUWUIT_DATABASE_PATH_SYMLINK"
+      fi
     fi
     ;;
 esac
