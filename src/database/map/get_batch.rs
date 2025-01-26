@@ -1,4 +1,4 @@
-use std::{convert::AsRef, fmt::Debug, sync::Arc};
+use std::{convert::AsRef, sync::Arc};
 
 use conduwuit::{
 	implement,
@@ -10,43 +10,34 @@ use conduwuit::{
 };
 use futures::{Stream, StreamExt, TryStreamExt};
 use rocksdb::{DBPinnableSlice, ReadOptions};
-use serde::Serialize;
 
 use super::get::{cached_handle_from, handle_from};
-use crate::{keyval::KeyBuf, ser, Handle};
+use crate::Handle;
 
-#[implement(super::Map)]
-#[tracing::instrument(skip(self, keys), level = "trace")]
-pub fn qry_batch<'a, S, K>(
-	self: &'a Arc<Self>,
-	keys: S,
-) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a
+pub trait Get<'a, K, S>
 where
+	Self: Sized,
 	S: Stream<Item = K> + Send + 'a,
-	K: Serialize + Debug + 'a,
+	K: AsRef<[u8]> + Send + Sync + 'a,
 {
-	use crate::pool::Get;
+	fn get(self, map: &'a Arc<super::Map>) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a;
+}
 
-	keys.ready_chunks(automatic_amplification())
-		.widen_then(automatic_width(), |chunk| {
-			let keys = chunk
-				.iter()
-				.map(ser::serialize_to::<KeyBuf, _>)
-				.map(|result| result.expect("failed to serialize query key"))
-				.map(Into::into)
-				.collect();
-
-			self.db
-				.pool
-				.execute_get(Get { map: self.clone(), key: keys, res: None })
-		})
-		.map_ok(|results| results.into_iter().stream())
-		.try_flatten()
+impl<'a, K, S> Get<'a, K, S> for S
+where
+	Self: Sized,
+	S: Stream<Item = K> + Send + 'a,
+	K: AsRef<[u8]> + Send + Sync + 'a,
+{
+	#[inline]
+	fn get(self, map: &'a Arc<super::Map>) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a {
+		map.get_batch(self)
+	}
 }
 
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, keys), level = "trace")]
-pub fn get_batch<'a, S, K>(
+pub(crate) fn get_batch<'a, S, K>(
 	self: &'a Arc<Self>,
 	keys: S,
 ) -> impl Stream<Item = Result<Handle<'_>>> + Send + 'a

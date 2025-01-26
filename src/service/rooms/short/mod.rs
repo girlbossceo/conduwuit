@@ -2,7 +2,7 @@ use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
 pub use conduwuit::pdu::{ShortEventId, ShortId, ShortRoomId};
 use conduwuit::{err, implement, utils, utils::IterStream, Result};
-use database::{Deserialized, Map};
+use database::{Deserialized, Get, Map, Qry};
 use futures::{Stream, StreamExt};
 use ruma::{events::StateEventType, EventId, RoomId};
 use serde::Deserialize;
@@ -67,9 +67,10 @@ pub fn multi_get_or_create_shorteventid<'a, I>(
 where
 	I: Iterator<Item = &'a EventId> + Clone + Debug + Send + 'a,
 {
-	self.db
-		.eventid_shorteventid
-		.get_batch(event_ids.clone().stream())
+	event_ids
+		.clone()
+		.stream()
+		.get(&self.db.eventid_shorteventid)
 		.zip(event_ids.into_iter().stream())
 		.map(|(result, event_id)| match result {
 			| Ok(ref short) => utils::u64_from_u8(short),
@@ -171,9 +172,8 @@ where
 	Id: for<'de> Deserialize<'de> + Sized + ToOwned + 'a,
 	<Id as ToOwned>::Owned: Borrow<EventId>,
 {
-	self.db
-		.shorteventid_eventid
-		.qry_batch(shorteventid)
+	shorteventid
+		.qry(&self.db.shorteventid_eventid)
 		.map(Deserialized::deserialized)
 }
 
@@ -204,9 +204,8 @@ pub fn multi_get_statekey_from_short<'a, S>(
 where
 	S: Stream<Item = ShortStateKey> + Send + 'a,
 {
-	self.db
-		.shortstatekey_statekey
-		.qry_batch(shortstatekey)
+	shortstatekey
+		.qry(&self.db.shortstatekey_statekey)
 		.map(Deserialized::deserialized)
 }
 

@@ -9,6 +9,8 @@ mod keys_from;
 mod keys_prefix;
 mod open;
 mod options;
+mod qry;
+mod qry_batch;
 mod remove;
 mod rev_keys;
 mod rev_keys_from;
@@ -37,6 +39,7 @@ pub(crate) use self::options::{
 	cache_iter_options_default, cache_read_options_default, iter_options_default,
 	read_options_default, write_options_default,
 };
+pub use self::{get_batch::Get, qry_batch::Qry};
 use crate::{watchers::Watchers, Engine};
 
 pub struct Map {

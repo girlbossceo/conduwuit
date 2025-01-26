@@ -7,7 +7,7 @@ use conduwuit::{
 	utils::{stream::TryIgnore, IterStream, ReadyExt},
 	Result,
 };
-use database::{Database, Deserialized, Handle, Interfix, Map};
+use database::{Database, Deserialized, Handle, Interfix, Map, Qry};
 use futures::{pin_mut, Stream, StreamExt};
 use ruma::{api::client::filter::LazyLoadOptions, DeviceId, OwnedUserId, RoomId, UserId};
 
@@ -115,9 +115,11 @@ where
 	let make_key =
 		|sender: &'a UserId| -> Key<'a> { (ctx.user_id, ctx.device_id, ctx.room_id, sender) };
 
-	self.db
-		.lazyloadedids
-		.qry_batch(senders.clone().stream().map(make_key))
+	senders
+		.clone()
+		.stream()
+		.map(make_key)
+		.qry(&self.db.lazyloadedids)
 		.map(into_status)
 		.zip(senders.stream())
 		.map(move |(status, sender)| {
