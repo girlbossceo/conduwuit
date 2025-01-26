@@ -79,7 +79,9 @@ pub async fn handle_incoming_pdu<'a>(
 		.try_into()
 		.map_err(|e| err!(Request(InvalidParam("PDU does not have a valid sender key: {e}"))))?;
 
-	self.acl_check(sender.server_name(), room_id).await?;
+	if sender.server_name() != origin {
+		self.acl_check(sender.server_name(), room_id).await?;
+	}
 
 	// Fetch create event
 	let create_event = self
