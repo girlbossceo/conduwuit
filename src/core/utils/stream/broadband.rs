@@ -35,6 +35,13 @@ where
 		Fut: Future<Output = Option<U>> + Send,
 		U: Send;
 
+	fn broadn_flat_map<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
+	where
+		N: Into<Option<usize>>,
+		F: Fn(Item) -> Fut + Send,
+		Fut: Stream<Item = U> + Send + Unpin,
+		U: Send;
+
 	fn broadn_then<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
 	where
 		N: Into<Option<usize>>,
@@ -68,6 +75,16 @@ where
 		U: Send,
 	{
 		self.broadn_filter_map(None, f)
+	}
+
+	#[inline]
+	fn broad_flat_map<F, Fut, U>(self, f: F) -> impl Stream<Item = U> + Send
+	where
+		F: Fn(Item) -> Fut + Send,
+		Fut: Stream<Item = U> + Send + Unpin,
+		U: Send,
+	{
+		self.broadn_flat_map(None, f)
 	}
 
 	#[inline]
@@ -120,6 +137,17 @@ where
 		self.map(f)
 			.buffer_unordered(n.into().unwrap_or_else(automatic_width))
 			.ready_filter_map(identity)
+	}
+
+	#[inline]
+	fn broadn_flat_map<F, Fut, U, N>(self, n: N, f: F) -> impl Stream<Item = U> + Send
+	where
+		N: Into<Option<usize>>,
+		F: Fn(Item) -> Fut + Send,
+		Fut: Stream<Item = U> + Send + Unpin,
+		U: Send,
+	{
+		self.flat_map_unordered(n.into().unwrap_or_else(automatic_width), f)
 	}
 
 	#[inline]
