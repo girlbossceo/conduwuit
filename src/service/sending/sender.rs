@@ -858,7 +858,7 @@ impl Service {
 		};
 
 		let client = &self.services.client.sender;
-		self.send(client, &server, request)
+		self.services.federation.execute_on(client, &server, request)
 			.await
 			.inspect(|response| {
 				response

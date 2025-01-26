@@ -1,4 +1,4 @@
-use std::mem;
+use std::{fmt::Debug, mem};
 
 use bytes::Bytes;
 use conduwuit::{
@@ -20,82 +20,109 @@ use ruma::{
 
 use crate::resolver::actual::ActualDest;
 
-impl super::Service {
-	#[tracing::instrument(
+/// Sends a request to a federation server
+#[implement(super::Service)]
+#[tracing::instrument(skip_all, name = "request", level = "debug")]
+pub async fn execute<T>(&self, dest: &ServerName, request: T) -> Result<T::IncomingResponse>
+where
+	T: OutgoingRequest + Debug + Send,
+{
+	let client = &self.services.client.federation;
+	self.execute_on(client, dest, request).await
+}
+
+/// Like execute() but with a very large timeout
+#[implement(super::Service)]
+#[tracing::instrument(skip_all, name = "synapse", level = "debug")]
+pub async fn execute_synapse<T>(
+	&self,
+	dest: &ServerName,
+	request: T,
+) -> Result<T::IncomingResponse>
+where
+	T: OutgoingRequest + Debug + Send,
+{
+	let client = &self.services.client.synapse;
+	self.execute_on(client, dest, request).await
+}
+
+#[implement(super::Service)]
+#[tracing::instrument(
 		level = "debug"
 		skip(self, client, request),
 	)]
-	pub async fn send<T>(
-		&self,
-		client: &Client,
-		dest: &ServerName,
-		request: T,
-	) -> Result<T::IncomingResponse>
-	where
-		T: OutgoingRequest + Send,
+pub async fn execute_on<T>(
+	&self,
+	client: &Client,
+	dest: &ServerName,
+	request: T,
+) -> Result<T::IncomingResponse>
+where
+	T: OutgoingRequest + Send,
+{
+	if !self.services.server.config.allow_federation {
+		return Err!(Config("allow_federation", "Federation is disabled."));
+	}
+
+	if self
+		.services
+		.server
+		.config
+		.forbidden_remote_server_names
+		.contains(dest)
 	{
-		if !self.server.config.allow_federation {
-			return Err!(Config("allow_federation", "Federation is disabled."));
-		}
-
-		if self
-			.server
-			.config
-			.forbidden_remote_server_names
-			.contains(dest)
-		{
-			return Err!(Request(Forbidden(debug_warn!(
-				"Federation with {dest} is not allowed."
-			))));
-		}
-
-		let actual = self.services.resolver.get_actual_dest(dest).await?;
-		let request = into_http_request::<T>(&actual, request)?;
-		let request = self.prepare(dest, request)?;
-		self.execute::<T>(dest, &actual, request, client).await
+		return Err!(Request(Forbidden(debug_warn!("Federation with {dest} is not allowed."))));
 	}
 
-	async fn execute<T>(
-		&self,
-		dest: &ServerName,
-		actual: &ActualDest,
-		request: Request,
-		client: &Client,
-	) -> Result<T::IncomingResponse>
-	where
-		T: OutgoingRequest + Send,
-	{
-		let url = request.url().clone();
-		let method = request.method().clone();
+	let actual = self.services.resolver.get_actual_dest(dest).await?;
+	let request = into_http_request::<T>(&actual, request)?;
+	let request = self.prepare(dest, request)?;
+	self.perform::<T>(dest, &actual, request, client).await
+}
 
-		debug!(?method, ?url, "Sending request");
-		match client.execute(request).await {
-			| Ok(response) => handle_response::<T>(dest, actual, &method, &url, response).await,
-			| Err(error) =>
-				Err(handle_error(actual, &method, &url, error).expect_err("always returns error")),
+#[implement(super::Service)]
+async fn perform<T>(
+	&self,
+	dest: &ServerName,
+	actual: &ActualDest,
+	request: Request,
+	client: &Client,
+) -> Result<T::IncomingResponse>
+where
+	T: OutgoingRequest + Send,
+{
+	let url = request.url().clone();
+	let method = request.method().clone();
+
+	debug!(?method, ?url, "Sending request");
+	match client.execute(request).await {
+		| Ok(response) => handle_response::<T>(dest, actual, &method, &url, response).await,
+		| Err(error) =>
+			Err(handle_error(actual, &method, &url, error).expect_err("always returns error")),
+	}
+}
+
+#[implement(super::Service)]
+fn prepare(&self, dest: &ServerName, mut request: http::Request<Vec<u8>>) -> Result<Request> {
+	self.sign_request(&mut request, dest);
+
+	let request = Request::try_from(request)?;
+	self.validate_url(request.url())?;
+	self.services.server.check_running()?;
+
+	Ok(request)
+}
+
+#[implement(super::Service)]
+fn validate_url(&self, url: &Url) -> Result<()> {
+	if let Some(url_host) = url.host_str() {
+		if let Ok(ip) = IPAddress::parse(url_host) {
+			trace!("Checking request URL IP {ip:?}");
+			self.services.resolver.validate_ip(&ip)?;
 		}
 	}
 
-	fn prepare(&self, dest: &ServerName, mut request: http::Request<Vec<u8>>) -> Result<Request> {
-		self.sign_request(&mut request, dest);
-
-		let request = Request::try_from(request)?;
-		self.validate_url(request.url())?;
-		self.server.check_running()?;
-
-		Ok(request)
-	}
-
-	fn validate_url(&self, url: &Url) -> Result<()> {
-		if let Some(url_host) = url.host_str() {
-			if let Ok(ip) = IPAddress::parse(url_host) {
-				trace!("Checking request URL IP {ip:?}");
-				self.services.resolver.validate_ip(&ip)?;
-			}
-		}
-
-		Ok(())
-	}
+	Ok(())
 }
 
 async fn handle_response<T>(
@@ -195,7 +222,7 @@ fn sign_request(&self, http_request: &mut http::Request<Vec<u8>>, dest: &ServerN
 	type Value = CanonicalJsonValue;
 	type Object = CanonicalJsonObject;
 
-	let origin = self.services.globals.server_name();
+	let origin = &self.services.server.name;
 	let body = http_request.body();
 	let uri = http_request
 		.uri()

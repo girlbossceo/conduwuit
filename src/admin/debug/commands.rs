@@ -756,8 +756,7 @@ pub(super) async fn get_signing_keys(
 	notary: Option<Box<ServerName>>,
 	query: bool,
 ) -> Result<RoomMessageEventContent> {
-	let server_name =
-		server_name.unwrap_or_else(|| self.services.server.name.clone().into());
+	let server_name = server_name.unwrap_or_else(|| self.services.server.name.clone().into());
 
 	if let Some(notary) = notary {
 		let signing_keys = self
@@ -793,8 +792,7 @@ pub(super) async fn get_verify_keys(
 	&self,
 	server_name: Option<Box<ServerName>>,
 ) -> Result<RoomMessageEventContent> {
-	let server_name =
-		server_name.unwrap_or_else(|| self.services.server.name.clone().into());
+	let server_name = server_name.unwrap_or_else(|| self.services.server.name.clone().into());
 
 	let keys = self
 		.services

@@ -1,7 +1,6 @@
 mod appservice;
 mod data;
 mod dest;
-mod send;
 mod sender;
 
 use std::{
@@ -30,8 +29,8 @@ pub use self::{
 	sender::{EDU_LIMIT, PDU_LIMIT},
 };
 use crate::{
-	account_data, client, globals, presence, pusher, resolver, rooms, rooms::timeline::RawPduId,
-	server_keys, users, Dep,
+	account_data, client, federation, globals, presence, pusher, rooms,
+	rooms::timeline::RawPduId, users, Dep,
 };
 
 pub struct Service {
@@ -44,7 +43,6 @@ pub struct Service {
 struct Services {
 	client: Dep<client::Service>,
 	globals: Dep<globals::Service>,
-	resolver: Dep<resolver::Service>,
 	state: Dep<rooms::state::Service>,
 	state_cache: Dep<rooms::state_cache::Service>,
 	user: Dep<rooms::user::Service>,
@@ -55,7 +53,7 @@ struct Services {
 	account_data: Dep<account_data::Service>,
 	appservice: Dep<crate::appservice::Service>,
 	pusher: Dep<pusher::Service>,
-	server_keys: Dep<server_keys::Service>,
+	federation: Dep<federation::Service>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,7 +81,6 @@ impl crate::Service for Service {
 			services: Services {
 				client: args.depend::<client::Service>("client"),
 				globals: args.depend::<globals::Service>("globals"),
-				resolver: args.depend::<resolver::Service>("resolver"),
 				state: args.depend::<rooms::state::Service>("rooms::state"),
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 				user: args.depend::<rooms::user::Service>("rooms::user"),
@@ -94,7 +91,7 @@ impl crate::Service for Service {
 				account_data: args.depend::<account_data::Service>("account_data"),
 				appservice: args.depend::<crate::appservice::Service>("appservice"),
 				pusher: args.depend::<pusher::Service>("pusher"),
-				server_keys: args.depend::<server_keys::Service>("server_keys"),
+				federation: args.depend::<federation::Service>("federation"),
 			},
 			channels: (0..num_senders).map(|_| loole::unbounded()).collect(),
 		}))
@@ -277,7 +274,7 @@ impl Service {
 	}
 
 	/// Sends a request to a federation server
-	#[tracing::instrument(skip_all, name = "request", level = "debug")]
+	#[inline]
 	pub async fn send_federation_request<T>(
 		&self,
 		dest: &ServerName,
@@ -286,12 +283,11 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
-		let client = &self.services.client.federation;
-		self.send(client, dest, request).await
+		self.services.federation.execute(dest, request).await
 	}
 
 	/// Like send_federation_request() but with a very large timeout
-	#[tracing::instrument(skip_all, name = "synapse", level = "debug")]
+	#[inline]
 	pub async fn send_synapse_request<T>(
 		&self,
 		dest: &ServerName,
@@ -300,8 +296,10 @@ impl Service {
 	where
 		T: OutgoingRequest + Debug + Send,
 	{
-		let client = &self.services.client.synapse;
-		self.send(client, dest, request).await
+		self.services
+			.federation
+			.execute_synapse(dest, request)
+			.await
 	}
 
 	/// Sends a request to an appservice

@@ -10,6 +10,7 @@ pub mod admin;
 pub mod appservice;
 pub mod client;
 pub mod emergency;
+pub mod federation;
 pub mod globals;
 pub mod key_backups;
 pub mod media;
