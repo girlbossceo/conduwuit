@@ -45,7 +45,9 @@ use ruma::{
 };
 use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
 
-use super::{appservice, data::QueueItem, Destination, Msg, SendingEvent, Service};
+use super::{
+	appservice, data::QueueItem, Destination, EduBuf, EduVec, Msg, SendingEvent, Service,
+};
 
 #[derive(Debug)]
 enum TransactionStatus {
@@ -313,7 +315,12 @@ impl Service {
 		if let Destination::Federation(server_name) = dest {
 			if let Ok((select_edus, last_count)) = self.select_edus(server_name).await {
 				debug_assert!(select_edus.len() <= EDU_LIMIT, "exceeded edus limit");
-				events.extend(select_edus.into_iter().map(SendingEvent::Edu));
+				let select_edus = select_edus
+					.into_iter()
+					.map(Into::into)
+					.map(SendingEvent::Edu);
+
+				events.extend(select_edus);
 				self.db.set_latest_educount(server_name, last_count);
 			}
 		}
@@ -357,7 +364,7 @@ impl Service {
 		level = "debug",
 		skip_all,
 	)]
-	async fn select_edus(&self, server_name: &ServerName) -> Result<(Vec<Vec<u8>>, u64)> {
+	async fn select_edus(&self, server_name: &ServerName) -> Result<(EduVec, u64)> {
 		// selection window
 		let since = self.db.get_latest_educount(server_name).await;
 		let since_upper = self.services.globals.current_count()?;
@@ -405,8 +412,8 @@ impl Service {
 		since: (u64, u64),
 		max_edu_count: &AtomicU64,
 		events_len: &AtomicUsize,
-	) -> Vec<Vec<u8>> {
-		let mut events = Vec::new();
+	) -> EduVec {
+		let mut events = EduVec::new();
 		let server_rooms = self.services.state_cache.server_rooms(server_name);
 
 		pin_mut!(server_rooms);
@@ -441,10 +448,11 @@ impl Service {
 					keys: None,
 				});
 
-				let edu = serde_json::to_vec(&edu)
+				let mut buf = EduBuf::new();
+				serde_json::to_writer(&mut buf, &edu)
 					.expect("failed to serialize device list update to JSON");
 
-				events.push(edu);
+				events.push(buf);
 				if events_len.fetch_add(1, Ordering::Relaxed) >= SELECT_EDU_LIMIT - 1 {
 					return events;
 				}
@@ -465,7 +473,7 @@ impl Service {
 		server_name: &ServerName,
 		since: (u64, u64),
 		max_edu_count: &AtomicU64,
-	) -> Option<Vec<u8>> {
+	) -> Option<EduBuf> {
 		let server_rooms = self.services.state_cache.server_rooms(server_name);
 
 		pin_mut!(server_rooms);
@@ -487,10 +495,11 @@ impl Service {
 
 		let receipt_content = Edu::Receipt(ReceiptContent { receipts });
 
-		let receipt_content = serde_json::to_vec(&receipt_content)
+		let mut buf = EduBuf::new();
+		serde_json::to_writer(&mut buf, &receipt_content)
 			.expect("Failed to serialize Receipt EDU to JSON vec");
 
-		Some(receipt_content)
+		Some(buf)
 	}
 
 	/// Look for read receipts in this room
@@ -569,7 +578,7 @@ impl Service {
 		server_name: &ServerName,
 		since: (u64, u64),
 		max_edu_count: &AtomicU64,
-	) -> Option<Vec<u8>> {
+	) -> Option<EduBuf> {
 		let presence_since = self.services.presence.presence_since(since.0);
 
 		pin_mut!(presence_since);
@@ -628,10 +637,11 @@ impl Service {
 			push: presence_updates.into_values().collect(),
 		});
 
-		let presence_content = serde_json::to_vec(&presence_content)
+		let mut buf = EduBuf::new();
+		serde_json::to_writer(&mut buf, &presence_content)
 			.expect("failed to serialize Presence EDU to JSON");
 
-		Some(presence_content)
+		Some(buf)
 	}
 
 	fn send_events(&self, dest: Destination, events: Vec<SendingEvent>) -> SendingFuture<'_> {

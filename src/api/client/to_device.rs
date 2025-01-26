@@ -10,6 +10,7 @@ use ruma::{
 	},
 	to_device::DeviceIdOrAllDevices,
 };
+use service::sending::EduBuf;
 
 use crate::Ruma;
 
@@ -42,18 +43,21 @@ pub(crate) async fn send_event_to_device_route(
 				messages.insert(target_user_id.clone(), map);
 				let count = services.globals.next_count()?;
 
-				services.sending.send_edu_server(
-					target_user_id.server_name(),
-					serde_json::to_vec(&federation::transactions::edu::Edu::DirectToDevice(
-						DirectDeviceContent {
-							sender: sender_user.clone(),
-							ev_type: body.event_type.clone(),
-							message_id: count.to_string().into(),
-							messages,
-						},
-					))
-					.expect("DirectToDevice EDU can be serialized"),
-				)?;
+				let mut buf = EduBuf::new();
+				serde_json::to_writer(
+					&mut buf,
+					&federation::transactions::edu::Edu::DirectToDevice(DirectDeviceContent {
+						sender: sender_user.clone(),
+						ev_type: body.event_type.clone(),
+						message_id: count.to_string().into(),
+						messages,
+					}),
+				)
+				.expect("DirectToDevice EDU can be serialized");
+
+				services
+					.sending
+					.send_edu_server(target_user_id.server_name(), buf)?;
 
 				continue;
 			}

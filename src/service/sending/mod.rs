@@ -21,6 +21,7 @@ use ruma::{
 	api::{appservice::Registration, OutgoingRequest},
 	RoomId, ServerName, UserId,
 };
+use smallvec::SmallVec;
 use tokio::task::JoinSet;
 
 use self::data::Data;
@@ -67,9 +68,15 @@ struct Msg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SendingEvent {
 	Pdu(RawPduId), // pduid
-	Edu(Vec<u8>),  // pdu json
+	Edu(EduBuf),   // edu json
 	Flush,         // none
 }
+
+pub type EduBuf = SmallVec<[u8; EDU_BUF_CAP]>;
+pub type EduVec = SmallVec<[EduBuf; EDU_VEC_CAP]>;
+
+const EDU_BUF_CAP: usize = 128;
+const EDU_VEC_CAP: usize = 1;
 
 #[async_trait]
 impl crate::Service for Service {
@@ -177,7 +184,6 @@ impl Service {
 	where
 		S: Stream<Item = &'a ServerName> + Send + 'a,
 	{
-		let _cork = self.db.db.cork();
 		let requests = servers
 			.map(|server| {
 				(Destination::Federation(server.into()), SendingEvent::Pdu(pdu_id.to_owned()))
@@ -185,6 +191,7 @@ impl Service {
 			.collect::<Vec<_>>()
 			.await;
 
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(requests.iter().map(|(o, e)| (e, o)));
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {
@@ -195,7 +202,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, server, serialized), level = "debug")]
-	pub fn send_edu_server(&self, server: &ServerName, serialized: Vec<u8>) -> Result<()> {
+	pub fn send_edu_server(&self, server: &ServerName, serialized: EduBuf) -> Result {
 		let dest = Destination::Federation(server.to_owned());
 		let event = SendingEvent::Edu(serialized);
 		let _cork = self.db.db.cork();
@@ -208,7 +215,7 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, room_id, serialized), level = "debug")]
-	pub async fn send_edu_room(&self, room_id: &RoomId, serialized: Vec<u8>) -> Result<()> {
+	pub async fn send_edu_room(&self, room_id: &RoomId, serialized: EduBuf) -> Result {
 		let servers = self
 			.services
 			.state_cache
@@ -219,11 +226,10 @@ impl Service {
 	}
 
 	#[tracing::instrument(skip(self, servers, serialized), level = "debug")]
-	pub async fn send_edu_servers<'a, S>(&self, servers: S, serialized: Vec<u8>) -> Result<()>
+	pub async fn send_edu_servers<'a, S>(&self, servers: S, serialized: EduBuf) -> Result
 	where
 		S: Stream<Item = &'a ServerName> + Send + 'a,
 	{
-		let _cork = self.db.db.cork();
 		let requests = servers
 			.map(|server| {
 				(
@@ -234,6 +240,7 @@ impl Service {
 			.collect::<Vec<_>>()
 			.await;
 
+		let _cork = self.db.db.cork();
 		let keys = self.db.queue_requests(requests.iter().map(|(o, e)| (e, o)));
 
 		for ((dest, event), queue_id) in requests.into_iter().zip(keys) {

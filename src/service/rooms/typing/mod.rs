@@ -13,7 +13,7 @@ use ruma::{
 };
 use tokio::sync::{broadcast, RwLock};
 
-use crate::{globals, sending, users, Dep};
+use crate::{globals, sending, sending::EduBuf, users, Dep};
 
 pub struct Service {
 	server: Arc<Server>,
@@ -228,12 +228,13 @@ impl Service {
 			return Ok(());
 		}
 
-		let edu = Edu::Typing(TypingContent::new(room_id.to_owned(), user_id.to_owned(), typing));
+		let content = TypingContent::new(room_id.to_owned(), user_id.to_owned(), typing);
+		let edu = Edu::Typing(content);
 
-		self.services
-			.sending
-			.send_edu_room(room_id, serde_json::to_vec(&edu).expect("Serialized Edu::Typing"))
-			.await?;
+		let mut buf = EduBuf::new();
+		serde_json::to_writer(&mut buf, &edu).expect("Serialized Edu::Typing");
+
+		self.services.sending.send_edu_room(room_id, buf).await?;
 
 		Ok(())
 	}

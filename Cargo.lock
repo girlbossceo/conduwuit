@@ -845,6 +845,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2",
+ "smallvec",
  "termimad",
  "tokio",
  "tracing",

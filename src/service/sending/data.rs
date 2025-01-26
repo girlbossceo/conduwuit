@@ -202,7 +202,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 			if value.is_empty() {
 				SendingEvent::Pdu(event.into())
 			} else {
-				SendingEvent::Edu(value.to_vec())
+				SendingEvent::Edu(value.into())
 			},
 		)
 	} else if key.starts_with(b"$") {
@@ -230,7 +230,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 				SendingEvent::Pdu(event.into())
 			} else {
 				// I'm pretty sure this should never be called
-				SendingEvent::Edu(value.to_vec())
+				SendingEvent::Edu(value.into())
 			},
 		)
 	} else {
@@ -252,7 +252,7 @@ fn parse_servercurrentevent(key: &[u8], value: &[u8]) -> Result<(Destination, Se
 			if value.is_empty() {
 				SendingEvent::Pdu(event.into())
 			} else {
-				SendingEvent::Edu(value.to_vec())
+				SendingEvent::Edu(value.into())
 			},
 		)
 	})
