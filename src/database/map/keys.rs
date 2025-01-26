@@ -22,7 +22,7 @@ where
 pub fn raw_keys(self: &Arc<Self>) -> impl Stream<Item = Result<Key<'_>>> + Send {
 	use crate::pool::Seek;
 
-	let opts = super::iter_options_default();
+	let opts = super::iter_options_default(&self.db);
 	let state = stream::State::new(self, opts);
 	if is_cached(self) {
 		let state = state.init_fwd(None);

@@ -1049,6 +1049,15 @@ pub struct Config {
 	#[serde(default)]
 	pub rocksdb_paranoid_file_checks: bool,
 
+	/// Enables or disables checksum verification in rocksdb at runtime.
+	/// Checksums are usually hardware accelerated with low overhead; they are
+	/// enabled in rocksdb by default. Older or slower platforms may see gains
+	/// from disabling.
+	///
+	/// default: true
+	#[serde(default = "true_fn")]
+	pub rocksdb_checksums: bool,
+
 	/// Database repair mode (for RocksDB SST corruption).
 	///
 	/// Use this option when the server reports corruption while running or

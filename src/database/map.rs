@@ -59,9 +59,9 @@ impl Map {
 			db: db.clone(),
 			cf: open::open(db, name),
 			watchers: Watchers::default(),
-			write_options: write_options_default(),
-			read_options: read_options_default(),
-			cache_read_options: cache_read_options_default(),
+			write_options: write_options_default(db),
+			read_options: read_options_default(db),
+			cache_read_options: cache_read_options_default(db),
 		}))
 	}
 

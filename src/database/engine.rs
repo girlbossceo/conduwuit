@@ -32,6 +32,7 @@ use crate::{
 pub struct Engine {
 	pub(super) read_only: bool,
 	pub(super) secondary: bool,
+	pub(crate) checksums: bool,
 	corks: AtomicU32,
 	pub(crate) db: Db,
 	pub(crate) pool: Arc<Pool>,

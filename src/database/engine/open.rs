@@ -58,6 +58,7 @@ pub(crate) async fn open(ctx: Arc<Context>, desc: &[Descriptor]) -> Result<Arc<S
 	Ok(Arc::new(Self {
 		read_only: config.rocksdb_read_only,
 		secondary: config.rocksdb_secondary,
+		checksums: config.rocksdb_checksums,
 		corks: AtomicU32::new(0),
 		pool: ctx.pool.clone(),
 		db,

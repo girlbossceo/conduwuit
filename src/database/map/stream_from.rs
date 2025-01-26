@@ -77,7 +77,7 @@ where
 {
 	use crate::pool::Seek;
 
-	let opts = super::iter_options_default();
+	let opts = super::iter_options_default(&self.db);
 	let state = stream::State::new(self, opts);
 	if is_cached(self, from) {
 		let state = state.init_fwd(from.as_ref().into());
@@ -115,7 +115,7 @@ pub(super) fn is_cached<P>(map: &Arc<super::Map>, from: &P) -> bool
 where
 	P: AsRef<[u8]> + ?Sized,
 {
-	let opts = super::cache_iter_options_default();
+	let opts = super::cache_iter_options_default(&map.db);
 	let state = stream::State::new(map, opts).init_fwd(from.as_ref().into());
 
 	!state.is_incomplete()

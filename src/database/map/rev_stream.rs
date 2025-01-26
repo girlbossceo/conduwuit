@@ -31,7 +31,7 @@ where
 pub fn rev_raw_stream(self: &Arc<Self>) -> impl Stream<Item = Result<KeyVal<'_>>> + Send {
 	use crate::pool::Seek;
 
-	let opts = super::iter_options_default();
+	let opts = super::iter_options_default(&self.db);
 	let state = stream::State::new(self, opts);
 	if is_cached(self) {
 		let state = state.init_rev(None);
@@ -66,7 +66,7 @@ pub fn rev_raw_stream(self: &Arc<Self>) -> impl Stream<Item = Result<KeyVal<'_>>
     fields(%map),
 )]
 pub(super) fn is_cached(map: &Arc<super::Map>) -> bool {
-	let opts = super::cache_iter_options_default();
+	let opts = super::cache_iter_options_default(&map.db);
 	let state = stream::State::new(map, opts).init_rev(None);
 
 	!state.is_incomplete()
