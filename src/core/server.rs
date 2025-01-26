@@ -9,7 +9,7 @@ use std::{
 use ruma::OwnedServerName;
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config, config::Config, err, log::Log, metrics::Metrics, Err, Result};
+use crate::{config, config::Config, log::Log, metrics::Metrics, Err, Result};
 
 /// Server runtime state; public portion
 pub struct Server {
@@ -127,9 +127,12 @@ impl Server {
 
 	#[inline]
 	pub fn check_running(&self) -> Result {
+		use std::{io, io::ErrorKind::Interrupted};
+
 		self.running()
 			.then_some(())
-			.ok_or_else(|| err!(debug_warn!("Server is shutting down.")))
+			.ok_or_else(|| io::Error::new(Interrupted, "Server shutting down"))
+			.map_err(Into::into)
 	}
 
 	#[inline]

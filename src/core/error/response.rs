@@ -106,6 +106,7 @@ pub(super) fn io_error_code(kind: std::io::ErrorKind) -> StatusCode {
 		| ErrorKind::TimedOut => StatusCode::GATEWAY_TIMEOUT,
 		| ErrorKind::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
 		| ErrorKind::StorageFull => StatusCode::INSUFFICIENT_STORAGE,
+		| ErrorKind::Interrupted => StatusCode::SERVICE_UNAVAILABLE,
 		| _ => StatusCode::INTERNAL_SERVER_ERROR,
 	}
 }
