@@ -1166,7 +1166,7 @@ impl Service {
 
 	#[tracing::instrument(skip(self, pdu), level = "debug")]
 	pub async fn backfill_pdu(&self, origin: &ServerName, pdu: Box<RawJsonValue>) -> Result<()> {
-		let (event_id, value, room_id) =
+		let (room_id, event_id, value) =
 			self.services.event_handler.parse_incoming_pdu(&pdu).await?;
 
 		// Lock so we cannot backfill the same pdu twice at the same time

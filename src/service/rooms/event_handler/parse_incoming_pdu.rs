@@ -2,11 +2,10 @@ use conduwuit::{err, implement, pdu::gen_event_id_canonical_json, result::FlatOk
 use ruma::{CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId};
 use serde_json::value::RawValue as RawJsonValue;
 
+type Parsed = (OwnedRoomId, OwnedEventId, CanonicalJsonObject);
+
 #[implement(super::Service)]
-pub async fn parse_incoming_pdu(
-	&self,
-	pdu: &RawJsonValue,
-) -> Result<(OwnedEventId, CanonicalJsonObject, OwnedRoomId)> {
+pub async fn parse_incoming_pdu(&self, pdu: &RawJsonValue) -> Result<Parsed> {
 	let value = serde_json::from_str::<CanonicalJsonObject>(pdu.get()).map_err(|e| {
 		err!(BadServerResponse(debug_warn!("Error parsing incoming event {e:?}")))
 	})?;
@@ -28,5 +27,5 @@ pub async fn parse_incoming_pdu(
 		err!(Request(InvalidParam("Could not convert event to canonical json: {e}")))
 	})?;
 
-	Ok((event_id, value, room_id))
+	Ok((room_id, event_id, value))
 }

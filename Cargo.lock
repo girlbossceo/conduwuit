@@ -685,6 +685,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "ipaddress",
+ "itertools 0.13.0",
  "log",
  "rand",
  "reqwest",

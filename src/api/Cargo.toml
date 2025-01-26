@@ -50,6 +50,7 @@ http.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 ipaddress.workspace = true
+itertools.workspace = true
 log.workspace = true
 rand.workspace = true
 reqwest.workspace = true
