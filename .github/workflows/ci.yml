@@ -815,7 +815,7 @@ jobs:
 
             - name: Load and push amd64 haswell image
               run: |
-                  docker load -i oci-image-amd64.tar.gz
+                  docker load -i oci-image-amd64-haswell-optimised.tar.gz
                   if [ ! -z $DOCKERHUB_TOKEN ]; then
                     docker tag $(docker images -q conduwuit:main) ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell
                     docker push ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell
