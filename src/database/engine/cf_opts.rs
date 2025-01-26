@@ -72,6 +72,13 @@ fn descriptor_cf_options(
 	opts.set_options_from_string("{{arena_block_size=2097152;}}")
 		.map_err(map_err)?;
 
+	#[cfg(debug_assertions)]
+	opts.set_options_from_string(
+		"{{paranoid_checks=true;paranoid_file_checks=true;force_consistency_checks=true;\
+		 verify_sst_unique_id_in_manifest=true;}}",
+	)
+	.map_err(map_err)?;
+
 	Ok(opts)
 }
 
