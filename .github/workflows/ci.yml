@@ -902,12 +902,12 @@ jobs:
                   fi
                   # GitHub Container Registry
                   if [ $GHCR_ENABLED = "true" ]; then
-                    docker manifest create ${GHCR_REPO}:${UNIQUE_TAG}-haswell --amend ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell
+                    docker manifest create ${GHCR_REPO}:${UNIQUE_TAG}-haswell --amend ${GHCR_REPO}:${UNIQUE_TAG}-haswell
                     docker manifest create ${GHCR_REPO}:${BRANCH_TAG}-haswell --amend ${GHCR_REPO}:${UNIQUE_TAG}-haswell
                   fi
                   # GitLab Container Registry
                   if [ ! -z $GITLAB_TOKEN ]; then
-                    docker manifest create ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell --amend ${DOCKER_HUB_REPO}:${UNIQUE_TAG}-haswell
+                    docker manifest create ${GLCR_REPO}:${UNIQUE_TAG}-haswell --amend ${GLCR_REPO}:${UNIQUE_TAG}-haswell
                     docker manifest create ${GLCR_REPO}:${BRANCH_TAG}-haswell --amend ${GLCR_REPO}:${UNIQUE_TAG}-haswell
                   fi
 
