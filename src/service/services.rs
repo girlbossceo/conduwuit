@@ -10,7 +10,7 @@ use database::Database;
 use tokio::sync::Mutex;
 
 use crate::{
-	account_data, admin, appservice, client, emergency, federation, globals, key_backups,
+	account_data, admin, appservice, client, config, emergency, federation, globals, key_backups,
 	manager::Manager,
 	media, presence, pusher, resolver, rooms, sending, server_keys, service,
 	service::{Args, Map, Service},
@@ -21,6 +21,7 @@ pub struct Services {
 	pub account_data: Arc<account_data::Service>,
 	pub admin: Arc<admin::Service>,
 	pub appservice: Arc<appservice::Service>,
+	pub config: Arc<config::Service>,
 	pub client: Arc<client::Service>,
 	pub emergency: Arc<emergency::Service>,
 	pub globals: Arc<globals::Service>,
@@ -68,6 +69,7 @@ impl Services {
 			appservice: build!(appservice::Service),
 			resolver: build!(resolver::Service),
 			client: build!(client::Service),
+			config: build!(config::Service),
 			emergency: build!(emergency::Service),
 			globals: build!(globals::Service),
 			key_backups: build!(key_backups::Service),

@@ -1742,6 +1742,13 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub listening: bool,
 
+	/// Enables configuration reload when the server receives SIGUSR1 on
+	/// supporting platforms.
+	///
+	/// default: true
+	#[serde(default = "true_fn")]
+	pub config_reload_signal: bool,
+
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)]
 	// this is a catchall, the map shouldn't be zero at runtime

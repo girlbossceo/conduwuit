@@ -1524,6 +1524,11 @@
 #
 #listening = true
 
+# Enables configuration reload when the server receives SIGUSR1 on
+# supporting platforms.
+#
+#config_reload_signal = true
+
 [global.tls]
 
 # Path to a valid TLS certificate file.

@@ -1,6 +1,6 @@
 use std::{fmt::Write, path::PathBuf, sync::Arc};
 
-use conduwuit::{info, utils::time, warn, Config, Err, Result};
+use conduwuit::{info, utils::time, warn, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::admin_command;
@@ -32,15 +32,8 @@ pub(super) async fn reload_config(
 	&self,
 	path: Option<PathBuf>,
 ) -> Result<RoomMessageEventContent> {
-	use conduwuit::config::check;
-
 	let path = path.as_deref().into_iter();
-	let new = Config::load(path).and_then(|raw| Config::new(&raw))?;
-
-	let old = &self.services.server.config;
-	check::reload(old, &new)?;
-
-	self.services.server.config.update(new)?;
+	self.services.config.reload(path)?;
 
 	Ok(RoomMessageEventContent::text_plain("Successfully reconfigured."))
 }
