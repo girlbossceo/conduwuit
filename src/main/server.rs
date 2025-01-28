@@ -46,13 +46,13 @@ impl Server {
 			.and_then(|raw| crate::clap::update(raw, args))
 			.and_then(|raw| Config::new(&raw))?;
 
-		#[cfg(feature = "sentry_telemetry")]
-		let sentry_guard = crate::sentry::init(&config);
-
 		let (tracing_reload_handle, tracing_flame_guard, capture) =
 			crate::logging::init(&config)?;
 
 		config.check()?;
+
+		#[cfg(feature = "sentry_telemetry")]
+		let sentry_guard = crate::sentry::init(&config);
 
 		#[cfg(unix)]
 		sys::maximize_fd_limit()

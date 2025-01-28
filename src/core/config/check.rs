@@ -6,8 +6,24 @@ use figment::Figment;
 use super::DEPRECATED_KEYS;
 use crate::{debug, debug_info, debug_warn, error, warn, Config, Err, Result, Server};
 
+/// Performs check() with additional checks specific to reloading old config
+/// with new config.
+pub fn reload(old: &Config, new: &Config) -> Result {
+	check(new)?;
+
+	if new.server_name != old.server_name {
+		return Err!(Config(
+			"server_name",
+			"You can't change the server's name from {:?}.",
+			old.server_name
+		));
+	}
+
+	Ok(())
+}
+
 #[allow(clippy::cognitive_complexity)]
-pub fn check(config: &Config) -> Result<()> {
+pub fn check(config: &Config) -> Result {
 	if cfg!(debug_assertions) {
 		warn!("Note: conduwuit was built without optimisations (i.e. debug build)");
 	}

@@ -32,13 +32,15 @@ pub(super) async fn reload_config(
 	&self,
 	path: Option<PathBuf>,
 ) -> Result<RoomMessageEventContent> {
-	let path = path.as_deref().into_iter();
-	let config = Config::load(path).and_then(|raw| Config::new(&raw))?;
-	if config.server_name != self.services.server.name {
-		return Err!("You can't change the server name.");
-	}
+	use conduwuit::config::check;
 
-	let _old = self.services.server.config.update(config)?;
+	let path = path.as_deref().into_iter();
+	let new = Config::load(path).and_then(|raw| Config::new(&raw))?;
+
+	let old = &self.services.server.config;
+	check::reload(old, &new)?;
+
+	self.services.server.config.update(new)?;
 
 	Ok(RoomMessageEventContent::text_plain("Successfully reconfigured."))
 }
