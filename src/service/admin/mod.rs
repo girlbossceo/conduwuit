@@ -1,7 +1,7 @@
 pub mod console;
 mod create;
+mod execute;
 mod grant;
-mod startup;
 
 use std::{
 	future::Future,
@@ -183,7 +183,11 @@ impl Service {
 			.map(|complete| complete(command))
 	}
 
-	async fn handle_signal(&self, #[allow(unused_variables)] sig: &'static str) {
+	async fn handle_signal(&self, sig: &'static str) {
+		if sig == execute::SIGNAL {
+			self.signal_execute().await.ok();
+		}
+
 		#[cfg(feature = "console")]
 		self.console.handle_signal(sig).await;
 	}

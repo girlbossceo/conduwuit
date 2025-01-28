@@ -2,6 +2,8 @@ use conduwuit::{debug, debug_info, error, implement, info, Err, Result};
 use ruma::events::room::message::RoomMessageEventContent;
 use tokio::time::{sleep, Duration};
 
+pub(super) const SIGNAL: &str = "SIGUSR2";
+
 /// Possibly spawn the terminal console at startup if configured.
 #[implement(super::Service)]
 pub(super) async fn console_auto_start(&self) {
@@ -22,7 +24,7 @@ pub(super) async fn console_auto_stop(&self) {
 
 /// Execute admin commands after startup
 #[implement(super::Service)]
-pub(super) async fn startup_execute(&self) -> Result<()> {
+pub(super) async fn startup_execute(&self) -> Result {
 	// List of comamnds to execute
 	let commands = &self.services.server.config.admin_execute;
 
@@ -36,7 +38,7 @@ pub(super) async fn startup_execute(&self) -> Result<()> {
 	sleep(Duration::from_millis(500)).await;
 
 	for (i, command) in commands.iter().enumerate() {
-		if let Err(e) = self.startup_execute_command(i, command.clone()).await {
+		if let Err(e) = self.execute_command(i, command.clone()).await {
 			if !errors {
 				return Err(e);
 			}
@@ -59,16 +61,38 @@ pub(super) async fn startup_execute(&self) -> Result<()> {
 	Ok(())
 }
 
-/// Execute one admin command after startup
+/// Execute admin commands after signal
 #[implement(super::Service)]
-async fn startup_execute_command(&self, i: usize, command: String) -> Result<()> {
-	debug!("Startup command #{i}: executing {command:?}");
+pub(super) async fn signal_execute(&self) -> Result {
+	// List of comamnds to execute
+	let commands = self.services.server.config.admin_signal_execute.clone();
+
+	// When true, errors are ignored and execution continues.
+	let ignore_errors = self.services.server.config.admin_execute_errors_ignore;
+
+	for (i, command) in commands.iter().enumerate() {
+		if let Err(e) = self.execute_command(i, command.clone()).await {
+			if !ignore_errors {
+				return Err(e);
+			}
+		}
+
+		tokio::task::yield_now().await;
+	}
+
+	Ok(())
+}
+
+/// Execute one admin command after startup or signal
+#[implement(super::Service)]
+async fn execute_command(&self, i: usize, command: String) -> Result {
+	debug!("Execute command #{i}: executing {command:?}");
 
 	match self.command_in_place(command, None).await {
-		| Ok(Some(output)) => Self::startup_command_output(i, &output),
-		| Err(output) => Self::startup_command_error(i, &output),
+		| Ok(Some(output)) => Self::execute_command_output(i, &output),
+		| Err(output) => Self::execute_command_error(i, &output),
 		| Ok(None) => {
-			info!("Startup command #{i} completed (no output).");
+			info!("Execute command #{i} completed (no output).");
 			Ok(())
 		},
 	}
@@ -76,28 +100,28 @@ async fn startup_execute_command(&self, i: usize, command: String) -> Result<()>
 
 #[cfg(feature = "console")]
 #[implement(super::Service)]
-fn startup_command_output(i: usize, content: &RoomMessageEventContent) -> Result<()> {
-	debug_info!("Startup command #{i} completed:");
+fn execute_command_output(i: usize, content: &RoomMessageEventContent) -> Result {
+	debug_info!("Execute command #{i} completed:");
 	super::console::print(content.body());
 	Ok(())
 }
 
 #[cfg(feature = "console")]
 #[implement(super::Service)]
-fn startup_command_error(i: usize, content: &RoomMessageEventContent) -> Result<()> {
+fn execute_command_error(i: usize, content: &RoomMessageEventContent) -> Result {
 	super::console::print_err(content.body());
-	Err!(debug_error!("Startup command #{i} failed."))
+	Err!(debug_error!("Execute command #{i} failed."))
 }
 
 #[cfg(not(feature = "console"))]
 #[implement(super::Service)]
-fn startup_command_output(i: usize, content: &RoomMessageEventContent) -> Result<()> {
-	info!("Startup command #{i} completed:\n{:#}", content.body());
+fn execute_command_output(i: usize, content: &RoomMessageEventContent) -> Result {
+	info!("Execute command #{i} completed:\n{:#}", content.body());
 	Ok(())
 }
 
 #[cfg(not(feature = "console"))]
 #[implement(super::Service)]
-fn startup_command_error(i: usize, content: &RoomMessageEventContent) -> Result<()> {
-	Err!(error!("Startup command #{i} failed:\n{:#}", content.body()))
+fn execute_command_error(i: usize, content: &RoomMessageEventContent) -> Result {
+	Err!(error!("Execute command #{i} failed:\n{:#}", content.body()))
 }

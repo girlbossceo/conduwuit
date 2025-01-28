@@ -1554,6 +1554,15 @@ pub struct Config {
 	#[serde(default)]
 	pub admin_execute_errors_ignore: bool,
 
+	/// List of admin commands to execute on SIGUSR2.
+	///
+	/// Similar to admin_execute, but these commands are executed when the
+	/// server receives SIGUSR2 on supporting platforms.
+	///
+	/// default: []
+	#[serde(default)]
+	pub admin_signal_execute: Vec<String>,
+
 	/// Controls the max log level for admin command log captures (logs
 	/// generated from running admin commands). Defaults to "info" on release
 	/// builds, else "debug" on debug builds.

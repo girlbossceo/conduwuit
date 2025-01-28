@@ -1,4 +1,4 @@
-use std::{iter, path::Path, sync::Arc};
+use std::{iter, ops::Deref, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use conduwuit::{
@@ -31,6 +31,13 @@ impl crate::Service for Service {
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+impl Deref for Service {
+	type Target = Arc<Config>;
+
+	#[inline]
+	fn deref(&self) -> &Self::Target { &self.server.config }
 }
 
 #[implement(Service)]

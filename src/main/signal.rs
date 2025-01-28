@@ -17,6 +17,7 @@ pub(super) async fn signal(server: Arc<Server>) {
 	let mut quit = unix::signal(SignalKind::quit()).expect("SIGQUIT handler");
 	let mut term = unix::signal(SignalKind::terminate()).expect("SIGTERM handler");
 	let mut usr1 = unix::signal(SignalKind::user_defined1()).expect("SIGUSR1 handler");
+	let mut usr2 = unix::signal(SignalKind::user_defined2()).expect("SIGUSR2 handler");
 	loop {
 		trace!("Installed signal handlers");
 		let sig: &'static str;
@@ -25,6 +26,7 @@ pub(super) async fn signal(server: Arc<Server>) {
 			_ = quit.recv() => { sig = "SIGQUIT"; },
 			_ = term.recv() => { sig = "SIGTERM"; },
 			_ = usr1.recv() => { sig = "SIGUSR1"; },
+			_ = usr2.recv() => { sig = "SIGUSR2"; },
 		}
 
 		warn!("Received {sig}");
