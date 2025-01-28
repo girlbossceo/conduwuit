@@ -112,7 +112,7 @@ impl Server {
 	}
 
 	#[inline]
-	pub async fn until_shutdown(self: Arc<Self>) {
+	pub async fn until_shutdown(self: &Arc<Self>) {
 		while self.running() {
 			self.signal.subscribe().recv().await.ok();
 		}

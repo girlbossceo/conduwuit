@@ -97,8 +97,8 @@ pub async fn watch(&self, user_id: &UserId, device_id: &DeviceId) -> Result {
 	);
 
 	// Server shutdown
-	let server_shutdown = self.services.server.clone().until_shutdown().boxed();
-	futures.push(server_shutdown);
+	futures.push(self.services.server.until_shutdown().boxed());
+
 	if !self.services.server.running() {
 		return Ok(());
 	}
