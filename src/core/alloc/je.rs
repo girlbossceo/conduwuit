@@ -8,6 +8,7 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
+use const_str::concat_bytes;
 use tikv_jemalloc_ctl as mallctl;
 use tikv_jemalloc_sys as ffi;
 use tikv_jemallocator as jemalloc;
@@ -20,18 +21,24 @@ use crate::{
 
 #[cfg(feature = "jemalloc_conf")]
 #[unsafe(no_mangle)]
-pub static malloc_conf: &[u8] = b"\
-metadata_thp:always\
-,percpu_arena:percpu\
-,background_thread:true\
-,max_background_threads:-1\
-,lg_extent_max_active_fit:4\
-,oversize_threshold:16777216\
-,tcache_max:2097152\
-,dirty_decay_ms:16000\
-,muzzy_decay_ms:144000\
-,prof_active:false\
-\0";
+pub static malloc_conf: &[u8] = concat_bytes!(
+	"lg_extent_max_active_fit:4",
+	",oversize_threshold:16777216",
+	",tcache_max:2097152",
+	",dirty_decay_ms:16000",
+	",muzzy_decay_ms:144000",
+	",percpu_arena:percpu",
+	",metadata_thp:always",
+	",background_thread:true",
+	",max_background_threads:-1",
+	MALLOC_CONF_PROF,
+	0
+);
+
+#[cfg(all(feature = "jemalloc_conf", feature = "jemalloc_prof"))]
+const MALLOC_CONF_PROF: &str = ",prof_active:false";
+#[cfg(all(feature = "jemalloc_conf", not(feature = "jemalloc_prof")))]
+const MALLOC_CONF_PROF: &str = "";
 
 #[global_allocator]
 static JEMALLOC: jemalloc::Jemalloc = jemalloc::Jemalloc;
