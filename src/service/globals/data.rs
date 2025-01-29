@@ -79,7 +79,4 @@ impl Data {
 
 	#[inline]
 	pub fn backup_list(&self) -> Result<String> { self.db.db.backup_list() }
-
-	#[inline]
-	pub fn file_list(&self) -> Result<String> { self.db.db.file_list() }
 }

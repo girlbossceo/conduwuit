@@ -7,7 +7,10 @@ use std::{
 
 use conduwuit::{
 	debug_error, err, info, trace, utils,
-	utils::{stream::ReadyExt, string::EMPTY},
+	utils::{
+		stream::{IterStream, ReadyExt},
+		string::EMPTY,
+	},
 	warn, Error, PduEvent, PduId, RawPduId, Result,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
@@ -640,6 +643,7 @@ pub(super) async fn force_set_room_state_from_server(
 			room_id: room_id.clone().into(),
 			event_id: first_pdu.event_id.clone(),
 		})
+		.boxed()
 		.await?;
 
 	for pdu in remote_state_response.pdus.clone() {
@@ -648,6 +652,7 @@ pub(super) async fn force_set_room_state_from_server(
 			.rooms
 			.event_handler
 			.parse_incoming_pdu(&pdu)
+			.boxed()
 			.await
 		{
 			| Ok(t) => t,
@@ -711,6 +716,7 @@ pub(super) async fn force_set_room_state_from_server(
 		.rooms
 		.event_handler
 		.resolve_state(&room_id, &room_version, state)
+		.boxed()
 		.await?;
 
 	info!("Forcing new room state");
@@ -946,21 +952,57 @@ pub(super) async fn database_stats(
 	property: Option<String>,
 	map: Option<String>,
 ) -> Result<RoomMessageEventContent> {
-	let property = property.unwrap_or_else(|| "rocksdb.stats".to_owned());
 	let map_name = map.as_ref().map_or(EMPTY, String::as_str);
+	let property = property.unwrap_or_else(|| "rocksdb.stats".to_owned());
+	self.services
+		.db
+		.iter()
+		.filter(|(&name, _)| map_name.is_empty() || map_name == name)
+		.try_stream()
+		.try_for_each(|(&name, map)| {
+			let res = map.property(&property).expect("invalid property");
+			writeln!(self, "##### {name}:\n```\n{}\n```", res.trim())
+		})
+		.await?;
 
-	let mut out = String::new();
-	for (&name, map) in self.services.db.iter() {
-		if !map_name.is_empty() && map_name != name {
-			continue;
-		}
+	Ok(RoomMessageEventContent::notice_plain(""))
+}
 
-		let res = map.property(&property)?;
-		let res = res.trim();
-		writeln!(out, "##### {name}:\n```\n{res}\n```")?;
-	}
+#[admin_command]
+pub(super) async fn database_files(
+	&self,
+	map: Option<String>,
+	level: Option<i32>,
+) -> Result<RoomMessageEventContent> {
+	let mut files: Vec<_> = self.services.db.db.file_list().collect::<Result<_>>()?;
 
-	Ok(RoomMessageEventContent::notice_markdown(out))
+	files.sort_by_key(|f| f.name.clone());
+
+	writeln!(self, "| lev  | sst  | keys | dels | size | column |").await?;
+	writeln!(self, "| ---: | :--- | ---: | ---: | ---: | :---   |").await?;
+	files
+		.into_iter()
+		.filter(|file| {
+			map.as_deref()
+				.is_none_or(|map| map == file.column_family_name)
+		})
+		.filter(|file| level.as_ref().is_none_or(|&level| level == file.level))
+		.try_stream()
+		.try_for_each(|file| {
+			writeln!(
+				self,
+				"| {} | {:<13} | {:7}+ | {:4}- | {:9} | {} |",
+				file.level,
+				file.name,
+				file.num_entries,
+				file.num_deletions,
+				file.size,
+				file.column_family_name,
+			)
+		})
+		.await?;
+
+	Ok(RoomMessageEventContent::notice_plain(""))
 }
 
 #[admin_command]

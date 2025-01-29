@@ -92,7 +92,7 @@ pub(super) async fn clear_caches(&self) -> Result<RoomMessageEventContent> {
 
 #[admin_command]
 pub(super) async fn list_backups(&self) -> Result<RoomMessageEventContent> {
-	let result = self.services.globals.db.backup_list()?;
+	let result = self.services.db.db.backup_list()?;
 
 	if result.is_empty() {
 		Ok(RoomMessageEventContent::text_plain("No backups found."))
@@ -103,27 +103,20 @@ pub(super) async fn list_backups(&self) -> Result<RoomMessageEventContent> {
 
 #[admin_command]
 pub(super) async fn backup_database(&self) -> Result<RoomMessageEventContent> {
-	let globals = Arc::clone(&self.services.globals);
+	let db = Arc::clone(&self.services.db);
 	let mut result = self
 		.services
 		.server
 		.runtime()
-		.spawn_blocking(move || match globals.db.backup() {
+		.spawn_blocking(move || match db.db.backup() {
 			| Ok(()) => String::new(),
 			| Err(e) => e.to_string(),
 		})
 		.await?;
 
 	if result.is_empty() {
-		result = self.services.globals.db.backup_list()?;
+		result = self.services.db.db.backup_list()?;
 	}
-
-	Ok(RoomMessageEventContent::notice_markdown(result))
-}
-
-#[admin_command]
-pub(super) async fn list_database_files(&self) -> Result<RoomMessageEventContent> {
-	let result = self.services.globals.db.file_list()?;
 
 	Ok(RoomMessageEventContent::notice_markdown(result))
 }

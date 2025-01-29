@@ -46,9 +46,6 @@ pub(super) enum ServerCommand {
 	/// - List database backups
 	ListBackups,
 
-	/// - List database files
-	ListDatabaseFiles,
-
 	/// - Send a message to the admin room.
 	AdminNotice {
 		message: Vec<String>,

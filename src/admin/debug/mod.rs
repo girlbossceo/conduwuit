@@ -226,6 +226,14 @@ pub(super) enum DebugCommand {
 	/// - Trim memory usage
 	TrimMemory,
 
+	/// - List database files
+	DatabaseFiles {
+		map: Option<String>,
+
+		#[arg(long)]
+		level: Option<i32>,
+	},
+
 	/// - Developer test stubs
 	#[command(subcommand)]
 	#[allow(non_snake_case)]
