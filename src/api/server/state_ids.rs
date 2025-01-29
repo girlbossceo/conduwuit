@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, iter::once};
 
 use axum::extract::State;
-use conduwuit::{err, Result};
+use conduwuit::{at, err, Result};
 use futures::StreamExt;
 use ruma::{api::federation::event::get_room_state_ids, OwnedEventId};
 
@@ -36,10 +36,9 @@ pub(crate) async fn get_room_state_ids_route(
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
-		.await
-		.map_err(|_| err!(Request(NotFound("State ids not found"))))?
-		.into_values()
-		.collect();
+		.map(at!(1))
+		.collect()
+		.await;
 
 	let auth_chain_ids = services
 		.rooms

@@ -1,5 +1,6 @@
 use axum::extract::State;
 use conduwuit::{err, pdu::PduBuilder, utils::BoolExt, Err, PduEvent, Result};
+use futures::TryStreamExt;
 use ruma::{
 	api::client::state::{get_state_events, get_state_events_for_key, send_state_event},
 	events::{
@@ -82,11 +83,10 @@ pub(crate) async fn get_state_events_route(
 		room_state: services
 			.rooms
 			.state_accessor
-			.room_state_full(&body.room_id)
-			.await?
-			.values()
-			.map(PduEvent::to_state_event)
-			.collect(),
+			.room_state_full_pdus(&body.room_id)
+			.map_ok(PduEvent::into_state_event)
+			.try_collect()
+			.await?,
 	})
 }
 
@@ -133,7 +133,7 @@ pub(crate) async fn get_state_events_for_key_route(
 
 	Ok(get_state_events_for_key::v3::Response {
 		content: event_format.or(|| event.get_content_as_value()),
-		event: event_format.then(|| event.to_state_event_value()),
+		event: event_format.then(|| event.into_state_event_value()),
 	})
 }
 

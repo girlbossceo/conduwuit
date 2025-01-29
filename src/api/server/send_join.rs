@@ -1,10 +1,10 @@
 #![allow(deprecated)]
 
-use std::{borrow::Borrow, collections::HashMap};
+use std::borrow::Borrow;
 
 use axum::extract::State;
 use conduwuit::{
-	err,
+	at, err,
 	pdu::gen_event_id_canonical_json,
 	utils::stream::{IterStream, TryBroadbandExt},
 	warn, Err, Result,
@@ -211,14 +211,16 @@ async fn create_join_event(
 
 	drop(mutex_lock);
 
-	let state_ids: HashMap<_, OwnedEventId> = services
+	let state_ids: Vec<OwnedEventId> = services
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
-		.await?;
+		.map(at!(1))
+		.collect()
+		.await;
 
 	let state = state_ids
-		.values()
+		.iter()
 		.try_stream()
 		.broad_and_then(|event_id| services.rooms.timeline.get_pdu_json(event_id))
 		.broad_and_then(|pdu| {
@@ -231,7 +233,7 @@ async fn create_join_event(
 		.boxed()
 		.await?;
 
-	let starting_events = state_ids.values().map(Borrow::borrow);
+	let starting_events = state_ids.iter().map(Borrow::borrow);
 	let auth_chain = services
 		.rooms
 		.auth_chain

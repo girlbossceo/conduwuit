@@ -9,7 +9,7 @@ use conduwuit::{
 	debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, PduId,
 	RawPduId, Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
 	api::{client::error::ErrorKind, federation::event::get_room_state},
 	events::room::message::RoomMessageEventContent,
@@ -327,11 +327,10 @@ pub(super) async fn get_room_state(
 		.services
 		.rooms
 		.state_accessor
-		.room_state_full(&room_id)
-		.await?
-		.values()
-		.map(PduEvent::to_state_event)
-		.collect();
+		.room_state_full_pdus(&room_id)
+		.map_ok(PduEvent::into_state_event)
+		.try_collect()
+		.await?;
 
 	if room_state.is_empty() {
 		return Ok(RoomMessageEventContent::text_plain(

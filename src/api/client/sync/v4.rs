@@ -241,13 +241,15 @@ pub(crate) async fn sync_events_v4_route(
 						.rooms
 						.state_accessor
 						.state_full_ids(current_shortstatehash)
-						.await?;
+						.collect()
+						.await;
 
-					let since_state_ids = services
+					let since_state_ids: HashMap<_, _> = services
 						.rooms
 						.state_accessor
 						.state_full_ids(since_shortstatehash)
-						.await?;
+						.collect()
+						.await;
 
 					for (key, id) in current_state_ids {
 						if since_state_ids.get(&key) != Some(&id) {

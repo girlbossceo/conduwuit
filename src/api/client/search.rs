@@ -7,7 +7,7 @@ use conduwuit::{
 	utils::{stream::ReadyExt, IterStream},
 	Err, PduEvent, Result,
 };
-use futures::{future::OptionFuture, FutureExt, StreamExt, TryFutureExt};
+use futures::{future::OptionFuture, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{
 	api::client::search::search_events::{
 		self,
@@ -181,15 +181,15 @@ async fn category_room_events(
 }
 
 async fn procure_room_state(services: &Services, room_id: &RoomId) -> Result<RoomState> {
-	let state_map = services
+	let state = services
 		.rooms
 		.state_accessor
-		.room_state_full(room_id)
+		.room_state_full_pdus(room_id)
+		.map_ok(PduEvent::into_state_event)
+		.try_collect()
 		.await?;
 
-	let state_events = state_map.values().map(PduEvent::to_state_event).collect();
-
-	Ok(state_events)
+	Ok(state)
 }
 
 async fn check_room_visible(

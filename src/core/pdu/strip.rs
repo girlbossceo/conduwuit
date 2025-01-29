@@ -116,7 +116,7 @@ pub fn to_message_like_event(&self) -> Raw<AnyMessageLikeEvent> {
 
 #[must_use]
 #[implement(super::Pdu)]
-pub fn to_state_event_value(&self) -> JsonValue {
+pub fn into_state_event_value(self) -> JsonValue {
 	let mut json = json!({
 		"content": self.content,
 		"type": self.kind,
@@ -127,7 +127,7 @@ pub fn to_state_event_value(&self) -> JsonValue {
 		"state_key": self.state_key,
 	});
 
-	if let Some(unsigned) = &self.unsigned {
+	if let Some(unsigned) = self.unsigned {
 		json["unsigned"] = json!(unsigned);
 	}
 
@@ -136,8 +136,8 @@ pub fn to_state_event_value(&self) -> JsonValue {
 
 #[must_use]
 #[implement(super::Pdu)]
-pub fn to_state_event(&self) -> Raw<AnyStateEvent> {
-	serde_json::from_value(self.to_state_event_value()).expect("Raw::from_value always works")
+pub fn into_state_event(self) -> Raw<AnyStateEvent> {
+	serde_json::from_value(self.into_state_event_value()).expect("Raw::from_value always works")
 }
 
 #[must_use]
@@ -188,7 +188,7 @@ pub fn to_stripped_spacechild_state_event(&self) -> Raw<HierarchySpaceChildEvent
 
 #[must_use]
 #[implement(super::Pdu)]
-pub fn to_member_event(&self) -> Raw<StateEvent<RoomMemberEventContent>> {
+pub fn into_member_event(self) -> Raw<StateEvent<RoomMemberEventContent>> {
 	let mut json = json!({
 		"content": self.content,
 		"type": self.kind,
@@ -200,7 +200,7 @@ pub fn to_member_event(&self) -> Raw<StateEvent<RoomMemberEventContent>> {
 		"state_key": self.state_key,
 	});
 
-	if let Some(unsigned) = &self.unsigned {
+	if let Some(unsigned) = self.unsigned {
 		json["unsigned"] = json!(unsigned);
 	}
 

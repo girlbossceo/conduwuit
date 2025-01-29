@@ -33,11 +33,12 @@ pub async fn resolve_state(
 		.await
 		.map_err(|e| err!(Database(error!("No state for {room_id:?}: {e:?}"))))?;
 
-	let current_state_ids = self
+	let current_state_ids: HashMap<_, _> = self
 		.services
 		.state_accessor
 		.state_full_ids(current_sstatehash)
-		.await?;
+		.collect()
+		.await;
 
 	let fork_states = [current_state_ids, incoming_state];
 	let auth_chain_sets: Vec<HashSet<OwnedEventId>> = fork_states

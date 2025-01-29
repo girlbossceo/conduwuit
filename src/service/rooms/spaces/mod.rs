@@ -624,8 +624,8 @@ impl Service {
 			.services
 			.state_accessor
 			.state_full_ids(current_shortstatehash)
-			.await
-			.map_err(|e| err!(Database("State in space not found: {e}")))?;
+			.collect()
+			.await;
 
 		let mut children_pdus = Vec::with_capacity(state.len());
 		for (key, id) in state {

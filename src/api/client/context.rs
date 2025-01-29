@@ -1,6 +1,6 @@
 use axum::extract::State;
 use conduwuit::{
-	at, deref_at, err, ref_at,
+	at, err, ref_at,
 	utils::{
 		future::TryExtExt,
 		stream::{BroadbandExt, ReadyExt, TryIgnore, WidebandExt},
@@ -10,10 +10,10 @@ use conduwuit::{
 };
 use futures::{
 	future::{join, join3, try_join3, OptionFuture},
-	FutureExt, StreamExt, TryFutureExt,
+	FutureExt, StreamExt, TryFutureExt, TryStreamExt,
 };
 use ruma::{api::client::context::get_context, events::StateEventType, OwnedEventId, UserId};
-use service::rooms::{lazy_loading, lazy_loading::Options};
+use service::rooms::{lazy_loading, lazy_loading::Options, short::ShortStateKey};
 
 use crate::{
 	client::message::{event_filter, ignored_filter, lazy_loading_witness, visibility_filter},
@@ -132,21 +132,29 @@ pub(crate) async fn get_context_route(
 		.state_accessor
 		.pdu_shortstatehash(state_at)
 		.or_else(|_| services.rooms.state.get_room_shortstatehash(room_id))
-		.and_then(|shortstatehash| services.rooms.state_accessor.state_full_ids(shortstatehash))
+		.map_ok(|shortstatehash| {
+			services
+				.rooms
+				.state_accessor
+				.state_full_ids(shortstatehash)
+				.map(Ok)
+		})
 		.map_err(|e| err!(Database("State not found: {e}")))
+		.try_flatten_stream()
+		.try_collect()
 		.boxed();
 
 	let (lazy_loading_witnessed, state_ids) = join(lazy_loading_witnessed, state_ids).await;
 
-	let state_ids = state_ids?;
+	let state_ids: Vec<(ShortStateKey, OwnedEventId)> = state_ids?;
+	let shortstatekeys = state_ids.iter().map(at!(0)).stream();
+	let shorteventids = state_ids.iter().map(ref_at!(1)).stream();
 	let lazy_loading_witnessed = lazy_loading_witnessed.unwrap_or_default();
-	let shortstatekeys = state_ids.iter().stream().map(deref_at!(0));
-
 	let state: Vec<_> = services
 		.rooms
 		.short
 		.multi_get_statekey_from_short(shortstatekeys)
-		.zip(state_ids.iter().stream().map(at!(1)))
+		.zip(shorteventids)
 		.ready_filter_map(|item| Some((item.0.ok()?, item.1)))
 		.ready_filter_map(|((event_type, state_key), event_id)| {
 			if filter.lazy_load_options.is_enabled()
@@ -162,9 +170,9 @@ pub(crate) async fn get_context_route(
 			Some(event_id)
 		})
 		.broad_filter_map(|event_id: &OwnedEventId| {
-			services.rooms.timeline.get_pdu(event_id).ok()
+			services.rooms.timeline.get_pdu(event_id.as_ref()).ok()
 		})
-		.map(|pdu| pdu.to_state_event())
+		.map(PduEvent::into_state_event)
 		.collect()
 		.await;
 

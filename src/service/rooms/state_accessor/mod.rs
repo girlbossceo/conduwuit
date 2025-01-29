@@ -1,6 +1,5 @@
 use std::{
 	borrow::Borrow,
-	collections::HashMap,
 	fmt::Write,
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
@@ -17,7 +16,7 @@ use conduwuit::{
 	Err, Error, PduEvent, Result,
 };
 use database::{Deserialized, Map};
-use futures::{FutureExt, StreamExt, TryFutureExt};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -143,83 +142,74 @@ impl crate::Service for Service {
 }
 
 impl Service {
-	pub async fn state_full(
+	pub fn state_full(
 		&self,
 		shortstatehash: ShortStateHash,
-	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
-		let state = self
-			.state_full_pdus(shortstatehash)
-			.await?
-			.into_iter()
-			.filter_map(|pdu| Some(((pdu.kind.to_string().into(), pdu.state_key.clone()?), pdu)))
-			.collect();
-
-		Ok(state)
+	) -> impl Stream<Item = ((StateEventType, String), PduEvent)> + Send + '_ {
+		self.state_full_pdus(shortstatehash)
+			.ready_filter_map(|pdu| {
+				Some(((pdu.kind.to_string().into(), pdu.state_key.clone()?), pdu))
+			})
 	}
 
-	pub async fn state_full_pdus(&self, shortstatehash: ShortStateHash) -> Result<Vec<PduEvent>> {
-		let short_ids = self.state_full_shortids(shortstatehash).await?;
+	pub fn state_full_pdus(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> impl Stream<Item = PduEvent> + Send + '_ {
+		let short_ids = self
+			.state_full_shortids(shortstatehash)
+			.map(|result| result.expect("missing shortstatehash"))
+			.map(Vec::into_iter)
+			.map(|iter| iter.map(at!(1)))
+			.map(IterStream::stream)
+			.flatten_stream()
+			.boxed();
 
-		let full_pdus = self
-			.services
+		self.services
 			.short
-			.multi_get_eventid_from_short(short_ids.into_iter().map(at!(1)).stream())
+			.multi_get_eventid_from_short(short_ids)
 			.ready_filter_map(Result::ok)
-			.broad_filter_map(|event_id: OwnedEventId| async move {
+			.broad_filter_map(move |event_id: OwnedEventId| async move {
 				self.services.timeline.get_pdu(&event_id).await.ok()
 			})
-			.collect()
-			.await;
-
-		Ok(full_pdus)
 	}
 
 	/// Builds a StateMap by iterating over all keys that start
 	/// with state_hash, this gives the full state for the given state_hash.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_full_ids<Id>(
-		&self,
+	pub fn state_full_ids<'a, Id>(
+		&'a self,
 		shortstatehash: ShortStateHash,
-	) -> Result<HashMap<ShortStateKey, Id>>
+	) -> impl Stream<Item = (ShortStateKey, Id)> + Send + 'a
 	where
-		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned,
+		Id: for<'de> Deserialize<'de> + Send + Sized + ToOwned + 'a,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
 	{
-		let short_ids = self.state_full_shortids(shortstatehash).await?;
-
-		let full_ids = self
-			.services
-			.short
-			.multi_get_eventid_from_short(short_ids.iter().map(at!(1)).stream())
-			.zip(short_ids.iter().stream().map(at!(0)))
-			.ready_filter_map(|(event_id, shortstatekey)| Some((shortstatekey, event_id.ok()?)))
-			.collect()
-			.boxed()
-			.await;
-
-		Ok(full_ids)
-	}
-
-	#[inline]
-	pub async fn state_full_shortids(
-		&self,
-		shortstatehash: ShortStateHash,
-	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
 		let shortids = self
-			.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
-			.await
-			.map_err(|e| err!(Database("Missing state IDs: {e}")))?
-			.pop()
-			.expect("there is always one layer")
-			.full_state
-			.iter()
-			.copied()
-			.map(parse_compressed_state_event)
-			.collect();
+			.state_full_shortids(shortstatehash)
+			.map(|result| result.expect("missing shortstatehash"))
+			.map(|vec| vec.into_iter().unzip())
+			.boxed()
+			.shared();
 
-		Ok(shortids)
+		let shortstatekeys = shortids
+			.clone()
+			.map(at!(0))
+			.map(Vec::into_iter)
+			.map(IterStream::stream)
+			.flatten_stream();
+
+		let shorteventids = shortids
+			.map(at!(1))
+			.map(Vec::into_iter)
+			.map(IterStream::stream)
+			.flatten_stream();
+
+		self.services
+			.short
+			.multi_get_eventid_from_short(shorteventids)
+			.zip(shortstatekeys)
+			.ready_filter_map(|(event_id, shortstatekey)| Some((shortstatekey, event_id.ok()?)))
 	}
 
 	/// Returns a single EventId from `room_id` with key (`event_type`,
@@ -262,6 +252,28 @@ impl Service {
 			.short
 			.get_eventid_from_short(shorteventid)
 			.await
+	}
+
+	#[inline]
+	pub async fn state_full_shortids(
+		&self,
+		shortstatehash: ShortStateHash,
+	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
+		let shortids = self
+			.services
+			.state_compressor
+			.load_shortstatehash_info(shortstatehash)
+			.await
+			.map_err(|e| err!(Database("Missing state IDs: {e}")))?
+			.pop()
+			.expect("there is always one layer")
+			.full_state
+			.iter()
+			.copied()
+			.map(parse_compressed_state_event)
+			.collect();
+
+		Ok(shortids)
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,
@@ -479,27 +491,30 @@ impl Service {
 
 	/// Returns the full room state.
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_full(
-		&self,
-		room_id: &RoomId,
-	) -> Result<HashMap<(StateEventType, String), PduEvent>> {
+	pub fn room_state_full<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = Result<((StateEventType, String), PduEvent)>> + Send + 'a {
 		self.services
 			.state
 			.get_room_shortstatehash(room_id)
-			.and_then(|shortstatehash| self.state_full(shortstatehash))
-			.map_err(|e| err!(Database("Missing state for {room_id:?}: {e:?}")))
-			.await
+			.map_ok(|shortstatehash| self.state_full(shortstatehash).map(Ok))
+			.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
+			.try_flatten_stream()
 	}
 
 	/// Returns the full room state pdus
 	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_full_pdus(&self, room_id: &RoomId) -> Result<Vec<PduEvent>> {
+	pub fn room_state_full_pdus<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = Result<PduEvent>> + Send + 'a {
 		self.services
 			.state
 			.get_room_shortstatehash(room_id)
-			.and_then(|shortstatehash| self.state_full_pdus(shortstatehash))
-			.map_err(|e| err!(Database("Missing state pdus for {room_id:?}: {e:?}")))
-			.await
+			.map_ok(|shortstatehash| self.state_full_pdus(shortstatehash).map(Ok))
+			.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
+			.try_flatten_stream()
 	}
 
 	/// Returns a single EventId from `room_id` with key (`event_type`,

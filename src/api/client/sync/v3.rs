@@ -28,7 +28,7 @@ use conduwuit_service::{
 };
 use futures::{
 	future::{join, join3, join4, join5, try_join, try_join4, OptionFuture},
-	FutureExt, StreamExt, TryFutureExt,
+	FutureExt, StreamExt, TryFutureExt, TryStreamExt,
 };
 use ruma::{
 	api::client::{
@@ -503,16 +503,20 @@ async fn handle_left_room(
 
 	let mut left_state_events = Vec::new();
 
-	let since_shortstatehash = services
-		.rooms
-		.user
-		.get_token_shortstatehash(room_id, since)
-		.await;
+	let since_shortstatehash = services.rooms.user.get_token_shortstatehash(room_id, since);
 
-	let since_state_ids = match since_shortstatehash {
-		| Ok(s) => services.rooms.state_accessor.state_full_ids(s).await?,
-		| Err(_) => HashMap::new(),
-	};
+	let since_state_ids: HashMap<_, OwnedEventId> = since_shortstatehash
+		.map_ok(|since_shortstatehash| {
+			services
+				.rooms
+				.state_accessor
+				.state_full_ids(since_shortstatehash)
+				.map(Ok)
+		})
+		.try_flatten_stream()
+		.try_collect()
+		.await
+		.unwrap_or_default();
 
 	let Ok(left_event_id): Result<OwnedEventId> = services
 		.rooms
@@ -534,11 +538,12 @@ async fn handle_left_room(
 		return Ok(None);
 	};
 
-	let mut left_state_ids = services
+	let mut left_state_ids: HashMap<_, _> = services
 		.rooms
 		.state_accessor
 		.state_full_ids(left_shortstatehash)
-		.await?;
+		.collect()
+		.await;
 
 	let leave_shortstatekey = services
 		.rooms
@@ -960,19 +965,18 @@ async fn calculate_state_initial(
 	current_shortstatehash: ShortStateHash,
 	witness: Option<&Witness>,
 ) -> Result<StateChanges> {
-	let state_events = services
+	let (shortstatekeys, event_ids): (Vec<_>, Vec<_>) = services
 		.rooms
 		.state_accessor
 		.state_full_ids(current_shortstatehash)
-		.await?;
-
-	let shortstatekeys = state_events.keys().copied().stream();
+		.unzip()
+		.await;
 
 	let state_events = services
 		.rooms
 		.short
-		.multi_get_statekey_from_short(shortstatekeys)
-		.zip(state_events.values().cloned().stream())
+		.multi_get_statekey_from_short(shortstatekeys.into_iter().stream())
+		.zip(event_ids.into_iter().stream())
 		.ready_filter_map(|item| Some((item.0.ok()?, item.1)))
 		.ready_filter_map(|((event_type, state_key), event_id)| {
 			let lazy_load_enabled = filter.room.state.lazy_load_options.is_enabled()
@@ -1036,17 +1040,19 @@ async fn calculate_state_incremental(
 		let current_state_ids = services
 			.rooms
 			.state_accessor
-			.state_full_ids(current_shortstatehash);
+			.state_full_ids(current_shortstatehash)
+			.collect();
 
 		let since_state_ids = services
 			.rooms
 			.state_accessor
-			.state_full_ids(since_shortstatehash);
+			.state_full_ids(since_shortstatehash)
+			.collect();
 
 		let (current_state_ids, since_state_ids): (
 			HashMap<_, OwnedEventId>,
 			HashMap<_, OwnedEventId>,
-		) = try_join(current_state_ids, since_state_ids).await?;
+		) = join(current_state_ids, since_state_ids).await;
 
 		current_state_ids
 			.iter()

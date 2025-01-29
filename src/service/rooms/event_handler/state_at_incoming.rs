@@ -31,15 +31,12 @@ pub(super) async fn state_at_incoming_degree_one(
 		return Ok(None);
 	};
 
-	let Ok(mut state) = self
+	let mut state: HashMap<_, _> = self
 		.services
 		.state_accessor
 		.state_full_ids(prev_event_sstatehash)
-		.await
-		.log_err()
-	else {
-		return Ok(None);
-	};
+		.collect()
+		.await;
 
 	debug!("Using cached state");
 	let prev_pdu = self
@@ -103,14 +100,12 @@ pub(super) async fn state_at_incoming_resolved(
 	let mut fork_states = Vec::with_capacity(extremity_sstatehashes.len());
 	let mut auth_chain_sets = Vec::with_capacity(extremity_sstatehashes.len());
 	for (sstatehash, prev_event) in extremity_sstatehashes {
-		let Ok(mut leaf_state) = self
+		let mut leaf_state: HashMap<_, _> = self
 			.services
 			.state_accessor
 			.state_full_ids(sstatehash)
-			.await
-		else {
-			continue;
-		};
+			.collect()
+			.await;
 
 		if let Some(state_key) = &prev_event.state_key {
 			let shortstatekey = self

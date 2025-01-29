@@ -8,14 +8,14 @@ use std::{
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	debug, debug_info, debug_warn, err, info,
+	at, debug, debug_info, debug_warn, err, info,
 	pdu::{gen_event_id_canonical_json, PduBuilder},
 	result::FlatOk,
 	trace,
 	utils::{self, shuffle, IterStream, ReadyExt},
 	warn, Err, PduEvent, Result,
 };
-use futures::{join, FutureExt, StreamExt};
+use futures::{join, FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	api::{
 		client::{
@@ -765,11 +765,12 @@ pub(crate) async fn get_member_events_route(
 			.rooms
 			.state_accessor
 			.room_state_full(&body.room_id)
-			.await?
-			.iter()
-			.filter(|(key, _)| key.0 == StateEventType::RoomMember)
-			.map(|(_, pdu)| pdu.to_member_event())
-			.collect(),
+			.ready_filter_map(Result::ok)
+			.ready_filter(|((ty, _), _)| *ty == StateEventType::RoomMember)
+			.map(at!(1))
+			.map(PduEvent::into_member_event)
+			.collect()
+			.await,
 	})
 }
 
@@ -1707,9 +1708,6 @@ pub async fn leave_room(
 	room_id: &RoomId,
 	reason: Option<String>,
 ) -> Result<()> {
-	//use conduwuit::utils::stream::OptionStream;
-	use futures::TryFutureExt;
-
 	// Ask a remote server if we don't have this room and are not knocking on it
 	if !services
 		.rooms

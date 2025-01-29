@@ -2,7 +2,7 @@ use axum::extract::State;
 use conduwuit::{
 	at,
 	utils::{stream::TryTools, BoolExt},
-	Err, Result,
+	Err, PduEvent, Result,
 };
 use futures::TryStreamExt;
 use ruma::api::client::room::initial_sync::v3::{PaginationChunk, Request, Response};
@@ -39,10 +39,9 @@ pub(crate) async fn room_initial_sync_route(
 		.rooms
 		.state_accessor
 		.room_state_full_pdus(room_id)
-		.await?
-		.into_iter()
-		.map(|pdu| pdu.to_state_event())
-		.collect();
+		.map_ok(PduEvent::into_state_event)
+		.try_collect()
+		.await?;
 
 	let messages = PaginationChunk {
 		start: events.last().map(at!(0)).as_ref().map(ToString::to_string),

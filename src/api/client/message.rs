@@ -6,9 +6,9 @@ use conduwuit::{
 		stream::{BroadbandExt, TryIgnore, WidebandExt},
 		IterStream, ReadyExt,
 	},
-	Event, PduCount, Result,
+	Event, PduCount, PduEvent, Result,
 };
-use futures::{future::OptionFuture, pin_mut, FutureExt, StreamExt};
+use futures::{future::OptionFuture, pin_mut, FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	api::{
 		client::{filter::RoomEventFilter, message::get_message_events},
@@ -220,8 +220,8 @@ async fn get_member_event(
 		.rooms
 		.state_accessor
 		.room_state_get(room_id, &StateEventType::RoomMember, user_id.as_str())
+		.map_ok(PduEvent::into_state_event)
 		.await
-		.map(|member_event| member_event.to_state_event())
 		.ok()
 }
 

@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, iter::once};
 
 use axum::extract::State;
-use conduwuit::{err, result::LogErr, utils::IterStream, Result};
+use conduwuit::{at, err, utils::IterStream, Result};
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{api::federation::event::get_room_state, OwnedEventId};
 
@@ -35,11 +35,9 @@ pub(crate) async fn get_room_state_route(
 		.rooms
 		.state_accessor
 		.state_full_ids(shortstatehash)
-		.await
-		.log_err()
-		.map_err(|_| err!(Request(NotFound("PDU state IDs not found."))))?
-		.into_values()
-		.collect();
+		.map(at!(1))
+		.collect()
+		.await;
 
 	let pdus = state_ids
 		.iter()
