@@ -83,7 +83,7 @@ pub(crate) static RANDOM: Descriptor = Descriptor {
 	write_size: 1024 * 1024 * 32,
 	cache_shards: 128,
 	compression_level: -3,
-	bottommost_level: Some(4),
+	bottommost_level: Some(-1),
 	compressed_index: true,
 	..BASE
 };
@@ -94,8 +94,8 @@ pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	level_size: 1024 * 1024 * 32,
 	file_size: 1024 * 1024 * 2,
 	cache_shards: 128,
-	compression_level: -1,
-	bottommost_level: Some(6),
+	compression_level: -2,
+	bottommost_level: Some(-1),
 	compression_shape: [0, 0, 1, 1, 1, 1, 1],
 	compressed_index: false,
 	..BASE
@@ -111,7 +111,7 @@ pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	block_size: 512,
 	cache_shards: 64,
 	compression_level: -4,
-	bottommost_level: Some(1),
+	bottommost_level: Some(-1),
 	compression_shape: [0, 0, 0, 0, 0, 1, 1],
 	compressed_index: false,
 	..RANDOM
@@ -126,8 +126,8 @@ pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	block_size: 512,
 	cache_shards: 64,
 	block_index_hashing: Some(false),
-	compression_level: -2,
-	bottommost_level: Some(4),
+	compression_level: -4,
+	bottommost_level: Some(-2),
 	compression_shape: [0, 0, 0, 0, 1, 1, 1],
 	compressed_index: false,
 	..SEQUENTIAL
