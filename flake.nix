@@ -169,10 +169,10 @@
 
           # used for rust caching in CI to speed it up
           sccache
-
-          # needed so we can get rid of gcc and other unused deps that bloat OCI images
-          removeReferencesTo
         ]
+        # valgrind is unavailable in static contexts
+        # used for CI and complement
+        ++ (if !stdenv.hostPlatform.isStatic then [ "valgrind" ] else [])
         # liburing is Linux-exclusive
         ++ lib.optional stdenv.hostPlatform.isLinux liburing
         # needed to build Rust applications on macOS

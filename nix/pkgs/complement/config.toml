@@ -17,19 +17,30 @@ ip_range_denylist = []
 url_preview_domain_contains_allowlist = ["*"]
 url_preview_domain_explicit_denylist = ["*"]
 media_compat_file_link = false
-media_startup_check = false
-prune_missing_media = false
+media_startup_check = true
+prune_missing_media = true
 log_colors = false
 admin_room_notices = false
 allow_check_for_updates = false
-allow_unstable_room_versions = true
 rocksdb_log_level = "debug"
 rocksdb_max_log_files = 1
 rocksdb_recovery_mode = 0
 rocksdb_paranoid_file_checks = true
 log_guest_registrations = false
 allow_legacy_media = true
-startup_netburst = false
+startup_netburst = true
+
+# valgrind makes things so slow
+dns_timeout = 60
+dns_attempts = 20
+request_conn_timeout = 60
+request_timeout = 120
+well_known_conn_timeout = 60
+well_known_timeout = 60
+federation_idle_timeout = 300
+sender_timeout = 300
+sender_idle_timeout = 300
+sender_retry_backoff_limit = 300
 
 [global.tls]
 certs = "/certificate.crt"
