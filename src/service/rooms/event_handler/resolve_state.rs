@@ -5,11 +5,11 @@ use std::{
 };
 
 use conduwuit::{
-	debug, err, implement,
+	err, implement, trace,
 	utils::stream::{automatic_width, IterStream, ReadyExt, TryWidebandExt, WidebandExt},
-	Result,
+	Error, Result,
 };
-use futures::{FutureExt, StreamExt, TryStreamExt};
+use futures::{future::try_join, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{
 	state_res::{self, StateMap},
 	OwnedEventId, RoomId, RoomVersionId,
@@ -25,13 +25,13 @@ pub async fn resolve_state(
 	room_version_id: &RoomVersionId,
 	incoming_state: HashMap<u64, OwnedEventId>,
 ) -> Result<Arc<HashSet<CompressedStateEvent>>> {
-	debug!("Loading current room state ids");
+	trace!("Loading current room state ids");
 	let current_sstatehash = self
 		.services
 		.state
 		.get_room_shortstatehash(room_id)
-		.await
-		.map_err(|e| err!(Database(error!("No state for {room_id:?}: {e:?}"))))?;
+		.map_err(|e| err!(Database(error!("No state for {room_id:?}: {e:?}"))))
+		.await?;
 
 	let current_state_ids: HashMap<_, _> = self
 		.services
@@ -40,8 +40,9 @@ pub async fn resolve_state(
 		.collect()
 		.await;
 
+	trace!("Loading fork states");
 	let fork_states = [current_state_ids, incoming_state];
-	let auth_chain_sets: Vec<HashSet<OwnedEventId>> = fork_states
+	let auth_chain_sets = fork_states
 		.iter()
 		.try_stream()
 		.wide_and_then(|state| {
@@ -50,36 +51,33 @@ pub async fn resolve_state(
 				.event_ids_iter(room_id, state.values().map(Borrow::borrow))
 				.try_collect()
 		})
-		.try_collect()
-		.await?;
+		.try_collect::<Vec<HashSet<OwnedEventId>>>();
 
-	debug!("Loading fork states");
-	let fork_states: Vec<StateMap<OwnedEventId>> = fork_states
-		.into_iter()
+	let fork_states = fork_states
+		.iter()
 		.stream()
-		.wide_then(|fork_state| async move {
+		.wide_then(|fork_state| {
 			let shortstatekeys = fork_state.keys().copied().stream();
-
-			let event_ids = fork_state.values().cloned().stream().boxed();
-
+			let event_ids = fork_state.values().cloned().stream();
 			self.services
 				.short
 				.multi_get_statekey_from_short(shortstatekeys)
 				.zip(event_ids)
 				.ready_filter_map(|(ty_sk, id)| Some((ty_sk.ok()?, id)))
 				.collect()
-				.await
 		})
-		.collect()
-		.await;
+		.map(Ok::<_, Error>)
+		.try_collect::<Vec<StateMap<OwnedEventId>>>();
 
-	debug!("Resolving state");
+	let (fork_states, auth_chain_sets) = try_join(fork_states, auth_chain_sets).await?;
+
+	trace!("Resolving state");
 	let state = self
-		.state_resolution(room_version_id, &fork_states, &auth_chain_sets)
+		.state_resolution(room_version_id, fork_states.iter(), &auth_chain_sets)
 		.boxed()
 		.await?;
 
-	debug!("State resolution done.");
+	trace!("State resolution done.");
 	let state_events: Vec<_> = state
 		.iter()
 		.stream()
@@ -92,7 +90,7 @@ pub async fn resolve_state(
 		.collect()
 		.await;
 
-	debug!("Compressing state...");
+	trace!("Compressing state...");
 	let new_room_state: HashSet<_> = self
 		.services
 		.state_compressor
@@ -109,20 +107,23 @@ pub async fn resolve_state(
 
 #[implement(super::Service)]
 #[tracing::instrument(name = "ruma", level = "debug", skip_all)]
-pub async fn state_resolution(
-	&self,
-	room_version: &RoomVersionId,
-	state_sets: &[StateMap<OwnedEventId>],
-	auth_chain_sets: &[HashSet<OwnedEventId>],
-) -> Result<StateMap<OwnedEventId>> {
+pub async fn state_resolution<'a, StateSets>(
+	&'a self,
+	room_version: &'a RoomVersionId,
+	state_sets: StateSets,
+	auth_chain_sets: &'a [HashSet<OwnedEventId>],
+) -> Result<StateMap<OwnedEventId>>
+where
+	StateSets: Iterator<Item = &'a StateMap<OwnedEventId>> + Clone + Send,
+{
 	state_res::resolve(
 		room_version,
-		state_sets.iter(),
+		state_sets,
 		auth_chain_sets,
 		&|event_id| self.event_fetch(event_id),
 		&|event_id| self.event_exists(event_id),
 		automatic_width(),
 	)
-	.await
 	.map_err(|e| err!(error!("State resolution failed: {e:?}")))
+	.await
 }
