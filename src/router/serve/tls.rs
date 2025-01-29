@@ -20,11 +20,11 @@ pub(super) async fn serve(
 	let certs = tls
 		.certs
 		.as_ref()
-		.ok_or(err!(Config("tls.certs", "Missing required value in tls config section")))?;
+		.ok_or_else(|| err!(Config("tls.certs", "Missing required value in tls config section")))?;
 	let key = tls
 		.key
 		.as_ref()
-		.ok_or(err!(Config("tls.key", "Missing required value in tls config section")))?;
+		.ok_or_else(|| err!(Config("tls.key", "Missing required value in tls config section")))?;
 
 	// we use ring for ruma and hashing state, but aws-lc-rs is the new default.
 	// without this, TLS mode will panic.

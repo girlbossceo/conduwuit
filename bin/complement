@@ -34,7 +34,9 @@ toplevel="$(git rev-parse --show-toplevel)"
 
 pushd "$toplevel" > /dev/null
 
-bin/nix-build-and-cache just .#linux-complement
+#bin/nix-build-and-cache just .#linux-complement
+bin/nix-build-and-cache just .#complement
+#nom build .#complement
 
 docker load < result
 popd > /dev/null

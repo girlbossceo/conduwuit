@@ -88,8 +88,8 @@ jobs:
                   ssh -q website "echo test" || ssh -q website "echo test"
 
                   echo "Creating commit rev directory on web server"
-                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/"
-                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/"
+                  ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || ssh -q website "rm -rf /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || true
+                  ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || ssh -q website "mkdir -v /var/www/girlboss.ceo/~strawberry/conduwuit/ci-bins/${WEBSERVER_DIR_NAME}/" || true
 
                   echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
 

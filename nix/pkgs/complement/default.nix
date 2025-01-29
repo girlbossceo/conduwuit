@@ -9,19 +9,22 @@
 , openssl
 , stdenv
 , tini
+, valgrind
 , writeShellScriptBin
 }:
 
 let
   main' = main.override {
     profile = "test";
+    #profile = "release-debuginfo";
     all_features = true;
     disable_release_max_log_level = true;
     disable_features = [
-        # no reason to use jemalloc for complement, just has compatibility/build issues
         "jemalloc"
         "jemalloc_stats"
         "jemalloc_prof"
+        "jemalloc_conf"
+        "io_uring"
         # console/CLI stuff isn't used or relevant for complement
         "console"
         "tokio_console"
@@ -29,7 +32,7 @@ let
         "sentry_telemetry"
         "perf_measurements"
         # the containers don't use or need systemd signal support
-        "systemd"
+        #"systemd"
         # this is non-functional on nix for some reason
         "hardened_malloc"
         # dont include experimental features
@@ -44,6 +47,13 @@ let
         "url_preview"
     ];
   };
+        # TODO: figure out why a suspicious amounnt of complement tests fail with valgrind only under complement.
+        # maybe issue with direct TLS mode?
+        #${lib.getExe' valgrind "valgrind"} \
+        #--leak-check=no \
+        #--undef-value-errors=no \
+        #--exit-on-first-error=yes \
+        #--error-exitcode=1 \
 
   start = writeShellScriptBin "start" ''
     set -euxo pipefail
