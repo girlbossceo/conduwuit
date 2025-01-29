@@ -4,6 +4,7 @@ use std::{
 	collections::{BTreeSet, HashSet, VecDeque},
 	fmt::Debug,
 	sync::Arc,
+	time::Instant,
 };
 
 use conduwuit::{
@@ -14,7 +15,7 @@ use conduwuit::{
 	},
 	validated, warn, Err, Result,
 };
-use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{EventId, OwnedEventId, RoomId};
 
 use self::data::Data;
@@ -29,6 +30,8 @@ struct Services {
 	short: Dep<rooms::short::Service>,
 	timeline: Dep<rooms::timeline::Service>,
 }
+
+type Bucket<'a> = BTreeSet<(u64, &'a EventId)>;
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -45,42 +48,22 @@ impl crate::Service for Service {
 }
 
 #[implement(Service)]
-pub async fn event_ids_iter<'a, I>(
+pub fn event_ids_iter<'a, I>(
 	&'a self,
-	room_id: &RoomId,
+	room_id: &'a RoomId,
 	starting_events: I,
-) -> Result<impl Stream<Item = OwnedEventId> + Send + '_>
+) -> impl Stream<Item = Result<OwnedEventId>> + Send + 'a
 where
 	I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 {
-	let stream = self
-		.get_event_ids(room_id, starting_events)
-		.await?
-		.into_iter()
-		.stream();
-
-	Ok(stream)
-}
-
-#[implement(Service)]
-pub async fn get_event_ids<'a, I>(
-	&'a self,
-	room_id: &RoomId,
-	starting_events: I,
-) -> Result<Vec<OwnedEventId>>
-where
-	I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
-{
-	let chain = self.get_auth_chain(room_id, starting_events).await?;
-	let event_ids = self
-		.services
-		.short
-		.multi_get_eventid_from_short(chain.into_iter().stream())
-		.ready_filter_map(Result::ok)
-		.collect()
-		.await;
-
-	Ok(event_ids)
+	self.get_auth_chain(room_id, starting_events)
+		.map_ok(|chain| {
+			self.services
+				.short
+				.multi_get_eventid_from_short(chain.into_iter().stream())
+				.ready_filter(Result::is_ok)
+		})
+		.try_flatten_stream()
 }
 
 #[implement(Service)]
@@ -94,9 +77,9 @@ where
 	I: Iterator<Item = &'a EventId> + Clone + Debug + ExactSizeIterator + Send + 'a,
 {
 	const NUM_BUCKETS: usize = 50; //TODO: change possible w/o disrupting db?
-	const BUCKET: BTreeSet<(u64, &EventId)> = BTreeSet::new();
+	const BUCKET: Bucket<'_> = BTreeSet::new();
 
-	let started = std::time::Instant::now();
+	let started = Instant::now();
 	let mut starting_ids = self
 		.services
 		.short
@@ -120,53 +103,7 @@ where
 	let full_auth_chain: Vec<ShortEventId> = buckets
 		.into_iter()
 		.try_stream()
-		.broad_and_then(|chunk| async move {
-			let chunk_key: Vec<ShortEventId> = chunk.iter().map(at!(0)).collect();
-
-			if chunk_key.is_empty() {
-				return Ok(Vec::new());
-			}
-
-			if let Ok(cached) = self.get_cached_eventid_authchain(&chunk_key).await {
-				return Ok(cached.to_vec());
-			}
-
-			let chunk_cache: Vec<_> = chunk
-				.into_iter()
-				.try_stream()
-				.broad_and_then(|(shortid, event_id)| async move {
-					if let Ok(cached) = self.get_cached_eventid_authchain(&[shortid]).await {
-						return Ok(cached.to_vec());
-					}
-
-					let auth_chain = self.get_auth_chain_inner(room_id, event_id).await?;
-					self.cache_auth_chain_vec(vec![shortid], auth_chain.as_slice());
-					debug!(
-						?event_id,
-						elapsed = ?started.elapsed(),
-						"Cache missed event"
-					);
-
-					Ok(auth_chain)
-				})
-				.try_collect()
-				.map_ok(|chunk_cache: Vec<_>| chunk_cache.into_iter().flatten().collect())
-				.map_ok(|mut chunk_cache: Vec<_>| {
-					chunk_cache.sort_unstable();
-					chunk_cache.dedup();
-					chunk_cache
-				})
-				.await?;
-
-			self.cache_auth_chain_vec(chunk_key, chunk_cache.as_slice());
-			debug!(
-				chunk_cache_length = ?chunk_cache.len(),
-				elapsed = ?started.elapsed(),
-				"Cache missed chunk",
-			);
-
-			Ok(chunk_cache)
-		})
+		.broad_and_then(|chunk| self.get_auth_chain_outer(room_id, started, chunk))
 		.try_collect()
 		.map_ok(|auth_chain: Vec<_>| auth_chain.into_iter().flatten().collect())
 		.map_ok(|mut full_auth_chain: Vec<_>| {
@@ -174,6 +111,7 @@ where
 			full_auth_chain.dedup();
 			full_auth_chain
 		})
+		.boxed()
 		.await?;
 
 	debug!(
@@ -183,6 +121,60 @@ where
 	);
 
 	Ok(full_auth_chain)
+}
+
+#[implement(Service)]
+async fn get_auth_chain_outer(
+	&self,
+	room_id: &RoomId,
+	started: Instant,
+	chunk: Bucket<'_>,
+) -> Result<Vec<ShortEventId>> {
+	let chunk_key: Vec<ShortEventId> = chunk.iter().map(at!(0)).collect();
+
+	if chunk_key.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	if let Ok(cached) = self.get_cached_eventid_authchain(&chunk_key).await {
+		return Ok(cached.to_vec());
+	}
+
+	let chunk_cache: Vec<_> = chunk
+		.into_iter()
+		.try_stream()
+		.broad_and_then(|(shortid, event_id)| async move {
+			if let Ok(cached) = self.get_cached_eventid_authchain(&[shortid]).await {
+				return Ok(cached.to_vec());
+			}
+
+			let auth_chain = self.get_auth_chain_inner(room_id, event_id).await?;
+			self.cache_auth_chain_vec(vec![shortid], auth_chain.as_slice());
+			debug!(
+				?event_id,
+				elapsed = ?started.elapsed(),
+				"Cache missed event"
+			);
+
+			Ok(auth_chain)
+		})
+		.try_collect()
+		.map_ok(|chunk_cache: Vec<_>| chunk_cache.into_iter().flatten().collect())
+		.map_ok(|mut chunk_cache: Vec<_>| {
+			chunk_cache.sort_unstable();
+			chunk_cache.dedup();
+			chunk_cache
+		})
+		.await?;
+
+	self.cache_auth_chain_vec(chunk_key, chunk_cache.as_slice());
+	debug!(
+		chunk_cache_length = ?chunk_cache.len(),
+		elapsed = ?started.elapsed(),
+		"Cache missed chunk",
+	);
+
+	Ok(chunk_cache)
 }
 
 #[implement(Service)]

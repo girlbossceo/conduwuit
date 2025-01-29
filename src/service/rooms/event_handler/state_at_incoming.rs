@@ -10,7 +10,7 @@ use conduwuit::{
 	utils::stream::{BroadbandExt, IterStream},
 	PduEvent, Result,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{state_res::StateMap, OwnedEventId, RoomId, RoomVersionId};
 
 // TODO: if we know the prev_events of the incoming event we can avoid the
@@ -140,10 +140,9 @@ pub(super) async fn state_at_incoming_resolved(
 		let auth_chain: HashSet<OwnedEventId> = self
 			.services
 			.auth_chain
-			.get_event_ids(room_id, starting_events.into_iter())
-			.await?
-			.into_iter()
-			.collect();
+			.event_ids_iter(room_id, starting_events.into_iter())
+			.try_collect()
+			.await?;
 
 		auth_chain_sets.push(auth_chain);
 		fork_states.push(state);

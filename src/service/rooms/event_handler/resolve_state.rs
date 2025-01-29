@@ -44,18 +44,11 @@ pub async fn resolve_state(
 	let auth_chain_sets: Vec<HashSet<OwnedEventId>> = fork_states
 		.iter()
 		.try_stream()
-		.wide_and_then(|state| async move {
-			let starting_events = state.values().map(Borrow::borrow);
-
-			let auth_chain = self
-				.services
+		.wide_and_then(|state| {
+			self.services
 				.auth_chain
-				.get_event_ids(room_id, starting_events)
-				.await?
-				.into_iter()
-				.collect();
-
-			Ok(auth_chain)
+				.event_ids_iter(room_id, state.values().map(Borrow::borrow))
+				.try_collect()
 		})
 		.try_collect()
 		.await?;

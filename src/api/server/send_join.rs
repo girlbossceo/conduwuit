@@ -238,8 +238,6 @@ async fn create_join_event(
 		.rooms
 		.auth_chain
 		.event_ids_iter(room_id, starting_events)
-		.await?
-		.map(Ok)
 		.broad_and_then(|event_id| async move {
 			services.rooms.timeline.get_pdu_json(&event_id).await
 		})

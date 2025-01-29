@@ -56,8 +56,6 @@ pub(crate) async fn get_room_state_route(
 		.rooms
 		.auth_chain
 		.event_ids_iter(&body.room_id, once(body.event_id.borrow()))
-		.await?
-		.map(Ok)
 		.and_then(|id| async move { services.rooms.timeline.get_pdu_json(&id).await })
 		.and_then(|pdu| {
 			services

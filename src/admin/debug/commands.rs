@@ -6,8 +6,9 @@ use std::{
 };
 
 use conduwuit::{
-	debug_error, err, info, trace, utils, utils::string::EMPTY, warn, Error, PduEvent, PduId,
-	RawPduId, Result,
+	debug_error, err, info, trace, utils,
+	utils::{stream::ReadyExt, string::EMPTY},
+	warn, Error, PduEvent, PduId, RawPduId, Result,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
@@ -54,7 +55,7 @@ pub(super) async fn get_auth_chain(
 		.rooms
 		.auth_chain
 		.event_ids_iter(room_id, once(event_id.as_ref()))
-		.await?
+		.ready_filter_map(Result::ok)
 		.count()
 		.await;
 
