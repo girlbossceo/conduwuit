@@ -24,27 +24,20 @@ pub(super) async fn serve(
 	info!("Listening on {addrs:?}");
 	while join_set.join_next().await.is_some() {}
 
-	let spawn_active = server.metrics.requests_spawn_active.load(Ordering::Relaxed);
 	let handle_active = server
 		.metrics
 		.requests_handle_active
 		.load(Ordering::Relaxed);
 	debug_info!(
-		spawn_finished = server
-			.metrics
-			.requests_spawn_finished
-			.load(Ordering::Relaxed),
 		handle_finished = server
 			.metrics
 			.requests_handle_finished
 			.load(Ordering::Relaxed),
 		panics = server.metrics.requests_panic.load(Ordering::Relaxed),
-		spawn_active,
 		handle_active,
 		"Stopped listening on {addrs:?}",
 	);
 
-	debug_assert!(spawn_active == 0, "active request tasks are not joined");
 	debug_assert!(handle_active == 0, "active request handles still pending");
 
 	Ok(())

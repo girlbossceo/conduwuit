@@ -19,8 +19,6 @@ pub struct Metrics {
 	runtime_intervals: std::sync::Mutex<Option<RuntimeIntervals>>,
 
 	// TODO: move stats
-	pub requests_spawn_active: AtomicU32,
-	pub requests_spawn_finished: AtomicU32,
 	pub requests_handle_active: AtomicU32,
 	pub requests_handle_finished: AtomicU32,
 	pub requests_panic: AtomicU32,
@@ -48,8 +46,6 @@ impl Metrics {
 			#[cfg(tokio_unstable)]
 			runtime_intervals: std::sync::Mutex::new(runtime_intervals),
 
-			requests_spawn_active: AtomicU32::new(0),
-			requests_spawn_finished: AtomicU32::new(0),
 			requests_handle_active: AtomicU32::new(0),
 			requests_handle_finished: AtomicU32::new(0),
 			requests_panic: AtomicU32::new(0),

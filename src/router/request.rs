@@ -9,48 +9,6 @@ use conduwuit_service::Services;
 use http::{Method, StatusCode, Uri};
 
 #[tracing::instrument(
-	parent = None,
-	level = "trace",
-	skip_all,
-	fields(
-		handled = %services
-			.server
-			.metrics
-			.requests_spawn_finished
-			.fetch_add(1, Ordering::Relaxed),
-		active = %services
-			.server
-			.metrics
-			.requests_spawn_active
-			.fetch_add(1, Ordering::Relaxed),
-	)
-)]
-pub(crate) async fn spawn(
-	State(services): State<Arc<Services>>,
-	req: http::Request<axum::body::Body>,
-	next: axum::middleware::Next,
-) -> Result<Response, StatusCode> {
-	let server = &services.server;
-
-	#[cfg(debug_assertions)]
-	conduwuit::defer! {{
-		_ = server
-			.metrics
-			.requests_spawn_active
-			.fetch_sub(1, Ordering::Relaxed);
-	}};
-
-	if !server.running() {
-		debug_warn!("unavailable pending shutdown");
-		return Err(StatusCode::SERVICE_UNAVAILABLE);
-	}
-
-	let fut = next.run(req);
-	let task = server.runtime().spawn(fut);
-	task.await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-#[tracing::instrument(
 	level = "debug",
 	skip_all,
 	fields(
@@ -71,17 +29,15 @@ pub(crate) async fn handle(
 	req: http::Request<axum::body::Body>,
 	next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
-	let server = &services.server;
-
 	#[cfg(debug_assertions)]
 	conduwuit::defer! {{
-		_ = server
+		_ = services.server
 			.metrics
 			.requests_handle_active
 			.fetch_sub(1, Ordering::Relaxed);
 	}};
 
-	if !server.running() {
+	if !services.server.running() {
 		debug_warn!(
 			method = %req.method(),
 			uri = %req.uri(),
@@ -91,10 +47,15 @@ pub(crate) async fn handle(
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
 
-	let uri = req.uri().clone();
 	let method = req.method().clone();
-	let result = next.run(req).await;
-	handle_result(&method, &uri, result)
+	let uri = req.uri().clone();
+	services
+		.server
+		.runtime()
+		.spawn(next.run(req))
+		.await
+		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+		.and_then(|result| handle_result(&method, &uri, result))
 }
 
 fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Response, StatusCode> {

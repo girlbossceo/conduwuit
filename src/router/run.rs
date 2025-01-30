@@ -125,7 +125,6 @@ async fn handle_shutdown(server: Arc<Server>, tx: Sender<()>, handle: axum_serve
 	let timeout = Duration::from_secs(36);
 	debug!(
 		?timeout,
-		spawn_active = ?server.metrics.requests_spawn_active.load(Ordering::Relaxed),
 		handle_active = ?server.metrics.requests_handle_active.load(Ordering::Relaxed),
 		"Notifying for graceful shutdown"
 	);

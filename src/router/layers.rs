@@ -5,7 +5,7 @@ use axum::{
 	Router,
 };
 use axum_client_ip::SecureClientIpSource;
-use conduwuit::{error, Result, Server};
+use conduwuit::{debug, error, Result, Server};
 use conduwuit_api::router::state::Guard;
 use conduwuit_service::Services;
 use http::{
@@ -50,7 +50,6 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 
 	let layers = layers
 		.layer(SetSensitiveHeadersLayer::new([header::AUTHORIZATION]))
-		.layer(axum::middleware::from_fn_with_state(Arc::clone(services), request::spawn))
 		.layer(
 			TraceLayer::new_for_http()
 				.make_span_with(tracing_span::<_>)
@@ -196,20 +195,26 @@ fn catch_panic(
 }
 
 fn tracing_span<T>(request: &http::Request<T>) -> tracing::Span {
-	let path = request.extensions().get::<MatchedPath>().map_or_else(
-		|| {
-			request
-				.uri()
-				.path_and_query()
-				.expect("all requests have a path")
-				.as_str()
-		},
-		truncated_matched_path,
-	);
+	let path = request
+		.extensions()
+		.get::<MatchedPath>()
+		.map_or_else(|| request_path_str(request), truncated_matched_path);
 
-	let method = request.method();
+	tracing::span! {
+		parent: None,
+		debug::INFO_SPAN_LEVEL,
+		"router",
+		method = %request.method(),
+		%path,
+	}
+}
 
-	tracing::debug_span!(parent: None, "router", %method, %path)
+fn request_path_str<T>(request: &http::Request<T>) -> &str {
+	request
+		.uri()
+		.path_and_query()
+		.expect("all requests have a path")
+		.as_str()
 }
 
 fn truncated_matched_path(path: &MatchedPath) -> &str {
