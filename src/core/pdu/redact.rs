@@ -90,3 +90,21 @@ pub fn copy_redacts(&self) -> (Option<OwnedEventId>, Box<RawJsonValue>) {
 
 	(self.redacts.clone(), self.content.clone())
 }
+
+#[implement(super::Pdu)]
+#[must_use]
+pub fn redacts_id(&self, room_version: &RoomVersionId) -> Option<OwnedEventId> {
+	use RoomVersionId::*;
+
+	if self.kind != TimelineEventType::RoomRedaction {
+		return None;
+	}
+
+	match *room_version {
+		| V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => self.redacts.clone(),
+		| _ =>
+			self.get_content::<RoomRedactionEventContent>()
+				.ok()?
+				.redacts,
+	}
+}

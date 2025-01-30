@@ -13,9 +13,9 @@ use conduwuit::{
 };
 use futures::{future::ready, FutureExt, StreamExt};
 use ruma::{
-	events::{room::redaction::RoomRedactionEventContent, StateEventType, TimelineEventType},
+	events::StateEventType,
 	state_res::{self, EventTypeExt},
-	CanonicalJsonValue, RoomId, RoomVersionId, ServerName,
+	CanonicalJsonValue, RoomId, ServerName,
 };
 
 use super::{get_room_version_id, to_room_version};
@@ -127,46 +127,14 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 
 	// Soft fail check before doing state res
 	debug!("Performing soft-fail check");
-	let soft_fail = {
-		use RoomVersionId::*;
-
-		!auth_check
-			|| incoming_pdu.kind == TimelineEventType::RoomRedaction
-				&& match room_version_id {
-					| V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 => {
-						if let Some(redact_id) = &incoming_pdu.redacts {
-							!self
-								.services
-								.state_accessor
-								.user_can_redact(
-									redact_id,
-									&incoming_pdu.sender,
-									&incoming_pdu.room_id,
-									true,
-								)
-								.await?
-						} else {
-							false
-						}
-					},
-					| _ => {
-						let content: RoomRedactionEventContent = incoming_pdu.get_content()?;
-						if let Some(redact_id) = &content.redacts {
-							!self
-								.services
-								.state_accessor
-								.user_can_redact(
-									redact_id,
-									&incoming_pdu.sender,
-									&incoming_pdu.room_id,
-									true,
-								)
-								.await?
-						} else {
-							false
-						}
-					},
-				}
+	let soft_fail = match (auth_check, incoming_pdu.redacts_id(&room_version_id)) {
+		| (false, _) => true,
+		| (true, None) => false,
+		| (true, Some(redact_id)) =>
+			self.services
+				.state_accessor
+				.user_can_redact(&redact_id, &incoming_pdu.sender, &incoming_pdu.room_id, true)
+				.await?,
 	};
 
 	// 13. Use state resolution to find new room state
