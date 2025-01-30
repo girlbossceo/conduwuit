@@ -398,13 +398,14 @@ impl Service {
 			.ignore_err()
 	}
 
-	pub async fn set_forward_extremities(
-		&self,
-		room_id: &RoomId,
-		event_ids: Vec<OwnedEventId>,
-		_state_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room
-		                               * state mutex */
-	) {
+	pub async fn set_forward_extremities<'a, I>(
+		&'a self,
+		room_id: &'a RoomId,
+		event_ids: I,
+		_state_lock: &'a RoomMutexGuard,
+	) where
+		I: Iterator<Item = &'a EventId> + Send + 'a,
+	{
 		let prefix = (room_id, Interfix);
 		self.db
 			.roomid_pduleaves
@@ -413,7 +414,7 @@ impl Service {
 			.ready_for_each(|key| self.db.roomid_pduleaves.remove(key))
 			.await;
 
-		for event_id in &event_ids {
+		for event_id in event_ids {
 			let key = (room_id, event_id);
 			self.db.roomid_pduleaves.put_raw(key, event_id);
 		}

@@ -1,6 +1,7 @@
 use std::{
 	borrow::Borrow,
 	collections::{BTreeMap, HashMap, HashSet},
+	iter::once,
 	net::IpAddr,
 	sync::Arc,
 };
@@ -1216,7 +1217,7 @@ async fn join_room_by_id_helper_remote(
 		.append_pdu(
 			&parsed_join_pdu,
 			join_event,
-			vec![(*parsed_join_pdu.event_id).to_owned()],
+			once(parsed_join_pdu.event_id.borrow()),
 			&state_lock,
 		)
 		.await?;
@@ -2195,7 +2196,7 @@ async fn knock_room_helper_local(
 		.append_pdu(
 			&parsed_knock_pdu,
 			knock_event,
-			vec![(*parsed_knock_pdu.event_id).to_owned()],
+			once(parsed_knock_pdu.event_id.borrow()),
 			&state_lock,
 		)
 		.await?;
@@ -2394,7 +2395,7 @@ async fn knock_room_helper_remote(
 		.append_pdu(
 			&parsed_knock_pdu,
 			knock_event,
-			vec![(*parsed_knock_pdu.event_id).to_owned()],
+			once(parsed_knock_pdu.event_id.borrow()),
 			&state_lock,
 		)
 		.await?;

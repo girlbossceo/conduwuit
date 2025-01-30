@@ -1,14 +1,18 @@
 use std::{
 	borrow::Borrow,
 	collections::{BTreeMap, HashSet},
+	iter::once,
 	sync::Arc,
 	time::Instant,
 };
 
-use conduwuit::{debug, debug_info, err, implement, trace, warn, Err, Error, PduEvent, Result};
-use futures::{future::ready, StreamExt};
+use conduwuit::{
+	debug, debug_info, err, implement, trace,
+	utils::stream::{BroadbandExt, ReadyExt},
+	warn, Err, PduEvent, Result,
+};
+use futures::{future::ready, FutureExt, StreamExt};
 use ruma::{
-	api::client::error::ErrorKind,
 	events::{room::redaction::RoomRedactionEventContent, StateEventType, TimelineEventType},
 	state_res::{self, EventTypeExt},
 	CanonicalJsonValue, RoomId, RoomVersionId, ServerName,
@@ -174,42 +178,34 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 	// Now we calculate the set of extremities this room has after the incoming
 	// event has been applied. We start with the previous extremities (aka leaves)
 	trace!("Calculating extremities");
-	let mut extremities: HashSet<_> = self
+	let extremities: Vec<_> = self
 		.services
 		.state
 		.get_forward_extremities(room_id)
 		.map(ToOwned::to_owned)
+		.ready_filter(|event_id| {
+			// Remove any that are referenced by this incoming event's prev_events
+			!incoming_pdu.prev_events.contains(event_id)
+		})
+		.broad_filter_map(|event_id| async move {
+			// Only keep those extremities were not referenced yet
+			self.services
+				.pdu_metadata
+				.is_event_referenced(room_id, &event_id)
+				.await
+				.eq(&false)
+				.then_some(event_id)
+		})
 		.collect()
 		.await;
 
-	// Remove any forward extremities that are referenced by this incoming event's
-	// prev_events
-	trace!(
-		"Calculated {} extremities; checking against {} prev_events",
+	debug!(
+		"Retained {} extremities checked against {} prev_events",
 		extremities.len(),
 		incoming_pdu.prev_events.len()
 	);
-	for prev_event in &incoming_pdu.prev_events {
-		extremities.remove(&(**prev_event));
-	}
 
-	// Only keep those extremities were not referenced yet
-	let mut retained = HashSet::new();
-	for id in &extremities {
-		if !self
-			.services
-			.pdu_metadata
-			.is_event_referenced(room_id, id)
-			.await
-		{
-			retained.insert(id.clone());
-		}
-	}
-
-	extremities.retain(|id| retained.contains(id));
-	debug!("Retained {} extremities. Compressing state", extremities.len());
-
-	let state_ids_compressed: HashSet<_> = self
+	let state_ids_compressed: Arc<HashSet<_>> = self
 		.services
 		.state_compressor
 		.compress_state_events(
@@ -218,9 +214,8 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 				.map(|(ssk, eid)| (ssk, eid.borrow())),
 		)
 		.collect()
+		.map(Arc::new)
 		.await;
-
-	let state_ids_compressed = Arc::new(state_ids_compressed);
 
 	if incoming_pdu.state_key.is_some() {
 		debug!("Event is a state-event. Deriving new room state");
@@ -260,12 +255,14 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 	//     if not soft fail it
 	if soft_fail {
 		debug!("Soft failing event");
+		let extremities = extremities.iter().map(Borrow::borrow);
+
 		self.services
 			.timeline
 			.append_incoming_pdu(
 				&incoming_pdu,
 				val,
-				extremities.iter().map(|e| (**e).to_owned()).collect(),
+				extremities,
 				state_ids_compressed,
 				soft_fail,
 				&state_lock,
@@ -273,27 +270,30 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 			.await?;
 
 		// Soft fail, we keep the event as an outlier but don't add it to the timeline
-		warn!("Event was soft failed: {incoming_pdu:?}");
 		self.services
 			.pdu_metadata
 			.mark_event_soft_failed(&incoming_pdu.event_id);
 
-		return Err(Error::BadRequest(ErrorKind::InvalidParam, "Event has been soft failed"));
+		warn!("Event was soft failed: {incoming_pdu:?}");
+		return Err!(Request(InvalidParam("Event has been soft failed")));
 	}
-
-	trace!("Appending pdu to timeline");
-	extremities.insert(incoming_pdu.event_id.clone());
 
 	// Now that the event has passed all auth it is added into the timeline.
 	// We use the `state_at_event` instead of `state_after` so we accurately
 	// represent the state for this event.
+	trace!("Appending pdu to timeline");
+	let extremities = extremities
+		.iter()
+		.map(Borrow::borrow)
+		.chain(once(incoming_pdu.event_id.borrow()));
+
 	let pdu_id = self
 		.services
 		.timeline
 		.append_incoming_pdu(
 			&incoming_pdu,
 			val,
-			extremities.into_iter().collect(),
+			extremities,
 			state_ids_compressed,
 			soft_fail,
 			&state_lock,
