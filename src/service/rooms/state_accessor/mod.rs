@@ -1,6 +1,7 @@
 use std::{
 	borrow::Borrow,
 	fmt::Write,
+	ops::Deref,
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
@@ -10,8 +11,7 @@ use conduwuit::{
 	utils,
 	utils::{
 		math::{usize_from_f64, Expected},
-		stream::BroadbandExt,
-		IterStream, ReadyExt,
+		stream::{BroadbandExt, IterStream, ReadyExt, TryExpect},
 	},
 	Err, Error, PduEvent, Result,
 };
@@ -158,12 +158,8 @@ impl Service {
 	) -> impl Stream<Item = PduEvent> + Send + '_ {
 		let short_ids = self
 			.state_full_shortids(shortstatehash)
-			.map(|result| result.expect("missing shortstatehash"))
-			.map(Vec::into_iter)
-			.map(|iter| iter.map(at!(1)))
-			.map(IterStream::stream)
-			.flatten_stream()
-			.boxed();
+			.expect_ok()
+			.map(at!(1));
 
 		self.services
 			.short
@@ -187,9 +183,8 @@ impl Service {
 	{
 		let shortids = self
 			.state_full_shortids(shortstatehash)
-			.map(|result| result.expect("missing shortstatehash"))
-			.map(|vec| vec.into_iter().unzip())
-			.boxed()
+			.expect_ok()
+			.unzip()
 			.shared();
 
 		let shortstatekeys = shortids
@@ -255,25 +250,25 @@ impl Service {
 	}
 
 	#[inline]
-	pub async fn state_full_shortids(
+	pub fn state_full_shortids(
 		&self,
 		shortstatehash: ShortStateHash,
-	) -> Result<Vec<(ShortStateKey, ShortEventId)>> {
-		let shortids = self
-			.services
+	) -> impl Stream<Item = Result<(ShortStateKey, ShortEventId)>> + Send + '_ {
+		self.services
 			.state_compressor
 			.load_shortstatehash_info(shortstatehash)
-			.await
-			.map_err(|e| err!(Database("Missing state IDs: {e}")))?
-			.pop()
-			.expect("there is always one layer")
-			.full_state
-			.iter()
-			.copied()
-			.map(parse_compressed_state_event)
-			.collect();
-
-		Ok(shortids)
+			.map_err(|e| err!(Database("Missing state IDs: {e}")))
+			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
+			.map_ok(|full_state| {
+				full_state
+					.deref()
+					.iter()
+					.copied()
+					.map(parse_compressed_state_event)
+					.collect()
+			})
+			.map_ok(|vec: Vec<_>| vec.into_iter().try_stream())
+			.try_flatten_stream()
 	}
 
 	/// Returns a single PDU from `room_id` with key (`event_type`,

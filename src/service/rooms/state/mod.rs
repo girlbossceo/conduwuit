@@ -429,60 +429,54 @@ impl Service {
 		sender: &UserId,
 		state_key: Option<&str>,
 		content: &serde_json::value::RawValue,
-	) -> Result<StateMap<Arc<PduEvent>>> {
+	) -> Result<StateMap<PduEvent>> {
 		let Ok(shortstatehash) = self.get_room_shortstatehash(room_id).await else {
 			return Ok(HashMap::new());
 		};
 
-		let mut sauthevents: HashMap<_, _> =
-			state_res::auth_types_for_event(kind, sender, state_key, content)?
-				.iter()
-				.stream()
-				.broad_filter_map(|(event_type, state_key)| {
-					self.services
-						.short
-						.get_shortstatekey(event_type, state_key)
-						.map_ok(move |ssk| (ssk, (event_type, state_key)))
-						.map(Result::ok)
-				})
-				.map(|(ssk, (event_type, state_key))| {
-					(ssk, (event_type.to_owned(), state_key.to_owned()))
-				})
-				.collect()
-				.await;
+		let auth_types = state_res::auth_types_for_event(kind, sender, state_key, content)?;
+
+		let sauthevents: HashMap<_, _> = auth_types
+			.iter()
+			.stream()
+			.broad_filter_map(|(event_type, state_key)| {
+				self.services
+					.short
+					.get_shortstatekey(event_type, state_key)
+					.map_ok(move |ssk| (ssk, (event_type, state_key)))
+					.map(Result::ok)
+			})
+			.collect()
+			.await;
 
 		let (state_keys, event_ids): (Vec<_>, Vec<_>) = self
 			.services
 			.state_accessor
 			.state_full_shortids(shortstatehash)
-			.await
-			.map_err(|e| err!(Database(error!(?room_id, ?shortstatehash, "{e:?}"))))?
-			.into_iter()
-			.filter_map(|(shortstatekey, shorteventid)| {
+			.ready_filter_map(Result::ok)
+			.ready_filter_map(|(shortstatekey, shorteventid)| {
 				sauthevents
-					.remove(&shortstatekey)
-					.map(|(event_type, state_key)| ((event_type, state_key), shorteventid))
+					.get(&shortstatekey)
+					.map(|(ty, sk)| ((ty, sk), shorteventid))
 			})
-			.unzip();
+			.unzip()
+			.await;
 
-		let auth_pdus = self
-			.services
+		self.services
 			.short
 			.multi_get_eventid_from_short(event_ids.into_iter().stream())
 			.zip(state_keys.into_iter().stream())
-			.ready_filter_map(|(event_id, tsk)| Some((tsk, event_id.ok()?)))
-			.broad_filter_map(|(tsk, event_id): (_, OwnedEventId)| async move {
+			.ready_filter_map(|(event_id, (ty, sk))| Some(((ty, sk), event_id.ok()?)))
+			.broad_filter_map(|((ty, sk), event_id): (_, OwnedEventId)| async move {
 				self.services
 					.timeline
 					.get_pdu(&event_id)
 					.await
-					.map(Arc::new)
-					.map(move |pdu| (tsk, pdu))
+					.map(move |pdu| (((*ty).clone(), (*sk).clone()), pdu))
 					.ok()
 			})
 			.collect()
-			.await;
-
-		Ok(auth_pdus)
+			.map(Ok)
+			.await
 	}
 }
