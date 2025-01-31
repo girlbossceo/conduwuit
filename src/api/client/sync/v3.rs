@@ -887,7 +887,7 @@ async fn calculate_state_changes(
 	joined_since_last_sync: bool,
 	witness: Option<&Witness>,
 ) -> Result<StateChanges> {
-	if since_shortstatehash.is_none() || joined_since_last_sync {
+	if since_shortstatehash.is_none() {
 		calculate_state_initial(
 			services,
 			sender_user,
