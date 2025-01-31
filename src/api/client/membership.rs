@@ -46,7 +46,10 @@ use ruma::{
 use service::{
 	appservice::RegistrationInfo,
 	pdu::gen_event_id,
-	rooms::{state::RoomMutexGuard, state_compressor::HashSetCompressStateEvent},
+	rooms::{
+		state::RoomMutexGuard,
+		state_compressor::{CompressedState, HashSetCompressStateEvent},
+	},
 	Services,
 };
 
@@ -1169,7 +1172,7 @@ async fn join_room_by_id_helper_remote(
 	}
 
 	info!("Compressing state from send_join");
-	let compressed: HashSet<_> = services
+	let compressed: CompressedState = services
 		.rooms
 		.state_compressor
 		.compress_state_events(state.iter().map(|(ssk, eid)| (ssk, eid.borrow())))
@@ -2340,7 +2343,7 @@ async fn knock_room_helper_remote(
 	}
 
 	info!("Compressing state from send_knock");
-	let compressed: HashSet<_> = services
+	let compressed: CompressedState = services
 		.rooms
 		.state_compressor
 		.compress_state_events(state_map.iter().map(|(ssk, eid)| (ssk, eid.borrow())))

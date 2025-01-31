@@ -11,6 +11,7 @@ use conduwuit::{
 	utils,
 	utils::{
 		math::{usize_from_f64, Expected},
+		result::FlatOk,
 		stream::{BroadbandExt, IterStream, ReadyExt, TryExpect},
 	},
 	Err, Error, PduEvent, Result,
@@ -47,7 +48,7 @@ use crate::{
 	rooms::{
 		short::{ShortEventId, ShortStateHash, ShortStateKey},
 		state::RoomMutexGuard,
-		state_compressor::parse_compressed_state_event,
+		state_compressor::{compress_state_event, parse_compressed_state_event},
 	},
 	Dep,
 };
@@ -220,28 +221,9 @@ impl Service {
 		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
 		<Id as ToOwned>::Owned: Borrow<EventId>,
 	{
-		let shortstatekey = self
-			.services
-			.short
-			.get_shortstatekey(event_type, state_key)
+		let shorteventid = self
+			.state_get_shortid(shortstatehash, event_type, state_key)
 			.await?;
-
-		let full_state = self
-			.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
-			.await
-			.map_err(|e| err!(Database(error!(?event_type, ?state_key, "Missing state: {e:?}"))))?
-			.pop()
-			.expect("there is always one layer")
-			.full_state;
-
-		let compressed = full_state
-			.iter()
-			.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
-			.ok_or(err!(Database("No shortstatekey in compressed state")))?;
-
-		let (_, shorteventid) = parse_compressed_state_event(*compressed);
 
 		self.services
 			.short
@@ -249,7 +231,78 @@ impl Service {
 			.await
 	}
 
-	#[inline]
+	/// Returns a single EventId from `room_id` with key (`event_type`,
+	/// `state_key`).
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_get_shortid(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<ShortEventId> {
+		let shortstatekey = self
+			.services
+			.short
+			.get_shortstatekey(event_type, state_key)
+			.await?;
+
+		let start = compress_state_event(shortstatekey, 0);
+		let end = compress_state_event(shortstatekey, u64::MAX);
+		self.services
+			.state_compressor
+			.load_shortstatehash_info(shortstatehash)
+			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
+			.map_ok(|full_state| {
+				full_state
+					.range(start..end)
+					.next()
+					.copied()
+					.map(parse_compressed_state_event)
+					.map(at!(1))
+					.ok_or(err!(Request(NotFound("Not found in room state"))))
+			})
+			.await?
+	}
+
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_contains(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> bool {
+		let Ok(shortstatekey) = self
+			.services
+			.short
+			.get_shortstatekey(event_type, state_key)
+			.await
+		else {
+			return false;
+		};
+
+		self.state_contains_shortstatekey(shortstatehash, shortstatekey)
+			.await
+	}
+
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_contains_shortstatekey(
+		&self,
+		shortstatehash: ShortStateHash,
+		shortstatekey: ShortStateKey,
+	) -> bool {
+		let start = compress_state_event(shortstatekey, 0);
+		let end = compress_state_event(shortstatekey, u64::MAX);
+
+		self.services
+			.state_compressor
+			.load_shortstatehash_info(shortstatehash)
+			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
+			.map_ok(|full_state| full_state.range(start..end).next().copied())
+			.await
+			.flat_ok()
+			.is_some()
+	}
+
 	pub fn state_full_shortids(
 		&self,
 		shortstatehash: ShortStateHash,

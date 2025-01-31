@@ -49,7 +49,7 @@ use crate::{
 	account_data, admin, appservice,
 	appservice::NamespaceRegex,
 	globals, pusher, rooms,
-	rooms::{short::ShortRoomId, state_compressor::CompressedStateEvent},
+	rooms::{short::ShortRoomId, state_compressor::CompressedState},
 	sending, server_keys, users, Dep,
 };
 
@@ -950,7 +950,7 @@ impl Service {
 		pdu: &'a PduEvent,
 		pdu_json: CanonicalJsonObject,
 		new_room_leafs: Leafs,
-		state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
+		state_ids_compressed: Arc<CompressedState>,
 		soft_fail: bool,
 		state_lock: &'a RoomMutexGuard,
 	) -> Result<Option<RawPduId>>

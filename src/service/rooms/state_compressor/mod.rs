@@ -1,5 +1,5 @@
 use std::{
-	collections::{HashMap, HashSet},
+	collections::{BTreeSet, HashMap},
 	fmt::{Debug, Write},
 	mem::size_of,
 	sync::{Arc, Mutex},
@@ -63,8 +63,8 @@ type StateInfoLruCache = LruCache<ShortStateHash, ShortStateInfoVec>;
 type ShortStateInfoVec = Vec<ShortStateInfo>;
 type ParentStatesVec = Vec<ShortStateInfo>;
 
-pub(crate) type CompressedState = HashSet<CompressedStateEvent>;
-pub(crate) type CompressedStateEvent = [u8; 2 * size_of::<ShortId>()];
+pub type CompressedState = BTreeSet<CompressedStateEvent>;
+pub type CompressedStateEvent = [u8; 2 * size_of::<ShortId>()];
 
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -249,8 +249,8 @@ impl Service {
 	pub fn save_state_from_diff(
 		&self,
 		shortstatehash: ShortStateHash,
-		statediffnew: Arc<HashSet<CompressedStateEvent>>,
-		statediffremoved: Arc<HashSet<CompressedStateEvent>>,
+		statediffnew: Arc<CompressedState>,
+		statediffremoved: Arc<CompressedState>,
 		diff_to_sibling: usize,
 		mut parent_states: ParentStatesVec,
 	) -> Result {
@@ -363,7 +363,7 @@ impl Service {
 	pub async fn save_state(
 		&self,
 		room_id: &RoomId,
-		new_state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
+		new_state_ids_compressed: Arc<CompressedState>,
 	) -> Result<HashSetCompressStateEvent> {
 		let previous_shortstatehash = self
 			.services
@@ -396,12 +396,12 @@ impl Service {
 
 		let (statediffnew, statediffremoved) =
 			if let Some(parent_stateinfo) = states_parents.last() {
-				let statediffnew: HashSet<_> = new_state_ids_compressed
+				let statediffnew: CompressedState = new_state_ids_compressed
 					.difference(&parent_stateinfo.full_state)
 					.copied()
 					.collect();
 
-				let statediffremoved: HashSet<_> = parent_stateinfo
+				let statediffremoved: CompressedState = parent_stateinfo
 					.full_state
 					.difference(&new_state_ids_compressed)
 					.copied()
@@ -409,7 +409,7 @@ impl Service {
 
 				(Arc::new(statediffnew), Arc::new(statediffremoved))
 			} else {
-				(new_state_ids_compressed, Arc::new(HashSet::new()))
+				(new_state_ids_compressed, Arc::new(CompressedState::new()))
 			};
 
 		if !already_existed {
@@ -448,11 +448,11 @@ impl Service {
 			.take_if(|parent| *parent != 0);
 
 		debug_assert!(value.len() % STRIDE == 0, "value not aligned to stride");
-		let num_values = value.len() / STRIDE;
+		let _num_values = value.len() / STRIDE;
 
 		let mut add_mode = true;
-		let mut added = HashSet::with_capacity(num_values);
-		let mut removed = HashSet::with_capacity(num_values);
+		let mut added = CompressedState::new();
+		let mut removed = CompressedState::new();
 
 		let mut i = STRIDE;
 		while let Some(v) = value.get(i..expected!(i + 2 * STRIDE)) {
@@ -469,8 +469,6 @@ impl Service {
 			i = expected!(i + 2 * STRIDE);
 		}
 
-		added.shrink_to_fit();
-		removed.shrink_to_fit();
 		Ok(StateDiff {
 			parent,
 			added: Arc::new(added),
@@ -507,7 +505,7 @@ impl Service {
 
 #[inline]
 #[must_use]
-fn compress_state_event(
+pub(crate) fn compress_state_event(
 	shortstatekey: ShortStateKey,
 	shorteventid: ShortEventId,
 ) -> CompressedStateEvent {
@@ -523,7 +521,7 @@ fn compress_state_event(
 
 #[inline]
 #[must_use]
-pub fn parse_compressed_state_event(
+pub(crate) fn parse_compressed_state_event(
 	compressed_event: CompressedStateEvent,
 ) -> (ShortStateKey, ShortEventId) {
 	use utils::u64_from_u8;

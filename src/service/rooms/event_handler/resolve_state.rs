@@ -15,7 +15,7 @@ use ruma::{
 	OwnedEventId, RoomId, RoomVersionId,
 };
 
-use crate::rooms::state_compressor::CompressedStateEvent;
+use crate::rooms::state_compressor::CompressedState;
 
 #[implement(super::Service)]
 #[tracing::instrument(name = "resolve", level = "debug", skip_all)]
@@ -24,7 +24,7 @@ pub async fn resolve_state(
 	room_id: &RoomId,
 	room_version_id: &RoomVersionId,
 	incoming_state: HashMap<u64, OwnedEventId>,
-) -> Result<Arc<HashSet<CompressedStateEvent>>> {
+) -> Result<Arc<CompressedState>> {
 	trace!("Loading current room state ids");
 	let current_sstatehash = self
 		.services
@@ -91,7 +91,7 @@ pub async fn resolve_state(
 		.await;
 
 	trace!("Compressing state...");
-	let new_room_state: HashSet<_> = self
+	let new_room_state: CompressedState = self
 		.services
 		.state_compressor
 		.compress_state_events(

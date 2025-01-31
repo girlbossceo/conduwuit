@@ -1,9 +1,4 @@
-use std::{
-	collections::{HashMap, HashSet},
-	fmt::Write,
-	iter::once,
-	sync::Arc,
-};
+use std::{collections::HashMap, fmt::Write, iter::once, sync::Arc};
 
 use conduwuit::{
 	err,
@@ -33,7 +28,7 @@ use crate::{
 	globals, rooms,
 	rooms::{
 		short::{ShortEventId, ShortStateHash},
-		state_compressor::{parse_compressed_state_event, CompressedStateEvent},
+		state_compressor::{parse_compressed_state_event, CompressedState},
 	},
 	Dep,
 };
@@ -102,10 +97,9 @@ impl Service {
 		&self,
 		room_id: &RoomId,
 		shortstatehash: u64,
-		statediffnew: Arc<HashSet<CompressedStateEvent>>,
-		_statediffremoved: Arc<HashSet<CompressedStateEvent>>,
-		state_lock: &RoomMutexGuard, /* Take mutex guard to make sure users get the room state
-		                              * mutex */
+		statediffnew: Arc<CompressedState>,
+		_statediffremoved: Arc<CompressedState>,
+		state_lock: &RoomMutexGuard,
 	) -> Result {
 		let event_ids = statediffnew
 			.iter()
@@ -176,7 +170,7 @@ impl Service {
 		&self,
 		event_id: &EventId,
 		room_id: &RoomId,
-		state_ids_compressed: Arc<HashSet<CompressedStateEvent>>,
+		state_ids_compressed: Arc<CompressedState>,
 	) -> Result<ShortStateHash> {
 		const KEY_LEN: usize = size_of::<ShortEventId>();
 		const VAL_LEN: usize = size_of::<ShortStateHash>();
@@ -209,12 +203,12 @@ impl Service {
 
 			let (statediffnew, statediffremoved) =
 				if let Some(parent_stateinfo) = states_parents.last() {
-					let statediffnew: HashSet<_> = state_ids_compressed
+					let statediffnew: CompressedState = state_ids_compressed
 						.difference(&parent_stateinfo.full_state)
 						.copied()
 						.collect();
 
-					let statediffremoved: HashSet<_> = parent_stateinfo
+					let statediffremoved: CompressedState = parent_stateinfo
 						.full_state
 						.difference(&state_ids_compressed)
 						.copied()
@@ -222,7 +216,7 @@ impl Service {
 
 					(Arc::new(statediffnew), Arc::new(statediffremoved))
 				} else {
-					(state_ids_compressed, Arc::new(HashSet::new()))
+					(state_ids_compressed, Arc::new(CompressedState::new()))
 				};
 			self.services.state_compressor.save_state_from_diff(
 				shortstatehash,
@@ -300,10 +294,10 @@ impl Service {
 			// TODO: statehash with deterministic inputs
 			let shortstatehash = self.services.globals.next_count()?;
 
-			let mut statediffnew = HashSet::new();
+			let mut statediffnew = CompressedState::new();
 			statediffnew.insert(new);
 
-			let mut statediffremoved = HashSet::new();
+			let mut statediffremoved = CompressedState::new();
 			if let Some(replaces) = replaces {
 				statediffremoved.insert(*replaces);
 			}

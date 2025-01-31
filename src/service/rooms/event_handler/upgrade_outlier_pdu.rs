@@ -1,10 +1,4 @@
-use std::{
-	borrow::Borrow,
-	collections::{BTreeMap, HashSet},
-	iter::once,
-	sync::Arc,
-	time::Instant,
-};
+use std::{borrow::Borrow, collections::BTreeMap, iter::once, sync::Arc, time::Instant};
 
 use conduwuit::{
 	debug, debug_info, err, implement, trace,
@@ -19,7 +13,10 @@ use ruma::{
 };
 
 use super::{get_room_version_id, to_room_version};
-use crate::rooms::{state_compressor::HashSetCompressStateEvent, timeline::RawPduId};
+use crate::rooms::{
+	state_compressor::{CompressedState, HashSetCompressStateEvent},
+	timeline::RawPduId,
+};
 
 #[implement(super::Service)]
 pub(super) async fn upgrade_outlier_to_timeline_pdu(
@@ -173,7 +170,7 @@ pub(super) async fn upgrade_outlier_to_timeline_pdu(
 		incoming_pdu.prev_events.len()
 	);
 
-	let state_ids_compressed: Arc<HashSet<_>> = self
+	let state_ids_compressed: Arc<CompressedState> = self
 		.services
 		.state_compressor
 		.compress_state_events(
