@@ -84,6 +84,17 @@ macro_rules! apply {
 	};
 }
 
+#[macro_export]
+macro_rules! pair_of {
+	($decl:ty) => {
+		($decl, $decl)
+	};
+
+	($init:expr) => {
+		($init, $init)
+	};
+}
+
 /// Functor for truthy
 #[macro_export]
 macro_rules! is_true {
