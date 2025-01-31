@@ -510,8 +510,9 @@ pub struct Config {
 	/// display: sensitive
 	pub registration_token: Option<String>,
 
-	/// Path to a file on the system that gets read for the registration token.
-	/// this config option takes precedence/priority over "registration_token".
+	/// Path to a file on the system that gets read for additional registration
+	/// tokens. Multiple tokens can be added if you separate them with
+	/// whitespace
 	///
 	/// conduwuit must be able to access the file, and it must not be empty
 	///

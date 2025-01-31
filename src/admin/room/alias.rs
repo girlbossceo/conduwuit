@@ -72,7 +72,7 @@ pub(super) async fn reprocess(
 					))),
 			};
 			match command {
-				| RoomAliasCommand::Set { force, room_id, .. } =>
+				| RoomAliasCommand::Set { force, room_id, .. } => {
 					match (force, services.rooms.alias.resolve_local_alias(&room_alias).await) {
 						| (true, Ok(id)) => {
 							match services.rooms.alias.set_alias(
@@ -106,8 +106,9 @@ pub(super) async fn reprocess(
 								))),
 							}
 						},
-					},
-				| RoomAliasCommand::Remove { .. } =>
+					}
+				},
+				| RoomAliasCommand::Remove { .. } => {
 					match services.rooms.alias.resolve_local_alias(&room_alias).await {
 						| Ok(id) => match services
 							.rooms
@@ -124,15 +125,17 @@ pub(super) async fn reprocess(
 						},
 						| Err(_) =>
 							Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
-					},
-				| RoomAliasCommand::Which { .. } =>
+					}
+				},
+				| RoomAliasCommand::Which { .. } => {
 					match services.rooms.alias.resolve_local_alias(&room_alias).await {
 						| Ok(id) => Ok(RoomMessageEventContent::text_plain(format!(
 							"Alias resolves to {id}"
 						))),
 						| Err(_) =>
 							Ok(RoomMessageEventContent::text_plain("Alias isn't in use.")),
-					},
+					}
+				},
 				| RoomAliasCommand::List { .. } => unreachable!(),
 			}
 		},

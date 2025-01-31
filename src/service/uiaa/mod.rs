@@ -1,5 +1,5 @@
 use std::{
-	collections::BTreeMap,
+	collections::{BTreeMap, HashSet},
 	sync::{Arc, RwLock},
 };
 
@@ -17,7 +17,7 @@ use ruma::{
 	CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedUserId, UserId,
 };
 
-use crate::{globals, users, Dep};
+use crate::{config, globals, users, Dep};
 
 pub struct Service {
 	userdevicesessionid_uiaarequest: RwLock<RequestMap>,
@@ -28,6 +28,7 @@ pub struct Service {
 struct Services {
 	globals: Dep<globals::Service>,
 	users: Dep<users::Service>,
+	config: Dep<config::Service>,
 }
 
 struct Data {
@@ -49,11 +50,32 @@ impl crate::Service for Service {
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
 				users: args.depend::<users::Service>("users"),
+				config: args.depend::<config::Service>("config"),
 			},
 		}))
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
+}
+
+#[implement(Service)]
+pub async fn read_tokens(&self) -> Result<HashSet<String>> {
+	let mut tokens = HashSet::new();
+	if let Some(file) = &self.services.config.registration_token_file.as_ref() {
+		match std::fs::read_to_string(file) {
+			| Ok(text) => {
+				text.split_ascii_whitespace().for_each(|token| {
+					tokens.insert(token.to_owned());
+				});
+			},
+			| Err(e) => error!("Failed to read the registration token file: {e}"),
+		}
+	};
+	if let Some(token) = &self.services.config.registration_token {
+		tokens.insert(token.to_owned());
+	}
+
+	Ok(tokens)
 }
 
 /// Creates a new Uiaa session. Make sure the session token is unique.
@@ -152,13 +174,8 @@ pub async fn try_auth(
 			uiaainfo.completed.push(AuthType::Password);
 		},
 		| AuthData::RegistrationToken(t) => {
-			if self
-				.services
-				.globals
-				.registration_token
-				.as_ref()
-				.is_some_and(|reg_token| t.token.trim() == reg_token)
-			{
+			let tokens = self.read_tokens().await?;
+			if tokens.contains(t.token.trim()) {
 				uiaainfo.completed.push(AuthType::RegistrationToken);
 			} else {
 				uiaainfo.auth_error = Some(ruma::api::client::error::StandardErrorBody {
