@@ -290,20 +290,20 @@ pub(crate) async fn build_sync_events(
 
 	let account_data = services
 		.account_data
-		.changes_since(None, sender_user, since)
+		.changes_since(None, sender_user, since, Some(next_batch))
 		.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
 		.collect();
 
 	// Look for device list updates of this account
 	let keys_changed = services
 		.users
-		.keys_changed(sender_user, since, None)
+		.keys_changed(sender_user, since, Some(next_batch))
 		.map(ToOwned::to_owned)
 		.collect::<HashSet<_>>();
 
 	let to_device_events = services
 		.users
-		.get_to_device_events(sender_user, sender_device)
+		.get_to_device_events(sender_user, sender_device, Some(since), Some(next_batch))
 		.collect::<Vec<_>>();
 
 	let device_one_time_keys_count = services
@@ -700,14 +700,14 @@ async fn load_joined_room(
 
 	let account_data_events = services
 		.account_data
-		.changes_since(Some(room_id), sender_user, since)
+		.changes_since(Some(room_id), sender_user, since, Some(next_batch))
 		.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
 		.collect();
 
 	// Look for device list updates in this room
 	let device_updates = services
 		.users
-		.room_keys_changed(room_id, since, None)
+		.room_keys_changed(room_id, since, Some(next_batch))
 		.map(|(user_id, _)| user_id)
 		.map(ToOwned::to_owned)
 		.collect::<Vec<_>>();

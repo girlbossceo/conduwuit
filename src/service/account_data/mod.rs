@@ -5,7 +5,7 @@ use conduwuit::{
 	utils::{result::LogErr, stream::TryIgnore, ReadyExt},
 	Err, Result,
 };
-use database::{Deserialized, Handle, Interfix, Json, Map};
+use database::{Deserialized, Handle, Ignore, Json, Map};
 use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
 	events::{
@@ -131,18 +131,20 @@ pub fn changes_since<'a>(
 	room_id: Option<&'a RoomId>,
 	user_id: &'a UserId,
 	since: u64,
+	to: Option<u64>,
 ) -> impl Stream<Item = AnyRawAccountDataEvent> + Send + 'a {
-	let prefix = (room_id, user_id, Interfix);
-	let prefix = database::serialize_key(prefix).expect("failed to serialize prefix");
+	type Key<'a> = (Option<&'a RoomId>, &'a UserId, u64, Ignore);
 
 	// Skip the data that's exactly at since, because we sent that last time
 	let first_possible = (room_id, user_id, since.saturating_add(1));
 
 	self.db
 		.roomuserdataid_accountdata
-		.stream_from_raw(&first_possible)
+		.stream_from(&first_possible)
 		.ignore_err()
-		.ready_take_while(move |(k, _)| k.starts_with(&prefix))
+		.ready_take_while(move |((room_id_, user_id_, count, _), _): &(Key<'_>, _)| {
+			room_id == *room_id_ && user_id == *user_id_ && to.is_none_or(|to| *count <= to)
+		})
 		.map(move |(_, v)| {
 			match room_id {
 				| Some(_) => serde_json::from_slice::<Raw<AnyRoomAccountDataEvent>>(v)

@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, mem, sync::Arc};
 
 use conduwuit::{
-	debug_warn, err, trace,
+	at, debug_warn, err, trace,
 	utils::{self, stream::TryIgnore, string::Unquoted, ReadyExt},
 	Err, Error, Result, Server,
 };
@@ -790,13 +790,23 @@ impl Service {
 		&'a self,
 		user_id: &'a UserId,
 		device_id: &'a DeviceId,
+		since: Option<u64>,
+		to: Option<u64>,
 	) -> impl Stream<Item = Raw<AnyToDeviceEvent>> + Send + 'a {
-		let prefix = (user_id, device_id, Interfix);
+		type Key<'a> = (&'a UserId, &'a DeviceId, u64);
+
+		let from = (user_id, device_id, since.map_or(0, |since| since.saturating_add(1)));
+
 		self.db
 			.todeviceid_events
-			.stream_prefix(&prefix)
+			.stream_from(&from)
 			.ignore_err()
-			.map(|(_, val): (Ignore, Raw<AnyToDeviceEvent>)| val)
+			.ready_take_while(move |((user_id_, device_id_, count), _): &(Key<'_>, _)| {
+				user_id == *user_id_
+					&& device_id == *device_id_
+					&& to.is_none_or(|to| *count <= to)
+			})
+			.map(at!(1))
 	}
 
 	pub async fn remove_to_device_events<Until>(

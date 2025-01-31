@@ -153,7 +153,7 @@ pub(crate) async fn sync_events_v4_route(
 	if body.extensions.account_data.enabled.unwrap_or(false) {
 		account_data.global = services
 			.account_data
-			.changes_since(None, sender_user, globalsince)
+			.changes_since(None, sender_user, globalsince, Some(next_batch))
 			.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
 			.collect()
 			.await;
@@ -164,7 +164,7 @@ pub(crate) async fn sync_events_v4_route(
 					room.clone(),
 					services
 						.account_data
-						.changes_since(Some(&room), sender_user, globalsince)
+						.changes_since(Some(&room), sender_user, globalsince, Some(next_batch))
 						.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
 						.collect()
 						.await,
@@ -531,7 +531,7 @@ pub(crate) async fn sync_events_v4_route(
 			room_id.to_owned(),
 			services
 				.account_data
-				.changes_since(Some(room_id), sender_user, *roomsince)
+				.changes_since(Some(room_id), sender_user, *roomsince, Some(next_batch))
 				.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
 				.collect()
 				.await,
@@ -779,7 +779,12 @@ pub(crate) async fn sync_events_v4_route(
 				Some(sync_events::v4::ToDevice {
 					events: services
 						.users
-						.get_to_device_events(sender_user, &sender_device)
+						.get_to_device_events(
+							sender_user,
+							&sender_device,
+							Some(globalsince),
+							Some(next_batch),
+						)
 						.collect()
 						.await,
 					next_batch: next_batch.to_string(),

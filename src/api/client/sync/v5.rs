@@ -390,7 +390,7 @@ async fn process_rooms(
 				room_id.to_owned(),
 				services
 					.account_data
-					.changes_since(Some(room_id), sender_user, *roomsince)
+					.changes_since(Some(room_id), sender_user, *roomsince, Some(next_batch))
 					.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
 					.collect()
 					.await,
@@ -644,7 +644,7 @@ async fn collect_account_data(
 
 	account_data.global = services
 		.account_data
-		.changes_since(None, sender_user, globalsince)
+		.changes_since(None, sender_user, globalsince, None)
 		.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Global))
 		.collect()
 		.await;
@@ -655,7 +655,7 @@ async fn collect_account_data(
 				room.clone(),
 				services
 					.account_data
-					.changes_since(Some(room), sender_user, globalsince)
+					.changes_since(Some(room), sender_user, globalsince, None)
 					.ready_filter_map(|e| extract_variant!(e, AnyRawAccountDataEvent::Room))
 					.collect()
 					.await,
@@ -876,7 +876,7 @@ async fn collect_to_device(
 		next_batch: next_batch.to_string(),
 		events: services
 			.users
-			.get_to_device_events(sender_user, sender_device)
+			.get_to_device_events(sender_user, sender_device, None, Some(next_batch))
 			.collect()
 			.await,
 	})

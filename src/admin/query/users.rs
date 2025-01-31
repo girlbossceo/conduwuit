@@ -413,7 +413,7 @@ async fn get_to_device_events(
 	let result = self
 		.services
 		.users
-		.get_to_device_events(&user_id, &device_id)
+		.get_to_device_events(&user_id, &device_id, None, None)
 		.collect::<Vec<_>>()
 		.await;
 	let query_time = timer.elapsed();
