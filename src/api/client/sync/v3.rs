@@ -1,6 +1,6 @@
 use std::{
 	cmp::{self},
-	collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet},
 	time::Duration,
 };
 
@@ -45,7 +45,7 @@ use ruma::{
 		uiaa::UiaaResponse,
 	},
 	events::{
-		presence::PresenceEvent,
+		presence::{PresenceEvent, PresenceEventContent},
 		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType,
 		TimelineEventType::*,
@@ -68,7 +68,7 @@ struct StateChanges {
 	left_encrypted_users: HashSet<OwnedUserId>,
 }
 
-type PresenceUpdates = HashMap<OwnedUserId, PresenceEvent>;
+type PresenceUpdates = HashMap<OwnedUserId, PresenceEventContent>;
 
 /// # `GET /_matrix/client/r0/sync`
 ///
@@ -351,9 +351,11 @@ pub(crate) async fn build_sync_events(
 		next_batch: next_batch.to_string(),
 		presence: Presence {
 			events: presence_updates
-				.unwrap_or_default()
-				.into_values()
-				.map(|v| Raw::new(&v).expect("PresenceEvent always serializes successfully"))
+				.into_iter()
+				.flat_map(IntoIterator::into_iter)
+				.map(|(sender, content)| PresenceEvent { content, sender })
+				.map(|ref event| Raw::new(event))
+				.filter_map(Result::ok)
 				.collect(),
 		},
 		rooms: Rooms {
@@ -390,45 +392,8 @@ async fn process_presence_updates(
 				.map_ok(move |event| (user_id, event))
 				.ok()
 		})
-		.ready_fold(PresenceUpdates::new(), |mut updates, (user_id, event)| {
-			match updates.entry(user_id.into()) {
-				| Entry::Vacant(slot) => {
-					let mut new_event = event;
-					new_event.content.last_active_ago = match new_event.content.currently_active {
-						| Some(true) => None,
-						| _ => new_event.content.last_active_ago,
-					};
-
-					slot.insert(new_event);
-				},
-				| Entry::Occupied(mut slot) => {
-					let curr_event = slot.get_mut();
-					let curr_content = &mut curr_event.content;
-					let new_content = event.content;
-
-					// Update existing presence event with more info
-					curr_content.presence = new_content.presence;
-					curr_content.status_msg = new_content
-						.status_msg
-						.or_else(|| curr_content.status_msg.take());
-					curr_content.displayname = new_content
-						.displayname
-						.or_else(|| curr_content.displayname.take());
-					curr_content.avatar_url = new_content
-						.avatar_url
-						.or_else(|| curr_content.avatar_url.take());
-					curr_content.currently_active = new_content
-						.currently_active
-						.or(curr_content.currently_active);
-					curr_content.last_active_ago = match curr_content.currently_active {
-						| Some(true) => None,
-						| _ => new_content.last_active_ago.or(curr_content.last_active_ago),
-					};
-				},
-			};
-
-			updates
-		})
+		.map(|(user_id, event)| (user_id.to_owned(), event.content))
+		.collect()
 		.await
 }
 
