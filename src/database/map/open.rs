@@ -30,8 +30,5 @@ pub(super) fn open(db: &Arc<Engine>, name: &str) -> Arc<ColumnFamily> {
 	// lifetime parameter. We should not hold this handle, even in its Arc, after
 	// closing the database (dropping `Engine`). Since `Arc<Engine>` is a sibling
 	// member along with this handle in `Map`, that is prevented.
-	unsafe {
-		Arc::increment_strong_count(cf_ptr);
-		Arc::from_raw(cf_ptr)
-	}
+	unsafe { Arc::from_raw(cf_ptr) }
 }

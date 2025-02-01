@@ -1,4 +1,7 @@
-use std::sync::{atomic::Ordering, Arc};
+use std::{
+	fmt::Debug,
+	sync::{atomic::Ordering, Arc},
+};
 
 use axum::{
 	extract::State,
@@ -12,16 +15,16 @@ use http::{Method, StatusCode, Uri};
 	level = "debug",
 	skip_all,
 	fields(
-		handled = %services
-			.server
-			.metrics
-			.requests_handle_finished
-			.fetch_add(1, Ordering::Relaxed),
 		active = %services
 			.server
 			.metrics
 			.requests_handle_active
 			.fetch_add(1, Ordering::Relaxed),
+		handled = %services
+			.server
+			.metrics
+			.requests_handle_finished
+			.load(Ordering::Relaxed),
 	)
 )]
 pub(crate) async fn handle(
@@ -31,6 +34,10 @@ pub(crate) async fn handle(
 ) -> Result<Response, StatusCode> {
 	#[cfg(debug_assertions)]
 	conduwuit::defer! {{
+		_ = services.server
+			.metrics
+			.requests_handle_finished
+			.fetch_add(1, Ordering::Relaxed);
 		_ = services.server
 			.metrics
 			.requests_handle_active
@@ -47,21 +54,35 @@ pub(crate) async fn handle(
 		return Err(StatusCode::SERVICE_UNAVAILABLE);
 	}
 
-	let method = req.method().clone();
 	let uri = req.uri().clone();
-	services
+	let method = req.method().clone();
+	let services_ = services.clone();
+	let task = services
 		.server
 		.runtime()
-		.spawn(next.run(req))
-		.await
-		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-		.and_then(|result| handle_result(&method, &uri, result))
+		.spawn(async move { execute(services_, req, next).await });
+
+	task.await
+		.map_err(unhandled)
+		.and_then(move |result| handle_result(&method, &uri, result))
+}
+
+async fn execute(
+	// we made a safety contract that Services will not go out of scope
+	// during the request; this ensures a reference is accounted for at
+	// the base frame of the task regardless of its detachment.
+	_services: Arc<Services>,
+	req: http::Request<axum::body::Body>,
+	next: axum::middleware::Next,
+) -> Response {
+	next.run(req).await
 }
 
 fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Response, StatusCode> {
 	let status = result.status();
 	let reason = status.canonical_reason().unwrap_or("Unknown Reason");
 	let code = status.as_u16();
+
 	if status.is_server_error() {
 		error!(method = ?method, uri = ?uri, "{code} {reason}");
 	} else if status.is_client_error() {
@@ -77,4 +98,11 @@ fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Respons
 	}
 
 	Ok(result)
+}
+
+#[cold]
+fn unhandled<Error: Debug>(e: Error) -> StatusCode {
+	error!("unhandled error or panic during request: {e:?}");
+
+	StatusCode::INTERNAL_SERVER_ERROR
 }

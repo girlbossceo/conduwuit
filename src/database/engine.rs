@@ -30,13 +30,13 @@ use crate::{
 };
 
 pub struct Engine {
+	pub(crate) db: Db,
+	pub(crate) pool: Arc<Pool>,
+	pub(crate) ctx: Arc<Context>,
 	pub(super) read_only: bool,
 	pub(super) secondary: bool,
 	pub(crate) checksums: bool,
 	corks: AtomicU32,
-	pub(crate) db: Db,
-	pub(crate) pool: Arc<Pool>,
-	pub(crate) ctx: Arc<Context>,
 }
 
 pub(crate) type Db = DBWithThreadMode<MultiThreaded>;
