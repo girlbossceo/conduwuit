@@ -122,7 +122,7 @@ fn set_worker_affinity() {
 	set_worker_mallctl(id);
 }
 
-#[cfg(feature = "jemalloc")]
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 fn set_worker_mallctl(id: usize) {
 	use conduwuit::alloc::je::{
 		is_affine_arena,
@@ -143,7 +143,7 @@ fn set_worker_mallctl(id: usize) {
 	}
 }
 
-#[cfg(not(feature = "jemalloc"))]
+#[cfg(any(not(feature = "jemalloc"), target_env = "msvc"))]
 fn set_worker_mallctl(_: usize) {}
 
 #[tracing::instrument(
@@ -189,7 +189,7 @@ fn thread_park() {
 }
 
 fn gc_on_park() {
-	#[cfg(feature = "jemalloc")]
+	#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 	conduwuit::alloc::je::this_thread::decay()
 		.log_debug_err()
 		.ok();

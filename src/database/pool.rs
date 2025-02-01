@@ -13,7 +13,7 @@ use std::{
 use async_channel::{QueueStrategy, Receiver, RecvError, Sender};
 use conduwuit::{
 	debug, debug_warn, err, error, implement,
-	result::{DebugInspect, LogDebugErr},
+	result::DebugInspect,
 	trace,
 	utils::sys::compute::{get_affinity, nth_core_available, set_affinity},
 	Error, Result, Server,
@@ -290,9 +290,12 @@ fn worker_init(&self, id: usize) {
 	// affinity is empty (no-op) if there's only one queue
 	set_affinity(affinity.clone());
 
-	#[cfg(feature = "jemalloc")]
+	#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 	if affinity.clone().count() == 1 && conduwuit::alloc::je::is_affine_arena() {
-		use conduwuit::alloc::je::this_thread::{arena_id, set_arena};
+		use conduwuit::{
+			alloc::je::this_thread::{arena_id, set_arena},
+			result::LogDebugErr,
+		};
 
 		let id = affinity.clone().next().expect("at least one id");
 
