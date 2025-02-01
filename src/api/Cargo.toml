@@ -17,6 +17,7 @@ crate-type = [
 ]
 
 [features]
+blurhashing=[]
 element_hacks = []
 release_max_log_level = [
 	"tracing/max_level_trace",

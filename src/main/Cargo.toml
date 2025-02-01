@@ -101,6 +101,7 @@ perf_measurements = [
 	"conduwuit-core/perf_measurements",
 	"conduwuit-core/sentry_telemetry",
 ]
+blurhashing =["conduwuit-service/blurhashing","conduwuit-core/blurhashing","conduwuit-api/blurhashing"]
 # increases performance, reduces build times, and reduces binary size by not compiling or
 # genreating code for log level filters that users will generally not use (debug and trace)
 release_max_log_level = [

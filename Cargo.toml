@@ -179,7 +179,7 @@ version = "0.5.3"
 features = ["alloc", "rand"]
 default-features = false
 
-# Used to generate thumbnails for images
+# Used to generate thumbnails for images & blurhashes
 [workspace.dependencies.image]
 version = "0.25.5"
 default-features = false
@@ -190,6 +190,12 @@ features = [
 	"webp",
 ]
 
+[workspace.dependencies.blurhash]
+version = "0.2.3"
+default-features = false
+features = [
+	"fast-linear-to-srgb","image"
+]
 # logging
 [workspace.dependencies.log]
 version = "0.4.22"

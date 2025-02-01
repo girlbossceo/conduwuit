@@ -62,6 +62,27 @@ pub(crate) async fn create_content_route(
 		media_id: &utils::random_string(MXC_LENGTH),
 	};
 
+	#[cfg(feature = "blurhashing")]
+	{
+		if body.generate_blurhash {
+			let (blurhash, create_media_result) = tokio::join!(
+				services
+					.media
+					.create_blurhash(&body.file, content_type, filename),
+				services.media.create(
+					&mxc,
+					Some(user),
+					Some(&content_disposition),
+					content_type,
+					&body.file
+				)
+			);
+			return create_media_result.map(|()| create_content::v3::Response {
+				content_uri: mxc.to_string().into(),
+				blurhash,
+			});
+		}
+	}
 	services
 		.media
 		.create(&mxc, Some(user), Some(&content_disposition), content_type, &body.file)

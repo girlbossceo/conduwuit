@@ -52,7 +52,7 @@ use crate::{err, error::Error, utils::sys, Result};
 ### For more information, see:
 ### https://conduwuit.puppyirl.gay/configuration.html
 "#,
-	ignore = "catchall well_known tls"
+	ignore = "catchall well_known tls blurhashing"
 )]
 pub struct Config {
 	/// The server_name is the pretty name of this server. It is used as a
@@ -1789,6 +1789,9 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub config_reload_signal: bool,
 
+	// external structure; separate section
+	#[serde(default)]
+	pub blurhashing: BlurhashConfig,
 	#[serde(flatten)]
 	#[allow(clippy::zero_sized_map_values)]
 	// this is a catchall, the map shouldn't be zero at runtime
@@ -1837,6 +1840,31 @@ pub struct WellKnownConfig {
 	pub support_email: Option<String>,
 
 	pub support_mxid: Option<OwnedUserId>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[allow(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
+#[config_example_generator(filename = "conduwuit-example.toml", section = "global.blurhashing")]
+pub struct BlurhashConfig {
+	/// blurhashing x component, 4 is recommended by https://blurha.sh/
+	///
+	/// default: 4
+	#[serde(default = "default_blurhash_x_component")]
+	pub components_x: u32,
+	/// blurhashing y component, 3 is recommended by https://blurha.sh/
+	///
+	/// default: 3
+	#[serde(default = "default_blurhash_y_component")]
+	pub components_y: u32,
+	/// Max raw size that the server will blurhash, this is the size of the
+	/// image after converting it to raw data, it should be higher than the
+	/// upload limit but not too high. The higher it is the higher the
+	/// potential load will be for clients requesting blurhashes. The default
+	/// is 33.55MB. Setting it to 0 disables blurhashing.
+	///
+	/// default: 33554432
+	#[serde(default = "default_blurhash_max_raw_size")]
+	pub blurhash_max_raw_size: u64,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -2210,3 +2238,13 @@ fn default_client_response_timeout() -> u64 { 120 }
 fn default_client_shutdown_timeout() -> u64 { 15 }
 
 fn default_sender_shutdown_timeout() -> u64 { 5 }
+
+// blurhashing defaults recommended by https://blurha.sh/
+// 2^25
+pub(super) fn default_blurhash_max_raw_size() -> u64 { 33_554_432 }
+
+pub(super) fn default_blurhash_x_component() -> u32 { 4 }
+
+pub(super) fn default_blurhash_y_component() -> u32 { 3 }
+
+// end recommended & blurhashing defaults
