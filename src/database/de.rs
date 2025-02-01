@@ -22,7 +22,7 @@ pub(crate) fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T>
 where
 	T: Deserialize<'a>,
 {
-	let mut deserializer = Deserializer { buf, pos: 0, seq: false };
+	let mut deserializer = Deserializer { buf, pos: 0, rec: 0, seq: false };
 
 	T::deserialize(&mut deserializer).debug_inspect(|_| {
 		deserializer
@@ -35,6 +35,7 @@ where
 pub(crate) struct Deserializer<'de> {
 	buf: &'de [u8],
 	pos: usize,
+	rec: usize,
 	seq: bool,
 }
 
@@ -107,7 +108,7 @@ impl<'de> Deserializer<'de> {
 	/// consumed None is returned instead.
 	#[inline]
 	fn record_peek_byte(&self) -> Option<u8> {
-		let started = self.pos != 0;
+		let started = self.pos != 0 || self.rec > 0;
 		let buf = &self.buf[self.pos..];
 		debug_assert!(
 			!started || buf[0] == Self::SEP,
@@ -121,13 +122,14 @@ impl<'de> Deserializer<'de> {
 	/// the start of the next record. (Case for some sequences)
 	#[inline]
 	fn record_start(&mut self) {
-		let started = self.pos != 0;
+		let started = self.pos != 0 || self.rec > 0;
 		debug_assert!(
 			!started || self.buf[self.pos] == Self::SEP,
 			"Missing expected record separator at current position"
 		);
 
 		self.inc_pos(started.into());
+		self.inc_rec(1);
 	}
 
 	/// Consume all remaining bytes, which may include record separators,
@@ -156,6 +158,9 @@ impl<'de> Deserializer<'de> {
 		self.pos = self.pos.saturating_add(n);
 		debug_assert!(self.pos <= self.buf.len(), "pos out of range");
 	}
+
+	#[inline]
+	fn inc_rec(&mut self, n: usize) { self.rec = self.rec.saturating_add(n); }
 
 	/// Unconsumed input bytes.
 	#[inline]
@@ -270,8 +275,16 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 	}
 
 	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]
-	fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
-		unhandled!("deserialize Option not implemented")
+	fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+		if self
+			.buf
+			.get(self.pos)
+			.is_none_or(|b| *b == Deserializer::SEP)
+		{
+			visitor.visit_none()
+		} else {
+			visitor.visit_some(self)
+		}
 	}
 
 	#[cfg_attr(unabridged, tracing::instrument(level = "trace", skip_all))]

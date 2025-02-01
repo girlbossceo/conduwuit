@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 use arrayvec::ArrayVec;
-use conduwuit::ruma::{serde::Raw, RoomId, UserId};
+use conduwuit::ruma::{serde::Raw, EventId, RoomId, UserId};
 use serde::Serialize;
 
 use crate::{
@@ -388,4 +388,161 @@ fn de_complex() {
 	let arr: Key<'_> = de::from_slice(&s).expect("failed to deserialize");
 
 	assert_eq!(arr, key, "deserialization of serialization does not match");
+}
+
+#[test]
+fn serde_tuple_option_value_some() {
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let mut aa = Vec::<u8>::new();
+	aa.extend_from_slice(room_id.as_bytes());
+	aa.push(0xFF);
+	aa.extend_from_slice(user_id.as_bytes());
+
+	let bb: (&RoomId, Option<&UserId>) = (room_id, Some(user_id));
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (&RoomId, Option<&UserId>) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(bb.1, cc.1);
+	assert_eq!(cc.0, bb.0);
+}
+
+#[test]
+fn serde_tuple_option_value_none() {
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+
+	let mut aa = Vec::<u8>::new();
+	aa.extend_from_slice(room_id.as_bytes());
+	aa.push(0xFF);
+
+	let bb: (&RoomId, Option<&UserId>) = (room_id, None);
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (&RoomId, Option<&UserId>) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(None, cc.1);
+	assert_eq!(cc.0, bb.0);
+}
+
+#[test]
+fn serde_tuple_option_none_value() {
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let mut aa = Vec::<u8>::new();
+	aa.push(0xFF);
+	aa.extend_from_slice(user_id.as_bytes());
+
+	let bb: (Option<&RoomId>, &UserId) = (None, user_id);
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (Option<&RoomId>, &UserId) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(None, cc.0);
+	assert_eq!(cc.1, bb.1);
+}
+
+#[test]
+fn serde_tuple_option_some_value() {
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let mut aa = Vec::<u8>::new();
+	aa.extend_from_slice(room_id.as_bytes());
+	aa.push(0xFF);
+	aa.extend_from_slice(user_id.as_bytes());
+
+	let bb: (Option<&RoomId>, &UserId) = (Some(room_id), user_id);
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (Option<&RoomId>, &UserId) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(bb.0, cc.0);
+	assert_eq!(cc.1, bb.1);
+}
+
+#[test]
+fn serde_tuple_option_some_some() {
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let mut aa = Vec::<u8>::new();
+	aa.extend_from_slice(room_id.as_bytes());
+	aa.push(0xFF);
+	aa.extend_from_slice(user_id.as_bytes());
+
+	let bb: (Option<&RoomId>, Option<&UserId>) = (Some(room_id), Some(user_id));
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (Option<&RoomId>, Option<&UserId>) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(cc.0, bb.0);
+	assert_eq!(bb.1, cc.1);
+}
+
+#[test]
+fn serde_tuple_option_none_none() {
+	let aa = vec![0xFF];
+
+	let bb: (Option<&RoomId>, Option<&UserId>) = (None, None);
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (Option<&RoomId>, Option<&UserId>) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(cc.0, bb.0);
+	assert_eq!(None, cc.1);
+}
+
+#[test]
+fn serde_tuple_option_some_none_some() {
+	let room_id: &RoomId = "!room:example.com".try_into().unwrap();
+	let user_id: &UserId = "@user:example.com".try_into().unwrap();
+
+	let mut aa = Vec::<u8>::new();
+	aa.extend_from_slice(room_id.as_bytes());
+	aa.push(0xFF);
+	aa.push(0xFF);
+	aa.extend_from_slice(user_id.as_bytes());
+
+	let bb: (Option<&RoomId>, Option<&EventId>, Option<&UserId>) =
+		(Some(room_id), None, Some(user_id));
+
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (Option<&RoomId>, Option<&EventId>, Option<&UserId>) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(bb.0, cc.0);
+	assert_eq!(None, cc.1);
+	assert_eq!(bb.1, cc.1);
+	assert_eq!(bb.2, cc.2);
+}
+
+#[test]
+fn serde_tuple_option_none_none_none() {
+	let aa = vec![0xFF, 0xFF];
+
+	let bb: (Option<&RoomId>, Option<&EventId>, Option<&UserId>) = (None, None, None);
+	let bbs = serialize_to_vec(&bb).expect("failed to serialize tuple");
+	assert_eq!(aa, bbs);
+
+	let cc: (Option<&RoomId>, Option<&EventId>, Option<&UserId>) =
+		de::from_slice(&bbs).expect("failed to deserialize tuple");
+
+	assert_eq!(None, cc.0);
+	assert_eq!(bb, cc);
 }
