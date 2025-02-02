@@ -15,40 +15,12 @@ use http::{Method, StatusCode, Uri};
 use tokio::time::sleep;
 use tracing::Span;
 
-#[tracing::instrument(
-	name = "request",
-	level = "debug",
-	skip_all,
-	fields(
-		active = %services
-			.server
-			.metrics
-			.requests_handle_active
-			.fetch_add(1, Ordering::Relaxed),
-		handled = %services
-			.server
-			.metrics
-			.requests_handle_finished
-			.load(Ordering::Relaxed),
-	)
-)]
+#[tracing::instrument(name = "request", level = "debug", skip_all)]
 pub(crate) async fn handle(
 	State(services): State<Arc<Services>>,
 	req: http::Request<axum::body::Body>,
 	next: axum::middleware::Next,
 ) -> Result<Response, StatusCode> {
-	#[cfg(debug_assertions)]
-	conduwuit::defer! {{
-		_ = services.server
-			.metrics
-			.requests_handle_finished
-			.fetch_add(1, Ordering::Relaxed);
-		_ = services.server
-			.metrics
-			.requests_handle_active
-			.fetch_sub(1, Ordering::Relaxed);
-	}};
-
 	if !services.server.running() {
 		debug_warn!(
 			method = %req.method(),
@@ -87,16 +59,40 @@ pub(crate) async fn handle(
 	level = "debug",
 	parent = parent,
 	skip_all,
+	fields(
+		active = %services
+			.server
+			.metrics
+			.requests_handle_active
+			.fetch_add(1, Ordering::Relaxed),
+		handled = %services
+			.server
+			.metrics
+			.requests_handle_finished
+			.load(Ordering::Relaxed),
+	)
 )]
 async fn execute(
 	// we made a safety contract that Services will not go out of scope
 	// during the request; this ensures a reference is accounted for at
 	// the base frame of the task regardless of its detachment.
-	_services: &Arc<Services>,
+	services: &Arc<Services>,
 	req: http::Request<axum::body::Body>,
 	next: axum::middleware::Next,
 	parent: Span,
 ) -> Response {
+	#[cfg(debug_assertions)]
+	conduwuit::defer! {{
+		_ = services.server
+			.metrics
+			.requests_handle_finished
+			.fetch_add(1, Ordering::Relaxed);
+		_ = services.server
+			.metrics
+			.requests_handle_active
+			.fetch_sub(1, Ordering::Relaxed);
+	}};
+
 	next.run(req).await
 }
 

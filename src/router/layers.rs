@@ -49,6 +49,7 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 	))]
 	let layers = layers.layer(compression_layer(server));
 
+	let services_ = services.clone();
 	let layers = layers
 		.layer(SetSensitiveHeadersLayer::new([header::AUTHORIZATION]))
 		.layer(
@@ -89,7 +90,7 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 		))
 		.layer(cors_layer(server))
 		.layer(body_limit_layer(server))
-		.layer(CatchPanicLayer::custom(catch_panic));
+		.layer(CatchPanicLayer::custom(move |panic| catch_panic(panic, services_.clone())));
 
 	let (router, guard) = router::build(services);
 	Ok((router.layer(layers), guard))
@@ -167,15 +168,14 @@ fn body_limit_layer(server: &Server) -> DefaultBodyLimit {
 #[allow(clippy::needless_pass_by_value)]
 fn catch_panic(
 	err: Box<dyn Any + Send + 'static>,
+	services: Arc<Services>,
 ) -> http::Response<http_body_util::Full<bytes::Bytes>> {
-	//TODO: XXX
-	/*
-		conduwuit_service::services()
-			.server
-			.metrics
-			.requests_panic
-			.fetch_add(1, std::sync::atomic::Ordering::Release);
-	*/
+	services
+		.server
+		.metrics
+		.requests_panic
+		.fetch_add(1, std::sync::atomic::Ordering::Release);
+
 	let details = if let Some(s) = err.downcast_ref::<String>() {
 		s.clone()
 	} else if let Some(s) = err.downcast_ref::<&str>() {
