@@ -1,6 +1,6 @@
 #![allow(clippy::disallowed_macros)]
 
-use std::{any::Any, panic};
+use std::{any::Any, env, panic, sync::LazyLock};
 
 // Export debug proc_macros
 pub use conduwuit_macros::recursion_depth;
@@ -58,16 +58,26 @@ pub const INFO_SPAN_LEVEL: Level = if cfg!(debug_assertions) {
 	Level::DEBUG
 };
 
-pub fn set_panic_trap() {
+pub static DEBUGGER: LazyLock<bool> =
+	LazyLock::new(|| env::var("_").unwrap_or_default().ends_with("gdb"));
+
+#[cfg_attr(debug_assertions, crate::ctor)]
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
+fn set_panic_trap() {
+	if !*DEBUGGER {
+		return;
+	}
+
 	let next = panic::take_hook();
 	panic::set_hook(Box::new(move |info| {
 		panic_handler(info, &next);
 	}));
 }
 
-#[inline(always)]
+#[cold]
+#[inline(never)]
 #[allow(deprecated_in_future)]
-fn panic_handler(info: &panic::PanicHookInfo<'_>, next: &dyn Fn(&panic::PanicHookInfo<'_>)) {
+pub fn panic_handler(info: &panic::PanicHookInfo<'_>, next: &dyn Fn(&panic::PanicHookInfo<'_>)) {
 	trap();
 	next(info);
 }
