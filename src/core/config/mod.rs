@@ -498,6 +498,18 @@ pub struct Config {
 	#[serde(default = "default_client_response_timeout")]
 	pub client_response_timeout: u64,
 
+	/// Grace period for clean shutdown of client requests (seconds).
+	///
+	/// default: 10
+	#[serde(default = "default_client_shutdown_timeout")]
+	pub client_shutdown_timeout: u64,
+
+	/// Grace period for clean shutdown of federation requests (seconds).
+	///
+	/// default: 5
+	#[serde(default = "default_sender_shutdown_timeout")]
+	pub sender_shutdown_timeout: u64,
+
 	/// Enables registration. If set to false, no users can register on this
 	/// server.
 	///
@@ -2194,3 +2206,7 @@ fn default_client_receive_timeout() -> u64 { 75 }
 fn default_client_request_timeout() -> u64 { 180 }
 
 fn default_client_response_timeout() -> u64 { 120 }
+
+fn default_client_shutdown_timeout() -> u64 { 15 }
+
+fn default_sender_shutdown_timeout() -> u64 { 5 }

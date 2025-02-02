@@ -67,8 +67,6 @@ type SendingFuture<'a> = BoxFuture<'a, SendingResult>;
 type SendingFutures<'a> = FuturesUnordered<SendingFuture<'a>>;
 type CurTransactionStatus = HashMap<Destination, TransactionStatus>;
 
-const CLEANUP_TIMEOUT_MS: u64 = 3500;
-
 const SELECT_PRESENCE_LIMIT: usize = 256;
 const SELECT_RECEIPT_LIMIT: usize = 256;
 const SELECT_EDU_LIMIT: usize = EDU_LIMIT - 2;
@@ -216,8 +214,9 @@ impl Service {
 			time::{sleep_until, Instant},
 		};
 
+		let timeout = self.server.config.sender_shutdown_timeout;
+		let timeout = Duration::from_secs(timeout);
 		let now = Instant::now();
-		let timeout = Duration::from_millis(CLEANUP_TIMEOUT_MS);
 		let deadline = now.checked_add(timeout).unwrap_or(now);
 		loop {
 			trace!("Waiting for {} requests to complete...", futures.len());

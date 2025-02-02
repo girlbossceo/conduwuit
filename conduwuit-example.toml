@@ -389,6 +389,14 @@
 #
 #client_response_timeout = 120
 
+# Grace period for clean shutdown of client requests (seconds).
+#
+#client_shutdown_timeout = 10
+
+# Grace period for clean shutdown of federation requests (seconds).
+#
+#sender_shutdown_timeout = 5
+
 # Enables registration. If set to false, no users can register on this
 # server.
 #

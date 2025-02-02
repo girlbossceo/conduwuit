@@ -122,7 +122,8 @@ async fn handle_shutdown(server: Arc<Server>, tx: Sender<()>, handle: axum_serve
 		error!("failed sending shutdown transaction to channel: {e}");
 	}
 
-	let timeout = Duration::from_secs(36);
+	let timeout = server.config.client_shutdown_timeout;
+	let timeout = Duration::from_secs(timeout);
 	debug!(
 		?timeout,
 		handle_active = ?server.metrics.requests_handle_active.load(Ordering::Relaxed),

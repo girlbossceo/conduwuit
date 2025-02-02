@@ -1,6 +1,7 @@
 use std::{
 	fmt::Debug,
 	sync::{atomic::Ordering, Arc},
+	time::Duration,
 };
 
 use axum::{
@@ -9,7 +10,9 @@ use axum::{
 };
 use conduwuit::{debug, debug_error, debug_warn, err, error, trace, Result};
 use conduwuit_service::Services;
+use futures::FutureExt;
 use http::{Method, StatusCode, Uri};
+use tokio::time::sleep;
 use tracing::Span;
 
 #[tracing::instrument(
@@ -63,8 +66,14 @@ pub(crate) async fn handle(
 	let task = services.server.runtime().spawn(async move {
 		tokio::select! {
 			response = execute(&services_, req, next, parent) => response,
-			() = services_.server.until_shutdown() =>
-				StatusCode::SERVICE_UNAVAILABLE.into_response(),
+			response = services_.server.until_shutdown()
+				.then(|()| {
+					let timeout = services_.server.config.client_shutdown_timeout;
+					let timeout = Duration::from_secs(timeout);
+					sleep(timeout)
+				})
+				.map(|()| StatusCode::SERVICE_UNAVAILABLE)
+				.map(IntoResponse::into_response) => response,
 		}
 	});
 
