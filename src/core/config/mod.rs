@@ -480,6 +480,24 @@ pub struct Config {
 	#[serde(default = "default_pusher_idle_timeout")]
 	pub pusher_idle_timeout: u64,
 
+	/// Maximum time to receive a request from a client (seconds).
+	///
+	/// default: 75
+	#[serde(default = "default_client_receive_timeout")]
+	pub client_receive_timeout: u64,
+
+	/// Maximum time to process a request received from a client (seconds).
+	///
+	/// default: 180
+	#[serde(default = "default_client_request_timeout")]
+	pub client_request_timeout: u64,
+
+	/// Maximum time to transmit a response to a client (seconds)
+	///
+	/// default: 120
+	#[serde(default = "default_client_response_timeout")]
+	pub client_response_timeout: u64,
+
 	/// Enables registration. If set to false, no users can register on this
 	/// server.
 	///
@@ -2170,3 +2188,9 @@ fn default_stream_width_default() -> usize { 32 }
 fn default_stream_width_scale() -> f32 { 1.0 }
 
 fn default_stream_amplification() -> usize { 1024 }
+
+fn default_client_receive_timeout() -> u64 { 75 }
+
+fn default_client_request_timeout() -> u64 { 180 }
+
+fn default_client_response_timeout() -> u64 { 120 }

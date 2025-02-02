@@ -10,8 +10,10 @@ use axum::{
 use conduwuit::{debug, debug_error, debug_warn, err, error, trace, Result};
 use conduwuit_service::Services;
 use http::{Method, StatusCode, Uri};
+use tracing::Span;
 
 #[tracing::instrument(
+	name = "request",
 	level = "debug",
 	skip_all,
 	fields(
@@ -57,23 +59,34 @@ pub(crate) async fn handle(
 	let uri = req.uri().clone();
 	let method = req.method().clone();
 	let services_ = services.clone();
-	let task = services
-		.server
-		.runtime()
-		.spawn(async move { execute(services_, req, next).await });
+	let parent = Span::current();
+	let task = services.server.runtime().spawn(async move {
+		tokio::select! {
+			response = execute(&services_, req, next, parent) => response,
+			() = services_.server.until_shutdown() =>
+				StatusCode::SERVICE_UNAVAILABLE.into_response(),
+		}
+	});
 
 	task.await
 		.map_err(unhandled)
 		.and_then(move |result| handle_result(&method, &uri, result))
 }
 
+#[tracing::instrument(
+	name = "handle",
+	level = "debug",
+	parent = parent,
+	skip_all,
+)]
 async fn execute(
 	// we made a safety contract that Services will not go out of scope
 	// during the request; this ensures a reference is accounted for at
 	// the base frame of the task regardless of its detachment.
-	_services: Arc<Services>,
+	_services: &Arc<Services>,
 	req: http::Request<axum::body::Body>,
 	next: axum::middleware::Next,
+	parent: Span,
 ) -> Response {
 	next.run(req).await
 }

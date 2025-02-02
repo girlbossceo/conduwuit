@@ -127,12 +127,13 @@ version = "0.6.2"
 default-features = false
 features = [
     "add-extension",
+    "catch-panic",
     "cors",
     "sensitive-headers",
     "set-header",
+    "timeout",
     "trace",
     "util",
-    "catch-panic",
 ]
 
 [workspace.dependencies.rustls]

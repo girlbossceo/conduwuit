@@ -377,6 +377,18 @@
 #
 #pusher_idle_timeout = 15
 
+# Maximum time to receive a request from a client (seconds).
+#
+#client_receive_timeout = 75
+
+# Maximum time to process a request received from a client (seconds).
+#
+#client_request_timeout = 180
+
+# Maximum time to transmit a response to a client (seconds)
+#
+#client_response_timeout = 120
+
 # Enables registration. If set to false, no users can register on this
 # server.
 #
