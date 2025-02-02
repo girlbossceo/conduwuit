@@ -7,13 +7,13 @@ use std::{
 use axum::extract::State;
 use conduwuit::{
 	at, err, error, extract_variant, is_equal_to, pair_of,
-	pdu::EventHash,
+	pdu::{Event, EventHash},
+	ref_at,
 	result::FlatOk,
 	utils::{
 		self,
-		future::OptionExt,
 		math::ruma_from_u64,
-		stream::{BroadbandExt, Tools, WidebandExt},
+		stream::{BroadbandExt, Tools, TryExpect, WidebandExt},
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 	},
 	PduCount, PduEvent, Result,
@@ -53,19 +53,16 @@ use ruma::{
 	serde::Raw,
 	uint, DeviceId, EventId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
+use service::rooms::short::{ShortEventId, ShortStateKey};
 
 use super::{load_timeline, share_encrypted_room};
-use crate::{
-	client::{ignored_filter, lazy_loading_witness},
-	Ruma, RumaResponse,
-};
+use crate::{client::ignored_filter, Ruma, RumaResponse};
 
 #[derive(Default)]
 struct StateChanges {
 	heroes: Option<Vec<OwnedUserId>>,
 	joined_member_count: Option<u64>,
 	invited_member_count: Option<u64>,
-	joined_since_last_sync: bool,
 	state_events: Vec<PduEvent>,
 	device_list_updates: HashSet<OwnedUserId>,
 	left_encrypted_users: HashSet<OwnedUserId>,
@@ -625,6 +622,40 @@ async fn load_joined_room(
 			.await?;
 
 	let (timeline_pdus, limited) = timeline;
+	let initial = since_shortstatehash.is_none();
+	let lazy_loading_enabled = filter.room.state.lazy_load_options.is_enabled()
+		|| filter.room.timeline.lazy_load_options.is_enabled();
+
+	let lazy_loading_context = &lazy_loading::Context {
+		user_id: sender_user,
+		device_id: sender_device,
+		room_id,
+		token: Some(since),
+		options: Some(&filter.room.state.lazy_load_options),
+	};
+
+	// Reset lazy loading because this is an initial sync
+	let lazy_load_reset: OptionFuture<_> = initial
+		.then(|| services.rooms.lazy_loading.reset(lazy_loading_context))
+		.into();
+
+	lazy_load_reset.await;
+	let witness: OptionFuture<_> = lazy_loading_enabled
+		.then(|| {
+			let witness: Witness = timeline_pdus
+				.iter()
+				.map(ref_at!(1))
+				.map(Event::sender)
+				.map(Into::into)
+				.chain(receipt_events.keys().map(Into::into))
+				.collect();
+
+			services
+				.rooms
+				.lazy_loading
+				.witness_retain(witness, lazy_loading_context)
+		})
+		.into();
 
 	let last_notification_read: OptionFuture<_> = timeline_pdus
 		.is_empty()
@@ -646,41 +677,20 @@ async fn load_joined_room(
 		})
 		.into();
 
+	let (last_notification_read, since_sender_member, witness) =
+		join3(last_notification_read, since_sender_member, witness).await;
+
 	let joined_since_last_sync =
 		since_sender_member
-			.await
 			.flatten()
 			.is_none_or(|content: RoomMemberEventContent| {
 				content.membership != MembershipState::Join
 			});
 
-	let lazy_loading_enabled = filter.room.state.lazy_load_options.is_enabled()
-		|| filter.room.timeline.lazy_load_options.is_enabled();
-
-	let lazy_reset = since_shortstatehash.is_none();
-	let lazy_loading_context = &lazy_loading::Context {
-		user_id: sender_user,
-		device_id: sender_device,
-		room_id,
-		token: None,
-		options: Some(&filter.room.state.lazy_load_options),
-	};
-
-	// Reset lazy loading because this is an initial sync
-	let lazy_load_reset: OptionFuture<_> = lazy_reset
-		.then(|| services.rooms.lazy_loading.reset(lazy_loading_context))
-		.into();
-
-	lazy_load_reset.await;
-	let witness: OptionFuture<_> = lazy_loading_enabled
-		.then(|| lazy_loading_witness(services, lazy_loading_context, timeline_pdus.iter()))
-		.into();
-
 	let StateChanges {
 		heroes,
 		joined_member_count,
 		invited_member_count,
-		joined_since_last_sync,
 		state_events,
 		mut device_list_updates,
 		left_encrypted_users,
@@ -693,7 +703,7 @@ async fn load_joined_room(
 		since_shortstatehash,
 		current_shortstatehash,
 		joined_since_last_sync,
-		witness.await.as_ref(),
+		witness.as_ref(),
 	)
 	.boxed()
 	.await?;
@@ -719,28 +729,7 @@ async fn load_joined_room(
 		.map(|(_, pdu)| pdu.to_sync_room_event())
 		.collect();
 
-	let typing_events = services
-		.rooms
-		.typing
-		.last_typing_update(room_id)
-		.and_then(|count| async move {
-			if count <= since {
-				return Ok(Vec::<Raw<AnySyncEphemeralRoomEvent>>::new());
-			}
-
-			let typings = services
-				.rooms
-				.typing
-				.typings_all(room_id, sender_user)
-				.await?;
-
-			Ok(vec![serde_json::from_str(&serde_json::to_string(&typings)?)?])
-		})
-		.unwrap_or(Vec::new());
-
-	let send_notification_counts = last_notification_read
-		.is_none_or(|&count| count > since)
-		.await;
+	let send_notification_counts = last_notification_read.is_none_or(|count| count > since);
 
 	let notification_count: OptionFuture<_> = send_notification_counts
 		.then(|| {
@@ -764,8 +753,27 @@ async fn load_joined_room(
 		})
 		.into();
 
-	let events = join3(room_events, account_data_events, typing_events);
+	let typing_events = services
+		.rooms
+		.typing
+		.last_typing_update(room_id)
+		.and_then(|count| async move {
+			if count <= since {
+				return Ok(Vec::<Raw<AnySyncEphemeralRoomEvent>>::new());
+			}
+
+			let typings = services
+				.rooms
+				.typing
+				.typings_all(room_id, sender_user)
+				.await?;
+
+			Ok(vec![serde_json::from_str(&serde_json::to_string(&typings)?)?])
+		})
+		.unwrap_or(Vec::new());
+
 	let unread_notifications = join(notification_count, highlight_count);
+	let events = join3(room_events, account_data_events, typing_events);
 	let (unread_notifications, events, device_updates) =
 		join3(unread_notifications, events, device_updates)
 			.boxed()
@@ -942,7 +950,6 @@ async fn calculate_state_initial(
 		heroes,
 		joined_member_count,
 		invited_member_count,
-		joined_since_last_sync: true,
 		state_events,
 		..Default::default()
 	})
@@ -952,7 +959,7 @@ async fn calculate_state_initial(
 #[allow(clippy::too_many_arguments)]
 async fn calculate_state_incremental<'a>(
 	services: &Services,
-	sender_user: &UserId,
+	sender_user: &'a UserId,
 	room_id: &RoomId,
 	full_state: bool,
 	_filter: &FilterDefinition,
@@ -965,101 +972,129 @@ async fn calculate_state_incremental<'a>(
 
 	let state_changed = since_shortstatehash != current_shortstatehash;
 
-	let state_get_id = |user_id: &'a UserId| {
-		services
-			.rooms
-			.state_accessor
-			.state_get_id(current_shortstatehash, &StateEventType::RoomMember, user_id.as_str())
-			.ok()
-	};
-
-	let lazy_state_ids: OptionFuture<_> = witness
-		.map(|witness| {
-			witness
-				.iter()
-				.stream()
-				.broad_filter_map(|user_id| state_get_id(user_id))
-				.collect::<Vec<OwnedEventId>>()
-		})
-		.into();
-
-	let current_state_ids: OptionFuture<_> = state_changed
-		.then(|| {
-			services
-				.rooms
-				.state_accessor
-				.state_full_ids(current_shortstatehash)
-				.collect::<Vec<(_, OwnedEventId)>>()
-		})
-		.into();
-
-	let since_state_ids: OptionFuture<_> = (state_changed && !full_state)
-		.then(|| {
-			services
-				.rooms
-				.state_accessor
-				.state_full_ids(since_shortstatehash)
-				.collect::<HashMap<_, OwnedEventId>>()
-		})
-		.into();
-
-	let lazy_state_ids = lazy_state_ids
-		.map(Option::into_iter)
-		.map(|iter| iter.flat_map(Vec::into_iter))
-		.map(IterStream::stream)
-		.flatten_stream();
-
-	let ref since_state_ids = since_state_ids.shared();
-	let delta_state_events = current_state_ids
-		.map(Option::into_iter)
-		.map(|iter| iter.flat_map(Vec::into_iter))
-		.map(IterStream::stream)
-		.flatten_stream()
-		.filter_map(|(shortstatekey, event_id): (u64, OwnedEventId)| async move {
-			since_state_ids
-				.clone()
-				.await
-				.is_none_or(|since_state| since_state.get(&shortstatekey) != Some(&event_id))
-				.then_some(event_id)
-		})
-		.chain(lazy_state_ids)
-		.broad_filter_map(|event_id: OwnedEventId| async move {
-			services
-				.rooms
-				.timeline
-				.get_pdu(&event_id)
-				.await
-				.map(move |pdu| (event_id, pdu))
-				.ok()
-		})
-		.collect::<HashMap<_, _>>();
-
-	let since_encryption = services
-		.rooms
-		.state_accessor
-		.state_get(since_shortstatehash, &StateEventType::RoomEncryption, "")
-		.is_ok();
-
 	let encrypted_room = services
 		.rooms
 		.state_accessor
 		.state_get(current_shortstatehash, &StateEventType::RoomEncryption, "")
-		.is_ok();
+		.is_ok()
+		.await;
 
-	let (delta_state_events, encrypted_room) = join(delta_state_events, encrypted_room).await;
+	let state_get_shorteventid = |user_id: &'a UserId| {
+		services
+			.rooms
+			.state_accessor
+			.state_get_shortid(
+				current_shortstatehash,
+				&StateEventType::RoomMember,
+				user_id.as_str(),
+			)
+			.ok()
+	};
 
-	let (mut device_list_updates, left_encrypted_users) = delta_state_events
-		.values()
+	let lazy_state_ids: OptionFuture<_> = witness
+		.filter(|_| !full_state && !encrypted_room)
+		.map(|witness| {
+			witness
+				.iter()
+				.stream()
+				.broad_filter_map(|user_id| state_get_shorteventid(user_id))
+				.into_future()
+		})
+		.into();
+
+	let state_diff: OptionFuture<_> = (!full_state && state_changed)
+		.then(|| {
+			services
+				.rooms
+				.state_accessor
+				.state_added((since_shortstatehash, current_shortstatehash))
+				.boxed()
+				.into_future()
+		})
+		.into();
+
+	let current_state_ids: OptionFuture<_> = full_state
+		.then(|| {
+			services
+				.rooms
+				.state_accessor
+				.state_full_shortids(current_shortstatehash)
+				.expect_ok()
+				.boxed()
+				.into_future()
+		})
+		.into();
+
+	let lazy_state_ids = lazy_state_ids
+		.map(|opt| {
+			opt.map(|(curr, next)| {
+				let opt = curr;
+				let iter = Option::into_iter(opt);
+				IterStream::stream(iter).chain(next)
+			})
+		})
+		.map(Option::into_iter)
+		.map(IterStream::stream)
+		.flatten_stream()
+		.flatten();
+
+	let state_diff_ids = state_diff
+		.map(|opt| {
+			opt.map(|(curr, next)| {
+				let opt = curr;
+				let iter = Option::into_iter(opt);
+				IterStream::stream(iter).chain(next)
+			})
+		})
+		.map(Option::into_iter)
+		.map(IterStream::stream)
+		.flatten_stream()
+		.flatten();
+
+	let state_events = current_state_ids
+		.map(|opt| {
+			opt.map(|(curr, next)| {
+				let opt = curr;
+				let iter = Option::into_iter(opt);
+				IterStream::stream(iter).chain(next)
+			})
+		})
+		.map(Option::into_iter)
+		.map(IterStream::stream)
+		.flatten_stream()
+		.flatten()
+		.chain(state_diff_ids)
+		.broad_filter_map(|(shortstatekey, shorteventid)| async move {
+			if witness.is_none() || encrypted_room {
+				return Some(shorteventid);
+			}
+
+			lazy_filter(services, sender_user, shortstatekey, shorteventid).await
+		})
+		.chain(lazy_state_ids)
+		.broad_filter_map(|shorteventid| {
+			services
+				.rooms
+				.short
+				.get_eventid_from_short(shorteventid)
+				.ok()
+		})
+		.broad_filter_map(|event_id: OwnedEventId| async move {
+			services.rooms.timeline.get_pdu(&event_id).await.ok()
+		})
+		.collect::<Vec<_>>()
+		.await;
+
+	let (device_list_updates, left_encrypted_users) = state_events
+		.iter()
 		.stream()
 		.ready_filter(|_| encrypted_room)
 		.ready_filter(|state_event| state_event.kind == RoomMember)
 		.ready_filter_map(|state_event| {
-			let content = state_event.get_content().ok()?;
-			let user_id = state_event.state_key.as_ref()?.parse().ok()?;
+			let content: RoomMemberEventContent = state_event.get_content().ok()?;
+			let user_id: OwnedUserId = state_event.state_key.as_ref()?.parse().ok()?;
+
 			Some((content, user_id))
-		})
-		.ready_filter(|(_, user_id): &(RoomMemberEventContent, OwnedUserId)| {
-			user_id != sender_user
 		})
 		.fold_default(|(mut dlu, mut leu): pair_of!(HashSet<_>), (content, user_id)| async move {
 			use MembershipState::*;
@@ -1068,8 +1103,9 @@ async fn calculate_state_incremental<'a>(
 				|user_id| share_encrypted_room(services, sender_user, user_id, Some(room_id));
 
 			match content.membership {
-				| Join if !shares_encrypted_room(&user_id).await => dlu.insert(user_id),
 				| Leave => leu.insert(user_id),
+				| Join if joined_since_last_sync || !shares_encrypted_room(&user_id).await =>
+					dlu.insert(user_id),
 				| _ => false,
 			};
 
@@ -1077,29 +1113,7 @@ async fn calculate_state_incremental<'a>(
 		})
 		.await;
 
-	// If the user is in a new encrypted room, give them all joined users
-	let new_encrypted_room = encrypted_room && !since_encryption.await;
-	if joined_since_last_sync && encrypted_room || new_encrypted_room {
-		services
-			.rooms
-			.state_cache
-			.room_members(room_id)
-			.ready_filter(|&user_id| sender_user != user_id)
-			.map(ToOwned::to_owned)
-			.broad_filter_map(|user_id| async move {
-				share_encrypted_room(services, sender_user, &user_id, Some(room_id))
-					.await
-					.or_some(user_id)
-			})
-			.ready_for_each(|user_id| {
-				device_list_updates.insert(user_id);
-			})
-			.await;
-	}
-
-	let send_member_count = delta_state_events
-		.values()
-		.any(|event| event.kind == RoomMember);
+	let send_member_count = state_events.iter().any(|event| event.kind == RoomMember);
 
 	let (joined_member_count, invited_member_count, heroes) = if send_member_count {
 		calculate_counts(services, room_id, sender_user).await?
@@ -1111,11 +1125,27 @@ async fn calculate_state_incremental<'a>(
 		heroes,
 		joined_member_count,
 		invited_member_count,
-		joined_since_last_sync,
+		state_events,
 		device_list_updates,
 		left_encrypted_users,
-		state_events: delta_state_events.into_values().collect(),
 	})
+}
+
+async fn lazy_filter(
+	services: &Services,
+	sender_user: &UserId,
+	shortstatekey: ShortStateKey,
+	shorteventid: ShortEventId,
+) -> Option<ShortEventId> {
+	let (event_type, state_key) = services
+		.rooms
+		.short
+		.get_statekey_from_short(shortstatekey)
+		.await
+		.ok()?;
+
+	(event_type != StateEventType::RoomMember || state_key == sender_user.as_str())
+		.then_some(shorteventid)
 }
 
 async fn calculate_counts(

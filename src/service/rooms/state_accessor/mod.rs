@@ -6,7 +6,7 @@ use std::{
 };
 
 use conduwuit::{
-	at, err, error,
+	at, err, error, pair_of,
 	pdu::PduBuilder,
 	utils,
 	utils::{
@@ -17,7 +17,7 @@ use conduwuit::{
 	Err, Error, PduEvent, Result,
 };
 use database::{Deserialized, Map};
-use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
+use futures::{future::try_join, FutureExt, Stream, StreamExt, TryFutureExt};
 use lru_cache::LruCache;
 use ruma::{
 	events::{
@@ -48,7 +48,7 @@ use crate::{
 	rooms::{
 		short::{ShortEventId, ShortStateHash, ShortStateKey},
 		state::RoomMutexGuard,
-		state_compressor::{compress_state_event, parse_compressed_state_event},
+		state_compressor::{compress_state_event, parse_compressed_state_event, CompressedState},
 	},
 	Dep,
 };
@@ -143,6 +143,256 @@ impl crate::Service for Service {
 }
 
 impl Service {
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
+	pub async fn room_state_get_content<T>(
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<T>
+	where
+		T: for<'de> Deserialize<'de>,
+	{
+		self.room_state_get(room_id, event_type, state_key)
+			.await
+			.and_then(|event| event.get_content())
+	}
+
+	/// Returns the full room state.
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub fn room_state_full<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = Result<((StateEventType, String), PduEvent)>> + Send + 'a {
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.map_ok(|shortstatehash| self.state_full(shortstatehash).map(Ok))
+			.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
+			.try_flatten_stream()
+	}
+
+	/// Returns the full room state pdus
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub fn room_state_full_pdus<'a>(
+		&'a self,
+		room_id: &'a RoomId,
+	) -> impl Stream<Item = Result<PduEvent>> + Send + 'a {
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.map_ok(|shortstatehash| self.state_full_pdus(shortstatehash).map(Ok))
+			.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
+			.try_flatten_stream()
+	}
+
+	/// Returns a single EventId from `room_id` with key (`event_type`,
+	/// `state_key`).
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn room_state_get_id<Id>(
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<Id>
+	where
+		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.and_then(|shortstatehash| self.state_get_id(shortstatehash, event_type, state_key))
+			.await
+	}
+
+	/// Returns a single PDU from `room_id` with key (`event_type`,
+	/// `state_key`).
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn room_state_get(
+		&self,
+		room_id: &RoomId,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<PduEvent> {
+		self.services
+			.state
+			.get_room_shortstatehash(room_id)
+			.and_then(|shortstatehash| self.state_get(shortstatehash, event_type, state_key))
+			.await
+	}
+
+	/// The user was a joined member at this state (potentially in the past)
+	#[inline]
+	async fn user_was_joined(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
+		self.user_membership(shortstatehash, user_id).await == MembershipState::Join
+	}
+
+	/// The user was an invited or joined room member at this state (potentially
+	/// in the past)
+	#[inline]
+	async fn user_was_invited(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
+		let s = self.user_membership(shortstatehash, user_id).await;
+		s == MembershipState::Join || s == MembershipState::Invite
+	}
+
+	/// Get membership for given user in state
+	async fn user_membership(
+		&self,
+		shortstatehash: ShortStateHash,
+		user_id: &UserId,
+	) -> MembershipState {
+		self.state_get_content(shortstatehash, &StateEventType::RoomMember, user_id.as_str())
+			.await
+			.map_or(MembershipState::Leave, |c: RoomMemberEventContent| c.membership)
+	}
+
+	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
+	pub async fn state_get_content<T>(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<T>
+	where
+		T: for<'de> Deserialize<'de>,
+	{
+		self.state_get(shortstatehash, event_type, state_key)
+			.await
+			.and_then(|event| event.get_content())
+	}
+
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_contains(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> bool {
+		let Ok(shortstatekey) = self
+			.services
+			.short
+			.get_shortstatekey(event_type, state_key)
+			.await
+		else {
+			return false;
+		};
+
+		self.state_contains_shortstatekey(shortstatehash, shortstatekey)
+			.await
+	}
+
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_contains_shortstatekey(
+		&self,
+		shortstatehash: ShortStateHash,
+		shortstatekey: ShortStateKey,
+	) -> bool {
+		let start = compress_state_event(shortstatekey, 0);
+		let end = compress_state_event(shortstatekey, u64::MAX);
+
+		self.load_full_state(shortstatehash)
+			.map_ok(|full_state| full_state.range(start..end).next().copied())
+			.await
+			.flat_ok()
+			.is_some()
+	}
+
+	/// Returns a single PDU from `room_id` with key (`event_type`,
+	/// `state_key`).
+	pub async fn state_get(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<PduEvent> {
+		self.state_get_id(shortstatehash, event_type, state_key)
+			.and_then(|event_id: OwnedEventId| async move {
+				self.services.timeline.get_pdu(&event_id).await
+			})
+			.await
+	}
+
+	/// Returns a single EventId from `room_id` with key (`event_type`,
+	/// `state_key`).
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_get_id<Id>(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<Id>
+	where
+		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
+		<Id as ToOwned>::Owned: Borrow<EventId>,
+	{
+		let shorteventid = self
+			.state_get_shortid(shortstatehash, event_type, state_key)
+			.await?;
+
+		self.services
+			.short
+			.get_eventid_from_short(shorteventid)
+			.await
+	}
+
+	/// Returns a single EventId from `room_id` with key (`event_type`,
+	/// `state_key`).
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub async fn state_get_shortid(
+		&self,
+		shortstatehash: ShortStateHash,
+		event_type: &StateEventType,
+		state_key: &str,
+	) -> Result<ShortEventId> {
+		let shortstatekey = self
+			.services
+			.short
+			.get_shortstatekey(event_type, state_key)
+			.await?;
+
+		let start = compress_state_event(shortstatekey, 0);
+		let end = compress_state_event(shortstatekey, u64::MAX);
+		self.load_full_state(shortstatehash)
+			.map_ok(|full_state| {
+				full_state
+					.range(start..end)
+					.next()
+					.copied()
+					.map(parse_compressed_state_event)
+					.map(at!(1))
+					.ok_or(err!(Request(NotFound("Not found in room state"))))
+			})
+			.await?
+	}
+
+	/// Returns the state events removed between the interval (present in .0 but
+	/// not in .1)
+	#[inline]
+	pub fn state_removed(
+		&self,
+		shortstatehash: pair_of!(ShortStateHash),
+	) -> impl Stream<Item = (ShortStateKey, ShortEventId)> + Send + '_ {
+		self.state_added((shortstatehash.1, shortstatehash.0))
+	}
+
+	/// Returns the state events added between the interval (present in .1 but
+	/// not in .0)
+	#[tracing::instrument(skip(self), level = "debug")]
+	pub fn state_added<'a>(
+		&'a self,
+		shortstatehash: pair_of!(ShortStateHash),
+	) -> impl Stream<Item = (ShortStateKey, ShortEventId)> + Send + 'a {
+		let a = self.load_full_state(shortstatehash.0);
+		let b = self.load_full_state(shortstatehash.1);
+		try_join(a, b)
+			.map_ok(|(a, b)| b.difference(&a).copied().collect::<Vec<_>>())
+			.map_ok(IterStream::try_stream)
+			.try_flatten_stream()
+			.expect_ok()
+			.map(parse_compressed_state_event)
+	}
+
 	pub fn state_full(
 		&self,
 		shortstatehash: ShortStateHash,
@@ -208,110 +458,11 @@ impl Service {
 			.ready_filter_map(|(event_id, shortstatekey)| Some((shortstatekey, event_id.ok()?)))
 	}
 
-	/// Returns a single EventId from `room_id` with key (`event_type`,
-	/// `state_key`).
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_get_id<Id>(
-		&self,
-		shortstatehash: ShortStateHash,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<Id>
-	where
-		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
-		<Id as ToOwned>::Owned: Borrow<EventId>,
-	{
-		let shorteventid = self
-			.state_get_shortid(shortstatehash, event_type, state_key)
-			.await?;
-
-		self.services
-			.short
-			.get_eventid_from_short(shorteventid)
-			.await
-	}
-
-	/// Returns a single EventId from `room_id` with key (`event_type`,
-	/// `state_key`).
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_get_shortid(
-		&self,
-		shortstatehash: ShortStateHash,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<ShortEventId> {
-		let shortstatekey = self
-			.services
-			.short
-			.get_shortstatekey(event_type, state_key)
-			.await?;
-
-		let start = compress_state_event(shortstatekey, 0);
-		let end = compress_state_event(shortstatekey, u64::MAX);
-		self.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
-			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
-			.map_ok(|full_state| {
-				full_state
-					.range(start..end)
-					.next()
-					.copied()
-					.map(parse_compressed_state_event)
-					.map(at!(1))
-					.ok_or(err!(Request(NotFound("Not found in room state"))))
-			})
-			.await?
-	}
-
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_contains(
-		&self,
-		shortstatehash: ShortStateHash,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> bool {
-		let Ok(shortstatekey) = self
-			.services
-			.short
-			.get_shortstatekey(event_type, state_key)
-			.await
-		else {
-			return false;
-		};
-
-		self.state_contains_shortstatekey(shortstatehash, shortstatekey)
-			.await
-	}
-
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn state_contains_shortstatekey(
-		&self,
-		shortstatehash: ShortStateHash,
-		shortstatekey: ShortStateKey,
-	) -> bool {
-		let start = compress_state_event(shortstatekey, 0);
-		let end = compress_state_event(shortstatekey, u64::MAX);
-
-		self.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
-			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
-			.map_ok(|full_state| full_state.range(start..end).next().copied())
-			.await
-			.flat_ok()
-			.is_some()
-	}
-
 	pub fn state_full_shortids(
 		&self,
 		shortstatehash: ShortStateHash,
 	) -> impl Stream<Item = Result<(ShortStateKey, ShortEventId)>> + Send + '_ {
-		self.services
-			.state_compressor
-			.load_shortstatehash_info(shortstatehash)
-			.map_err(|e| err!(Database("Missing state IDs: {e}")))
-			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
+		self.load_full_state(shortstatehash)
 			.map_ok(|full_state| {
 				full_state
 					.deref()
@@ -324,59 +475,32 @@ impl Service {
 			.try_flatten_stream()
 	}
 
-	/// Returns a single PDU from `room_id` with key (`event_type`,
-	/// `state_key`).
-	pub async fn state_get(
+	async fn load_full_state(
 		&self,
 		shortstatehash: ShortStateHash,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<PduEvent> {
-		self.state_get_id(shortstatehash, event_type, state_key)
-			.and_then(|event_id: OwnedEventId| async move {
-				self.services.timeline.get_pdu(&event_id).await
+	) -> Result<Arc<CompressedState>> {
+		self.services
+			.state_compressor
+			.load_shortstatehash_info(shortstatehash)
+			.map_err(|e| err!(Database("Missing state IDs: {e}")))
+			.map_ok(|vec| vec.last().expect("at least one layer").full_state.clone())
+			.await
+	}
+
+	/// Returns the state hash for this pdu.
+	pub async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<ShortStateHash> {
+		const BUFSIZE: usize = size_of::<ShortEventId>();
+
+		self.services
+			.short
+			.get_shorteventid(event_id)
+			.and_then(|shorteventid| {
+				self.db
+					.shorteventid_shortstatehash
+					.aqry::<BUFSIZE, _>(&shorteventid)
 			})
 			.await
-	}
-
-	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
-	pub async fn state_get_content<T>(
-		&self,
-		shortstatehash: ShortStateHash,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<T>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.state_get(shortstatehash, event_type, state_key)
-			.await
-			.and_then(|event| event.get_content())
-	}
-
-	/// Get membership for given user in state
-	async fn user_membership(
-		&self,
-		shortstatehash: ShortStateHash,
-		user_id: &UserId,
-	) -> MembershipState {
-		self.state_get_content(shortstatehash, &StateEventType::RoomMember, user_id.as_str())
-			.await
-			.map_or(MembershipState::Leave, |c: RoomMemberEventContent| c.membership)
-	}
-
-	/// The user was a joined member at this state (potentially in the past)
-	#[inline]
-	async fn user_was_joined(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
-		self.user_membership(shortstatehash, user_id).await == MembershipState::Join
-	}
-
-	/// The user was an invited or joined room member at this state (potentially
-	/// in the past)
-	#[inline]
-	async fn user_was_invited(&self, shortstatehash: ShortStateHash, user_id: &UserId) -> bool {
-		let s = self.user_membership(shortstatehash, user_id).await;
-		s == MembershipState::Join || s == MembershipState::Invite
+			.deserialized()
 	}
 
 	/// Whether a server is allowed to see an event through federation, based on
@@ -519,101 +643,6 @@ impl Service {
 			| HistoryVisibility::WorldReadable => true,
 			| _ => false,
 		}
-	}
-
-	/// Returns the state hash for this pdu.
-	pub async fn pdu_shortstatehash(&self, event_id: &EventId) -> Result<ShortStateHash> {
-		const BUFSIZE: usize = size_of::<ShortEventId>();
-
-		self.services
-			.short
-			.get_shorteventid(event_id)
-			.and_then(|shorteventid| {
-				self.db
-					.shorteventid_shortstatehash
-					.aqry::<BUFSIZE, _>(&shorteventid)
-			})
-			.await
-			.deserialized()
-	}
-
-	/// Returns the full room state.
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_state_full<'a>(
-		&'a self,
-		room_id: &'a RoomId,
-	) -> impl Stream<Item = Result<((StateEventType, String), PduEvent)>> + Send + 'a {
-		self.services
-			.state
-			.get_room_shortstatehash(room_id)
-			.map_ok(|shortstatehash| self.state_full(shortstatehash).map(Ok))
-			.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
-			.try_flatten_stream()
-	}
-
-	/// Returns the full room state pdus
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub fn room_state_full_pdus<'a>(
-		&'a self,
-		room_id: &'a RoomId,
-	) -> impl Stream<Item = Result<PduEvent>> + Send + 'a {
-		self.services
-			.state
-			.get_room_shortstatehash(room_id)
-			.map_ok(|shortstatehash| self.state_full_pdus(shortstatehash).map(Ok))
-			.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
-			.try_flatten_stream()
-	}
-
-	/// Returns a single EventId from `room_id` with key (`event_type`,
-	/// `state_key`).
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_get_id<Id>(
-		&self,
-		room_id: &RoomId,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<Id>
-	where
-		Id: for<'de> Deserialize<'de> + Sized + ToOwned,
-		<Id as ToOwned>::Owned: Borrow<EventId>,
-	{
-		self.services
-			.state
-			.get_room_shortstatehash(room_id)
-			.and_then(|shortstatehash| self.state_get_id(shortstatehash, event_type, state_key))
-			.await
-	}
-
-	/// Returns a single PDU from `room_id` with key (`event_type`,
-	/// `state_key`).
-	#[tracing::instrument(skip(self), level = "debug")]
-	pub async fn room_state_get(
-		&self,
-		room_id: &RoomId,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<PduEvent> {
-		self.services
-			.state
-			.get_room_shortstatehash(room_id)
-			.and_then(|shortstatehash| self.state_get(shortstatehash, event_type, state_key))
-			.await
-	}
-
-	/// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).
-	pub async fn room_state_get_content<T>(
-		&self,
-		room_id: &RoomId,
-		event_type: &StateEventType,
-		state_key: &str,
-	) -> Result<T>
-	where
-		T: for<'de> Deserialize<'de>,
-	{
-		self.room_state_get(room_id, event_type, state_key)
-			.await
-			.and_then(|event| event.get_content())
 	}
 
 	pub async fn get_name(&self, room_id: &RoomId) -> Result<String> {
