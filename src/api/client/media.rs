@@ -57,40 +57,28 @@ pub(crate) async fn create_content_route(
 	let filename = body.filename.as_deref();
 	let content_type = body.content_type.as_deref();
 	let content_disposition = make_content_disposition(None, content_type, filename);
-	let mxc = Mxc {
+	let ref mxc = Mxc {
 		server_name: services.globals.server_name(),
 		media_id: &utils::random_string(MXC_LENGTH),
 	};
 
-	#[cfg(feature = "blurhashing")]
-	{
-		if body.generate_blurhash {
-			let (blurhash, create_media_result) = tokio::join!(
-				services
-					.media
-					.create_blurhash(&body.file, content_type, filename),
-				services.media.create(
-					&mxc,
-					Some(user),
-					Some(&content_disposition),
-					content_type,
-					&body.file
-				)
-			);
-			return create_media_result.map(|()| create_content::v3::Response {
-				content_uri: mxc.to_string().into(),
-				blurhash,
-			});
-		}
-	}
 	services
 		.media
-		.create(&mxc, Some(user), Some(&content_disposition), content_type, &body.file)
-		.await
-		.map(|()| create_content::v3::Response {
-			content_uri: mxc.to_string().into(),
-			blurhash: None,
-		})
+		.create(mxc, Some(user), Some(&content_disposition), content_type, &body.file)
+		.await?;
+
+	let blurhash = body.generate_blurhash.then(|| {
+		services
+			.media
+			.create_blurhash(&body.file, content_type, filename)
+			.ok()
+			.flatten()
+	});
+
+	Ok(create_content::v3::Response {
+		content_uri: mxc.to_string().into(),
+		blurhash: blurhash.flatten(),
+	})
 }
 
 /// # `GET /_matrix/client/v1/media/thumbnail/{serverName}/{mediaId}`

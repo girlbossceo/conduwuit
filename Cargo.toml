@@ -194,8 +194,10 @@ features = [
 version = "0.2.3"
 default-features = false
 features = [
-	"fast-linear-to-srgb","image"
+	"fast-linear-to-srgb",
+	"image",
 ]
+
 # logging
 [workspace.dependencies.log]
 version = "0.4.22"

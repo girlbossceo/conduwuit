@@ -1,4 +1,3 @@
-#[cfg(feature = "blurhashing")]
 pub mod blurhash;
 mod data;
 pub(super) mod migrations;

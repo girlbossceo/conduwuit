@@ -54,7 +54,6 @@ sentry_telemetry = []
 conduwuit_mods = [
     "dep:libloading"
 ]
-blurhashing = []
 
 [dependencies]
 argon2.workspace = true

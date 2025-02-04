@@ -1,56 +1,58 @@
-use std::{fmt::Display, io::Cursor, path::Path};
+use std::{error::Error, ffi::OsStr, fmt::Display, io::Cursor, path::Path};
 
-use blurhash::encode_image;
-use conduwuit::{config::BlurhashConfig as CoreBlurhashConfig, debug_error, implement, trace};
+use conduwuit::{config::BlurhashConfig as CoreBlurhashConfig, err, implement, Result};
 use image::{DynamicImage, ImageDecoder, ImageError, ImageFormat, ImageReader};
 
 use super::Service;
 #[implement(Service)]
-pub async fn create_blurhash(
+pub fn create_blurhash(
 	&self,
 	file: &[u8],
 	content_type: Option<&str>,
 	file_name: Option<&str>,
-) -> Option<String> {
+) -> Result<Option<String>> {
+	if !cfg!(feature = "blurhashing") {
+		return Ok(None);
+	}
+
 	let config = BlurhashConfig::from(self.services.server.config.blurhashing);
+
+	// since 0 means disabled blurhashing, skipped blurhashing
 	if config.size_limit == 0 {
-		trace!("since 0 means disabled blurhashing, skipped blurhashing logic");
-		return None;
+		return Ok(None);
 	}
-	let file_data = file.to_owned();
-	let content_type = content_type.map(String::from);
-	let file_name = file_name.map(String::from);
 
-	let blurhashing_result = tokio::task::spawn_blocking(move || {
-		get_blurhash_from_request(&file_data, content_type, file_name, config)
-	})
-	.await
-	.expect("no join error");
-
-	match blurhashing_result {
-		| Ok(result) => Some(result),
-		| Err(e) => {
-			debug_error!("Error when blurhashing: {e}");
-			None
-		},
-	}
+	get_blurhash_from_request(file, content_type, file_name, config)
+		.map_err(|e| err!(debug_error!("blurhashing error: {e}")))
+		.map(Some)
 }
 
 /// Returns the blurhash or a blurhash error which implements Display.
+#[tracing::instrument(
+	name = "blurhash",
+	level = "debug",
+	skip(data),
+	fields(
+		bytes = data.len(),
+	),
+)]
 fn get_blurhash_from_request(
 	data: &[u8],
-	mime: Option<String>,
-	filename: Option<String>,
+	mime: Option<&str>,
+	filename: Option<&str>,
 	config: BlurhashConfig,
 ) -> Result<String, BlurhashingError> {
 	// Get format image is supposed to be in
 	let format = get_format_from_data_mime_and_filename(data, mime, filename)?;
+
 	// Get the image reader for said image format
 	let decoder = get_image_decoder_with_format_and_data(format, data)?;
+
 	// Check image size makes sense before unpacking whole image
 	if is_image_above_size_limit(&decoder, config) {
 		return Err(BlurhashingError::ImageTooLarge);
 	}
+
 	// decode the image finally
 	let image = DynamicImage::from_decoder(decoder)?;
 
@@ -64,24 +66,17 @@ fn get_blurhash_from_request(
 /// different file format than file.
 fn get_format_from_data_mime_and_filename(
 	data: &[u8],
-	mime: Option<String>,
-	filename: Option<String>,
+	mime: Option<&str>,
+	filename: Option<&str>,
 ) -> Result<ImageFormat, BlurhashingError> {
-	let mut image_format = None;
-	if let Some(mime) = mime {
-		image_format = ImageFormat::from_mime_type(mime);
-	}
-	if let (Some(filename), None) = (filename, image_format) {
-		if let Some(extension) = Path::new(&filename).extension() {
-			image_format = ImageFormat::from_mime_type(extension.to_string_lossy());
-		}
-	}
+	let extension = filename
+		.map(Path::new)
+		.and_then(Path::extension)
+		.map(OsStr::to_string_lossy);
 
-	if let Some(format) = image_format {
-		Ok(format)
-	} else {
-		image::guess_format(data).map_err(Into::into)
-	}
+	mime.or(extension.as_deref())
+		.and_then(ImageFormat::from_mime_type)
+		.map_or_else(|| image::guess_format(data).map_err(Into::into), Ok)
 }
 
 fn get_image_decoder_with_format_and_data(
@@ -99,23 +94,37 @@ fn is_image_above_size_limit<T: ImageDecoder>(
 ) -> bool {
 	decoder.total_bytes() >= blurhash_config.size_limit
 }
+
+#[cfg(feature = "blurhashing")]
+#[tracing::instrument(name = "encode", level = "debug", skip_all)]
 #[inline]
 fn blurhash_an_image(
 	image: &DynamicImage,
 	blurhash_config: BlurhashConfig,
 ) -> Result<String, BlurhashingError> {
-	Ok(encode_image(
+	Ok(blurhash::encode_image(
 		blurhash_config.components_x,
 		blurhash_config.components_y,
 		&image.to_rgba8(),
 	)?)
 }
-#[derive(Clone, Copy)]
+
+#[cfg(not(feature = "blurhashing"))]
+#[inline]
+fn blurhash_an_image(
+	_image: &DynamicImage,
+	_blurhash_config: BlurhashConfig,
+) -> Result<String, BlurhashingError> {
+	Err(BlurhashingError::Unavailable)
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct BlurhashConfig {
-	components_x: u32,
-	components_y: u32,
+	pub components_x: u32,
+	pub components_y: u32,
+
 	/// size limit in bytes
-	size_limit: u64,
+	pub size_limit: u64,
 }
 
 impl From<CoreBlurhashConfig> for BlurhashConfig {
@@ -129,15 +138,20 @@ impl From<CoreBlurhashConfig> for BlurhashConfig {
 }
 
 #[derive(Debug)]
-pub(crate) enum BlurhashingError {
+pub enum BlurhashingError {
+	HashingLibError(Box<dyn Error + Send>),
 	ImageError(Box<ImageError>),
-	HashingLibError(Box<blurhash::Error>),
 	ImageTooLarge,
+
+	#[cfg(not(feature = "blurhashing"))]
+	Unavailable,
 }
+
 impl From<ImageError> for BlurhashingError {
 	fn from(value: ImageError) -> Self { Self::ImageError(Box::new(value)) }
 }
 
+#[cfg(feature = "blurhashing")]
 impl From<blurhash::Error> for BlurhashingError {
 	fn from(value: blurhash::Error) -> Self { Self::HashingLibError(Box::new(value)) }
 }
@@ -152,6 +166,9 @@ impl Display for BlurhashingError {
 
 			| Self::ImageError(e) =>
 				write!(f, "There was an error with the image loading library => {e}")?,
+
+			#[cfg(not(feature = "blurhashing"))]
+			| Self::Unavailable => write!(f, "Blurhashing is not supported")?,
 		};
 
 		Ok(())
