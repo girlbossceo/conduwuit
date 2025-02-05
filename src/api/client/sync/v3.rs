@@ -691,7 +691,7 @@ async fn load_joined_room(
 		heroes,
 		joined_member_count,
 		invited_member_count,
-		state_events,
+		mut state_events,
 		mut device_list_updates,
 		left_encrypted_users,
 	} = calculate_state_changes(
@@ -708,6 +708,39 @@ async fn load_joined_room(
 	.boxed()
 	.await?;
 
+	let is_sender_membership = |pdu: &PduEvent| {
+		pdu.kind == StateEventType::RoomMember.into()
+			&& pdu
+				.state_key
+				.as_deref()
+				.is_some_and(is_equal_to!(sender_user.as_str()))
+	};
+
+	let joined_sender_member: Option<_> = (joined_since_last_sync && timeline_pdus.is_empty())
+		.then(|| {
+			state_events
+				.iter()
+				.position(is_sender_membership)
+				.map(|pos| state_events.swap_remove(pos))
+		})
+		.flatten();
+
+	let prev_batch = timeline_pdus.first().map(at!(0)).or_else(|| {
+		joined_sender_member
+			.is_some()
+			.then_some(since)
+			.map(Into::into)
+	});
+
+	let room_events = timeline_pdus
+		.into_iter()
+		.stream()
+		.wide_filter_map(|item| ignored_filter(services, item, sender_user))
+		.map(at!(1))
+		.chain(joined_sender_member.into_iter().stream())
+		.map(|pdu| pdu.to_sync_room_event())
+		.collect::<Vec<_>>();
+
 	let account_data_events = services
 		.account_data
 		.changes_since(Some(room_id), sender_user, since, Some(next_batch))
@@ -721,13 +754,6 @@ async fn load_joined_room(
 		.map(|(user_id, _)| user_id)
 		.map(ToOwned::to_owned)
 		.collect::<Vec<_>>();
-
-	let room_events = timeline_pdus
-		.iter()
-		.stream()
-		.wide_filter_map(|item| ignored_filter(services, item.clone(), sender_user))
-		.map(|(_, pdu)| pdu.to_sync_room_event())
-		.collect();
 
 	let send_notification_counts = last_notification_read.is_none_or(|count| count > since);
 
@@ -830,12 +856,8 @@ async fn load_joined_room(
 		unread_notifications: UnreadNotificationsCount { highlight_count, notification_count },
 		timeline: Timeline {
 			limited: limited || joined_since_last_sync,
+			prev_batch: prev_batch.as_ref().map(ToString::to_string),
 			events: room_events,
-			prev_batch: timeline_pdus
-				.first()
-				.map(at!(0))
-				.as_ref()
-				.map(ToString::to_string),
 		},
 		state: RoomState {
 			events: state_events
