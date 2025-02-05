@@ -582,7 +582,7 @@ impl Service {
 				parents.pop_front();
 				parents.push_back(room);
 
-				let short_room_ids: Vec<_> = parents
+				let next_short_room_ids: Vec<_> = parents
 					.iter()
 					.stream()
 					.filter_map(|room_id| async move {
@@ -591,16 +591,18 @@ impl Service {
 					.collect()
 					.await;
 
-				Some(
-					PaginationToken {
-						short_room_ids,
-						limit: UInt::new(max_depth)
-							.expect("When sent in request it must have been valid UInt"),
-						max_depth: UInt::new(max_depth)
-							.expect("When sent in request it must have been valid UInt"),
-						suggested_only,
-					}
-					.to_string(),
+				(next_short_room_ids != short_room_ids && !next_short_room_ids.is_empty()).then(
+					|| {
+						PaginationToken {
+							short_room_ids: next_short_room_ids,
+							limit: UInt::new(max_depth)
+								.expect("When sent in request it must have been valid UInt"),
+							max_depth: UInt::new(max_depth)
+								.expect("When sent in request it must have been valid UInt"),
+							suggested_only,
+						}
+						.to_string()
+					},
 				)
 			} else {
 				None
