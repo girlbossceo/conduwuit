@@ -69,6 +69,10 @@ impl Server {
 			return Err!("Reloading not enabled");
 		}
 
+		#[cfg(all(feature = "systemd", target_os = "linux"))]
+		sd_notify::notify(true, &[sd_notify::NotifyState::Reloading])
+			.expect("failed to notify systemd of reloading state");
+
 		if self.reloading.swap(true, Ordering::AcqRel) {
 			return Err!("Reloading already in progress");
 		}
@@ -83,7 +87,7 @@ impl Server {
 		})
 	}
 
-	pub fn restart(&self) -> Result<()> {
+	pub fn restart(&self) -> Result {
 		if self.restarting.swap(true, Ordering::AcqRel) {
 			return Err!("Restart already in progress");
 		}
@@ -93,7 +97,11 @@ impl Server {
 		})
 	}
 
-	pub fn shutdown(&self) -> Result<()> {
+	pub fn shutdown(&self) -> Result {
+		#[cfg(all(feature = "systemd", target_os = "linux"))]
+		sd_notify::notify(true, &[sd_notify::NotifyState::Stopping])
+			.expect("failed to notify systemd of stopping state");
+
 		if self.stopping.swap(true, Ordering::AcqRel) {
 			return Err!("Shutdown already in progress");
 		}

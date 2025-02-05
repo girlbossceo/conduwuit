@@ -100,10 +100,6 @@ pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 		);
 	}
 
-	#[cfg(all(feature = "systemd", target_os = "linux"))]
-	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping])
-		.expect("failed to notify systemd of stopping state");
-
 	info!("Shutdown complete.");
 	Ok(())
 }
