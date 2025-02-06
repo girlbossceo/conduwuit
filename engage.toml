@@ -101,7 +101,6 @@ direnv exec . \
 cargo clippy \
     --workspace \
     --profile test \
-    --all-targets \
     --color=always \
     -- \
     -D warnings
@@ -116,8 +115,22 @@ env DIRENV_DEVSHELL=all-features \
     cargo clippy \
         --workspace \
         --profile test \
-        --all-targets \
         --all-features \
+        --color=always \
+        -- \
+        -D warnings
+"""
+
+[[task]]
+name = "clippy/no-features"
+group = "lints"
+script = """
+env DIRENV_DEVSHELL=no-features \
+    direnv exec . \
+    cargo clippy \
+        --workspace \
+        --profile test \
+        --no-default-features \
         --color=always \
         -- \
         -D warnings
@@ -131,25 +144,11 @@ direnv exec . \
 cargo clippy \
     --workspace \
     --profile test \
-    --features jemalloc \
-    --all-targets \
+    --features=jemalloc \
     --color=always \
     -- \
     -D warnings
 """
-
-#[[task]]
-#name = "clippy/hardened_malloc"
-#group = "lints"
-#script = """
-#cargo clippy \
-#    --workspace \
-#    --features hardened_malloc \
-#    --all-targets \
-#    --color=always \
-#    -- \
-#    -D warnings
-#"""
 
 [[task]]
 name = "lychee"
@@ -170,7 +169,6 @@ env DIRENV_DEVSHELL=all-features \
     cargo test \
         --workspace \
         --profile test \
-        --all-targets \
         --all-features \
         --color=always \
         -- \
@@ -186,7 +184,21 @@ env DIRENV_DEVSHELL=default \
     cargo test \
         --workspace \
         --profile test \
-        --all-targets \
+        --color=always \
+        -- \
+        --color=always
+"""
+
+[[task]]
+name = "cargo/no-features"
+group = "tests"
+script = """
+env DIRENV_DEVSHELL=no-features \
+    direnv exec . \
+    cargo test \
+        --workspace \
+        --profile test \
+        --no-default-features \
         --color=always \
         -- \
         --color=always
