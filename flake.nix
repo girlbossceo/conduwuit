@@ -169,21 +169,9 @@
 
           # used for rust caching in CI to speed it up
           sccache
-
-          # needed so we can get rid of gcc and other unused deps that bloat OCI images
-          removeReferencesTo
         ]
         # liburing is Linux-exclusive
-        ++ lib.optional stdenv.hostPlatform.isLinux liburing
-        # needed to build Rust applications on macOS
-        ++ lib.optionals stdenv.hostPlatform.isDarwin [
-            # https://github.com/NixOS/nixpkgs/issues/206242
-            # ld: library not found for -liconv
-            libiconv
-            # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
-            # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
-            pkgsBuildHost.darwin.apple_sdk.frameworks.Security
-            ])
+        ++ lib.optional stdenv.hostPlatform.isLinux liburing)
         ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs
         ++ scope.main.nativeBuildInputs;

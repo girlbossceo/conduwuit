@@ -18,18 +18,12 @@ let
     all_features = true;
     disable_release_max_log_level = true;
     disable_features = [
-        # no reason to use jemalloc for complement, just has compatibility/build issues
-        "jemalloc"
-        "jemalloc_stats"
-        "jemalloc_prof"
         # console/CLI stuff isn't used or relevant for complement
         "console"
         "tokio_console"
         # sentry telemetry isn't useful for complement, disabled by default anyways
         "sentry_telemetry"
         "perf_measurements"
-        # the containers don't use or need systemd signal support
-        "systemd"
         # this is non-functional on nix for some reason
         "hardened_malloc"
         # dont include experimental features

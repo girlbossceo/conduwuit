@@ -82,7 +82,7 @@ rust-jemalloc-sys' = (rust-jemalloc-sys.override {
 buildDepsOnlyEnv =
   let
     rocksdb' = (rocksdb.override {
-      jemalloc = rust-jemalloc-sys';
+      jemalloc = lib.optional (featureEnabled "jemalloc") rust-jemalloc-sys';
       # rocksdb fails to build with prefixed jemalloc, which is required on
       # darwin due to [1]. In this case, fall back to building rocksdb with
       # libc malloc. This should not cause conflicts, because all of the
@@ -103,6 +103,12 @@ buildDepsOnlyEnv =
       ++ [ "-DPORTABLE=haswell" ]) else ([ "-DPORTABLE=1" ])
       )
       ++ old.cmakeFlags;
+
+      # outputs has "tools" which we dont need or use
+      outputs = [ "out" ];
+
+      # preInstall hooks has stuff for messing with ldb/sst_dump which we dont need or use
+      preInstall = "";
     });
   in
   {
@@ -156,6 +162,19 @@ commonAttrs = {
       ];
     };
 
+    # This is redundant with CI
+    doCheck = false;
+
+    cargoTestCommand = "cargo test --locked ";
+    cargoExtraArgs = "--no-default-features --locked "
+      + lib.optionalString
+        (features'' != [])
+        "--features " + (builtins.concatStringsSep "," features'');
+    cargoTestExtraArgs = "--no-default-features --locked "
+      + lib.optionalString
+        (features'' != [])
+        "--features " + (builtins.concatStringsSep "," features'');
+
     dontStrip = profile == "dev" || profile == "test";
     dontPatchELF = profile == "dev" || profile == "test";
 
@@ -181,27 +200,7 @@ commonAttrs = {
       # differing values for `NIX_CFLAGS_COMPILE`, which contributes to spurious
       # rebuilds of bindgen and its depedents.
       jq
-
-      # needed so we can get rid of gcc and other unused deps that bloat OCI images
-      removeReferencesTo
-  ]
-  # needed to build Rust applications on macOS
-  ++ lib.optionals stdenv.hostPlatform.isDarwin [
-      # https://github.com/NixOS/nixpkgs/issues/206242
-      # ld: library not found for -liconv
-      libiconv
-
-      # https://stackoverflow.com/questions/69869574/properly-adding-darwin-apple-sdk-to-a-nix-shell
-      # https://discourse.nixos.org/t/compile-a-rust-binary-on-macos-dbcrossbar/8612
-      pkgsBuildHost.darwin.apple_sdk.frameworks.Security
-    ];
-
-    # for some reason gcc and other weird deps are added to OCI images and bloats it up
-    #
-    # <https://github.com/input-output-hk/haskell.nix/issues/829>
-    postInstall = with pkgsBuildHost; ''
-        find "$out" -type f -exec remove-references-to -t ${stdenv.cc} -t ${gcc} -t ${llvm} -t ${rustc.unwrapped} -t ${rustc} '{}' +
-    '';
+  ];
  };
 in
 
@@ -210,15 +209,18 @@ craneLib.buildPackage ( commonAttrs // {
     env = buildDepsOnlyEnv;
   });
 
-  cargoExtraArgs = "--no-default-features "
+  # This is redundant with CI
+  doCheck = false;
+
+  cargoTestCommand = "cargo test --locked ";
+  cargoExtraArgs = "--no-default-features --locked "
     + lib.optionalString
       (features'' != [])
       "--features " + (builtins.concatStringsSep "," features'');
-
-  # This is redundant with CI
-  cargoTestCommand = "";
-  cargoCheckCommand = "";
-  doCheck = false;
+  cargoTestExtraArgs = "--no-default-features --locked "
+    + lib.optionalString
+      (features'' != [])
+      "--features " + (builtins.concatStringsSep "," features'');
 
   env = buildPackageEnv;
 
