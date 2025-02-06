@@ -1,3 +1,5 @@
+use std::{env, io, sync::LazyLock};
+
 use tracing::{
 	field::{Field, Visit},
 	Event, Level, Subscriber,
@@ -7,21 +9,64 @@ use tracing_subscriber::{
 	fmt,
 	fmt::{
 		format::{Compact, DefaultVisitor, Format, Full, Pretty, Writer},
-		FmtContext, FormatEvent, FormatFields,
+		FmtContext, FormatEvent, FormatFields, MakeWriter,
 	},
 	registry::LookupSpan,
 };
 
-use crate::{Config, Result};
+use crate::{apply, Config, Result};
+
+static SYSTEMD_MODE: LazyLock<bool> =
+	LazyLock::new(|| env::var("SYSTEMD_EXEC_PID").is_ok() && env::var("JOURNAL_STREAM").is_ok());
+
+pub struct ConsoleWriter {
+	stdout: io::Stdout,
+	stderr: io::Stderr,
+	_journal_stream: [u64; 2],
+	use_stderr: bool,
+}
+
+impl ConsoleWriter {
+	#[must_use]
+	pub fn new(_config: &Config) -> Self {
+		let journal_stream = get_journal_stream();
+		Self {
+			stdout: io::stdout(),
+			stderr: io::stderr(),
+			_journal_stream: journal_stream.into(),
+			use_stderr: journal_stream.0 != 0,
+		}
+	}
+}
+
+impl<'a> MakeWriter<'a> for ConsoleWriter {
+	type Writer = &'a Self;
+
+	fn make_writer(&'a self) -> Self::Writer { self }
+}
+
+impl io::Write for &'_ ConsoleWriter {
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		if self.use_stderr {
+			self.stderr.lock().write(buf)
+		} else {
+			self.stdout.lock().write(buf)
+		}
+	}
+
+	fn flush(&mut self) -> io::Result<()> {
+		if self.use_stderr {
+			self.stderr.lock().flush()
+		} else {
+			self.stdout.lock().flush()
+		}
+	}
+}
 
 pub struct ConsoleFormat {
 	_compact: Format<Compact>,
 	full: Format<Full>,
 	pretty: Format<Pretty>,
-}
-
-struct ConsoleVisitor<'a> {
-	visitor: DefaultVisitor<'a>,
 }
 
 impl ConsoleFormat {
@@ -68,6 +113,10 @@ where
 	}
 }
 
+struct ConsoleVisitor<'a> {
+	visitor: DefaultVisitor<'a>,
+}
+
 impl<'writer> FormatFields<'writer> for ConsoleFormat {
 	fn format_fields<R>(&self, writer: Writer<'writer>, fields: R) -> Result<(), std::fmt::Error>
 	where
@@ -92,3 +141,19 @@ impl Visit for ConsoleVisitor<'_> {
 		self.visitor.record_debug(field, value);
 	}
 }
+
+#[must_use]
+fn get_journal_stream() -> (u64, u64) {
+	is_systemd_mode()
+		.then(|| env::var("JOURNAL_STREAM").ok())
+		.flatten()
+		.as_deref()
+		.and_then(|s| s.split_once(':'))
+		.map(apply!(2, str::parse))
+		.map(apply!(2, Result::unwrap_or_default))
+		.unwrap_or((0, 0))
+}
+
+#[inline]
+#[must_use]
+pub fn is_systemd_mode() -> bool { *SYSTEMD_MODE }

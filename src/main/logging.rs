@@ -3,7 +3,7 @@ use std::sync::Arc;
 use conduwuit::{
 	config::Config,
 	debug_warn, err,
-	log::{capture, fmt_span, ConsoleFormat, LogLevelReloadHandles},
+	log::{capture, fmt_span, ConsoleFormat, ConsoleWriter, LogLevelReloadHandles},
 	result::UnwrapOrErr,
 	Result,
 };
@@ -30,7 +30,7 @@ pub(crate) fn init(
 		.with_span_events(console_span_events)
 		.event_format(ConsoleFormat::new(config))
 		.fmt_fields(ConsoleFormat::new(config))
-		.map_writer(|w| w);
+		.with_writer(ConsoleWriter::new(config));
 
 	let (console_reload_filter, console_reload_handle) =
 		reload::Layer::new(console_filter.clone());

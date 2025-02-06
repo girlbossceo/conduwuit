@@ -1,10 +1,11 @@
 #![cfg(feature = "console")]
+
 use std::{
 	collections::VecDeque,
 	sync::{Arc, Mutex},
 };
 
-use conduwuit::{debug, defer, error, log, Server};
+use conduwuit::{debug, defer, error, log, log::is_systemd_mode, Server};
 use futures::future::{AbortHandle, Abortable};
 use ruma::events::room::message::RoomMessageEventContent;
 use rustyline_async::{Readline, ReadlineError, ReadlineEvent};
@@ -123,7 +124,7 @@ impl Console {
 	}
 
 	async fn readline(self: &Arc<Self>) -> Result<ReadlineEvent, ReadlineError> {
-		let _suppression = log::Suppress::new(&self.server);
+		let _suppression = (!is_systemd_mode()).then(|| log::Suppress::new(&self.server));
 
 		let (mut readline, _writer) = Readline::new(PROMPT.to_owned())?;
 		let self_ = Arc::clone(self);
