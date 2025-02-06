@@ -11,6 +11,18 @@ Group=conduwuit
 Type=notify-reload
 ReloadSignal=SIGUSR1
 
+TTYPath=/dev/tty25
+DeviceAllow=char-tty
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=journal+console
+TTYReset=yes
+# uncomment to allow buffer to be cleared every restart
+TTYVTDisallocate=no
+
+TTYColumns=120
+TTYRows=40
+
 Environment="CONDUWUIT_CONFIG=/etc/conduwuit/conduwuit.toml"
 
 ExecStart=/usr/sbin/conduwuit

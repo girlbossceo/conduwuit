@@ -10,6 +10,18 @@ DynamicUser=yes
 Type=notify-reload
 ReloadSignal=SIGUSR1
 
+TTYPath=/dev/tty25
+DeviceAllow=char-tty
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=journal+console
+TTYReset=yes
+# uncomment to allow buffer to be cleared every restart
+TTYVTDisallocate=no
+
+TTYColumns=120
+TTYRows=40
+
 AmbientCapabilities=
 CapabilityBoundingSet=
 
