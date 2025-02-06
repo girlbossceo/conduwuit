@@ -69,9 +69,8 @@ impl Data {
 	}
 
 	#[inline]
-	pub fn bump_database_version(&self, new_version: u64) -> Result<()> {
+	pub fn bump_database_version(&self, new_version: u64) {
 		self.global.raw_put(b"version", new_version);
-		Ok(())
 	}
 
 	#[inline]

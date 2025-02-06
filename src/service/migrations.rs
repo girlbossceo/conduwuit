@@ -27,15 +27,7 @@ use crate::{media, Services};
 /// - If database is opened at lesser version we apply migrations up to this.
 ///   Note that named-feature migrations may also be performed when opening at
 ///   equal or lesser version. These are expected to be backward-compatible.
-pub(crate) const DATABASE_VERSION: u64 = 13;
-
-/// Conduit's database version.
-///
-/// Conduit bumped the database version to 16, but did not introduce any
-/// breaking changes. Their database migrations are extremely fragile and risky,
-/// and also do not really apply to us, so just to retain Conduit -> conduwuit
-/// compatibility we'll check for both versions.
-pub(crate) const CONDUIT_DATABASE_VERSION: u64 = 16;
+pub(crate) const DATABASE_VERSION: u64 = 17;
 
 pub(crate) async fn migrations(services: &Services) -> Result<()> {
 	let users_count = services.users.count().await;
@@ -63,10 +55,7 @@ pub(crate) async fn migrations(services: &Services) -> Result<()> {
 async fn fresh(services: &Services) -> Result<()> {
 	let db = &services.db;
 
-	services
-		.globals
-		.db
-		.bump_database_version(DATABASE_VERSION)?;
+	services.globals.db.bump_database_version(DATABASE_VERSION);
 
 	db["global"].insert(b"feat_sha256_media", []);
 	db["global"].insert(b"fix_bad_double_separator_in_state_cache", []);
@@ -130,6 +119,7 @@ async fn migrate(services: &Services) -> Result<()> {
 		.get(b"fix_referencedevents_missing_sep")
 		.await
 		.is_not_found()
+		|| services.globals.db.database_version().await < 17
 	{
 		fix_referencedevents_missing_sep(services).await?;
 	}
@@ -138,15 +128,19 @@ async fn migrate(services: &Services) -> Result<()> {
 		.get(b"fix_readreceiptid_readreceipt_duplicates")
 		.await
 		.is_not_found()
+		|| services.globals.db.database_version().await < 17
 	{
 		fix_readreceiptid_readreceipt_duplicates(services).await?;
 	}
 
-	let version_match = services.globals.db.database_version().await == DATABASE_VERSION
-		|| services.globals.db.database_version().await == CONDUIT_DATABASE_VERSION;
+	if services.globals.db.database_version().await < 17 {
+		services.globals.db.bump_database_version(17);
+		info!("Migration: Bumped database version to 17");
+	}
 
-	assert!(
-		version_match,
+	assert_eq!(
+		services.globals.db.database_version().await,
+		DATABASE_VERSION,
 		"Failed asserting local database version {} is equal to known latest conduwuit database \
 		 version {}",
 		services.globals.db.database_version().await,
@@ -290,7 +284,7 @@ async fn db_lt_12(services: &Services) -> Result<()> {
 			.await?;
 	}
 
-	services.globals.db.bump_database_version(12)?;
+	services.globals.db.bump_database_version(12);
 	info!("Migration: 11 -> 12 finished");
 	Ok(())
 }
@@ -335,7 +329,7 @@ async fn db_lt_13(services: &Services) -> Result<()> {
 			.await?;
 	}
 
-	services.globals.db.bump_database_version(13)?;
+	services.globals.db.bump_database_version(13);
 	info!("Migration: 12 -> 13 finished");
 	Ok(())
 }
