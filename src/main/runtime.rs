@@ -8,13 +8,11 @@ use std::{
 	time::Duration,
 };
 
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
+use conduwuit::result::LogDebugErr;
 use conduwuit::{
 	is_true,
-	result::LogDebugErr,
-	utils::{
-		available_parallelism,
-		sys::compute::{nth_core_available, set_affinity},
-	},
+	utils::sys::compute::{nth_core_available, set_affinity},
 	Result,
 };
 use tokio::runtime::Builder;
@@ -25,6 +23,7 @@ const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
 const MAX_BLOCKING_THREADS: usize = 1024;
+#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 const DISABLE_MUZZY_THRESHOLD: usize = 4;
 
 static WORKER_AFFINITY: OnceLock<bool> = OnceLock::new();
@@ -137,7 +136,7 @@ fn set_worker_mallctl(id: usize) {
 		.get()
 		.expect("GC_MUZZY initialized by runtime::new()");
 
-	let muzzy_auto_disable = available_parallelism() >= DISABLE_MUZZY_THRESHOLD;
+	let muzzy_auto_disable = conduwuit::utils::available_parallelism() >= DISABLE_MUZZY_THRESHOLD;
 	if matches!(muzzy_option, Some(false) | None if muzzy_auto_disable) {
 		set_muzzy_decay(-1).log_debug_err().ok();
 	}
