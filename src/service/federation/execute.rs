@@ -65,13 +65,7 @@ where
 		return Err!(Config("allow_federation", "Federation is disabled."));
 	}
 
-	if self
-		.services
-		.server
-		.config
-		.forbidden_remote_server_names
-		.contains(dest)
-	{
+	if self.services.moderation.is_remote_server_forbidden(dest) {
 		return Err!(Request(Forbidden(debug_warn!("Federation with {dest} is not allowed."))));
 	}
 
