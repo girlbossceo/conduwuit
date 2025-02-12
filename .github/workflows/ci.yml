@@ -129,7 +129,7 @@ jobs:
               # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
               # releases and tags
               #if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-              uses: nix-community/cache-nix-action@v5.1.0
+              uses: nix-community/cache-nix-action@v5.2.1
               with:
                 # restore and save a cache using this key
                 primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/.lock') }}
@@ -324,7 +324,7 @@ jobs:
               # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
               # releases and tags
               #if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-              uses: nix-community/cache-nix-action@v5.1.0
+              uses: nix-community/cache-nix-action@v5.2.1
               with:
                 # restore and save a cache using this key
                 primary-key: nix-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/*.nix', '**/.lock') }}
