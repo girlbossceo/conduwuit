@@ -514,7 +514,7 @@ impl Service {
 	pub async fn add_cross_signing_keys(
 		&self,
 		user_id: &UserId,
-		master_key: &Raw<CrossSigningKey>,
+		master_key: &Option<Raw<CrossSigningKey>>,
 		self_signing_key: &Option<Raw<CrossSigningKey>>,
 		user_signing_key: &Option<Raw<CrossSigningKey>>,
 		notify: bool,
@@ -523,15 +523,17 @@ impl Service {
 		let mut prefix = user_id.as_bytes().to_vec();
 		prefix.push(0xFF);
 
-		let (master_key_key, _) = parse_master_key(user_id, master_key)?;
+		if let Some(master_key) = master_key {
+			let (master_key_key, _) = parse_master_key(user_id, master_key)?;
 
-		self.db
-			.keyid_key
-			.insert(&master_key_key, master_key.json().get().as_bytes());
+			self.db
+				.keyid_key
+				.insert(&master_key_key, master_key.json().get().as_bytes());
 
-		self.db
-			.userid_masterkeyid
-			.insert(user_id.as_bytes(), &master_key_key);
+			self.db
+				.userid_masterkeyid
+				.insert(user_id.as_bytes(), &master_key_key);
+		}
 
 		// Self-signing key
 		if let Some(self_signing_key) = self_signing_key {
@@ -567,32 +569,16 @@ impl Service {
 
 		// User-signing key
 		if let Some(user_signing_key) = user_signing_key {
-			let mut user_signing_key_ids = user_signing_key
-				.deserialize()
-				.map_err(|_| err!(Request(InvalidParam("Invalid user signing key"))))?
-				.keys
-				.into_values();
+			let user_signing_key_id = parse_user_signing_key(user_signing_key)?;
 
-			let user_signing_key_id = user_signing_key_ids
-				.next()
-				.ok_or(err!(Request(InvalidParam("User signing key contained no key."))))?;
-
-			if user_signing_key_ids.next().is_some() {
-				return Err!(Request(InvalidParam(
-					"User signing key contained more than one key."
-				)));
-			}
-
-			let mut user_signing_key_key = prefix;
-			user_signing_key_key.extend_from_slice(user_signing_key_id.as_bytes());
-
+			let user_signing_key_key = (user_id, &user_signing_key_id);
 			self.db
 				.keyid_key
-				.insert(&user_signing_key_key, user_signing_key.json().get().as_bytes());
+				.put_raw(user_signing_key_key, user_signing_key.json().get().as_bytes());
 
 			self.db
 				.userid_usersigningkeyid
-				.insert(user_id.as_bytes(), &user_signing_key_key);
+				.put(user_id, user_signing_key_key);
 		}
 
 		if notify {
@@ -1077,6 +1063,24 @@ pub fn parse_master_key(
 	let mut master_key_key = prefix.clone();
 	master_key_key.extend_from_slice(master_key_id.as_bytes());
 	Ok((master_key_key, master_key))
+}
+
+pub fn parse_user_signing_key(user_signing_key: &Raw<CrossSigningKey>) -> Result<String> {
+	let mut user_signing_key_ids = user_signing_key
+		.deserialize()
+		.map_err(|_| err!(Request(InvalidParam("Invalid user signing key"))))?
+		.keys
+		.into_values();
+
+	let user_signing_key_id = user_signing_key_ids
+		.next()
+		.ok_or(err!(Request(InvalidParam("User signing key contained no key."))))?;
+
+	if user_signing_key_ids.next().is_some() {
+		return Err!(Request(InvalidParam("User signing key contained more than one key.")));
+	}
+
+	Ok(user_signing_key_id)
 }
 
 /// Ensure that a user only sees signatures from themselves and the target user

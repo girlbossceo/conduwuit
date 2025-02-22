@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::extract::State;
-use conduwuit::{err, utils, Error, Result};
+use conduwuit::{debug, err, info, result::NotFound, utils, Err, Error, Result};
 use futures::{stream::FuturesUnordered, StreamExt};
 use ruma::{
 	api::{
@@ -15,6 +15,7 @@ use ruma::{
 		},
 		federation,
 	},
+	encryption::CrossSigningKey,
 	serde::Raw,
 	OneTimeKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
 };
@@ -125,7 +126,24 @@ pub(crate) async fn upload_signing_keys_route(
 		auth_error: None,
 	};
 
-	if let Some(auth) = &body.auth {
+	if let Ok(exists) = check_for_new_keys(
+		services,
+		sender_user,
+		body.self_signing_key.as_ref(),
+		body.user_signing_key.as_ref(),
+		body.master_key.as_ref(),
+	)
+	.await
+	.inspect_err(|e| info!(?e))
+	{
+		if let Some(result) = exists {
+			// No-op, they tried to reupload the same set of keys
+			// (lost connection for example)
+			return Ok(result);
+		}
+		debug!("Skipping UIA in accordance with MSC3967, the user didn't have any existing keys");
+		// Some of the keys weren't found, so we let them upload
+	} else if let Some(auth) = &body.auth {
 		let (worked, uiaainfo) = services
 			.uiaa
 			.try_auth(sender_user, sender_device, auth, &uiaainfo)
@@ -134,7 +152,7 @@ pub(crate) async fn upload_signing_keys_route(
 		if !worked {
 			return Err(Error::Uiaa(uiaainfo));
 		}
-	// Success!
+		// Success!
 	} else if let Some(json) = body.json_body {
 		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 		services
@@ -146,20 +164,88 @@ pub(crate) async fn upload_signing_keys_route(
 		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
 	}
 
-	if let Some(master_key) = &body.master_key {
-		services
-			.users
-			.add_cross_signing_keys(
-				sender_user,
-				master_key,
-				&body.self_signing_key,
-				&body.user_signing_key,
-				true, // notify so that other users see the new keys
-			)
-			.await?;
-	}
+	services
+		.users
+		.add_cross_signing_keys(
+			sender_user,
+			&body.master_key,
+			&body.self_signing_key,
+			&body.user_signing_key,
+			true, // notify so that other users see the new keys
+		)
+		.await?;
 
 	Ok(upload_signing_keys::v3::Response {})
+}
+
+async fn check_for_new_keys(
+	services: crate::State,
+	user_id: &UserId,
+	self_signing_key: Option<&Raw<CrossSigningKey>>,
+	user_signing_key: Option<&Raw<CrossSigningKey>>,
+	master_signing_key: Option<&Raw<CrossSigningKey>>,
+) -> Result<Option<upload_signing_keys::v3::Response>> {
+	debug!("checking for existing keys");
+	let mut empty = false;
+	if let Some(master_signing_key) = master_signing_key {
+		let (key, value) = parse_master_key(user_id, master_signing_key)?;
+		let result = services
+			.users
+			.get_master_key(None, user_id, &|_| true)
+			.await;
+		if result.is_not_found() {
+			empty = true;
+		} else {
+			let existing_master_key = result?;
+			let (existing_key, existing_value) = parse_master_key(user_id, &existing_master_key)?;
+			if existing_key != key || existing_value != value {
+				return Err!(Request(Forbidden(
+					"Tried to change an existing master key, UIA required"
+				)));
+			}
+		}
+	}
+	if let Some(user_signing_key) = user_signing_key {
+		let key = services.users.get_user_signing_key(user_id).await;
+		if key.is_not_found() && !empty {
+			return Err!(Request(Forbidden(
+				"Tried to update an existing user signing key, UIA required"
+			)));
+		}
+		if !key.is_not_found() {
+			let existing_signing_key = key?.deserialize()?;
+			if existing_signing_key != user_signing_key.deserialize()? {
+				return Err!(Request(Forbidden(
+					"Tried to change an existing user signing key, UIA required"
+				)));
+			}
+		}
+	}
+	if let Some(self_signing_key) = self_signing_key {
+		let key = services
+			.users
+			.get_self_signing_key(None, user_id, &|_| true)
+			.await;
+		if key.is_not_found() && !empty {
+			debug!(?key);
+			return Err!(Request(Forbidden(
+				"Tried to add a new signing key independently from the master key"
+			)));
+		}
+		if !key.is_not_found() {
+			let existing_signing_key = key?.deserialize()?;
+			if existing_signing_key != self_signing_key.deserialize()? {
+				return Err!(Request(Forbidden(
+					"Tried to update an existing self signing key, UIA required"
+				)));
+			}
+		}
+	}
+	if empty {
+		return Ok(None);
+	}
+
+	Ok(Some(upload_signing_keys::v3::Response {}))
 }
 
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
@@ -407,7 +493,9 @@ where
 						       * resulting in an endless loop */
 					)
 					.await?;
-				master_keys.insert(user.clone(), raw);
+				if let Some(raw) = raw {
+					master_keys.insert(user.clone(), raw);
+				}
 			}
 
 			self_signing_keys.extend(response.self_signing_keys);

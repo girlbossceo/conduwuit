@@ -585,12 +585,10 @@ async fn handle_edu_signing_key_update(
 		return;
 	}
 
-	if let Some(master_key) = master_key {
-		services
-			.users
-			.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)
-			.await
-			.log_err()
-			.ok();
-	}
+	services
+		.users
+		.add_cross_signing_keys(&user_id, &master_key, &self_signing_key, &None, true)
+		.await
+		.log_err()
+		.ok();
 }
