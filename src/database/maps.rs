@@ -171,6 +171,8 @@ pub(super) static MAPS: &[Descriptor] = &[
 		name: "roomsynctoken_shortstatehash",
 		val_size_hint: Some(8),
 		block_size: 512,
+		compression_level: 3,
+		bottommost_level: Some(6),
 		..descriptor::SEQUENTIAL
 	},
 	Descriptor {
