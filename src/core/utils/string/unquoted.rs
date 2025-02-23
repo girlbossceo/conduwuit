@@ -1,9 +1,9 @@
 use std::ops::Deref;
 
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
 use super::Unquote;
-use crate::{err, Result};
+use crate::{Result, err};
 
 /// Unquoted string which deserialized from a quoted string. Construction from a
 /// &str is infallible such that the input can already be unquoted. Construction

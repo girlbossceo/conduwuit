@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 
-use conduwuit::{err, implement, PduEvent, Result, StateKey};
+use conduwuit::{PduEvent, Result, StateKey, err, implement};
 use futures::{Stream, StreamExt, TryFutureExt};
-use ruma::{events::StateEventType, EventId, RoomId};
+use ruma::{EventId, RoomId, events::StateEventType};
 use serde::Deserialize;
 
 /// Returns a single PDU from `room_id` with key (`event_type`,`state_key`).

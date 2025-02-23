@@ -1,20 +1,23 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduwuit::{err, implement, utils::result::MapExpect, Err, Result};
-use futures::{future::ready, Future, FutureExt, TryFutureExt};
+use conduwuit::{Err, Result, err, implement, utils::result::MapExpect};
+use futures::{Future, FutureExt, TryFutureExt, future::ready};
 use rocksdb::{DBPinnableSlice, ReadOptions};
 use tokio::task;
 
 use crate::{
-	util::{is_incomplete, map_err, or_else},
 	Handle,
+	util::{is_incomplete, map_err, or_else},
 };
 
 /// Fetch a value from the database into cache, returning a reference-handle
 /// asynchronously. The key is referenced directly to perform the query.
 #[implement(super::Map)]
 #[tracing::instrument(skip(self, key), fields(%self), level = "trace")]
-pub fn get<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
+pub fn get<K>(
+	self: &Arc<Self>,
+	key: &K,
+) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, K>
 where
 	K: AsRef<[u8]> + Debug + ?Sized,
 {

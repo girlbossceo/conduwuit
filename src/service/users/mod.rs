@@ -1,25 +1,24 @@
 use std::{collections::BTreeMap, mem, sync::Arc};
 
 use conduwuit::{
-	at, debug_warn, err, trace,
-	utils::{self, stream::TryIgnore, string::Unquoted, ReadyExt},
-	Err, Error, Result, Server,
+	Err, Error, Result, Server, at, debug_warn, err, trace,
+	utils::{self, ReadyExt, stream::TryIgnore, string::Unquoted},
 };
 use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
+	DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId,
+	OneTimeKeyName, OwnedDeviceId, OwnedKeyId, OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
 	api::client::{device::Device, error::ErrorKind, filter::FilterDefinition},
 	encryption::{CrossSigningKey, DeviceKeys, OneTimeKey},
 	events::{
-		ignored_user_list::IgnoredUserListEvent, AnyToDeviceEvent, GlobalAccountDataEventType,
+		AnyToDeviceEvent, GlobalAccountDataEventType, ignored_user_list::IgnoredUserListEvent,
 	},
 	serde::Raw,
-	DeviceId, KeyId, MilliSecondsSinceUnixEpoch, OneTimeKeyAlgorithm, OneTimeKeyId,
-	OneTimeKeyName, OwnedDeviceId, OwnedKeyId, OwnedMxcUri, OwnedUserId, RoomId, UInt, UserId,
 };
 use serde_json::json;
 
-use crate::{account_data, admin, globals, rooms, Dep};
+use crate::{Dep, account_data, admin, globals, rooms};
 
 pub struct Service {
 	services: Services,
@@ -246,10 +245,13 @@ impl Service {
 
 	/// Sets a new avatar_url or removes it if avatar_url is None.
 	pub fn set_avatar_url(&self, user_id: &UserId, avatar_url: Option<OwnedMxcUri>) {
-		if let Some(avatar_url) = avatar_url {
-			self.db.userid_avatarurl.insert(user_id, &avatar_url);
-		} else {
-			self.db.userid_avatarurl.remove(user_id);
+		match avatar_url {
+			| Some(avatar_url) => {
+				self.db.userid_avatarurl.insert(user_id, &avatar_url);
+			},
+			| _ => {
+				self.db.userid_avatarurl.remove(user_id);
+			},
 		}
 	}
 

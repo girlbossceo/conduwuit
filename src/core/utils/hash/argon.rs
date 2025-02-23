@@ -1,11 +1,11 @@
 use std::sync::OnceLock;
 
 use argon2::{
-	password_hash, password_hash::SaltString, Algorithm, Argon2, Params, PasswordHash,
-	PasswordHasher, PasswordVerifier, Version,
+	Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version,
+	password_hash, password_hash::SaltString,
 };
 
-use crate::{err, Error, Result};
+use crate::{Error, Result, err};
 
 const M_COST: u32 = Params::DEFAULT_M_COST; // memory size in 1 KiB blocks
 const T_COST: u32 = Params::DEFAULT_T_COST; // nr of iterations

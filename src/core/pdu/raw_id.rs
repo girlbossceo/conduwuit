@@ -55,8 +55,8 @@ impl RawId {
 	#[must_use]
 	pub fn as_bytes(&self) -> &[u8] {
 		match self {
-			| Self::Normal(ref raw) => raw,
-			| Self::Backfilled(ref raw) => raw,
+			| Self::Normal(raw) => raw,
+			| Self::Backfilled(raw) => raw,
 		}
 	}
 }

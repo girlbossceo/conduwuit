@@ -9,8 +9,9 @@ mod utils;
 
 use proc_macro::TokenStream;
 use syn::{
+	Error, Item, ItemConst, ItemEnum, ItemFn, ItemStruct, Meta,
 	parse::{Parse, Parser},
-	parse_macro_input, Error, Item, ItemConst, ItemEnum, ItemFn, ItemStruct, Meta,
+	parse_macro_input,
 };
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;

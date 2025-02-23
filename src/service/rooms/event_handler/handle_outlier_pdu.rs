@@ -1,15 +1,15 @@
 use std::{
-	collections::{hash_map, BTreeMap, HashMap},
+	collections::{BTreeMap, HashMap, hash_map},
 	sync::Arc,
 };
 
 use conduwuit::{
-	debug, debug_info, err, implement, state_res, trace, warn, Err, Error, PduEvent, Result,
+	Err, Error, PduEvent, Result, debug, debug_info, err, implement, state_res, trace, warn,
 };
-use futures::{future::ready, TryFutureExt};
+use futures::{TryFutureExt, future::ready};
 use ruma::{
-	api::client::error::ErrorKind, events::StateEventType, CanonicalJsonObject,
-	CanonicalJsonValue, EventId, RoomId, ServerName,
+	CanonicalJsonObject, CanonicalJsonValue, EventId, RoomId, ServerName,
+	api::client::error::ErrorKind, events::StateEventType,
 };
 
 use super::{check_room_id, get_room_version_id, to_room_version};

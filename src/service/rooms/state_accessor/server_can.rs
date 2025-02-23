@@ -1,11 +1,11 @@
 use conduwuit::{error, implement, utils::stream::ReadyExt};
 use futures::StreamExt;
 use ruma::{
-	events::{
-		room::history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-		StateEventType,
-	},
 	EventId, RoomId, ServerName,
+	events::{
+		StateEventType,
+		room::history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+	},
 };
 
 /// Whether a server is allowed to see an event through federation, based on

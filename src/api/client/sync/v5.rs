@@ -6,32 +6,33 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	debug, error, extract_variant, trace,
+	Error, Result, TypeStateKey, debug, error, extract_variant, trace,
 	utils::{
-		math::{ruma_from_usize, usize_from_ruma},
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
+		math::{ruma_from_usize, usize_from_ruma},
 	},
-	warn, Error, Result, TypeStateKey,
+	warn,
 };
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{
+	DeviceId, OwnedEventId, OwnedRoomId, RoomId, UInt, UserId,
 	api::client::{
 		error::ErrorKind,
 		sync::sync_events::{self, DeviceLists, UnreadNotificationsCount},
 	},
 	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType, TimelineEventType,
+		room::member::{MembershipState, RoomMemberEventContent},
 	},
 	serde::Raw,
-	uint, DeviceId, OwnedEventId, OwnedRoomId, RoomId, UInt, UserId,
+	uint,
 };
-use service::{rooms::read_receipt::pack_receipts, PduCount};
+use service::{PduCount, rooms::read_receipt::pack_receipts};
 
 use super::{filter_rooms, share_encrypted_room};
 use crate::{
-	client::{ignored_filter, sync::load_timeline, DEFAULT_BUMP_TYPES},
 	Ruma,
+	client::{DEFAULT_BUMP_TYPES, ignored_filter, sync::load_timeline},
 };
 
 type SyncInfo<'a> = (&'a UserId, &'a DeviceId, u64, &'a sync_events::v5::Request);
@@ -572,14 +573,13 @@ async fn process_rooms(
 				.await
 				.ok()
 				.or(name),
-			avatar: if let Some(heroes_avatar) = heroes_avatar {
-				ruma::JsOption::Some(heroes_avatar)
-			} else {
-				match services.rooms.state_accessor.get_avatar(room_id).await {
+			avatar: match heroes_avatar {
+				| Some(heroes_avatar) => ruma::JsOption::Some(heroes_avatar),
+				| _ => match services.rooms.state_accessor.get_avatar(room_id).await {
 					| ruma::JsOption::Some(avatar) => ruma::JsOption::from_option(avatar.url),
 					| ruma::JsOption::Null => ruma::JsOption::Null,
 					| ruma::JsOption::Undefined => ruma::JsOption::Undefined,
-				}
+				},
 			},
 			initial: Some(roomsince == &0),
 			is_dm: None,

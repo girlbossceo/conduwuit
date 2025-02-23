@@ -3,7 +3,7 @@ use ruma::{
 	api::client::redact::redact_event, events::room::redaction::RoomRedactionEventContent,
 };
 
-use crate::{service::pdu::PduBuilder, Result, Ruma};
+use crate::{Result, Ruma, service::pdu::PduBuilder};
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/redact/{eventId}/{txnId}`
 ///

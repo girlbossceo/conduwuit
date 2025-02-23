@@ -1,8 +1,8 @@
 use std::iter::once;
 
-use conduwuit::{debug, debug_error, err, implement, Result};
+use conduwuit::{Result, debug, debug_error, err, implement};
 use federation::query::get_room_information::v1::Response;
-use ruma::{api::federation, OwnedRoomId, OwnedServerName, RoomAliasId, ServerName};
+use ruma::{OwnedRoomId, OwnedServerName, RoomAliasId, ServerName, api::federation};
 
 #[implement(super::Service)]
 pub(super) async fn remote_resolve(

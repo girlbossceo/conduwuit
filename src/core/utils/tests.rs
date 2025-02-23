@@ -241,7 +241,7 @@ fn set_intersection_sorted_all() {
 #[tokio::test]
 async fn set_intersection_sorted_stream2() {
 	use futures::StreamExt;
-	use utils::{set::intersection_sorted_stream2, IterStream};
+	use utils::{IterStream, set::intersection_sorted_stream2};
 
 	let a = ["bar"];
 	let b = ["bar", "foo"];

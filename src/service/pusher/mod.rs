@@ -2,34 +2,35 @@ use std::{fmt::Debug, mem, sync::Arc};
 
 use bytes::BytesMut;
 use conduwuit::{
-	debug_warn, err, trace,
+	Err, PduEvent, Result, debug_warn, err, trace,
 	utils::{stream::TryIgnore, string_from_bytes},
-	warn, Err, PduEvent, Result,
+	warn,
 };
 use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::{Stream, StreamExt};
 use ipaddress::IPAddress;
 use ruma::{
+	RoomId, UInt, UserId,
 	api::{
-		client::push::{set_pusher, Pusher, PusherKind},
+		IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
+		client::push::{Pusher, PusherKind, set_pusher},
 		push_gateway::send_event_notification::{
 			self,
 			v1::{Device, Notification, NotificationCounts, NotificationPriority},
 		},
-		IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
 	},
 	events::{
-		room::power_levels::RoomPowerLevelsEventContent, AnySyncTimelineEvent, StateEventType,
-		TimelineEventType,
+		AnySyncTimelineEvent, StateEventType, TimelineEventType,
+		room::power_levels::RoomPowerLevelsEventContent,
 	},
 	push::{
 		Action, PushConditionPowerLevelsCtx, PushConditionRoomCtx, PushFormat, Ruleset, Tweak,
 	},
 	serde::Raw,
-	uint, RoomId, UInt, UserId,
+	uint,
 };
 
-use crate::{client, globals, rooms, sending, users, Dep};
+use crate::{Dep, client, globals, rooms, sending, users};
 
 pub struct Service {
 	db: Data,

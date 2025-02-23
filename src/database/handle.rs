@@ -4,7 +4,7 @@ use conduwuit::Result;
 use rocksdb::DBPinnableSlice;
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::{keyval::deserialize_val, Deserialized, Slice};
+use crate::{Deserialized, Slice, keyval::deserialize_val};
 
 pub struct Handle<'a> {
 	val: DBPinnableSlice<'a>,

@@ -1,12 +1,12 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{utils::content_disposition::make_content_disposition, Err, Result};
+use conduwuit::{Err, Result, utils::content_disposition::make_content_disposition};
 use conduwuit_service::media::{Dim, FileMeta};
 use ruma::{
-	api::federation::authenticated_media::{
-		get_content, get_content_thumbnail, Content, ContentMetadata, FileOrLocation,
-	},
 	Mxc,
+	api::federation::authenticated_media::{
+		Content, ContentMetadata, FileOrLocation, get_content, get_content_thumbnail,
+	},
 };
 
 use crate::Ruma;

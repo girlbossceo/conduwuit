@@ -2,7 +2,7 @@
 #![allow(clippy::type_complexity)]
 
 use futures::{
-	future::{ready, Ready},
+	future::{Ready, ready},
 	stream::{
 		All, Any, Filter, FilterMap, Fold, ForEach, Scan, SkipWhile, Stream, StreamExt, TakeWhile,
 	},

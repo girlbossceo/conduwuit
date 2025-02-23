@@ -1,13 +1,13 @@
 use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
 pub use conduwuit::pdu::{ShortEventId, ShortId, ShortRoomId, ShortStateKey};
-use conduwuit::{err, implement, utils, utils::IterStream, Result, StateKey};
+use conduwuit::{Result, StateKey, err, implement, utils, utils::IterStream};
 use database::{Deserialized, Get, Map, Qry};
 use futures::{Stream, StreamExt};
-use ruma::{events::StateEventType, EventId, RoomId};
+use ruma::{EventId, RoomId, events::StateEventType};
 use serde::Deserialize;
 
-use crate::{globals, Dep};
+use crate::{Dep, globals};
 
 pub struct Service {
 	db: Data,

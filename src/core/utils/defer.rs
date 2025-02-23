@@ -12,14 +12,14 @@ macro_rules! defer {
 		let _defer_ = _Defer_ { closure: || $body };
 	};
 
-	($body:expr) => {
+	($body:expr_2021) => {
 		$crate::defer! {{ $body }}
 	};
 }
 
 #[macro_export]
 macro_rules! scope_restore {
-	($val:ident, $ours:expr) => {
+	($val:ident, $ours:expr_2021) => {
 		let theirs = $crate::utils::exchange($val, $ours);
 		$crate::defer! {{ *$val = theirs; }};
 	};

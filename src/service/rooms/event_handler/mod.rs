@@ -18,16 +18,16 @@ use std::{
 };
 
 use conduwuit::{
-	utils::{MutexMap, TryFutureExtExt},
 	Err, PduEvent, Result, RoomVersion, Server,
+	utils::{MutexMap, TryFutureExtExt},
 };
 use futures::TryFutureExt;
 use ruma::{
-	events::room::create::RoomCreateEventContent, OwnedEventId, OwnedRoomId, RoomId,
-	RoomVersionId,
+	OwnedEventId, OwnedRoomId, RoomId, RoomVersionId,
+	events::room::create::RoomCreateEventContent,
 };
 
-use crate::{globals, rooms, sending, server_keys, Dep};
+use crate::{Dep, globals, rooms, sending, server_keys};
 
 pub struct Service {
 	pub mutex_federation: RoomMutexMap,

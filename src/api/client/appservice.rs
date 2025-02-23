@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduwuit::{err, Err, Result};
+use conduwuit::{Err, Result, err};
 use ruma::api::{appservice::ping, client::appservice::request_ping};
 
 use crate::Ruma;

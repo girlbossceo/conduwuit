@@ -1,5 +1,5 @@
 use proc_macro::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{FnArg::Typed, Ident, ItemFn, Meta, Pat, PatIdent, PatType, Stmt};
 
 use crate::Result;
@@ -20,7 +20,7 @@ pub(super) fn refutable(mut item: ItemFn, _args: &[Meta]) -> Result<TokenStream>
 		let variant = &pat.path;
 		let fields = &pat.fields;
 
-		let Some(Typed(PatType { ref mut pat, .. })) = sig.inputs.get_mut(i) else {
+		let Some(Typed(PatType { pat, .. })) = sig.inputs.get_mut(i) else {
 			continue;
 		};
 

@@ -3,21 +3,20 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	err,
+	Err, Result, err,
 	utils::{content_disposition::make_content_disposition, math::ruma_from_usize},
-	Err, Result,
 };
-use conduwuit_service::media::{Dim, FileMeta, CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN};
+use conduwuit_service::media::{CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN, Dim, FileMeta};
 use reqwest::Url;
 use ruma::{
+	Mxc,
 	api::client::media::{
 		create_content, get_content, get_content_as_filename, get_content_thumbnail,
 		get_media_config, get_media_preview,
 	},
-	Mxc,
 };
 
-use crate::{client::create_content_route, Ruma, RumaResponse};
+use crate::{Ruma, RumaResponse, client::create_content_route};
 
 /// # `GET /_matrix/media/v3/config`
 ///
@@ -142,46 +141,52 @@ pub(crate) async fn get_content_legacy_route(
 		media_id: &body.media_id,
 	};
 
-	if let Some(FileMeta {
-		content,
-		content_type,
-		content_disposition,
-	}) = services.media.get(&mxc).await?
-	{
-		let content_disposition =
-			make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
+	match services.media.get(&mxc).await? {
+		| Some(FileMeta {
+			content,
+			content_type,
+			content_disposition,
+		}) => {
+			let content_disposition = make_content_disposition(
+				content_disposition.as_ref(),
+				content_type.as_deref(),
+				None,
+			);
 
-		Ok(get_content::v3::Response {
-			file: content.expect("entire file contents"),
-			content_type: content_type.map(Into::into),
-			content_disposition: Some(content_disposition),
-			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-		})
-	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
-		let response = services
-			.media
-			.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
-			.await
-			.map_err(|e| {
-				err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
-			})?;
+			Ok(get_content::v3::Response {
+				file: content.expect("entire file contents"),
+				content_type: content_type.map(Into::into),
+				content_disposition: Some(content_disposition),
+				cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
+				cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+			})
+		},
+		| _ =>
+			if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
+				let response = services
+					.media
+					.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
+					.await
+					.map_err(|e| {
+						err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
+					})?;
 
-		let content_disposition = make_content_disposition(
-			response.content_disposition.as_ref(),
-			response.content_type.as_deref(),
-			None,
-		);
+				let content_disposition = make_content_disposition(
+					response.content_disposition.as_ref(),
+					response.content_type.as_deref(),
+					None,
+				);
 
-		Ok(get_content::v3::Response {
-			file: response.file,
-			content_type: response.content_type,
-			content_disposition: Some(content_disposition),
-			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-		})
-	} else {
-		Err!(Request(NotFound("Media not found.")))
+				Ok(get_content::v3::Response {
+					file: response.file,
+					content_type: response.content_type,
+					content_disposition: Some(content_disposition),
+					cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
+					cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+				})
+			} else {
+				Err!(Request(NotFound("Media not found.")))
+			},
 	}
 }
 
@@ -227,49 +232,52 @@ pub(crate) async fn get_content_as_filename_legacy_route(
 		media_id: &body.media_id,
 	};
 
-	if let Some(FileMeta {
-		content,
-		content_type,
-		content_disposition,
-	}) = services.media.get(&mxc).await?
-	{
-		let content_disposition = make_content_disposition(
-			content_disposition.as_ref(),
-			content_type.as_deref(),
-			Some(&body.filename),
-		);
+	match services.media.get(&mxc).await? {
+		| Some(FileMeta {
+			content,
+			content_type,
+			content_disposition,
+		}) => {
+			let content_disposition = make_content_disposition(
+				content_disposition.as_ref(),
+				content_type.as_deref(),
+				Some(&body.filename),
+			);
 
-		Ok(get_content_as_filename::v3::Response {
-			file: content.expect("entire file contents"),
-			content_type: content_type.map(Into::into),
-			content_disposition: Some(content_disposition),
-			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-		})
-	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
-		let response = services
-			.media
-			.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
-			.await
-			.map_err(|e| {
-				err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
-			})?;
+			Ok(get_content_as_filename::v3::Response {
+				file: content.expect("entire file contents"),
+				content_type: content_type.map(Into::into),
+				content_disposition: Some(content_disposition),
+				cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
+				cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+			})
+		},
+		| _ =>
+			if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
+				let response = services
+					.media
+					.fetch_remote_content_legacy(&mxc, body.allow_redirect, body.timeout_ms)
+					.await
+					.map_err(|e| {
+						err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
+					})?;
 
-		let content_disposition = make_content_disposition(
-			response.content_disposition.as_ref(),
-			response.content_type.as_deref(),
-			None,
-		);
+				let content_disposition = make_content_disposition(
+					response.content_disposition.as_ref(),
+					response.content_type.as_deref(),
+					None,
+				);
 
-		Ok(get_content_as_filename::v3::Response {
-			content_disposition: Some(content_disposition),
-			content_type: response.content_type,
-			file: response.file,
-			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-		})
-	} else {
-		Err!(Request(NotFound("Media not found.")))
+				Ok(get_content_as_filename::v3::Response {
+					content_disposition: Some(content_disposition),
+					content_type: response.content_type,
+					file: response.file,
+					cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
+					cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+				})
+			} else {
+				Err!(Request(NotFound("Media not found.")))
+			},
 	}
 }
 
@@ -315,46 +323,52 @@ pub(crate) async fn get_content_thumbnail_legacy_route(
 	};
 
 	let dim = Dim::from_ruma(body.width, body.height, body.method.clone())?;
-	if let Some(FileMeta {
-		content,
-		content_type,
-		content_disposition,
-	}) = services.media.get_thumbnail(&mxc, &dim).await?
-	{
-		let content_disposition =
-			make_content_disposition(content_disposition.as_ref(), content_type.as_deref(), None);
+	match services.media.get_thumbnail(&mxc, &dim).await? {
+		| Some(FileMeta {
+			content,
+			content_type,
+			content_disposition,
+		}) => {
+			let content_disposition = make_content_disposition(
+				content_disposition.as_ref(),
+				content_type.as_deref(),
+				None,
+			);
 
-		Ok(get_content_thumbnail::v3::Response {
-			file: content.expect("entire file contents"),
-			content_type: content_type.map(Into::into),
-			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-			content_disposition: Some(content_disposition),
-		})
-	} else if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
-		let response = services
-			.media
-			.fetch_remote_thumbnail_legacy(&body)
-			.await
-			.map_err(|e| {
-				err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
-			})?;
+			Ok(get_content_thumbnail::v3::Response {
+				file: content.expect("entire file contents"),
+				content_type: content_type.map(Into::into),
+				cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
+				cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+				content_disposition: Some(content_disposition),
+			})
+		},
+		| _ =>
+			if !services.globals.server_is_ours(&body.server_name) && body.allow_remote {
+				let response = services
+					.media
+					.fetch_remote_thumbnail_legacy(&body)
+					.await
+					.map_err(|e| {
+						err!(Request(NotFound(debug_warn!(%mxc, "Fetching media failed: {e:?}"))))
+					})?;
 
-		let content_disposition = make_content_disposition(
-			response.content_disposition.as_ref(),
-			response.content_type.as_deref(),
-			None,
-		);
+				let content_disposition = make_content_disposition(
+					response.content_disposition.as_ref(),
+					response.content_type.as_deref(),
+					None,
+				);
 
-		Ok(get_content_thumbnail::v3::Response {
-			file: response.file,
-			content_type: response.content_type,
-			cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
-			cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
-			content_disposition: Some(content_disposition),
-		})
-	} else {
-		Err!(Request(NotFound("Media not found.")))
+				Ok(get_content_thumbnail::v3::Response {
+					file: response.file,
+					content_type: response.content_type,
+					cross_origin_resource_policy: Some(CORP_CROSS_ORIGIN.into()),
+					cache_control: Some(CACHE_CONTROL_IMMUTABLE.into()),
+					content_disposition: Some(content_disposition),
+				})
+			} else {
+				Err!(Request(NotFound("Media not found.")))
+			},
 	}
 }
 

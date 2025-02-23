@@ -1,10 +1,10 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduwuit::{implement, Result};
-use futures::{future, Stream, StreamExt, TryStreamExt};
+use conduwuit::{Result, implement};
+use futures::{Stream, StreamExt, TryStreamExt, future};
 use serde::{Deserialize, Serialize};
 
-use crate::keyval::{result_deserialize, serialize_key, KeyVal};
+use crate::keyval::{KeyVal, result_deserialize, serialize_key};
 
 /// Iterate key-value entries in the map where the key matches a prefix.
 ///
@@ -14,7 +14,7 @@ use crate::keyval::{result_deserialize, serialize_key, KeyVal};
 pub fn rev_stream_prefix<'a, K, V, P>(
 	self: &'a Arc<Self>,
 	prefix: &P,
-) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
+) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send + use<'a, K, V, P>
 where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
@@ -33,7 +33,7 @@ where
 pub fn rev_stream_prefix_raw<P>(
 	self: &Arc<Self>,
 	prefix: &P,
-) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
+) -> impl Stream<Item = Result<KeyVal<'_>>> + Send + use<'_, P>
 where
 	P: Serialize + ?Sized + Debug,
 {

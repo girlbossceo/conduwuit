@@ -1,7 +1,7 @@
 use clap::Subcommand;
-use conduwuit::{utils::stream::TryTools, PduCount, Result};
+use conduwuit::{PduCount, Result, utils::stream::TryTools};
 use futures::TryStreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomOrAliasId};
+use ruma::{OwnedRoomOrAliasId, events::room::message::RoomMessageEventContent};
 
 use crate::{admin_command, admin_command_dispatch};
 

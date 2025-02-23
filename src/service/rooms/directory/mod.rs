@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use conduwuit::{implement, utils::stream::TryIgnore, Result};
+use conduwuit::{Result, implement, utils::stream::TryIgnore};
 use database::Map;
 use futures::Stream;
-use ruma::{api::client::room::Visibility, RoomId};
+use ruma::{RoomId, api::client::room::Visibility};
 
 pub struct Service {
 	db: Data,

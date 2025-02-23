@@ -6,57 +6,55 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	at, err, error, extract_variant, is_equal_to, pair_of,
+	PduCount, PduEvent, Result, at, err, error, extract_variant, is_equal_to, pair_of,
 	pdu::{Event, EventHash},
 	ref_at,
 	result::FlatOk,
 	utils::{
-		self,
+		self, BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 		math::ruma_from_u64,
 		stream::{BroadbandExt, Tools, TryExpect, WidebandExt},
-		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 	},
-	PduCount, PduEvent, Result,
 };
 use conduwuit_service::{
+	Services,
 	rooms::{
 		lazy_loading,
 		lazy_loading::{Options, Witness},
 		short::ShortStateHash,
 	},
-	Services,
 };
 use futures::{
-	future::{join, join3, join4, join5, try_join, try_join4, OptionFuture},
 	FutureExt, StreamExt, TryFutureExt, TryStreamExt,
+	future::{OptionFuture, join, join3, join4, join5, try_join, try_join4},
 };
 use ruma::{
+	DeviceId, EventId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
 	api::client::{
 		filter::FilterDefinition,
 		sync::sync_events::{
-			self,
+			self, DeviceLists, UnreadNotificationsCount,
 			v3::{
 				Ephemeral, Filter, GlobalAccountData, InviteState, InvitedRoom, JoinedRoom,
 				KnockState, KnockedRoom, LeftRoom, Presence, RoomAccountData, RoomSummary, Rooms,
 				State as RoomState, Timeline, ToDevice,
 			},
-			DeviceLists, UnreadNotificationsCount,
 		},
 		uiaa::UiaaResponse,
 	},
 	events::{
-		presence::{PresenceEvent, PresenceEventContent},
-		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType,
 		TimelineEventType::*,
+		presence::{PresenceEvent, PresenceEventContent},
+		room::member::{MembershipState, RoomMemberEventContent},
 	},
 	serde::Raw,
-	uint, DeviceId, EventId, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
+	uint,
 };
 use service::rooms::short::{ShortEventId, ShortStateKey};
 
 use super::{load_timeline, share_encrypted_room};
-use crate::{client::ignored_filter, Ruma, RumaResponse};
+use crate::{Ruma, RumaResponse, client::ignored_filter};
 
 #[derive(Default)]
 struct StateChanges {
@@ -168,8 +166,8 @@ pub(crate) async fn build_sync_events(
 	let full_state = body.body.full_state;
 	let filter = match body.body.filter.as_ref() {
 		| None => FilterDefinition::default(),
-		| Some(Filter::FilterDefinition(ref filter)) => filter.clone(),
-		| Some(Filter::FilterId(ref filter_id)) => services
+		| Some(Filter::FilterDefinition(filter)) => filter.clone(),
+		| Some(Filter::FilterId(filter_id)) => services
 			.users
 			.get_filter(sender_user, filter_id)
 			.await
@@ -1016,34 +1014,37 @@ async fn calculate_state_incremental<'a>(
 	let lazy_state_ids: OptionFuture<_> = witness
 		.filter(|_| !full_state && !encrypted_room)
 		.map(|witness| {
-			witness
-				.iter()
-				.stream()
-				.broad_filter_map(|user_id| state_get_shorteventid(user_id))
-				.into_future()
+			StreamExt::into_future(
+				witness
+					.iter()
+					.stream()
+					.broad_filter_map(|user_id| state_get_shorteventid(user_id)),
+			)
 		})
 		.into();
 
 	let state_diff: OptionFuture<_> = (!full_state && state_changed)
 		.then(|| {
-			services
-				.rooms
-				.state_accessor
-				.state_added((since_shortstatehash, current_shortstatehash))
-				.boxed()
-				.into_future()
+			StreamExt::into_future(
+				services
+					.rooms
+					.state_accessor
+					.state_added((since_shortstatehash, current_shortstatehash))
+					.boxed(),
+			)
 		})
 		.into();
 
 	let current_state_ids: OptionFuture<_> = full_state
 		.then(|| {
-			services
-				.rooms
-				.state_accessor
-				.state_full_shortids(current_shortstatehash)
-				.expect_ok()
-				.boxed()
-				.into_future()
+			StreamExt::into_future(
+				services
+					.rooms
+					.state_accessor
+					.state_full_shortids(current_shortstatehash)
+					.expect_ok()
+					.boxed(),
+			)
 		})
 		.into();
 

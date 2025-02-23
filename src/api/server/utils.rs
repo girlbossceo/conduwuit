@@ -1,6 +1,6 @@
-use conduwuit::{implement, is_false, Err, Result};
+use conduwuit::{Err, Result, implement, is_false};
 use conduwuit_service::Services;
-use futures::{future::OptionFuture, join, FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, future::OptionFuture, join};
 use ruma::{EventId, RoomId, ServerName};
 
 pub(super) struct AccessCheck<'a> {

@@ -1,7 +1,7 @@
 //! TryStreamTools for futures::TryStream
 #![allow(clippy::type_complexity)]
 
-use futures::{future, future::Ready, stream::TryTakeWhile, TryStream, TryStreamExt};
+use futures::{TryStream, TryStreamExt, future, future::Ready, stream::TryTakeWhile};
 
 use crate::Result;
 

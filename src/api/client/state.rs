@@ -1,19 +1,19 @@
 use axum::extract::State;
-use conduwuit::{err, pdu::PduBuilder, utils::BoolExt, Err, PduEvent, Result};
+use conduwuit::{Err, PduEvent, Result, err, pdu::PduBuilder, utils::BoolExt};
 use futures::TryStreamExt;
 use ruma::{
+	OwnedEventId, RoomId, UserId,
 	api::client::state::{get_state_events, get_state_events_for_key, send_state_event},
 	events::{
+		AnyStateEventContent, StateEventType,
 		room::{
 			canonical_alias::RoomCanonicalAliasEventContent,
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 		},
-		AnyStateEventContent, StateEventType,
 	},
 	serde::Raw,
-	OwnedEventId, RoomId, UserId,
 };
 use service::Services;
 

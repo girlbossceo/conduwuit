@@ -1,7 +1,7 @@
 use std::io::Write;
 
-use conduwuit::{debug::type_name, err, result::DebugInspect, utils::exchange, Error, Result};
-use serde::{ser, Deserialize, Serialize};
+use conduwuit::{Error, Result, debug::type_name, err, result::DebugInspect, utils::exchange};
+use serde::{Deserialize, Serialize, ser};
 
 use crate::util::unhandled;
 

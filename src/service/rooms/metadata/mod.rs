@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use conduwuit::{implement, utils::stream::TryIgnore, Result};
+use conduwuit::{Result, implement, utils::stream::TryIgnore};
 use database::Map;
 use futures::{Stream, StreamExt};
 use ruma::RoomId;
 
-use crate::{rooms, Dep};
+use crate::{Dep, rooms};
 
 pub struct Service {
 	db: Data,

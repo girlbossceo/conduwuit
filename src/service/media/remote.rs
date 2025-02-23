@@ -1,21 +1,21 @@
 use std::{fmt::Debug, time::Duration};
 
 use conduwuit::{
-	debug_warn, err, implement, utils::content_disposition::make_content_disposition, Err, Error,
-	Result,
+	Err, Error, Result, debug_warn, err, implement,
+	utils::content_disposition::make_content_disposition,
 };
-use http::header::{HeaderValue, CONTENT_DISPOSITION, CONTENT_TYPE};
+use http::header::{CONTENT_DISPOSITION, CONTENT_TYPE, HeaderValue};
 use ruma::{
+	Mxc, ServerName, UserId,
 	api::{
+		OutgoingRequest,
 		client::{
 			error::ErrorKind::{NotFound, Unrecognized},
 			media,
 		},
 		federation,
 		federation::authenticated_media::{Content, FileOrLocation},
-		OutgoingRequest,
 	},
-	Mxc, ServerName, UserId,
 };
 
 use super::{Dim, FileMeta};

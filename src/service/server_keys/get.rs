@@ -1,12 +1,12 @@
 use std::borrow::Borrow;
 
-use conduwuit::{implement, Err, Result};
+use conduwuit::{Err, Result, implement};
 use ruma::{
-	api::federation::discovery::VerifyKey, CanonicalJsonObject, RoomVersionId, ServerName,
-	ServerSigningKeyId,
+	CanonicalJsonObject, RoomVersionId, ServerName, ServerSigningKeyId,
+	api::federation::discovery::VerifyKey,
 };
 
-use super::{extract_key, PubKeyMap, PubKeys};
+use super::{PubKeyMap, PubKeys, extract_key};
 
 #[implement(super::Service)]
 pub async fn get_event_keys(

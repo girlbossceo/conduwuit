@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use conduwuit::{utils, Result};
+use conduwuit::{Result, utils};
 use database::{Database, Deserialized, Map};
 
 pub struct Data {

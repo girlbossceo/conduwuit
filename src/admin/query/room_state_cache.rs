@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use conduwuit::{Error, Result};
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, RoomId, ServerName, UserId};
+use ruma::{RoomId, ServerName, UserId, events::room::message::RoomMessageEventContent};
 
 use crate::Command;
 

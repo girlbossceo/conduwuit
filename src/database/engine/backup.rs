@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use conduwuit::{error, implement, info, utils::time::rfc2822_from_seconds, warn, Result};
+use conduwuit::{Result, error, implement, info, utils::time::rfc2822_from_seconds, warn};
 use rocksdb::backup::{BackupEngine, BackupEngineOptions};
 
 use super::Engine;

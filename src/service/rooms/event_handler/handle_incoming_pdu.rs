@@ -1,14 +1,14 @@
 use std::{
-	collections::{hash_map, BTreeMap},
+	collections::{BTreeMap, hash_map},
 	time::Instant,
 };
 
-use conduwuit::{debug, debug::INFO_SPAN_LEVEL, err, implement, warn, Err, Result};
+use conduwuit::{Err, Result, debug, debug::INFO_SPAN_LEVEL, err, implement, warn};
 use futures::{
-	future::{try_join5, OptionFuture},
 	FutureExt,
+	future::{OptionFuture, try_join5},
 };
-use ruma::{events::StateEventType, CanonicalJsonValue, EventId, RoomId, ServerName, UserId};
+use ruma::{CanonicalJsonValue, EventId, RoomId, ServerName, UserId, events::StateEventType};
 
 use crate::rooms::timeline::RawPduId;
 

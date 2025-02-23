@@ -2,8 +2,9 @@ use std::{iter, ops::Deref, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use conduwuit::{
-	config::{check, Config},
-	error, implement, Result, Server,
+	Result, Server,
+	config::{Config, check},
+	error, implement,
 };
 
 pub struct Service {

@@ -6,10 +6,10 @@ extern crate conduwuit_service;
 use std::{
 	future::Future,
 	pin::Pin,
-	sync::{atomic::Ordering, Arc},
+	sync::{Arc, atomic::Ordering},
 };
 
-use conduwuit::{debug, error, mods, Error, Result};
+use conduwuit::{Error, Result, debug, error, mods};
 use conduwuit_service::Services;
 
 use crate::Server;

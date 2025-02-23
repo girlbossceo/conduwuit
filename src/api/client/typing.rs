@@ -1,8 +1,8 @@
 use axum::extract::State;
-use conduwuit::{utils::math::Tried, Err};
+use conduwuit::{Err, utils::math::Tried};
 use ruma::api::client::typing::create_typing_event;
 
-use crate::{utils, Result, Ruma};
+use crate::{Result, Ruma, utils};
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///
@@ -27,37 +27,40 @@ pub(crate) async fn create_typing_event_route(
 		return Err!(Request(Forbidden("You are not in this room.")));
 	}
 
-	if let Typing::Yes(duration) = body.state {
-		let duration = utils::clamp(
-			duration.as_millis().try_into().unwrap_or(u64::MAX),
+	match body.state {
+		| Typing::Yes(duration) => {
+			let duration = utils::clamp(
+				duration.as_millis().try_into().unwrap_or(u64::MAX),
+				services
+					.server
+					.config
+					.typing_client_timeout_min_s
+					.try_mul(1000)?,
+				services
+					.server
+					.config
+					.typing_client_timeout_max_s
+					.try_mul(1000)?,
+			);
 			services
-				.server
-				.config
-				.typing_client_timeout_min_s
-				.try_mul(1000)?,
+				.rooms
+				.typing
+				.typing_add(
+					sender_user,
+					&body.room_id,
+					utils::millis_since_unix_epoch()
+						.checked_add(duration)
+						.expect("user typing timeout should not get this high"),
+				)
+				.await?;
+		},
+		| _ => {
 			services
-				.server
-				.config
-				.typing_client_timeout_max_s
-				.try_mul(1000)?,
-		);
-		services
-			.rooms
-			.typing
-			.typing_add(
-				sender_user,
-				&body.room_id,
-				utils::millis_since_unix_epoch()
-					.checked_add(duration)
-					.expect("user typing timeout should not get this high"),
-			)
-			.await?;
-	} else {
-		services
-			.rooms
-			.typing
-			.typing_remove(sender_user, &body.room_id)
-			.await?;
+				.rooms
+				.typing
+				.typing_remove(sender_user, &body.room_id)
+				.await?;
+		},
 	}
 
 	// ping presence

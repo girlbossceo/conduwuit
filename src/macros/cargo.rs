@@ -4,7 +4,7 @@ use proc_macro::{Span, TokenStream};
 use quote::quote;
 use syn::{Error, ItemConst, Meta};
 
-use crate::{utils, Result};
+use crate::{Result, utils};
 
 pub(super) fn manifest(item: ItemConst, args: &[Meta]) -> Result<TokenStream> {
 	let member = utils::get_named_string(args, "crate");

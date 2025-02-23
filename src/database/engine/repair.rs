@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use conduwuit::{info, warn, Err, Result};
+use conduwuit::{Err, Result, info, warn};
 use rocksdb::Options;
 
 use super::Db;

@@ -2,15 +2,15 @@ use std::{mem, ops::Deref};
 
 use axum::{async_trait, body::Body, extract::FromRequest};
 use bytes::{BufMut, Bytes, BytesMut};
-use conduwuit::{debug, debug_warn, err, trace, utils::string::EMPTY, Error, Result};
+use conduwuit::{Error, Result, debug, debug_warn, err, trace, utils::string::EMPTY};
 use ruma::{
-	api::IncomingRequest, CanonicalJsonObject, CanonicalJsonValue, DeviceId, OwnedDeviceId,
-	OwnedServerName, OwnedUserId, ServerName, UserId,
+	CanonicalJsonObject, CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedServerName,
+	OwnedUserId, ServerName, UserId, api::IncomingRequest,
 };
 use service::Services;
 
 use super::{auth, auth::Auth, request, request::Request};
-use crate::{service::appservice::RegistrationInfo, State};
+use crate::{State, service::appservice::RegistrationInfo};
 
 /// Extractor for Ruma request structs
 pub(crate) struct Args<T> {

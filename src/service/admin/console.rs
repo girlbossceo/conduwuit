@@ -5,14 +5,14 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduwuit::{debug, defer, error, log, log::is_systemd_mode, Server};
+use conduwuit::{Server, debug, defer, error, log, log::is_systemd_mode};
 use futures::future::{AbortHandle, Abortable};
 use ruma::events::room::message::RoomMessageEventContent;
 use rustyline_async::{Readline, ReadlineError, ReadlineEvent};
 use termimad::MadSkin;
 use tokio::task::JoinHandle;
 
-use crate::{admin, Dep};
+use crate::{Dep, admin};
 
 pub struct Console {
 	server: Arc<Server>,
@@ -221,7 +221,7 @@ pub fn print(markdown: &str) {
 }
 
 fn configure_output_err(mut output: MadSkin) -> MadSkin {
-	use termimad::{crossterm::style::Color, Alignment, CompoundStyle, LineStyle};
+	use termimad::{Alignment, CompoundStyle, LineStyle, crossterm::style::Color};
 
 	let code_style = CompoundStyle::with_fgbg(Color::AnsiValue(196), Color::AnsiValue(234));
 	output.inline_code = code_style.clone();
@@ -236,7 +236,7 @@ fn configure_output_err(mut output: MadSkin) -> MadSkin {
 }
 
 fn configure_output(mut output: MadSkin) -> MadSkin {
-	use termimad::{crossterm::style::Color, Alignment, CompoundStyle, LineStyle};
+	use termimad::{Alignment, CompoundStyle, LineStyle, crossterm::style::Color};
 
 	let code_style = CompoundStyle::with_fgbg(Color::AnsiValue(40), Color::AnsiValue(234));
 	output.inline_code = code_style.clone();

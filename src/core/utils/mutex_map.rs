@@ -6,7 +6,7 @@ use std::{
 
 use tokio::sync::OwnedMutexGuard as Omg;
 
-use crate::{err, Result};
+use crate::{Result, err};
 
 /// Map of Mutexes
 pub struct MutexMap<Key, Val> {

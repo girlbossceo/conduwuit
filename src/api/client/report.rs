@@ -2,22 +2,22 @@ use std::time::Duration;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{info, utils::ReadyExt, Err};
+use conduwuit::{Err, info, utils::ReadyExt};
 use rand::Rng;
 use ruma::{
+	EventId, RoomId, UserId,
 	api::client::{
 		error::ErrorKind,
 		room::{report_content, report_room},
 	},
 	events::room::message,
-	int, EventId, RoomId, UserId,
+	int,
 };
 use tokio::time::sleep;
 
 use crate::{
-	debug_info,
-	service::{pdu::PduEvent, Services},
-	Error, Result, Ruma,
+	Error, Result, Ruma, debug_info,
+	service::{Services, pdu::PduEvent},
 };
 
 /// # `POST /_matrix/client/v3/rooms/{roomId}/report`

@@ -3,16 +3,16 @@ use std::time::Duration;
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	err,
+	Err, Result, err,
 	utils::{self, content_disposition::make_content_disposition, math::ruma_from_usize},
-	Err, Result,
 };
 use conduwuit_service::{
-	media::{Dim, FileMeta, CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN, MXC_LENGTH},
 	Services,
+	media::{CACHE_CONTROL_IMMUTABLE, CORP_CROSS_ORIGIN, Dim, FileMeta, MXC_LENGTH},
 };
 use reqwest::Url;
 use ruma::{
+	Mxc, UserId,
 	api::client::{
 		authenticated_media::{
 			get_content, get_content_as_filename, get_content_thumbnail, get_media_config,
@@ -20,7 +20,6 @@ use ruma::{
 		},
 		media::create_content,
 	},
-	Mxc, UserId,
 };
 
 use crate::Ruma;

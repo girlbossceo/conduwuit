@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
 use conduwuit::{
-	utils::{stream::TryIgnore, ReadyExt},
 	Result,
+	utils::{ReadyExt, stream::TryIgnore},
 };
 use database::{Deserialized, Json, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
-	events::{receipt::ReceiptEvent, AnySyncEphemeralRoomEvent},
-	serde::Raw,
 	CanonicalJsonObject, RoomId, UserId,
+	events::{AnySyncEphemeralRoomEvent, receipt::ReceiptEvent},
+	serde::Raw,
 };
 
-use crate::{globals, Dep};
+use crate::{Dep, globals};
 
 pub(super) struct Data {
 	roomuserid_privateread: Arc<Map>,

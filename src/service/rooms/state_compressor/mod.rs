@@ -6,10 +6,10 @@ use std::{
 };
 
 use conduwuit::{
+	Result,
 	arrayvec::ArrayVec,
 	at, checked, err, expected, utils,
 	utils::{bytes, math::usize_from_f64, stream::IterStream},
-	Result,
 };
 use database::Map;
 use futures::{Stream, StreamExt};
@@ -17,9 +17,8 @@ use lru_cache::LruCache;
 use ruma::{EventId, RoomId};
 
 use crate::{
-	rooms,
+	Dep, rooms,
 	rooms::short::{ShortEventId, ShortId, ShortStateHash, ShortStateKey},
-	Dep,
 };
 
 pub struct Service {

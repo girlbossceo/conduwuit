@@ -4,31 +4,31 @@ use std::{
 };
 
 use conduwuit::{
-	is_not_empty,
+	Result, is_not_empty,
 	result::LogErr,
-	utils::{stream::TryIgnore, ReadyExt, StreamTools},
-	warn, Result,
+	utils::{ReadyExt, StreamTools, stream::TryIgnore},
+	warn,
 };
-use database::{serialize_key, Deserialized, Ignore, Interfix, Json, Map};
-use futures::{future::join5, pin_mut, stream::iter, Stream, StreamExt};
+use database::{Deserialized, Ignore, Interfix, Json, Map, serialize_key};
+use futures::{Stream, StreamExt, future::join5, pin_mut, stream::iter};
 use itertools::Itertools;
 use ruma::{
+	OwnedRoomId, OwnedServerName, RoomId, ServerName, UserId,
 	events::{
+		AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType,
+		RoomAccountDataEventType, StateEventType,
 		direct::DirectEvent,
 		room::{
 			create::RoomCreateEventContent,
 			member::{MembershipState, RoomMemberEventContent},
 			power_levels::RoomPowerLevelsEventContent,
 		},
-		AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType,
-		RoomAccountDataEventType, StateEventType,
 	},
 	int,
 	serde::Raw,
-	OwnedRoomId, OwnedServerName, RoomId, ServerName, UserId,
 };
 
-use crate::{account_data, appservice::RegistrationInfo, globals, rooms, users, Dep};
+use crate::{Dep, account_data, appservice::RegistrationInfo, globals, rooms, users};
 
 pub struct Service {
 	appservice_in_room_cache: AppServiceInRoomCache,

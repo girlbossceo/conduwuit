@@ -10,22 +10,25 @@ use std::{
 };
 
 use conduwuit::{
-	at, debug, debug_warn, err, error, implement, info,
-	pdu::{gen_event_id, EventHash, PduBuilder, PduCount, PduEvent},
+	Err, Error, Result, Server, at, debug, debug_warn, err, error, implement, info,
+	pdu::{EventHash, PduBuilder, PduCount, PduEvent, gen_event_id},
 	state_res::{self, Event, RoomVersion},
 	utils::{
-		self, future::TryExtExt, stream::TryIgnore, IterStream, MutexMap, MutexMapGuard, ReadyExt,
+		self, IterStream, MutexMap, MutexMapGuard, ReadyExt, future::TryExtExt, stream::TryIgnore,
 	},
-	validated, warn, Err, Error, Result, Server,
+	validated, warn,
 };
 pub use conduwuit::{PduId, RawPduId};
 use futures::{
-	future, future::ready, pin_mut, Future, FutureExt, Stream, StreamExt, TryStreamExt,
+	Future, FutureExt, Stream, StreamExt, TryStreamExt, future, future::ready, pin_mut,
 };
 use ruma::{
+	CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
+	RoomId, RoomVersionId, ServerName, UserId,
 	api::federation,
 	canonical_json::to_canonical_value,
 	events::{
+		GlobalAccountDataEventType, StateEventType, TimelineEventType,
 		push_rules::PushRulesEvent,
 		room::{
 			create::RoomCreateEventContent,
@@ -34,23 +37,21 @@ use ruma::{
 			power_levels::RoomPowerLevelsEventContent,
 			redaction::RoomRedactionEventContent,
 		},
-		GlobalAccountDataEventType, StateEventType, TimelineEventType,
 	},
 	push::{Action, Ruleset, Tweak},
-	uint, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId,
-	OwnedServerName, RoomId, RoomVersionId, ServerName, UserId,
+	uint,
 };
 use serde::Deserialize;
-use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 
 use self::data::Data;
 pub use self::data::PdusIterItem;
 use crate::{
-	account_data, admin, appservice,
+	Dep, account_data, admin, appservice,
 	appservice::NamespaceRegex,
 	globals, pusher, rooms,
 	rooms::{short::ShortRoomId, state_compressor::CompressedState},
-	sending, server_keys, users, Dep,
+	sending, server_keys, users,
 };
 
 // Update Relationships

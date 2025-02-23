@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use conduwuit::{pdu::PduBuilder, Result};
+use conduwuit::{Result, pdu::PduBuilder};
 use ruma::{
+	RoomId, RoomVersionId,
 	events::room::{
 		canonical_alias::RoomCanonicalAliasEventContent,
 		create::RoomCreateEventContent,
@@ -14,7 +15,6 @@ use ruma::{
 		preview_url::RoomPreviewUrlsEventContent,
 		topic::RoomTopicEventContent,
 	},
-	RoomId, RoomVersionId,
 };
 
 use crate::Services;

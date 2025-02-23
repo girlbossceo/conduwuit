@@ -2,19 +2,19 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduwuit::{debug, err, warn, PduCount, PduId, RawPduId, Result};
-use futures::{try_join, Stream, TryFutureExt};
+use conduwuit::{PduCount, PduId, RawPduId, Result, debug, err, warn};
+use futures::{Stream, TryFutureExt, try_join};
 use ruma::{
+	OwnedEventId, OwnedUserId, RoomId, UserId,
 	events::{
-		receipt::{ReceiptEvent, ReceiptEventContent, Receipts},
 		AnySyncEphemeralRoomEvent, SyncEphemeralRoomEvent,
+		receipt::{ReceiptEvent, ReceiptEventContent, Receipts},
 	},
 	serde::Raw,
-	OwnedEventId, OwnedUserId, RoomId, UserId,
 };
 
 use self::data::{Data, ReceiptItem};
-use crate::{rooms, sending, Dep};
+use crate::{Dep, rooms, sending};
 
 pub struct Service {
 	services: Services,
@@ -145,12 +145,14 @@ where
 		let receipt = serde_json::from_str::<SyncEphemeralRoomEvent<ReceiptEventContent>>(
 			value.json().get(),
 		);
-		if let Ok(value) = receipt {
-			for (event, receipt) in value.content {
-				json.insert(event, receipt);
-			}
-		} else {
-			debug!("failed to parse receipt: {:?}", receipt);
+		match receipt {
+			| Ok(value) =>
+				for (event, receipt) in value.content {
+					json.insert(event, receipt);
+				},
+			| _ => {
+				debug!("failed to parse receipt: {:?}", receipt);
+			},
 		}
 	}
 	let content = ReceiptEventContent::from_iter(json);

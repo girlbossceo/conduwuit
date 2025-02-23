@@ -1,4 +1,4 @@
-use futures::{future::ready, Stream, StreamExt, TryStream};
+use futures::{Stream, StreamExt, TryStream, future::ready};
 
 use crate::{Error, Result};
 

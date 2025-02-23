@@ -1,8 +1,9 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{info, warn, Err, Error, Result};
+use conduwuit::{Err, Error, Result, info, warn};
 use futures::{StreamExt, TryFutureExt};
 use ruma::{
+	OwnedRoomId, RoomId, ServerName, UInt, UserId,
 	api::{
 		client::{
 			directory::{
@@ -16,13 +17,13 @@ use ruma::{
 	},
 	directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork},
 	events::{
+		StateEventType,
 		room::{
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		},
-		StateEventType,
 	},
-	uint, OwnedRoomId, RoomId, ServerName, UInt, UserId,
+	uint,
 };
 use service::Services;
 
@@ -365,30 +366,34 @@ async fn user_can_publish_room(
 	user_id: &UserId,
 	room_id: &RoomId,
 ) -> Result<bool> {
-	if let Ok(event) = services
+	match services
 		.rooms
 		.state_accessor
 		.room_state_get(room_id, &StateEventType::RoomPowerLevels, "")
 		.await
 	{
-		serde_json::from_str(event.content.get())
+		| Ok(event) => serde_json::from_str(event.content.get())
 			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
 			.map(|content: RoomPowerLevelsEventContent| {
 				RoomPowerLevels::from(content)
 					.user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
-			})
-	} else if let Ok(event) = services
-		.rooms
-		.state_accessor
-		.room_state_get(room_id, &StateEventType::RoomCreate, "")
-		.await
-	{
-		Ok(event.sender == user_id)
-	} else {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"User is not allowed to publish this room",
-		));
+			}),
+		| _ => {
+			match services
+				.rooms
+				.state_accessor
+				.room_state_get(room_id, &StateEventType::RoomCreate, "")
+				.await
+			{
+				| Ok(event) => Ok(event.sender == user_id),
+				| _ => {
+					return Err(Error::BadRequest(
+						ErrorKind::forbidden(),
+						"User is not allowed to publish this room",
+					));
+				},
+			}
+		},
 	}
 }
 

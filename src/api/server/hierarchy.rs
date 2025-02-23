@@ -1,11 +1,11 @@
 use axum::extract::State;
 use conduwuit::{
-	utils::stream::{BroadbandExt, IterStream},
 	Err, Result,
+	utils::stream::{BroadbandExt, IterStream},
 };
 use futures::{FutureExt, StreamExt};
 use ruma::api::federation::space::get_hierarchy;
-use service::rooms::spaces::{get_parent_children_via, Identifier, SummaryAccessibility};
+use service::rooms::spaces::{Identifier, SummaryAccessibility, get_parent_children_via};
 
 use crate::Ruma;
 

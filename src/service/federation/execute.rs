@@ -2,20 +2,20 @@ use std::{fmt::Debug, mem};
 
 use bytes::Bytes;
 use conduwuit::{
-	debug, debug::INFO_SPAN_LEVEL, debug_error, debug_warn, err, error::inspect_debug_log,
-	implement, trace, utils::string::EMPTY, Err, Error, Result,
+	Err, Error, Result, debug, debug::INFO_SPAN_LEVEL, debug_error, debug_warn, err,
+	error::inspect_debug_log, implement, trace, utils::string::EMPTY,
 };
-use http::{header::AUTHORIZATION, HeaderValue};
+use http::{HeaderValue, header::AUTHORIZATION};
 use ipaddress::IPAddress;
 use reqwest::{Client, Method, Request, Response, Url};
 use ruma::{
+	CanonicalJsonObject, CanonicalJsonValue, ServerName, ServerSigningKeyId,
 	api::{
-		client::error::Error as RumaError, EndpointError, IncomingResponse, MatrixVersion,
-		OutgoingRequest, SendAccessToken,
+		EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
+		client::error::Error as RumaError,
 	},
 	serde::Base64,
 	server_util::authorization::XMatrix,
-	CanonicalJsonObject, CanonicalJsonValue, ServerName, ServerSigningKeyId,
 };
 
 use crate::resolver::actual::ActualDest;

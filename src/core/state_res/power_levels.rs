@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 
 use ruma::{
-	events::{room::power_levels::RoomPowerLevelsEventContent, TimelineEventType},
-	power_levels::{default_power_level, NotificationPowerLevels},
+	Int, OwnedUserId, UserId,
+	events::{TimelineEventType, room::power_levels::RoomPowerLevelsEventContent},
+	power_levels::{NotificationPowerLevels, default_power_level},
 	serde::{
 		deserialize_v1_powerlevel, vec_deserialize_int_powerlevel_values,
 		vec_deserialize_v1_powerlevel_values,
 	},
-	Int, OwnedUserId, UserId,
 };
 use serde::Deserialize;
-use serde_json::{from_str as from_json_str, Error};
+use serde_json::{Error, from_str as from_json_str};
 use tracing::error;
 
 use super::{Result, RoomVersion};

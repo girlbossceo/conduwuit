@@ -1,12 +1,12 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use base64::{engine::general_purpose, Engine as _};
-use conduwuit::{err, utils, utils::hash::sha256, warn, Err, Error, PduEvent, Result};
+use base64::{Engine as _, engine::general_purpose};
+use conduwuit::{Err, Error, PduEvent, Result, err, utils, utils::hash::sha256, warn};
 use ruma::{
+	CanonicalJsonValue, OwnedUserId, UserId,
 	api::{client::error::ErrorKind, federation::membership::create_invite},
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	serde::JsonObject,
-	CanonicalJsonValue, OwnedUserId, UserId,
 };
 use service::pdu::gen_event_id;
 

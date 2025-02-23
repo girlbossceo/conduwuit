@@ -13,7 +13,7 @@ pub use crate::{result::DebugInspect, utils::debug::*};
 /// In release-mode it becomes DEBUG level, and possibly subject to elision.
 #[macro_export]
 macro_rules! debug_event {
-	( $level:expr, $($x:tt)+ ) => {
+	( $level:expr_2021, $($x:tt)+ ) => {
 		if $crate::debug::logging() {
 			::tracing::event!( $level, _debug = true, $($x)+ )
 		} else {

@@ -5,15 +5,15 @@ mod keys_rev;
 
 use std::sync::Arc;
 
-use conduwuit::{utils::exchange, Result};
+use conduwuit::{Result, utils::exchange};
 use rocksdb::{DBRawIteratorWithThreadMode, ReadOptions};
 
 pub(crate) use self::{items::Items, items_rev::ItemsRev, keys::Keys, keys_rev::KeysRev};
 use crate::{
+	Map, Slice,
 	engine::Db,
 	keyval::{Key, KeyVal, Val},
 	util::{is_incomplete, map_err},
-	Map, Slice,
 };
 
 pub(crate) struct State<'a> {

@@ -1,4 +1,4 @@
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use ruma::{CanonicalJsonObject, RoomVersionId};
 
 #[implement(super::Service)]

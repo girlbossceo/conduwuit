@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use conduwuit::{
-	debug, debug_info, expected, is_equal_to,
+	Server, debug, debug_info, expected, is_equal_to,
 	utils::{
 		math::usize_from_f64,
 		result::LogDebugErr,
@@ -9,7 +9,6 @@ use conduwuit::{
 		stream::{AMPLIFICATION_LIMIT, WIDTH_LIMIT},
 		sys::{compute::is_core_available, storage},
 	},
-	Server,
 };
 
 use super::{QUEUE_LIMIT, WORKER_LIMIT};

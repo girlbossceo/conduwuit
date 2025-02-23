@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::{color, Level};
+use super::{Level, color};
 use crate::Result;
 
 pub fn html<S>(out: &mut S, level: &Level, span: &str, msg: &str) -> Result<()>

@@ -3,8 +3,8 @@
 use std::marker::Unpin;
 
 use futures::{
-	future::{select_ok, try_join, try_join_all, try_select},
 	Future, FutureExt,
+	future::{select_ok, try_join, try_join_all, try_select},
 };
 
 pub trait BoolExt

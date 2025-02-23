@@ -1,4 +1,4 @@
-use ruma::{events::TimelineEventType, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, UserId};
+use ruma::{MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, UserId, events::TimelineEventType};
 use serde_json::value::RawValue as RawJsonValue;
 
 use super::Pdu;

@@ -1,12 +1,14 @@
 use axum::RequestPartsExt;
 use axum_extra::{
-	headers::{authorization::Bearer, Authorization},
-	typed_header::TypedHeaderRejectionReason,
 	TypedHeader,
+	headers::{Authorization, authorization::Bearer},
+	typed_header::TypedHeaderRejectionReason,
 };
-use conduwuit::{debug_error, err, warn, Err, Error, Result};
+use conduwuit::{Err, Error, Result, debug_error, err, warn};
 use ruma::{
+	CanonicalJsonObject, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 	api::{
+		AuthScheme, IncomingRequest, Metadata,
 		client::{
 			directory::get_public_rooms,
 			error::ErrorKind,
@@ -16,14 +18,12 @@ use ruma::{
 			voip::get_turn_server_info,
 		},
 		federation::openid::get_openid_userinfo,
-		AuthScheme, IncomingRequest, Metadata,
 	},
 	server_util::authorization::XMatrix,
-	CanonicalJsonObject, CanonicalJsonValue, OwnedDeviceId, OwnedServerName, OwnedUserId, UserId,
 };
 use service::{
-	server_keys::{PubKeyMap, PubKeys},
 	Services,
+	server_keys::{PubKeyMap, PubKeys},
 };
 
 use super::request::Request;
@@ -56,12 +56,12 @@ pub(super) async fn auth(
 	};
 
 	let token = if let Some(token) = token {
-		if let Some(reg_info) = services.appservice.find_from_token(token).await {
-			Token::Appservice(Box::new(reg_info))
-		} else if let Ok((user_id, device_id)) = services.users.find_from_token(token).await {
-			Token::User((user_id, device_id))
-		} else {
-			Token::Invalid
+		match services.appservice.find_from_token(token).await {
+			| Some(reg_info) => Token::Appservice(Box::new(reg_info)),
+			| _ => match services.users.find_from_token(token).await {
+				| Ok((user_id, device_id)) => Token::User((user_id, device_id)),
+				| _ => Token::Invalid,
+			},
 		}
 	} else {
 		Token::None

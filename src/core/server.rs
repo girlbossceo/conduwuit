@@ -1,7 +1,7 @@
 use std::{
 	sync::{
-		atomic::{AtomicBool, Ordering},
 		Arc,
+		atomic::{AtomicBool, Ordering},
 	},
 	time::SystemTime,
 };
@@ -9,7 +9,7 @@ use std::{
 use ruma::OwnedServerName;
 use tokio::{runtime, sync::broadcast};
 
-use crate::{config, config::Config, log::Log, metrics::Metrics, Err, Result};
+use crate::{Err, Result, config, config::Config, log::Log, metrics::Metrics};
 
 /// Server runtime state; public portion
 pub struct Server {

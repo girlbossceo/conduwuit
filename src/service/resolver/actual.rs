@@ -3,7 +3,7 @@ use std::{
 	net::{IpAddr, SocketAddr},
 };
 
-use conduwuit::{debug, debug_error, debug_info, debug_warn, err, error, trace, Err, Result};
+use conduwuit::{Err, Result, debug, debug_error, debug_info, debug_warn, err, error, trace};
 use futures::{FutureExt, TryFutureExt};
 use hickory_resolver::error::ResolveError;
 use ipaddress::IPAddress;
@@ -11,7 +11,7 @@ use ruma::ServerName;
 
 use super::{
 	cache::{CachedDest, CachedOverride, MAX_IPS},
-	fed::{add_port_to_hostname, get_ip_with_port, FedDest, PortString},
+	fed::{FedDest, PortString, add_port_to_hostname, get_ip_with_port},
 };
 
 #[derive(Clone, Debug)]
@@ -71,12 +71,16 @@ impl super::Service {
 			| None =>
 				if let Some(pos) = dest.as_str().find(':') {
 					self.actual_dest_2(dest, cache, pos).await?
-				} else if let Some(delegated) = self.request_well_known(dest.as_str()).await? {
-					self.actual_dest_3(&mut host, cache, delegated).await?
-				} else if let Some(overrider) = self.query_srv_record(dest.as_str()).await? {
-					self.actual_dest_4(&host, cache, overrider).await?
 				} else {
-					self.actual_dest_5(dest, cache).await?
+					match self.request_well_known(dest.as_str()).await? {
+						| Some(delegated) =>
+							self.actual_dest_3(&mut host, cache, delegated).await?,
+						| _ => match self.query_srv_record(dest.as_str()).await? {
+							| Some(overrider) =>
+								self.actual_dest_4(&host, cache, overrider).await?,
+							| _ => self.actual_dest_5(dest, cache).await?,
+						},
+					}
 				},
 		};
 
@@ -136,10 +140,10 @@ impl super::Service {
 					self.actual_dest_3_2(cache, delegated, pos).await
 				} else {
 					trace!("Delegated hostname has no port in this branch");
-					if let Some(overrider) = self.query_srv_record(&delegated).await? {
-						self.actual_dest_3_3(cache, delegated, overrider).await
-					} else {
-						self.actual_dest_3_4(cache, delegated).await
+					match self.query_srv_record(&delegated).await? {
+						| Some(overrider) =>
+							self.actual_dest_3_3(cache, delegated, overrider).await,
+						| _ => self.actual_dest_3_4(cache, delegated).await,
 					}
 				},
 		}

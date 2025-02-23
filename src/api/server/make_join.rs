@@ -1,22 +1,22 @@
 use axum::extract::State;
-use conduwuit::{debug_info, utils::IterStream, warn, Err};
+use conduwuit::{Err, debug_info, utils::IterStream, warn};
 use futures::StreamExt;
 use ruma::{
+	CanonicalJsonObject, OwnedUserId, RoomId, RoomVersionId, UserId,
 	api::{client::error::ErrorKind, federation::membership::prepare_join_event},
 	events::{
+		StateEventType,
 		room::{
 			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 		},
-		StateEventType,
 	},
-	CanonicalJsonObject, OwnedUserId, RoomId, RoomVersionId, UserId,
 };
 use serde_json::value::to_raw_value;
 
 use crate::{
-	service::{pdu::PduBuilder, Services},
 	Error, Result, Ruma,
+	service::{Services, pdu::PduBuilder},
 };
 
 /// # `GET /_matrix/federation/v1/make_join/{roomId}/{userId}`

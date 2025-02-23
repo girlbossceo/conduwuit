@@ -1,15 +1,15 @@
+use RoomVersionId::*;
 use axum::extract::State;
-use conduwuit::{debug_warn, Err};
+use conduwuit::{Err, debug_warn};
 use ruma::{
+	RoomVersionId,
 	api::{client::error::ErrorKind, federation::knock::create_knock_event_template},
 	events::room::member::{MembershipState, RoomMemberEventContent},
-	RoomVersionId,
 };
 use serde_json::value::to_raw_value;
 use tracing::warn;
-use RoomVersionId::*;
 
-use crate::{service::pdu::PduBuilder, Error, Result, Ruma};
+use crate::{Error, Result, Ruma, service::pdu::PduBuilder};
 
 /// # `GET /_matrix/federation/v1/make_knock/{roomId}/{userId}`
 ///

@@ -1,19 +1,18 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduwuit::{
-	err, implement,
+	Err, Result, err, implement,
 	utils::stream::{ReadyExt, TryIgnore},
-	Err, Result,
 };
 use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::StreamExt;
 use ruma::{
+	OwnedRoomId, RoomId, UserId,
 	api::client::backup::{BackupAlgorithm, KeyBackupData, RoomKeyBackup},
 	serde::Raw,
-	OwnedRoomId, RoomId, UserId,
 };
 
-use crate::{globals, Dep};
+use crate::{Dep, globals};
 
 pub struct Service {
 	db: Data,

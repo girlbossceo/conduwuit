@@ -1,7 +1,7 @@
-use conduwuit::{debug, implement, trace, warn, Err, Result};
+use conduwuit::{Err, Result, debug, implement, trace, warn};
 use ruma::{
-	events::{room::server_acl::RoomServerAclEventContent, StateEventType},
 	RoomId, ServerName,
+	events::{StateEventType, room::server_acl::RoomServerAclEventContent},
 };
 
 /// Returns Ok if the acl allows the server

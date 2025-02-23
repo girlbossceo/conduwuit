@@ -1,6 +1,6 @@
 use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
-use conduwuit::{debug, debug_warn, error, trace, utils::time, warn, Err, Error, Result, Server};
+use conduwuit::{Err, Error, Result, Server, debug, debug_warn, error, trace, utils::time, warn};
 use futures::{FutureExt, TryFutureExt};
 use tokio::{
 	sync::{Mutex, MutexGuard},
@@ -8,7 +8,7 @@ use tokio::{
 	time::sleep,
 };
 
-use crate::{service, service::Service, Services};
+use crate::{Services, service, service::Service};
 
 pub(crate) struct Manager {
 	manager: Mutex<Option<JoinHandle<Result<()>>>>,

@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduwuit::{err, Err, PduCount};
+use conduwuit::{Err, PduCount, err};
 use ruma::{
+	MilliSecondsSinceUnixEpoch,
 	api::client::{read_marker::set_read_marker, receipt::create_receipt},
 	events::{
-		receipt::{ReceiptThread, ReceiptType},
 		RoomAccountDataEventType,
+		receipt::{ReceiptThread, ReceiptType},
 	},
-	MilliSecondsSinceUnixEpoch,
 };
 
 use crate::{Result, Ruma};

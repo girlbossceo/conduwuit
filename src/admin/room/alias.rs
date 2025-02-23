@@ -4,10 +4,10 @@ use clap::Subcommand;
 use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{
-	events::room::message::RoomMessageEventContent, OwnedRoomAliasId, OwnedRoomId, RoomId,
+	OwnedRoomAliasId, OwnedRoomId, RoomId, events::room::message::RoomMessageEventContent,
 };
 
-use crate::{escape_html, Command};
+use crate::{Command, escape_html};
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum RoomAliasCommand {

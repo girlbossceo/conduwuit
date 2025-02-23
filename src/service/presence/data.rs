@@ -1,16 +1,15 @@
 use std::sync::Arc;
 
 use conduwuit::{
-	debug_warn, utils,
-	utils::{stream::TryIgnore, ReadyExt},
-	Result,
+	Result, debug_warn, utils,
+	utils::{ReadyExt, stream::TryIgnore},
 };
 use database::{Deserialized, Json, Map};
 use futures::Stream;
-use ruma::{events::presence::PresenceEvent, presence::PresenceState, UInt, UserId};
+use ruma::{UInt, UserId, events::presence::PresenceEvent, presence::PresenceState};
 
 use super::Presence;
-use crate::{globals, users, Dep};
+use crate::{Dep, globals, users};
 
 pub(crate) struct Data {
 	presenceid_presence: Arc<Map>,

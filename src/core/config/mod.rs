@@ -14,18 +14,18 @@ use either::{
 	Either::{Left, Right},
 };
 use figment::providers::{Env, Format, Toml};
-pub use figment::{value::Value as FigmentValue, Figment};
+pub use figment::{Figment, value::Value as FigmentValue};
 use regex::RegexSet;
 use ruma::{
-	api::client::discovery::discover_support::ContactRole, OwnedRoomOrAliasId, OwnedServerName,
-	OwnedUserId, RoomVersionId,
+	OwnedRoomOrAliasId, OwnedServerName, OwnedUserId, RoomVersionId,
+	api::client::discovery::discover_support::ContactRole,
 };
-use serde::{de::IgnoredAny, Deserialize};
+use serde::{Deserialize, de::IgnoredAny};
 use url::Url;
 
 use self::proxy::ProxyConfig;
 pub use self::{check::check, manager::Manager};
-use crate::{err, error::Error, utils::sys, Result};
+use crate::{Result, err, error::Error, utils::sys};
 
 /// All the config options for conduwuit.
 #[allow(clippy::struct_excessive_bools)]

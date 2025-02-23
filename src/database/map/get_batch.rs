@@ -1,12 +1,11 @@
 use std::{convert::AsRef, sync::Arc};
 
 use conduwuit::{
-	implement,
+	Result, implement,
 	utils::{
-		stream::{automatic_amplification, automatic_width, WidebandExt},
 		IterStream,
+		stream::{WidebandExt, automatic_amplification, automatic_width},
 	},
-	Result,
 };
 use futures::{Stream, StreamExt, TryStreamExt};
 use rocksdb::{DBPinnableSlice, ReadOptions};
@@ -64,7 +63,7 @@ where
 pub(crate) fn get_batch_cached<'a, I, K>(
 	&self,
 	keys: I,
-) -> impl Iterator<Item = Result<Option<Handle<'_>>>> + Send
+) -> impl Iterator<Item = Result<Option<Handle<'_>>>> + Send + use<'_, I, K>
 where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
 	K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,
@@ -78,7 +77,7 @@ where
 pub(crate) fn get_batch_blocking<'a, I, K>(
 	&self,
 	keys: I,
-) -> impl Iterator<Item = Result<Handle<'_>>> + Send
+) -> impl Iterator<Item = Result<Handle<'_>>> + Send + use<'_, I, K>
 where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
 	K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,
@@ -92,7 +91,7 @@ fn get_batch_blocking_opts<'a, I, K>(
 	&self,
 	keys: I,
 	read_options: &ReadOptions,
-) -> impl Iterator<Item = Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>> + Send
+) -> impl Iterator<Item = Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>> + Send + use<'_, I, K>
 where
 	I: Iterator<Item = &'a K> + ExactSizeIterator + Send,
 	K: AsRef<[u8]> + Send + ?Sized + Sync + 'a,

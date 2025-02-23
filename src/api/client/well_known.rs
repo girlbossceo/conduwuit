@@ -1,4 +1,4 @@
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{Json, extract::State, response::IntoResponse};
 use ruma::api::client::{
 	discovery::{
 		discover_homeserver::{self, HomeserverInfo, SlidingSyncProxyInfo},

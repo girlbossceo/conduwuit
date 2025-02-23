@@ -1,8 +1,8 @@
-use conduwuit::{utils, Error, Result};
+use conduwuit::{Error, Result, utils};
 use ruma::{
+	UInt, UserId,
 	events::presence::{PresenceEvent, PresenceEventContent},
 	presence::PresenceState,
-	UInt, UserId,
 };
 use serde::{Deserialize, Serialize};
 

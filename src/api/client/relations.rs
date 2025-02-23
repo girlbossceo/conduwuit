@@ -1,22 +1,21 @@
 use axum::extract::State;
 use conduwuit::{
-	at,
-	utils::{result::FlatOk, stream::WidebandExt, IterStream, ReadyExt},
-	PduCount, Result,
+	PduCount, Result, at,
+	utils::{IterStream, ReadyExt, result::FlatOk, stream::WidebandExt},
 };
 use futures::StreamExt;
 use ruma::{
+	EventId, RoomId, UInt, UserId,
 	api::{
+		Direction,
 		client::relations::{
 			get_relating_events, get_relating_events_with_rel_type,
 			get_relating_events_with_rel_type_and_event_type,
 		},
-		Direction,
 	},
-	events::{relation::RelationType, TimelineEventType},
-	EventId, RoomId, UInt, UserId,
+	events::{TimelineEventType, relation::RelationType},
 };
-use service::{rooms::timeline::PdusIterItem, Services};
+use service::{Services, rooms::timeline::PdusIterItem};
 
 use crate::Ruma;
 

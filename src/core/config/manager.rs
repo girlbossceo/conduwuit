@@ -4,13 +4,13 @@ use std::{
 	ptr,
 	ptr::null_mut,
 	sync::{
-		atomic::{AtomicPtr, Ordering},
 		Arc,
+		atomic::{AtomicPtr, Ordering},
 	},
 };
 
 use super::Config;
-use crate::{implement, Result};
+use crate::{Result, implement};
 
 /// The configuration manager is an indirection to reload the configuration for
 /// the server while it is running. In order to not burden or clutter the many

@@ -1,6 +1,6 @@
 use ruma::{api::appservice::Registration, events::room::message::RoomMessageEventContent};
 
-use crate::{admin_command, Result};
+use crate::{Result, admin_command};
 
 #[admin_command]
 pub(super) async fn register(&self) -> Result<RoomMessageEventContent> {

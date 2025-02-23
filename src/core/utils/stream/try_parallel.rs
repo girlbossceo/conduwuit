@@ -1,10 +1,10 @@
 //! Parallelism stream combinator extensions to futures::Stream
 
-use futures::{stream::TryStream, TryFutureExt};
+use futures::{TryFutureExt, stream::TryStream};
 use tokio::{runtime, task::JoinError};
 
 use super::TryBroadbandExt;
-use crate::{utils::sys::available_parallelism, Error, Result};
+use crate::{Error, Result, utils::sys::available_parallelism};
 
 /// Parallelism extensions to augment futures::StreamExt. These combinators are
 /// for computation-oriented workloads, unlike -band combinators for I/O

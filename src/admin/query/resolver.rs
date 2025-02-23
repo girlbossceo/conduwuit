@@ -1,7 +1,7 @@
 use clap::Subcommand;
-use conduwuit::{utils::time, Result};
+use conduwuit::{Result, utils::time};
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedServerName};
+use ruma::{OwnedServerName, events::room::message::RoomMessageEventContent};
 
 use crate::{admin_command, admin_command_dispatch};
 

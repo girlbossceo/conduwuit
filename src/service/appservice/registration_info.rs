@@ -1,5 +1,5 @@
 use conduwuit::Result;
-use ruma::{api::appservice::Registration, UserId};
+use ruma::{UserId, api::appservice::Registration};
 
 use super::NamespaceRegex;
 

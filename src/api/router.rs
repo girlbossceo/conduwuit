@@ -8,12 +8,12 @@ pub mod state;
 use std::str::FromStr;
 
 use axum::{
+	Router,
 	response::{IntoResponse, Redirect},
 	routing::{any, get, post},
-	Router,
 };
-use conduwuit::{err, Server};
-use http::{uri, Uri};
+use conduwuit::{Server, err};
+use http::{Uri, uri};
 
 use self::handler::RouterExt;
 pub(super) use self::{args::Args as Ruma, response::RumaResponse, state::State};

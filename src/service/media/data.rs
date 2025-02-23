@@ -1,13 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
 use conduwuit::{
-	debug, debug_info, err,
-	utils::{str_from_bytes, stream::TryIgnore, string_from_bytes, ReadyExt},
-	Err, Result,
+	Err, Result, debug, debug_info, err,
+	utils::{ReadyExt, str_from_bytes, stream::TryIgnore, string_from_bytes},
 };
 use database::{Database, Interfix, Map};
 use futures::StreamExt;
-use ruma::{http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
+use ruma::{Mxc, OwnedMxcUri, UserId, http_headers::ContentDisposition};
 
 use super::{preview::UrlPreviewData, thumbnail::Dim};
 

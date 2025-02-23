@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduwuit::{err, Error, Result};
+use conduwuit::{Error, Result, err};
 use futures::StreamExt;
 use get_profile_information::v1::ProfileField;
 use rand::seq::SliceRandom;
 use ruma::{
+	OwnedServerName,
 	api::{
 		client::error::ErrorKind,
 		federation::query::{get_profile_information, get_room_information},
 	},
-	OwnedServerName,
 };
 
 use crate::Ruma;

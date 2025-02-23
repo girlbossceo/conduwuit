@@ -1,6 +1,6 @@
 use bytesize::ByteSize;
 
-use crate::{err, Result};
+use crate::{Result, err};
 
 /// Parse a human-writable size string w/ si-unit suffix into integer
 #[inline]

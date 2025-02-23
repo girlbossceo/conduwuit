@@ -5,16 +5,16 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use conduwuit::{
-	checked, debug, debug_warn, error, result::LogErr, trace, Error, Result, Server,
+	Error, Result, Server, checked, debug, debug_warn, error, result::LogErr, trace,
 };
 use database::Database;
-use futures::{stream::FuturesUnordered, Stream, StreamExt, TryFutureExt};
+use futures::{Stream, StreamExt, TryFutureExt, stream::FuturesUnordered};
 use loole::{Receiver, Sender};
-use ruma::{events::presence::PresenceEvent, presence::PresenceState, OwnedUserId, UInt, UserId};
+use ruma::{OwnedUserId, UInt, UserId, events::presence::PresenceEvent, presence::PresenceState};
 use tokio::time::sleep;
 
 use self::{data::Data, presence::Presence};
-use crate::{globals, users, Dep};
+use crate::{Dep, globals, users};
 
 pub struct Service {
 	timer_channel: (Sender<TimerType>, Receiver<TimerType>),

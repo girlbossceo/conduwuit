@@ -3,8 +3,8 @@ mod configure;
 use std::{
 	mem::take,
 	sync::{
-		atomic::{AtomicUsize, Ordering},
 		Arc, Mutex,
+		atomic::{AtomicUsize, Ordering},
 	},
 	thread,
 	thread::JoinHandle,
@@ -12,19 +12,18 @@ use std::{
 
 use async_channel::{QueueStrategy, Receiver, RecvError, Sender};
 use conduwuit::{
-	debug, debug_warn, err, error, implement,
+	Error, Result, Server, debug, debug_warn, err, error, implement,
 	result::DebugInspect,
 	smallvec::SmallVec,
 	trace,
 	utils::sys::compute::{get_affinity, nth_core_available, set_affinity},
-	Error, Result, Server,
 };
-use futures::{channel::oneshot, TryFutureExt};
+use futures::{TryFutureExt, channel::oneshot};
 use oneshot::Sender as ResultSender;
 use rocksdb::Direction;
 
 use self::configure::configure;
-use crate::{keyval::KeyBuf, stream, Handle, Map};
+use crate::{Handle, Map, keyval::KeyBuf, stream};
 
 /// Frontend thread-pool. Operating system threads are used to make database
 /// requests which are not cached. These thread-blocking requests are offloaded

@@ -5,18 +5,18 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	utils::{future::TryExtExt, stream::IterStream},
 	Err, Result,
+	utils::{future::TryExtExt, stream::IterStream},
 };
-use futures::{future::OptionFuture, StreamExt, TryFutureExt};
+use futures::{StreamExt, TryFutureExt, future::OptionFuture};
 use ruma::{
-	api::client::space::get_hierarchy, OwnedRoomId, OwnedServerName, RoomId, UInt, UserId,
+	OwnedRoomId, OwnedServerName, RoomId, UInt, UserId, api::client::space::get_hierarchy,
 };
 use service::{
-	rooms::spaces::{
-		get_parent_children_via, summary_to_chunk, PaginationToken, SummaryAccessibility,
-	},
 	Services,
+	rooms::spaces::{
+		PaginationToken, SummaryAccessibility, get_parent_children_via, summary_to_chunk,
+	},
 };
 
 use crate::Ruma;

@@ -5,13 +5,12 @@ use std::{
 };
 
 use conduwuit::{
-	err, implement,
+	Error, Result, err, implement,
 	state_res::{self, StateMap},
 	trace,
-	utils::stream::{automatic_width, IterStream, ReadyExt, TryWidebandExt, WidebandExt},
-	Error, Result,
+	utils::stream::{IterStream, ReadyExt, TryWidebandExt, WidebandExt, automatic_width},
 };
-use futures::{future::try_join, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt, future::try_join};
 use ruma::{OwnedEventId, RoomId, RoomVersionId};
 
 use crate::rooms::state_compressor::CompressedState;
@@ -93,11 +92,7 @@ pub async fn resolve_state(
 	let new_room_state: CompressedState = self
 		.services
 		.state_compressor
-		.compress_state_events(
-			state_events
-				.iter()
-				.map(|(ref ssk, eid)| (ssk, (*eid).borrow())),
-		)
+		.compress_state_events(state_events.iter().map(|(ssk, eid)| (ssk, (*eid).borrow())))
 		.collect()
 		.await;
 

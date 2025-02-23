@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use rocksdb::Direction;
 use serde::Deserialize;

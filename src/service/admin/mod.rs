@@ -11,18 +11,18 @@ use std::{
 
 use async_trait::async_trait;
 use conduwuit::{
-	debug, err, error, error::default_log, pdu::PduBuilder, Error, PduEvent, Result, Server,
+	Error, PduEvent, Result, Server, debug, err, error, error::default_log, pdu::PduBuilder,
 };
 pub use create::create_admin_room;
 use futures::{FutureExt, TryFutureExt};
 use loole::{Receiver, Sender};
 use ruma::{
-	events::room::message::{Relation, RoomMessageEventContent},
 	OwnedEventId, OwnedRoomId, RoomId, UserId,
+	events::room::message::{Relation, RoomMessageEventContent},
 };
 use tokio::sync::RwLock;
 
-use crate::{account_data, globals, rooms, rooms::state::RoomMutexGuard, Dep};
+use crate::{Dep, account_data, globals, rooms, rooms::state::RoomMutexGuard};
 
 pub struct Service {
 	services: Services,

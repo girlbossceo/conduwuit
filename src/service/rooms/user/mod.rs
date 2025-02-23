@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use database::{Database, Deserialized, Map};
 use ruma::{RoomId, UserId};
 
-use crate::{globals, rooms, rooms::short::ShortStateHash, Dep};
+use crate::{Dep, globals, rooms, rooms::short::ShortStateHash};
 
 pub struct Service {
 	db: Data,

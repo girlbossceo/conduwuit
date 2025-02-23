@@ -2,13 +2,12 @@ use std::{borrow::Cow, collections::BTreeMap, ops::Deref};
 
 use clap::Subcommand;
 use conduwuit::{
-	apply, at, is_zero,
+	Err, Result, apply, at, is_zero,
 	utils::{
+		IterStream,
 		stream::{ReadyExt, TryIgnore, TryParallelExt},
 		string::EMPTY,
-		IterStream,
 	},
-	Err, Result,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::events::room::message::RoomMessageEventContent;

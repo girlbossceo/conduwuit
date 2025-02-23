@@ -3,15 +3,15 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-use axum::{extract::State, response::IntoResponse, Json};
-use conduwuit::{utils::timepoint_from_now, Result};
+use axum::{Json, extract::State, response::IntoResponse};
+use conduwuit::{Result, utils::timepoint_from_now};
 use ruma::{
+	MilliSecondsSinceUnixEpoch, Signatures,
 	api::{
-		federation::discovery::{get_server_keys, OldVerifyKey, ServerSigningKeys},
 		OutgoingResponse,
+		federation::discovery::{OldVerifyKey, ServerSigningKeys, get_server_keys},
 	},
 	serde::Raw,
-	MilliSecondsSinceUnixEpoch, Signatures,
 };
 
 /// # `GET /_matrix/key/v2/server`

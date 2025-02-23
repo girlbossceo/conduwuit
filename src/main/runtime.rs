@@ -1,8 +1,8 @@
 use std::{
 	iter::once,
 	sync::{
-		atomic::{AtomicUsize, Ordering},
 		OnceLock,
+		atomic::{AtomicUsize, Ordering},
 	},
 	thread,
 	time::Duration,
@@ -11,9 +11,8 @@ use std::{
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use conduwuit::result::LogDebugErr;
 use conduwuit::{
-	is_true,
+	Result, is_true,
 	utils::sys::compute::{nth_core_available, set_affinity},
-	Result,
 };
 use tokio::runtime::Builder;
 

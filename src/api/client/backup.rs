@@ -1,6 +1,7 @@
 use axum::extract::State;
-use conduwuit::{err, Err};
+use conduwuit::{Err, err};
 use ruma::{
+	UInt,
 	api::client::backup::{
 		add_backup_keys, add_backup_keys_for_room, add_backup_keys_for_session,
 		create_backup_version, delete_backup_keys, delete_backup_keys_for_room,
@@ -8,7 +9,6 @@ use ruma::{
 		get_backup_keys_for_room, get_backup_keys_for_session, get_latest_backup_info,
 		update_backup_version,
 	},
-	UInt,
 };
 
 use crate::{Result, Ruma};

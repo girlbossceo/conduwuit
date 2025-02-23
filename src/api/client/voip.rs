@@ -1,10 +1,10 @@
 use std::time::{Duration, SystemTime};
 
 use axum::extract::State;
-use base64::{engine::general_purpose, Engine as _};
-use conduwuit::{utils, Err};
+use base64::{Engine as _, engine::general_purpose};
+use conduwuit::{Err, utils};
 use hmac::{Hmac, Mac};
-use ruma::{api::client::voip::get_turn_server_info, SecondsSinceUnixEpoch, UserId};
+use ruma::{SecondsSinceUnixEpoch, UserId, api::client::voip::get_turn_server_info};
 use sha1::Sha1;
 
 use crate::{Result, Ruma};

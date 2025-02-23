@@ -1,6 +1,6 @@
 #[cfg(feature = "blurhashing")]
 use conduwuit::config::BlurhashConfig as CoreBlurhashConfig;
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 
 use super::Service;
 

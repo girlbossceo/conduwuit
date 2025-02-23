@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use conduwuit::{
+	Result,
 	config::Config,
 	debug_warn, err,
-	log::{capture, fmt_span, ConsoleFormat, ConsoleWriter, LogLevelReloadHandles},
+	log::{ConsoleFormat, ConsoleWriter, LogLevelReloadHandles, capture, fmt_span},
 	result::UnwrapOrErr,
-	Result,
 };
-use tracing_subscriber::{fmt, layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, reload};
 
 #[cfg(feature = "perf_measurements")]
 pub(crate) type TracingFlameGuard =

@@ -1,21 +1,21 @@
 #![allow(deprecated)]
 
 use axum::extract::State;
-use conduwuit::{err, Err, Result};
+use conduwuit::{Err, Result, err};
 use futures::FutureExt;
 use ruma::{
+	OwnedRoomId, OwnedUserId, RoomId, ServerName,
 	api::federation::membership::create_leave_event,
 	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType,
+		room::member::{MembershipState, RoomMemberEventContent},
 	},
-	OwnedRoomId, OwnedUserId, RoomId, ServerName,
 };
 use serde_json::value::RawValue as RawJsonValue;
 
 use crate::{
-	service::{pdu::gen_event_id_canonical_json, Services},
 	Ruma,
+	service::{Services, pdu::gen_event_id_canonical_json},
 };
 
 /// # `PUT /_matrix/federation/v1/send_leave/{roomId}/{eventId}`

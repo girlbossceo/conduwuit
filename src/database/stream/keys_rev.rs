@@ -2,12 +2,12 @@ use std::pin::Pin;
 
 use conduwuit::Result;
 use futures::{
+	Stream,
 	stream::FusedStream,
 	task::{Context, Poll},
-	Stream,
 };
 
-use super::{slice_longevity, Cursor, State};
+use super::{Cursor, State, slice_longevity};
 use crate::keyval::Key;
 
 pub(crate) struct KeysRev<'a> {

@@ -1,15 +1,15 @@
 use axum::extract::State;
-use conduwuit::{err, pdu::gen_event_id_canonical_json, warn, Err, PduEvent, Result};
+use conduwuit::{Err, PduEvent, Result, err, pdu::gen_event_id_canonical_json, warn};
 use futures::FutureExt;
 use ruma::{
-	api::federation::knock::send_knock,
-	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
-		StateEventType,
-	},
-	serde::JsonObject,
 	OwnedServerName, OwnedUserId,
 	RoomVersionId::*,
+	api::federation::knock::send_knock,
+	events::{
+		StateEventType,
+		room::member::{MembershipState, RoomMemberEventContent},
+	},
+	serde::JsonObject,
 };
 
 use crate::Ruma;

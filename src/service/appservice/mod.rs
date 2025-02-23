@@ -4,14 +4,14 @@ mod registration_info;
 use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use conduwuit::{err, utils::stream::TryIgnore, Result};
+use conduwuit::{Result, err, utils::stream::TryIgnore};
 use database::Map;
 use futures::{Future, StreamExt, TryStreamExt};
-use ruma::{api::appservice::Registration, RoomAliasId, RoomId, UserId};
+use ruma::{RoomAliasId, RoomId, UserId, api::appservice::Registration};
 use tokio::sync::RwLock;
 
 pub use self::{namespace_regex::NamespaceRegex, registration_info::RegistrationInfo};
-use crate::{sending, Dep};
+use crate::{Dep, sending};
 
 pub struct Service {
 	registration_info: RwLock<BTreeMap<String, RegistrationInfo>>,

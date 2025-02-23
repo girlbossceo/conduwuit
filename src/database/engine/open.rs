@@ -1,20 +1,20 @@
 use std::{
 	collections::BTreeSet,
 	path::Path,
-	sync::{atomic::AtomicU32, Arc},
+	sync::{Arc, atomic::AtomicU32},
 };
 
-use conduwuit::{debug, implement, info, warn, Result};
+use conduwuit::{Result, debug, implement, info, warn};
 use rocksdb::{ColumnFamilyDescriptor, Options};
 
 use super::{
+	Db, Engine,
 	cf_opts::cf_options,
 	db_opts::db_options,
 	descriptor::{self, Descriptor},
 	repair::repair,
-	Db, Engine,
 };
-use crate::{or_else, Context};
+use crate::{Context, or_else};
 
 #[implement(Engine)]
 #[tracing::instrument(skip_all)]

@@ -3,21 +3,20 @@ mod remote;
 use std::sync::Arc;
 
 use conduwuit::{
-	err,
-	utils::{stream::TryIgnore, ReadyExt},
-	Err, Result, Server,
+	Err, Result, Server, err,
+	utils::{ReadyExt, stream::TryIgnore},
 };
 use database::{Deserialized, Ignore, Interfix, Map};
 use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
-	events::{
-		room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
-		StateEventType,
-	},
 	OwnedRoomId, OwnedServerName, OwnedUserId, RoomAliasId, RoomId, RoomOrAliasId, UserId,
+	events::{
+		StateEventType,
+		room::power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
+	},
 };
 
-use crate::{admin, appservice, appservice::RegistrationInfo, globals, rooms, sending, Dep};
+use crate::{Dep, admin, appservice, appservice::RegistrationInfo, globals, rooms, sending};
 
 pub struct Service {
 	db: Data,

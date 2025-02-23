@@ -1,6 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use ruma::{canonical_json::try_from_json_map, CanonicalJsonError, CanonicalJsonObject};
+use ruma::{CanonicalJsonError, CanonicalJsonObject, canonical_json::try_from_json_map};
 
 use crate::Result;
 

@@ -2,15 +2,17 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use conduwuit::{
-	debug_info, debug_warn, err, error, info, pdu::PduBuilder, warn, Err, Error, Result, StateKey,
+	Err, Error, Result, StateKey, debug_info, debug_warn, err, error, info, pdu::PduBuilder, warn,
 };
 use futures::FutureExt;
 use ruma::{
+	CanonicalJsonObject, Int, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId,
 	api::client::{
 		error::ErrorKind,
 		room::{self, create_room},
 	},
 	events::{
+		TimelineEventType,
 		room::{
 			canonical_alias::RoomCanonicalAliasEventContent,
 			create::RoomCreateEventContent,
@@ -22,16 +24,14 @@ use ruma::{
 			power_levels::RoomPowerLevelsEventContent,
 			topic::RoomTopicEventContent,
 		},
-		TimelineEventType,
 	},
 	int,
 	serde::{JsonObject, Raw},
-	CanonicalJsonObject, Int, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId,
 };
 use serde_json::{json, value::to_raw_value};
-use service::{appservice::RegistrationInfo, Services};
+use service::{Services, appservice::RegistrationInfo};
 
-use crate::{client::invite_helper, Ruma};
+use crate::{Ruma, client::invite_helper};
 
 /// # `POST /_matrix/client/v3/createRoom`
 ///
@@ -68,10 +68,9 @@ pub(crate) async fn create_room_route(
 		));
 	}
 
-	let room_id: OwnedRoomId = if let Some(custom_room_id) = &body.room_id {
-		custom_room_id_check(&services, custom_room_id)?
-	} else {
-		RoomId::new(&services.server.name)
+	let room_id: OwnedRoomId = match &body.room_id {
+		| Some(custom_room_id) => custom_room_id_check(&services, custom_room_id)?,
+		| _ => RoomId::new(&services.server.name),
 	};
 
 	// check if room ID doesn't already exist instead of erroring on auth check
@@ -114,10 +113,10 @@ pub(crate) async fn create_room_route(
 		.await;
 	let state_lock = services.rooms.state.mutex.lock(&room_id).await;
 
-	let alias: Option<OwnedRoomAliasId> = if let Some(alias) = body.room_alias_name.as_ref() {
-		Some(room_alias_check(&services, alias, body.appservice_info.as_ref()).await?)
-	} else {
-		None
+	let alias: Option<OwnedRoomAliasId> = match body.room_alias_name.as_ref() {
+		| Some(alias) =>
+			Some(room_alias_check(&services, alias, body.appservice_info.as_ref()).await?),
+		| _ => None,
 	};
 
 	let room_version = match body.room_version.clone() {

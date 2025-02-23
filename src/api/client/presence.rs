@@ -70,37 +70,38 @@ pub(crate) async fn get_presence_route(
 		}
 	}
 
-	if let Some(presence) = presence_event {
-		let status_msg = if presence
-			.content
-			.status_msg
-			.as_ref()
-			.is_some_and(String::is_empty)
-		{
-			None
-		} else {
-			presence.content.status_msg
-		};
-
-		let last_active_ago = match presence.content.currently_active {
-			| Some(true) => None,
-			| _ => presence
+	match presence_event {
+		| Some(presence) => {
+			let status_msg = if presence
 				.content
-				.last_active_ago
-				.map(|millis| Duration::from_millis(millis.into())),
-		};
+				.status_msg
+				.as_ref()
+				.is_some_and(String::is_empty)
+			{
+				None
+			} else {
+				presence.content.status_msg
+			};
 
-		Ok(get_presence::v3::Response {
-			// TODO: Should ruma just use the presenceeventcontent type here?
-			status_msg,
-			currently_active: presence.content.currently_active,
-			last_active_ago,
-			presence: presence.content.presence,
-		})
-	} else {
-		Err(Error::BadRequest(
+			let last_active_ago = match presence.content.currently_active {
+				| Some(true) => None,
+				| _ => presence
+					.content
+					.last_active_ago
+					.map(|millis| Duration::from_millis(millis.into())),
+			};
+
+			Ok(get_presence::v3::Response {
+				// TODO: Should ruma just use the presenceeventcontent type here?
+				status_msg,
+				currently_active: presence.content.currently_active,
+				last_active_ago,
+				presence: presence.content.presence,
+			})
+		},
+		| _ => Err(Error::BadRequest(
 			ErrorKind::NotFound,
 			"Presence state for this user was not found",
-		))
+		)),
 	}
 }

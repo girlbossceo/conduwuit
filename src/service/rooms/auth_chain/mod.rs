@@ -8,18 +8,18 @@ use std::{
 };
 
 use conduwuit::{
-	at, debug, debug_error, implement, trace,
+	Err, Result, at, debug, debug_error, implement, trace,
 	utils::{
-		stream::{ReadyExt, TryBroadbandExt},
 		IterStream,
+		stream::{ReadyExt, TryBroadbandExt},
 	},
-	validated, warn, Err, Result,
+	validated, warn,
 };
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use ruma::{EventId, OwnedEventId, RoomId};
 
 use self::data::Data;
-use crate::{rooms, rooms::short::ShortEventId, Dep};
+use crate::{Dep, rooms, rooms::short::ShortEventId};
 
 pub struct Service {
 	services: Services,

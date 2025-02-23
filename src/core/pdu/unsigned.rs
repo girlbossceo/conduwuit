@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use ruma::MilliSecondsSinceUnixEpoch;
 use serde::Deserialize;
-use serde_json::value::{to_raw_value, RawValue as RawJsonValue, Value as JsonValue};
+use serde_json::value::{RawValue as RawJsonValue, Value as JsonValue, to_raw_value};
 
 use super::Pdu;
-use crate::{err, implement, is_true, Result};
+use crate::{Result, err, implement, is_true};
 
 #[implement(Pdu)]
 pub fn remove_transaction_id(&mut self) -> Result {

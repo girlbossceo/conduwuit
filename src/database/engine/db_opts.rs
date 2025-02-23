@@ -1,7 +1,7 @@
 use std::{cmp, convert::TryFrom};
 
-use conduwuit::{utils, Config, Result};
-use rocksdb::{statistics::StatsLevel, Cache, DBRecoveryMode, Env, LogLevel, Options};
+use conduwuit::{Config, Result, utils};
+use rocksdb::{Cache, DBRecoveryMode, Env, LogLevel, Options, statistics::StatsLevel};
 
 use super::{cf_opts::cache_size_f64, logger::handle as handle_log};
 

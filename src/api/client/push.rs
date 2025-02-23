@@ -1,6 +1,7 @@
 use axum::extract::State;
-use conduwuit::{err, Err};
+use conduwuit::{Err, err};
 use ruma::{
+	CanonicalJsonObject, CanonicalJsonValue,
 	api::client::{
 		error::ErrorKind,
 		push::{
@@ -10,14 +11,13 @@ use ruma::{
 		},
 	},
 	events::{
-		push_rules::{PushRulesEvent, PushRulesEventContent},
 		GlobalAccountDataEventType,
+		push_rules::{PushRulesEvent, PushRulesEventContent},
 	},
 	push::{
 		InsertPushRuleError, PredefinedContentRuleId, PredefinedOverrideRuleId,
 		RemovePushRuleError, Ruleset,
 	},
-	CanonicalJsonObject, CanonicalJsonValue,
 };
 use service::Services;
 

@@ -1,4 +1,4 @@
-use conduwuit::{err, implement, pdu::gen_event_id_canonical_json, result::FlatOk, Result};
+use conduwuit::{Result, err, implement, pdu::gen_event_id_canonical_json, result::FlatOk};
 use ruma::{CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId};
 use serde_json::value::RawValue as RawJsonValue;
 

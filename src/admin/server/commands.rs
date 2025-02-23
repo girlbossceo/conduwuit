@@ -1,6 +1,6 @@
 use std::{fmt::Write, path::PathBuf, sync::Arc};
 
-use conduwuit::{info, utils::time, warn, Err, Result};
+use conduwuit::{Err, Result, info, utils::time, warn};
 use ruma::events::room::message::RoomMessageEventContent;
 
 use crate::admin_command;

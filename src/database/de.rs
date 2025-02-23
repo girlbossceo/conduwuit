@@ -1,10 +1,9 @@
 use conduwuit::{
-	arrayvec::ArrayVec, checked, debug::DebugInspect, err, utils::string, Error, Result,
+	Error, Result, arrayvec::ArrayVec, checked, debug::DebugInspect, err, utils::string,
 };
 use serde::{
-	de,
+	Deserialize, de,
 	de::{DeserializeSeed, Visitor},
-	Deserialize,
 };
 
 use crate::util::unhandled;

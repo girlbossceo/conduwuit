@@ -1,10 +1,10 @@
 use axum::extract::State;
-use conduwuit::{debug, Err, Result};
+use conduwuit::{Err, Result, debug};
 use futures::StreamExt;
 use rand::seq::SliceRandom;
 use ruma::{
-	api::client::alias::{create_alias, delete_alias, get_alias},
 	OwnedServerName, RoomAliasId, RoomId,
+	api::client::alias::{create_alias, delete_alias, get_alias},
 };
 use service::Services;
 
@@ -128,18 +128,26 @@ async fn room_available_servers(
 
 	// insert our server as the very first choice if in list, else check if we can
 	// prefer the room alias server first
-	if let Some(server_index) = servers
+	match servers
 		.iter()
 		.position(|server_name| services.globals.server_is_ours(server_name))
 	{
-		servers.swap_remove(server_index);
-		servers.insert(0, services.globals.server_name().to_owned());
-	} else if let Some(alias_server_index) = servers
-		.iter()
-		.position(|server| server == room_alias.server_name())
-	{
-		servers.swap_remove(alias_server_index);
-		servers.insert(0, room_alias.server_name().into());
+		| Some(server_index) => {
+			servers.swap_remove(server_index);
+			servers.insert(0, services.globals.server_name().to_owned());
+		},
+		| _ => {
+			match servers
+				.iter()
+				.position(|server| server == room_alias.server_name())
+			{
+				| Some(alias_server_index) => {
+					servers.swap_remove(alias_server_index);
+					servers.insert(0, room_alias.server_name().into());
+				},
+				| _ => {},
+			}
+		},
 	}
 
 	servers

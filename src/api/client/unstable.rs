@@ -5,6 +5,7 @@ use axum_client_ip::InsecureClientIp;
 use conduwuit::Err;
 use futures::StreamExt;
 use ruma::{
+	OwnedRoomId,
 	api::{
 		client::{
 			error::ErrorKind,
@@ -19,7 +20,6 @@ use ruma::{
 	},
 	events::room::member::MembershipState,
 	presence::PresenceState,
-	OwnedRoomId,
 };
 
 use super::{update_avatar_url, update_displayname};
@@ -499,15 +499,18 @@ pub(crate) async fn get_profile_key_route(
 				.users
 				.set_timezone(&body.user_id, response.tz.clone());
 
-			if let Some(value) = response.custom_profile_fields.get(&body.key_name) {
-				profile_key_value.insert(body.key_name.clone(), value.clone());
-				services.users.set_profile_key(
-					&body.user_id,
-					&body.key_name,
-					Some(value.clone()),
-				);
-			} else {
-				return Err!(Request(NotFound("The requested profile key does not exist.")));
+			match response.custom_profile_fields.get(&body.key_name) {
+				| Some(value) => {
+					profile_key_value.insert(body.key_name.clone(), value.clone());
+					services.users.set_profile_key(
+						&body.user_id,
+						&body.key_name,
+						Some(value.clone()),
+					);
+				},
+				| _ => {
+					return Err!(Request(NotFound("The requested profile key does not exist.")));
+				},
 			}
 
 			if profile_key_value.is_empty() {
@@ -524,14 +527,17 @@ pub(crate) async fn get_profile_key_route(
 		return Err!(Request(NotFound("Profile was not found.")));
 	}
 
-	if let Ok(value) = services
+	match services
 		.users
 		.profile_key(&body.user_id, &body.key_name)
 		.await
 	{
-		profile_key_value.insert(body.key_name.clone(), value);
-	} else {
-		return Err!(Request(NotFound("The requested profile key does not exist.")));
+		| Ok(value) => {
+			profile_key_value.insert(body.key_name.clone(), value);
+		},
+		| _ => {
+			return Err!(Request(NotFound("The requested profile key does not exist.")));
+		},
 	}
 
 	if profile_key_value.is_empty() {

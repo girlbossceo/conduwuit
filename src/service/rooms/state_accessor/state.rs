@@ -1,27 +1,26 @@
 use std::{borrow::Borrow, ops::Deref, sync::Arc};
 
 use conduwuit::{
-	at, err, implement, pair_of,
+	PduEvent, Result, StateKey, at, err, implement, pair_of,
 	utils::{
 		result::FlatOk,
 		stream::{BroadbandExt, IterStream, ReadyExt, TryExpect},
 	},
-	PduEvent, Result, StateKey,
 };
 use database::Deserialized;
-use futures::{future::try_join, pin_mut, FutureExt, Stream, StreamExt, TryFutureExt};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt, future::try_join, pin_mut};
 use ruma::{
-	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
-		StateEventType,
-	},
 	EventId, OwnedEventId, UserId,
+	events::{
+		StateEventType,
+		room::member::{MembershipState, RoomMemberEventContent},
+	},
 };
 use serde::Deserialize;
 
 use crate::rooms::{
 	short::{ShortEventId, ShortStateHash, ShortStateKey},
-	state_compressor::{compress_state_event, parse_compressed_state_event, CompressedState},
+	state_compressor::{CompressedState, compress_state_event, parse_compressed_state_event},
 };
 
 /// The user was a joined member at this state (potentially in the past)

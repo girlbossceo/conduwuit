@@ -1,10 +1,11 @@
 use std::{borrow::Borrow, collections::BTreeSet};
 
 use futures::{
-	future::{join3, OptionFuture},
 	Future,
+	future::{OptionFuture, join3},
 };
 use ruma::{
+	Int, OwnedUserId, RoomVersionId, UserId,
 	events::room::{
 		create::RoomCreateEventContent,
 		join_rules::{JoinRule, RoomJoinRulesEventContent},
@@ -14,21 +15,20 @@ use ruma::{
 	},
 	int,
 	serde::{Base64, Raw},
-	Int, OwnedUserId, RoomVersionId, UserId,
 };
 use serde::{
-	de::{Error as _, IgnoredAny},
 	Deserialize,
+	de::{Error as _, IgnoredAny},
 };
 use serde_json::{from_str as from_json_str, value::RawValue as RawJsonValue};
 
 use super::{
+	Error, Event, Result, StateEventType, StateKey, TimelineEventType,
 	power_levels::{
 		deserialize_power_levels, deserialize_power_levels_content_fields,
 		deserialize_power_levels_content_invite, deserialize_power_levels_content_redact,
 	},
 	room_version::RoomVersion,
-	Error, Event, Result, StateEventType, StateKey, TimelineEventType,
 };
 use crate::{debug, error, trace, warn};
 
@@ -394,28 +394,27 @@ where
 	}
 
 	// If type is m.room.third_party_invite
-	let sender_power_level = if let Some(pl) = &power_levels_event {
-		let content = deserialize_power_levels_content_fields(pl.content().get(), room_version)?;
-		if let Some(level) = content.get_user_power(sender) {
-			*level
-		} else {
-			content.users_default
-		}
-	} else {
-		// If no power level event found the creator gets 100 everyone else gets 0
-		let is_creator = if room_version.use_room_create_sender {
-			room_create_event.sender() == sender
-		} else {
-			#[allow(deprecated)]
-			from_json_str::<RoomCreateEventContent>(room_create_event.content().get())
-				.is_ok_and(|create| create.creator.unwrap() == *sender)
-		};
+	let sender_power_level = match &power_levels_event {
+		| Some(pl) => {
+			let content =
+				deserialize_power_levels_content_fields(pl.content().get(), room_version)?;
+			match content.get_user_power(sender) {
+				| Some(level) => *level,
+				| _ => content.users_default,
+			}
+		},
+		| _ => {
+			// If no power level event found the creator gets 100 everyone else gets 0
+			let is_creator = if room_version.use_room_create_sender {
+				room_create_event.sender() == sender
+			} else {
+				#[allow(deprecated)]
+				from_json_str::<RoomCreateEventContent>(room_create_event.content().get())
+					.is_ok_and(|create| create.creator.unwrap() == *sender)
+			};
 
-		if is_creator {
-			int!(100)
-		} else {
-			int!(0)
-		}
+			if is_creator { int!(100) } else { int!(0) }
+		},
 	};
 
 	// Allow if and only if sender's current power level is greater than
@@ -452,19 +451,21 @@ where
 	if *incoming_event.event_type() == TimelineEventType::RoomPowerLevels {
 		debug!("starting m.room.power_levels check");
 
-		if let Some(required_pwr_lvl) = check_power_levels(
+		match check_power_levels(
 			room_version,
 			incoming_event,
 			power_levels_event.as_ref(),
 			sender_power_level,
 		) {
-			if !required_pwr_lvl {
+			| Some(required_pwr_lvl) =>
+				if !required_pwr_lvl {
+					warn!("m.room.power_levels was not allowed");
+					return Ok(false);
+				},
+			| _ => {
 				warn!("m.room.power_levels was not allowed");
 				return Ok(false);
-			}
-		} else {
-			warn!("m.room.power_levels was not allowed");
-			return Ok(false);
+			},
 		}
 		debug!("m.room.power_levels event allowed");
 	}
@@ -576,10 +577,9 @@ fn valid_membership_change(
 
 			let content =
 				deserialize_power_levels_content_fields(pl.content().get(), room_version)?;
-			let user_pl = if let Some(level) = content.get_user_power(user_for_join_auth) {
-				*level
-			} else {
-				content.users_default
+			let user_pl = match content.get_user_power(user_for_join_auth) {
+				| Some(level) => *level,
+				| _ => content.users_default,
 			};
 
 			(user_pl, invite)
@@ -665,45 +665,48 @@ fn valid_membership_change(
 		},
 		| MembershipState::Invite => {
 			// If content has third_party_invite key
-			if let Some(tp_id) = third_party_invite.and_then(|i| i.deserialize().ok()) {
-				if target_user_current_membership == MembershipState::Ban {
-					warn!(?target_user_membership_event_id, "Can't invite banned user");
-					false
-				} else {
-					let allow = verify_third_party_invite(
-						Some(target_user),
-						sender,
-						&tp_id,
-						current_third_party_invite,
-					);
-					if !allow {
-						warn!("Third party invite invalid");
-					}
-					allow
-				}
-			} else if !sender_is_joined
-				|| target_user_current_membership == MembershipState::Join
-				|| target_user_current_membership == MembershipState::Ban
-			{
-				warn!(
-					?target_user_membership_event_id,
-					?sender_membership_event_id,
-					"Can't invite user if sender not joined or the user is currently joined or \
-					 banned",
-				);
-				false
-			} else {
-				let allow = sender_power
-					.filter(|&p| p >= &power_levels.invite)
-					.is_some();
-				if !allow {
-					warn!(
-						?target_user_membership_event_id,
-						?power_levels_event_id,
-						"User does not have enough power to invite",
-					);
-				}
-				allow
+			match third_party_invite.and_then(|i| i.deserialize().ok()) {
+				| Some(tp_id) =>
+					if target_user_current_membership == MembershipState::Ban {
+						warn!(?target_user_membership_event_id, "Can't invite banned user");
+						false
+					} else {
+						let allow = verify_third_party_invite(
+							Some(target_user),
+							sender,
+							&tp_id,
+							current_third_party_invite,
+						);
+						if !allow {
+							warn!("Third party invite invalid");
+						}
+						allow
+					},
+				| _ =>
+					if !sender_is_joined
+						|| target_user_current_membership == MembershipState::Join
+						|| target_user_current_membership == MembershipState::Ban
+					{
+						warn!(
+							?target_user_membership_event_id,
+							?sender_membership_event_id,
+							"Can't invite user if sender not joined or the user is currently \
+							 joined or banned",
+						);
+						false
+					} else {
+						let allow = sender_power
+							.filter(|&p| p >= &power_levels.invite)
+							.is_some();
+						if !allow {
+							warn!(
+								?target_user_membership_event_id,
+								?power_levels_event_id,
+								"User does not have enough power to invite",
+							);
+						}
+						allow
+					},
 			}
 		},
 		| MembershipState::Leave =>
@@ -1111,23 +1114,23 @@ mod tests {
 	use std::sync::Arc;
 
 	use ruma::events::{
+		StateEventType, TimelineEventType,
 		room::{
 			join_rules::{
 				AllowRule, JoinRule, Restricted, RoomJoinRulesEventContent, RoomMembership,
 			},
 			member::{MembershipState, RoomMemberEventContent},
 		},
-		StateEventType, TimelineEventType,
 	};
 	use serde_json::value::to_raw_value as to_raw_json_value;
 
 	use crate::state_res::{
+		Event, EventTypeExt, RoomVersion, StateMap,
 		event_auth::valid_membership_change,
 		test_utils::{
-			alice, charlie, ella, event_id, member_content_ban, member_content_join, room_id,
-			to_pdu_event, PduEvent, INITIAL_EVENTS, INITIAL_EVENTS_CREATE_ROOM,
+			INITIAL_EVENTS, INITIAL_EVENTS_CREATE_ROOM, PduEvent, alice, charlie, ella, event_id,
+			member_content_ban, member_content_join, room_id, to_pdu_event,
 		},
-		Event, EventTypeExt, RoomVersion, StateMap,
 	};
 
 	#[test]
@@ -1156,21 +1159,23 @@ mod tests {
 		let target_user = charlie();
 		let sender = alice();
 
-		assert!(valid_membership_change(
-			&RoomVersion::V6,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			None,
-			&MembershipState::Leave,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			valid_membership_change(
+				&RoomVersion::V6,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				None,
+				&MembershipState::Leave,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 	}
 
 	#[test]
@@ -1199,21 +1204,23 @@ mod tests {
 		let target_user = charlie();
 		let sender = charlie();
 
-		assert!(!valid_membership_change(
-			&RoomVersion::V6,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			None,
-			&MembershipState::Leave,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			!valid_membership_change(
+				&RoomVersion::V6,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				None,
+				&MembershipState::Leave,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 	}
 
 	#[test]
@@ -1242,21 +1249,23 @@ mod tests {
 		let target_user = alice();
 		let sender = alice();
 
-		assert!(valid_membership_change(
-			&RoomVersion::V6,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			None,
-			&MembershipState::Leave,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			valid_membership_change(
+				&RoomVersion::V6,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				None,
+				&MembershipState::Leave,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 	}
 
 	#[test]
@@ -1285,21 +1294,23 @@ mod tests {
 		let target_user = alice();
 		let sender = charlie();
 
-		assert!(!valid_membership_change(
-			&RoomVersion::V6,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			None,
-			&MembershipState::Leave,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			!valid_membership_change(
+				&RoomVersion::V6,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				None,
+				&MembershipState::Leave,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 	}
 
 	#[test]
@@ -1345,37 +1356,41 @@ mod tests {
 		let target_user = ella();
 		let sender = ella();
 
-		assert!(valid_membership_change(
-			&RoomVersion::V9,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			Some(alice()),
-			&MembershipState::Join,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			valid_membership_change(
+				&RoomVersion::V9,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				Some(alice()),
+				&MembershipState::Join,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 
-		assert!(!valid_membership_change(
-			&RoomVersion::V9,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			Some(ella()),
-			&MembershipState::Leave,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			!valid_membership_change(
+				&RoomVersion::V9,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				Some(ella()),
+				&MembershipState::Leave,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 	}
 
 	#[test]
@@ -1413,20 +1428,22 @@ mod tests {
 		let target_user = ella();
 		let sender = ella();
 
-		assert!(valid_membership_change(
-			&RoomVersion::V7,
-			target_user,
-			fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
-			sender,
-			fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
-			&requester,
-			None::<&PduEvent>,
-			fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
-			fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
-			None,
-			&MembershipState::Leave,
-			&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
-		)
-		.unwrap());
+		assert!(
+			valid_membership_change(
+				&RoomVersion::V7,
+				target_user,
+				fetch_state(StateEventType::RoomMember, target_user.as_str().into()).as_ref(),
+				sender,
+				fetch_state(StateEventType::RoomMember, sender.as_str().into()).as_ref(),
+				&requester,
+				None::<&PduEvent>,
+				fetch_state(StateEventType::RoomPowerLevels, "".into()).as_ref(),
+				fetch_state(StateEventType::RoomJoinRules, "".into()).as_ref(),
+				None,
+				&MembershipState::Leave,
+				&fetch_state(StateEventType::RoomCreate, "".into()).unwrap(),
+			)
+			.unwrap()
+		);
 	}
 }

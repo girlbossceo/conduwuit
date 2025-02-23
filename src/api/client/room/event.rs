@@ -1,9 +1,9 @@
 use axum::extract::State;
-use conduwuit::{err, Err, Event, Result};
-use futures::{future::try_join, FutureExt, TryFutureExt};
+use conduwuit::{Err, Event, Result, err};
+use futures::{FutureExt, TryFutureExt, future::try_join};
 use ruma::api::client::room::get_room_event;
 
-use crate::{client::is_ignored_pdu, Ruma};
+use crate::{Ruma, client::is_ignored_pdu};
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/event/{eventId}`
 ///

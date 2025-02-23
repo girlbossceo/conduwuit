@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use conduwuit::{err, implement, trace, Config, Result};
+use conduwuit::{Config, Result, err, implement, trace};
 use either::Either;
 use ipaddress::IPAddress;
 use reqwest::redirect;
@@ -172,10 +172,9 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 		builder = builder.no_zstd();
 	};
 
-	if let Some(proxy) = config.proxy.to_proxy()? {
-		Ok(builder.proxy(proxy))
-	} else {
-		Ok(builder)
+	match config.proxy.to_proxy()? {
+		| Some(proxy) => Ok(builder.proxy(proxy)),
+		| _ => Ok(builder),
 	}
 }
 

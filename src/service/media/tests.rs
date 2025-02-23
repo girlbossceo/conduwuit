@@ -5,7 +5,7 @@
 async fn long_file_names_works() {
 	use std::path::PathBuf;
 
-	use base64::{engine::general_purpose, Engine as _};
+	use base64::{Engine as _, engine::general_purpose};
 
 	use super::*;
 

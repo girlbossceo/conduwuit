@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use conduwuit::{error, warn, Result};
+use conduwuit::{Result, error, warn};
 use ruma::{
 	events::{
-		push_rules::PushRulesEventContent, GlobalAccountDataEvent, GlobalAccountDataEventType,
+		GlobalAccountDataEvent, GlobalAccountDataEventType, push_rules::PushRulesEventContent,
 	},
 	push::Ruleset,
 };
 
-use crate::{account_data, globals, users, Dep};
+use crate::{Dep, account_data, globals, users};
 
 pub struct Service {
 	services: Services,

@@ -1,8 +1,8 @@
 use axum::{
+	Router,
 	extract::FromRequestParts,
 	response::IntoResponse,
-	routing::{on, MethodFilter},
-	Router,
+	routing::{MethodFilter, on},
 };
 use conduwuit::Result;
 use futures::{Future, TryFutureExt};

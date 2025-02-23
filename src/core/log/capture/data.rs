@@ -1,7 +1,7 @@
 use tracing::Level;
-use tracing_core::{span::Current, Event};
+use tracing_core::{Event, span::Current};
 
-use super::{layer::Value, Layer};
+use super::{Layer, layer::Value};
 use crate::{info, utils::string::EMPTY};
 
 pub struct Data<'a> {

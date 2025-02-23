@@ -12,15 +12,15 @@ use std::{
 
 use async_trait::async_trait;
 use conduwuit::{
-	debug, debug_warn, err, error,
+	Result, Server, debug, debug_warn, err, error,
 	smallvec::SmallVec,
-	utils::{available_parallelism, math::usize_from_u64_truncated, ReadyExt, TryReadyExt},
-	warn, Result, Server,
+	utils::{ReadyExt, TryReadyExt, available_parallelism, math::usize_from_u64_truncated},
+	warn,
 };
 use futures::{FutureExt, Stream, StreamExt};
 use ruma::{
-	api::{appservice::Registration, OutgoingRequest},
 	RoomId, ServerName, UserId,
+	api::{OutgoingRequest, appservice::Registration},
 };
 use tokio::{task, task::JoinSet};
 
@@ -30,8 +30,8 @@ pub use self::{
 	sender::{EDU_LIMIT, PDU_LIMIT},
 };
 use crate::{
-	account_data, client, federation, globals, presence, pusher, rooms,
-	rooms::timeline::RawPduId, users, Dep,
+	Dep, account_data, client, federation, globals, presence, pusher, rooms,
+	rooms::timeline::RawPduId, users,
 };
 
 pub struct Service {

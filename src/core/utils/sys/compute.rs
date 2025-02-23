@@ -2,7 +2,7 @@
 
 use std::{cell::Cell, fmt::Debug, path::PathBuf, sync::LazyLock};
 
-use crate::{is_equal_to, Result};
+use crate::{Result, is_equal_to};
 
 type Id = usize;
 
@@ -45,7 +45,7 @@ pub fn set_affinity<I>(mut ids: I)
 where
 	I: Iterator<Item = Id> + Clone + Debug,
 {
-	use core_affinity::{set_each_for_current, set_for_current, CoreId};
+	use core_affinity::{CoreId, set_each_for_current, set_for_current};
 
 	let n = ids.clone().count();
 	let mask: Mask = ids.clone().fold(0, |mask, id| {
@@ -118,7 +118,7 @@ pub fn cores_available() -> impl Iterator<Item = Id> { from_mask(*CORES_AVAILABL
 #[cfg(target_os = "linux")]
 #[inline]
 pub fn getcpu() -> Result<usize> {
-	use crate::{utils::math, Error};
+	use crate::{Error, utils::math};
 
 	// SAFETY: This is part of an interface with many low-level calls taking many
 	// raw params, but it's unclear why this specific call is unsafe. Nevertheless

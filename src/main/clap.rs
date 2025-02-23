@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use clap::{ArgAction, Parser};
 use conduwuit::{
+	Err, Result,
 	config::{Figment, FigmentValue},
 	err, toml,
 	utils::available_parallelism,
-	Err, Result,
 };
 
 /// Commandline arguments

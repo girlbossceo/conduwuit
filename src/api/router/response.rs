@@ -1,9 +1,9 @@
 use axum::response::{IntoResponse, Response};
 use bytes::BytesMut;
-use conduwuit::{error, Error};
+use conduwuit::{Error, error};
 use http::StatusCode;
 use http_body_util::Full;
-use ruma::api::{client::uiaa::UiaaResponse, OutgoingResponse};
+use ruma::api::{OutgoingResponse, client::uiaa::UiaaResponse};
 
 pub(crate) struct RumaResponse<T>(pub(crate) T)
 where

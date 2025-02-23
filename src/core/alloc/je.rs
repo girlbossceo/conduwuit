@@ -2,7 +2,7 @@
 
 use std::{
 	cell::OnceCell,
-	ffi::{c_char, c_void, CStr},
+	ffi::{CStr, c_char, c_void},
 	fmt::Debug,
 	sync::RwLock,
 };
@@ -14,9 +14,8 @@ use tikv_jemalloc_sys as ffi;
 use tikv_jemallocator as jemalloc;
 
 use crate::{
-	err, is_equal_to, is_nonzero,
+	Result, err, is_equal_to, is_nonzero,
 	utils::{math, math::Tried},
-	Result,
 };
 
 #[cfg(feature = "jemalloc_conf")]
@@ -128,7 +127,7 @@ unsafe extern "C" fn malloc_stats_cb(opaque: *mut c_void, msg: *const c_char) {
 }
 
 macro_rules! mallctl {
-	($name:expr) => {{
+	($name:expr_2021) => {{
 		thread_local! {
 			static KEY: OnceCell<Key> = OnceCell::default();
 		};
@@ -141,7 +140,7 @@ macro_rules! mallctl {
 }
 
 pub mod this_thread {
-	use super::{is_nonzero, key, math, Debug, Key, OnceCell, Result};
+	use super::{Debug, Key, OnceCell, Result, is_nonzero, key, math};
 
 	thread_local! {
 		static ALLOCATED_BYTES: OnceCell<&'static u64> = const { OnceCell::new() };
@@ -261,18 +260,18 @@ pub fn decay<I: Into<Option<usize>>>(arena: I) -> Result {
 }
 
 pub fn set_muzzy_decay<I: Into<Option<usize>>>(arena: I, decay_ms: isize) -> Result<isize> {
-	if let Some(arena) = arena.into() {
-		set_by_arena(Some(arena), mallctl!("arena.4096.muzzy_decay_ms"), decay_ms)
-	} else {
-		set(&mallctl!("arenas.muzzy_decay_ms"), decay_ms)
+	match arena.into() {
+		| Some(arena) =>
+			set_by_arena(Some(arena), mallctl!("arena.4096.muzzy_decay_ms"), decay_ms),
+		| _ => set(&mallctl!("arenas.muzzy_decay_ms"), decay_ms),
 	}
 }
 
 pub fn set_dirty_decay<I: Into<Option<usize>>>(arena: I, decay_ms: isize) -> Result<isize> {
-	if let Some(arena) = arena.into() {
-		set_by_arena(Some(arena), mallctl!("arena.4096.dirty_decay_ms"), decay_ms)
-	} else {
-		set(&mallctl!("arenas.dirty_decay_ms"), decay_ms)
+	match arena.into() {
+		| Some(arena) =>
+			set_by_arena(Some(arena), mallctl!("arena.4096.dirty_decay_ms"), decay_ms),
+		| _ => set(&mallctl!("arenas.dirty_decay_ms"), decay_ms),
 	}
 }
 

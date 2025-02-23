@@ -17,13 +17,14 @@ use std::{
 	hash::{BuildHasher, Hash},
 };
 
-use futures::{future, stream, Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt, future, stream};
 use ruma::{
+	EventId, Int, MilliSecondsSinceUnixEpoch, RoomVersionId,
 	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
 		StateEventType, TimelineEventType,
+		room::member::{MembershipState, RoomMemberEventContent},
 	},
-	int, EventId, Int, MilliSecondsSinceUnixEpoch, RoomVersionId,
+	int,
 };
 use serde_json::from_str as from_json_str;
 
@@ -263,7 +264,7 @@ where
 #[allow(clippy::arithmetic_side_effects)]
 fn get_auth_chain_diff<Id, Hasher>(
 	auth_chain_sets: &[HashSet<Id, Hasher>],
-) -> impl Iterator<Item = Id> + Send
+) -> impl Iterator<Item = Id> + Send + use<Id, Hasher>
 where
 	Id: Clone + Eq + Hash + Send,
 	Hasher: BuildHasher + Send + Sync,
@@ -864,23 +865,23 @@ mod tests {
 	use maplit::{hashmap, hashset};
 	use rand::seq::SliceRandom;
 	use ruma::{
+		MilliSecondsSinceUnixEpoch, OwnedEventId, RoomVersionId,
 		events::{
-			room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 			StateEventType, TimelineEventType,
+			room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 		},
-		int, uint, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomVersionId,
+		int, uint,
 	};
 	use serde_json::{json, value::to_raw_value as to_raw_json_value};
 
 	use super::{
-		is_power_event,
+		Event, EventTypeExt, StateMap, is_power_event,
 		room_version::RoomVersion,
 		test_utils::{
-			alice, bob, charlie, do_check, ella, event_id, member_content_ban,
-			member_content_join, room_id, to_init_pdu_event, to_pdu_event, zara, PduEvent,
-			TestStore, INITIAL_EVENTS,
+			INITIAL_EVENTS, PduEvent, TestStore, alice, bob, charlie, do_check, ella, event_id,
+			member_content_ban, member_content_join, room_id, to_init_pdu_event, to_pdu_event,
+			zara,
 		},
-		Event, EventTypeExt, StateMap,
 	};
 	use crate::debug;
 
@@ -1557,7 +1558,7 @@ mod tests {
 	}
 
 	macro_rules! state_set {
-        ($($kind:expr => $key:expr => $id:expr),* $(,)?) => {{
+        ($($kind:expr_2021 => $key:expr_2021 => $id:expr_2021),* $(,)?) => {{
             #[allow(unused_mut)]
             let mut x = StateMap::new();
             $(

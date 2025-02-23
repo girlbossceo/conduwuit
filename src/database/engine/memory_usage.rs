@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use rocksdb::perf::get_memory_usage_stats;
 
 use super::Engine;

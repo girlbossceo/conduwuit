@@ -1,19 +1,20 @@
 use std::cmp::max;
 
 use axum::extract::State;
-use conduwuit::{err, info, pdu::PduBuilder, Error, Result, StateKey};
+use conduwuit::{Error, Result, StateKey, err, info, pdu::PduBuilder};
 use futures::StreamExt;
 use ruma::{
+	CanonicalJsonObject, RoomId, RoomVersionId,
 	api::client::{error::ErrorKind, room::upgrade_room},
 	events::{
+		StateEventType, TimelineEventType,
 		room::{
 			member::{MembershipState, RoomMemberEventContent},
 			power_levels::RoomPowerLevelsEventContent,
 			tombstone::RoomTombstoneEventContent,
 		},
-		StateEventType, TimelineEventType,
 	},
-	int, CanonicalJsonObject, RoomId, RoomVersionId,
+	int,
 };
 use serde_json::{json, value::to_raw_value};
 

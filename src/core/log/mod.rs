@@ -9,7 +9,7 @@ mod reload;
 mod suppress;
 
 pub use capture::Capture;
-pub use console::{is_systemd_mode, ConsoleFormat, ConsoleWriter};
+pub use console::{ConsoleFormat, ConsoleWriter, is_systemd_mode};
 pub use reload::{LogLevelReloadHandles, ReloadHandle};
 pub use suppress::Suppress;
 pub use tracing::Level;
@@ -34,7 +34,7 @@ pub struct Log {
 
 #[macro_export]
 macro_rules! event {
-	( $level:expr, $($x:tt)+ ) => { ::tracing::event!( $level, $($x)+ ) }
+	( $level:expr_2021, $($x:tt)+ ) => { ::tracing::event!( $level, $($x)+ ) }
 }
 
 #[macro_export]

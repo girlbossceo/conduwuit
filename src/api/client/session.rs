@@ -2,9 +2,10 @@ use std::time::Duration;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{debug, err, info, utils::ReadyExt, warn, Err};
+use conduwuit::{Err, debug, err, info, utils::ReadyExt, warn};
 use futures::StreamExt;
 use ruma::{
+	OwnedUserId, UserId,
 	api::client::{
 		error::ErrorKind,
 		session::{
@@ -21,12 +22,11 @@ use ruma::{
 		},
 		uiaa,
 	},
-	OwnedUserId, UserId,
 };
 use service::uiaa::SESSION_ID_LENGTH;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
-use crate::{utils, utils::hash, Error, Result, Ruma};
+use crate::{Error, Result, Ruma, utils, utils::hash};
 
 /// # `GET /_matrix/client/v3/login`
 ///
@@ -139,18 +139,20 @@ pub(crate) async fn login_route(
 					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
 				})?;
 
-			if let Some(ref info) = body.appservice_info {
-				if !info.is_user_match(&user_id) {
+			match body.appservice_info {
+				| Some(ref info) =>
+					if !info.is_user_match(&user_id) {
+						return Err(Error::BadRequest(
+							ErrorKind::Exclusive,
+							"User is not in namespace.",
+						));
+					},
+				| _ => {
 					return Err(Error::BadRequest(
-						ErrorKind::Exclusive,
-						"User is not in namespace.",
+						ErrorKind::MissingToken,
+						"Missing appservice token.",
 					));
-				}
-			} else {
-				return Err(Error::BadRequest(
-					ErrorKind::MissingToken,
-					"Missing appservice token.",
-				));
+				},
 			}
 
 			user_id
@@ -259,26 +261,32 @@ pub(crate) async fn login_token_route(
 		auth_error: None,
 	};
 
-	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services
-			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)
-			.await?;
+	match &body.auth {
+		| Some(auth) => {
+			let (worked, uiaainfo) = services
+				.uiaa
+				.try_auth(sender_user, sender_device, auth, &uiaainfo)
+				.await?;
 
-		if !worked {
-			return Err(Error::Uiaa(uiaainfo));
-		}
+			if !worked {
+				return Err(Error::Uiaa(uiaainfo));
+			}
 
-		// Success!
-	} else if let Some(json) = body.json_body.as_ref() {
-		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services
-			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, json);
+			// Success!
+		},
+		| _ => match body.json_body.as_ref() {
+			| Some(json) => {
+				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+				services
+					.uiaa
+					.create(sender_user, sender_device, &uiaainfo, json);
 
-		return Err(Error::Uiaa(uiaainfo));
-	} else {
-		return Err!(Request(NotJson("No JSON body was sent when required.")));
+				return Err(Error::Uiaa(uiaainfo));
+			},
+			| _ => {
+				return Err!(Request(NotJson("No JSON body was sent when required.")));
+			},
+		},
 	}
 
 	let login_token = utils::random_string(TOKEN_LENGTH);

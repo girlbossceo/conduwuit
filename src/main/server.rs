@@ -1,11 +1,11 @@
 use std::{path::PathBuf, sync::Arc};
 
 use conduwuit::{
+	Error, Result,
 	config::Config,
 	info,
 	log::Log,
 	utils::{stream, sys},
-	Error, Result,
 };
 use tokio::{runtime, sync::Mutex};
 

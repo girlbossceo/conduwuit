@@ -1,4 +1,4 @@
-use conduwuit_core::{err, Err, Result};
+use conduwuit_core::{Err, Result, err};
 use ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use service::Services;
 

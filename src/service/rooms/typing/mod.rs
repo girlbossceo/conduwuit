@@ -1,19 +1,18 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduwuit::{
-	debug_info, trace,
+	Result, Server, debug_info, trace,
 	utils::{self, IterStream},
-	Result, Server,
 };
 use futures::StreamExt;
 use ruma::{
+	OwnedRoomId, OwnedUserId, RoomId, UserId,
 	api::federation::transactions::edu::{Edu, TypingContent},
 	events::SyncEphemeralRoomEvent,
-	OwnedRoomId, OwnedUserId, RoomId, UserId,
 };
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 
-use crate::{globals, sending, sending::EduBuf, users, Dep};
+use crate::{Dep, globals, sending, sending::EduBuf, users};
 
 pub struct Service {
 	server: Arc<Server>,

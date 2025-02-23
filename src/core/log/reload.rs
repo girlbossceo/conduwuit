@@ -3,9 +3,9 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use tracing_subscriber::{reload, EnvFilter};
+use tracing_subscriber::{EnvFilter, reload};
 
-use crate::{error, Result};
+use crate::{Result, error};
 
 /// We need to store a reload::Handle value, but can't name it's type explicitly
 /// because the S type parameter depends on the subscriber's previous layers. In

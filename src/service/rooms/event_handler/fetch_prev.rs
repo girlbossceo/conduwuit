@@ -4,14 +4,13 @@ use std::{
 };
 
 use conduwuit::{
-	debug_warn, err, implement,
+	PduEvent, Result, debug_warn, err, implement,
 	state_res::{self},
-	PduEvent, Result,
 };
-use futures::{future, FutureExt};
+use futures::{FutureExt, future};
 use ruma::{
-	int, uint, CanonicalJsonValue, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, ServerName,
-	UInt,
+	CanonicalJsonValue, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, ServerName, UInt, int,
+	uint,
 };
 
 use super::check_room_id;
@@ -43,54 +42,59 @@ pub(super) async fn fetch_prev(
 	while let Some(prev_event_id) = todo_outlier_stack.pop_front() {
 		self.services.server.check_running()?;
 
-		if let Some((pdu, mut json_opt)) = self
+		match self
 			.fetch_and_handle_outliers(origin, &[prev_event_id.clone()], create_event, room_id)
 			.boxed()
 			.await
 			.pop()
 		{
-			check_room_id(room_id, &pdu)?;
+			| Some((pdu, mut json_opt)) => {
+				check_room_id(room_id, &pdu)?;
 
-			let limit = self.services.server.config.max_fetch_prev_events;
-			if amount > limit {
-				debug_warn!("Max prev event limit reached! Limit: {limit}");
-				graph.insert(prev_event_id.clone(), HashSet::new());
-				continue;
-			}
-
-			if json_opt.is_none() {
-				json_opt = self
-					.services
-					.outlier
-					.get_outlier_pdu_json(&prev_event_id)
-					.await
-					.ok();
-			}
-
-			if let Some(json) = json_opt {
-				if pdu.origin_server_ts > first_ts_in_room {
-					amount = amount.saturating_add(1);
-					for prev_prev in &pdu.prev_events {
-						if !graph.contains_key(prev_prev) {
-							todo_outlier_stack.push_back(prev_prev.clone());
-						}
-					}
-
-					graph
-						.insert(prev_event_id.clone(), pdu.prev_events.iter().cloned().collect());
-				} else {
-					// Time based check failed
+				let limit = self.services.server.config.max_fetch_prev_events;
+				if amount > limit {
+					debug_warn!("Max prev event limit reached! Limit: {limit}");
 					graph.insert(prev_event_id.clone(), HashSet::new());
+					continue;
 				}
 
-				eventid_info.insert(prev_event_id.clone(), (pdu, json));
-			} else {
-				// Get json failed, so this was not fetched over federation
+				if json_opt.is_none() {
+					json_opt = self
+						.services
+						.outlier
+						.get_outlier_pdu_json(&prev_event_id)
+						.await
+						.ok();
+				}
+
+				if let Some(json) = json_opt {
+					if pdu.origin_server_ts > first_ts_in_room {
+						amount = amount.saturating_add(1);
+						for prev_prev in &pdu.prev_events {
+							if !graph.contains_key(prev_prev) {
+								todo_outlier_stack.push_back(prev_prev.clone());
+							}
+						}
+
+						graph.insert(
+							prev_event_id.clone(),
+							pdu.prev_events.iter().cloned().collect(),
+						);
+					} else {
+						// Time based check failed
+						graph.insert(prev_event_id.clone(), HashSet::new());
+					}
+
+					eventid_info.insert(prev_event_id.clone(), (pdu, json));
+				} else {
+					// Get json failed, so this was not fetched over federation
+					graph.insert(prev_event_id.clone(), HashSet::new());
+				}
+			},
+			| _ => {
+				// Fetch and handle failed
 				graph.insert(prev_event_id.clone(), HashSet::new());
-			}
-		} else {
-			// Fetch and handle failed
-			graph.insert(prev_event_id.clone(), HashSet::new());
+			},
 		}
 	}
 

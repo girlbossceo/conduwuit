@@ -4,7 +4,7 @@ use std::{cmp::Ordering, fmt, fmt::Display, str::FromStr};
 
 use ruma::api::Direction;
 
-use crate::{err, Error, Result};
+use crate::{Error, Result, err};
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Count {

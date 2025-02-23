@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
 use ruma::{
+	UInt,
 	api::federation::space::{SpaceHierarchyParentSummary, SpaceHierarchyParentSummaryInit},
 	owned_room_id, owned_server_name,
 	space::SpaceRoomJoinRule,
-	UInt,
 };
 
-use crate::rooms::spaces::{get_parent_children_via, PaginationToken};
+use crate::rooms::spaces::{PaginationToken, get_parent_children_via};
 
 #[test]
 fn get_summary_children() {

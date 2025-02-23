@@ -1,10 +1,10 @@
 use std::{convert::AsRef, fmt::Debug, future::Future, io::Write, sync::Arc};
 
 use conduwuit::{
+	Result,
 	arrayvec::ArrayVec,
 	err, implement,
 	utils::{future::TryExtExt, result::FlatOk},
-	Result,
 };
 use futures::FutureExt;
 use serde::Serialize;
@@ -16,7 +16,10 @@ use crate::{keyval::KeyBuf, ser};
 /// - harder errors may not be reported
 #[inline]
 #[implement(super::Map)]
-pub fn contains<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = bool> + Send + '_
+pub fn contains<K>(
+	self: &Arc<Self>,
+	key: &K,
+) -> impl Future<Output = bool> + Send + '_ + use<'_, K>
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -32,7 +35,7 @@ where
 pub fn acontains<const MAX: usize, K>(
 	self: &Arc<Self>,
 	key: &K,
-) -> impl Future<Output = bool> + Send + '_
+) -> impl Future<Output = bool> + Send + '_ + use<'_, MAX, K>
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -49,7 +52,7 @@ pub fn bcontains<K, B>(
 	self: &Arc<Self>,
 	key: &K,
 	buf: &mut B,
-) -> impl Future<Output = bool> + Send + '_
+) -> impl Future<Output = bool> + Send + '_ + use<'_, K, B>
 where
 	K: Serialize + ?Sized + Debug,
 	B: Write + AsRef<[u8]>,
@@ -62,7 +65,10 @@ where
 /// - key is raw
 #[inline]
 #[implement(super::Map)]
-pub fn exists<'a, K>(self: &'a Arc<Self>, key: &K) -> impl Future<Output = Result> + Send + 'a
+pub fn exists<'a, K>(
+	self: &'a Arc<Self>,
+	key: &K,
+) -> impl Future<Output = Result> + Send + 'a + use<'a, K>
 where
 	K: AsRef<[u8]> + ?Sized + Debug + 'a,
 {

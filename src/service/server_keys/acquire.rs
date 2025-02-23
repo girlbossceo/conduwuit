@@ -7,13 +7,13 @@ use std::{
 use conduwuit::{
 	debug, debug_error, debug_warn, error, implement, info, result::FlatOk, trace, warn,
 };
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use ruma::{
-	api::federation::discovery::ServerSigningKeys, serde::Raw, CanonicalJsonObject,
-	OwnedServerName, OwnedServerSigningKeyId, ServerName, ServerSigningKeyId,
+	CanonicalJsonObject, OwnedServerName, OwnedServerSigningKeyId, ServerName,
+	ServerSigningKeyId, api::federation::discovery::ServerSigningKeys, serde::Raw,
 };
 use serde_json::value::RawValue as RawJsonValue;
-use tokio::time::{timeout_at, Instant};
+use tokio::time::{Instant, timeout_at};
 
 use super::key_exists;
 

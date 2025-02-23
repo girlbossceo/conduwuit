@@ -152,8 +152,8 @@ impl Error {
 	/// Generate the error message string.
 	pub fn message(&self) -> String {
 		match self {
-			| Self::Federation(ref origin, ref error) => format!("Answer from {origin}: {error}"),
-			| Self::Ruma(ref error) => response::ruma_error_message(error),
+			| Self::Federation(origin, error) => format!("Answer from {origin}: {error}"),
+			| Self::Ruma(error) => response::ruma_error_message(error),
 			| _ => format!("{self}"),
 		}
 	}

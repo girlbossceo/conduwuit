@@ -2,12 +2,14 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use conduwuit::{
+	Err, Error, Result,
 	pdu::PduBuilder,
-	utils::{stream::TryIgnore, IterStream},
-	warn, Err, Error, Result,
+	utils::{IterStream, stream::TryIgnore},
+	warn,
 };
-use futures::{future::join3, StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, future::join3};
 use ruma::{
+	OwnedMxcUri, OwnedRoomId, UserId,
 	api::{
 		client::{
 			error::ErrorKind,
@@ -19,7 +21,6 @@ use ruma::{
 	},
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	presence::PresenceState,
-	OwnedMxcUri, OwnedRoomId, UserId,
 };
 use service::Services;
 

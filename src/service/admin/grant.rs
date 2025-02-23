@@ -1,17 +1,17 @@
 use std::collections::BTreeMap;
 
-use conduwuit::{error, implement, Result};
+use conduwuit::{Result, error, implement};
 use ruma::{
+	RoomId, UserId,
 	events::{
+		RoomAccountDataEventType,
 		room::{
 			member::{MembershipState, RoomMemberEventContent},
 			message::RoomMessageEventContent,
 			power_levels::RoomPowerLevelsEventContent,
 		},
 		tag::{TagEvent, TagEventContent, TagInfo},
-		RoomAccountDataEventType,
 	},
-	RoomId, UserId,
 };
 
 use crate::pdu::PduBuilder;

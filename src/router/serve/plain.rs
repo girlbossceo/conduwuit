@@ -1,11 +1,11 @@
 use std::{
 	net::SocketAddr,
-	sync::{atomic::Ordering, Arc},
+	sync::{Arc, atomic::Ordering},
 };
 
 use axum::Router;
-use axum_server::{bind, Handle as ServerHandle};
-use conduwuit::{debug_info, info, Result, Server};
+use axum_server::{Handle as ServerHandle, bind};
+use conduwuit::{Result, Server, debug_info, info};
 use tokio::task::JoinSet;
 
 pub(super) async fn serve(

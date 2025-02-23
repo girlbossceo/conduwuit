@@ -1,36 +1,34 @@
 use std::{collections::HashMap, fmt::Write, iter::once, sync::Arc};
 
 use conduwuit::{
-	err,
+	PduEvent, Result, err,
 	result::FlatOk,
 	state_res::{self, StateMap},
 	utils::{
-		calculate_hash,
+		IterStream, MutexMap, MutexMapGuard, ReadyExt, calculate_hash,
 		stream::{BroadbandExt, TryIgnore},
-		IterStream, MutexMap, MutexMapGuard, ReadyExt,
 	},
-	warn, PduEvent, Result,
+	warn,
 };
 use database::{Deserialized, Ignore, Interfix, Map};
 use futures::{
-	future::join_all, pin_mut, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
+	FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt, future::join_all, pin_mut,
 };
 use ruma::{
+	EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
 	events::{
-		room::{create::RoomCreateEventContent, member::RoomMemberEventContent},
 		AnyStrippedStateEvent, StateEventType, TimelineEventType,
+		room::{create::RoomCreateEventContent, member::RoomMemberEventContent},
 	},
 	serde::Raw,
-	EventId, OwnedEventId, OwnedRoomId, RoomId, RoomVersionId, UserId,
 };
 
 use crate::{
-	globals, rooms,
+	Dep, globals, rooms,
 	rooms::{
 		short::{ShortEventId, ShortStateHash},
-		state_compressor::{parse_compressed_state_event, CompressedState},
+		state_compressor::{CompressedState, parse_compressed_state_event},
 	},
-	Dep,
 };
 
 pub struct Service {
@@ -192,13 +190,13 @@ impl Service {
 			.await;
 
 		if !already_existed {
-			let states_parents = if let Ok(p) = previous_shortstatehash {
-				self.services
-					.state_compressor
-					.load_shortstatehash_info(p)
-					.await?
-			} else {
-				Vec::new()
+			let states_parents = match previous_shortstatehash {
+				| Ok(p) =>
+					self.services
+						.state_compressor
+						.load_shortstatehash_info(p)
+						.await?,
+				| _ => Vec::new(),
 			};
 
 			let (statediffnew, statediffremoved) =
@@ -256,63 +254,65 @@ impl Service {
 				.aput::<BUFSIZE, BUFSIZE, _, _>(shorteventid, p);
 		}
 
-		if let Some(state_key) = &new_pdu.state_key {
-			let states_parents = if let Ok(p) = previous_shortstatehash {
-				self.services
+		match &new_pdu.state_key {
+			| Some(state_key) => {
+				let states_parents = match previous_shortstatehash {
+					| Ok(p) =>
+						self.services
+							.state_compressor
+							.load_shortstatehash_info(p)
+							.await?,
+					| _ => Vec::new(),
+				};
+
+				let shortstatekey = self
+					.services
+					.short
+					.get_or_create_shortstatekey(&new_pdu.kind.to_string().into(), state_key)
+					.await;
+
+				let new = self
+					.services
 					.state_compressor
-					.load_shortstatehash_info(p)
-					.await?
-			} else {
-				Vec::new()
-			};
+					.compress_state_event(shortstatekey, &new_pdu.event_id)
+					.await;
 
-			let shortstatekey = self
-				.services
-				.short
-				.get_or_create_shortstatekey(&new_pdu.kind.to_string().into(), state_key)
-				.await;
+				let replaces = states_parents
+					.last()
+					.map(|info| {
+						info.full_state
+							.iter()
+							.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
+					})
+					.unwrap_or_default();
 
-			let new = self
-				.services
-				.state_compressor
-				.compress_state_event(shortstatekey, &new_pdu.event_id)
-				.await;
+				if Some(&new) == replaces {
+					return Ok(previous_shortstatehash.expect("must exist"));
+				}
 
-			let replaces = states_parents
-				.last()
-				.map(|info| {
-					info.full_state
-						.iter()
-						.find(|bytes| bytes.starts_with(&shortstatekey.to_be_bytes()))
-				})
-				.unwrap_or_default();
+				// TODO: statehash with deterministic inputs
+				let shortstatehash = self.services.globals.next_count()?;
 
-			if Some(&new) == replaces {
-				return Ok(previous_shortstatehash.expect("must exist"));
-			}
+				let mut statediffnew = CompressedState::new();
+				statediffnew.insert(new);
 
-			// TODO: statehash with deterministic inputs
-			let shortstatehash = self.services.globals.next_count()?;
+				let mut statediffremoved = CompressedState::new();
+				if let Some(replaces) = replaces {
+					statediffremoved.insert(*replaces);
+				}
 
-			let mut statediffnew = CompressedState::new();
-			statediffnew.insert(new);
+				self.services.state_compressor.save_state_from_diff(
+					shortstatehash,
+					Arc::new(statediffnew),
+					Arc::new(statediffremoved),
+					2,
+					states_parents,
+				)?;
 
-			let mut statediffremoved = CompressedState::new();
-			if let Some(replaces) = replaces {
-				statediffremoved.insert(*replaces);
-			}
-
-			self.services.state_compressor.save_state_from_diff(
-				shortstatehash,
-				Arc::new(statediffnew),
-				Arc::new(statediffremoved),
-				2,
-				states_parents,
-			)?;
-
-			Ok(shortstatehash)
-		} else {
-			Ok(previous_shortstatehash.expect("first event in room must be a state event"))
+				Ok(shortstatehash)
+			},
+			| _ =>
+				Ok(previous_shortstatehash.expect("first event in room must be a state event")),
 		}
 	}
 

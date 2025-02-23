@@ -3,34 +3,35 @@ use std::fmt::Write;
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	debug_info, error, info, is_equal_to, utils, utils::ReadyExt, warn, Error, PduBuilder, Result,
+	Error, PduBuilder, Result, debug_info, error, info, is_equal_to, utils, utils::ReadyExt, warn,
 };
 use futures::{FutureExt, StreamExt};
 use register::RegistrationKind;
 use ruma::{
+	OwnedRoomId, UserId,
 	api::client::{
 		account::{
-			change_password, check_registration_token_validity, deactivate, get_3pids,
-			get_username_availability,
+			ThirdPartyIdRemovalStatus, change_password, check_registration_token_validity,
+			deactivate, get_3pids, get_username_availability,
 			register::{self, LoginType},
 			request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn,
-			whoami, ThirdPartyIdRemovalStatus,
+			whoami,
 		},
 		error::ErrorKind,
 		uiaa::{AuthFlow, AuthType, UiaaInfo},
 	},
 	events::{
+		GlobalAccountDataEventType, StateEventType,
 		room::{
 			message::RoomMessageEventContent,
 			power_levels::{RoomPowerLevels, RoomPowerLevelsEventContent},
 		},
-		GlobalAccountDataEventType, StateEventType,
 	},
-	push, OwnedRoomId, UserId,
+	push,
 };
 use service::Services;
 
-use super::{join_room_by_id_helper, DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH};
+use super::{DEVICE_ID_LENGTH, SESSION_ID_LENGTH, TOKEN_LENGTH, join_room_by_id_helper};
 use crate::Ruma;
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
@@ -218,12 +219,20 @@ pub(crate) async fn register_route(
 	};
 
 	if body.body.login_type == Some(LoginType::ApplicationService) {
-		if let Some(ref info) = body.appservice_info {
-			if !info.is_user_match(&user_id) {
-				return Err(Error::BadRequest(ErrorKind::Exclusive, "User is not in namespace."));
-			}
-		} else {
-			return Err(Error::BadRequest(ErrorKind::MissingToken, "Missing appservice token."));
+		match body.appservice_info {
+			| Some(ref info) =>
+				if !info.is_user_match(&user_id) {
+					return Err(Error::BadRequest(
+						ErrorKind::Exclusive,
+						"User is not in namespace.",
+					));
+				},
+			| _ => {
+				return Err(Error::BadRequest(
+					ErrorKind::MissingToken,
+					"Missing appservice token.",
+				));
+			},
 		}
 	} else if services.appservice.is_exclusive_user_id(&user_id).await {
 		return Err(Error::BadRequest(ErrorKind::Exclusive, "User ID reserved by appservice."));
@@ -256,33 +265,39 @@ pub(crate) async fn register_route(
 	};
 
 	if !skip_auth {
-		if let Some(auth) = &body.auth {
-			let (worked, uiaainfo) = services
-				.uiaa
-				.try_auth(
-					&UserId::parse_with_server_name("", services.globals.server_name())
-						.expect("we know this is valid"),
-					"".into(),
-					auth,
-					&uiaainfo,
-				)
-				.await?;
-			if !worked {
-				return Err(Error::Uiaa(uiaainfo));
-			}
-		// Success!
-		} else if let Some(json) = body.json_body {
-			uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-			services.uiaa.create(
-				&UserId::parse_with_server_name("", services.globals.server_name())
-					.expect("we know this is valid"),
-				"".into(),
-				&uiaainfo,
-				&json,
-			);
-			return Err(Error::Uiaa(uiaainfo));
-		} else {
-			return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+		match &body.auth {
+			| Some(auth) => {
+				let (worked, uiaainfo) = services
+					.uiaa
+					.try_auth(
+						&UserId::parse_with_server_name("", services.globals.server_name())
+							.expect("we know this is valid"),
+						"".into(),
+						auth,
+						&uiaainfo,
+					)
+					.await?;
+				if !worked {
+					return Err(Error::Uiaa(uiaainfo));
+				}
+				// Success!
+			},
+			| _ => match body.json_body {
+				| Some(json) => {
+					uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+					services.uiaa.create(
+						&UserId::parse_with_server_name("", services.globals.server_name())
+							.expect("we know this is valid"),
+						"".into(),
+						&uiaainfo,
+						&json,
+					);
+					return Err(Error::Uiaa(uiaainfo));
+				},
+				| _ => {
+					return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+				},
+			},
 		}
 	}
 
@@ -463,7 +478,7 @@ pub(crate) async fn register_route(
 			}
 
 			if let Some(room_server_name) = room.server_name() {
-				if let Err(e) = join_room_by_id_helper(
+				match join_room_by_id_helper(
 					&services,
 					&user_id,
 					&room_id,
@@ -475,10 +490,15 @@ pub(crate) async fn register_route(
 				.boxed()
 				.await
 				{
-					// don't return this error so we don't fail registrations
-					error!("Failed to automatically join room {room} for user {user_id}: {e}");
-				} else {
-					info!("Automatically joined room {room} for user {user_id}");
+					| Err(e) => {
+						// don't return this error so we don't fail registrations
+						error!(
+							"Failed to automatically join room {room} for user {user_id}: {e}"
+						);
+					},
+					| _ => {
+						info!("Automatically joined room {room} for user {user_id}");
+					},
 				};
 			}
 		}
@@ -532,26 +552,32 @@ pub(crate) async fn change_password_route(
 		auth_error: None,
 	};
 
-	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services
-			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)
-			.await?;
+	match &body.auth {
+		| Some(auth) => {
+			let (worked, uiaainfo) = services
+				.uiaa
+				.try_auth(sender_user, sender_device, auth, &uiaainfo)
+				.await?;
 
-		if !worked {
-			return Err(Error::Uiaa(uiaainfo));
-		}
+			if !worked {
+				return Err(Error::Uiaa(uiaainfo));
+			}
 
-		// Success!
-	} else if let Some(json) = body.json_body {
-		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services
-			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json);
+			// Success!
+		},
+		| _ => match body.json_body {
+			| Some(json) => {
+				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+				services
+					.uiaa
+					.create(sender_user, sender_device, &uiaainfo, &json);
 
-		return Err(Error::Uiaa(uiaainfo));
-	} else {
-		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+				return Err(Error::Uiaa(uiaainfo));
+			},
+			| _ => {
+				return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+			},
+		},
 	}
 
 	services
@@ -636,25 +662,31 @@ pub(crate) async fn deactivate_route(
 		auth_error: None,
 	};
 
-	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services
-			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)
-			.await?;
+	match &body.auth {
+		| Some(auth) => {
+			let (worked, uiaainfo) = services
+				.uiaa
+				.try_auth(sender_user, sender_device, auth, &uiaainfo)
+				.await?;
 
-		if !worked {
-			return Err(Error::Uiaa(uiaainfo));
-		}
-	// Success!
-	} else if let Some(json) = body.json_body {
-		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services
-			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json);
+			if !worked {
+				return Err(Error::Uiaa(uiaainfo));
+			}
+			// Success!
+		},
+		| _ => match body.json_body {
+			| Some(json) => {
+				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+				services
+					.uiaa
+					.create(sender_user, sender_device, &uiaainfo, &json);
 
-		return Err(Error::Uiaa(uiaainfo));
-	} else {
-		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+				return Err(Error::Uiaa(uiaainfo));
+			},
+			| _ => {
+				return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+			},
+		},
 	}
 
 	// Remove profile pictures and display name
@@ -809,7 +841,7 @@ pub async fn full_user_deactivate(
 			power_levels_content.users.remove(user_id);
 
 			// ignore errors so deactivation doesn't fail
-			if let Err(e) = services
+			match services
 				.rooms
 				.timeline
 				.build_and_append_pdu(
@@ -820,9 +852,12 @@ pub async fn full_user_deactivate(
 				)
 				.await
 			{
-				warn!(%room_id, %user_id, "Failed to demote user's own power level: {e}");
-			} else {
-				info!("Demoted {user_id} in {room_id} as part of account deactivation");
+				| Err(e) => {
+					warn!(%room_id, %user_id, "Failed to demote user's own power level: {e}");
+				},
+				| _ => {
+					info!("Demoted {user_id} in {room_id} as part of account deactivation");
+				},
 			}
 		}
 	}

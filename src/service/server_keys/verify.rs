@@ -1,6 +1,6 @@
-use conduwuit::{implement, pdu::gen_event_id_canonical_json, Err, Result};
+use conduwuit::{Err, Result, implement, pdu::gen_event_id_canonical_json};
 use ruma::{
-	signatures::Verified, CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, RoomVersionId,
+	CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, RoomVersionId, signatures::Verified,
 };
 use serde_json::value::RawValue as RawJsonValue;
 

@@ -49,7 +49,7 @@ pub fn exchange<T>(state: &mut T, source: T) -> T { std::mem::replace(state, sou
 
 #[macro_export]
 macro_rules! extract_variant {
-	($e:expr, $variant:path) => {
+	($e:expr_2021, $variant:path) => {
 		match $e {
 			| $variant(value) => Some(value),
 			| _ => None,
@@ -90,7 +90,7 @@ macro_rules! pair_of {
 		($decl, $decl)
 	};
 
-	($init:expr) => {
+	($init:expr_2021) => {
 		($init, $init)
 	};
 }
@@ -134,7 +134,7 @@ macro_rules! is_equal_to {
 		|x| x == $val
 	};
 
-	($val:expr) => {
+	($val:expr_2021) => {
 		|x| x == $val
 	};
 }
@@ -146,7 +146,7 @@ macro_rules! is_less_than {
 		|x| x < $val
 	};
 
-	($val:expr) => {
+	($val:expr_2021) => {
 		|x| x < $val
 	};
 }

@@ -4,14 +4,13 @@ use std::fmt::Debug;
 
 use conduwuit::{
 	arrayvec::ArrayVec,
-	ruma::{serde::Raw, EventId, RoomId, UserId},
+	ruma::{EventId, RoomId, UserId, serde::Raw},
 };
 use serde::Serialize;
 
 use crate::{
-	de, ser,
-	ser::{serialize_to_vec, Json},
-	Ignore, Interfix,
+	Ignore, Interfix, de, ser,
+	ser::{Json, serialize_to_vec},
 };
 
 #[test]

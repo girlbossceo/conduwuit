@@ -1,7 +1,7 @@
 use conduwuit::Err;
 use ruma::events::room::message::RoomMessageEventContent;
 
-use crate::{admin_command, admin_command_dispatch, Result};
+use crate::{Result, admin_command, admin_command_dispatch};
 
 #[admin_command_dispatch]
 #[derive(Debug, clap::Subcommand)]

@@ -4,20 +4,19 @@ use std::{
 };
 
 use conduwuit::{
-	err, error, implement, utils,
+	Error, Result, err, error, implement, utils,
 	utils::{hash, string::EMPTY},
-	Error, Result,
 };
 use database::{Deserialized, Json, Map};
 use ruma::{
+	CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedUserId, UserId,
 	api::client::{
 		error::ErrorKind,
 		uiaa::{AuthData, AuthType, Password, UiaaInfo, UserIdentifier},
 	},
-	CanonicalJsonValue, DeviceId, OwnedDeviceId, OwnedUserId, UserId,
 };
 
-use crate::{config, globals, users, Dep};
+use crate::{Dep, config, globals, users};
 
 pub struct Service {
 	userdevicesessionid_uiaarequest: RwLock<RequestMap>,
@@ -144,8 +143,7 @@ pub async fn try_auth(
 			};
 
 			#[cfg(not(feature = "element_hacks"))]
-			let Some(UserIdentifier::UserIdOrLocalpart(username)) = identifier
-			else {
+			let Some(UserIdentifier::UserIdOrLocalpart(username)) = identifier else {
 				return Err(Error::BadRequest(
 					ErrorKind::Unrecognized,
 					"Identifier type not recognized.",

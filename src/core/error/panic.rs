@@ -1,6 +1,6 @@
 use std::{
 	any::Any,
-	panic::{panic_any, RefUnwindSafe, UnwindSafe},
+	panic::{RefUnwindSafe, UnwindSafe, panic_any},
 };
 
 use super::Error;

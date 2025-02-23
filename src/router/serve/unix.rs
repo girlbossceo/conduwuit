@@ -4,15 +4,15 @@ use std::{
 	net::{self, IpAddr, Ipv4Addr},
 	os::fd::AsRawFd,
 	path::Path,
-	sync::{atomic::Ordering, Arc},
+	sync::{Arc, atomic::Ordering},
 };
 
 use axum::{
-	extract::{connect_info::IntoMakeServiceWithConnectInfo, Request},
 	Router,
+	extract::{Request, connect_info::IntoMakeServiceWithConnectInfo},
 };
 use conduwuit::{
-	debug, debug_error, info, result::UnwrapInfallible, trace, warn, Err, Result, Server,
+	Err, Result, Server, debug, debug_error, info, result::UnwrapInfallible, trace, warn,
 };
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
@@ -21,10 +21,10 @@ use hyper_util::{
 };
 use tokio::{
 	fs,
-	net::{unix::SocketAddr, UnixListener, UnixStream},
+	net::{UnixListener, UnixStream, unix::SocketAddr},
 	sync::broadcast::{self},
 	task::JoinSet,
-	time::{sleep, Duration},
+	time::{Duration, sleep},
 };
 use tower::{Service, ServiceExt};
 

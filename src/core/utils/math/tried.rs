@@ -1,6 +1,6 @@
 use num_traits::ops::checked::{CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub};
 
-use crate::{checked, Result};
+use crate::{Result, checked};
 
 pub trait Tried {
 	#[inline]

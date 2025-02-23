@@ -1,22 +1,21 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduwuit::{
-	err,
+	PduCount, PduEvent, PduId, RawPduId, Result, err,
 	utils::{
-		stream::{TryIgnore, WidebandExt},
 		ReadyExt,
+		stream::{TryIgnore, WidebandExt},
 	},
-	PduCount, PduEvent, PduId, RawPduId, Result,
 };
 use database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
-	api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint,
 	CanonicalJsonValue, EventId, OwnedUserId, RoomId, UserId,
+	api::client::threads::get_threads::v1::IncludeThreads, events::relation::BundledThread, uint,
 };
 use serde_json::json;
 
-use crate::{rooms, rooms::short::ShortRoomId, Dep};
+use crate::{Dep, rooms, rooms::short::ShortRoomId};
 
 pub struct Service {
 	db: Data,
@@ -121,10 +120,13 @@ impl Service {
 		}
 
 		let mut users = Vec::new();
-		if let Ok(userids) = self.get_participants(&root_id).await {
-			users.extend_from_slice(&userids);
-		} else {
-			users.push(root_pdu.sender);
+		match self.get_participants(&root_id).await {
+			| Ok(userids) => {
+				users.extend_from_slice(&userids);
+			},
+			| _ => {
+				users.push(root_pdu.sender);
+			},
 		}
 		users.push(pdu.sender.clone());
 

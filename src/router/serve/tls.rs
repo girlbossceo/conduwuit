@@ -3,10 +3,10 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::Router;
 use axum_server::Handle as ServerHandle;
 use axum_server_dual_protocol::{
-	axum_server::{bind_rustls, tls_rustls::RustlsConfig},
 	ServerExt,
+	axum_server::{bind_rustls, tls_rustls::RustlsConfig},
 };
-use conduwuit::{err, Result, Server};
+use conduwuit::{Result, Server, err};
 use tokio::task::JoinSet;
 use tracing::{debug, info, warn};
 

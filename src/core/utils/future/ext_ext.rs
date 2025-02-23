@@ -2,7 +2,7 @@
 
 use std::marker::Unpin;
 
-use futures::{future, future::Select, Future};
+use futures::{Future, future, future::Select};
 
 /// This interface is not necessarily complete; feel free to add as-needed.
 pub trait ExtExt<T>

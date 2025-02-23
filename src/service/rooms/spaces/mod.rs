@@ -5,18 +5,18 @@ mod tests;
 use std::sync::Arc;
 
 use conduwuit::{
-	implement,
+	Err, Error, Result, implement,
 	utils::{
+		IterStream,
 		future::BoolExt,
 		math::usize_from_f64,
 		stream::{BroadbandExt, ReadyExt},
-		IterStream,
 	},
-	Err, Error, Result,
 };
-use futures::{pin_mut, stream::FuturesUnordered, FutureExt, Stream, StreamExt, TryFutureExt};
+use futures::{FutureExt, Stream, StreamExt, TryFutureExt, pin_mut, stream::FuturesUnordered};
 use lru_cache::LruCache;
 use ruma::{
+	OwnedEventId, OwnedRoomId, OwnedServerName, RoomId, ServerName, UserId,
 	api::{
 		client::space::SpaceHierarchyRoomsChunk,
 		federation::{
@@ -25,18 +25,17 @@ use ruma::{
 		},
 	},
 	events::{
+		StateEventType,
 		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 		space::child::{HierarchySpaceChildEvent, SpaceChildEventContent},
-		StateEventType,
 	},
 	serde::Raw,
 	space::SpaceRoomJoinRule,
-	OwnedEventId, OwnedRoomId, OwnedServerName, RoomId, ServerName, UserId,
 };
 use tokio::sync::{Mutex, MutexGuard};
 
 pub use self::pagination_token::PaginationToken;
-use crate::{conduwuit::utils::TryFutureExtExt, rooms, sending, Dep};
+use crate::{Dep, conduwuit::utils::TryFutureExtExt, rooms, sending};
 
 pub struct Service {
 	services: Services,
@@ -440,8 +439,9 @@ async fn is_accessible_child(
 pub fn get_parent_children_via(
 	parent: &SpaceHierarchyParentSummary,
 	suggested_only: bool,
-) -> impl DoubleEndedIterator<Item = (OwnedRoomId, impl Iterator<Item = OwnedServerName>)> + Send + '_
-{
+) -> impl DoubleEndedIterator<Item = (OwnedRoomId, impl Iterator<Item = OwnedServerName> + use<>)>
++ Send
++ '_ {
 	parent
 		.children_state
 		.iter()

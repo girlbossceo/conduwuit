@@ -1,30 +1,29 @@
 use axum::extract::State;
 use conduwuit::{
-	at,
+	Event, PduCount, PduEvent, Result, at,
 	utils::{
+		IterStream, ReadyExt,
 		result::{FlatOk, LogErr},
 		stream::{BroadbandExt, TryIgnore, WidebandExt},
-		IterStream, ReadyExt,
 	},
-	Event, PduCount, PduEvent, Result,
 };
-use futures::{future::OptionFuture, pin_mut, FutureExt, StreamExt, TryFutureExt};
+use futures::{FutureExt, StreamExt, TryFutureExt, future::OptionFuture, pin_mut};
 use ruma::{
+	RoomId, UserId,
 	api::{
-		client::{filter::RoomEventFilter, message::get_message_events},
 		Direction,
+		client::{filter::RoomEventFilter, message::get_message_events},
 	},
 	events::{AnyStateEvent, StateEventType, TimelineEventType, TimelineEventType::*},
 	serde::Raw,
-	RoomId, UserId,
 };
 use service::{
+	Services,
 	rooms::{
 		lazy_loading,
 		lazy_loading::{Options, Witness},
 		timeline::PdusIterItem,
 	},
-	Services,
 };
 
 use crate::Ruma;

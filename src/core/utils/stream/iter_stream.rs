@@ -1,7 +1,6 @@
 use futures::{
-	stream,
+	StreamExt, stream,
 	stream::{Stream, TryStream},
-	StreamExt,
 };
 
 use crate::{Error, Result};

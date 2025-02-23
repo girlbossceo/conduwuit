@@ -1,25 +1,25 @@
 use std::{mem::size_of, sync::Arc};
 
 use conduwuit::{
+	PduCount, PduEvent,
 	arrayvec::ArrayVec,
 	result::LogErr,
 	utils::{
+		ReadyExt,
 		stream::{TryIgnore, WidebandExt},
-		u64_from_u8, ReadyExt,
+		u64_from_u8,
 	},
-	PduCount, PduEvent,
 };
 use database::Map;
 use futures::{Stream, StreamExt};
-use ruma::{api::Direction, EventId, RoomId, UserId};
+use ruma::{EventId, RoomId, UserId, api::Direction};
 
 use crate::{
-	rooms,
+	Dep, rooms,
 	rooms::{
 		short::{ShortEventId, ShortRoomId},
 		timeline::{PduId, RawPduId},
 	},
-	Dep,
 };
 
 pub(super) struct Data {

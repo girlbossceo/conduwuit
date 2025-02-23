@@ -9,14 +9,16 @@ use std::{
 };
 
 use conduwuit::{
-	err, utils,
-	utils::math::{usize_from_f64, Expected},
-	Result,
+	Result, err, utils,
+	utils::math::{Expected, usize_from_f64},
 };
 use database::Map;
 use lru_cache::LruCache;
 use ruma::{
+	EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, OwnedRoomId, OwnedServerName,
+	OwnedUserId, RoomId, UserId,
 	events::{
+		StateEventType,
 		room::{
 			avatar::RoomAvatarEventContent,
 			canonical_alias::RoomCanonicalAliasEventContent,
@@ -29,15 +31,12 @@ use ruma::{
 			name::RoomNameEventContent,
 			topic::RoomTopicEventContent,
 		},
-		StateEventType,
 	},
 	room::RoomType,
 	space::SpaceRoomJoinRule,
-	EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, OwnedRoomId, OwnedServerName,
-	OwnedUserId, RoomId, UserId,
 };
 
-use crate::{rooms, rooms::short::ShortStateHash, Dep};
+use crate::{Dep, rooms, rooms::short::ShortStateHash};
 
 pub struct Service {
 	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, ShortStateHash), bool>>,

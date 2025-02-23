@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::fed::{add_port_to_hostname, get_ip_with_port, FedDest};
+use super::fed::{FedDest, add_port_to_hostname, get_ip_with_port};
 
 #[test]
 fn ips_get_default_ports() {

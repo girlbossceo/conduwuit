@@ -3,12 +3,12 @@ extern crate conduwuit_core as conduwuit;
 extern crate conduwuit_service as service;
 
 use std::{
-	sync::{atomic::Ordering, Arc, Weak},
+	sync::{Arc, Weak, atomic::Ordering},
 	time::Duration,
 };
 
 use axum_server::Handle as ServerHandle;
-use conduwuit::{debug, debug_error, debug_info, error, info, Error, Result, Server};
+use conduwuit::{Error, Result, Server, debug, debug_error, debug_info, error, info};
 use futures::FutureExt;
 use service::Services;
 use tokio::{

@@ -1,11 +1,11 @@
 use axum::extract::State;
 use conduwuit::utils::TryFutureExtExt;
-use futures::{pin_mut, StreamExt};
+use futures::{StreamExt, pin_mut};
 use ruma::{
 	api::client::user_directory::search_users,
 	events::{
-		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 		StateEventType,
+		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 	},
 };
 

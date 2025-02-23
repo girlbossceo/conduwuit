@@ -1,23 +1,22 @@
 use axum::extract::State;
 use conduwuit::{
-	at, err, ref_at,
+	Err, PduEvent, Result, at, err, ref_at,
 	utils::{
+		IterStream,
 		future::TryExtExt,
 		stream::{BroadbandExt, ReadyExt, TryIgnore, WidebandExt},
-		IterStream,
 	},
-	Err, PduEvent, Result,
 };
 use futures::{
-	future::{join, join3, try_join3, OptionFuture},
 	FutureExt, StreamExt, TryFutureExt, TryStreamExt,
+	future::{OptionFuture, join, join3, try_join3},
 };
-use ruma::{api::client::context::get_context, events::StateEventType, OwnedEventId, UserId};
+use ruma::{OwnedEventId, UserId, api::client::context::get_context, events::StateEventType};
 use service::rooms::{lazy_loading, lazy_loading::Options, short::ShortStateKey};
 
 use crate::{
-	client::message::{event_filter, ignored_filter, lazy_loading_witness, visibility_filter},
 	Ruma,
+	client::message::{event_filter, ignored_filter, lazy_loading_witness, visibility_filter},
 };
 
 const LIMIT_MAX: usize = 100;

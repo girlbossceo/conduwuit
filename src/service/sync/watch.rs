@@ -1,5 +1,5 @@
-use conduwuit::{implement, trace, Result};
-use futures::{pin_mut, stream::FuturesUnordered, FutureExt, StreamExt};
+use conduwuit::{Result, implement, trace};
+use futures::{FutureExt, StreamExt, pin_mut, stream::FuturesUnordered};
 use ruma::{DeviceId, UserId};
 
 #[implement(super::Service)]

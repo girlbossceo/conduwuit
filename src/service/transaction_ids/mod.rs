@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use database::{Handle, Map};
 use ruma::{DeviceId, TransactionId, UserId};
 

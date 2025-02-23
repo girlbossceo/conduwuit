@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{Error, ItemFn, Meta, Path};
 use utils::get_named_generics;
 
-use crate::{utils, Result};
+use crate::{Result, utils};
 
 pub(super) fn implement(item: ItemFn, args: &[Meta]) -> Result<TokenStream> {
 	let generics = get_named_generics(args, "generics")?;

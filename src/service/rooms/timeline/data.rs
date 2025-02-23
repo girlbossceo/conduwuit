@@ -1,18 +1,17 @@
 use std::{borrow::Borrow, sync::Arc};
 
 use conduwuit::{
-	at, err,
+	Err, PduCount, PduEvent, Result, at, err,
 	result::{LogErr, NotFound},
 	utils,
 	utils::stream::TryReadyExt,
-	Err, PduCount, PduEvent, Result,
 };
 use database::{Database, Deserialized, Json, KeyVal, Map};
-use futures::{future::select_ok, pin_mut, FutureExt, Stream, TryFutureExt, TryStreamExt};
-use ruma::{api::Direction, CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId};
+use futures::{FutureExt, Stream, TryFutureExt, TryStreamExt, future::select_ok, pin_mut};
+use ruma::{CanonicalJsonObject, EventId, OwnedUserId, RoomId, UserId, api::Direction};
 
 use super::{PduId, RawPduId};
-use crate::{rooms, rooms::short::ShortRoomId, Dep};
+use crate::{Dep, rooms, rooms::short::ShortRoomId};
 
 pub(super) struct Data {
 	eventid_outlierpdu: Arc<Map>,

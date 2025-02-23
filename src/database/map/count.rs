@@ -16,7 +16,10 @@ pub fn count(self: &Arc<Self>) -> impl Future<Output = usize> + Send + '_ {
 /// - From is a structured key
 #[implement(super::Map)]
 #[inline]
-pub fn count_from<'a, P>(self: &'a Arc<Self>, from: &P) -> impl Future<Output = usize> + Send + 'a
+pub fn count_from<'a, P>(
+	self: &'a Arc<Self>,
+	from: &P,
+) -> impl Future<Output = usize> + Send + 'a + use<'a, P>
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {
@@ -46,7 +49,7 @@ where
 pub fn count_prefix<'a, P>(
 	self: &'a Arc<Self>,
 	prefix: &P,
-) -> impl Future<Output = usize> + Send + 'a
+) -> impl Future<Output = usize> + Send + 'a + use<'a, P>
 where
 	P: Serialize + ?Sized + Debug + 'a,
 {

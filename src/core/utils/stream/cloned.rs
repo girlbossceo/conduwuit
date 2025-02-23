@@ -1,6 +1,6 @@
 use std::clone::Clone;
 
-use futures::{stream::Map, Stream, StreamExt};
+use futures::{Stream, StreamExt, stream::Map};
 
 pub trait Cloned<'a, T, S>
 where

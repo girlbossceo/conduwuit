@@ -7,14 +7,14 @@
 
 use std::{cmp, num::Saturating as Sat};
 
-use conduwuit::{checked, err, implement, Result};
-use ruma::{http_headers::ContentDisposition, media::Method, Mxc, UInt, UserId};
+use conduwuit::{Result, checked, err, implement};
+use ruma::{Mxc, UInt, UserId, http_headers::ContentDisposition, media::Method};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt},
 };
 
-use super::{data::Metadata, FileMeta};
+use super::{FileMeta, data::Metadata};
 
 /// Dimension specification for a thumbnail.
 #[derive(Debug)]
@@ -65,12 +65,12 @@ impl super::Service {
 		// 0, 0 because that's the original file
 		let dim = dim.normalized();
 
-		if let Ok(metadata) = self.db.search_file_metadata(mxc, &dim).await {
-			self.get_thumbnail_saved(metadata).await
-		} else if let Ok(metadata) = self.db.search_file_metadata(mxc, &Dim::default()).await {
-			self.get_thumbnail_generate(mxc, &dim, metadata).await
-		} else {
-			Ok(None)
+		match self.db.search_file_metadata(mxc, &dim).await {
+			| Ok(metadata) => self.get_thumbnail_saved(metadata).await,
+			| _ => match self.db.search_file_metadata(mxc, &Dim::default()).await {
+				| Ok(metadata) => self.get_thumbnail_generate(mxc, &dim, metadata).await,
+				| _ => Ok(None),
+			},
 		}
 	}
 }

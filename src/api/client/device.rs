@@ -1,18 +1,18 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{err, Err};
+use conduwuit::{Err, err};
 use futures::StreamExt;
 use ruma::{
+	MilliSecondsSinceUnixEpoch,
 	api::client::{
 		device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
 		error::ErrorKind,
 		uiaa::{AuthFlow, AuthType, UiaaInfo},
 	},
-	MilliSecondsSinceUnixEpoch,
 };
 
 use super::SESSION_ID_LENGTH;
-use crate::{utils, Error, Result, Ruma};
+use crate::{Error, Result, Ruma, utils};
 
 /// # `GET /_matrix/client/r0/devices`
 ///
@@ -107,25 +107,31 @@ pub(crate) async fn delete_device_route(
 		auth_error: None,
 	};
 
-	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services
-			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)
-			.await?;
+	match &body.auth {
+		| Some(auth) => {
+			let (worked, uiaainfo) = services
+				.uiaa
+				.try_auth(sender_user, sender_device, auth, &uiaainfo)
+				.await?;
 
-		if !worked {
-			return Err!(Uiaa(uiaainfo));
-		}
-	// Success!
-	} else if let Some(json) = body.json_body {
-		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services
-			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json);
+			if !worked {
+				return Err!(Uiaa(uiaainfo));
+			}
+			// Success!
+		},
+		| _ => match body.json_body {
+			| Some(json) => {
+				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+				services
+					.uiaa
+					.create(sender_user, sender_device, &uiaainfo, &json);
 
-		return Err!(Uiaa(uiaainfo));
-	} else {
-		return Err!(Request(NotJson("Not json.")));
+				return Err!(Uiaa(uiaainfo));
+			},
+			| _ => {
+				return Err!(Request(NotJson("Not json.")));
+			},
+		},
 	}
 
 	services
@@ -164,25 +170,31 @@ pub(crate) async fn delete_devices_route(
 		auth_error: None,
 	};
 
-	if let Some(auth) = &body.auth {
-		let (worked, uiaainfo) = services
-			.uiaa
-			.try_auth(sender_user, sender_device, auth, &uiaainfo)
-			.await?;
+	match &body.auth {
+		| Some(auth) => {
+			let (worked, uiaainfo) = services
+				.uiaa
+				.try_auth(sender_user, sender_device, auth, &uiaainfo)
+				.await?;
 
-		if !worked {
-			return Err(Error::Uiaa(uiaainfo));
-		}
-	// Success!
-	} else if let Some(json) = body.json_body {
-		uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
-		services
-			.uiaa
-			.create(sender_user, sender_device, &uiaainfo, &json);
+			if !worked {
+				return Err(Error::Uiaa(uiaainfo));
+			}
+			// Success!
+		},
+		| _ => match body.json_body {
+			| Some(json) => {
+				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
+				services
+					.uiaa
+					.create(sender_user, sender_device, &uiaainfo, &json);
 
-		return Err(Error::Uiaa(uiaainfo));
-	} else {
-		return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+				return Err(Error::Uiaa(uiaainfo));
+			},
+			| _ => {
+				return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+			},
+		},
 	}
 
 	for device_id in &body.devices {

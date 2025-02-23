@@ -1,15 +1,15 @@
 use ruma::{
-	canonical_json::redact_content_in_place,
-	events::{room::redaction::RoomRedactionEventContent, TimelineEventType},
 	OwnedEventId, RoomVersionId,
+	canonical_json::redact_content_in_place,
+	events::{TimelineEventType, room::redaction::RoomRedactionEventContent},
 };
 use serde::Deserialize;
 use serde_json::{
 	json,
-	value::{to_raw_value, RawValue as RawJsonValue},
+	value::{RawValue as RawJsonValue, to_raw_value},
 };
 
-use crate::{implement, Error, Result};
+use crate::{Error, Result, implement};
 
 #[derive(Deserialize)]
 struct ExtractRedactedBecause {
@@ -76,14 +76,21 @@ pub fn copy_redacts(&self) -> (Option<OwnedEventId>, Box<RawJsonValue>) {
 		if let Ok(mut content) =
 			serde_json::from_str::<RoomRedactionEventContent>(self.content.get())
 		{
-			if let Some(redacts) = content.redacts {
-				return (Some(redacts), self.content.clone());
-			} else if let Some(redacts) = self.redacts.clone() {
-				content.redacts = Some(redacts);
-				return (
-					self.redacts.clone(),
-					to_raw_value(&content).expect("Must be valid, we only added redacts field"),
-				);
+			match content.redacts {
+				| Some(redacts) => {
+					return (Some(redacts), self.content.clone());
+				},
+				| _ => match self.redacts.clone() {
+					| Some(redacts) => {
+						content.redacts = Some(redacts);
+						return (
+							self.redacts.clone(),
+							to_raw_value(&content)
+								.expect("Must be valid, we only added redacts field"),
+						);
+					},
+					| _ => {},
+				},
 			}
 		}
 	}

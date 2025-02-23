@@ -1,25 +1,25 @@
 use std::cmp;
 
 use conduwuit::{
-	debug, debug_info, debug_warn, error, info,
+	Err, Result, debug, debug_info, debug_warn, error, info,
 	result::NotFound,
 	utils::{
-		stream::{TryExpect, TryIgnore},
 		IterStream, ReadyExt,
+		stream::{TryExpect, TryIgnore},
 	},
-	warn, Err, Result,
+	warn,
 };
 use futures::{FutureExt, StreamExt};
 use itertools::Itertools;
 use ruma::{
+	OwnedUserId, RoomId, UserId,
 	events::{
-		push_rules::PushRulesEvent, room::member::MembershipState, GlobalAccountDataEventType,
+		GlobalAccountDataEventType, push_rules::PushRulesEvent, room::member::MembershipState,
 	},
 	push::Ruleset,
-	OwnedUserId, RoomId, UserId,
 };
 
-use crate::{media, Services};
+use crate::{Services, media};
 
 /// The current schema version.
 /// - If database is opened at greater version we reject with error. The

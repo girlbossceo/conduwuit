@@ -6,10 +6,10 @@ mod tests;
 
 use std::sync::Arc;
 
-use conduwuit::{arrayvec::ArrayString, utils::MutexMap, Result, Server};
+use conduwuit::{Result, Server, arrayvec::ArrayString, utils::MutexMap};
 
 use self::{cache::Cache, dns::Resolver};
-use crate::{client, Dep};
+use crate::{Dep, client};
 
 pub struct Service {
 	pub cache: Arc<Cache>,

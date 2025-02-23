@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 
-use super::{path, Library};
+use super::{Library, path};
 use crate::{Err, Result};
 
 const OPEN_FLAGS: i32 = libloading::os::unix::RTLD_LAZY | libloading::os::unix::RTLD_GLOBAL;

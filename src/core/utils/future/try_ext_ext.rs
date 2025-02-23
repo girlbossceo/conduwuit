@@ -7,9 +7,8 @@
 use std::marker::Unpin;
 
 use futures::{
-	future,
+	TryFuture, TryFutureExt, future,
 	future::{MapOkOrElse, TrySelect, UnwrapOrElse},
-	TryFuture, TryFutureExt,
 };
 
 /// This interface is not necessarily complete; feel free to add as-needed.

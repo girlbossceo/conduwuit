@@ -6,19 +6,19 @@ use std::{
 };
 
 use conduwuit::{
-	debug_error, err, info, trace, utils,
+	Error, PduEvent, PduId, RawPduId, Result, debug_error, err, info, trace, utils,
 	utils::{
 		stream::{IterStream, ReadyExt},
 		string::EMPTY,
 	},
-	warn, Error, PduEvent, PduId, RawPduId, Result,
+	warn,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
-	api::{client::error::ErrorKind, federation::event::get_room_state},
-	events::room::message::RoomMessageEventContent,
 	CanonicalJsonObject, EventId, OwnedEventId, OwnedRoomOrAliasId, RoomId, RoomVersionId,
 	ServerName,
+	api::{client::error::ErrorKind, federation::event::get_room_state},
+	events::room::message::RoomMessageEventContent,
 };
 use service::rooms::{
 	short::{ShortEventId, ShortRoomId},
@@ -209,18 +209,21 @@ pub(super) async fn get_remote_pdu_list(
 
 	for pdu in list {
 		if force {
-			if let Err(e) = self.get_remote_pdu(Box::from(pdu), server.clone()).await {
-				failed_count = failed_count.saturating_add(1);
-				self.services
-					.admin
-					.send_message(RoomMessageEventContent::text_plain(format!(
-						"Failed to get remote PDU, ignoring error: {e}"
-					)))
-					.await
-					.ok();
-				warn!("Failed to get remote PDU, ignoring error: {e}");
-			} else {
-				success_count = success_count.saturating_add(1);
+			match self.get_remote_pdu(Box::from(pdu), server.clone()).await {
+				| Err(e) => {
+					failed_count = failed_count.saturating_add(1);
+					self.services
+						.admin
+						.send_message(RoomMessageEventContent::text_plain(format!(
+							"Failed to get remote PDU, ignoring error: {e}"
+						)))
+						.await
+						.ok();
+					warn!("Failed to get remote PDU, ignoring error: {e}");
+				},
+				| _ => {
+					success_count = success_count.saturating_add(1);
+				},
 			}
 		} else {
 			self.get_remote_pdu(Box::from(pdu), server.clone()).await?;
@@ -957,7 +960,7 @@ pub(super) async fn database_stats(
 	self.services
 		.db
 		.iter()
-		.filter(|(&name, _)| map_name.is_empty() || map_name == name)
+		.filter(|&(&name, _)| map_name.is_empty() || map_name == name)
 		.try_stream()
 		.try_for_each(|(&name, map)| {
 			let res = map.property(&property).expect("invalid property");

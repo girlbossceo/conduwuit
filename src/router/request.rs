@@ -1,6 +1,6 @@
 use std::{
 	fmt::Debug,
-	sync::{atomic::Ordering, Arc},
+	sync::{Arc, atomic::Ordering},
 	time::Duration,
 };
 
@@ -8,7 +8,7 @@ use axum::{
 	extract::State,
 	response::{IntoResponse, Response},
 };
-use conduwuit::{debug, debug_error, debug_warn, err, error, trace, Result};
+use conduwuit::{Result, debug, debug_error, debug_warn, err, error, trace};
 use conduwuit_service::Services;
 use futures::FutureExt;
 use http::{Method, StatusCode, Uri};

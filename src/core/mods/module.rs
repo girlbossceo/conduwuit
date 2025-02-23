@@ -3,8 +3,8 @@ use std::{
 	time::SystemTime,
 };
 
-use super::{canary, new, path, Library, Symbol};
-use crate::{error, Result};
+use super::{Library, Symbol, canary, new, path};
+use crate::{Result, error};
 
 pub struct Module {
 	handle: Option<Library>,

@@ -8,13 +8,13 @@ mod thumbnail;
 use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use conduwuit::{
-	debug, debug_error, debug_info, debug_warn, err, error, trace,
+	Err, Result, Server, debug, debug_error, debug_info, debug_warn, err, error, trace,
 	utils::{self, MutexMap},
-	warn, Err, Result, Server,
+	warn,
 };
-use ruma::{http_headers::ContentDisposition, Mxc, OwnedMxcUri, UserId};
+use ruma::{Mxc, OwnedMxcUri, UserId, http_headers::ContentDisposition};
 use tokio::{
 	fs,
 	io::{AsyncReadExt, AsyncWriteExt, BufReader},
@@ -22,7 +22,7 @@ use tokio::{
 
 use self::data::{Data, Metadata};
 pub use self::thumbnail::Dim;
-use crate::{client, globals, sending, Dep};
+use crate::{Dep, client, globals, sending};
 
 #[derive(Debug)]
 pub struct FileMeta {
@@ -105,22 +105,27 @@ impl Service {
 
 	/// Deletes a file in the database and from the media directory via an MXC
 	pub async fn delete(&self, mxc: &Mxc<'_>) -> Result<()> {
-		if let Ok(keys) = self.db.search_mxc_metadata_prefix(mxc).await {
-			for key in keys {
-				trace!(?mxc, "MXC Key: {key:?}");
-				debug_info!(?mxc, "Deleting from filesystem");
+		match self.db.search_mxc_metadata_prefix(mxc).await {
+			| Ok(keys) => {
+				for key in keys {
+					trace!(?mxc, "MXC Key: {key:?}");
+					debug_info!(?mxc, "Deleting from filesystem");
 
-				if let Err(e) = self.remove_media_file(&key).await {
-					debug_error!(?mxc, "Failed to remove media file: {e}");
+					if let Err(e) = self.remove_media_file(&key).await {
+						debug_error!(?mxc, "Failed to remove media file: {e}");
+					}
+
+					debug_info!(?mxc, "Deleting from database");
+					self.db.delete_file_mxc(mxc).await;
 				}
 
-				debug_info!(?mxc, "Deleting from database");
-				self.db.delete_file_mxc(mxc).await;
-			}
-
-			Ok(())
-		} else {
-			Err!(Database(error!("Failed to find any media keys for MXC {mxc} in our database.")))
+				Ok(())
+			},
+			| _ => {
+				Err!(Database(error!(
+					"Failed to find any media keys for MXC {mxc} in our database."
+				)))
+			},
 		}
 	}
 
@@ -154,22 +159,21 @@ impl Service {
 
 	/// Downloads a file.
 	pub async fn get(&self, mxc: &Mxc<'_>) -> Result<Option<FileMeta>> {
-		if let Ok(Metadata { content_disposition, content_type, key }) =
-			self.db.search_file_metadata(mxc, &Dim::default()).await
-		{
-			let mut content = Vec::with_capacity(8192);
-			let path = self.get_media_file(&key);
-			BufReader::new(fs::File::open(path).await?)
-				.read_to_end(&mut content)
-				.await?;
+		match self.db.search_file_metadata(mxc, &Dim::default()).await {
+			| Ok(Metadata { content_disposition, content_type, key }) => {
+				let mut content = Vec::with_capacity(8192);
+				let path = self.get_media_file(&key);
+				BufReader::new(fs::File::open(path).await?)
+					.read_to_end(&mut content)
+					.await?;
 
-			Ok(Some(FileMeta {
-				content: Some(content),
-				content_type,
-				content_disposition,
-			}))
-		} else {
-			Ok(None)
+				Ok(Some(FileMeta {
+					content: Some(content),
+					content_type,
+					content_disposition,
+				}))
+			},
+			| _ => Ok(None),
 		}
 	}
 

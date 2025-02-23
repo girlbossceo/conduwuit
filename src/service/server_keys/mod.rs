@@ -8,22 +8,21 @@ mod verify;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use conduwuit::{
-	implement,
-	utils::{timepoint_from_now, IterStream},
-	Result, Server,
+	Result, Server, implement,
+	utils::{IterStream, timepoint_from_now},
 };
 use database::{Deserialized, Json, Map};
 use futures::StreamExt;
 use ruma::{
+	CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, RoomVersionId,
+	ServerName, ServerSigningKeyId,
 	api::federation::discovery::{ServerSigningKeys, VerifyKey},
 	serde::Raw,
 	signatures::{Ed25519KeyPair, PublicKeyMap, PublicKeySet},
-	CanonicalJsonObject, MilliSecondsSinceUnixEpoch, OwnedServerSigningKeyId, RoomVersionId,
-	ServerName, ServerSigningKeyId,
 };
 use serde_json::value::RawValue as RawJsonValue;
 
-use crate::{globals, sending, Dep};
+use crate::{Dep, globals, sending};
 
 pub struct Service {
 	keypair: Box<Ed25519KeyPair>,

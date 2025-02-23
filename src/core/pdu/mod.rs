@@ -17,13 +17,14 @@ mod unsigned;
 use std::cmp::Ordering;
 
 use ruma::{
-	events::TimelineEventType, CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId,
-	OwnedRoomId, OwnedServerName, OwnedUserId, UInt,
+	CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
+	OwnedUserId, UInt, events::TimelineEventType,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue as RawJsonValue;
 
 pub use self::{
+	Count as PduCount, Id as PduId, Pdu as PduEvent, RawId as RawPduId,
 	builder::{Builder, Builder as PduBuilder},
 	count::Count,
 	event::Event,
@@ -31,7 +32,6 @@ pub use self::{
 	id::*,
 	raw_id::*,
 	state_key::{ShortStateKey, StateKey},
-	Count as PduCount, Id as PduId, Pdu as PduEvent, RawId as RawPduId,
 };
 use crate::Result;
 

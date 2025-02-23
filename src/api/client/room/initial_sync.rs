@@ -1,8 +1,7 @@
 use axum::extract::State;
 use conduwuit::{
-	at,
-	utils::{stream::TryTools, BoolExt},
-	Err, PduEvent, Result,
+	Err, PduEvent, Result, at,
+	utils::{BoolExt, stream::TryTools},
 };
 use futures::TryStreamExt;
 use ruma::api::client::room::initial_sync::v3::{PaginationChunk, Request, Response};

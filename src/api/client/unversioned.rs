@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{Json, extract::State, response::IntoResponse};
 use futures::StreamExt;
 use ruma::api::client::discovery::get_supported_versions;
 

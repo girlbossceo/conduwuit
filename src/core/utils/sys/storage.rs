@@ -3,7 +3,7 @@
 use std::{
 	ffi::OsStr,
 	fs,
-	fs::{read_to_string, FileType},
+	fs::{FileType, read_to_string},
 	iter::IntoIterator,
 	path::{Path, PathBuf},
 };
@@ -11,9 +11,9 @@ use std::{
 use libc::dev_t;
 
 use crate::{
+	Result,
 	result::FlatOk,
 	utils::{result::LogDebugErr, string::SplitInfallible},
-	Result,
 };
 
 /// Device characteristics useful for random access throughput

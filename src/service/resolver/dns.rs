@@ -1,8 +1,8 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use conduwuit::{err, Result, Server};
+use conduwuit::{Result, Server, err};
 use futures::FutureExt;
-use hickory_resolver::{lookup_ip::LookupIp, TokioAsyncResolver};
+use hickory_resolver::{TokioAsyncResolver, lookup_ip::LookupIp};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
 use super::cache::{Cache, CachedOverride};

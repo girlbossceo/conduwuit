@@ -1,14 +1,14 @@
 use api::client::leave_room;
 use clap::Subcommand;
 use conduwuit::{
-	debug, error, info,
+	Result, debug, error, info,
 	utils::{IterStream, ReadyExt},
-	warn, Result,
+	warn,
 };
 use futures::StreamExt;
 use ruma::{
-	events::room::message::RoomMessageEventContent, OwnedRoomId, RoomAliasId, RoomId,
-	RoomOrAliasId,
+	OwnedRoomId, RoomAliasId, RoomId, RoomOrAliasId,
+	events::room::message::RoomMessageEventContent,
 };
 
 use crate::{admin_command, admin_command_dispatch, get_room_info};
@@ -124,41 +124,42 @@ async fn ban_room(
 			 locally, if not using get_alias_helper to fetch room ID remotely"
 		);
 
-		let room_id = if let Ok(room_id) = self
+		let room_id = match self
 			.services
 			.rooms
 			.alias
 			.resolve_local_alias(room_alias)
 			.await
 		{
-			room_id
-		} else {
-			debug!(
-				"We don't have this room alias to a room ID locally, attempting to fetch room \
-				 ID over federation"
-			);
+			| Ok(room_id) => room_id,
+			| _ => {
+				debug!(
+					"We don't have this room alias to a room ID locally, attempting to fetch \
+					 room ID over federation"
+				);
 
-			match self
-				.services
-				.rooms
-				.alias
-				.resolve_alias(room_alias, None)
-				.await
-			{
-				| Ok((room_id, servers)) => {
-					debug!(
-						?room_id,
-						?servers,
-						"Got federation response fetching room ID for {room_id}"
-					);
-					room_id
-				},
-				| Err(e) => {
-					return Ok(RoomMessageEventContent::notice_plain(format!(
-						"Failed to resolve room alias {room_alias} to a room ID: {e}"
-					)));
-				},
-			}
+				match self
+					.services
+					.rooms
+					.alias
+					.resolve_alias(room_alias, None)
+					.await
+				{
+					| Ok((room_id, servers)) => {
+						debug!(
+							?room_id,
+							?servers,
+							"Got federation response fetching room ID for {room_id}"
+						);
+						room_id
+					},
+					| Err(e) => {
+						return Ok(RoomMessageEventContent::notice_plain(format!(
+							"Failed to resolve room alias {room_alias} to a room ID: {e}"
+						)));
+					},
+				}
+			},
 		};
 
 		self.services.rooms.metadata.ban_room(&room_id, true);
@@ -321,51 +322,55 @@ async fn ban_list_of_rooms(
 				if room_alias_or_id.is_room_alias_id() {
 					match RoomAliasId::parse(room_alias_or_id) {
 						| Ok(room_alias) => {
-							let room_id = if let Ok(room_id) = self
+							let room_id = match self
 								.services
 								.rooms
 								.alias
 								.resolve_local_alias(room_alias)
 								.await
 							{
-								room_id
-							} else {
-								debug!(
-									"We don't have this room alias to a room ID locally, \
-									 attempting to fetch room ID over federation"
-								);
+								| Ok(room_id) => room_id,
+								| _ => {
+									debug!(
+										"We don't have this room alias to a room ID locally, \
+										 attempting to fetch room ID over federation"
+									);
 
-								match self
-									.services
-									.rooms
-									.alias
-									.resolve_alias(room_alias, None)
-									.await
-								{
-									| Ok((room_id, servers)) => {
-										debug!(
-											?room_id,
-											?servers,
-											"Got federation response fetching room ID for {room}",
-										);
-										room_id
-									},
-									| Err(e) => {
-										// don't fail if force blocking
-										if force {
-											warn!(
-												"Failed to resolve room alias {room} to a room \
-												 ID: {e}"
+									match self
+										.services
+										.rooms
+										.alias
+										.resolve_alias(room_alias, None)
+										.await
+									{
+										| Ok((room_id, servers)) => {
+											debug!(
+												?room_id,
+												?servers,
+												"Got federation response fetching room ID for \
+												 {room}",
 											);
-											continue;
-										}
+											room_id
+										},
+										| Err(e) => {
+											// don't fail if force blocking
+											if force {
+												warn!(
+													"Failed to resolve room alias {room} to a \
+													 room ID: {e}"
+												);
+												continue;
+											}
 
-										return Ok(RoomMessageEventContent::text_plain(format!(
-											"Failed to resolve room alias {room} to a room ID: \
-											 {e}"
-										)));
-									},
-								}
+											return Ok(RoomMessageEventContent::text_plain(
+												format!(
+													"Failed to resolve room alias {room} to a \
+													 room ID: {e}"
+												),
+											));
+										},
+									}
+								},
 							};
 
 							room_ids.push(room_id);
@@ -537,41 +542,42 @@ async fn unban_room(
 			 locally, if not using get_alias_helper to fetch room ID remotely"
 		);
 
-		let room_id = if let Ok(room_id) = self
+		let room_id = match self
 			.services
 			.rooms
 			.alias
 			.resolve_local_alias(room_alias)
 			.await
 		{
-			room_id
-		} else {
-			debug!(
-				"We don't have this room alias to a room ID locally, attempting to fetch room \
-				 ID over federation"
-			);
+			| Ok(room_id) => room_id,
+			| _ => {
+				debug!(
+					"We don't have this room alias to a room ID locally, attempting to fetch \
+					 room ID over federation"
+				);
 
-			match self
-				.services
-				.rooms
-				.alias
-				.resolve_alias(room_alias, None)
-				.await
-			{
-				| Ok((room_id, servers)) => {
-					debug!(
-						?room_id,
-						?servers,
-						"Got federation response fetching room ID for room {room}"
-					);
-					room_id
-				},
-				| Err(e) => {
-					return Ok(RoomMessageEventContent::text_plain(format!(
-						"Failed to resolve room alias {room} to a room ID: {e}"
-					)));
-				},
-			}
+				match self
+					.services
+					.rooms
+					.alias
+					.resolve_alias(room_alias, None)
+					.await
+				{
+					| Ok((room_id, servers)) => {
+						debug!(
+							?room_id,
+							?servers,
+							"Got federation response fetching room ID for room {room}"
+						);
+						room_id
+					},
+					| Err(e) => {
+						return Ok(RoomMessageEventContent::text_plain(format!(
+							"Failed to resolve room alias {room} to a room ID: {e}"
+						)));
+					},
+				}
+			},
 		};
 
 		self.services.rooms.metadata.ban_room(&room_id, false);

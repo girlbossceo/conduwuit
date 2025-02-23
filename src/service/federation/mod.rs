@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use conduwuit::{Result, Server};
 
-use crate::{client, resolver, server_keys, Dep};
+use crate::{Dep, client, resolver, server_keys};
 
 pub struct Service {
 	services: Services,

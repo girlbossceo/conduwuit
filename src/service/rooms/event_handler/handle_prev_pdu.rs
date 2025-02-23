@@ -5,8 +5,8 @@ use std::{
 };
 
 use conduwuit::{
-	debug, debug::INFO_SPAN_LEVEL, implement, utils::continue_exponential_backoff_secs, Err,
-	PduEvent, Result,
+	Err, PduEvent, Result, debug, debug::INFO_SPAN_LEVEL, implement,
+	utils::continue_exponential_backoff_secs,
 };
 use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName, UInt};
 

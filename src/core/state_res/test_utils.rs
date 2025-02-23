@@ -2,33 +2,33 @@ use std::{
 	borrow::Borrow,
 	collections::{BTreeMap, HashMap, HashSet},
 	sync::{
-		atomic::{AtomicU64, Ordering::SeqCst},
 		Arc,
+		atomic::{AtomicU64, Ordering::SeqCst},
 	},
 };
 
 use futures::future::ready;
 use ruma::{
-	event_id,
+	EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, RoomVersionId, ServerSignatures,
+	UserId, event_id,
 	events::{
+		TimelineEventType,
 		pdu::{EventHash, Pdu, RoomV3Pdu},
 		room::{
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
 		},
-		TimelineEventType,
 	},
-	int, room_id, uint, user_id, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId,
-	RoomVersionId, ServerSignatures, UserId,
+	int, room_id, uint, user_id,
 };
 use serde_json::{
 	json,
-	value::{to_raw_value as to_raw_json_value, RawValue as RawJsonValue},
+	value::{RawValue as RawJsonValue, to_raw_value as to_raw_json_value},
 };
 
 pub(crate) use self::event::PduEvent;
 use super::auth_types_for_event;
-use crate::{info, Event, EventTypeExt, Result, StateMap};
+use crate::{Event, EventTypeExt, Result, StateMap, info};
 
 static SERVER_TIMESTAMP: AtomicU64 = AtomicU64::new(0);
 
@@ -584,8 +584,8 @@ pub(crate) fn INITIAL_EDGES() -> Vec<OwnedEventId> {
 
 pub(crate) mod event {
 	use ruma::{
-		events::{pdu::Pdu, TimelineEventType},
 		MilliSecondsSinceUnixEpoch, OwnedEventId, RoomId, UserId,
+		events::{TimelineEventType, pdu::Pdu},
 	};
 	use serde::{Deserialize, Serialize};
 	use serde_json::value::RawValue as RawJsonValue;

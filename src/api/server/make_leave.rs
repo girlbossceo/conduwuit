@@ -7,7 +7,7 @@ use ruma::{
 use serde_json::value::to_raw_value;
 
 use super::make_join::maybe_strip_event_id;
-use crate::{service::pdu::PduBuilder, Ruma};
+use crate::{Ruma, service::pdu::PduBuilder};
 
 /// # `GET /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
 ///

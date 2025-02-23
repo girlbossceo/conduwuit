@@ -3,7 +3,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use conduwuit::{debug, utils::math::usize_from_f64, Result, Server};
+use conduwuit::{Result, Server, debug, utils::math::usize_from_f64};
 use rocksdb::{Cache, Env, LruCacheOptions};
 
 use crate::{or_else, pool::Pool};

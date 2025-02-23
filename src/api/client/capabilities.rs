@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use axum::extract::State;
 use conduwuit::{Result, Server};
 use ruma::{
+	RoomVersionId,
 	api::client::discovery::get_capabilities::{
 		self, Capabilities, GetLoginTokenCapability, RoomVersionStability,
 		RoomVersionsCapability, ThirdPartyIdChangesCapability,
 	},
-	RoomVersionId,
 };
 use serde_json::json;
 

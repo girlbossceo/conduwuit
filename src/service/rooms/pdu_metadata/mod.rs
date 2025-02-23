@@ -2,11 +2,11 @@ mod data;
 use std::sync::Arc;
 
 use conduwuit::{PduCount, Result};
-use futures::{future::try_join, StreamExt};
-use ruma::{api::Direction, EventId, RoomId, UserId};
+use futures::{StreamExt, future::try_join};
+use ruma::{EventId, RoomId, UserId, api::Direction};
 
 use self::data::{Data, PdusIterItem};
-use crate::{rooms, Dep};
+use crate::{Dep, rooms};
 
 pub struct Service {
 	services: Services,
@@ -81,7 +81,7 @@ impl Service {
 			.collect();
 
 		'limit: while let Some(stack_pdu) = stack.pop() {
-			let target = match stack_pdu.0 .0 {
+			let target = match stack_pdu.0.0 {
 				| PduCount::Normal(c) => c,
 				// TODO: Support backfilled relations
 				| PduCount::Backfilled(_) => 0, // This will result in an empty iterator

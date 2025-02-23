@@ -40,7 +40,7 @@ pub(crate) use self::options::{
 	read_options_default, write_options_default,
 };
 pub use self::{get_batch::Get, qry_batch::Qry};
-use crate::{watchers::Watchers, Engine};
+use crate::{Engine, watchers::Watchers};
 
 pub struct Map {
 	name: &'static str,

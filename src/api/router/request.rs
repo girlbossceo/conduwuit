@@ -1,8 +1,8 @@
 use std::str;
 
-use axum::{extract::Path, RequestExt, RequestPartsExt};
+use axum::{RequestExt, RequestPartsExt, extract::Path};
 use bytes::Bytes;
-use conduwuit::{err, Result};
+use conduwuit::{Result, err};
 use http::request::Parts;
 use serde::Deserialize;
 use service::Services;

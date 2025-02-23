@@ -1,26 +1,24 @@
 use std::sync::Arc;
 
 use conduwuit::{
+	PduCount, PduEvent, Result,
 	arrayvec::ArrayVec,
 	implement,
 	utils::{
-		set,
+		ArrayVecExt, IterStream, ReadyExt, set,
 		stream::{TryIgnore, WidebandExt},
-		ArrayVecExt, IterStream, ReadyExt,
 	},
-	PduCount, PduEvent, Result,
 };
-use database::{keyval::Val, Map};
+use database::{Map, keyval::Val};
 use futures::{Stream, StreamExt};
-use ruma::{api::client::search::search_events::v3::Criteria, RoomId, UserId};
+use ruma::{RoomId, UserId, api::client::search::search_events::v3::Criteria};
 
 use crate::{
-	rooms,
+	Dep, rooms,
 	rooms::{
 		short::ShortRoomId,
 		timeline::{PduId, RawPduId},
 	},
-	Dep,
 };
 
 pub struct Service {
@@ -140,7 +138,7 @@ pub async fn search_pdus<'a>(
 pub async fn search_pdu_ids(
 	&self,
 	query: &RoomQuery<'_>,
-) -> Result<impl Stream<Item = RawPduId> + Send + '_> {
+) -> Result<impl Stream<Item = RawPduId> + Send + '_ + use<'_>> {
 	let shortroomid = self.services.short.get_shortroomid(query.room_id).await?;
 
 	let pdu_ids = self.search_pdu_ids_query_room(query, shortroomid).await;
@@ -187,7 +185,7 @@ fn search_pdu_ids_query_word(
 	&self,
 	shortroomid: ShortRoomId,
 	word: &str,
-) -> impl Stream<Item = Val<'_>> + Send + '_ {
+) -> impl Stream<Item = Val<'_>> + Send + '_ + use<'_> {
 	// rustc says const'ing this not yet stable
 	let end_id: RawPduId = PduId {
 		shortroomid,

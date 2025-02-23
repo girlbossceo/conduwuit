@@ -1,4 +1,4 @@
-use conduwuit::{err, utils::math::Expected, Config, Result};
+use conduwuit::{Config, Result, err, utils::math::Expected};
 use rocksdb::{
 	BlockBasedIndexType, BlockBasedOptions, BlockBasedPinningTier, Cache,
 	DBCompressionType as CompressionType, DataBlockIndexType, LruCacheOptions, Options,
@@ -6,7 +6,7 @@ use rocksdb::{
 };
 
 use super::descriptor::{CacheDisp, Descriptor};
-use crate::{util::map_err, Context};
+use crate::{Context, util::map_err};
 
 pub(super) const SENTINEL_COMPRESSION_LEVEL: i32 = 32767;
 

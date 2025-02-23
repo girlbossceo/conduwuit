@@ -1,8 +1,8 @@
 use conduwuit::Result;
 use futures::StreamExt;
-use ruma::{events::room::message::RoomMessageEventContent, OwnedRoomId};
+use ruma::{OwnedRoomId, events::room::message::RoomMessageEventContent};
 
-use crate::{admin_command, get_room_info, PAGE_SIZE};
+use crate::{PAGE_SIZE, admin_command, get_room_info};
 
 #[admin_command]
 pub(super) async fn list_rooms(

@@ -3,13 +3,12 @@
 use std::{collections::HashSet, sync::Arc};
 
 use conduwuit::{
-	implement,
-	utils::{stream::TryIgnore, IterStream, ReadyExt},
-	Result,
+	Result, implement,
+	utils::{IterStream, ReadyExt, stream::TryIgnore},
 };
 use database::{Database, Deserialized, Handle, Interfix, Map, Qry};
-use futures::{pin_mut, Stream, StreamExt};
-use ruma::{api::client::filter::LazyLoadOptions, DeviceId, OwnedUserId, RoomId, UserId};
+use futures::{Stream, StreamExt, pin_mut};
+use ruma::{DeviceId, OwnedUserId, RoomId, UserId, api::client::filter::LazyLoadOptions};
 
 pub struct Service {
 	db: Data,

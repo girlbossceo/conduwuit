@@ -6,7 +6,7 @@ use std::{cmp, convert::TryFrom};
 pub use checked_ops::checked_ops;
 
 pub use self::{expected::Expected, tried::Tried};
-use crate::{debug::type_name, err, Err, Error, Result};
+use crate::{Err, Error, Result, debug::type_name, err};
 
 /// Checked arithmetic expression. Returns a Result<R, Error::Arithmetic>
 #[macro_export]

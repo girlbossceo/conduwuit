@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use syn::{parse_str, Expr, ExprLit, Generics, Lit, Meta, MetaNameValue};
+use syn::{Expr, ExprLit, Generics, Lit, Meta, MetaNameValue, parse_str};
 
 use crate::Result;
 

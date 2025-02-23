@@ -1,16 +1,16 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use conduwuit::{debug, info, warn, Result, Server};
+use conduwuit::{Result, Server, debug, info, warn};
 use database::{Deserialized, Map};
 use ruma::events::room::message::RoomMessageEventContent;
 use serde::Deserialize;
 use tokio::{
 	sync::Notify,
-	time::{interval, MissedTickBehavior},
+	time::{MissedTickBehavior, interval},
 };
 
-use crate::{admin, client, globals, Dep};
+use crate::{Dep, admin, client, globals};
 
 pub struct Service {
 	interval: Duration,

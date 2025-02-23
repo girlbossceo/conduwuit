@@ -6,7 +6,7 @@ mod unix;
 use std::sync::Arc;
 
 use axum_server::Handle as ServerHandle;
-use conduwuit::{err, Result};
+use conduwuit::{Result, err};
 use conduwuit_service::Services;
 use tokio::sync::broadcast;
 

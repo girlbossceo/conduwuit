@@ -3,11 +3,11 @@
 use std::convert::identity;
 
 use futures::{
-	stream::{Stream, StreamExt},
 	Future,
+	stream::{Stream, StreamExt},
 };
 
-use super::{automatic_width, ReadyExt};
+use super::{ReadyExt, automatic_width};
 
 /// Concurrency extensions to augment futures::StreamExt. broad_ combinators
 /// produce out-of-order

@@ -10,8 +10,8 @@ use ruma::api::{
 };
 
 use crate::{
-	client::{claim_keys_helper, get_keys_helper},
 	Ruma,
+	client::{claim_keys_helper, get_keys_helper},
 };
 
 /// # `GET /_matrix/federation/v1/user/devices/{userId}`

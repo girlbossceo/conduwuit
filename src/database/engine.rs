@@ -12,21 +12,21 @@ mod repair;
 use std::{
 	ffi::CStr,
 	sync::{
-		atomic::{AtomicU32, Ordering},
 		Arc,
+		atomic::{AtomicU32, Ordering},
 	},
 };
 
-use conduwuit::{debug, info, warn, Err, Result};
+use conduwuit::{Err, Result, debug, info, warn};
 use rocksdb::{
 	AsColumnFamilyRef, BoundColumnFamily, DBCommon, DBWithThreadMode, MultiThreaded,
 	WaitForCompactOptions,
 };
 
 use crate::{
+	Context,
 	pool::Pool,
 	util::{map_err, result},
-	Context,
 };
 
 pub struct Engine {

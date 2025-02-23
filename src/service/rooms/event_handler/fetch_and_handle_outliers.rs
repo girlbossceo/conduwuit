@@ -1,16 +1,16 @@
 use std::{
-	collections::{hash_map, BTreeMap, HashSet, VecDeque},
+	collections::{BTreeMap, HashSet, VecDeque, hash_map},
 	sync::Arc,
 	time::Instant,
 };
 
 use conduwuit::{
-	debug, debug_error, debug_warn, implement, pdu, trace,
-	utils::continue_exponential_backoff_secs, warn, PduEvent,
+	PduEvent, debug, debug_error, debug_warn, implement, pdu, trace,
+	utils::continue_exponential_backoff_secs, warn,
 };
 use futures::TryFutureExt;
 use ruma::{
-	api::federation::event::get_event, CanonicalJsonValue, OwnedEventId, RoomId, ServerName,
+	CanonicalJsonValue, OwnedEventId, RoomId, ServerName, api::federation::event::get_event,
 };
 
 use super::get_room_version_id;
@@ -138,12 +138,15 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 						.and_then(CanonicalJsonValue::as_array)
 					{
 						for auth_event in auth_events {
-							if let Ok(auth_event) =
-								serde_json::from_value::<OwnedEventId>(auth_event.clone().into())
-							{
-								todo_auth_events.push_back(auth_event);
-							} else {
-								warn!("Auth event id is not valid");
+							match serde_json::from_value::<OwnedEventId>(
+								auth_event.clone().into(),
+							) {
+								| Ok(auth_event) => {
+									todo_auth_events.push_back(auth_event);
+								},
+								| _ => {
+									warn!("Auth event id is not valid");
+								},
 							}
 						}
 					} else {

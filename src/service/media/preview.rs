@@ -7,7 +7,7 @@
 
 use std::time::SystemTime;
 
-use conduwuit::{debug, Err, Result};
+use conduwuit::{Err, Result, debug};
 use conduwuit_core::implement;
 use ipaddress::IPAddress;
 use serde::Serialize;

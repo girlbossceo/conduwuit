@@ -1,13 +1,13 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use rocksdb::Direction;
 use serde::{Deserialize, Serialize};
 use tokio::task;
 
 use crate::{
-	keyval::{result_deserialize, serialize_key, KeyVal},
+	keyval::{KeyVal, result_deserialize, serialize_key},
 	stream,
 };
 
@@ -19,7 +19,7 @@ use crate::{
 pub fn stream_from<'a, K, V, P>(
 	self: &'a Arc<Self>,
 	from: &P,
-) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
+) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send + use<'a, K, V, P>
 where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
@@ -37,7 +37,7 @@ where
 pub fn stream_from_raw<P>(
 	self: &Arc<Self>,
 	from: &P,
-) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
+) -> impl Stream<Item = Result<KeyVal<'_>>> + Send + use<'_, P>
 where
 	P: Serialize + ?Sized + Debug,
 {
@@ -53,7 +53,7 @@ where
 pub fn stream_raw_from<'a, K, V, P>(
 	self: &'a Arc<Self>,
 	from: &P,
-) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send
+) -> impl Stream<Item = Result<KeyVal<'_, K, V>>> + Send + use<'a, K, V, P>
 where
 	P: AsRef<[u8]> + ?Sized + Debug + Sync,
 	K: Deserialize<'a> + Send,
@@ -71,7 +71,7 @@ where
 pub fn raw_stream_from<P>(
 	self: &Arc<Self>,
 	from: &P,
-) -> impl Stream<Item = Result<KeyVal<'_>>> + Send
+) -> impl Stream<Item = Result<KeyVal<'_>>> + Send + use<'_, P>
 where
 	P: AsRef<[u8]> + ?Sized + Debug,
 {

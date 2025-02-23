@@ -1,6 +1,6 @@
-use conduwuit::{debug, debug_info, error, implement, info, Err, Result};
+use conduwuit::{Err, Result, debug, debug_info, error, implement, info};
 use ruma::events::room::message::RoomMessageEventContent;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 pub(super) const SIGNAL: &str = "SIGUSR2";
 

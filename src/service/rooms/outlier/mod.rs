@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduwuit::{implement, Result};
+use conduwuit::{Result, implement};
 use database::{Deserialized, Json, Map};
 use ruma::{CanonicalJsonObject, EventId};
 

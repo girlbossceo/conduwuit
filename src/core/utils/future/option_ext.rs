@@ -1,6 +1,6 @@
 #![allow(clippy::wrong_self_convention)]
 
-use futures::{future::OptionFuture, Future, FutureExt};
+use futures::{Future, FutureExt, future::OptionFuture};
 
 pub trait OptionExt<T> {
 	fn is_none_or(self, f: impl FnOnce(&T) -> bool + Send) -> impl Future<Output = bool> + Send;

@@ -8,7 +8,7 @@ use std::{
 
 use clap::{CommandFactory, Parser};
 use conduwuit::{
-	debug, error,
+	Error, Result, debug, error,
 	log::{
 		capture,
 		capture::Capture,
@@ -16,24 +16,24 @@ use conduwuit::{
 	},
 	trace,
 	utils::string::{collect_stream, common_prefix},
-	warn, Error, Result,
+	warn,
 };
-use futures::{future::FutureExt, io::BufWriter, AsyncWriteExt};
+use futures::{AsyncWriteExt, future::FutureExt, io::BufWriter};
 use ruma::{
+	EventId,
 	events::{
 		relation::InReplyTo,
 		room::message::{Relation::Reply, RoomMessageEventContent},
 	},
-	EventId,
 };
 use service::{
-	admin::{CommandInput, CommandOutput, ProcessorFuture, ProcessorResult},
 	Services,
+	admin::{CommandInput, CommandOutput, ProcessorFuture, ProcessorResult},
 };
 use tracing::Level;
-use tracing_subscriber::{filter::LevelFilter, EnvFilter};
+use tracing_subscriber::{EnvFilter, filter::LevelFilter};
 
-use crate::{admin, admin::AdminCommand, Command};
+use crate::{Command, admin, admin::AdminCommand};
 
 #[must_use]
 pub(super) fn complete(line: &str) -> String { complete_command(AdminCommand::command(), line) }

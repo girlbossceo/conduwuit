@@ -7,11 +7,11 @@ use std::{
 
 use conduwuit::{config::Config, debug, trace};
 use sentry::{
-	types::{
-		protocol::v7::{Context, Event},
-		Dsn,
-	},
 	Breadcrumb, ClientOptions, Level,
+	types::{
+		Dsn,
+		protocol::v7::{Context, Event},
+	},
 };
 
 static SEND_PANIC: OnceLock<bool> = OnceLock::new();

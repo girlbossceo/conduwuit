@@ -14,8 +14,8 @@ mod try_wideband;
 mod wideband;
 
 pub use band::{
-	automatic_amplification, automatic_width, set_amplification, set_width, AMPLIFICATION_LIMIT,
-	WIDTH_LIMIT,
+	AMPLIFICATION_LIMIT, WIDTH_LIMIT, automatic_amplification, automatic_width,
+	set_amplification, set_width,
 };
 pub use broadband::BroadbandExt;
 pub use cloned::Cloned;

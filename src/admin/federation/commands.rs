@@ -3,7 +3,7 @@ use std::fmt::Write;
 use conduwuit::Result;
 use futures::StreamExt;
 use ruma::{
-	events::room::message::RoomMessageEventContent, OwnedRoomId, RoomId, ServerName, UserId,
+	OwnedRoomId, RoomId, ServerName, UserId, events::room::message::RoomMessageEventContent,
 };
 
 use crate::{admin_command, get_room_info};

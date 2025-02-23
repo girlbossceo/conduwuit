@@ -2,7 +2,7 @@ use clap::Subcommand;
 use conduwuit::Result;
 use futures::stream::StreamExt;
 use ruma::{
-	events::room::message::RoomMessageEventContent, OwnedDeviceId, OwnedRoomId, OwnedUserId,
+	OwnedDeviceId, OwnedRoomId, OwnedUserId, events::room::message::RoomMessageEventContent,
 };
 
 use crate::{admin_command, admin_command_dispatch};

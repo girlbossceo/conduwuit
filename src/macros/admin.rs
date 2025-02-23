@@ -1,10 +1,10 @@
 use itertools::Itertools;
 use proc_macro::{Span, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{parse_quote, Attribute, Error, Fields, Ident, ItemEnum, ItemFn, Meta, Variant};
+use quote::{ToTokens, quote};
+use syn::{Attribute, Error, Fields, Ident, ItemEnum, ItemFn, Meta, Variant, parse_quote};
 
-use crate::{utils::camel_to_snake_string, Result};
+use crate::{Result, utils::camel_to_snake_string};
 
 pub(super) fn command(mut item: ItemFn, _args: &[Meta]) -> Result<TokenStream> {
 	let attr: Attribute = parse_quote! {

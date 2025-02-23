@@ -8,15 +8,15 @@ use std::{
 use conduwuit::{Result, Server};
 use database::Map;
 use ruma::{
+	DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, UserId,
 	api::client::sync::sync_events::{
 		self,
 		v4::{ExtensionsConfig, SyncRequestList},
 		v5,
 	},
-	DeviceId, OwnedDeviceId, OwnedRoomId, OwnedUserId, UserId,
 };
 
-use crate::{rooms, Dep};
+use crate::{Dep, rooms};
 
 pub struct Service {
 	db: Data,

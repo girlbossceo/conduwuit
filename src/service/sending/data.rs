@@ -1,16 +1,15 @@
 use std::{fmt::Debug, sync::Arc};
 
 use conduwuit::{
-	at, utils,
-	utils::{stream::TryIgnore, ReadyExt},
-	Error, Result,
+	Error, Result, at, utils,
+	utils::{ReadyExt, stream::TryIgnore},
 };
 use database::{Database, Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{OwnedServerName, ServerName, UserId};
 
 use super::{Destination, SendingEvent};
-use crate::{globals, Dep};
+use crate::{Dep, globals};
 
 pub(super) type OutgoingItem = (Key, SendingEvent, Destination);
 pub(super) type SendingItem = (Key, SendingEvent);
@@ -102,7 +101,7 @@ impl Data {
 	pub fn active_requests_for(
 		&self,
 		destination: &Destination,
-	) -> impl Stream<Item = SendingItem> + Send + '_ {
+	) -> impl Stream<Item = SendingItem> + Send + '_ + use<'_> {
 		let prefix = destination.get_prefix();
 		self.servercurrentevent_data
 			.raw_stream_from(&prefix)
@@ -156,7 +155,7 @@ impl Data {
 	pub fn queued_requests(
 		&self,
 		destination: &Destination,
-	) -> impl Stream<Item = QueueItem> + Send + '_ {
+	) -> impl Stream<Item = QueueItem> + Send + '_ + use<'_> {
 		let prefix = destination.get_prefix();
 		self.servernameevent_data
 			.raw_stream_from(&prefix)

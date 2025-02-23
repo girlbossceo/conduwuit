@@ -6,37 +6,37 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	debug, error, extract_variant,
+	Error, PduCount, Result, debug, error, extract_variant,
 	utils::{
-		math::{ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
+		math::{ruma_from_usize, usize_from_ruma, usize_from_u64_truncated},
 	},
-	warn, Error, PduCount, Result,
+	warn,
 };
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{
+	MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, RoomId, UInt, UserId,
 	api::client::{
 		error::ErrorKind,
 		sync::sync_events::{
-			self,
+			self, DeviceLists, UnreadNotificationsCount,
 			v4::{SlidingOp, SlidingSyncRoomHero},
-			DeviceLists, UnreadNotificationsCount,
 		},
 	},
 	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
 		AnyRawAccountDataEvent, AnySyncEphemeralRoomEvent, StateEventType,
 		TimelineEventType::*,
+		room::member::{MembershipState, RoomMemberEventContent},
 	},
 	serde::Raw,
-	uint, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, RoomId, UInt, UserId,
+	uint,
 };
 use service::rooms::read_receipt::pack_receipts;
 
 use super::{load_timeline, share_encrypted_room};
 use crate::{
-	client::{filter_rooms, ignored_filter, sync::v5::TodoRooms, DEFAULT_BUMP_TYPES},
 	Ruma,
+	client::{DEFAULT_BUMP_TYPES, filter_rooms, ignored_filter, sync::v5::TodoRooms},
 };
 
 pub(crate) const SINGLE_CONNECTION_SYNC: &str = "single_connection_sync";
@@ -700,14 +700,13 @@ pub(crate) async fn sync_events_v4_route(
 				.await
 				.ok()
 				.or(name),
-			avatar: if let Some(heroes_avatar) = heroes_avatar {
-				ruma::JsOption::Some(heroes_avatar)
-			} else {
-				match services.rooms.state_accessor.get_avatar(room_id).await {
+			avatar: match heroes_avatar {
+				| Some(heroes_avatar) => ruma::JsOption::Some(heroes_avatar),
+				| _ => match services.rooms.state_accessor.get_avatar(room_id).await {
 					| ruma::JsOption::Some(avatar) => ruma::JsOption::from_option(avatar.url),
 					| ruma::JsOption::Null => ruma::JsOption::Null,
 					| ruma::JsOption::Undefined => ruma::JsOption::Undefined,
-				}
+				},
 			},
 			initial: Some(roomsince == &0),
 			is_dm: None,

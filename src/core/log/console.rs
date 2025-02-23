@@ -1,20 +1,20 @@
 use std::{env, io, sync::LazyLock};
 
 use tracing::{
-	field::{Field, Visit},
 	Event, Level, Subscriber,
+	field::{Field, Visit},
 };
 use tracing_subscriber::{
 	field::RecordFields,
 	fmt,
 	fmt::{
-		format::{Compact, DefaultVisitor, Format, Full, Pretty, Writer},
 		FmtContext, FormatEvent, FormatFields, MakeWriter,
+		format::{Compact, DefaultVisitor, Format, Full, Pretty, Writer},
 	},
 	registry::LookupSpan,
 };
 
-use crate::{apply, Config, Result};
+use crate::{Config, Result, apply};
 
 static SYSTEMD_MODE: LazyLock<bool> =
 	LazyLock::new(|| env::var("SYSTEMD_EXEC_PID").is_ok() && env::var("JOURNAL_STREAM").is_ok());

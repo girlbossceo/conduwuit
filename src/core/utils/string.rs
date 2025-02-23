@@ -5,7 +5,7 @@ mod unquote;
 mod unquoted;
 
 pub use self::{between::Between, split::SplitInfallible, unquote::Unquote, unquoted::Unquoted};
-use crate::{utils::exchange, Result};
+use crate::{Result, utils::exchange};
 
 pub const EMPTY: &str = "";
 

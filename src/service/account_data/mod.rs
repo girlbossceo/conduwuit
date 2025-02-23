@@ -1,23 +1,22 @@
 use std::sync::Arc;
 
 use conduwuit::{
-	err, implement,
-	utils::{result::LogErr, stream::TryIgnore, ReadyExt},
-	Err, Result,
+	Err, Result, err, implement,
+	utils::{ReadyExt, result::LogErr, stream::TryIgnore},
 };
 use database::{Deserialized, Handle, Ignore, Json, Map};
 use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{
+	RoomId, UserId,
 	events::{
 		AnyGlobalAccountDataEvent, AnyRawAccountDataEvent, AnyRoomAccountDataEvent,
 		GlobalAccountDataEventType, RoomAccountDataEventType,
 	},
 	serde::Raw,
-	RoomId, UserId,
 };
 use serde::Deserialize;
 
-use crate::{globals, Dep};
+use crate::{Dep, globals};
 
 pub struct Service {
 	services: Services,

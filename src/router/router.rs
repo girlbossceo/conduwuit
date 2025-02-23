@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{response::IntoResponse, routing::get, Router};
+use axum::{Router, response::IntoResponse, routing::get};
 use conduwuit::Error;
 use conduwuit_api::router::{state, state::Guard};
 use conduwuit_service::Services;

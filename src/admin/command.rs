@@ -3,9 +3,9 @@ use std::{fmt, time::SystemTime};
 use conduwuit::Result;
 use conduwuit_service::Services;
 use futures::{
+	Future, FutureExt,
 	io::{AsyncWriteExt, BufWriter},
 	lock::Mutex,
-	Future, FutureExt,
 };
 use ruma::EventId;
 
@@ -21,7 +21,7 @@ impl Command<'_> {
 	pub(crate) fn write_fmt(
 		&self,
 		arguments: fmt::Arguments<'_>,
-	) -> impl Future<Output = Result> + Send + '_ {
+	) -> impl Future<Output = Result> + Send + '_ + use<'_> {
 		let buf = format!("{arguments}");
 		self.output.lock().then(|mut output| async move {
 			output.write_all(buf.as_bytes()).await.map_err(Into::into)

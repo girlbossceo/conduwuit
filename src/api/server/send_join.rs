@@ -4,22 +4,22 @@ use std::borrow::Borrow;
 
 use axum::extract::State;
 use conduwuit::{
-	at, err,
+	Err, Result, at, err,
 	pdu::gen_event_id_canonical_json,
 	utils::stream::{IterStream, TryBroadbandExt},
-	warn, Err, Result,
+	warn,
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
-	api::federation::membership::create_join_event,
-	events::{
-		room::member::{MembershipState, RoomMemberEventContent},
-		StateEventType,
-	},
 	CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId,
 	ServerName,
+	api::federation::membership::create_join_event,
+	events::{
+		StateEventType,
+		room::member::{MembershipState, RoomMemberEventContent},
+	},
 };
-use serde_json::value::{to_raw_value, RawValue as RawJsonValue};
+use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
 use service::Services;
 
 use crate::Ruma;

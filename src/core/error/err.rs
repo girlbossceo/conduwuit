@@ -165,10 +165,10 @@ macro_rules! err_lev {
 use std::{fmt, fmt::Write};
 
 use tracing::{
-	level_enabled, Callsite, Event, __macro_support, __tracing_log,
+	__macro_support, __tracing_log, Callsite, Event, Level,
 	callsite::DefaultCallsite,
 	field::{Field, ValueSet, Visit},
-	Level,
+	level_enabled,
 };
 
 struct Visitor<'a>(&'a mut String);

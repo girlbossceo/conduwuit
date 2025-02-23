@@ -4,7 +4,7 @@ use either::Either;
 use figment::Figment;
 
 use super::DEPRECATED_KEYS;
-use crate::{debug, debug_info, debug_warn, error, warn, Config, Err, Result, Server};
+use crate::{Config, Err, Result, Server, debug, debug_info, debug_warn, error, warn};
 
 /// Performs check() with additional checks specific to reloading old config
 /// with new config.

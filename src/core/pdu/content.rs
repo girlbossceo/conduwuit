@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::value::Value as JsonValue;
 
-use crate::{err, implement, Result};
+use crate::{Result, err, implement};
 
 #[must_use]
 #[implement(super::Pdu)]

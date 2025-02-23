@@ -1,10 +1,10 @@
 use std::{net::IpAddr, sync::Arc, time::SystemTime};
 
 use conduwuit::{
+	Result,
 	arrayvec::ArrayVec,
 	at, err, implement,
 	utils::{math::Expected, rand, stream::TryIgnore},
-	Result,
 };
 use database::{Cbor, Deserialized, Map};
 use futures::{Stream, StreamExt};
@@ -96,7 +96,7 @@ pub fn destinations(&self) -> impl Stream<Item = (&ServerName, CachedDest)> + Se
 	self.destinations
 		.stream()
 		.ignore_err()
-		.map(|item: (&ServerName, Cbor<_>)| (item.0, item.1 .0))
+		.map(|item: (&ServerName, Cbor<_>)| (item.0, item.1.0))
 }
 
 #[implement(Cache)]
@@ -104,7 +104,7 @@ pub fn overrides(&self) -> impl Stream<Item = (&ServerName, CachedOverride)> + S
 	self.overrides
 		.stream()
 		.ignore_err()
-		.map(|item: (&ServerName, Cbor<_>)| (item.0, item.1 .0))
+		.map(|item: (&ServerName, Cbor<_>)| (item.0, item.1.0))
 }
 
 impl CachedDest {

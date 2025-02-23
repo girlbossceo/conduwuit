@@ -23,18 +23,18 @@ mod watchers;
 
 use std::{ops::Index, sync::Arc};
 
-use conduwuit::{err, Result, Server};
+use conduwuit::{Result, Server, err};
 
 pub use self::{
 	de::{Ignore, IgnoreAll},
 	deserialized::Deserialized,
 	handle::Handle,
-	keyval::{serialize_key, serialize_val, KeyVal, Slice},
-	map::{compact, Get, Map, Qry},
-	ser::{serialize, serialize_to, serialize_to_vec, Cbor, Interfix, Json, Separator, SEP},
+	keyval::{KeyVal, Slice, serialize_key, serialize_val},
+	map::{Get, Map, Qry, compact},
+	ser::{Cbor, Interfix, Json, SEP, Separator, serialize, serialize_to, serialize_to_vec},
 };
 pub(crate) use self::{
-	engine::{context::Context, Engine},
+	engine::{Engine, context::Context},
 	util::or_else,
 };
 use crate::maps::{Maps, MapsKey, MapsVal};

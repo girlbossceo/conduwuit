@@ -1,17 +1,20 @@
 use std::{convert::AsRef, fmt::Debug, io::Write, sync::Arc};
 
-use conduwuit::{arrayvec::ArrayVec, implement, Result};
+use conduwuit::{Result, arrayvec::ArrayVec, implement};
 use futures::Future;
 use serde::Serialize;
 
-use crate::{keyval::KeyBuf, ser, Handle};
+use crate::{Handle, keyval::KeyBuf, ser};
 
 /// Fetch a value from the database into cache, returning a reference-handle
 /// asynchronously. The key is serialized into an allocated buffer to perform
 /// the query.
 #[implement(super::Map)]
 #[inline]
-pub fn qry<K>(self: &Arc<Self>, key: &K) -> impl Future<Output = Result<Handle<'_>>> + Send
+pub fn qry<K>(
+	self: &Arc<Self>,
+	key: &K,
+) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, K>
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -27,7 +30,7 @@ where
 pub fn aqry<const MAX: usize, K>(
 	self: &Arc<Self>,
 	key: &K,
-) -> impl Future<Output = Result<Handle<'_>>> + Send
+) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, MAX, K>
 where
 	K: Serialize + ?Sized + Debug,
 {
@@ -43,7 +46,7 @@ pub fn bqry<K, B>(
 	self: &Arc<Self>,
 	key: &K,
 	buf: &mut B,
-) -> impl Future<Output = Result<Handle<'_>>> + Send
+) -> impl Future<Output = Result<Handle<'_>>> + Send + use<'_, K, B>
 where
 	K: Serialize + ?Sized + Debug,
 	B: Write + AsRef<[u8]>,

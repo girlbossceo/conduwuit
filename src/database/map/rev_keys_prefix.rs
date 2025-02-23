@@ -1,16 +1,16 @@
 use std::{convert::AsRef, fmt::Debug, sync::Arc};
 
-use conduwuit::{implement, Result};
-use futures::{future, Stream, StreamExt, TryStreamExt};
+use conduwuit::{Result, implement};
+use futures::{Stream, StreamExt, TryStreamExt, future};
 use serde::{Deserialize, Serialize};
 
-use crate::keyval::{result_deserialize_key, serialize_key, Key};
+use crate::keyval::{Key, result_deserialize_key, serialize_key};
 
 #[implement(super::Map)]
 pub fn rev_keys_prefix<'a, K, P>(
 	self: &'a Arc<Self>,
 	prefix: &P,
-) -> impl Stream<Item = Result<Key<'_, K>>> + Send
+) -> impl Stream<Item = Result<Key<'_, K>>> + Send + use<'a, K, P>
 where
 	P: Serialize + ?Sized + Debug,
 	K: Deserialize<'a> + Send,
@@ -24,7 +24,7 @@ where
 pub fn rev_keys_prefix_raw<P>(
 	self: &Arc<Self>,
 	prefix: &P,
-) -> impl Stream<Item = Result<Key<'_>>> + Send
+) -> impl Stream<Item = Result<Key<'_>>> + Send + use<'_, P>
 where
 	P: Serialize + ?Sized + Debug,
 {

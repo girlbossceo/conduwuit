@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use super::{
-	super::{fmt, Level},
+	super::{Level, fmt},
 	Closure, Data,
 };
 use crate::Result;

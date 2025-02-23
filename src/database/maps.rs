@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use conduwuit::Result;
 
 use crate::{
-	engine::descriptor::{self, CacheDisp, Descriptor},
 	Engine, Map,
+	engine::descriptor::{self, CacheDisp, Descriptor},
 };
 
 pub(super) type Maps = BTreeMap<MapsKey, MapsVal>;
