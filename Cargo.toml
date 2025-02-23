@@ -13,14 +13,14 @@ authors = [
 ]
 categories = ["network-programming"]
 description = "a very cool Matrix chat homeserver written in Rust"
-edition = "2021"
+edition = "2024"
 homepage = "https://conduwuit.puppyirl.gay/"
 keywords = ["chat", "matrix", "networking", "server", "uwu"]
 license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.84.0"
+rust-version = "1.85.0"
 version = "0.5.0"
 
 [workspace.metadata.crane]
@@ -975,3 +975,6 @@ suspicious = { level = "warn", priority = -1 }
 
 ## some sadness
 let_underscore_future = { level = "allow", priority = 1 }
+
+# rust doesnt understand conduwuit's custom log macros
+literal_string_with_formatting_args = { level = "allow", priority = 1 }
