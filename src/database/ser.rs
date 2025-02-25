@@ -224,7 +224,7 @@ impl<W: Write> ser::Serializer for &mut Serializer<'_, W> {
 				self.separator()?;
 			},
 			| _ => unhandled!("Unrecognized serialization directive: {name:?}"),
-		};
+		}
 
 		Ok(())
 	}

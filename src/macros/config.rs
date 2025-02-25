@@ -205,7 +205,7 @@ fn get_default(field: &Field) -> Option<String> {
 			},
 			| Meta::Path { .. } => return Some("false".to_owned()),
 			| _ => return None,
-		};
+		}
 	}
 
 	None

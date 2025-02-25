@@ -43,7 +43,7 @@ where
 		.keys()
 		.rev()
 		.take(self.services.server.config.trusted_server_batch_size)
-		.last()
+		.next_back()
 		.cloned()
 	{
 		let request = Request {

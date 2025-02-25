@@ -67,7 +67,7 @@ pub(super) async fn reprocess(
 
 			if rooms.is_empty() {
 				return Ok(RoomMessageEventContent::text_plain("No more rooms."));
-			};
+			}
 
 			let output = format!(
 				"Rooms (page {page}):\n```\n{}\n```",

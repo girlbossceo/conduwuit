@@ -303,7 +303,7 @@ impl Service {
 			});
 
 			return Ok(());
-		};
+		}
 
 		// Else we have two options.
 		// 1. We add the current diff on top of the parent layer.
@@ -419,7 +419,7 @@ impl Service {
 				2, // every state change is 2 event changes on average
 				states_parents,
 			)?;
-		};
+		}
 
 		Ok(HashSetCompressStateEvent {
 			shortstatehash: new_shortstatehash,

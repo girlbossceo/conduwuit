@@ -43,7 +43,7 @@ pub(crate) async fn report_room_route(
 			ErrorKind::InvalidParam,
 			"Reason too long, should be 750 characters or fewer",
 		));
-	};
+	}
 
 	delay_response().await;
 
@@ -164,14 +164,14 @@ async fn is_event_report_valid(
 			ErrorKind::InvalidParam,
 			"Invalid score, must be within 0 to -100",
 		));
-	};
+	}
 
 	if reason.as_ref().is_some_and(|s| s.len() > 750) {
 		return Err(Error::BadRequest(
 			ErrorKind::InvalidParam,
 			"Reason too long, should be 750 characters or fewer",
 		));
-	};
+	}
 
 	if !services
 		.rooms

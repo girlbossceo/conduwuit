@@ -69,7 +69,7 @@ pub async fn read_tokens(&self) -> Result<HashSet<String>> {
 			},
 			| Err(e) => error!("Failed to read the registration token file: {e}"),
 		}
-	};
+	}
 	if let Some(token) = &self.services.config.registration_token {
 		tokens.insert(token.to_owned());
 	}

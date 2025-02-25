@@ -113,13 +113,13 @@ impl<'a> State<'a> {
 	}
 
 	#[inline]
-	fn fetch_key(&self) -> Option<Key<'_>> { self.inner.key().map(Key::from) }
+	fn fetch_key(&self) -> Option<Key<'_>> { self.inner.key() }
 
 	#[inline]
-	fn _fetch_val(&self) -> Option<Val<'_>> { self.inner.value().map(Val::from) }
+	fn _fetch_val(&self) -> Option<Val<'_>> { self.inner.value() }
 
 	#[inline]
-	fn fetch(&self) -> Option<KeyVal<'_>> { self.inner.item().map(KeyVal::from) }
+	fn fetch(&self) -> Option<KeyVal<'_>> { self.inner.item() }
 
 	#[inline]
 	pub(super) fn status(&self) -> Option<rocksdb::Error> { self.inner.status().err() }

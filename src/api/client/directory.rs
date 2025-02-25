@@ -131,7 +131,7 @@ pub(crate) async fn set_room_visibility_route(
 
 	if !services.rooms.metadata.exists(&body.room_id).await {
 		// Return 404 if the room doesn't exist
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
+		return Err!(Request(NotFound("Room not found")));
 	}
 
 	if services
@@ -145,10 +145,7 @@ pub(crate) async fn set_room_visibility_route(
 	}
 
 	if !user_can_publish_room(&services, sender_user, &body.room_id).await? {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"User is not allowed to publish this room",
-		));
+		return Err!(Request(Forbidden("User is not allowed to publish this room")));
 	}
 
 	match &body.visibility {
@@ -386,12 +383,7 @@ async fn user_can_publish_room(
 				.await
 			{
 				| Ok(event) => Ok(event.sender == user_id),
-				| _ => {
-					return Err(Error::BadRequest(
-						ErrorKind::forbidden(),
-						"User is not allowed to publish this room",
-					));
-				},
+				| _ => Err!(Request(Forbidden("User is not allowed to publish this room"))),
 			}
 		},
 	}

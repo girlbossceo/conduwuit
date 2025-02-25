@@ -135,7 +135,7 @@ async fn create_join_event(
 
 	if state_key != sender {
 		return Err!(Request(BadJson("State key does not match sender user.")));
-	};
+	}
 
 	if let Some(authorising_user) = content.join_authorized_via_users_server {
 		use ruma::RoomVersionId::*;

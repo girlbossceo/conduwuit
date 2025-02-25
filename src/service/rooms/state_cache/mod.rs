@@ -218,7 +218,7 @@ impl Service {
 								)
 								.await
 								.ok();
-						};
+						}
 
 						// Copy direct chat flag
 						if let Ok(mut direct_event) = self
@@ -250,7 +250,7 @@ impl Service {
 									)
 									.await?;
 							}
-						};
+						}
 					}
 				}
 

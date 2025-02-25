@@ -172,7 +172,7 @@ impl std::fmt::Display for BlurhashingError {
 			#[cfg(feature = "blurhashing")]
 			| Self::ImageError(e) =>
 				write!(f, "There was an error with the image loading library => {e}")?,
-		};
+		}
 
 		Ok(())
 	}

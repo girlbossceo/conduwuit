@@ -146,11 +146,9 @@ pub(crate) fn close(&self) {
 		.map(JoinHandle::join)
 		.map(|result| result.map_err(Error::from_panic))
 		.enumerate()
-		.for_each(|(id, result)| {
-			match result {
-				| Ok(()) => trace!(?id, "worker joined"),
-				| Err(error) => error!(?id, "worker joined with error: {error}"),
-			};
+		.for_each(|(id, result)| match result {
+			| Ok(()) => trace!(?id, "worker joined"),
+			| Err(error) => error!(?id, "worker joined with error: {error}"),
 		});
 }
 
@@ -345,7 +343,7 @@ fn worker_handle(self: &Arc<Self>, cmd: Cmd) {
 		| Cmd::Get(cmd) if cmd.key.len() == 1 => self.handle_get(cmd),
 		| Cmd::Get(cmd) => self.handle_batch(cmd),
 		| Cmd::Iter(cmd) => self.handle_iter(cmd),
-	};
+	}
 }
 
 #[implement(Pool)]
@@ -362,7 +360,7 @@ fn handle_iter(&self, mut cmd: Seek) {
 		return;
 	}
 
-	let from = cmd.key.as_deref().map(Into::into);
+	let from = cmd.key.as_deref();
 
 	let result = match cmd.dir {
 		| Direction::Forward => cmd.state.init_fwd(from),
@@ -394,7 +392,7 @@ fn handle_batch(self: &Arc<Self>, mut cmd: Get) {
 		return;
 	}
 
-	let keys = cmd.key.iter().map(Into::into);
+	let keys = cmd.key.iter();
 
 	let result: SmallVec<_> = cmd.map.get_batch_blocking(keys).collect();
 

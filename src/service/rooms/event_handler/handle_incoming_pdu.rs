@@ -170,7 +170,7 @@ pub async fn handle_incoming_pdu<'a>(
 				| Entry::Occupied(mut e) => {
 					*e.get_mut() = (now, e.get().1.saturating_add(1));
 				},
-			};
+			}
 		}
 	}
 

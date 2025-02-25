@@ -137,7 +137,7 @@ pub(crate) async fn create_knock_event_v1_route(
 
 	if state_key != sender {
 		return Err!(Request(InvalidParam("state_key does not match sender user of event.")));
-	};
+	}
 
 	let origin: OwnedServerName = serde_json::from_value(
 		value

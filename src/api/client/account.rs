@@ -499,7 +499,7 @@ pub(crate) async fn register_route(
 					| _ => {
 						info!("Automatically joined room {room} for user {user_id}");
 					},
-				};
+				}
 			}
 		}
 	}

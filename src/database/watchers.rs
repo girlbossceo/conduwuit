@@ -53,6 +53,6 @@ impl Watchers {
 					tx.0.send(()).expect("channel should still be open");
 				}
 			}
-		};
+		}
 	}
 }

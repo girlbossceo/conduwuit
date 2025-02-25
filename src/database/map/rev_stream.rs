@@ -40,7 +40,7 @@ pub fn rev_raw_stream(self: &Arc<Self>) -> impl Stream<Item = Result<KeyVal<'_>>
 			.into_stream()
 			.flatten()
 			.boxed();
-	};
+	}
 
 	let seek = Seek {
 		map: self.clone(),

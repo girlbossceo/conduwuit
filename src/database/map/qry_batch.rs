@@ -50,7 +50,6 @@ where
 				.iter()
 				.map(ser::serialize_to::<KeyBuf, _>)
 				.map(|result| result.expect("failed to serialize query key"))
-				.map(Into::into)
 				.collect();
 
 			self.db

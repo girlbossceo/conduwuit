@@ -131,7 +131,7 @@ impl crate::Service for Service {
 				| Err(error) => {
 					error!(id = ?error.id(), ?error, "sender worker finished");
 				},
-			};
+			}
 		}
 
 		Ok(())

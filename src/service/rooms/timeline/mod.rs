@@ -422,7 +422,7 @@ impl Service {
 						highlight = true;
 					},
 					| _ => {},
-				};
+				}
 
 				// Break early if both conditions are true
 				if notify && highlight {
@@ -484,7 +484,7 @@ impl Service {
 							}
 						}
 					},
-				};
+				}
 			},
 			| TimelineEventType::SpaceChild =>
 				if let Some(_state_key) = &pdu.state_key {
@@ -776,7 +776,7 @@ impl Service {
 			| _ => {
 				pdu_json.remove("event_id");
 			},
-		};
+		}
 
 		// Add origin because synapse likes that (and it's required in the spec)
 		pdu_json.insert(
@@ -847,7 +847,7 @@ impl Service {
 						{
 							return Err!(Request(Forbidden("User cannot redact this event.")));
 						}
-					};
+					}
 				},
 				| _ => {
 					let content: RoomRedactionEventContent = pdu.get_content()?;
@@ -863,7 +863,7 @@ impl Service {
 					}
 				},
 			}
-		};
+		}
 
 		if pdu.kind == TimelineEventType::RoomMember {
 			let content: RoomMemberEventContent = pdu.get_content()?;
@@ -1293,10 +1293,10 @@ async fn check_pdu_for_admin_room(&self, pdu: &PduEvent, sender: &UserId) -> Res
 					}
 				},
 				| _ => {},
-			};
+			}
 		},
 		| _ => {},
-	};
+	}
 
 	Ok(())
 }

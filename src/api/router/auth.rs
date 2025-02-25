@@ -110,7 +110,7 @@ pub(super) async fn auth(
 				}
 			},
 			| _ => {},
-		};
+		}
 	}
 
 	match (metadata.authentication, token) {

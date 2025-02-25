@@ -166,7 +166,7 @@ pub(super) async fn create_user(
 							"Failed to automatically join room {room} for user {user_id}: {e}"
 						);
 					},
-				};
+				}
 			}
 		}
 	}
@@ -550,7 +550,7 @@ pub(super) async fn force_join_list_of_local_users(
 				debug_warn!("Failed force joining {user_id} to {room_id} during bulk join: {e}");
 				failed_joins = failed_joins.saturating_add(1);
 			},
-		};
+		}
 	}
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(
@@ -646,7 +646,7 @@ pub(super) async fn force_join_all_local_users(
 				debug_warn!("Failed force joining {user_id} to {room_id} during bulk join: {e}");
 				failed_joins = failed_joins.saturating_add(1);
 			},
-		};
+		}
 	}
 
 	Ok(RoomMessageEventContent::notice_markdown(format!(

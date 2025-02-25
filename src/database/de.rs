@@ -241,7 +241,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 			| "Ignore" => self.record_ignore(),
 			| "IgnoreAll" => self.record_ignore_all(),
 			| _ => unhandled!("Unrecognized deserialization Directive {name:?}"),
-		};
+		}
 
 		visitor.visit_unit()
 	}

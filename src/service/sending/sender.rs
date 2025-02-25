@@ -138,7 +138,7 @@ impl Service {
 		match response {
 			| Ok(dest) => self.handle_response_ok(&dest, futures, statuses).await,
 			| Err((dest, e)) => Self::handle_response_err(dest, statuses, &e),
-		};
+		}
 	}
 
 	fn handle_response_err(dest: Destination, statuses: &mut CurTransactionStatus, e: &Error) {
@@ -319,10 +319,7 @@ impl Service {
 		if let Destination::Federation(server_name) = dest {
 			if let Ok((select_edus, last_count)) = self.select_edus(server_name).await {
 				debug_assert!(select_edus.len() <= EDU_LIMIT, "exceeded edus limit");
-				let select_edus = select_edus
-					.into_iter()
-					.map(Into::into)
-					.map(SendingEvent::Edu);
+				let select_edus = select_edus.into_iter().map(SendingEvent::Edu);
 
 				events.extend(select_edus);
 				self.db.set_latest_educount(server_name, last_count);

@@ -42,7 +42,7 @@ pub(super) async fn list_rooms(
 
 	if rooms.is_empty() {
 		return Ok(RoomMessageEventContent::text_plain("No more rooms."));
-	};
+	}
 
 	let output_plain = format!(
 		"Rooms ({}):\n```\n{}\n```",

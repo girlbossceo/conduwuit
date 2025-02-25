@@ -993,7 +993,7 @@ async fn join_room_by_id_helper_remote(
 		| _ => {
 			join_event_stub.remove("event_id");
 		},
-	};
+	}
 
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present
@@ -1420,7 +1420,7 @@ async fn join_room_by_id_helper_local(
 		| _ => {
 			join_event_stub.remove("event_id");
 		},
-	};
+	}
 
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present
@@ -1947,7 +1947,7 @@ async fn remote_leave_room(
 		| _ => {
 			leave_event_stub.remove("event_id");
 		},
-	};
+	}
 
 	// In order to create a compatible ref hash (EventID) the `hashes` field needs
 	// to be present

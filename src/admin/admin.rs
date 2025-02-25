@@ -62,7 +62,7 @@ pub(super) async fn process(command: AdminCommand, context: &Command<'_>) -> Res
 		| Debug(command) => debug::process(command, context).await?,
 		| Query(command) => query::process(command, context).await?,
 		| Check(command) => check::process(command, context).await?,
-	};
+	}
 
 	Ok(())
 }

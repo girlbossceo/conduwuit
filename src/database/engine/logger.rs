@@ -18,5 +18,5 @@ pub(crate) fn handle(level: LogLevel, msg: &str) {
 		| LogLevel::Error | LogLevel::Fatal => error!("{msg}"),
 		| LogLevel::Info => debug!("{msg}"),
 		| LogLevel::Warn => warn!("{msg}"),
-	};
+	}
 }

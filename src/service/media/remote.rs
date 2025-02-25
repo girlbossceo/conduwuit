@@ -283,7 +283,7 @@ async fn location_request(&self, location: &str) -> Result<FileMeta> {
 		.map_err(Into::into)
 		.map(|content| FileMeta {
 			content: Some(content),
-			content_type: content_type.clone().map(Into::into),
+			content_type: content_type.clone(),
 			content_disposition: Some(make_content_disposition(
 				content_disposition.as_ref(),
 				content_type.as_deref(),

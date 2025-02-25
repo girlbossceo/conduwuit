@@ -86,7 +86,7 @@ where
 			.into_stream()
 			.flatten()
 			.boxed();
-	};
+	}
 
 	let seek = Seek {
 		map: self.clone(),

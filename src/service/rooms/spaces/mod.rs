@@ -125,7 +125,7 @@ pub async fn get_summary_and_children_local(
 					SummaryAccessibility::Inaccessible
 				},
 			)),
-	};
+	}
 
 	let children_pdus: Vec<_> = self
 		.get_stripped_space_child_events(current_room)
