@@ -129,7 +129,7 @@ jobs:
               # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
               # releases and tags
               #if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-              uses: nix-community/cache-nix-action@v5.1.0
+              uses: nix-community/cache-nix-action@v6
               with:
                 # restore and save a cache using this key
                 primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/.lock') }}
@@ -146,8 +146,6 @@ jobs:
                 purge-last-accessed: 86400
                 # except the version with the `primary-key`, if it exists
                 purge-primary-key: never
-                # always save the cache
-                save-always: true
 
             - name: Enable Cachix binary cache
               run: |
@@ -324,7 +322,7 @@ jobs:
               # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
               # releases and tags
               #if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-              uses: nix-community/cache-nix-action@v5.1.0
+              uses: nix-community/cache-nix-action@v6
               with:
                 # restore and save a cache using this key
                 primary-key: nix-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/*.nix', '**/.lock') }}
@@ -341,8 +339,6 @@ jobs:
                 purge-last-accessed: 86400
                 # except the version with the `primary-key`, if it exists
                 purge-primary-key: never
-                # always save the cache
-                save-always: true
 
             - name: Enable Cachix binary cache
               run: |
