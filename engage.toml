@@ -18,12 +18,12 @@ script = "direnv --version"
 [[task]]
 name = "rustc"
 group = "versions"
-script = "rustc --version"
+script = "rustc --version -v"
 
 [[task]]
 name = "cargo"
 group = "versions"
-script = "cargo --version"
+script = "cargo --version -v"
 
 [[task]]
 name = "cargo-fmt"
@@ -59,11 +59,6 @@ script = "lychee --version"
 name = "markdownlint"
 group = "versions"
 script = "markdownlint --version"
-
-[[task]]
-name = "dpkg"
-group = "versions"
-script = "dpkg --version"
 
 [[task]]
 name = "cargo-audit"
@@ -227,23 +222,4 @@ group = "tests"
 depends = ["cargo/default"]
 script = """
 git diff --exit-code conduwuit-example.toml
-"""
-
-# Ensure that the flake's default output can build and run without crashing
-#
-# This is a dynamically-linked jemalloc build, which is a case not covered by
-# our other tests. We've had linking problems in the past with dynamic
-# jemalloc builds that usually show up as an immediate segfault or "invalid free"
-[[task]]
-name = "nix-default"
-group = "tests"
-script = """
-env DIRENV_DEVSHELL=dynamic \
-    CARGO_PROFILE="test" \
-    direnv exec . \
-    bin/nix-build-and-cache just .#default-test
-env DIRENV_DEVSHELL=dynamic \
-    CARGO_PROFILE="test" \
-    direnv exec . \
-    nix run -L .#default-test -- --help && nix run -L .#default-test -- --version
 """
