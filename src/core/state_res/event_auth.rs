@@ -682,7 +682,7 @@ fn valid_membership_change(
 						}
 						allow
 					},
-				| _ =>
+				| _ => {
 					if !sender_is_joined
 						|| target_user_current_membership == MembershipState::Join
 						|| target_user_current_membership == MembershipState::Ban
@@ -706,7 +706,8 @@ fn valid_membership_change(
 							);
 						}
 						allow
-					},
+					}
+				},
 			}
 		},
 		| MembershipState::Leave =>

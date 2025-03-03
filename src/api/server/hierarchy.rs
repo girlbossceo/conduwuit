@@ -32,8 +32,9 @@ pub(crate) async fn get_hierarchy_route(
 	{
 		| None => Err!(Request(NotFound("The requested room was not found"))),
 
-		| Some(SummaryAccessibility::Inaccessible) =>
-			Err!(Request(NotFound("The requested room is inaccessible"))),
+		| Some(SummaryAccessibility::Inaccessible) => {
+			Err!(Request(NotFound("The requested room is inaccessible")))
+		},
 
 		| Some(SummaryAccessibility::Accessible(room)) => {
 			let (children, inaccessible_children) =

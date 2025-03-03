@@ -109,7 +109,7 @@ pub async fn get_summary_and_children_local(
 	{
 		| None => (), // cache miss
 		| Some(None) => return Ok(None),
-		| Some(Some(cached)) =>
+		| Some(Some(cached)) => {
 			return Ok(Some(
 				if self
 					.is_accessible_child(
@@ -124,7 +124,8 @@ pub async fn get_summary_and_children_local(
 				} else {
 					SummaryAccessibility::Inaccessible
 				},
-			)),
+			));
+		},
 	}
 
 	let children_pdus: Vec<_> = self

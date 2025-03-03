@@ -58,10 +58,11 @@ pub(super) async fn fetch_state(
 			| hash_map::Entry::Vacant(v) => {
 				v.insert(pdu.event_id.clone());
 			},
-			| hash_map::Entry::Occupied(_) =>
+			| hash_map::Entry::Occupied(_) => {
 				return Err!(Database(
 					"State event's type and state_key combination exists multiple times.",
-				)),
+				));
+			},
 		}
 	}
 

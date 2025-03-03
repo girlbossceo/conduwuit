@@ -56,10 +56,11 @@ pub(super) async fn handle_outlier_pdu<'a>(
 
 			obj
 		},
-		| Err(e) =>
+		| Err(e) => {
 			return Err!(Request(InvalidParam(debug_error!(
 				"Signature verification failed for {event_id}: {e}"
-			)))),
+			))));
+		},
 	};
 
 	// Now that we have checked the signature and hashes we can add the eventID and

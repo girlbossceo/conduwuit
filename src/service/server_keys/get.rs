@@ -18,8 +18,9 @@ pub async fn get_event_keys(
 
 	let required = match required_keys(object, version) {
 		| Ok(required) => required,
-		| Err(e) =>
-			return Err!(BadServerResponse("Failed to determine keys required to verify: {e}")),
+		| Err(e) => {
+			return Err!(BadServerResponse("Failed to determine keys required to verify: {e}"));
+		},
 	};
 
 	let batch = required

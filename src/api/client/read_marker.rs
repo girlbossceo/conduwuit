@@ -197,11 +197,12 @@ pub(crate) async fn create_receipt_route(
 				.read_receipt
 				.private_read_set(&body.room_id, sender_user, count);
 		},
-		| _ =>
+		| _ => {
 			return Err!(Request(InvalidParam(warn!(
 				"Received unknown read receipt type: {}",
 				&body.receipt_type
-			)))),
+			))));
+		},
 	}
 
 	Ok(create_receipt::v3::Response {})

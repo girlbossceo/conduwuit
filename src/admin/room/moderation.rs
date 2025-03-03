@@ -96,12 +96,13 @@ async fn ban_room(
 	let room_id = if room.is_room_id() {
 		let room_id = match RoomId::parse(&room) {
 			| Ok(room_id) => room_id,
-			| Err(e) =>
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Failed to parse room ID {room}. Please note that this requires a full room \
 					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
 					 (`#roomalias:example.com`): {e}"
-				))),
+				)));
+			},
 		};
 
 		debug!("Room specified is a room ID, banning room ID");
@@ -111,12 +112,13 @@ async fn ban_room(
 	} else if room.is_room_alias_id() {
 		let room_alias = match RoomAliasId::parse(&room) {
 			| Ok(room_alias) => room_alias,
-			| Err(e) =>
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Failed to parse room ID {room}. Please note that this requires a full room \
 					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
 					 (`#roomalias:example.com`): {e}"
-				))),
+				)));
+			},
 		};
 
 		debug!(
@@ -514,12 +516,13 @@ async fn unban_room(
 	let room_id = if room.is_room_id() {
 		let room_id = match RoomId::parse(&room) {
 			| Ok(room_id) => room_id,
-			| Err(e) =>
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Failed to parse room ID {room}. Please note that this requires a full room \
 					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
 					 (`#roomalias:example.com`): {e}"
-				))),
+				)));
+			},
 		};
 
 		debug!("Room specified is a room ID, unbanning room ID");
@@ -529,12 +532,13 @@ async fn unban_room(
 	} else if room.is_room_alias_id() {
 		let room_alias = match RoomAliasId::parse(&room) {
 			| Ok(room_alias) => room_alias,
-			| Err(e) =>
+			| Err(e) => {
 				return Ok(RoomMessageEventContent::text_plain(format!(
 					"Failed to parse room ID {room}. Please note that this requires a full room \
 					 ID (`!awIh6gGInaS5wLQJwa:example.com`) or a room alias \
 					 (`#roomalias:example.com`): {e}"
-				))),
+				)));
+			},
 		};
 
 		debug!(

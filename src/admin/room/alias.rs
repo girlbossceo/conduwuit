@@ -66,10 +66,11 @@ pub(super) async fn reprocess(
 				format!("#{}:{}", room_alias_localpart, services.globals.server_name());
 			let room_alias = match OwnedRoomAliasId::parse(room_alias_str) {
 				| Ok(alias) => alias,
-				| Err(err) =>
+				| Err(err) => {
 					return Ok(RoomMessageEventContent::text_plain(format!(
 						"Failed to parse alias: {err}"
-					))),
+					)));
+				},
 			};
 			match command {
 				| RoomAliasCommand::Set { force, room_id, .. } => {

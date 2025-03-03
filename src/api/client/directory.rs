@@ -267,8 +267,9 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		let backwards = match characters.next() {
 			| Some('n') => false,
 			| Some('p') => true,
-			| _ =>
-				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token")),
+			| _ => {
+				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token"));
+			},
 		};
 
 		num_since = characters
