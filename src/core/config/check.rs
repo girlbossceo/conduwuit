@@ -126,6 +126,14 @@ pub fn check(config: &Config) -> Result {
 		));
 	}
 
+	if config.emergency_password == Some(String::new()) {
+		return Err!(Config(
+			"emergency_password",
+			"Emergency password was set to an empty string, this is not valid. Unset \
+			 emergency_password to disable it or set it to a real password."
+		));
+	}
+
 	// check if the user specified a registration token as `""`
 	if config.registration_token == Some(String::new()) {
 		return Err!(Config(

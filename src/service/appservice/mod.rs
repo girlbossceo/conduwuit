@@ -90,7 +90,7 @@ impl Service {
 			.write()
 			.await
 			.remove(appservice_id)
-			.ok_or(err!("Appservice not found"))?;
+			.ok_or_else(|| err!("Appservice not found"))?;
 
 		// remove the appservice from the database
 		self.db.id_appserviceregistrations.del(appservice_id);

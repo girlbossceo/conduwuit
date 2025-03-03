@@ -2,12 +2,11 @@ use std::time::Duration;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{Err, debug, err, info, utils::ReadyExt, warn};
+use conduwuit::{Err, debug, err, info, utils::ReadyExt};
 use futures::StreamExt;
 use ruma::{
-	OwnedUserId, UserId,
+	UserId,
 	api::client::{
-		error::ErrorKind,
 		session::{
 			get_login_token,
 			get_login_types::{
@@ -67,6 +66,8 @@ pub(crate) async fn login_route(
 	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<login::v3::Request>,
 ) -> Result<login::v3::Response> {
+	let emergency_mode_enabled = services.config.emergency_password.is_some();
+
 	// Validate login method
 	// TODO: Other login methods
 	let user_id = match &body.login_info {
@@ -78,20 +79,22 @@ pub(crate) async fn login_route(
 			..
 		}) => {
 			debug!("Got password login type");
-			let user_id = if let Some(uiaa::UserIdentifier::UserIdOrLocalpart(user_id)) =
-				identifier
-			{
-				UserId::parse_with_server_name(
-					user_id.to_lowercase(),
-					services.globals.server_name(),
-				)
-			} else if let Some(user) = user {
-				OwnedUserId::parse(user)
-			} else {
-				warn!("Bad login type: {:?}", &body.login_info);
-				return Err!(Request(Forbidden("Bad login type.")));
-			}
-			.map_err(|_| Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+			let user_id =
+				if let Some(uiaa::UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
+					UserId::parse_with_server_name(user_id, &services.config.server_name)
+				} else if let Some(user) = user {
+					UserId::parse_with_server_name(user, &services.config.server_name)
+				} else {
+					return Err!(Request(Unknown(
+						warn!(?body.login_info, "Invalid or unsupported login type")
+					)));
+				}
+				.map_err(|e| err!(Request(InvalidUsername(warn!("Username is invalid: {e}")))))?;
+
+			assert!(
+				services.globals.user_is_local(&user_id),
+				"User ID does not belong to this homeserver"
+			);
 
 			let hash = services
 				.users
@@ -124,46 +127,40 @@ pub(crate) async fn login_route(
 			debug!("Got appservice login type");
 			let user_id =
 				if let Some(uiaa::UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-					UserId::parse_with_server_name(
-						user_id.to_lowercase(),
-						services.globals.server_name(),
-					)
+					UserId::parse_with_server_name(user_id, &services.config.server_name)
 				} else if let Some(user) = user {
-					OwnedUserId::parse(user)
+					UserId::parse_with_server_name(user, &services.config.server_name)
 				} else {
-					warn!("Bad login type: {:?}", &body.login_info);
-					return Err(Error::BadRequest(ErrorKind::forbidden(), "Bad login type."));
+					return Err!(Request(Unknown(
+						warn!(?body.login_info, "Invalid or unsupported login type")
+					)));
 				}
-				.map_err(|e| {
-					warn!("Failed to parse username from appservice logging in: {e}");
-					Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid.")
-				})?;
+				.map_err(|e| err!(Request(InvalidUsername(warn!("Username is invalid: {e}")))))?;
+
+			assert!(
+				services.globals.user_is_local(&user_id),
+				"User ID does not belong to this homeserver"
+			);
 
 			match body.appservice_info {
 				| Some(ref info) =>
-					if !info.is_user_match(&user_id) {
-						return Err(Error::BadRequest(
-							ErrorKind::Exclusive,
-							"User is not in namespace.",
-						));
+					if !info.is_user_match(&user_id) && !emergency_mode_enabled {
+						return Err!(Request(Exclusive(
+							"Username is not in an appservice namespace."
+						)));
 					},
 				| _ => {
-					return Err(Error::BadRequest(
-						ErrorKind::MissingToken,
-						"Missing appservice token.",
-					));
+					return Err!(Request(MissingToken("Missing appservice token.")));
 				},
 			}
 
 			user_id
 		},
 		| _ => {
-			warn!("Unsupported or unknown login type: {:?}", &body.login_info);
-			debug!("JSON body: {:?}", &body.json_body);
-			return Err(Error::BadRequest(
-				ErrorKind::Unknown,
-				"Unsupported or unknown login type.",
-			));
+			debug!("/login json_body: {:?}", &body.json_body);
+			return Err!(Request(Unknown(
+				warn!(?body.login_info, "Invalid or unsupported login type")
+			)));
 		},
 	};
 
@@ -216,9 +213,6 @@ pub(crate) async fn login_route(
 
 	info!("{user_id} logged in");
 
-	// home_server is deprecated but apparently must still be sent despite it being
-	// deprecated over 6 years ago. initially i thought this macro was unnecessary,
-	// but ruma uses this same macro for the same reason so...
 	#[allow(deprecated)]
 	Ok(login::v3::Response {
 		user_id,
@@ -226,7 +220,7 @@ pub(crate) async fn login_route(
 		device_id,
 		well_known: client_discovery_info,
 		expires_in: None,
-		home_server: Some(services.globals.server_name().to_owned()),
+		home_server: Some(services.config.server_name.clone()),
 		refresh_token: None,
 	})
 }

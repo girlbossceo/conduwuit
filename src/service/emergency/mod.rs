@@ -9,7 +9,7 @@ use ruma::{
 	push::Ruleset,
 };
 
-use crate::{Dep, account_data, globals, users};
+use crate::{Dep, account_data, config, globals, users};
 
 pub struct Service {
 	services: Services,
@@ -17,6 +17,7 @@ pub struct Service {
 
 struct Services {
 	account_data: Dep<account_data::Service>,
+	config: Dep<config::Service>,
 	globals: Dep<globals::Service>,
 	users: Dep<users::Service>,
 }
@@ -27,6 +28,8 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			services: Services {
 				account_data: args.depend::<account_data::Service>("account_data"),
+				config: args.depend::<config::Service>("config"),
+
 				globals: args.depend::<globals::Service>("globals"),
 				users: args.depend::<users::Service>("users"),
 			},
@@ -54,9 +57,9 @@ impl Service {
 
 		self.services
 			.users
-			.set_password(server_user, self.services.globals.emergency_password().as_deref())?;
+			.set_password(server_user, self.services.config.emergency_password.as_deref())?;
 
-		let (ruleset, pwd_set) = match self.services.globals.emergency_password() {
+		let (ruleset, pwd_set) = match self.services.config.emergency_password {
 			| Some(_) => (Ruleset::server_default(server_user), true),
 			| None => (Ruleset::new(), false),
 		};

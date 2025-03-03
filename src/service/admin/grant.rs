@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use conduwuit::{Result, error, implement};
+use conduwuit::{Err, Result, debug_info, debug_warn, error, implement};
 use ruma::{
 	RoomId, UserId,
 	events::{
-		RoomAccountDataEventType,
+		RoomAccountDataEventType, StateEventType,
 		room::{
 			member::{MembershipState, RoomMemberEventContent},
 			message::RoomMessageEventContent,
@@ -20,55 +20,98 @@ use crate::pdu::PduBuilder;
 ///
 /// This is equivalent to granting server admin privileges.
 #[implement(super::Service)]
-pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
+pub async fn make_user_admin(&self, user_id: &UserId) -> Result {
 	let Ok(room_id) = self.get_admin_room().await else {
+		debug_warn!(
+			"make_user_admin was called without an admin room being available or created"
+		);
 		return Ok(());
 	};
 
 	let state_lock = self.services.state.mutex.lock(&room_id).await;
 
+	if self.services.state_cache.is_joined(user_id, &room_id).await {
+		return Err!(debug_warn!("User is already joined in the admin room"));
+	}
+	if self
+		.services
+		.state_cache
+		.is_invited(user_id, &room_id)
+		.await
+	{
+		return Err!(debug_warn!("User is already pending an invitation to the admin room"));
+	}
+
 	// Use the server user to grant the new admin's power level
-	let server_user = &self.services.globals.server_user;
+	let server_user = self.services.globals.server_user.as_ref();
 
-	// Invite and join the real user
-	self.services
-		.timeline
-		.build_and_append_pdu(
-			PduBuilder::state(
-				user_id.to_string(),
-				&RoomMemberEventContent::new(MembershipState::Invite),
-			),
-			server_user,
+	// if this is our local user, just forcefully join them in the room. otherwise,
+	// invite the remote user.
+	if self.services.globals.user_is_local(user_id) {
+		debug_info!("Inviting local user {user_id} to admin room {room_id}");
+		self.services
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder::state(
+					String::from(user_id),
+					&RoomMemberEventContent::new(MembershipState::Invite),
+				),
+				server_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+
+		debug_info!("Force joining local user {user_id} to admin room {room_id}");
+		self.services
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder::state(
+					String::from(user_id),
+					&RoomMemberEventContent::new(MembershipState::Join),
+				),
+				user_id,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+	} else {
+		debug_info!("Inviting remote user {user_id} to admin room {room_id}");
+		self.services
+			.timeline
+			.build_and_append_pdu(
+				PduBuilder::state(
+					user_id.to_string(),
+					&RoomMemberEventContent::new(MembershipState::Invite),
+				),
+				server_user,
+				&room_id,
+				&state_lock,
+			)
+			.await?;
+	}
+
+	// Set power levels
+	let mut room_power_levels = self
+		.services
+		.state_accessor
+		.room_state_get_content::<RoomPowerLevelsEventContent>(
 			&room_id,
-			&state_lock,
+			&StateEventType::RoomPowerLevels,
+			"",
 		)
-		.await?;
-	self.services
-		.timeline
-		.build_and_append_pdu(
-			PduBuilder::state(
-				user_id.to_string(),
-				&RoomMemberEventContent::new(MembershipState::Join),
-			),
-			user_id,
-			&room_id,
-			&state_lock,
-		)
-		.await?;
+		.await
+		.unwrap_or_default();
 
-	// Set power level
-	let users = BTreeMap::from_iter([
-		(server_user.clone(), 100.into()),
-		(user_id.to_owned(), 100.into()),
-	]);
+	room_power_levels
+		.users
+		.insert(server_user.into(), 69420.into());
+	room_power_levels.users.insert(user_id.into(), 100.into());
 
 	self.services
 		.timeline
 		.build_and_append_pdu(
-			PduBuilder::state(String::new(), &RoomPowerLevelsEventContent {
-				users,
-				..Default::default()
-			}),
+			PduBuilder::state(String::new(), &room_power_levels),
 			server_user,
 			&room_id,
 			&state_lock,
@@ -76,15 +119,17 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 		.await?;
 
 	// Set room tag
-	let room_tag = &self.services.server.config.admin_room_tag;
+	let room_tag = self.services.server.config.admin_room_tag.as_str();
 	if !room_tag.is_empty() {
 		if let Err(e) = self.set_room_tag(&room_id, user_id, room_tag).await {
-			error!(?room_id, ?user_id, ?room_tag, ?e, "Failed to set tag for admin grant");
+			error!(?room_id, ?user_id, ?room_tag, "Failed to set tag for admin grant: {e}");
 		}
 	}
 
 	if self.services.server.config.admin_room_notices {
-		let welcome_message = String::from("## Thank you for trying out conduwuit!\n\nconduwuit is technically a hard fork of Conduit, which is in Beta. The Beta status initially was inherited from Conduit, however overtime this Beta status is rapidly becoming less and less relevant as our codebase significantly diverges more and more. conduwuit is quite stable and very usable as a daily driver and for a low-medium sized homeserver. There is still a lot of more work to be done, but it is in a far better place than the project was in early 2024.\n\nHelpful links:\n> GitHub Repo: https://github.com/girlbossceo/conduwuit\n> Documentation: https://conduwuit.puppyirl.gay/\n> Report issues: https://github.com/girlbossceo/conduwuit/issues\n\nFor a list of available commands, send the following message in this room: `!admin --help`\n\nHere are some rooms you can join (by typing the command into your client) -\n\nconduwuit space: `/join #conduwuit-space:puppygock.gay`\nconduwuit main room (Ask questions and get notified on updates): `/join #conduwuit:puppygock.gay`\nconduwuit offtopic room: `/join #conduwuit-offtopic:puppygock.gay`");
+		let welcome_message = String::from(
+			"## Thank you for trying out conduwuit!\n\nconduwuit is technically a hard fork of Conduit, which is in Beta. The Beta status initially was inherited from Conduit, however overtime this Beta status is rapidly becoming less and less relevant as our codebase significantly diverges more and more. conduwuit is quite stable and very usable as a daily driver and for a low-medium sized homeserver. There is still a lot of more work to be done, but it is in a far better place than the project was in early 2024.\n\nHelpful links:\n> GitHub Repo: https://github.com/girlbossceo/conduwuit\n> Documentation: https://conduwuit.puppyirl.gay/\n> Report issues: https://github.com/girlbossceo/conduwuit/issues\n\nFor a list of available commands, send the following message in this room: `!admin --help`\n\nHere are some rooms you can join (by typing the command into your client) -\n\nconduwuit space: `/join #conduwuit-space:puppygock.gay`\nconduwuit main room (Ask questions and get notified on updates): `/join #conduwuit:puppygock.gay`\nconduwuit offtopic room: `/join #conduwuit-offtopic:puppygock.gay`",
+		);
 
 		// Send welcome message
 		self.services
@@ -102,7 +147,7 @@ pub async fn make_user_admin(&self, user_id: &UserId) -> Result<()> {
 }
 
 #[implement(super::Service)]
-async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result<()> {
+async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> Result {
 	let mut event = self
 		.services
 		.account_data
@@ -125,7 +170,5 @@ async fn set_room_tag(&self, room_id: &RoomId, user_id: &UserId, tag: &str) -> R
 			RoomAccountDataEventType::Tag,
 			&serde_json::to_value(event)?,
 		)
-		.await?;
-
-	Ok(())
+		.await
 }

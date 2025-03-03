@@ -3,7 +3,8 @@ use std::fmt::Write;
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	Error, PduBuilder, Result, debug_info, error, info, is_equal_to, utils, utils::ReadyExt, warn,
+	Err, Error, PduBuilder, Result, debug_info, err, error, info, is_equal_to, utils,
+	utils::ReadyExt, warn,
 };
 use futures::{FutureExt, StreamExt};
 use register::RegistrationKind;
@@ -17,7 +18,6 @@ use ruma::{
 			request_3pid_management_token_via_email, request_3pid_management_token_via_msisdn,
 			whoami,
 		},
-		error::ErrorKind,
 		uiaa::{AuthFlow, AuthType, UiaaInfo},
 	},
 	events::{
@@ -60,6 +60,14 @@ pub(crate) async fn get_register_available_route(
 			|| appservice.registration.id.contains("matrix_appservice_irc")
 	});
 
+	if services
+		.globals
+		.forbidden_usernames()
+		.is_match(&body.username)
+	{
+		return Err!(Request(Forbidden("Username is forbidden")));
+	}
+
 	// don't force the username lowercase if it's from matrix-appservice-irc
 	let body_username = if is_matrix_appservice_irc {
 		body.username.clone()
@@ -68,30 +76,45 @@ pub(crate) async fn get_register_available_route(
 	};
 
 	// Validate user id
-	let user_id = UserId::parse_with_server_name(body_username, services.globals.server_name())
-		.ok()
-		.filter(|user_id| {
-			(!user_id.is_historical() || is_matrix_appservice_irc)
-				&& services.globals.user_is_local(user_id)
-		})
-		.ok_or(Error::BadRequest(ErrorKind::InvalidUsername, "Username is invalid."))?;
+	let user_id =
+		match UserId::parse_with_server_name(&body_username, services.globals.server_name()) {
+			| Ok(user_id) => {
+				if let Err(e) = user_id.validate_strict() {
+					// unless the username is from the broken matrix appservice IRC bridge, we
+					// should follow synapse's behaviour on not allowing things like spaces
+					// and UTF-8 characters in usernames
+					if !is_matrix_appservice_irc {
+						return Err!(Request(InvalidUsername(debug_warn!(
+							"Username {body_username} contains disallowed characters or spaces: \
+							 {e}"
+						))));
+					}
+				}
+
+				user_id
+			},
+			| Err(e) => {
+				return Err!(Request(InvalidUsername(debug_warn!(
+					"Username {body_username} is not valid: {e}"
+				))));
+			},
+		};
 
 	// Check if username is creative enough
 	if services.users.exists(&user_id).await {
-		return Err(Error::BadRequest(ErrorKind::UserInUse, "Desired user ID is already taken."));
+		return Err!(Request(UserInUse("User ID is not available.")));
 	}
 
-	if services
-		.globals
-		.forbidden_usernames()
-		.is_match(user_id.localpart())
-	{
-		return Err(Error::BadRequest(ErrorKind::Unknown, "Username is forbidden."));
+	if let Some(ref info) = body.appservice_info {
+		if !info.is_user_match(&user_id) {
+			return Err!(Request(Exclusive("Username is not in an appservice namespace.")));
+		}
+	};
+
+	if services.appservice.is_exclusive_user_id(&user_id).await {
+		return Err!(Request(Exclusive("Username is reserved by an appservice.")));
 	}
 
-	// TODO add check for appservice namespaces
-
-	// If no if check is true we have an username that's available to be used.
 	Ok(get_username_availability::v3::Response { available: true })
 }
 
@@ -119,16 +142,27 @@ pub(crate) async fn register_route(
 	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<register::v3::Request>,
 ) -> Result<register::v3::Response> {
-	if !services.globals.allow_registration() && body.appservice_info.is_none() {
-		info!(
-			"Registration disabled and request not from known appservice, rejecting \
-			 registration attempt for username \"{}\"",
-			body.username.as_deref().unwrap_or("")
-		);
-		return Err(Error::BadRequest(ErrorKind::forbidden(), "Registration has been disabled."));
-	}
-
 	let is_guest = body.kind == RegistrationKind::Guest;
+	let emergency_mode_enabled = services.config.emergency_password.is_some();
+
+	if !services.globals.allow_registration() && body.appservice_info.is_none() {
+		match (body.username.as_ref(), body.initial_device_display_name.as_ref()) {
+			| (Some(username), Some(device_display_name)) => {
+				info!(%is_guest, user = %username, device_name = %device_display_name, "Rejecting registration attempt as registration is disabled");
+			},
+			| (Some(username), _) => {
+				info!(%is_guest, user = %username, "Rejecting registration attempt as registration is disabled");
+			},
+			| (_, Some(device_display_name)) => {
+				info!(%is_guest, device_name = %device_display_name, "Rejecting registration attempt as registration is disabled");
+			},
+			| (None, _) => {
+				info!(%is_guest, "Rejecting registration attempt as registration is disabled");
+			},
+		};
+
+		return Err!(Request(Forbidden("Registration has been disabled.")));
+	}
 
 	if is_guest
 		&& (!services.globals.allow_guest_registration()
@@ -140,10 +174,7 @@ pub(crate) async fn register_route(
 			 rejecting guest registration attempt, initial device name: \"{}\"",
 			body.initial_device_display_name.as_deref().unwrap_or("")
 		);
-		return Err(Error::BadRequest(
-			ErrorKind::GuestAccessForbidden,
-			"Guest registration is disabled.",
-		));
+		return Err!(Request(GuestAccessForbidden("Guest registration is disabled.")));
 	}
 
 	// forbid guests from registering if there is not a real admin user yet. give
@@ -154,13 +185,10 @@ pub(crate) async fn register_route(
 			 rejecting registration. Guest's initial device name: \"{}\"",
 			body.initial_device_display_name.as_deref().unwrap_or("")
 		);
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Registration temporarily disabled.",
-		));
+		return Err!(Request(Forbidden("Registration is temporarily disabled.")));
 	}
 
-	let user_id = match (&body.username, is_guest) {
+	let user_id = match (body.username.as_ref(), is_guest) {
 		| (Some(username), false) => {
 			// workaround for https://github.com/matrix-org/matrix-appservice-irc/issues/1780 due to inactivity of fixing the issue
 			let is_matrix_appservice_irc =
@@ -170,6 +198,12 @@ pub(crate) async fn register_route(
 						|| appservice.registration.id.contains("matrix_appservice_irc")
 				});
 
+			if services.globals.forbidden_usernames().is_match(username)
+				&& !emergency_mode_enabled
+			{
+				return Err!(Request(Forbidden("Username is forbidden")));
+			}
+
 			// don't force the username lowercase if it's from matrix-appservice-irc
 			let body_username = if is_matrix_appservice_irc {
 				username.clone()
@@ -177,31 +211,34 @@ pub(crate) async fn register_route(
 				username.to_lowercase()
 			};
 
-			let proposed_user_id =
-				UserId::parse_with_server_name(body_username, services.globals.server_name())
-					.ok()
-					.filter(|user_id| {
-						(!user_id.is_historical() || is_matrix_appservice_irc)
-							&& services.globals.user_is_local(user_id)
-					})
-					.ok_or(Error::BadRequest(
-						ErrorKind::InvalidUsername,
-						"Username is invalid.",
-					))?;
+			let proposed_user_id = match UserId::parse_with_server_name(
+				&body_username,
+				services.globals.server_name(),
+			) {
+				| Ok(user_id) => {
+					if let Err(e) = user_id.validate_strict() {
+						// unless the username is from the broken matrix appservice IRC bridge, or
+						// we are in emergency mode, we should follow synapse's behaviour on
+						// not allowing things like spaces and UTF-8 characters in usernames
+						if !is_matrix_appservice_irc && !emergency_mode_enabled {
+							return Err!(Request(InvalidUsername(debug_warn!(
+								"Username {body_username} contains disallowed characters or \
+								 spaces: {e}"
+							))));
+						}
+					}
+
+					user_id
+				},
+				| Err(e) => {
+					return Err!(Request(InvalidUsername(debug_warn!(
+						"Username {body_username} is not valid: {e}"
+					))));
+				},
+			};
 
 			if services.users.exists(&proposed_user_id).await {
-				return Err(Error::BadRequest(
-					ErrorKind::UserInUse,
-					"Desired user ID is already taken.",
-				));
-			}
-
-			if services
-				.globals
-				.forbidden_usernames()
-				.is_match(proposed_user_id.localpart())
-			{
-				return Err(Error::BadRequest(ErrorKind::Unknown, "Username is forbidden."));
+				return Err!(Request(UserInUse("User ID is not available.")));
 			}
 
 			proposed_user_id
@@ -221,21 +258,18 @@ pub(crate) async fn register_route(
 	if body.body.login_type == Some(LoginType::ApplicationService) {
 		match body.appservice_info {
 			| Some(ref info) =>
-				if !info.is_user_match(&user_id) {
-					return Err(Error::BadRequest(
-						ErrorKind::Exclusive,
-						"User is not in namespace.",
-					));
+				if !info.is_user_match(&user_id) && !emergency_mode_enabled {
+					return Err!(Request(Exclusive(
+						"Username is not in an appservice namespace."
+					)));
 				},
 			| _ => {
-				return Err(Error::BadRequest(
-					ErrorKind::MissingToken,
-					"Missing appservice token.",
-				));
+				return Err!(Request(MissingToken("Missing appservice token.")));
 			},
 		}
-	} else if services.appservice.is_exclusive_user_id(&user_id).await {
-		return Err(Error::BadRequest(ErrorKind::Exclusive, "User ID reserved by appservice."));
+	} else if services.appservice.is_exclusive_user_id(&user_id).await && !emergency_mode_enabled
+	{
+		return Err!(Request(Exclusive("Username is reserved by an appservice.")));
 	}
 
 	// UIAA
@@ -271,7 +305,7 @@ pub(crate) async fn register_route(
 					.uiaa
 					.try_auth(
 						&UserId::parse_with_server_name("", services.globals.server_name())
-							.expect("we know this is valid"),
+							.unwrap(),
 						"".into(),
 						auth,
 						&uiaainfo,
@@ -287,7 +321,7 @@ pub(crate) async fn register_route(
 					uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 					services.uiaa.create(
 						&UserId::parse_with_server_name("", services.globals.server_name())
-							.expect("we know this is valid"),
+							.unwrap(),
 						"".into(),
 						&uiaainfo,
 						&json,
@@ -295,7 +329,7 @@ pub(crate) async fn register_route(
 					return Err(Error::Uiaa(uiaainfo));
 				},
 				| _ => {
-					return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+					return Err!(Request(NotJson("JSON body is not valid")));
 				},
 			},
 		}
@@ -407,7 +441,7 @@ pub(crate) async fn register_route(
 
 	// log in conduit admin channel if a guest registered
 	if body.appservice_info.is_none() && is_guest && services.globals.log_guest_registrations() {
-		info!("New guest user \"{user_id}\" registered on this server.");
+		debug_info!("New guest user \"{user_id}\" registered on this server.");
 
 		if !device_display_name.is_empty() {
 			if services.server.config.admin_room_notices {
@@ -436,7 +470,8 @@ pub(crate) async fn register_route(
 	}
 
 	// If this is the first real user, grant them admin privileges except for guest
-	// users Note: the server user, @conduit:servername, is generated first
+	// users
+	// Note: the server user is generated first
 	if !is_guest {
 		if let Ok(admin_room) = services.admin.get_admin_room().await {
 			if services
@@ -541,8 +576,8 @@ pub(crate) async fn change_password_route(
 	let sender_user = body
 		.sender_user
 		.as_ref()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+		.ok_or_else(|| err!(Request(MissingToken("Missing access token."))))?;
+	let sender_device = body.sender_device();
 
 	let mut uiaainfo = UiaaInfo {
 		flows: vec![AuthFlow { stages: vec![AuthType::Password] }],
@@ -566,16 +601,16 @@ pub(crate) async fn change_password_route(
 			// Success!
 		},
 		| _ => match body.json_body {
-			| Some(json) => {
+			| Some(ref json) => {
 				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 				services
 					.uiaa
-					.create(sender_user, sender_device, &uiaainfo, &json);
+					.create(sender_user, sender_device, &uiaainfo, json);
 
 				return Err(Error::Uiaa(uiaainfo));
 			},
 			| _ => {
-				return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+				return Err!(Request(NotJson("JSON body is not valid")));
 			},
 		},
 	}
@@ -589,7 +624,7 @@ pub(crate) async fn change_password_route(
 		services
 			.users
 			.all_device_ids(sender_user)
-			.ready_filter(|id| id != sender_device)
+			.ready_filter(|id| *id != sender_device)
 			.for_each(|id| services.users.remove_device(sender_user, id))
 			.await;
 	}
@@ -651,8 +686,8 @@ pub(crate) async fn deactivate_route(
 	let sender_user = body
 		.sender_user
 		.as_ref()
-		.ok_or_else(|| Error::BadRequest(ErrorKind::MissingToken, "Missing access token."))?;
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+		.ok_or_else(|| err!(Request(MissingToken("Missing access token."))))?;
+	let sender_device = body.sender_device();
 
 	let mut uiaainfo = UiaaInfo {
 		flows: vec![AuthFlow { stages: vec![AuthType::Password] }],
@@ -675,16 +710,16 @@ pub(crate) async fn deactivate_route(
 			// Success!
 		},
 		| _ => match body.json_body {
-			| Some(json) => {
+			| Some(ref json) => {
 				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 				services
 					.uiaa
-					.create(sender_user, sender_device, &uiaainfo, &json);
+					.create(sender_user, sender_device, &uiaainfo, json);
 
 				return Err(Error::Uiaa(uiaainfo));
 			},
 			| _ => {
-				return Err(Error::BadRequest(ErrorKind::NotJson, "Not json."));
+				return Err!(Request(NotJson("JSON body is not valid")));
 			},
 		},
 	}
@@ -743,10 +778,7 @@ pub(crate) async fn third_party_route(
 pub(crate) async fn request_3pid_management_token_via_email_route(
 	_body: Ruma<request_3pid_management_token_via_email::v3::Request>,
 ) -> Result<request_3pid_management_token_via_email::v3::Response> {
-	Err(Error::BadRequest(
-		ErrorKind::ThreepidDenied,
-		"Third party identifier is not allowed",
-	))
+	Err!(Request(ThreepidDenied("Third party identifiers are not implemented")))
 }
 
 /// # `POST /_matrix/client/v3/account/3pid/msisdn/requestToken`
@@ -759,10 +791,7 @@ pub(crate) async fn request_3pid_management_token_via_email_route(
 pub(crate) async fn request_3pid_management_token_via_msisdn_route(
 	_body: Ruma<request_3pid_management_token_via_msisdn::v3::Request>,
 ) -> Result<request_3pid_management_token_via_msisdn::v3::Response> {
-	Err(Error::BadRequest(
-		ErrorKind::ThreepidDenied,
-		"Third party identifier is not allowed",
-	))
+	Err!(Request(ThreepidDenied("Third party identifiers are not implemented")))
 }
 
 /// # `GET /_matrix/client/v1/register/m.login.registration_token/validity`
@@ -776,10 +805,7 @@ pub(crate) async fn check_registration_token_validity(
 	body: Ruma<check_registration_token_validity::v1::Request>,
 ) -> Result<check_registration_token_validity::v1::Response> {
 	let Some(reg_token) = services.globals.registration_token.clone() else {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Server does not allow token registration.",
-		));
+		return Err!(Request(Forbidden("Server does not allow token registration")));
 	};
 
 	Ok(check_registration_token_validity::v1::Response { valid: reg_token == body.token })

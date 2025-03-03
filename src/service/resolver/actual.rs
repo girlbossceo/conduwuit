@@ -363,7 +363,7 @@ impl super::Service {
 			let hostname = hostname.trim_end_matches('.');
 			match self.resolver.resolver.srv_lookup(hostname).await {
 				| Err(e) => Self::handle_resolve_error(&e, hostname)?,
-				| Ok(result) =>
+				| Ok(result) => {
 					return Ok(result.iter().next().map(|result| {
 						FedDest::Named(
 							result.target().to_string().trim_end_matches('.').to_owned(),
@@ -372,7 +372,8 @@ impl super::Service {
 								.try_into()
 								.unwrap_or_else(|_| FedDest::default_port()),
 						)
-					})),
+					}));
+				},
 			}
 		}
 
