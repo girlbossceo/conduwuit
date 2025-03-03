@@ -162,15 +162,9 @@ commonAttrs = {
       ];
     };
 
-    # This is redundant with CI
-    doCheck = false;
+    doCheck = true;
 
-    cargoTestCommand = "cargo test --locked ";
     cargoExtraArgs = "--no-default-features --locked "
-      + lib.optionalString
-        (features'' != [])
-        "--features " + (builtins.concatStringsSep "," features'');
-    cargoTestExtraArgs = "--no-default-features --locked "
       + lib.optionalString
         (features'' != [])
         "--features " + (builtins.concatStringsSep "," features'');
@@ -209,15 +203,9 @@ craneLib.buildPackage ( commonAttrs // {
     env = buildDepsOnlyEnv;
   });
 
-  # This is redundant with CI
-  doCheck = false;
+  doCheck = true;
 
-  cargoTestCommand = "cargo test --locked ";
   cargoExtraArgs = "--no-default-features --locked "
-    + lib.optionalString
-      (features'' != [])
-      "--features " + (builtins.concatStringsSep "," features'');
-  cargoTestExtraArgs = "--no-default-features --locked "
     + lib.optionalString
       (features'' != [])
       "--features " + (builtins.concatStringsSep "," features'');
