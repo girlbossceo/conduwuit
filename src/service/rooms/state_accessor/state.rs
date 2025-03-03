@@ -4,7 +4,7 @@ use conduwuit::{
 	PduEvent, Result, StateKey, at, err, implement, pair_of,
 	utils::{
 		result::FlatOk,
-		stream::{BroadbandExt, IterStream, ReadyExt, TryExpect},
+		stream::{BroadbandExt, IterStream, ReadyExt, TryIgnore},
 	},
 };
 use database::Deserialized;
@@ -232,7 +232,7 @@ pub fn state_keys_with_shortids<'a>(
 ) -> impl Stream<Item = (StateKey, ShortEventId)> + Send + 'a {
 	let short_ids = self
 		.state_full_shortids(shortstatehash)
-		.expect_ok()
+		.ignore_err()
 		.unzip()
 		.map(|(ssks, sids): (Vec<u64>, Vec<u64>)| (ssks, sids))
 		.shared();
@@ -269,7 +269,7 @@ pub fn state_keys<'a>(
 ) -> impl Stream<Item = StateKey> + Send + 'a {
 	let short_ids = self
 		.state_full_shortids(shortstatehash)
-		.expect_ok()
+		.ignore_err()
 		.map(at!(0));
 
 	self.services
@@ -305,7 +305,7 @@ pub fn state_added(
 		.map_ok(|(a, b)| b.difference(&a).copied().collect::<Vec<_>>())
 		.map_ok(IterStream::try_stream)
 		.try_flatten_stream()
-		.expect_ok()
+		.ignore_err()
 		.map(parse_compressed_state_event)
 }
 
@@ -327,7 +327,7 @@ pub fn state_full_pdus(
 ) -> impl Stream<Item = PduEvent> + Send + '_ {
 	let short_ids = self
 		.state_full_shortids(shortstatehash)
-		.expect_ok()
+		.ignore_err()
 		.map(at!(1));
 
 	self.services
@@ -352,7 +352,7 @@ where
 {
 	let shortids = self
 		.state_full_shortids(shortstatehash)
-		.expect_ok()
+		.ignore_err()
 		.unzip()
 		.shared();
 
