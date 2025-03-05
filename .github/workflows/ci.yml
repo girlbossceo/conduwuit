@@ -45,8 +45,8 @@ env:
     # Get error output from nix that we can actually use, and use our binary caches for the earlier CI steps
     NIX_CONFIG: |
       show-trace = true
-      extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
-      extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
+      extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net https://nix-community.cachix.org https://crane.cachix.org
+      extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=
       experimental-features = nix-command flakes
       extra-experimental-features = nix-command flakes
       accept-flake-config = true
@@ -59,7 +59,7 @@ permissions: {}
 jobs:
     tests:
         name: Test
-        runs-on: ubuntu-24.04
+        runs-on: self-hosted
         steps:
             - name: Setup SSH web publish
               env:
@@ -93,19 +93,6 @@ jobs:
 
                   echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
 
-            - name: Install liburing
-              run: |
-                  sudo apt install liburing-dev -y
-
-            - name: Free up a bit of runner space
-              run: |
-                  set +o pipefail
-                  sudo docker image prune --all --force || true
-                  sudo apt purge -y 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-cloud-cli google-chrome-stable firefox powershell microsoft-edge-stable || true
-                  sudo apt clean
-                  sudo rm -rf /usr/local/lib/android /usr/local/julia* /usr/local/games /usr/local/sqlpackage /usr/local/share/powershell /usr/local/share/edge_driver /usr/local/share/gecko_driver /usr/local/share/chromium /usr/local/share/chromedriver-linux64 /usr/lib/google-cloud-sdk /usr/lib/jvm /usr/lib/mono /usr/local/lib/heroku /usr/lib/heroku /usr/local/share/boost /usr/share/dotnet /usr/local/bin/cmake* /usr/local/bin/stack /usr/local/bin/terraform /opt/microsoft/powershell /opt/hostedtoolcache/CodeQL /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy /usr/local/bin/sam || true
-                  set -o pipefail
-
             - name: Sync repository
               uses: actions/checkout@v4
               with:
@@ -123,58 +110,9 @@ jobs:
                     exit 1
                   fi
 
-            - uses: nixbuild/nix-quick-install-action@master
-
-            - name: Restore and cache Nix store
-              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
-              # releases and tags
-              #if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-              uses: nix-community/cache-nix-action@v6
-              with:
-                # restore and save a cache using this key
-                primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/.lock') }}
-                # if there's no cache hit, restore a cache by this prefix
-                restore-prefixes-first-match: nix-${{ runner.os }}-
-                # collect garbage until Nix store size (in bytes) is at most this number
-                # before trying to save a new cache
-                gc-max-store-size-linux: 2073741824
-                # do purge caches
-                purge: true
-                # purge all versions of the cache
-                purge-prefixes: nix-${{ runner.os }}-
-                # created more than this number of seconds ago relative to the start of the `Post Restore` phase
-                purge-last-accessed: 86400
-                # except the version with the `primary-key`, if it exists
-                purge-primary-key: never
-
-            - name: Enable Cachix binary cache
-              run: |
-                  nix profile install nixpkgs#cachix
-                  cachix use crane
-                  cachix use nix-community
-
-            - name: Apply Nix binary cache configuration
-              run: |
-                  sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
-                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
-                  experimental-features = nix-command flakes
-                  extra-experimental-features = nix-command flakes
-                  accept-flake-config = true
-                  EOF
-
-            - name: Use alternative Nix binary caches if specified
-              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
-              run: |
-                  sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = ${ATTIC_ENDPOINT}
-                  extra-trusted-public-keys = ${ATTIC_PUBLIC_KEY}
-                  EOF
-
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
                   nix develop .#all-features --command true
 
@@ -267,22 +205,13 @@ jobs:
 
     build:
         name: Build
-        runs-on: ubuntu-24.04
+        runs-on: self-hosted
         strategy:
             matrix:
                 include:
                     - target: aarch64-linux-musl
                     - target: x86_64-linux-musl
         steps:
-            - name: Free up a bit of runner space
-              run: |
-                  set +o pipefail
-                  sudo docker image prune --all --force || true
-                  sudo apt purge -y 'php.*' '^mongodb-.*' '^mysql-.*' azure-cli google-cloud-cli google-chrome-stable firefox powershell microsoft-edge-stable || true
-                  sudo apt clean
-                  sudo rm -rf /usr/local/lib/android /usr/local/julia* /usr/local/games /usr/local/sqlpackage /usr/local/share/powershell /usr/local/share/edge_driver /usr/local/share/gecko_driver /usr/local/share/chromium /usr/local/share/chromedriver-linux64 /usr/lib/google-cloud-sdk /usr/lib/jvm /usr/lib/mono /usr/local/lib/heroku /usr/lib/heroku /usr/local/share/boost /usr/share/dotnet /usr/local/bin/cmake* /usr/local/bin/stack /usr/local/bin/terraform /opt/microsoft/powershell /opt/hostedtoolcache/CodeQL /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy /usr/local/bin/sam || true
-                  set -o pipefail
-
             - name: Sync repository
               uses: actions/checkout@v4
               with:
@@ -316,58 +245,9 @@ jobs:
 
                   echo "SSH_WEBSITE=1" >> "$GITHUB_ENV"
 
-            - uses: nixbuild/nix-quick-install-action@master
-
-            - name: Restore and cache Nix store
-              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
-              # releases and tags
-              #if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-              uses: nix-community/cache-nix-action@v6
-              with:
-                # restore and save a cache using this key
-                primary-key: nix-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/*.nix', '**/.lock') }}
-                # if there's no cache hit, restore a cache by this prefix
-                restore-prefixes-first-match: nix-${{ runner.os }}-
-                # collect garbage until Nix store size (in bytes) is at most this number
-                # before trying to save a new cache
-                gc-max-store-size-linux: 2073741824
-                # do purge caches
-                purge: true
-                # purge all versions of the cache
-                purge-prefixes: nix-${{ runner.os }}-
-                # created more than this number of seconds ago relative to the start of the `Post Restore` phase
-                purge-last-accessed: 86400
-                # except the version with the `primary-key`, if it exists
-                purge-primary-key: never
-
-            - name: Enable Cachix binary cache
-              run: |
-                  nix profile install nixpkgs#cachix
-                  cachix use crane
-                  cachix use nix-community
-
-            - name: Apply Nix binary cache configuration
-              run: |
-                  sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = https://attic.kennel.juneis.dog/conduwuit https://attic.kennel.juneis.dog/conduit https://conduwuit.cachix.org https://aseipp-nix-cache.freetls.fastly.net
-                  extra-trusted-public-keys = conduit:eEKoUwlQGDdYmAI/Q/0slVlegqh/QmAvQd7HBSm21Wk= conduwuit:BbycGUgTISsltcmH0qNjFR9dbrQNYgdIAcmViSGoVTE= cache.lix.systems:aBnZUw8zA7H35Cz2RyKFVs3H4PlGTLawyY5KRbvJR8o= conduwuit.cachix.org-1:MFRm6jcnfTf0jSAbmvLfhO3KBMt4px+1xaereWXp8Xg=
-                  experimental-features = nix-command flakes
-                  extra-experimental-features = nix-command flakes
-                  accept-flake-config = true
-                  EOF
-
-            - name: Use alternative Nix binary caches if specified
-              if: ${{ (env.ATTIC_ENDPOINT != '') && (env.ATTIC_PUBLIC_KEY != '') }}
-              run: |
-                  sudo tee -a "${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf" > /dev/null <<EOF
-                  extra-substituters = ${ATTIC_ENDPOINT}
-                  extra-trusted-public-keys = ${ATTIC_PUBLIC_KEY}
-                  EOF
-
             - name: Prepare build environment
               run: |
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
-                  nix profile install --impure --inputs-from . nixpkgs#direnv nixpkgs#nix-direnv
                   direnv allow
                   nix develop .#all-features --command true --impure
 
@@ -622,7 +502,7 @@ jobs:
     variables: 
       outputs:
         github_repository: ${{ steps.var.outputs.github_repository }}
-      runs-on: "ubuntu-latest"
+      runs-on: self-hosted
       steps:
         - name: Setting global variables
           uses: actions/github-script@v7
@@ -632,7 +512,7 @@ jobs:
               core.setOutput('github_repository', '${{ github.repository }}'.toLowerCase())
     docker:
         name: Docker publish
-        runs-on: ubuntu-24.04
+        runs-on: self-hosted
         needs: [build, variables, tests]
         permissions:
           packages: write
