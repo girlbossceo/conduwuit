@@ -11,12 +11,12 @@ use axum_client_ip::InsecureClientIp;
 use conduwuit::{
 	Err, PduEvent, Result, StateKey, at, debug, debug_info, debug_warn, err, error, info,
 	pdu::{PduBuilder, gen_event_id_canonical_json},
-	result::FlatOk,
+	result::{FlatOk, NotFound},
 	state_res, trace,
 	utils::{self, IterStream, ReadyExt, shuffle},
 	warn,
 };
-use futures::{FutureExt, StreamExt, TryFutureExt, join};
+use futures::{FutureExt, StreamExt, TryFutureExt, future::join4, join};
 use ruma::{
 	CanonicalJsonObject, CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName,
 	OwnedUserId, RoomId, RoomVersionId, ServerName, UserId,
@@ -717,21 +717,37 @@ pub(crate) async fn forget_room_route(
 	State(services): State<crate::State>,
 	body: Ruma<forget_room::v3::Request>,
 ) -> Result<forget_room::v3::Response> {
-	let sender_user = body.sender_user();
+	let user_id = body.sender_user();
+	let room_id = &body.room_id;
 
-	if services
-		.rooms
-		.state_cache
-		.is_joined(sender_user, &body.room_id)
-		.await
-	{
+	let joined = services.rooms.state_cache.is_joined(user_id, room_id);
+	let knocked = services.rooms.state_cache.is_knocked(user_id, room_id);
+	let left = services.rooms.state_cache.is_left(user_id, room_id);
+	let invited = services.rooms.state_cache.is_invited(user_id, room_id);
+
+	let (joined, knocked, left, invited) = join4(joined, knocked, left, invited).await;
+
+	if joined || knocked || invited {
 		return Err!(Request(Unknown("You must leave the room before forgetting it")));
 	}
 
-	services
+	let membership = services
 		.rooms
-		.state_cache
-		.forget(&body.room_id, sender_user);
+		.state_accessor
+		.get_member(room_id, user_id)
+		.await;
+
+	if membership.is_not_found() {
+		return Err!(Request(Unknown("No membership event was found, room was never joined")));
+	}
+
+	if left
+		|| membership.is_ok_and(|member| {
+			member.membership == MembershipState::Leave
+				|| member.membership == MembershipState::Ban
+		}) {
+		services.rooms.state_cache.forget(room_id, user_id);
+	}
 
 	Ok(forget_room::v3::Response::new())
 }
