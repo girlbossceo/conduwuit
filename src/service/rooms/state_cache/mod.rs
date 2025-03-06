@@ -267,6 +267,10 @@ impl Service {
 			},
 			| MembershipState::Leave | MembershipState::Ban => {
 				self.mark_as_left(user_id, room_id);
+
+				if self.services.globals.user_is_local(user_id) {
+					self.forget(room_id, user_id);
+				}
 			},
 			| _ => {},
 		}
