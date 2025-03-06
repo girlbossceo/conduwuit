@@ -48,6 +48,19 @@ pub(crate) async fn upload_keys_route(
 	}
 
 	if let Some(device_keys) = &body.device_keys {
+		let deser_device_keys = device_keys.deserialize()?;
+
+		if deser_device_keys.user_id != sender_user {
+			return Err!(Request(Unknown(
+				"User ID in keys uploaded does not match your own user ID"
+			)));
+		}
+		if deser_device_keys.device_id != sender_device {
+			return Err!(Request(Unknown(
+				"Device ID in keys uploaded does not match your own device ID"
+			)));
+		}
+
 		// TODO: merge this and the existing event?
 		// This check is needed to assure that signatures are kept
 		if services
