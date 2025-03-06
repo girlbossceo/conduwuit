@@ -10,7 +10,7 @@ repository.workspace = true
 version = "0.0.1"
 
 [features]
-default = ["lz4", "zstd", "zlib", "bzip2"]
+default = ["lz4", "zstd", "bzip2"]
 jemalloc = ["rust-rocksdb/jemalloc"]
 io-uring = ["rust-rocksdb/io-uring"]
 numa = ["rust-rocksdb/numa"] # unused by rocksdb for now
