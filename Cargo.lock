@@ -848,7 +848,7 @@ dependencies = [
  "log",
  "minicbor",
  "minicbor-serde",
- "rust-rocksdb-uwu",
+ "rust-rocksdb",
  "serde",
  "serde_json",
  "tokio",
@@ -3706,14 +3706,6 @@ source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=a5d5358ca
 dependencies = [
  "libc",
  "rust-librocksdb-sys",
- "serde",
-]
-
-[[package]]
-name = "rust-rocksdb-uwu"
-version = "0.0.1"
-dependencies = [
- "rust-rocksdb",
 ]
 
 [[package]]

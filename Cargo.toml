@@ -382,8 +382,9 @@ features = [
 ]
 
 [workspace.dependencies.rust-rocksdb]
-path = "deps/rust-rocksdb"
-package = "rust-rocksdb-uwu"
+git = "https://github.com/girlbossceo/rust-rocksdb-zaidoon1"
+rev = "a5d5358ca1358f828283e1558cf6a402b6cbea34"
+default-features = false
 features = [
 	"multi-threaded-cf",
 	"mt_static",
@@ -683,7 +684,7 @@ inherits = "release"
 
 # To enable hot-reloading:
 # 1. Uncomment all of the rustflags here.
-# 2. Uncomment crate-type=dylib in src/*/Cargo.toml and deps/rust-rocksdb/Cargo.toml
+# 2. Uncomment crate-type=dylib in src/*/Cargo.toml
 #
 # opt-level, mir-opt-level, validate-mir are not known to interfere with reloading
 # and can be raised if build times are tolerable.
@@ -751,7 +752,7 @@ inherits = "dev"
 #	'-Clink-arg=-Wl,-z,lazy',
 #]
 
-[profile.dev.package.rust-rocksdb-uwu]
+[profile.dev.package.rust-rocksdb]
 inherits = "dev"
 debug = 'limited'
 incremental = false
