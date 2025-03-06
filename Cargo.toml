@@ -389,7 +389,6 @@ features = [
 	"mt_static",
 	"lz4",
 	"zstd",
-	"zlib",
 	"bzip2",
 ]
 

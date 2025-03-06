@@ -64,8 +64,10 @@
           patches = [];
           cmakeFlags = pkgs.lib.subtractLists
             [
-              # no real reason to have snappy, no one uses this
+              # no real reason to have snappy or zlib, no one uses this
               "-DWITH_SNAPPY=1"
+              "-DZLIB=1"
+              "-DWITH_ZLIB=1"
               # we dont need to use ldb or sst_dump (core_tools)
               "-DWITH_CORE_TOOLS=1"
               # we dont need to build rocksdb tests
@@ -82,6 +84,8 @@
             ++ [
               # no real reason to have snappy, no one uses this
               "-DWITH_SNAPPY=0"
+              "-DZLIB=0"
+              "-DWITH_ZLIB=0"
               # we dont need to use ldb or sst_dump (core_tools)
               "-DWITH_CORE_TOOLS=0"
               # we dont need trace tools
@@ -171,7 +175,8 @@
           sccache
         ]
         # liburing is Linux-exclusive
-        ++ lib.optional stdenv.hostPlatform.isLinux liburing)
+        ++ lib.optional stdenv.hostPlatform.isLinux liburing
+        ++ lib.optional stdenv.hostPlatform.isLinux numactl)
         ++ scope.main.buildInputs
         ++ scope.main.propagatedBuildInputs
         ++ scope.main.nativeBuildInputs;

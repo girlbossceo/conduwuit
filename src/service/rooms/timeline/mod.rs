@@ -379,8 +379,8 @@ impl Service {
 			.active_local_users_in_room(&pdu.room_id)
 			.map(ToOwned::to_owned)
 			// Don't notify the sender of their own events, and dont send from ignored users
-			.ready_filter(|user| user != &pdu.sender)
-			.filter_map(|recipient_user| async move { (!self.services.users.user_is_ignored(&pdu.sender, recipient_user).await).then_some(recipient_user) })
+			.ready_filter(|user| *user != pdu.sender)
+			.filter_map(|recipient_user| async move { (!self.services.users.user_is_ignored(&pdu.sender, &recipient_user).await).then_some(recipient_user) })
 			.collect()
 			.await;
 
