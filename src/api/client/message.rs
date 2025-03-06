@@ -1,6 +1,6 @@
 use axum::extract::State;
 use conduwuit::{
-	Event, PduCount, PduEvent, Result, at,
+	Err, Event, PduCount, PduEvent, Result, at,
 	utils::{
 		IterStream, ReadyExt,
 		result::{FlatOk, LogErr},
@@ -67,6 +67,10 @@ pub(crate) async fn get_message_events_route(
 	let (sender_user, sender_device) = sender;
 	let room_id = &body.room_id;
 	let filter = &body.filter;
+
+	if !services.rooms.metadata.exists(room_id).await {
+		return Err!(Request(Forbidden("Room does not exist to this server")));
+	}
 
 	let from: PduCount = body
 		.from
