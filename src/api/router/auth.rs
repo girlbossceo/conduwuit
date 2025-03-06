@@ -17,9 +17,8 @@ use ruma::{
 			},
 			voip::get_turn_server_info,
 		},
-		federation::openid::get_openid_userinfo,
+		federation::{authentication::XMatrix, openid::get_openid_userinfo},
 	},
-	server_util::authorization::XMatrix,
 };
 use service::{
 	Services,

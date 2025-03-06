@@ -12,10 +12,9 @@ use ruma::{
 	CanonicalJsonObject, CanonicalJsonValue, ServerName, ServerSigningKeyId,
 	api::{
 		EndpointError, IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
-		client::error::Error as RumaError,
+		client::error::Error as RumaError, federation::authentication::XMatrix,
 	},
 	serde::Base64,
-	server_util::authorization::XMatrix,
 };
 
 use crate::resolver::actual::ActualDest;

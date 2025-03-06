@@ -346,7 +346,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "b40e76528660f6a389eacd19a83ef9060644ee8f"
+rev = "bb42118bd85e731b652a6110896b6945085bf944"
 features = [
     "compat",
     "rand",
@@ -355,7 +355,6 @@ features = [
     "federation-api",
     "markdown",
     "push-gateway-api-c",
-    "server-util",
     "unstable-exhaustive-types",
     "ring-compat",
     "compat-upload-signatures",

@@ -2,7 +2,7 @@
 name = "rust-rocksdb-uwu"
 categories.workspace = true
 description = "dylib wrapper for rust-rocksdb"
-edition = "2021"
+edition = "2024"
 keywords.workspace = true
 license.workspace = true
 readme.workspace = true
@@ -13,6 +13,7 @@ version = "0.0.1"
 default = ["lz4", "zstd", "zlib", "bzip2"]
 jemalloc = ["rust-rocksdb/jemalloc"]
 io-uring = ["rust-rocksdb/io-uring"]
+numa = ["rust-rocksdb/numa"] # unused by rocksdb for now
 valgrind = ["rust-rocksdb/valgrind"]
 lz4 = ["rust-rocksdb/lz4"]
 zstd = ["rust-rocksdb/zstd"]
@@ -26,7 +27,7 @@ malloc-usable-size = ["rust-rocksdb/malloc-usable-size"]
 
 [dependencies.rust-rocksdb]
 git = "https://github.com/girlbossceo/rust-rocksdb-zaidoon1"
-rev = "2ff4bbf31e944fa2686bb041d8c5caaf4b966d3b"
+rev = "513133a3dc24b667f32933aa3247c6ec71a958f3"
 #branch = "master"
 default-features = false
 
