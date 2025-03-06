@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{Err, debug, err, info, utils::ReadyExt};
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use ruma::{
 	UserId,
 	api::client::{
@@ -86,29 +86,40 @@ pub(crate) async fn login_route(
 					UserId::parse_with_server_name(user, &services.config.server_name)
 				} else {
 					return Err!(Request(Unknown(
-						warn!(?body.login_info, "Invalid or unsupported login type")
+						debug_warn!(?body.login_info, "Valid identifier or username was not provided (invalid or unsupported login type?)")
 					)));
 				}
 				.map_err(|e| err!(Request(InvalidUsername(warn!("Username is invalid: {e}")))))?;
 
+			let lowercased_user_id = UserId::parse_with_server_name(
+				user_id.localpart().to_lowercase(),
+				&services.config.server_name,
+			)?;
+
 			assert!(
 				services.globals.user_is_local(&user_id),
+				"User ID does not belong to this homeserver"
+			);
+			assert!(
+				services.globals.user_is_local(&lowercased_user_id),
 				"User ID does not belong to this homeserver"
 			);
 
 			let hash = services
 				.users
 				.password_hash(&user_id)
+				.or_else(|_| services.users.password_hash(&lowercased_user_id))
 				.await
+				.inspect_err(|e| debug!("{e}"))
 				.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
 
 			if hash.is_empty() {
 				return Err!(Request(UserDeactivated("The user has been deactivated")));
 			}
 
-			if hash::verify_password(password, &hash).is_err() {
-				return Err!(Request(Forbidden("Wrong username or password.")));
-			}
+			hash::verify_password(password, &hash)
+				.inspect_err(|e| debug!("{e}"))
+				.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
 
 			user_id
 		},
@@ -125,6 +136,11 @@ pub(crate) async fn login_route(
 			user,
 		}) => {
 			debug!("Got appservice login type");
+
+			let Some(ref info) = body.appservice_info else {
+				return Err!(Request(MissingToken("Missing appservice token.")));
+			};
+
 			let user_id =
 				if let Some(uiaa::UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
 					UserId::parse_with_server_name(user_id, &services.config.server_name)
@@ -132,26 +148,30 @@ pub(crate) async fn login_route(
 					UserId::parse_with_server_name(user, &services.config.server_name)
 				} else {
 					return Err!(Request(Unknown(
-						warn!(?body.login_info, "Invalid or unsupported login type")
+						debug_warn!(?body.login_info, "Valid identifier or username was not provided (invalid or unsupported login type?)")
 					)));
 				}
 				.map_err(|e| err!(Request(InvalidUsername(warn!("Username is invalid: {e}")))))?;
+
+			let lowercased_user_id = UserId::parse_with_server_name(
+				user_id.localpart().to_lowercase(),
+				&services.config.server_name,
+			)?;
 
 			assert!(
 				services.globals.user_is_local(&user_id),
 				"User ID does not belong to this homeserver"
 			);
+			assert!(
+				services.globals.user_is_local(&lowercased_user_id),
+				"User ID does not belong to this homeserver"
+			);
 
-			match body.appservice_info {
-				| Some(ref info) =>
-					if !info.is_user_match(&user_id) && !emergency_mode_enabled {
-						return Err!(Request(Exclusive(
-							"Username is not in an appservice namespace."
-						)));
-					},
-				| _ => {
-					return Err!(Request(MissingToken("Missing appservice token.")));
-				},
+			if !info.is_user_match(&user_id)
+				&& !info.is_user_match(&lowercased_user_id)
+				&& !emergency_mode_enabled
+			{
+				return Err!(Request(Exclusive("Username is not in an appservice namespace.")));
 			}
 
 			user_id
@@ -159,7 +179,7 @@ pub(crate) async fn login_route(
 		| _ => {
 			debug!("/login json_body: {:?}", &body.json_body);
 			return Err!(Request(Unknown(
-				warn!(?body.login_info, "Invalid or unsupported login type")
+				debug_warn!(?body.login_info, "Invalid or unsupported login type")
 			)));
 		},
 	};
