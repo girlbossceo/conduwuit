@@ -14,14 +14,21 @@ pub async fn acl_check(&self, server_name: &ServerName, room_id: &RoomId) -> Res
 		.room_state_get_content(room_id, &StateEventType::RoomServerAcl, "")
 		.await
 		.map(|c: RoomServerAclEventContent| c)
-		.inspect(|acl| trace!("ACL content found: {acl:?}"))
-		.inspect_err(|e| trace!("No ACL content found: {e:?}"))
+		.inspect(|acl| trace!(%room_id, "ACL content found: {acl:?}"))
+		.inspect_err(|e| trace!(%room_id, "No ACL content found: {e:?}"))
 	else {
 		return Ok(());
 	};
 
 	if acl_event_content.allow.is_empty() {
-		warn!("Ignoring broken ACL event (allow key is empty)");
+		warn!(%room_id, "Ignoring broken ACL event (allow key is empty)");
+		return Ok(());
+	}
+
+	if acl_event_content.deny.contains(&String::from("*"))
+		&& acl_event_content.allow.contains(&String::from("*"))
+	{
+		warn!(%room_id, "Ignoring broken ACL event (allow key and deny key both contain wildcard \"*\"");
 		return Ok(());
 	}
 
