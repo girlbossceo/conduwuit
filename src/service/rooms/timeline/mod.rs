@@ -344,7 +344,7 @@ impl Service {
 
 		let insert_lock = self.mutex_insert.lock(&pdu.room_id).await;
 
-		let count1 = self.services.globals.next_count()?;
+		let count1 = self.services.globals.next_count().unwrap();
 		// Mark as read first so the sending client doesn't get a notification even if
 		// appending fails
 		self.services
@@ -362,13 +362,12 @@ impl Service {
 
 		drop(insert_lock);
 
-		// See if the event matches any known pushers
+		// See if the event matches any known pushers via power level
 		let power_levels: RoomPowerLevelsEventContent = self
 			.services
 			.state_accessor
 			.room_state_get_content(&pdu.room_id, &StateEventType::RoomPowerLevels, "")
 			.await
-			.map_err(|e| err!(Database(warn!("invalid m.room.power_levels event: {e}"))))
 			.unwrap_or_default();
 
 		let sync_pdu = pdu.to_sync_room_event();
