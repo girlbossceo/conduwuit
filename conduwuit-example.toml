@@ -593,7 +593,7 @@
 # Currently, conduwuit doesn't support inbound batched key requests, so
 # this list should only contain other Synapse servers.
 #
-# example: ["matrix.org", "envs.net", "constellatory.net", "tchncs.de"]
+# example: ["matrix.org", "envs.net", "tchncs.de"]
 #
 #trusted_servers = ["matrix.org"]
 

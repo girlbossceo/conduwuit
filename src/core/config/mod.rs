@@ -713,7 +713,7 @@ pub struct Config {
 	/// Currently, conduwuit doesn't support inbound batched key requests, so
 	/// this list should only contain other Synapse servers.
 	///
-	/// example: ["matrix.org", "envs.net", "constellatory.net", "tchncs.de"]
+	/// example: ["matrix.org", "envs.net", "tchncs.de"]
 	///
 	/// default: ["matrix.org"]
 	#[serde(default = "default_trusted_servers")]

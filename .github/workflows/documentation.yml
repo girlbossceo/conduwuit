@@ -81,6 +81,7 @@ jobs:
             bin/nix-build-and-cache just .#book
 
             cp -r --dereference result public
+            chmod u+w -R public
 
       - name: Upload generated documentation (book) as normal artifact
         uses: actions/upload-artifact@v4

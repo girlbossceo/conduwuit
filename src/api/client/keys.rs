@@ -48,7 +48,7 @@ pub(crate) async fn upload_keys_route(
 					?key_id,
 					?one_time_key,
 					"Invalid one time key JSON submitted by client, skipping: {e}"
-				)
+				);
 			})
 			.is_err()
 		{
