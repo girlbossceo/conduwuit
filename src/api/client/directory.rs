@@ -14,7 +14,7 @@ use ruma::{
 		},
 		federation,
 	},
-	directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork},
+	directory::{Filter, PublicRoomJoinRule, PublicRoomsChunk, RoomNetwork, RoomTypeFilter},
 	events::{
 		room::{
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
@@ -290,6 +290,9 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		.map(ToOwned::to_owned)
 		.then(|room_id| public_rooms_chunk(services, room_id))
 		.filter_map(|chunk| async move {
+			if !filter.room_types.is_empty() && !filter.room_types.contains(&RoomTypeFilter::from(chunk.room_type.clone())) {
+				return None;
+			}
 			if let Some(query) = filter.generic_search_term.as_ref().map(|q| q.to_lowercase()) {
 				if let Some(name) = &chunk.name {
 					if name.as_str().to_lowercase().contains(&query) {
