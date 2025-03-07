@@ -383,7 +383,7 @@ features = [
 
 [workspace.dependencies.rust-rocksdb]
 git = "https://github.com/girlbossceo/rust-rocksdb-zaidoon1"
-rev = "d05c8bd7ba8814de1731ec0ae29e863c8ecb7206"
+rev = "2e692ae026881fc385f111fdcfba38bee98f1e47"
 default-features = false
 features = [
 	"multi-threaded-cf",
