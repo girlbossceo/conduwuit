@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::extract::State;
-use conduwuit::{Err, Error, Result, debug, err, info, result::NotFound, utils};
+use conduwuit::{Err, Error, Result, debug, debug_warn, err, info, result::NotFound, utils};
 use futures::{StreamExt, stream::FuturesUnordered};
 use ruma::{
 	OneTimeKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
@@ -41,6 +41,20 @@ pub(crate) async fn upload_keys_route(
 	let (sender_user, sender_device) = body.sender();
 
 	for (key_id, one_time_key) in &body.one_time_keys {
+		if one_time_key
+			.deserialize()
+			.inspect_err(|e| {
+				debug_warn!(
+					?key_id,
+					?one_time_key,
+					"Invalid one time key JSON submitted by client, skipping: {e}"
+				)
+			})
+			.is_err()
+		{
+			continue;
+		}
+
 		services
 			.users
 			.add_one_time_key(sender_user, sender_device, key_id, one_time_key)
@@ -48,7 +62,12 @@ pub(crate) async fn upload_keys_route(
 	}
 
 	if let Some(device_keys) = &body.device_keys {
-		let deser_device_keys = device_keys.deserialize()?;
+		let deser_device_keys = device_keys.deserialize().map_err(|e| {
+			err!(Request(BadJson(debug_warn!(
+				?device_keys,
+				"Invalid device keys JSON uploaded by client: {e}"
+			))))
+		})?;
 
 		if deser_device_keys.user_id != sender_user {
 			return Err!(Request(Unknown(

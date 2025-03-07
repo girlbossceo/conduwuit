@@ -11,6 +11,7 @@ use ruma::{
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
 			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			member::{MembershipState, RoomMemberEventContent},
+			server_acl::RoomServerAclEventContent,
 		},
 	},
 	serde::Raw,
@@ -194,134 +195,194 @@ async fn allowed_to_send_state_event(
 ) -> Result {
 	match event_type {
 		| StateEventType::RoomCreate => {
-			return Err!(Request(BadJson(
+			return Err!(Request(BadJson(debug_warn!(
+				?room_id,
 				"You cannot update m.room.create after a room has been created."
-			)));
+			))));
 		},
-		// Forbid m.room.encryption if encryption is disabled
+		| StateEventType::RoomServerAcl => {
+			// prevents common ACL paw-guns as ACL management is difficult and prone to
+			// irreversible mistakes
+			match json.deserialize_as::<RoomServerAclEventContent>() {
+				| Ok(acl_content) => {
+					if acl_content.allow.is_empty() {
+						return Err!(Request(BadJson(debug_warn!(
+							?room_id,
+							"Sending an ACL event with an empty allow key will permanently \
+							 brick the room for non-conduwuit's as this equates to no servers \
+							 being allowed to participate in this room."
+						))));
+					}
+
+					if acl_content.deny.contains(&String::from("*"))
+						&& acl_content.allow.contains(&String::from("*"))
+					{
+						return Err!(Request(BadJson(debug_warn!(
+							?room_id,
+							"Sending an ACL event with a deny and allow key value of \"*\" will \
+							 permanently brick the room for non-conduwuit's as this equates to \
+							 no servers being allowed to participate in this room."
+						))));
+					}
+
+					if acl_content.deny.contains(&String::from("*"))
+						&& !acl_content.is_allowed(services.globals.server_name())
+					{
+						return Err!(Request(BadJson(debug_warn!(
+							?room_id,
+							"Sending an ACL event with a deny key value of \"*\" and without \
+							 your own server name in the allow key will result in you being \
+							 unable to participate in this room."
+						))));
+					}
+
+					if !acl_content.allow.contains(&String::from("*"))
+						&& !acl_content.is_allowed(services.globals.server_name())
+					{
+						return Err!(Request(BadJson(debug_warn!(
+							?room_id,
+							"Sending an ACL event for an allow key without \"*\" and without \
+							 your own server name in the allow key will result in you being \
+							 unable to participate in this room."
+						))));
+					}
+				},
+				| Err(e) => {
+					return Err!(Request(BadJson(debug_warn!(
+						"Room server ACL event is invalid: {e}"
+					))));
+				},
+			};
+		},
 		| StateEventType::RoomEncryption =>
-			if !services.globals.allow_encryption() {
+		// Forbid m.room.encryption if encryption is disabled
+			if !services.config.allow_encryption {
 				return Err!(Request(Forbidden("Encryption is disabled on this homeserver.")));
 			},
-		// admin room is a sensitive room, it should not ever be made public
 		| StateEventType::RoomJoinRules => {
+			// admin room is a sensitive room, it should not ever be made public
 			if let Ok(admin_room_id) = services.admin.get_admin_room().await {
 				if admin_room_id == room_id {
-					if let Ok(join_rule) =
-						serde_json::from_str::<RoomJoinRulesEventContent>(json.json().get())
-					{
-						if join_rule.join_rule == JoinRule::Public {
-							return Err!(Request(Forbidden(
-								"Admin room is a sensitive room, it cannot be made public"
-							)));
-						}
+					match json.deserialize_as::<RoomJoinRulesEventContent>() {
+						| Ok(join_rule) =>
+							if join_rule.join_rule == JoinRule::Public {
+								return Err!(Request(Forbidden(
+									"Admin room is a sensitive room, it cannot be made public"
+								)));
+							},
+						| Err(e) => {
+							return Err!(Request(BadJson(debug_warn!(
+								"Room join rules event is invalid: {e}"
+							))));
+						},
 					}
 				}
 			}
 		},
-		// admin room is a sensitive room, it should not ever be made world readable
 		| StateEventType::RoomHistoryVisibility => {
-			if let Ok(visibility_content) =
-				serde_json::from_str::<RoomHistoryVisibilityEventContent>(json.json().get())
-			{
-				if let Ok(admin_room_id) = services.admin.get_admin_room().await {
-					if admin_room_id == room_id
-						&& visibility_content.history_visibility
-							== HistoryVisibility::WorldReadable
-					{
-						return Err!(Request(Forbidden(
-							"Admin room is a sensitive room, it cannot be made world readable \
-							 (public room history)."
-						)));
-					}
+			// admin room is a sensitive room, it should not ever be made world readable
+			if let Ok(admin_room_id) = services.admin.get_admin_room().await {
+				match json.deserialize_as::<RoomHistoryVisibilityEventContent>() {
+					| Ok(visibility_content) => {
+						if admin_room_id == room_id
+							&& visibility_content.history_visibility
+								== HistoryVisibility::WorldReadable
+						{
+							return Err!(Request(Forbidden(
+								"Admin room is a sensitive room, it cannot be made world \
+								 readable (public room history)."
+							)));
+						}
+					},
+					| Err(e) => {
+						return Err!(Request(BadJson(debug_warn!(
+							"Room history visibility event is invalid: {e}"
+						))));
+					},
 				}
 			}
 		},
 		| StateEventType::RoomCanonicalAlias => {
-			if let Ok(canonical_alias) =
-				serde_json::from_str::<RoomCanonicalAliasEventContent>(json.json().get())
-			{
-				let mut aliases = canonical_alias.alt_aliases.clone();
+			match json.deserialize_as::<RoomCanonicalAliasEventContent>() {
+				| Ok(canonical_alias_content) => {
+					let mut aliases = canonical_alias_content.alt_aliases.clone();
 
-				if let Some(alias) = canonical_alias.alias {
-					aliases.push(alias);
-				}
+					if let Some(alias) = canonical_alias_content.alias {
+						aliases.push(alias);
+					}
 
-				for alias in aliases {
-					if !services.globals.server_is_ours(alias.server_name()) {
-						return Err!(Request(Forbidden(
-							"canonical_alias must be for this server"
+					for alias in aliases {
+						let (alias_room_id, _servers) =
+							services.rooms.alias.resolve_alias(&alias, None).await?;
+
+						if alias_room_id != room_id {
+							return Err!(Request(Forbidden(
+								"Room alias {alias} does not belong to room {room_id}"
+							)));
+						}
+					}
+				},
+				| Err(e) => {
+					return Err!(Request(BadJson(debug_warn!(
+						"Room canonical alias event is invalid: {e}"
+					))));
+				},
+			}
+		},
+		| StateEventType::RoomMember => match json.deserialize_as::<RoomMemberEventContent>() {
+			| Ok(membership_content) => {
+				let Ok(state_key) = UserId::parse(state_key) else {
+					return Err!(Request(BadJson(
+						"Membership event has invalid or non-existent state key"
+					)));
+				};
+
+				if let Some(authorising_user) =
+					membership_content.join_authorized_via_users_server
+				{
+					if membership_content.membership != MembershipState::Join {
+						return Err!(Request(BadJson(
+							"join_authorised_via_users_server is only for member joins"
+						)));
+					}
+
+					if services
+						.rooms
+						.state_cache
+						.is_joined(state_key, room_id)
+						.await
+					{
+						return Err!(Request(InvalidParam(
+							"{state_key} is already joined, an authorising user is not required."
+						)));
+					}
+
+					if !services.globals.user_is_local(&authorising_user) {
+						return Err!(Request(InvalidParam(
+							"Authorising user {authorising_user} does not belong to this \
+							 homeserver"
 						)));
 					}
 
 					if !services
 						.rooms
-						.alias
-						.resolve_local_alias(&alias)
+						.state_cache
+						.is_joined(&authorising_user, room_id)
 						.await
-						.is_ok_and(|room| room == room_id)
-					// Make sure it's the right room
 					{
-						return Err!(Request(Forbidden(
-							"You are only allowed to send canonical_alias events when its \
-							 aliases already exist"
+						return Err!(Request(InvalidParam(
+							"Authorising user {authorising_user} is not in the room, they \
+							 cannot authorise the join."
 						)));
 					}
 				}
-			}
-		},
-		| StateEventType::RoomMember => {
-			let Ok(membership_content) =
-				serde_json::from_str::<RoomMemberEventContent>(json.json().get())
-			else {
+			},
+			| Err(e) => {
 				return Err!(Request(BadJson(
 					"Membership content must have a valid JSON body with at least a valid \
-					 membership state."
+					 membership state: {e}"
 				)));
-			};
-
-			let Ok(state_key) = UserId::parse(state_key) else {
-				return Err!(Request(BadJson(
-					"Membership event has invalid or non-existent state key"
-				)));
-			};
-
-			if let Some(authorising_user) = membership_content.join_authorized_via_users_server {
-				if membership_content.membership != MembershipState::Join {
-					return Err!(Request(BadJson(
-						"join_authorised_via_users_server is only for member joins"
-					)));
-				}
-
-				if services
-					.rooms
-					.state_cache
-					.is_joined(state_key, room_id)
-					.await
-				{
-					return Err!(Request(InvalidParam(
-						"{state_key} is already joined, an authorising user is not required."
-					)));
-				}
-
-				if !services.globals.user_is_local(&authorising_user) {
-					return Err!(Request(InvalidParam(
-						"Authorising user {authorising_user} does not belong to this homeserver"
-					)));
-				}
-
-				if !services
-					.rooms
-					.state_cache
-					.is_joined(&authorising_user, room_id)
-					.await
-				{
-					return Err!(Request(InvalidParam(
-						"Authorising user {authorising_user} is not in the room, they cannot \
-						 authorise the join."
-					)));
-				}
-			}
+			},
 		},
 		| _ => (),
 	}
