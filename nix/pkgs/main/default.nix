@@ -155,9 +155,9 @@ commonAttrs = {
 
       # Keep sorted
       include = [
+        ".cargo"
         "Cargo.lock"
         "Cargo.toml"
-        "deps"
         "src"
       ];
     };

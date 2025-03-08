@@ -199,17 +199,17 @@ jobs:
                       echo '```' >> $GITHUB_STEP_SUMMARY
                       tail -n 100 test_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
                       echo '```' >> $GITHUB_STEP_SUMMARY
+
+                      echo '# Complement diff results (last 100 lines)' >> $GITHUB_STEP_SUMMARY
+                      echo '```diff' >> $GITHUB_STEP_SUMMARY
+                      tail -n 100 complement_diff_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
+                      echo '```' >> $GITHUB_STEP_SUMMARY
+
+                      echo '# Complement gotestfmt logs (last 100 lines)' >> $GITHUB_STEP_SUMMARY
+                      echo '```diff' >> $GITHUB_STEP_SUMMARY
+                      tail -n 100 complement_test_logs_gotestfmt.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
+                      echo '```' >> $GITHUB_STEP_SUMMARY
                   fi
-
-                  echo '# Complement diff results (last 100 lines)' >> $GITHUB_STEP_SUMMARY
-                  echo '```diff' >> $GITHUB_STEP_SUMMARY
-                  tail -n 100 complement_diff_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
-                  echo '```' >> $GITHUB_STEP_SUMMARY
-
-                  echo '# Complement gotestfmt logs (last 100 lines)' >> $GITHUB_STEP_SUMMARY
-                  echo '```diff' >> $GITHUB_STEP_SUMMARY
-                  tail -n 100 complement_test_logs_gotestfmt.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
-                  echo '```' >> $GITHUB_STEP_SUMMARY
 
     build:
         name: Build
