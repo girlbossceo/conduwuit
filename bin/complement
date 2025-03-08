@@ -15,7 +15,7 @@ LOG_FILE="${2:-complement_test_logs.jsonl}"
 # A `.jsonl` file to write test results to
 RESULTS_FILE="${3:-complement_test_results.jsonl}"
 
-OCI_IMAGE="complement-conduwuit:main"
+COMPLEMENT_OCI_IMAGE="${COMPLEMENT_OCI_IMAGE:-complement-conduwuit:main}"
 
 # Complement tests that are skipped due to flakiness/reliability issues or we don't implement such features and won't for a long time
 #SKIPPED_COMPLEMENT_TESTS='-skip=TestPartialStateJoin.*'
@@ -34,18 +34,38 @@ toplevel="$(git rev-parse --show-toplevel)"
 
 pushd "$toplevel" > /dev/null
 
-# if using macOS, use linux-complement
-#bin/nix-build-and-cache just .#linux-complement
-bin/nix-build-and-cache just .#complement
+if [ ! -f "complement_oci_image.tar.gz" ]; then
+    echo "building complement conduwuit image"
 
-docker load < result
-popd > /dev/null
+    # if using macOS, use linux-complement
+    #bin/nix-build-and-cache just .#linux-complement
+    bin/nix-build-and-cache just .#complement
+
+    echo "complement conduwuit image tar.gz built at \"result\""
+
+    echo "loading into docker"
+    docker load < result
+    popd > /dev/null
+else
+    echo "skipping building a complement conduwuit image as complement_oci_image.tar.gz was already found, loading this"
+
+    docker load < complement_oci_image.tar.gz
+    popd > /dev/null
+fi
+
+echo ""
+echo "running go test with:"
+echo "\$COMPLEMENT_SRC: $COMPLEMENT_SRC"
+echo "\$COMPLEMENT_BASE_IMAGE: $COMPLEMENT_BASE_IMAGE"
+echo "\$RESULTS_FILE: $RESULTS_FILE"
+echo "\$LOG_FILE: $LOG_FILE"
+echo ""
 
 # It's okay (likely, even) that `go test` exits nonzero
 set +o pipefail
 env \
     -C "$COMPLEMENT_SRC" \
-    COMPLEMENT_BASE_IMAGE="$OCI_IMAGE" \
+    COMPLEMENT_BASE_IMAGE="$COMPLEMENT_OCI_IMAGE" \
     COMPLEMENT_ENABLE_DIRTY_RUNS=1 \ # reuses the same complement container for faster complement, at the possible expense of test environment pollution
     go test -tags="conduwuit_blacklist" -v -timeout 1h -json ./tests/... | tee "$LOG_FILE"
 set -o pipefail
