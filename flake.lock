@@ -80,11 +80,11 @@
     "complement": {
       "flake": false,
       "locked": {
-        "lastModified": 1740291865,
-        "narHash": "sha256-wl1+yCTEtvIH8vgXygnxPkaSgg4MYNKs+c9tzVytr20=",
+        "lastModified": 1741378155,
+        "narHash": "sha256-rJSfqf3q4oWxcAwENtAowLZeCi8lktwKVH9XQvvZR64=",
         "owner": "girlbossceo",
         "repo": "complement",
-        "rev": "35ad9d9051498fbac8ea4abff8ab7d8b1844f87b",
+        "rev": "1502a00d8551d0f6e8954a23e43868877c3e57d9",
         "type": "github"
       },
       "original": {
