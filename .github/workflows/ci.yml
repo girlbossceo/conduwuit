@@ -176,13 +176,6 @@ jobs:
                 path: complement_test_results.jsonl
                 if-no-files-found: error
 
-            - name: Upload Complement logs (gotestfmt)
-              uses: actions/upload-artifact@v4
-              with:
-                name: complement_test_logs_gotestfmt.log
-                path: complement_test_logs_gotestfmt.log
-                if-no-files-found: error
-
             - name: Diff Complement results with checked-in repo results
               run: |
                   diff -u --color=always tests/test_results/complement/test_results.jsonl complement_test_results.jsonl > >(tee -a complement_diff_output.log)
@@ -203,11 +196,6 @@ jobs:
                       echo '# Complement diff results (last 100 lines)' >> $GITHUB_STEP_SUMMARY
                       echo '```diff' >> $GITHUB_STEP_SUMMARY
                       tail -n 100 complement_diff_output.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
-                      echo '```' >> $GITHUB_STEP_SUMMARY
-
-                      echo '# Complement gotestfmt logs (last 100 lines)' >> $GITHUB_STEP_SUMMARY
-                      echo '```diff' >> $GITHUB_STEP_SUMMARY
-                      tail -n 100 complement_test_logs_gotestfmt.log | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY
                       echo '```' >> $GITHUB_STEP_SUMMARY
                   fi
 

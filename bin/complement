@@ -67,7 +67,6 @@ set +o pipefail
 env \
     -C "$COMPLEMENT_SRC" \
     COMPLEMENT_BASE_IMAGE="$COMPLEMENT_BASE_IMAGE" \
-    COMPLEMENT_ENABLE_DIRTY_RUNS=1 \
     go test -tags="conduwuit_blacklist" -timeout 1h -json ./tests/... | tee "$LOG_FILE"
 set -o pipefail
 
@@ -79,17 +78,17 @@ cat "$LOG_FILE" | jq -s -c 'sort_by(.Test)[]' | jq -c '
     ) | {Action: .Action, Test: .Test}
     ' > "$RESULTS_FILE"
 
-if command -v gotestfmt &> /dev/null; then
-    echo "using gotestfmt on $LOG_FILE"
-    grep '^{"Time":' "$LOG_FILE" | gotestfmt > "complement_test_logs_gotestfmt.log"
-fi
+#if command -v gotestfmt &> /dev/null; then
+#    echo "using gotestfmt on $LOG_FILE"
+#    grep '{"Time":' "$LOG_FILE" | gotestfmt > "complement_test_logs_gotestfmt.log"
+#fi
 
 echo ""
 echo ""
 echo "complement logs saved at $LOG_FILE"
 echo "complement results saved at $RESULTS_FILE"
-if command -v gotestfmt &> /dev/null; then
-    echo "complement logs in gotestfmt pretty format outputted at complement_test_logs_gotestfmt.log (use an editor/terminal/pager that interprets ANSI colours and UTF-8 emojis)"
-fi
+#if command -v gotestfmt &> /dev/null; then
+#    echo "complement logs in gotestfmt pretty format outputted at complement_test_logs_gotestfmt.log (use an editor/terminal/pager that interprets ANSI colours and UTF-8 emojis)"
+#fi
 echo ""
 echo ""
