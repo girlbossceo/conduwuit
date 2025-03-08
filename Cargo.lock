@@ -236,7 +236,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f9dd2e03ee80ca2822dd6ea431163d2ef259f2066a4d6ccaca6d9dcb386aa43"
 dependencies = [
- "bindgen",
+ "bindgen 0.69.5",
  "cc",
  "cmake",
  "dunce",
@@ -429,6 +429,24 @@ dependencies = [
  "shlex",
  "syn 2.0.98",
  "which",
+]
+
+[[package]]
+name = "bindgen"
+version = "0.71.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f58bf3d7db68cfbac37cfc485a8d711e87e064c3d0fe0435b92f7a407f9d6b3"
+dependencies = [
+ "bitflags 2.9.0",
+ "cexpr",
+ "clang-sys",
+ "itertools 0.12.1",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "rustc-hash 2.1.1",
+ "shlex",
+ "syn 2.0.98",
 ]
 
 [[package]]
@@ -3685,9 +3703,9 @@ dependencies = [
 [[package]]
 name = "rust-librocksdb-sys"
 version = "0.33.0+9.11.1"
-source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=2e692ae026881fc385f111fdcfba38bee98f1e47#2e692ae026881fc385f111fdcfba38bee98f1e47"
+source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=1c267e0bf0cc7b7702e9a329deccd89de79ef4c3#1c267e0bf0cc7b7702e9a329deccd89de79ef4c3"
 dependencies = [
- "bindgen",
+ "bindgen 0.71.1",
  "bzip2-sys",
  "cc",
  "glob",
@@ -3702,7 +3720,7 @@ dependencies = [
 [[package]]
 name = "rust-rocksdb"
 version = "0.37.0"
-source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=2e692ae026881fc385f111fdcfba38bee98f1e47#2e692ae026881fc385f111fdcfba38bee98f1e47"
+source = "git+https://github.com/girlbossceo/rust-rocksdb-zaidoon1?rev=1c267e0bf0cc7b7702e9a329deccd89de79ef4c3#1c267e0bf0cc7b7702e9a329deccd89de79ef4c3"
 dependencies = [
  "libc",
  "rust-librocksdb-sys",
