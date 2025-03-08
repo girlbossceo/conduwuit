@@ -63,7 +63,7 @@ script = "markdownlint --version"
 [[task]]
 name = "cargo-audit"
 group = "security"
-script = "cargo audit -D warnings -D unmaintained -D unsound -D yanked"
+script = "cargo audit --color=always -D warnings -D unmaintained -D unsound -D yanked"
 
 [[task]]
 name = "cargo-fmt"

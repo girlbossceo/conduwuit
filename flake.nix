@@ -144,17 +144,19 @@
           toolchain
         ]
         ++ (with pkgsHost.pkgs; [
-          engage
-          cargo-audit
-
           # Required by hardened-malloc.rs dep
           binutils
+
+          cargo-audit
+          cargo-auditable
 
           # Needed for producing Debian packages
           cargo-deb
 
           # Needed for CI to check validity of produced Debian packages (dpkg-deb)
           dpkg
+
+	  engage
 
           # Needed for Complement
           go
