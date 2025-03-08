@@ -169,6 +169,7 @@ pub(super) static MAPS: &[Descriptor] = &[
 	},
 	Descriptor {
 		name: "roomsynctoken_shortstatehash",
+		file_shape: 3,
 		val_size_hint: Some(8),
 		block_size: 512,
 		compression_level: 3,
