@@ -161,6 +161,7 @@
 
           # Needed for our script for Complement
           jq
+          gotestfmt
 
           # Needed for finding broken markdown links
           lychee

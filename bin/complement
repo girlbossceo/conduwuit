@@ -10,15 +10,15 @@ set -euo pipefail
 COMPLEMENT_SRC="${COMPLEMENT_SRC:-$1}"
 
 # A `.jsonl` file to write test logs to
-LOG_FILE="$2"
+LOG_FILE="${2:-complement_test_logs.jsonl}"
 
 # A `.jsonl` file to write test results to
-RESULTS_FILE="$3"
+RESULTS_FILE="${3:-complement_test_results.jsonl}"
 
 OCI_IMAGE="complement-conduwuit:main"
 
-# Complement tests that are skipped due to flakiness/reliability issues
-SKIPPED_COMPLEMENT_TESTS='-skip=TestPartialStateJoin.*'
+# Complement tests that are skipped due to flakiness/reliability issues or we don't implement such features and won't for a long time
+#SKIPPED_COMPLEMENT_TESTS='-skip=TestPartialStateJoin.*'
 
 # $COMPLEMENT_SRC needs to be a directory to Complement source code
 if [ -f "$COMPLEMENT_SRC" ]; then
@@ -34,6 +34,7 @@ toplevel="$(git rev-parse --show-toplevel)"
 
 pushd "$toplevel" > /dev/null
 
+# if using macOS, use linux-complement
 #bin/nix-build-and-cache just .#linux-complement
 bin/nix-build-and-cache just .#complement
 
@@ -45,7 +46,8 @@ set +o pipefail
 env \
     -C "$COMPLEMENT_SRC" \
     COMPLEMENT_BASE_IMAGE="$OCI_IMAGE" \
-    go test -tags="conduwuit_blacklist" "$SKIPPED_COMPLEMENT_TESTS" -v -timeout 1h -json ./tests/... | tee "$LOG_FILE"
+    COMPLEMENT_ENABLE_DIRTY_RUNS=1 \ # reuses the same complement container for faster complement, at the possible expense of test environment pollution
+    go test -tags="conduwuit_blacklist" -v -timeout 1h -json ./tests/... | tee "$LOG_FILE"
 set -o pipefail
 
 # Post-process the results into an easy-to-compare format, sorted by Test name for reproducible results
@@ -55,3 +57,13 @@ cat "$LOG_FILE" | jq -s -c 'sort_by(.Test)[]' | jq -c '
         and .Test != null
     ) | {Action: .Action, Test: .Test}
     ' > "$RESULTS_FILE"
+
+grep '^{"Time":' "$LOG_FILE" | gotestfmt > "${LOG_FILE}_gotestfmt.log"
+
+echo ""
+echo ""
+echo "complement logs saved at $LOG_FILE"
+echo "complement results saved at $RESULTS_FILE"
+echo "complement logs in gotestfmt pretty format outputted at ${LOG_FILE}_gotestfmt.log (use an editor/terminal that interprets ANSI colours)"
+echo ""
+echo ""
