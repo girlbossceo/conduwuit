@@ -558,8 +558,18 @@ pub struct Config {
 	#[serde(default = "true_fn")]
 	pub allow_federation: bool,
 
+	/// Allows federation requests to be made to itself
+	///
+	/// This isn't intended and is very likely a bug if federation requests are
+	/// being sent to yourself. This currently mainly exists for development
+	/// purposes.
 	#[serde(default)]
 	pub federation_loopback: bool,
+
+	/// Always calls /forget on behalf of the user if leaving a room. This is a
+	/// part of MSC4267 "Automatically forgetting rooms on leave"
+	#[serde(default)]
+	pub forget_forced_upon_leave: bool,
 
 	/// Set this to true to require authentication on the normally
 	/// unauthenticated profile retrieval endpoints (GET)

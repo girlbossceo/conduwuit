@@ -445,9 +445,18 @@
 #
 #allow_federation = true
 
-# This item is undocumented. Please contribute documentation for it.
+# Allows federation requests to be made to itself
+#
+# This isn't intended and is very likely a bug if federation requests are
+# being sent to yourself. This currently mainly exists for development
+# purposes.
 #
 #federation_loopback = false
+
+# Always calls /forget on behalf of the user if leaving a room. This is a
+# part of MSC4267 "Automatically forgetting rooms on leave"
+#
+#forget_forced_upon_leave = false
 
 # Set this to true to require authentication on the normally
 # unauthenticated profile retrieval endpoints (GET)

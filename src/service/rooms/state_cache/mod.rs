@@ -28,7 +28,7 @@ use ruma::{
 	serde::Raw,
 };
 
-use crate::{Dep, account_data, appservice::RegistrationInfo, globals, rooms, users};
+use crate::{Dep, account_data, appservice::RegistrationInfo, config, globals, rooms, users};
 
 pub struct Service {
 	appservice_in_room_cache: AppServiceInRoomCache,
@@ -38,6 +38,7 @@ pub struct Service {
 
 struct Services {
 	account_data: Dep<account_data::Service>,
+	config: Dep<config::Service>,
 	globals: Dep<globals::Service>,
 	state_accessor: Dep<rooms::state_accessor::Service>,
 	users: Dep<users::Service>,
@@ -70,6 +71,7 @@ impl crate::Service for Service {
 			appservice_in_room_cache: RwLock::new(HashMap::new()),
 			services: Services {
 				account_data: args.depend::<account_data::Service>("account_data"),
+				config: args.depend::<config::Service>("config"),
 				globals: args.depend::<globals::Service>("globals"),
 				state_accessor: args
 					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
@@ -268,7 +270,9 @@ impl Service {
 			| MembershipState::Leave | MembershipState::Ban => {
 				self.mark_as_left(user_id, room_id);
 
-				if self.services.globals.user_is_local(user_id) {
+				if self.services.globals.user_is_local(user_id)
+					&& self.services.config.forget_forced_upon_leave
+				{
 					self.forget(room_id, user_id);
 				}
 			},

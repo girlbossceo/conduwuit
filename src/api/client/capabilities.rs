@@ -42,5 +42,12 @@ pub(crate) async fn get_capabilities_route(
 		.set("uk.tcpip.msc4133.profile_fields", json!({"enabled": true}))
 		.expect("this is valid JSON we created");
 
+	capabilities
+		.set(
+			"org.matrix.msc4267.forget_forced_upon_leave",
+			json!({"enabled": services.config.forget_forced_upon_leave}),
+		)
+		.expect("valid JSON we created");
+
 	Ok(get_capabilities::v3::Response { capabilities })
 }
