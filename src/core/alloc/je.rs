@@ -8,7 +8,6 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use const_str::concat_bytes;
 use tikv_jemalloc_ctl as mallctl;
 use tikv_jemalloc_sys as ffi;
 use tikv_jemallocator as jemalloc;
@@ -20,7 +19,7 @@ use crate::{
 
 #[cfg(feature = "jemalloc_conf")]
 #[unsafe(no_mangle)]
-pub static malloc_conf: &[u8] = concat_bytes!(
+pub static malloc_conf: &[u8] = const_str::concat_bytes!(
 	"lg_extent_max_active_fit:4",
 	",oversize_threshold:16777216",
 	",tcache_max:2097152",

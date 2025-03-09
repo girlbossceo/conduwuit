@@ -37,7 +37,7 @@ pub(crate) async fn handle(
 	let parent = Span::current();
 	let task = services.server.runtime().spawn(async move {
 		tokio::select! {
-			response = execute(&services_, req, next, parent) => response,
+			response = execute(&services_, req, next, &parent) => response,
 			response = services_.server.until_shutdown()
 				.then(|()| {
 					let timeout = services_.server.config.client_shutdown_timeout;
@@ -79,7 +79,7 @@ async fn execute(
 	services: &Arc<Services>,
 	req: http::Request<axum::body::Body>,
 	next: axum::middleware::Next,
-	parent: Span,
+	parent: &Span,
 ) -> Response {
 	#[cfg(debug_assertions)]
 	conduwuit::defer! {{
