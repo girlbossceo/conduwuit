@@ -92,7 +92,7 @@ pub(crate) async fn get_alias_route(
 
 	let Ok((room_id, servers)) = services.rooms.alias.resolve_alias(&room_alias, None).await
 	else {
-		return Err!(Request(NotFound("Room with alias not found.")));
+		return Err!(Request(Unknown("Room with alias not found.")));
 	};
 
 	let servers = room_available_servers(&services, &room_id, &room_alias, servers).await;

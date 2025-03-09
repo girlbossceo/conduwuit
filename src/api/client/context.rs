@@ -1,6 +1,6 @@
 use axum::extract::State;
 use conduwuit::{
-	Err, PduEvent, Result, at, err, ref_at,
+	Err, PduEvent, Result, at, debug_warn, err, ref_at,
 	utils::{
 		IterStream,
 		future::TryExtExt,
@@ -35,7 +35,12 @@ pub(crate) async fn get_context_route(
 	let sender = body.sender();
 	let (sender_user, sender_device) = sender;
 	let room_id = &body.room_id;
+	let event_id = &body.event_id;
 	let filter = &body.filter;
+
+	if !services.rooms.metadata.exists(room_id).await {
+		return Err!(Request(Forbidden("Room does not exist to this server")));
+	}
 
 	// Use limit or else 10, with maximum 100
 	let limit: usize = body
@@ -47,29 +52,30 @@ pub(crate) async fn get_context_route(
 	let base_id = services
 		.rooms
 		.timeline
-		.get_pdu_id(&body.event_id)
+		.get_pdu_id(event_id)
 		.map_err(|_| err!(Request(NotFound("Event not found."))));
 
 	let base_pdu = services
 		.rooms
 		.timeline
-		.get_pdu(&body.event_id)
+		.get_pdu(event_id)
 		.map_err(|_| err!(Request(NotFound("Base event not found."))));
 
 	let visible = services
 		.rooms
 		.state_accessor
-		.user_can_see_event(sender_user, &body.room_id, &body.event_id)
+		.user_can_see_event(sender_user, room_id, event_id)
 		.map(Ok);
 
 	let (base_id, base_pdu, visible) = try_join3(base_id, base_pdu, visible).await?;
 
-	if base_pdu.room_id != body.room_id || base_pdu.event_id != body.event_id {
+	if base_pdu.room_id != *room_id || base_pdu.event_id != *event_id {
 		return Err!(Request(NotFound("Base event not found.")));
 	}
 
 	if !visible {
-		return Err!(Request(Forbidden("You don't have permission to view this event.")));
+		debug_warn!(req_evt = ?event_id, ?base_id, ?room_id, "Event requested by {sender_user} but is not allowed to see it, returning 404");
+		return Err!(Request(NotFound("Event not found.")));
 	}
 
 	let base_count = base_id.pdu_count();

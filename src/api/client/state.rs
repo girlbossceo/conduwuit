@@ -27,7 +27,7 @@ pub(crate) async fn send_state_event_for_key_route(
 	State(services): State<crate::State>,
 	body: Ruma<send_state_event::v3::Request>,
 ) -> Result<send_state_event::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	Ok(send_state_event::v3::Response {
 		event_id: send_state_event_for_key_helper(
@@ -103,7 +103,7 @@ pub(crate) async fn get_state_events_for_key_route(
 	State(services): State<crate::State>,
 	body: Ruma<get_state_events_for_key::v3::Request>,
 ) -> Result<get_state_events_for_key::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if !services
 		.rooms
@@ -111,7 +111,9 @@ pub(crate) async fn get_state_events_for_key_route(
 		.user_can_see_state_events(sender_user, &body.room_id)
 		.await
 	{
-		return Err!(Request(Forbidden("You don't have permission to view the room state.")));
+		return Err!(Request(NotFound(debug_warn!(
+			"You don't have permission to view the room state."
+		))));
 	}
 
 	let event = services
@@ -316,14 +318,14 @@ async fn allowed_to_send_state_event(
 							services.rooms.alias.resolve_alias(&alias, None).await?;
 
 						if alias_room_id != room_id {
-							return Err!(Request(Forbidden(
+							return Err!(Request(Unknown(
 								"Room alias {alias} does not belong to room {room_id}"
 							)));
 						}
 					}
 				},
 				| Err(e) => {
-					return Err!(Request(BadJson(debug_warn!(
+					return Err!(Request(InvalidParam(debug_warn!(
 						"Room canonical alias event is invalid: {e}"
 					))));
 				},
