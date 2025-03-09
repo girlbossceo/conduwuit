@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{Err, debug, err, info, utils::ReadyExt};
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use ruma::{
 	UserId,
 	api::client::{
@@ -96,32 +96,50 @@ pub(crate) async fn login_route(
 				&services.config.server_name,
 			)?;
 
-			assert!(
-				services.globals.user_is_local(&user_id),
-				"User ID does not belong to this homeserver"
-			);
-			assert!(
-				services.globals.user_is_local(&lowercased_user_id),
-				"User ID does not belong to this homeserver"
-			);
+			if !services.globals.user_is_local(&user_id)
+				|| !services.globals.user_is_local(&lowercased_user_id)
+			{
+				return Err!(Request(Unknown("User ID does not belong to this homeserver")));
+			}
 
+			// first try the username as-is
 			let hash = services
 				.users
 				.password_hash(&user_id)
-				.or_else(|_| services.users.password_hash(&lowercased_user_id))
 				.await
-				.inspect_err(|e| debug!("{e}"))
-				.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
+				.inspect_err(|e| debug!("{e}"));
 
-			if hash.is_empty() {
-				return Err!(Request(UserDeactivated("The user has been deactivated")));
+			match hash {
+				| Ok(hash) => {
+					if hash.is_empty() {
+						return Err!(Request(UserDeactivated("The user has been deactivated")));
+					}
+
+					hash::verify_password(password, &hash)
+						.inspect_err(|e| debug!("{e}"))
+						.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
+
+					user_id
+				},
+				| Err(_e) => {
+					let hash_lowercased_user_id = services
+						.users
+						.password_hash(&lowercased_user_id)
+						.await
+						.inspect_err(|e| debug!("{e}"))
+						.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
+
+					if hash_lowercased_user_id.is_empty() {
+						return Err!(Request(UserDeactivated("The user has been deactivated")));
+					}
+
+					hash::verify_password(password, &hash_lowercased_user_id)
+						.inspect_err(|e| debug!("{e}"))
+						.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
+
+					lowercased_user_id
+				},
 			}
-
-			hash::verify_password(password, &hash)
-				.inspect_err(|e| debug!("{e}"))
-				.map_err(|_| err!(Request(Forbidden("Wrong username or password."))))?;
-
-			user_id
 		},
 		| login::v3::LoginInfo::Token(login::v3::Token { token }) => {
 			debug!("Got token login type");
@@ -153,24 +171,11 @@ pub(crate) async fn login_route(
 				}
 				.map_err(|e| err!(Request(InvalidUsername(warn!("Username is invalid: {e}")))))?;
 
-			let lowercased_user_id = UserId::parse_with_server_name(
-				user_id.localpart().to_lowercase(),
-				&services.config.server_name,
-			)?;
+			if !services.globals.user_is_local(&user_id) {
+				return Err!(Request(Unknown("User ID does not belong to this homeserver")));
+			}
 
-			assert!(
-				services.globals.user_is_local(&user_id),
-				"User ID does not belong to this homeserver"
-			);
-			assert!(
-				services.globals.user_is_local(&lowercased_user_id),
-				"User ID does not belong to this homeserver"
-			);
-
-			if !info.is_user_match(&user_id)
-				&& !info.is_user_match(&lowercased_user_id)
-				&& !emergency_mode_enabled
-			{
+			if !info.is_user_match(&user_id) && !emergency_mode_enabled {
 				return Err!(Request(Exclusive("Username is not in an appservice namespace.")));
 			}
 

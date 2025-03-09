@@ -278,11 +278,9 @@ impl Service {
 		initial_device_display_name: Option<String>,
 		client_ip: Option<String>,
 	) -> Result<()> {
-		// This method should never be called for nonexistent users. We shouldn't assert
-		// though...
 		if !self.exists(user_id).await {
 			return Err!(Request(InvalidParam(error!(
-				"Called create_device for non-existent {user_id}"
+				"Called create_device for non-existent user {user_id}"
 			))));
 		}
 

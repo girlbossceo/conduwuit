@@ -7,7 +7,7 @@
 
 use std::time::SystemTime;
 
-use conduwuit::{Err, Result, debug};
+use conduwuit::{Err, Result, debug, err};
 use conduwuit_core::implement;
 use ipaddress::IPAddress;
 use serde::Serialize;
@@ -64,28 +64,33 @@ pub async fn get_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 async fn request_url_preview(&self, url: &Url) -> Result<UrlPreviewData> {
 	if let Ok(ip) = IPAddress::parse(url.host_str().expect("URL previously validated")) {
 		if !self.services.client.valid_cidr_range(&ip) {
-			return Err!(BadServerResponse("Requesting from this address is forbidden"));
+			return Err!(Request(Forbidden("Requesting from this address is forbidden")));
 		}
 	}
 
 	let client = &self.services.client.url_preview;
 	let response = client.head(url.as_str()).send().await?;
 
+	debug!(?url, "URL preview response headers: {:?}", response.headers());
+
 	if let Some(remote_addr) = response.remote_addr() {
+		debug!(?url, "URL preview response remote address: {:?}", remote_addr);
+
 		if let Ok(ip) = IPAddress::parse(remote_addr.ip().to_string()) {
 			if !self.services.client.valid_cidr_range(&ip) {
-				return Err!(BadServerResponse("Requesting from this address is forbidden"));
+				return Err!(Request(Forbidden("Requesting from this address is forbidden")));
 			}
 		}
 	}
 
-	let Some(content_type) = response
-		.headers()
-		.get(reqwest::header::CONTENT_TYPE)
-		.and_then(|x| x.to_str().ok())
-	else {
-		return Err!(Request(Unknown("Unknown Content-Type")));
+	let Some(content_type) = response.headers().get(reqwest::header::CONTENT_TYPE) else {
+		return Err!(Request(Unknown("Unknown or invalid Content-Type header")));
 	};
+
+	let content_type = content_type
+		.to_str()
+		.map_err(|e| err!(Request(Unknown("Unknown or invalid Content-Type header: {e}"))))?;
+
 	let data = match content_type {
 		| html if html.starts_with("text/html") => self.download_html(url.as_str()).await?,
 		| img if img.starts_with("image/") => self.download_image(url.as_str()).await?,

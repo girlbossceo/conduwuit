@@ -517,9 +517,7 @@ pub(crate) async fn invite_user_route(
 				join!(sender_ignored_recipient, recipient_ignored_by_sender);
 
 			if sender_ignored_recipient {
-				return Err!(Request(Forbidden(
-					"You cannot invite users you have ignored to rooms."
-				)));
+				return Ok(invite_user::v3::Response {});
 			}
 
 			if let Ok(target_user_membership) = services

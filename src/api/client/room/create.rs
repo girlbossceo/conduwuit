@@ -239,9 +239,7 @@ pub(crate) async fn create_room_route(
 	if preset == RoomPreset::TrustedPrivateChat {
 		for invite in &body.invite {
 			if services.users.user_is_ignored(sender_user, invite).await {
-				return Err!(Request(Forbidden(
-					"You cannot invite users you have ignored to rooms."
-				)));
+				continue;
 			} else if services.users.user_is_ignored(invite, sender_user).await {
 				// silently drop the invite to the recipient if they've been ignored by the
 				// sender, pretend it worked
@@ -420,9 +418,7 @@ pub(crate) async fn create_room_route(
 	drop(state_lock);
 	for user_id in &body.invite {
 		if services.users.user_is_ignored(sender_user, user_id).await {
-			return Err!(Request(Forbidden(
-				"You cannot invite users you have ignored to rooms."
-			)));
+			continue;
 		} else if services.users.user_is_ignored(user_id, sender_user).await {
 			// silently drop the invite to the recipient if they've been ignored by the
 			// sender, pretend it worked
