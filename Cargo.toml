@@ -346,7 +346,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "bb42118bd85e731b652a6110896b6945085bf944"
+rev = "d577100f5480c6c528e7a8ff59cd08d95a3a16e7"
 features = [
     "compat",
     "rand",
@@ -371,7 +371,9 @@ features = [
     "unstable-msc3381", # polls
     "unstable-msc3489", # beacon / live location
     "unstable-msc3575",
+    "unstable-msc3930", # polls push rules
     "unstable-msc4075",
+    "unstable-msc4095",
     "unstable-msc4121",
     "unstable-msc4125",
     "unstable-msc4186",
