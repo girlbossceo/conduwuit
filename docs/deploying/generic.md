@@ -167,25 +167,32 @@ sudo chmod 700 /var/lib/conduwuit/
 
 ## Setting up the Reverse Proxy
 
-Refer to the documentation or various guides online of your chosen reverse proxy
-software. There are many examples of basic Apache/Nginx reverse proxy setups
-out there.
+We recommend Caddy as a reverse proxy, as it is trivial to use, handling TLS certificates, reverse proxy headers, etc transparently with proper defaults.
+For other software, please refer to their respective documentation or online guides.
 
-A [Caddy](https://caddyserver.com/) example will be provided as this
-is the recommended reverse proxy for new users and is very trivial to use
-(handles TLS, reverse proxy headers, etc transparently with proper defaults).
+### Caddy
 
-Lighttpd is not supported as it seems to mess with the `X-Matrix` Authorization
-header, making federation non-functional. If a workaround is found, feel free to share to get it added to the documentation here.
+After installing Caddy via your preferred method, create `/etc/caddy/conf.d/conduwuit_caddyfile`
+and enter this (substitute for your server name).
 
-If using Apache, you need to use `nocanon` in your `ProxyPass` directive to prevent this (note that Apache isn't very good as a general reverse proxy and we discourage the usage of it if you can).
+```caddyfile
+your.server.name, your.server.name:8448 {
+    # TCP reverse_proxy
+    reverse_proxy 127.0.0.1:6167
+    # UNIX socket
+    #reverse_proxy unix//run/conduwuit/conduwuit.sock
+}
+```
 
-If using Nginx, you need to give conduwuit the request URI using `$request_uri`, or like so:
-- `proxy_pass http://127.0.0.1:6167$request_uri;`
-- `proxy_pass http://127.0.0.1:6167;`
+That's it! Just start and enable the service and you're set.
 
-Nginx users need to increase `client_max_body_size` (default is 1M) to match
-`max_request_size` defined in conduwuit.toml.
+```bash
+sudo systemctl enable --now caddy
+```
+
+### Other Reverse Proxies
+
+As we would prefer our users to use Caddy, we will not provide configuration files for other proxys.
 
 You will need to reverse proxy everything under following routes:
 - `/_matrix/` - core Matrix C-S and S-S APIs
@@ -208,25 +215,19 @@ Examples of delegation:
 - <https://puppygock.gay/.well-known/matrix/server>
 - <https://puppygock.gay/.well-known/matrix/client>
 
-### Caddy
+For Apache and Nginx there are many examples available online.
 
-Create `/etc/caddy/conf.d/conduwuit_caddyfile` and enter this (substitute for
-your server name).
+Lighttpd is not supported as it seems to mess with the `X-Matrix` Authorization
+header, making federation non-functional. If a workaround is found, feel free to share to get it added to the documentation here.
 
-```caddyfile
-your.server.name, your.server.name:8448 {
-    # TCP reverse_proxy
-    reverse_proxy 127.0.0.1:6167
-    # UNIX socket
-    #reverse_proxy unix//run/conduwuit/conduwuit.sock
-}
-```
+If using Apache, you need to use `nocanon` in your `ProxyPass` directive to prevent httpd from messing with the `X-Matrix` header (note that Apache isn't very good as a general reverse proxy and we discourage the usage of it if you can).
 
-That's it! Just start and enable the service and you're set.
+If using Nginx, you need to give conduwuit the request URI using `$request_uri`, or like so:
+- `proxy_pass http://127.0.0.1:6167$request_uri;`
+- `proxy_pass http://127.0.0.1:6167;`
 
-```bash
-sudo systemctl enable --now caddy
-```
+Nginx users need to increase `client_max_body_size` (default is 1M) to match
+`max_request_size` defined in conduwuit.toml.
 
 ## You're done
 
