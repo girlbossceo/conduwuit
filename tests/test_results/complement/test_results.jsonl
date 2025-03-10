@@ -534,10 +534,10 @@
 {"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel"}
 {"Action":"pass","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_accepts_present_aliases"}
 {"Action":"pass","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_accepts_present_alt_aliases"}
-{"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_alias_pointing_to_different_local_room"}
-{"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_alt_alias_pointing_to_different_local_room"}
-{"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_invalid_aliases"}
-{"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_invalid_aliases#01"}
+{"Action":"pass","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_alias_pointing_to_different_local_room"}
+{"Action":"pass","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_alt_alias_pointing_to_different_local_room"}
+{"Action":"pass","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_invalid_aliases"}
+{"Action":"pass","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_invalid_aliases#01"}
 {"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_missing_aliases"}
 {"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_rejects_missing_aliases#01"}
 {"Action":"fail","Test":"TestRoomCanonicalAlias/Parallel/m.room.canonical_alias_setting_rejects_deleted_aliases"}
