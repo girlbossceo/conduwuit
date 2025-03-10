@@ -28,6 +28,10 @@ pub fn check(config: &Config) -> Result {
 		warn!("Note: conduwuit was built without optimisations (i.e. debug build)");
 	}
 
+	if config.allow_invalid_tls_certificates_yes_i_know_what_the_fuck_i_am_doing_with_this_and_i_know_this_is_insecure {
+        warn!("\n\nWARNING: \n\nTLS CERTIFICATE VALIDATION IS DISABLED, THIS IS HIGHLY INSECURE AND SHOULD NOT BE USED IN PRODUCTION.\n\n");
+    }
+
 	warn_deprecated(config);
 	warn_unknown_key(config);
 

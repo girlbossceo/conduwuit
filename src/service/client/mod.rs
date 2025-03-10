@@ -128,7 +128,8 @@ fn base(config: &Config) -> Result<reqwest::ClientBuilder> {
 		.pool_max_idle_per_host(config.request_idle_per_host.into())
 		.user_agent(conduwuit::version::user_agent())
 		.redirect(redirect::Policy::limited(6))
-		.connection_verbose(true);
+        .danger_accept_invalid_certs(config.allow_invalid_tls_certificates_yes_i_know_what_the_fuck_i_am_doing_with_this_and_i_know_this_is_insecure)
+		.connection_verbose(cfg!(debug_assertions));
 
 	#[cfg(feature = "gzip_compression")]
 	{

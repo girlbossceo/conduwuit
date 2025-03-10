@@ -52,7 +52,7 @@ use crate::{Result, err, error::Error, utils::sys};
 ### For more information, see:
 ### https://conduwuit.puppyirl.gay/configuration.html
 "#,
-	ignore = "catchall well_known tls blurhashing"
+	ignore = "catchall well_known tls blurhashing allow_invalid_tls_certificates_yes_i_know_what_the_fuck_i_am_doing_with_this_and_i_know_this_is_insecure"
 )]
 pub struct Config {
 	/// The server_name is the pretty name of this server. It is used as a
@@ -1805,6 +1805,16 @@ pub struct Config {
 	/// default: true
 	#[serde(default = "true_fn")]
 	pub config_reload_signal: bool,
+
+	/// Toggles ignore checking/validating TLS certificates
+	///
+	/// This applies to everything, including URL previews, federation requests,
+	/// etc. This is a hidden argument that should NOT be used in production as
+	/// it is highly insecure and I will personally yell at you if I catch you
+	/// using this.
+	#[serde(default)]
+	pub allow_invalid_tls_certificates_yes_i_know_what_the_fuck_i_am_doing_with_this_and_i_know_this_is_insecure:
+		bool,
 
 	// external structure; separate section
 	#[serde(default)]
