@@ -314,11 +314,17 @@ async fn allowed_to_send_state_event(
 					}
 
 					for alias in aliases {
-						let (alias_room_id, _servers) =
-							services.rooms.alias.resolve_alias(&alias, None).await?;
+						let (alias_room_id, _servers) = services
+							.rooms
+							.alias
+							.resolve_alias(&alias, None)
+							.await
+							.map_err(|e| {
+								err!(Request(Unknown("Failed resolving alias \"{alias}\": {e}")))
+							})?;
 
 						if alias_room_id != room_id {
-							return Err!(Request(Unknown(
+							return Err!(Request(BadAlias(
 								"Room alias {alias} does not belong to room {room_id}"
 							)));
 						}
