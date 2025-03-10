@@ -1,5 +1,8 @@
 # Hot Reloading ("Live" Development)
 
+Note that hot reloading has not been refactored in quite a while and is not
+guaranteed to work at this time.
+
 ### Summary
 
 When developing in debug-builds with the nightly toolchain, conduwuit is modular

@@ -4,10 +4,6 @@
 
 {{#include ../README.md:body}}
 
-#### What's different about your fork than upstream Conduit?
-
-See the [differences](differences.md) page
-
 #### How can I deploy my own?
 
 - [Deployment options](deploying.md)

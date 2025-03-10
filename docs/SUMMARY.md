@@ -1,7 +1,6 @@
 # Summary
 
 - [Introduction](introduction.md)
-- [Differences from upstream Conduit](differences.md)
 - [Configuration](configuration.md)
   - [Examples](configuration/examples.md)
 - [Deploying](deploying.md)

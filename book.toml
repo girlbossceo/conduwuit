@@ -13,12 +13,15 @@ create-missing = true
 extra-watch-dirs = ["debian", "docs"]
 
 [rust]
-edition = "2021"
+edition = "2024"
 
 [output.html]
 git-repository-url = "https://github.com/girlbossceo/conduwuit"
 edit-url-template = "https://github.com/girlbossceo/conduwuit/edit/main/{path}"
 git-repository-icon = "fa-github-square"
+
+[output.html.redirect]
+"/differences.html" = "https://conduwuit.puppyirl.gay/#where-is-the-differences-page"
 
 [output.html.search]
 limit-results = 15
