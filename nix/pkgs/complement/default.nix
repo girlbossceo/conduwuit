@@ -42,25 +42,18 @@ let
   start = writeShellScriptBin "start" ''
     set -euxo pipefail
 
-    ${lib.getExe openssl} genrsa -out private_key.key 2048
-    ${lib.getExe openssl} req \
-      -new \
-      -sha256 \
-      -key private_key.key \
-      -subj "/C=US/ST=CA/O=MyOrg, Inc./CN=$SERVER_NAME" \
-      -out signing_request.csr
-    cp ${./v3.ext} v3.ext
-    echo "DNS.1 = $SERVER_NAME" >> v3.ext
+    cp ${./v3.ext} /complement/v3.ext
+    echo "DNS.1 = $SERVER_NAME" >> /complement/v3.ext
     echo "IP.1 = $(${lib.getExe gawk} 'END{print $1}' /etc/hosts)" \
-      >> v3.ext
+      >> /complement/v3.ext
     ${lib.getExe openssl} x509 \
       -req \
-      -extfile v3.ext \
-      -in signing_request.csr \
+      -extfile /complement/v3.ext \
+      -in ${./signing_request.csr} \
       -CA /complement/ca/ca.crt \
       -CAkey /complement/ca/ca.key \
       -CAcreateserial \
-      -out certificate.crt \
+      -out /complement/certificate.crt \
       -days 1 \
       -sha256
 
@@ -99,7 +92,8 @@ dockerTools.buildImage {
       else [];
 
     Env = [
-      "SSL_CERT_FILE=/complement/ca/ca.crt"
+      "CONDUWUIT_TLS__KEY=${./private_key.key}"
+      "CONDUWUIT_TLS__CERTS=/complement/certificate.crt"
       "CONDUWUIT_CONFIG=${./config.toml}"
       "RUST_BACKTRACE=full"
     ];

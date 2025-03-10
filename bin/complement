@@ -40,6 +40,7 @@ if [ ! -f "complement_oci_image.tar.gz" ]; then
     # if using macOS, use linux-complement
     #bin/nix-build-and-cache just .#linux-complement
     bin/nix-build-and-cache just .#complement
+    #nix build -L .#complement
 
     echo "complement conduwuit image tar.gz built at \"result\""
 

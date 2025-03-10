@@ -47,6 +47,4 @@ sender_idle_timeout = 300
 sender_retry_backoff_limit = 300
 
 [global.tls]
-certs = "/certificate.crt"
 dual_protocol = true
-key = "/private_key.key"
