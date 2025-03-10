@@ -2,26 +2,14 @@
 Description=conduwuit Matrix homeserver
 Wants=network-online.target
 After=network-online.target
+Alias=matrix-conduwuit.service
 Documentation=https://conduwuit.puppyirl.gay/
 
 [Service]
 DynamicUser=yes
 User=conduwuit
 Group=conduwuit
-Type=notify-reload
-ReloadSignal=SIGUSR1
-
-TTYPath=/dev/tty25
-DeviceAllow=char-tty
-StandardInput=tty-force
-StandardOutput=tty
-StandardError=journal+console
-TTYReset=yes
-# uncomment to allow buffer to be cleared every restart
-TTYVTDisallocate=no
-
-TTYColumns=120
-TTYRows=40
+Type=notify
 
 Environment="CONDUWUIT_CONFIG=/etc/conduwuit/conduwuit.toml"
 

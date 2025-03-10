@@ -53,28 +53,6 @@ If wanting to build using standard Rust toolchains, make sure you install:
 
 You can build conduwuit using `cargo build --release --all-features`
 
-## Migrating from Conduit
-
-As mentioned in the README, there is little to no steps needed to migrate
-from Conduit. As long as you are using the RocksDB database backend, just
-replace the binary / container image / etc.
-
-**WARNING**: As of conduwuit 0.5.0, all database and backwards compatibility
-with Conduit is no longer supported. We only support migrating *from* Conduit,
-not back to Conduit like before. If you are truly finding yourself wanting to
-migrate back to Conduit, we would appreciate all your feedback and if we can
-assist with any issues or concerns.
-
-**Note**: If you are relying on Conduit's "automatic delegation" feature,
-this will **NOT** work on conduwuit and you must configure delegation manually.
-This is not a mistake and no support for this feature will be added.
-
-If you are using SQLite, you **MUST** migrate to RocksDB. You can use this
-tool to migrate from SQLite to RocksDB: <https://github.com/ShadowJonathan/conduit_toolbox/>
-
-See the `[global.well_known]` config section, or configure your web server
-appropriately to send the delegation responses.
-
 ## Adding a conduwuit user
 
 While conduwuit can run as any user it is better to use dedicated users for
