@@ -210,7 +210,7 @@ default-features = false
 version = "0.1.41"
 default-features = false
 [workspace.dependencies.tracing-subscriber]
-version = "=0.3.18"
+version = "0.3.19"
 default-features = false
 features = ["env-filter", "std", "tracing", "tracing-log", "ansi", "fmt"]
 [workspace.dependencies.tracing-core]
@@ -541,16 +541,16 @@ version = "1.0.2"
 # https://github.com/girlbossceo/tracing/commit/b348dca742af641c47bc390261f60711c2af573c
 [patch.crates-io.tracing-subscriber]
 git = "https://github.com/girlbossceo/tracing"
-rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+rev = "1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 [patch.crates-io.tracing]
 git = "https://github.com/girlbossceo/tracing"
-rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+rev = "1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 [patch.crates-io.tracing-core]
 git = "https://github.com/girlbossceo/tracing"
-rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+rev = "1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 [patch.crates-io.tracing-log]
 git = "https://github.com/girlbossceo/tracing"
-rev = "05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+rev = "1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 
 # adds a tab completion callback: https://github.com/girlbossceo/rustyline-async/commit/de26100b0db03e419a3d8e1dd26895d170d1fe50
 # adds event for CTRL+\: https://github.com/girlbossceo/rustyline-async/commit/67d8c49aeac03a5ef4e818f663eaa94dd7bf339b

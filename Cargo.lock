@@ -440,7 +440,7 @@ dependencies = [
  "bitflags 2.9.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "regex",
@@ -2382,7 +2382,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -4833,7 +4833,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "tracing"
 version = "0.1.41"
-source = "git+https://github.com/girlbossceo/tracing?rev=05825066a6d0e9ad6b80dcf29457eb179ff4768c#05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+source = "git+https://github.com/girlbossceo/tracing?rev=1e64095a8051a1adf0d1faa307f9f030889ec2aa#1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 dependencies = [
  "log",
  "pin-project-lite",
@@ -4844,7 +4844,7 @@ dependencies = [
 [[package]]
 name = "tracing-attributes"
 version = "0.1.28"
-source = "git+https://github.com/girlbossceo/tracing?rev=05825066a6d0e9ad6b80dcf29457eb179ff4768c#05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+source = "git+https://github.com/girlbossceo/tracing?rev=1e64095a8051a1adf0d1faa307f9f030889ec2aa#1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4854,7 +4854,7 @@ dependencies = [
 [[package]]
 name = "tracing-core"
 version = "0.1.33"
-source = "git+https://github.com/girlbossceo/tracing?rev=05825066a6d0e9ad6b80dcf29457eb179ff4768c#05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+source = "git+https://github.com/girlbossceo/tracing?rev=1e64095a8051a1adf0d1faa307f9f030889ec2aa#1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 dependencies = [
  "once_cell",
  "valuable",
@@ -4874,7 +4874,7 @@ dependencies = [
 [[package]]
 name = "tracing-log"
 version = "0.2.0"
-source = "git+https://github.com/girlbossceo/tracing?rev=05825066a6d0e9ad6b80dcf29457eb179ff4768c#05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+source = "git+https://github.com/girlbossceo/tracing?rev=1e64095a8051a1adf0d1faa307f9f030889ec2aa#1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 dependencies = [
  "log",
  "once_cell",
@@ -4901,8 +4901,8 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.18"
-source = "git+https://github.com/girlbossceo/tracing?rev=05825066a6d0e9ad6b80dcf29457eb179ff4768c#05825066a6d0e9ad6b80dcf29457eb179ff4768c"
+version = "0.3.19"
+source = "git+https://github.com/girlbossceo/tracing?rev=1e64095a8051a1adf0d1faa307f9f030889ec2aa#1e64095a8051a1adf0d1faa307f9f030889ec2aa"
 dependencies = [
  "matchers",
  "nu-ansi-term",
