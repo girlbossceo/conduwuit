@@ -25,8 +25,9 @@ use ruma::{
 			error::ErrorKind,
 			knock::knock_room,
 			membership::{
-				ThirdPartySigned, ban_user, forget_room, get_member_events, invite_user,
-				join_room_by_id, join_room_by_id_or_alias,
+				ThirdPartySigned, ban_user, forget_room,
+				get_member_events::{self, v3::MembershipEventFilter},
+				invite_user, join_room_by_id, join_room_by_id_or_alias,
 				joined_members::{self, v3::RoomMember},
 				joined_rooms, kick_user, leave_room, unban_user,
 			},
@@ -768,6 +769,54 @@ pub(crate) async fn joined_rooms_route(
 	})
 }
 
+fn membership_filter(
+	pdu: PduEvent,
+	for_membership: Option<&MembershipEventFilter>,
+	not_membership: Option<&MembershipEventFilter>,
+) -> Option<PduEvent> {
+	let membership_state_filter = match for_membership {
+		| Some(MembershipEventFilter::Ban) => MembershipState::Ban,
+		| Some(MembershipEventFilter::Invite) => MembershipState::Invite,
+		| Some(MembershipEventFilter::Knock) => MembershipState::Knock,
+		| Some(MembershipEventFilter::Leave) => MembershipState::Leave,
+		| Some(_) | None => MembershipState::Join,
+	};
+
+	let not_membership_state_filter = match not_membership {
+		| Some(MembershipEventFilter::Ban) => MembershipState::Ban,
+		| Some(MembershipEventFilter::Invite) => MembershipState::Invite,
+		| Some(MembershipEventFilter::Join) => MembershipState::Join,
+		| Some(MembershipEventFilter::Knock) => MembershipState::Knock,
+		| Some(_) | None => MembershipState::Leave,
+	};
+
+	let evt_membership = pdu.get_content::<RoomMemberEventContent>().ok()?.membership;
+
+	if for_membership.is_some() && not_membership.is_some() {
+		if membership_state_filter != evt_membership
+			|| not_membership_state_filter == evt_membership
+		{
+			None
+		} else {
+			Some(pdu)
+		}
+	} else if for_membership.is_some() && not_membership.is_none() {
+		if membership_state_filter != evt_membership {
+			None
+		} else {
+			Some(pdu)
+		}
+	} else if not_membership.is_some() && for_membership.is_none() {
+		if not_membership_state_filter == evt_membership {
+			None
+		} else {
+			Some(pdu)
+		}
+	} else {
+		Some(pdu)
+	}
+}
+
 /// # `POST /_matrix/client/r0/rooms/{roomId}/members`
 ///
 /// Lists all joined users in a room (TODO: at a specific point in time, with a
@@ -779,6 +828,8 @@ pub(crate) async fn get_member_events_route(
 	body: Ruma<get_member_events::v3::Request>,
 ) -> Result<get_member_events::v3::Response> {
 	let sender_user = body.sender_user();
+	let membership = body.membership.as_ref();
+	let not_membership = body.not_membership.as_ref();
 
 	if !services
 		.rooms
@@ -797,6 +848,7 @@ pub(crate) async fn get_member_events_route(
 			.ready_filter_map(Result::ok)
 			.ready_filter(|((ty, _), _)| *ty == StateEventType::RoomMember)
 			.map(at!(1))
+			.ready_filter_map(|pdu| membership_filter(pdu, membership, not_membership))
 			.map(PduEvent::into_member_event)
 			.collect()
 			.await,
