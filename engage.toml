@@ -162,24 +162,6 @@ group = "lints"
 script = "markdownlint docs *.md || true" # TODO: fix the ton of markdown lints so we can drop `|| true`
 
 [[task]]
-name = "cargo/all"
-group = "tests"
-script = """
-env DIRENV_DEVSHELL=all-features \
-    direnv exec . \
-    cargo test \
-        --workspace \
-        --locked \
-        --profile test \
-        --all-targets \
-        --no-fail-fast \
-        --all-features \
-        --color=always \
-        -- \
-        --color=always
-"""
-
-[[task]]
 name = "cargo/default"
 group = "tests"
 script = """
@@ -191,24 +173,6 @@ env DIRENV_DEVSHELL=default \
         --profile test \
         --all-targets \
         --no-fail-fast \
-        --color=always \
-        -- \
-        --color=always
-"""
-
-[[task]]
-name = "cargo/no-features"
-group = "tests"
-script = """
-env DIRENV_DEVSHELL=no-features \
-    direnv exec . \
-    cargo test \
-        --workspace \
-        --locked \
-        --profile test \
-        --all-targets \
-        --no-fail-fast \
-        --no-default-features \
         --color=always \
         -- \
         --color=always
