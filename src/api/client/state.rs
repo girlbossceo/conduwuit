@@ -254,7 +254,7 @@ async fn allowed_to_send_state_event(
 						"Room server ACL event is invalid: {e}"
 					))));
 				},
-			};
+			}
 		},
 		| StateEventType::RoomEncryption =>
 		// Forbid m.room.encryption if encryption is disabled

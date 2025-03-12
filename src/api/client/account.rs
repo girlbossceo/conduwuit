@@ -109,7 +109,7 @@ pub(crate) async fn get_register_available_route(
 		if !info.is_user_match(&user_id) {
 			return Err!(Request(Exclusive("Username is not in an appservice namespace.")));
 		}
-	};
+	}
 
 	if services.appservice.is_exclusive_user_id(&user_id).await {
 		return Err!(Request(Exclusive("Username is reserved by an appservice.")));
@@ -159,7 +159,7 @@ pub(crate) async fn register_route(
 			| (None, _) => {
 				info!(%is_guest, "Rejecting registration attempt as registration is disabled");
 			},
-		};
+		}
 
 		return Err!(Request(Forbidden("Registration has been disabled.")));
 	}

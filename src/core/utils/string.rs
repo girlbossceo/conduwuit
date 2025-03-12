@@ -60,6 +60,7 @@ pub fn camel_to_snake_string(s: &str) -> String {
 }
 
 #[inline]
+#[allow(clippy::unbuffered_bytes)] // these are allocated string utilities, not file I/O utils
 pub fn camel_to_snake_case<I, O>(output: &mut O, input: I) -> Result<()>
 where
 	I: std::io::Read,

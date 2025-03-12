@@ -841,6 +841,9 @@ unused_crate_dependencies = "allow"
 unsafe_code = "allow"
 variant_size_differences = "allow"
 
+# we check nightly clippy lints
+unknown_lints = "allow"
+
 #######################################
 #
 # Clippy lints

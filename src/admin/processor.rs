@@ -91,6 +91,7 @@ async fn process_command(services: Arc<Services>, input: &CommandInput) -> Proce
 	}
 }
 
+#[allow(clippy::result_large_err)]
 fn handle_panic(error: &Error, command: &CommandInput) -> ProcessorResult {
 	let link =
 		"Please submit a [bug report](https://github.com/girlbossceo/conduwuit/issues/new). 🥺";
@@ -100,7 +101,7 @@ fn handle_panic(error: &Error, command: &CommandInput) -> ProcessorResult {
 	Err(reply(content, command.reply_id.as_deref()))
 }
 
-// Parse and process a message from the admin room
+/// Parse and process a message from the admin room
 async fn process(
 	context: &Command<'_>,
 	command: AdminCommand,
@@ -164,7 +165,8 @@ fn capture_create(context: &Command<'_>) -> (Arc<Capture>, Arc<Mutex<String>>) {
 	(capture, logs)
 }
 
-// Parse chat messages from the admin room into an AdminCommand object
+/// Parse chat messages from the admin room into an AdminCommand object
+#[allow(clippy::result_large_err)]
 fn parse<'a>(
 	services: &Arc<Services>,
 	input: &'a CommandInput,
@@ -232,7 +234,7 @@ fn complete_command(mut cmd: clap::Command, line: &str) -> String {
 	ret.join(" ")
 }
 
-// Parse chat messages from the admin room into an AdminCommand object
+/// Parse chat messages from the admin room into an AdminCommand object
 fn parse_line(command_line: &str) -> Vec<String> {
 	let mut argv = command_line
 		.split_whitespace()

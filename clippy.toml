@@ -2,9 +2,10 @@ array-size-threshold = 4096
 cognitive-complexity-threshold = 94         # TODO reduce me ALARA
 excessive-nesting-threshold = 11            # TODO reduce me to 4 or 5
 future-size-threshold = 7745                # TODO reduce me ALARA
-stack-size-threshold = 196608               # reduce me ALARA
+stack-size-threshold = 196608               # TODO reduce me ALARA
 too-many-lines-threshold = 780              # TODO reduce me to <= 100
 type-complexity-threshold = 250             # reduce me to ~200
+large-error-threshold = 256                 # TODO reduce me ALARA
 
 disallowed-macros = [
 	{ path = "log::error", reason = "use conduwuit_core::error" },
