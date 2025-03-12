@@ -1,7 +1,17 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{Err, Error, Result, info, warn};
-use futures::{StreamExt, TryFutureExt};
+use conduwuit::{
+	Err, Error, Result, info,
+	utils::{
+		TryFutureExtExt,
+		stream::{ReadyExt, WidebandExt},
+	},
+	warn,
+};
+use futures::{
+	FutureExt, StreamExt, TryFutureExt,
+	future::{join, join4, join5},
+};
 use ruma::{
 	OwnedRoomId, RoomId, ServerName, UInt, UserId,
 	api::{
@@ -287,8 +297,8 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 		.directory
 		.public_rooms()
 		.map(ToOwned::to_owned)
-		.then(|room_id| public_rooms_chunk(services, room_id))
-		.filter_map(|chunk| async move {
+		.wide_then(|room_id| public_rooms_chunk(services, room_id))
+		.ready_filter_map(|chunk| {
 			if !filter.room_types.is_empty() && !filter.room_types.contains(&RoomTypeFilter::from(chunk.room_type.clone())) {
 				return None;
 			}
@@ -394,60 +404,60 @@ async fn user_can_publish_room(
 }
 
 async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> PublicRoomsChunk {
+	let name = services.rooms.state_accessor.get_name(&room_id).ok();
+
+	let room_type = services.rooms.state_accessor.get_room_type(&room_id).ok();
+
+	let canonical_alias = services
+		.rooms
+		.state_accessor
+		.get_canonical_alias(&room_id)
+		.ok();
+
+	let avatar_url = services.rooms.state_accessor.get_avatar(&room_id);
+
+	let topic = services.rooms.state_accessor.get_room_topic(&room_id).ok();
+
+	let world_readable = services.rooms.state_accessor.is_world_readable(&room_id);
+
+	let join_rule = services
+		.rooms
+		.state_accessor
+		.room_state_get_content(&room_id, &StateEventType::RoomJoinRules, "")
+		.map_ok(|c: RoomJoinRulesEventContent| match c.join_rule {
+			| JoinRule::Public => PublicRoomJoinRule::Public,
+			| JoinRule::Knock => "knock".into(),
+			| JoinRule::KnockRestricted(_) => "knock_restricted".into(),
+			| _ => "invite".into(),
+		});
+
+	let guest_can_join = services.rooms.state_accessor.guest_can_join(&room_id);
+
+	let num_joined_members = services.rooms.state_cache.room_joined_count(&room_id);
+
+	let (
+		(avatar_url, canonical_alias, guest_can_join, join_rule, name),
+		(num_joined_members, room_type, topic, world_readable),
+	) = join(
+		join5(avatar_url, canonical_alias, guest_can_join, join_rule, name),
+		join4(num_joined_members, room_type, topic, world_readable),
+	)
+	.boxed()
+	.await;
+
 	PublicRoomsChunk {
-		canonical_alias: services
-			.rooms
-			.state_accessor
-			.get_canonical_alias(&room_id)
-			.await
-			.ok(),
-		name: services.rooms.state_accessor.get_name(&room_id).await.ok(),
-		num_joined_members: services
-			.rooms
-			.state_cache
-			.room_joined_count(&room_id)
-			.await
+		avatar_url: avatar_url.into_option().unwrap_or_default().url,
+		canonical_alias,
+		guest_can_join,
+		join_rule: join_rule.unwrap_or_default(),
+		name,
+		num_joined_members: num_joined_members
 			.unwrap_or(0)
 			.try_into()
 			.expect("joined count overflows ruma UInt"),
-		topic: services
-			.rooms
-			.state_accessor
-			.get_room_topic(&room_id)
-			.await
-			.ok(),
-		world_readable: services
-			.rooms
-			.state_accessor
-			.is_world_readable(&room_id)
-			.await,
-		guest_can_join: services.rooms.state_accessor.guest_can_join(&room_id).await,
-		avatar_url: services
-			.rooms
-			.state_accessor
-			.get_avatar(&room_id)
-			.await
-			.into_option()
-			.unwrap_or_default()
-			.url,
-		join_rule: services
-			.rooms
-			.state_accessor
-			.room_state_get_content(&room_id, &StateEventType::RoomJoinRules, "")
-			.map_ok(|c: RoomJoinRulesEventContent| match c.join_rule {
-				| JoinRule::Public => PublicRoomJoinRule::Public,
-				| JoinRule::Knock => "knock".into(),
-				| JoinRule::KnockRestricted(_) => "knock_restricted".into(),
-				| _ => "invite".into(),
-			})
-			.await
-			.unwrap_or_default(),
-		room_type: services
-			.rooms
-			.state_accessor
-			.get_room_type(&room_id)
-			.await
-			.ok(),
 		room_id,
+		room_type,
+		topic,
+		world_readable,
 	}
 }
