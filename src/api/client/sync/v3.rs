@@ -219,6 +219,7 @@ pub(crate) async fn build_sync_events(
 				sender_user,
 				next_batch,
 				full_state,
+				filter.room.include_leave,
 				&filter,
 			)
 			.map_ok(move |left_room| (room_id, left_room))
@@ -412,6 +413,7 @@ async fn handle_left_room(
 	sender_user: &UserId,
 	next_batch: u64,
 	full_state: bool,
+	include_leave: bool,
 	filter: &FilterDefinition,
 ) -> Result<Option<LeftRoom>> {
 	let left_count = services
@@ -539,6 +541,10 @@ async fn handle_left_room(
 				error!("Pdu in state not found: {event_id}");
 				continue;
 			};
+
+			if !include_leave && pdu.sender == sender_user {
+				continue;
+			}
 
 			left_state_events.push(pdu.to_sync_state_event());
 		}
