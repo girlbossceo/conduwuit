@@ -3,10 +3,8 @@
 , buildEnv
 , coreutils
 , dockerTools
-, gawk
 , lib
 , main
-, openssl
 , stdenv
 , tini
 , writeShellScriptBin
@@ -41,21 +39,6 @@ let
 
   start = writeShellScriptBin "start" ''
     set -euxo pipefail
-
-    cp ${./v3.ext} /complement/v3.ext
-    echo "DNS.1 = $SERVER_NAME" >> /complement/v3.ext
-    echo "IP.1 = $(${lib.getExe gawk} 'END{print $1}' /etc/hosts)" \
-      >> /complement/v3.ext
-    ${lib.getExe openssl} x509 \
-      -req \
-      -extfile /complement/v3.ext \
-      -in ${./signing_request.csr} \
-      -CA /complement/ca/ca.crt \
-      -CAkey /complement/ca/ca.key \
-      -CAcreateserial \
-      -out /complement/certificate.crt \
-      -days 1 \
-      -sha256
 
     ${lib.getExe' coreutils "env"} \
       CONDUWUIT_SERVER_NAME="$SERVER_NAME" \
@@ -93,7 +76,7 @@ dockerTools.buildImage {
 
     Env = [
       "CONDUWUIT_TLS__KEY=${./private_key.key}"
-      "CONDUWUIT_TLS__CERTS=/complement/certificate.crt"
+      "CONDUWUIT_TLS__CERTS=${./certificate.crt}"
       "CONDUWUIT_CONFIG=${./config.toml}"
       "RUST_BACKTRACE=full"
     ];
