@@ -4,7 +4,7 @@ use std::{
 };
 
 use conduwuit::{
-	Error, Result, err, error, implement, utils,
+	Err, Error, Result, err, error, implement, utils,
 	utils::{hash, string::EMPTY},
 };
 use database::{Deserialized, Json, Map};
@@ -150,11 +150,17 @@ pub async fn try_auth(
 				));
 			};
 
-			let user_id = UserId::parse_with_server_name(
+			let user_id_from_username = UserId::parse_with_server_name(
 				username.clone(),
 				self.services.globals.server_name(),
 			)
 			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "User ID is invalid."))?;
+
+			// Check if the access token being used matches the credentials used for UIAA
+			if user_id.localpart() != user_id_from_username.localpart() {
+				return Err!(Request(Forbidden("User ID and access token mismatch.")));
+			}
+			let user_id = user_id_from_username;
 
 			// Check if password is correct
 			if let Ok(hash) = self.services.users.password_hash(&user_id).await {
