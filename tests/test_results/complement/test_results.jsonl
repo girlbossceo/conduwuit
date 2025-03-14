@@ -127,7 +127,7 @@
 {"Action":"fail","Test":"TestDeviceListsUpdateOverFederationOnRoomJoin"}
 {"Action":"fail","Test":"TestDeviceManagement"}
 {"Action":"fail","Test":"TestDeviceManagement/DELETE_/device/{deviceId}"}
-{"Action":"fail","Test":"TestDeviceManagement/DELETE_/device/{deviceId}_requires_UI_auth_user_to_match_device_owner"}
+{"Action":"pass","Test":"TestDeviceManagement/DELETE_/device/{deviceId}_requires_UI_auth_user_to_match_device_owner"}
 {"Action":"pass","Test":"TestDeviceManagement/GET_/device/{deviceId}"}
 {"Action":"pass","Test":"TestDeviceManagement/GET_/device/{deviceId}_gives_a_404_for_unknown_devices"}
 {"Action":"pass","Test":"TestDeviceManagement/GET_/devices"}
