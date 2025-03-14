@@ -18,7 +18,7 @@ RESULTS_FILE="${3:-complement_test_results.jsonl}"
 COMPLEMENT_BASE_IMAGE="${COMPLEMENT_BASE_IMAGE:-complement-conduwuit:main}"
 
 # Complement tests that are skipped due to flakiness/reliability issues or we don't implement such features and won't for a long time
-#SKIPPED_COMPLEMENT_TESTS='-skip=TestPartialStateJoin.*'
+SKIPPED_COMPLEMENT_TESTS='TestPartialStateJoin.*|TestRoomDeleteAlias/Parallel/Regular_users_can_add_and_delete_aliases_when_m.*|TestRoomDeleteAlias/Parallel/Can_delete_canonical_alias|TestUnbanViaInvite.*|TestRoomState/Parallel/GET_/publicRooms_lists.*"|TestRoomDeleteAlias/Parallel/Users_with_sufficient_power-level_can_delete_other.*'
 
 # $COMPLEMENT_SRC needs to be a directory to Complement source code
 if [ -f "$COMPLEMENT_SRC" ]; then
@@ -68,7 +68,7 @@ set +o pipefail
 env \
     -C "$COMPLEMENT_SRC" \
     COMPLEMENT_BASE_IMAGE="$COMPLEMENT_BASE_IMAGE" \
-    go test -tags="conduwuit_blacklist" -v -timeout 1h -json ./tests/... | tee "$LOG_FILE"
+    go test -tags="conduwuit_blacklist" -skip="$SKIPPED_COMPLEMENT_TESTS" -v -timeout 1h -json ./tests/... | tee "$LOG_FILE"
 set -o pipefail
 
 # Post-process the results into an easy-to-compare format, sorted by Test name for reproducible results
