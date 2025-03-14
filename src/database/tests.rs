@@ -152,8 +152,8 @@ fn ser_json_macro() {
 	let content = serde_json::to_value(content).expect("failed to serialize content");
 	let sender: &UserId = "@foo:example.com".try_into().unwrap();
 	let serialized = serialize_to_vec(Json(json!({
-		"sender": sender,
 		"content": content,
+		"sender": sender,
 	})))
 	.expect("failed to serialize value");
 
