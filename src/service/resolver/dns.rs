@@ -78,6 +78,10 @@ impl Resolver {
 			server: server.clone(),
 		}))
 	}
+
+	/// Clear the in-memory hickory-dns caches
+	#[inline]
+	pub fn clear_cache(&self) { self.resolver.clear_cache(); }
 }
 
 impl Resolve for Resolver {

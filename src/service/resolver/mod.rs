@@ -6,6 +6,7 @@ mod tests;
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use conduwuit::{Result, Server, arrayvec::ArrayString, utils::MutexMap};
 
 use self::{cache::Cache, dns::Resolver};
@@ -26,6 +27,7 @@ struct Services {
 type Resolving = MutexMap<NameBuf, ()>;
 type NameBuf = ArrayString<256>;
 
+#[async_trait]
 impl crate::Service for Service {
 	#[allow(clippy::as_conversions, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
@@ -39,6 +41,11 @@ impl crate::Service for Service {
 				client: args.depend::<client::Service>("client"),
 			},
 		}))
+	}
+
+	async fn clear_cache(&self) {
+		self.resolver.clear_cache();
+		self.cache.clear().await;
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
