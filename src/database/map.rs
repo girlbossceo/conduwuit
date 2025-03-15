@@ -1,3 +1,4 @@
+mod clear;
 pub mod compact;
 mod contains;
 mod count;
