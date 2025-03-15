@@ -1,8 +1,8 @@
 use conduwuit::{Config, Result, err, utils::math::Expected};
 use rocksdb::{
 	BlockBasedIndexType, BlockBasedOptions, BlockBasedPinningTier, Cache,
-	DBCompressionType as CompressionType, DataBlockIndexType, LruCacheOptions, Options,
-	UniversalCompactOptions, UniversalCompactionStopStyle,
+	DBCompressionType as CompressionType, DataBlockIndexType, FifoCompactOptions,
+	LruCacheOptions, Options, UniversalCompactOptions, UniversalCompactionStopStyle,
 };
 
 use super::descriptor::{CacheDisp, Descriptor};
@@ -16,7 +16,7 @@ pub(super) const SENTINEL_COMPRESSION_LEVEL: i32 = 32767;
 pub(crate) fn cf_options(ctx: &Context, opts: Options, desc: &Descriptor) -> Result<Options> {
 	let cache = get_cache(ctx, desc);
 	let config = &ctx.server.config;
-	descriptor_cf_options(opts, desc.clone(), config, cache.as_ref())
+	descriptor_cf_options(opts, *desc, config, cache.as_ref())
 }
 
 fn descriptor_cf_options(
@@ -46,6 +46,7 @@ fn descriptor_cf_options(
 	opts.set_compaction_style(desc.compaction);
 	opts.set_compaction_pri(desc.compaction_pri);
 	opts.set_universal_compaction_options(&uc_options(&desc));
+	opts.set_fifo_compaction_options(&fifo_options(&desc));
 
 	let compression_shape: Vec<_> = desc
 		.compression_shape
@@ -140,6 +141,13 @@ fn set_compression(desc: &mut Descriptor, config: &Config) {
 	if !config.rocksdb_bottommost_compression {
 		desc.bottommost_level = None;
 	}
+}
+
+fn fifo_options(desc: &Descriptor) -> FifoCompactOptions {
+	let mut opts = FifoCompactOptions::default();
+	opts.set_max_table_files_size(desc.limit_size);
+
+	opts
 }
 
 fn uc_options(desc: &Descriptor) -> UniversalCompactOptions {

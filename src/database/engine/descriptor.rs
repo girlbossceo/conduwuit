@@ -6,14 +6,8 @@ use rocksdb::{
 
 use super::cf_opts::SENTINEL_COMPRESSION_LEVEL;
 
+/// Column Descriptor
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum CacheDisp {
-	Unique,
-	Shared,
-	SharedWith(&'static str),
-}
-
-#[derive(Debug, Clone)]
 pub(crate) struct Descriptor {
 	pub(crate) name: &'static str,
 	pub(crate) dropped: bool,
@@ -30,6 +24,7 @@ pub(crate) struct Descriptor {
 	pub(crate) file_shape: i32,
 	pub(crate) level0_width: i32,
 	pub(crate) merge_width: (i32, i32),
+	pub(crate) limit_size: u64,
 	pub(crate) ttl: u64,
 	pub(crate) compaction: CompactionStyle,
 	pub(crate) compaction_pri: CompactionPri,
@@ -46,7 +41,16 @@ pub(crate) struct Descriptor {
 	pub(crate) auto_readahead_max: usize,
 }
 
-pub(crate) static BASE: Descriptor = Descriptor {
+/// Cache Disposition
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CacheDisp {
+	Unique,
+	Shared,
+	SharedWith(&'static str),
+}
+
+/// Base descriptor supplying common defaults to all derived descriptors.
+static BASE: Descriptor = Descriptor {
 	name: EMPTY,
 	dropped: false,
 	cache_disp: CacheDisp::Shared,
@@ -62,6 +66,7 @@ pub(crate) static BASE: Descriptor = Descriptor {
 	file_shape: 2,
 	level0_width: 2,
 	merge_width: (2, 16),
+	limit_size: 0,
 	ttl: 60 * 60 * 24 * 21,
 	compaction: CompactionStyle::Level,
 	compaction_pri: CompactionPri::MinOverlappingRatio,
@@ -78,6 +83,10 @@ pub(crate) static BASE: Descriptor = Descriptor {
 	auto_readahead_max: 1024 * 1024 * 2,
 };
 
+/// Tombstone descriptor for columns which have been or will be deleted.
+pub(crate) static DROPPED: Descriptor = Descriptor { dropped: true, ..BASE };
+
+/// Descriptor for large datasets with random updates across the keyspace.
 pub(crate) static RANDOM: Descriptor = Descriptor {
 	compaction_pri: CompactionPri::OldestSmallestSeqFirst,
 	write_size: 1024 * 1024 * 32,
@@ -88,6 +97,7 @@ pub(crate) static RANDOM: Descriptor = Descriptor {
 	..BASE
 };
 
+/// Descriptor for large datasets with updates to the end of the keyspace.
 pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	compaction_pri: CompactionPri::OldestLargestSeqFirst,
 	write_size: 1024 * 1024 * 64,
@@ -101,6 +111,7 @@ pub(crate) static SEQUENTIAL: Descriptor = Descriptor {
 	..BASE
 };
 
+/// Descriptor for small datasets with random updates across the keyspace.
 pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	compaction: CompactionStyle::Universal,
 	write_size: 1024 * 1024 * 16,
@@ -117,6 +128,7 @@ pub(crate) static RANDOM_SMALL: Descriptor = Descriptor {
 	..RANDOM
 };
 
+/// Descriptor for small datasets with updates to the end of the keyspace.
 pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	compaction: CompactionStyle::Universal,
 	write_size: 1024 * 1024 * 16,
@@ -131,4 +143,15 @@ pub(crate) static SEQUENTIAL_SMALL: Descriptor = Descriptor {
 	compression_shape: [0, 0, 0, 0, 1, 1, 1],
 	compressed_index: false,
 	..SEQUENTIAL
+};
+
+/// Descriptor for small persistent caches with random updates. Oldest entries
+/// are deleted after limit_size reached.
+pub(crate) static RANDOM_SMALL_CACHE: Descriptor = Descriptor {
+	compaction: CompactionStyle::Fifo,
+	cache_disp: CacheDisp::Unique,
+	limit_size: 1024 * 1024 * 64,
+	ttl: 60 * 60 * 24 * 14,
+	file_shape: 2,
+	..RANDOM_SMALL
 };

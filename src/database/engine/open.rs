@@ -101,13 +101,11 @@ fn configure_cfds(
 		debug!("Creating new column {name:?} not previously found in existing database.");
 	});
 
-	let missing_descriptors = missing
-		.clone()
-		.map(|_| Descriptor { dropped: true, ..descriptor::BASE });
+	let missing_descriptors = missing.clone().map(|_| descriptor::DROPPED);
 
 	let cfopts: Vec<_> = desc
 		.iter()
-		.cloned()
+		.copied()
 		.chain(missing_descriptors)
 		.map(|ref desc| cf_options(ctx, db_opts.clone(), desc))
 		.collect::<Result<_>>()?;

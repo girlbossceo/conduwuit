@@ -233,7 +233,7 @@ pub(super) static MAPS: &[Descriptor] = &[
 	},
 	Descriptor {
 		name: "servername_destination",
-		..descriptor::RANDOM_SMALL
+		..descriptor::RANDOM_SMALL_CACHE
 	},
 	Descriptor {
 		name: "servername_educount",
@@ -241,7 +241,7 @@ pub(super) static MAPS: &[Descriptor] = &[
 	},
 	Descriptor {
 		name: "servername_override",
-		..descriptor::RANDOM_SMALL
+		..descriptor::RANDOM_SMALL_CACHE
 	},
 	Descriptor {
 		name: "servernameevent_data",
