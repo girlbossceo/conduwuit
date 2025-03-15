@@ -17,6 +17,7 @@ use std::{
 	time::Instant,
 };
 
+use async_trait::async_trait;
 use conduwuit::{
 	Err, PduEvent, Result, RoomVersion, Server,
 	utils::{MutexMap, TryFutureExtExt},
@@ -54,6 +55,7 @@ struct Services {
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
 type HandleTimeMap = HashMap<OwnedRoomId, (OwnedEventId, Instant)>;
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
@@ -79,7 +81,7 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
 		let mutex_federation = self.mutex_federation.len();
 		writeln!(out, "federation_mutex: {mutex_federation}")?;
 

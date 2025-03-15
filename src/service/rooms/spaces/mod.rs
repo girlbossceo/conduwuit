@@ -2,8 +2,9 @@ mod pagination_token;
 #[cfg(test)]
 mod tests;
 
-use std::sync::Arc;
+use std::{fmt::Write, sync::Arc};
 
+use async_trait::async_trait;
 use conduwuit::{
 	Err, Error, Result, implement,
 	utils::{
@@ -70,6 +71,7 @@ pub enum Identifier<'a> {
 
 type Cache = LruCache<OwnedRoomId, Option<CachedSpaceHierarchySummary>>;
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
@@ -89,6 +91,16 @@ impl crate::Service for Service {
 			roomid_spacehierarchy_cache: Mutex::new(LruCache::new(usize_from_f64(cache_size)?)),
 		}))
 	}
+
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
+		let roomid_spacehierarchy_cache = self.roomid_spacehierarchy_cache.lock().await.len();
+
+		writeln!(out, "roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}")?;
+
+		Ok(())
+	}
+
+	async fn clear_cache(&self) { self.roomid_spacehierarchy_cache.lock().await.clear(); }
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }

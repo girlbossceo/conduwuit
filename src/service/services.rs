@@ -1,12 +1,12 @@
 use std::{
 	any::Any,
 	collections::BTreeMap,
-	fmt::Write,
 	sync::{Arc, RwLock},
 };
 
-use conduwuit::{Result, Server, debug, debug_info, info, trace};
+use conduwuit::{Result, Server, debug, debug_info, info, trace, utils::stream::IterStream};
 use database::Database;
+use futures::{Stream, StreamExt, TryStreamExt};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -171,40 +171,21 @@ impl Services {
 	}
 
 	pub async fn clear_cache(&self) {
-		for (service, ..) in self.service.read().expect("locked for reading").values() {
-			if let Some(service) = service.upgrade() {
-				service.clear_cache();
-			}
-		}
-
-		//TODO
-		self.rooms
-			.spaces
-			.roomid_spacehierarchy_cache
-			.lock()
-			.await
-			.clear();
+		self.services()
+			.for_each(|service| async move {
+				service.clear_cache().await;
+			})
+			.await;
 	}
 
 	pub async fn memory_usage(&self) -> Result<String> {
-		let mut out = String::new();
-		for (service, ..) in self.service.read().expect("locked for reading").values() {
-			if let Some(service) = service.upgrade() {
-				service.memory_usage(&mut out)?;
-			}
-		}
-
-		//TODO
-		let roomid_spacehierarchy_cache = self
-			.rooms
-			.spaces
-			.roomid_spacehierarchy_cache
-			.lock()
+		self.services()
+			.map(Ok)
+			.try_fold(String::new(), |mut out, service| async move {
+				service.memory_usage(&mut out).await?;
+				Ok(out)
+			})
 			.await
-			.len();
-		writeln!(out, "roomid_spacehierarchy_cache: {roomid_spacehierarchy_cache}")?;
-
-		Ok(out)
 	}
 
 	fn interrupt(&self) {
@@ -215,6 +196,18 @@ impl Services {
 				service.interrupt();
 			}
 		}
+	}
+
+	/// Iterate from snapshot of the services map
+	fn services(&self) -> impl Stream<Item = Arc<dyn Service>> + Send {
+		self.service
+			.read()
+			.expect("locked for reading")
+			.values()
+			.filter_map(|val| val.0.upgrade())
+			.collect::<Vec<_>>()
+			.into_iter()
+			.stream()
 	}
 
 	#[inline]

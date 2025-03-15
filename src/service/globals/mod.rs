@@ -7,6 +7,7 @@ use std::{
 	time::Instant,
 };
 
+use async_trait::async_trait;
 use conduwuit::{Result, Server, error, utils::bytes::pretty};
 use data::Data;
 use regex::RegexSet;
@@ -27,6 +28,7 @@ pub struct Service {
 
 type RateLimitState = (Instant, u32); // Time if last failed try, number of failed tries
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let db = Data::new(&args);
@@ -73,7 +75,7 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
 		let (ber_count, ber_bytes) = self.bad_event_ratelimiter.read()?.iter().fold(
 			(0_usize, 0_usize),
 			|(mut count, mut bytes), (event_id, _)| {
@@ -89,7 +91,7 @@ impl crate::Service for Service {
 		Ok(())
 	}
 
-	fn clear_cache(&self) {
+	async fn clear_cache(&self) {
 		self.bad_event_ratelimiter
 			.write()
 			.expect("locked for writing")

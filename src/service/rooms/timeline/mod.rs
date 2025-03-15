@@ -9,6 +9,7 @@ use std::{
 	sync::Arc,
 };
 
+use async_trait::async_trait;
 use conduwuit::{
 	Err, Error, Result, Server, at, debug, debug_warn, err, error, implement, info,
 	pdu::{EventHash, PduBuilder, PduCount, PduEvent, gen_event_id},
@@ -109,6 +110,7 @@ struct Services {
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
 pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
@@ -142,7 +144,7 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result<()> {
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
 		let mutex_insert = self.mutex_insert.len();
 		writeln!(out, "insert_mutex: {mutex_insert}")?;
 

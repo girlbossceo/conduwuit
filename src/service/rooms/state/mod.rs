@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Write, iter::once, sync::Arc};
 
+use async_trait::async_trait;
 use conduwuit::{
 	PduEvent, Result, err,
 	result::FlatOk,
@@ -56,6 +57,7 @@ struct Data {
 type RoomMutexMap = MutexMap<OwnedRoomId, ()>;
 pub type RoomMutexGuard = MutexMapGuard<OwnedRoomId, ()>;
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
@@ -79,7 +81,7 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
 		let mutex = self.mutex.len();
 		writeln!(out, "state_mutex: {mutex}")?;
 

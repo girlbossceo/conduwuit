@@ -31,10 +31,10 @@ pub(crate) trait Service: Any + Send + Sync {
 	fn interrupt(&self) {}
 
 	/// Clear any caches or similar runtime state.
-	fn clear_cache(&self) {}
+	async fn clear_cache(&self) {}
 
 	/// Memory usage report in a markdown string.
-	fn memory_usage(&self, _out: &mut dyn Write) -> Result<()> { Ok(()) }
+	async fn memory_usage(&self, _out: &mut (dyn Write + Send)) -> Result { Ok(()) }
 
 	/// Return the name of the service.
 	/// i.e. `crate::service::make_name(std::module_path!())`

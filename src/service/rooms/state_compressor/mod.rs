@@ -5,6 +5,7 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
+use async_trait::async_trait;
 use conduwuit::{
 	Result,
 	arrayvec::ArrayVec,
@@ -65,6 +66,7 @@ type ParentStatesVec = Vec<ShortStateInfo>;
 pub type CompressedState = BTreeSet<CompressedStateEvent>;
 pub type CompressedStateEvent = [u8; 2 * size_of::<ShortId>()];
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
@@ -82,7 +84,7 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
 		let (cache_len, ents) = {
 			let cache = self.stateinfo_cache.lock().expect("locked");
 			let ents = cache.iter().map(at!(1)).flat_map(|vec| vec.iter()).fold(
@@ -108,7 +110,7 @@ impl crate::Service for Service {
 		Ok(())
 	}
 
-	fn clear_cache(&self) { self.stateinfo_cache.lock().expect("locked").clear(); }
+	async fn clear_cache(&self) { self.stateinfo_cache.lock().expect("locked").clear(); }
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }
 }

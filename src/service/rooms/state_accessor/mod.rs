@@ -8,6 +8,7 @@ use std::{
 	sync::{Arc, Mutex as StdMutex, Mutex},
 };
 
+use async_trait::async_trait;
 use conduwuit::{
 	Result, err, utils,
 	utils::math::{Expected, usize_from_f64},
@@ -57,6 +58,7 @@ struct Data {
 	shorteventid_shortstatehash: Arc<Map>,
 }
 
+#[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
 		let config = &args.server.config;
@@ -86,7 +88,7 @@ impl crate::Service for Service {
 		}))
 	}
 
-	fn memory_usage(&self, out: &mut dyn Write) -> Result {
+	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
 		use utils::bytes::pretty;
 
 		let (svc_count, svc_bytes) = self.server_visibility_cache.lock()?.iter().fold(
@@ -119,7 +121,7 @@ impl crate::Service for Service {
 		Ok(())
 	}
 
-	fn clear_cache(&self) {
+	async fn clear_cache(&self) {
 		self.server_visibility_cache.lock().expect("locked").clear();
 		self.user_visibility_cache.lock().expect("locked").clear();
 	}
