@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use axum::extract::State;
 use conduwuit::{Err, err};
 use ruma::{
@@ -232,16 +234,77 @@ pub(crate) async fn add_backup_keys_for_session_route(
 		)));
 	}
 
-	services
+	// Check if we already have a better key
+	let mut ok_to_replace = true;
+	if let Some(old_key) = &services
 		.key_backups
-		.add_key(
-			body.sender_user(),
-			&body.version,
-			&body.room_id,
-			&body.session_id,
-			&body.session_data,
-		)
-		.await?;
+		.get_session(body.sender_user(), &body.version, &body.room_id, &body.session_id)
+		.await
+		.ok()
+	{
+		let old_is_verified = old_key
+			.get_field::<bool>("is_verified")?
+			.unwrap_or_default();
+
+		let new_is_verified = body
+			.session_data
+			.get_field::<bool>("is_verified")?
+			.ok_or_else(|| err!(Request(BadJson("`is_verified` field should exist"))))?;
+
+		// Prefer key that `is_verified`
+		if old_is_verified != new_is_verified {
+			if old_is_verified {
+				ok_to_replace = false;
+			}
+		} else {
+			// If both have same `is_verified`, prefer the one with lower
+			// `first_message_index`
+			let old_first_message_index = old_key
+				.get_field::<UInt>("first_message_index")?
+				.unwrap_or(UInt::MAX);
+
+			let new_first_message_index = body
+				.session_data
+				.get_field::<UInt>("first_message_index")?
+				.ok_or_else(|| {
+					err!(Request(BadJson("`first_message_index` field should exist")))
+				})?;
+
+			ok_to_replace = match new_first_message_index.cmp(&old_first_message_index) {
+				| Ordering::Less => true,
+				| Ordering::Greater => false,
+				| Ordering::Equal => {
+					// If both have same `first_message_index`, prefer the one with lower
+					// `forwarded_count`
+					let old_forwarded_count = old_key
+						.get_field::<UInt>("forwarded_count")?
+						.unwrap_or(UInt::MAX);
+
+					let new_forwarded_count = body
+						.session_data
+						.get_field::<UInt>("forwarded_count")?
+						.ok_or_else(|| {
+							err!(Request(BadJson("`forwarded_count` field should exist")))
+						})?;
+
+					new_forwarded_count < old_forwarded_count
+				},
+			};
+		};
+	}
+
+	if ok_to_replace {
+		services
+			.key_backups
+			.add_key(
+				body.sender_user(),
+				&body.version,
+				&body.room_id,
+				&body.session_id,
+				&body.session_data,
+			)
+			.await?;
+	}
 
 	Ok(add_backup_keys_for_session::v3::Response {
 		count: services
