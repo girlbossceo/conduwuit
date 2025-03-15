@@ -134,10 +134,10 @@
 {"Action":"pass","Test":"TestDeviceManagement/PUT_/device/{deviceId}_gives_a_404_for_unknown_devices"}
 {"Action":"pass","Test":"TestDeviceManagement/PUT_/device/{deviceId}_updates_device_fields"}
 {"Action":"pass","Test":"TestDisplayNameUpdate"}
-{"Action":"fail","Test":"TestE2EKeyBackupReplaceRoomKeyRules"}
-{"Action":"fail","Test":"TestE2EKeyBackupReplaceRoomKeyRules/parallel"}
-{"Action":"fail","Test":"TestE2EKeyBackupReplaceRoomKeyRules/parallel/{isVerified:false_firstMessageIndex:10_forwardedCount:5}"}
-{"Action":"fail","Test":"TestE2EKeyBackupReplaceRoomKeyRules/parallel/{isVerified:true_firstMessageIndex:10_forwardedCount:5}"}
+{"Action":"pass","Test":"TestE2EKeyBackupReplaceRoomKeyRules"}
+{"Action":"pass","Test":"TestE2EKeyBackupReplaceRoomKeyRules/parallel"}
+{"Action":"pass","Test":"TestE2EKeyBackupReplaceRoomKeyRules/parallel/{isVerified:false_firstMessageIndex:10_forwardedCount:5}"}
+{"Action":"pass","Test":"TestE2EKeyBackupReplaceRoomKeyRules/parallel/{isVerified:true_firstMessageIndex:10_forwardedCount:5}"}
 {"Action":"pass","Test":"TestEvent"}
 {"Action":"pass","Test":"TestEvent/Parallel"}
 {"Action":"pass","Test":"TestEvent/Parallel/Large_Event"}
