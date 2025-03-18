@@ -80,14 +80,26 @@ pub(crate) async fn upload_keys_route(
 			)));
 		}
 
-		// TODO: merge this and the existing event?
-		// This check is needed to assure that signatures are kept
-		if services
+		if let Ok(existing_keys) = services
 			.users
 			.get_device_keys(sender_user, sender_device)
 			.await
-			.is_err()
 		{
+			if existing_keys.json().get() == device_keys.json().get() {
+				debug!(
+					?sender_user,
+					?sender_device,
+					?device_keys,
+					"Ignoring user uploaded keys as they are an exact copy already in the \
+					 database"
+				);
+			} else {
+				services
+					.users
+					.add_device_keys(sender_user, sender_device, device_keys)
+					.await;
+			}
+		} else {
 			services
 				.users
 				.add_device_keys(sender_user, sender_device, device_keys)

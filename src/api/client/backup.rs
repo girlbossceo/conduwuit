@@ -290,7 +290,7 @@ pub(crate) async fn add_backup_keys_for_session_route(
 					new_forwarded_count < old_forwarded_count
 				},
 			};
-		};
+		}
 	}
 
 	if ok_to_replace {
