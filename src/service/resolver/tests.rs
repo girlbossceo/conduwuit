@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::fed::{FedDest, add_port_to_hostname, get_ip_with_port};
 
 #[test]

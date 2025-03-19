@@ -2,7 +2,9 @@ pub mod actual;
 pub mod cache;
 mod dns;
 pub mod fed;
+#[cfg(test)]
 mod tests;
+mod well_known;
 
 use std::sync::Arc;
 
