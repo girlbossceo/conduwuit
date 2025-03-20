@@ -69,8 +69,8 @@
 {"Action":"pass","Test":"TestChangePassword/After_changing_password,_can_log_in_with_new_password"}
 {"Action":"pass","Test":"TestChangePassword/After_changing_password,_different_sessions_can_optionally_be_kept"}
 {"Action":"pass","Test":"TestChangePassword/After_changing_password,_existing_session_still_works"}
-{"Action":"fail","Test":"TestChangePasswordPushers"}
-{"Action":"fail","Test":"TestChangePasswordPushers/Pushers_created_with_a_different_access_token_are_deleted_on_password_change"}
+{"Action":"pass","Test":"TestChangePasswordPushers"}
+{"Action":"pass","Test":"TestChangePasswordPushers/Pushers_created_with_a_different_access_token_are_deleted_on_password_change"}
 {"Action":"pass","Test":"TestChangePasswordPushers/Pushers_created_with_the_same_access_token_are_not_deleted_on_password_change"}
 {"Action":"fail","Test":"TestClientSpacesSummary"}
 {"Action":"fail","Test":"TestClientSpacesSummary/max_depth"}
