@@ -10,7 +10,7 @@ use database::{Deserialized, Ignore, Interfix, Json, Map};
 use futures::{Stream, StreamExt};
 use ipaddress::IPAddress;
 use ruma::{
-	RoomId, UInt, UserId,
+	DeviceId, OwnedDeviceId, RoomId, UInt, UserId,
 	api::{
 		IncomingResponse, MatrixVersion, OutgoingRequest, SendAccessToken,
 		client::push::{Pusher, PusherKind, set_pusher},
@@ -48,6 +48,7 @@ struct Services {
 
 struct Data {
 	senderkey_pusher: Arc<Map>,
+	pushkey_deviceid: Arc<Map>,
 }
 
 impl crate::Service for Service {
@@ -55,6 +56,7 @@ impl crate::Service for Service {
 		Ok(Arc::new(Self {
 			db: Data {
 				senderkey_pusher: args.db["senderkey_pusher"].clone(),
+				pushkey_deviceid: args.db["pushkey_deviceid"].clone(),
 			},
 			services: Services {
 				globals: args.depend::<globals::Service>("globals"),
@@ -75,6 +77,7 @@ impl Service {
 	pub async fn set_pusher(
 		&self,
 		sender: &UserId,
+		sender_device: &DeviceId,
 		pusher: &set_pusher::v3::PusherAction,
 	) -> Result {
 		match pusher {
@@ -123,22 +126,33 @@ impl Service {
 					}
 				}
 
-				let key = (sender, data.pusher.ids.pushkey.as_str());
+				let pushkey = data.pusher.ids.pushkey.as_str();
+				let key = (sender, pushkey);
 				self.db.senderkey_pusher.put(key, Json(pusher));
+				self.db.pushkey_deviceid.insert(pushkey, sender_device);
 			},
 			| set_pusher::v3::PusherAction::Delete(ids) => {
-				let key = (sender, ids.pushkey.as_str());
-				self.db.senderkey_pusher.del(key);
-
-				self.services
-					.sending
-					.cleanup_events(None, Some(sender), Some(ids.pushkey.as_str()))
-					.await
-					.ok();
+				self.delete_pusher(sender, ids.pushkey.as_str()).await;
 			},
 		}
 
 		Ok(())
+	}
+
+	pub async fn delete_pusher(&self, sender: &UserId, pushkey: &str) {
+		let key = (sender, pushkey);
+		self.db.senderkey_pusher.del(key);
+		self.db.pushkey_deviceid.remove(pushkey);
+
+		self.services
+			.sending
+			.cleanup_events(None, Some(sender), Some(pushkey))
+			.await
+			.ok();
+	}
+
+	pub async fn get_pusher_device(&self, pushkey: &str) -> Result<OwnedDeviceId> {
+		self.db.pushkey_deviceid.get(pushkey).await.deserialized()
 	}
 
 	pub async fn get_pusher(&self, sender: &UserId, pushkey: &str) -> Result<Pusher> {

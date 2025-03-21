@@ -4,7 +4,8 @@ use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
 	Err, Error, PduBuilder, Result, debug_info, err, error, info, is_equal_to, utils,
-	utils::ReadyExt, warn,
+	utils::{ReadyExt, stream::BroadbandExt},
+	warn,
 };
 use futures::{FutureExt, StreamExt};
 use register::RegistrationKind;
@@ -626,6 +627,26 @@ pub(crate) async fn change_password_route(
 			.all_device_ids(sender_user)
 			.ready_filter(|id| *id != sender_device)
 			.for_each(|id| services.users.remove_device(sender_user, id))
+			.await;
+
+		// Remove all pushers except the ones associated with this session
+		services
+			.pusher
+			.get_pushkeys(sender_user)
+			.map(ToOwned::to_owned)
+			.broad_filter_map(|pushkey| async move {
+				services
+					.pusher
+					.get_pusher_device(&pushkey)
+					.await
+					.ok()
+					.filter(|pusher_device| pusher_device != sender_device)
+					.is_some()
+					.then_some(pushkey)
+			})
+			.for_each(|pushkey| async move {
+				services.pusher.delete_pusher(sender_user, &pushkey).await;
+			})
 			.await;
 	}
 

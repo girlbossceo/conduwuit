@@ -503,7 +503,7 @@ pub(crate) async fn set_pushers_route(
 
 	services
 		.pusher
-		.set_pusher(sender_user, &body.action)
+		.set_pusher(sender_user, body.sender_device(), &body.action)
 		.await?;
 
 	Ok(set_pusher::v3::Response::new())
