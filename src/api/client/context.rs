@@ -105,7 +105,7 @@ pub(crate) async fn get_context_route(
 		.collect();
 
 	let (base_event, events_before, events_after): (_, Vec<_>, Vec<_>) =
-		join3(base_event, events_before, events_after).await;
+		join3(base_event, events_before, events_after).boxed().await;
 
 	let lazy_loading_context = lazy_loading::Context {
 		user_id: sender_user,

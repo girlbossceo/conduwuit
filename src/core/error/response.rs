@@ -86,7 +86,7 @@ pub(super) fn bad_request_code(kind: &ErrorKind) -> StatusCode {
 
 pub(super) fn ruma_error_message(error: &ruma::api::client::error::Error) -> String {
 	if let ErrorBody::Standard { message, .. } = &error.body {
-		return message.to_string();
+		return message.clone();
 	}
 
 	format!("{error}")

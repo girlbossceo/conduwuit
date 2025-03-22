@@ -256,7 +256,7 @@ pub fn url_preview_allowed(&self, url: &Url) -> bool {
 
 		if allowlist_url_contains
 			.iter()
-			.any(|url_s| url.to_string().contains(&url_s.to_string()))
+			.any(|url_s| url.to_string().contains(url_s))
 		{
 			debug!("URL {} is allowed by url_preview_url_contains_allowlist (check 4/4)", &host);
 			return true;
