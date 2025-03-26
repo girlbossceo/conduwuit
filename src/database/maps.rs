@@ -122,12 +122,16 @@ pub(super) static MAPS: &[Descriptor] = &[
 		..descriptor::SEQUENTIAL
 	},
 	Descriptor {
-		name: "presenceid_presence",
-		..descriptor::SEQUENTIAL_SMALL
-	},
-	Descriptor {
 		name: "publicroomids",
 		..descriptor::RANDOM_SMALL
+	},
+	Descriptor {
+		name: "pushkey_deviceid",
+		..descriptor::RANDOM_SMALL
+	},
+	Descriptor {
+		name: "presenceid_presence",
+		..descriptor::SEQUENTIAL_SMALL
 	},
 	Descriptor {
 		name: "readreceiptid_readreceipt",
@@ -217,10 +221,6 @@ pub(super) static MAPS: &[Descriptor] = &[
 	},
 	Descriptor {
 		name: "senderkey_pusher",
-		..descriptor::RANDOM_SMALL
-	},
-	Descriptor {
-		name: "pushkey_deviceid",
 		..descriptor::RANDOM_SMALL
 	},
 	Descriptor {
