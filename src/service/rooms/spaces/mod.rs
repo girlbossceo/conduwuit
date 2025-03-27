@@ -238,7 +238,7 @@ async fn get_summary_and_children_federation(
 fn get_stripped_space_child_events<'a>(
 	&'a self,
 	room_id: &'a RoomId,
-) -> impl Stream<Item = Raw<HierarchySpaceChildEvent>> + 'a {
+) -> impl Stream<Item = Raw<HierarchySpaceChildEvent>> + Send + 'a {
 	self.services
 		.state
 		.get_room_shortstatehash(room_id)
