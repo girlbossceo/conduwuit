@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduwuit::{debug_error, trace, warn};
+use conduwuit_core::{debug_error, trace, warn};
 use tokio::signal;
 
 use super::server::Server;

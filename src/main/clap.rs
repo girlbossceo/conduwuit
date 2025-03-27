@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use clap::{ArgAction, Parser};
-use conduwuit::{
+use conduwuit_core::{
 	Err, Result,
 	config::{Figment, FigmentValue},
 	err, toml,
@@ -12,7 +12,12 @@ use conduwuit::{
 
 /// Commandline arguments
 #[derive(Parser, Debug)]
-#[clap(version = conduwuit::version(), about, long_about = None, name = "conduwuit")]
+#[clap(
+	about,
+	long_about = None,
+	name = "conduwuit",
+	version = conduwuit_core::version(),
+)]
 pub(crate) struct Args {
 	#[arg(short, long)]
 	/// Path to the config TOML file (optional)

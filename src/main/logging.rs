@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use conduwuit::{
+use conduwuit_core::{
 	Result,
 	config::Config,
 	debug_warn, err,

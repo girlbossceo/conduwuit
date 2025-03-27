@@ -9,13 +9,13 @@ use std::{
 	sync::{Arc, atomic::Ordering},
 };
 
-use conduwuit::{Error, Result, debug, error, mods};
+use conduwuit_core::{Error, Result, debug, error, mods};
 use conduwuit_service::Services;
 
 use crate::Server;
 
 type StartFuncResult = Pin<Box<dyn Future<Output = Result<Arc<Services>>> + Send>>;
-type StartFuncProto = fn(&Arc<conduwuit::Server>) -> StartFuncResult;
+type StartFuncProto = fn(&Arc<conduwuit_core::Server>) -> StartFuncResult;
 
 type RunFuncResult = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 type RunFuncProto = fn(&Arc<Services>) -> RunFuncResult;
@@ -34,8 +34,8 @@ const MODULE_NAMES: &[&str] = &[
 ];
 
 #[cfg(panic_trap)]
-conduwuit::mod_init! {{
-	conduwuit::debug::set_panic_trap();
+conduwuit_core::mod_init! {{
+	conduwuit_core::debug::set_panic_trap();
 }}
 
 pub(crate) async fn run(server: &Arc<Server>, starts: bool) -> Result<(bool, bool), Error> {

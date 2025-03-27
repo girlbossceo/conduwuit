@@ -7,11 +7,9 @@ mod sentry;
 mod server;
 mod signal;
 
-extern crate conduwuit_core as conduwuit;
-
 use std::sync::{Arc, atomic::Ordering};
 
-use conduwuit::{Error, Result, debug_info, error, rustc_flags_capture};
+use conduwuit_core::{Error, Result, debug_info, error, rustc_flags_capture};
 use server::Server;
 
 rustc_flags_capture! {}

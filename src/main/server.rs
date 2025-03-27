@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use conduwuit::{
+use conduwuit_core::{
 	Error, Result,
 	config::Config,
 	info,
@@ -14,7 +14,7 @@ use crate::{clap::Args, logging::TracingFlameGuard};
 /// Server runtime state; complete
 pub(crate) struct Server {
 	/// Server runtime state; public portion
-	pub(crate) server: Arc<conduwuit::Server>,
+	pub(crate) server: Arc<conduwuit_core::Server>,
 
 	pub(crate) services: Mutex<Option<Arc<conduwuit_service::Services>>>,
 
@@ -25,7 +25,7 @@ pub(crate) struct Server {
 
 	#[cfg(all(conduwuit_mods, feature = "conduwuit_mods"))]
 	// Module instances; TODO: move to mods::loaded mgmt vector
-	pub(crate) mods: tokio::sync::RwLock<Vec<conduwuit::mods::Module>>,
+	pub(crate) mods: tokio::sync::RwLock<Vec<conduwuit_core::mods::Module>>,
 }
 
 impl Server {
@@ -66,11 +66,11 @@ impl Server {
 			database_path = ?config.database_path,
 			log_levels = %config.log,
 			"{}",
-			conduwuit::version(),
+			conduwuit_core::version(),
 		);
 
 		Ok(Arc::new(Self {
-			server: Arc::new(conduwuit::Server::new(config, runtime.cloned(), Log {
+			server: Arc::new(conduwuit_core::Server::new(config, runtime.cloned(), Log {
 				reload: tracing_reload_handle,
 				capture,
 			})),

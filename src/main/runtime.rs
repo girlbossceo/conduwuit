@@ -9,8 +9,8 @@ use std::{
 };
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
-use conduwuit::result::LogDebugErr;
-use conduwuit::{
+use conduwuit_core::result::LogDebugErr;
+use conduwuit_core::{
 	Result, is_true,
 	utils::sys::compute::{nth_core_available, set_affinity},
 };
@@ -122,7 +122,7 @@ fn set_worker_affinity() {
 
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 fn set_worker_mallctl(id: usize) {
-	use conduwuit::alloc::je::{
+	use conduwuit_core::alloc::je::{
 		is_affine_arena,
 		this_thread::{set_arena, set_muzzy_decay},
 	};
@@ -135,7 +135,8 @@ fn set_worker_mallctl(id: usize) {
 		.get()
 		.expect("GC_MUZZY initialized by runtime::new()");
 
-	let muzzy_auto_disable = conduwuit::utils::available_parallelism() >= DISABLE_MUZZY_THRESHOLD;
+	let muzzy_auto_disable =
+		conduwuit_core::utils::available_parallelism() >= DISABLE_MUZZY_THRESHOLD;
 	if matches!(muzzy_option, Some(false) | None if muzzy_auto_disable) {
 		set_muzzy_decay(-1).log_debug_err().ok();
 	}
@@ -188,7 +189,7 @@ fn thread_park() {
 
 fn gc_on_park() {
 	#[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
-	conduwuit::alloc::je::this_thread::decay()
+	conduwuit_core::alloc::je::this_thread::decay()
 		.log_debug_err()
 		.ok();
 }
