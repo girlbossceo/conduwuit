@@ -2158,7 +2158,12 @@ fn default_rocksdb_max_log_file_size() -> usize {
 
 fn default_rocksdb_parallelism_threads() -> usize { 0 }
 
-fn default_rocksdb_compression_algo() -> String { "zstd".to_owned() }
+fn default_rocksdb_compression_algo() -> String {
+	cfg!(feature = "zstd_compression")
+		.then_some("zstd")
+		.unwrap_or("none")
+		.to_owned()
+}
 
 /// Default RocksDB compression level is 32767, which is internally read by
 /// RocksDB as the default magic number and translated to the library's default
