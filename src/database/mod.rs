@@ -5,6 +5,8 @@ conduwuit::mod_ctor! {}
 conduwuit::mod_dtor! {}
 conduwuit::rustc_flags_capture! {}
 
+#[cfg(test)]
+mod benches;
 mod cork;
 mod de;
 mod deserialized;
