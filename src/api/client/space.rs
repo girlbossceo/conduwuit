@@ -155,10 +155,6 @@ where
 					break;
 				}
 
-				if children.is_empty() {
-					break;
-				}
-
 				if parents.len() > max_depth {
 					continue;
 				}
