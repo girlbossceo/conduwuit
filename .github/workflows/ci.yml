@@ -21,16 +21,6 @@ concurrency:
     cancel-in-progress: true
 
 env:
-    # sccache only on main repo
-    SCCACHE_GHA_ENABLED: "${{ !startsWith(github.ref, 'refs/tags/') && (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'true' || 'false' }}"
-    RUSTC_WRAPPER: "${{ !startsWith(github.ref, 'refs/tags/') && (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' || '' }}"
-    SCCACHE_BUCKET: "${{ (github.event.pull_request.draft != true) && (vars.DOCKER_USERNAME != '') && (vars.GITLAB_USERNAME != '') && (vars.SCCACHE_ENDPOINT != '') && (github.event.pull_request.user.login != 'renovate[bot]') && 'sccache' || '' }}"
-    SCCACHE_S3_USE_SSL: ${{ vars.SCCACHE_S3_USE_SSL }}
-    SCCACHE_REGION: ${{ vars.SCCACHE_REGION }}
-    SCCACHE_ENDPOINT: ${{ vars.SCCACHE_ENDPOINT }}
-    SCCACHE_CACHE_MULTIARCH: ${{ vars.SCCACHE_CACHE_MULTIARCH }}
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     # Required to make some things output color
     TERM: ansi
     # Publishing to my nix binary cache
@@ -122,13 +112,6 @@ jobs:
                   bin/nix-build-and-cache just '.#devShells.x86_64-linux.default'
                   bin/nix-build-and-cache just '.#devShells.x86_64-linux.all-features'
                   bin/nix-build-and-cache just '.#devShells.x86_64-linux.dynamic'
-
-            # use sccache for Rust
-            - name: Run sccache-cache
-              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
-              # releases and tags
-              #if: ${{ (env.SCCACHE_GHA_ENABLED == 'true') && !startsWith(github.ref, 'refs/tags/') }}
-              uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
@@ -246,13 +229,6 @@ jobs:
                   echo 'source $HOME/.nix-profile/share/nix-direnv/direnvrc' > "$HOME/.direnvrc"
                   direnv allow
                   nix develop .#all-features --command true --impure
-
-            # use sccache for Rust
-            - name: Run sccache-cache
-              # we want a fresh-state when we do releases/tags to avoid potential cache poisoning attacks impacting
-              # releases and tags
-              #if: ${{ (env.SCCACHE_GHA_ENABLED == 'true') && !startsWith(github.ref, 'refs/tags/') }}
-              uses: mozilla-actions/sccache-action@main
 
             # use rust-cache
             - uses: Swatinem/rust-cache@v2
