@@ -159,7 +159,7 @@ where
 					break;
 				}
 
-				if parents.len() >= max_depth {
+				if parents.len() > max_depth {
 					continue;
 				}
 
