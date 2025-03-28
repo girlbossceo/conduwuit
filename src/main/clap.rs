@@ -27,6 +27,14 @@ pub(crate) struct Args {
 	#[arg(long, short('O'))]
 	pub(crate) option: Vec<String>,
 
+	/// Run in a stricter read-only --maintenance mode.
+	#[arg(long)]
+	pub(crate) read_only: bool,
+
+	/// Run in maintenance mode while refusing connections.
+	#[arg(long)]
+	pub(crate) maintenance: bool,
+
 	#[cfg(feature = "console")]
 	/// Activate admin command console automatically after startup.
 	#[arg(long, num_args(0))]
@@ -121,6 +129,15 @@ pub(super) fn parse() -> Args { Args::parse() }
 
 /// Synthesize any command line options with configuration file options.
 pub(crate) fn update(mut config: Figment, args: &Args) -> Result<Figment> {
+	if args.read_only {
+		config = config.join(("rocksdb_read_only", true));
+	}
+
+	if args.maintenance || args.read_only {
+		config = config.join(("startup_netburst", false));
+		config = config.join(("listening", false));
+	}
+
 	#[cfg(feature = "console")]
 	// Indicate the admin console should be spawned automatically if the
 	// configuration file hasn't already.
