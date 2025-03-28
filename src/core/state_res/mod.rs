@@ -9,6 +9,9 @@ mod state_event;
 #[cfg(test)]
 mod test_utils;
 
+#[cfg(test)]
+mod benches;
+
 use std::{
 	borrow::Borrow,
 	cmp::{Ordering, Reverse},
