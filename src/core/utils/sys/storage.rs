@@ -123,10 +123,7 @@ pub fn dev_from_path(path: &Path) -> Result<(dev_t, dev_t)> {
 
 	let stat = fs::metadata(path)?;
 	let dev_id = stat.dev().try_into()?;
-
-	// SAFETY: These functions may not need to be marked as unsafe.
-	// see: https://github.com/rust-lang/libc/issues/3759
-	let (major, minor) = unsafe { (libc::major(dev_id), libc::minor(dev_id)) };
+	let (major, minor) = (libc::major(dev_id), libc::minor(dev_id));
 
 	Ok((major.try_into()?, minor.try_into()?))
 }
