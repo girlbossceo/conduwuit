@@ -61,6 +61,8 @@ pub(super) fn new(args: &Args) -> Result<tokio::runtime::Runtime> {
 	#[cfg(tokio_unstable)]
 	builder
 		.on_task_spawn(task_spawn)
+		.on_before_task_poll(task_enter)
+		.on_after_task_poll(task_leave)
 		.on_task_terminate(task_terminate);
 
 	#[cfg(tokio_unstable)]
@@ -215,3 +217,25 @@ fn task_spawn(meta: &tokio::runtime::TaskMeta<'_>) {}
 	),
 )]
 fn task_terminate(meta: &tokio::runtime::TaskMeta<'_>) {}
+
+#[cfg(tokio_unstable)]
+#[tracing::instrument(
+	name = "enter",
+	level = "trace",
+	skip_all,
+	fields(
+		id = %meta.id()
+	),
+)]
+fn task_enter(meta: &tokio::runtime::TaskMeta<'_>) {}
+
+#[cfg(tokio_unstable)]
+#[tracing::instrument(
+	name = "leave",
+	level = "trace",
+	skip_all,
+	fields(
+		id = %meta.id()
+	),
+)]
+fn task_leave(meta: &tokio::runtime::TaskMeta<'_>) {}
