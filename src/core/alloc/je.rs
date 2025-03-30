@@ -335,6 +335,12 @@ where
 	Ok(res)
 }
 
+#[tracing::instrument(
+	name = "get",
+	level = "trace"
+	skip_all,
+	fields(?key)
+)]
 fn get<T>(key: &Key) -> Result<T>
 where
 	T: Copy + Debug,
@@ -346,6 +352,12 @@ where
 	unsafe { mallctl::raw::read_mib(key.as_slice()) }.map_err(map_err)
 }
 
+#[tracing::instrument(
+	name = "xchg",
+	level = "trace"
+	skip_all,
+	fields(?key, ?val)
+)]
 fn xchg<T>(key: &Key, val: T) -> Result<T>
 where
 	T: Copy + Debug,
