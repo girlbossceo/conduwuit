@@ -461,7 +461,7 @@ async fn handle_left_room(
 				events: Vec::new(),
 			},
 			state: RoomState {
-				events: vec![event.to_sync_state_event()],
+				events: vec![event.into_sync_state_event()],
 			},
 		}));
 	}
@@ -546,7 +546,7 @@ async fn handle_left_room(
 				continue;
 			}
 
-			left_state_events.push(pdu.to_sync_state_event());
+			left_state_events.push(pdu.into_sync_state_event());
 		}
 	}
 
@@ -865,8 +865,8 @@ async fn load_joined_room(
 		},
 		state: RoomState {
 			events: state_events
-				.iter()
-				.map(PduEvent::to_sync_state_event)
+				.into_iter()
+				.map(PduEvent::into_sync_state_event)
 				.collect(),
 		},
 		ephemeral: Ephemeral { events: edus },

@@ -53,7 +53,7 @@ pub(crate) async fn get_threads_route(
 		chunk: threads
 			.into_iter()
 			.map(at!(1))
-			.map(|pdu| pdu.to_room_event())
+			.map(PduEvent::into_room_event)
 			.collect(),
 	})
 }

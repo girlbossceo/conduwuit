@@ -182,7 +182,7 @@ pub(crate) async fn get_context_route(
 		.await;
 
 	Ok(get_context::v3::Response {
-		event: base_event.map(at!(1)).as_ref().map(PduEvent::to_room_event),
+		event: base_event.map(at!(1)).map(PduEvent::into_room_event),
 
 		start: events_before
 			.last()
@@ -201,13 +201,13 @@ pub(crate) async fn get_context_route(
 		events_before: events_before
 			.into_iter()
 			.map(at!(1))
-			.map(|pdu| pdu.to_room_event())
+			.map(PduEvent::into_room_event)
 			.collect(),
 
 		events_after: events_after
 			.into_iter()
 			.map(at!(1))
-			.map(|pdu| pdu.to_room_event())
+			.map(PduEvent::into_room_event)
 			.collect(),
 
 		state,

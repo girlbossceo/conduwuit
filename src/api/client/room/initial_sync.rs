@@ -55,7 +55,7 @@ pub(crate) async fn room_initial_sync_route(
 		chunk: events
 			.into_iter()
 			.map(at!(1))
-			.map(|pdu| pdu.to_room_event())
+			.map(PduEvent::into_room_event)
 			.collect(),
 	};
 

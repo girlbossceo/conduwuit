@@ -143,7 +143,7 @@ async fn category_room_events(
 		.map(at!(2))
 		.flatten()
 		.stream()
-		.map(|pdu| pdu.to_room_event())
+		.map(PduEvent::into_room_event)
 		.map(|result| SearchResult {
 			rank: None,
 			result: Some(result),

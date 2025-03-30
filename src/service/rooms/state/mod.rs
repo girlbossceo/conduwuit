@@ -341,7 +341,7 @@ impl Service {
 			.await
 			.into_iter()
 			.filter_map(Result::ok)
-			.map(|e| e.to_stripped_state_event())
+			.map(PduEvent::into_stripped_state_event)
 			.chain(once(event.to_stripped_state_event()))
 			.collect()
 	}

@@ -157,7 +157,7 @@ pub(crate) async fn get_message_events_route(
 	let chunk = events
 		.into_iter()
 		.map(at!(1))
-		.map(|pdu| pdu.to_room_event())
+		.map(PduEvent::into_room_event)
 		.collect();
 
 	Ok(get_message_events::v3::Response {

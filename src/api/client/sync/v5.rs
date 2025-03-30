@@ -6,7 +6,7 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	Error, Result, TypeStateKey, debug, error, extract_variant, trace,
+	Error, PduEvent, Result, TypeStateKey, debug, error, extract_variant, trace,
 	utils::{
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 		math::{ruma_from_usize, usize_from_ruma},
@@ -507,7 +507,7 @@ async fn process_rooms(
 					.state_accessor
 					.room_state_get(room_id, &state.0, &state.1)
 					.await
-					.map(|s| s.to_sync_state_event())
+					.map(PduEvent::into_sync_state_event)
 					.ok()
 			})
 			.collect()

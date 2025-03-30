@@ -697,7 +697,7 @@ impl Service {
 			match event {
 				| SendingEvent::Pdu(pdu_id) => {
 					if let Ok(pdu) = self.services.timeline.get_pdu_from_id(pdu_id).await {
-						pdu_jsons.push(pdu.to_room_event());
+						pdu_jsons.push(pdu.into_room_event());
 					}
 				},
 				| SendingEvent::Edu(edu) =>

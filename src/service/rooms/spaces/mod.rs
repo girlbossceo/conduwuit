@@ -6,7 +6,7 @@ use std::{fmt::Write, sync::Arc};
 
 use async_trait::async_trait;
 use conduwuit::{
-	Err, Error, Result, implement,
+	Err, Error, PduEvent, Result, implement,
 	utils::{
 		IterStream,
 		future::BoolExt,
@@ -267,11 +267,12 @@ fn get_stripped_space_child_events<'a>(
 			}
 
 			if RoomId::parse(&state_key).is_ok() {
-				return Some(pdu.to_stripped_spacechild_state_event());
+				return Some(pdu);
 			}
 
 			None
 		})
+		.map(PduEvent::into_stripped_spacechild_state_event)
 }
 
 /// Gets the summary of a space using either local or remote (federation)
