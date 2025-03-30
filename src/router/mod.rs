@@ -1,3 +1,5 @@
+#![type_length_limit = "32768"] //TODO: reduce me
+
 mod layers;
 mod request;
 mod router;

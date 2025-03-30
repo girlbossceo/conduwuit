@@ -31,7 +31,7 @@ pub fn room_state_full<'a>(
 	self.services
 		.state
 		.get_room_shortstatehash(room_id)
-		.map_ok(|shortstatehash| self.state_full(shortstatehash).map(Ok))
+		.map_ok(|shortstatehash| self.state_full(shortstatehash).map(Ok).boxed())
 		.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
 		.try_flatten_stream()
 }
@@ -46,7 +46,7 @@ pub fn room_state_full_pdus<'a>(
 	self.services
 		.state
 		.get_room_shortstatehash(room_id)
-		.map_ok(|shortstatehash| self.state_full_pdus(shortstatehash).map(Ok))
+		.map_ok(|shortstatehash| self.state_full_pdus(shortstatehash).map(Ok).boxed())
 		.map_err(move |e| err!(Database("Missing state for {room_id:?}: {e:?}")))
 		.try_flatten_stream()
 }

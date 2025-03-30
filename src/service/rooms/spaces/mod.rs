@@ -9,7 +9,7 @@ use conduwuit::{
 	Err, Error, PduEvent, Result, implement,
 	utils::{
 		IterStream,
-		future::BoolExt,
+		future::{BoolExt, TryExtExt},
 		math::usize_from_f64,
 		stream::{BroadbandExt, ReadyExt},
 	},
@@ -36,7 +36,7 @@ use ruma::{
 use tokio::sync::{Mutex, MutexGuard};
 
 pub use self::pagination_token::PaginationToken;
-use crate::{Dep, conduwuit::utils::TryFutureExtExt, rooms, sending};
+use crate::{Dep, rooms, sending};
 
 pub struct Service {
 	services: Services,
@@ -141,7 +141,8 @@ pub async fn get_summary_and_children_local(
 	}
 
 	let children_pdus: Vec<_> = self
-		.get_stripped_space_child_events(current_room)
+		.get_space_child_events(current_room)
+		.map(PduEvent::into_stripped_spacechild_state_event)
 		.collect()
 		.await;
 
@@ -235,10 +236,10 @@ async fn get_summary_and_children_federation(
 
 /// Simply returns the stripped m.space.child events of a room
 #[implement(Service)]
-fn get_stripped_space_child_events<'a>(
+fn get_space_child_events<'a>(
 	&'a self,
 	room_id: &'a RoomId,
-) -> impl Stream<Item = Raw<HierarchySpaceChildEvent>> + Send + 'a {
+) -> impl Stream<Item = PduEvent> + Send + 'a {
 	self.services
 		.state
 		.get_room_shortstatehash(room_id)
@@ -246,6 +247,7 @@ fn get_stripped_space_child_events<'a>(
 			self.services
 				.state_accessor
 				.state_keys_with_ids(current_shortstatehash, &StateEventType::SpaceChild)
+				.boxed()
 		})
 		.map(Result::into_iter)
 		.map(IterStream::stream)
@@ -256,8 +258,8 @@ fn get_stripped_space_child_events<'a>(
 				.timeline
 				.get_pdu(&event_id)
 				.map_ok(move |pdu| (state_key, pdu))
-				.await
 				.ok()
+				.await
 		})
 		.ready_filter_map(move |(state_key, pdu)| {
 			if let Ok(content) = pdu.get_content::<SpaceChildEventContent>() {
@@ -266,13 +268,12 @@ fn get_stripped_space_child_events<'a>(
 				}
 			}
 
-			if RoomId::parse(&state_key).is_ok() {
-				return Some(pdu);
+			if RoomId::parse(&state_key).is_err() {
+				return None;
 			}
 
-			None
+			Some(pdu)
 		})
-		.map(PduEvent::into_stripped_spacechild_state_event)
 }
 
 /// Gets the summary of a space using either local or remote (federation)
@@ -501,7 +502,8 @@ async fn cache_insert(
 		allowed_room_ids,
 		room_id: room_id.clone(),
 		children_state: self
-			.get_stripped_space_child_events(&room_id)
+			.get_space_child_events(&room_id)
+			.map(PduEvent::into_stripped_spacechild_state_event)
 			.collect()
 			.await,
 	};

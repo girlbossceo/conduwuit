@@ -173,6 +173,7 @@ macro_rules! is_equal {
 
 /// Functor for |x| *x.$i
 #[macro_export]
+#[collapse_debuginfo(yes)]
 macro_rules! deref_at {
 	($idx:tt) => {
 		|t| *t.$idx
@@ -181,6 +182,7 @@ macro_rules! deref_at {
 
 /// Functor for |ref x| x.$i
 #[macro_export]
+#[collapse_debuginfo(yes)]
 macro_rules! ref_at {
 	($idx:tt) => {
 		|ref t| &t.$idx
@@ -189,6 +191,7 @@ macro_rules! ref_at {
 
 /// Functor for |&x| x.$i
 #[macro_export]
+#[collapse_debuginfo(yes)]
 macro_rules! val_at {
 	($idx:tt) => {
 		|&t| t.$idx
@@ -197,6 +200,7 @@ macro_rules! val_at {
 
 /// Functor for |x| x.$i
 #[macro_export]
+#[collapse_debuginfo(yes)]
 macro_rules! at {
 	($idx:tt) => {
 		|t| t.$idx

@@ -136,6 +136,7 @@ macro_rules! err_log {
 }
 
 #[macro_export]
+#[collapse_debuginfo(yes)]
 macro_rules! err_lev {
 	(debug_warn) => {
 		if $crate::debug::logging() {

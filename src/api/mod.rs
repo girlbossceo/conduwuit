@@ -1,3 +1,4 @@
+#![type_length_limit = "16384"] //TODO: reduce me
 #![allow(clippy::toplevel_ref_arg)]
 
 pub mod client;

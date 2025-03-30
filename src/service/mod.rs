@@ -1,3 +1,4 @@
+#![type_length_limit = "2048"]
 #![allow(refining_impl_trait)]
 
 mod manager;

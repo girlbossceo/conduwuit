@@ -18,11 +18,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use conduwuit::{
-	Err, PduEvent, Result, RoomVersion, Server,
-	utils::{MutexMap, TryFutureExtExt},
-};
-use futures::TryFutureExt;
+use conduwuit::{Err, PduEvent, Result, RoomVersion, Server, utils::MutexMap};
 use ruma::{
 	OwnedEventId, OwnedRoomId, RoomId, RoomVersionId,
 	events::room::create::RoomCreateEventContent,
@@ -103,13 +99,8 @@ impl Service {
 		self.services.timeline.pdu_exists(&event_id).await
 	}
 
-	async fn event_fetch(&self, event_id: OwnedEventId) -> Option<Arc<PduEvent>> {
-		self.services
-			.timeline
-			.get_pdu(&event_id)
-			.map_ok(Arc::new)
-			.ok()
-			.await
+	async fn event_fetch(&self, event_id: OwnedEventId) -> Option<PduEvent> {
+		self.services.timeline.get_pdu(&event_id).await.ok()
 	}
 }
 

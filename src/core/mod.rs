@@ -1,3 +1,5 @@
+#![type_length_limit = "12288"]
+
 pub mod alloc;
 pub mod config;
 pub mod debug;

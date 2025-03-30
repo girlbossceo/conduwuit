@@ -149,7 +149,6 @@ where
 		&event_fetch,
 		parallel_fetches,
 	)
-	.boxed()
 	.await?;
 
 	debug!(count = sorted_control_levels.len(), "power events");
@@ -164,7 +163,6 @@ where
 		&event_fetch,
 		parallel_fetches,
 	)
-	.boxed()
 	.await?;
 
 	debug!(count = resolved_control.len(), "resolved power events");
@@ -192,7 +190,6 @@ where
 
 	let sorted_left_events =
 		mainline_sort(&events_to_resolve, power_event.cloned(), &event_fetch, parallel_fetches)
-			.boxed()
 			.await?;
 
 	trace!(list = ?sorted_left_events, "events left, sorted");
@@ -204,7 +201,6 @@ where
 		&event_fetch,
 		parallel_fetches,
 	)
-	.boxed()
 	.await?;
 
 	// Add unconflicted state to the resolved state

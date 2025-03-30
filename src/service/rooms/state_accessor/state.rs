@@ -235,6 +235,7 @@ pub fn state_keys_with_shortids<'a>(
 		.ignore_err()
 		.unzip()
 		.map(|(ssks, sids): (Vec<u64>, Vec<u64>)| (ssks, sids))
+		.boxed()
 		.shared();
 
 	let shortstatekeys = short_ids
@@ -390,8 +391,10 @@ pub fn state_full_shortids(
 				.map(parse_compressed_state_event)
 				.collect()
 		})
-		.map_ok(|vec: Vec<_>| vec.into_iter().try_stream())
+		.map_ok(Vec::into_iter)
+		.map_ok(IterStream::try_stream)
 		.try_flatten_stream()
+		.boxed()
 }
 
 #[implement(super::Service)]
