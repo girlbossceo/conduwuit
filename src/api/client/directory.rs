@@ -1,12 +1,13 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	Err, Error, Result, info,
+	Err, Result, err, info,
 	utils::{
 		TryFutureExtExt,
+		math::Expected,
+		result::FlatOk,
 		stream::{ReadyExt, WidebandExt},
 	},
-	warn,
 };
 use futures::{
 	FutureExt, StreamExt, TryFutureExt,
@@ -20,7 +21,6 @@ use ruma::{
 				get_public_rooms, get_public_rooms_filtered, get_room_visibility,
 				set_room_visibility,
 			},
-			error::ErrorKind,
 			room,
 		},
 		federation,
@@ -71,11 +71,7 @@ pub(crate) async fn get_public_rooms_filtered_route(
 	)
 	.await
 	.map_err(|e| {
-		warn!(?body.server, "Failed to return /publicRooms: {e}");
-		Error::BadRequest(
-			ErrorKind::Unknown,
-			"Failed to return the requested server's public room list.",
-		)
+		err!(Request(Unknown(warn!(?body.server, "Failed to return /publicRooms: {e}"))))
 	})?;
 
 	Ok(response)
@@ -113,11 +109,7 @@ pub(crate) async fn get_public_rooms_route(
 	)
 	.await
 	.map_err(|e| {
-		warn!(?body.server, "Failed to return /publicRooms: {e}");
-		Error::BadRequest(
-			ErrorKind::Unknown,
-			"Failed to return the requested server's public room list.",
-		)
+		err!(Request(Unknown(warn!(?body.server, "Failed to return /publicRooms: {e}"))))
 	})?;
 
 	Ok(get_public_rooms::v3::Response {
@@ -137,7 +129,7 @@ pub(crate) async fn set_room_visibility_route(
 	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<set_room_visibility::v3::Request>,
 ) -> Result<set_room_visibility::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
 	if !services.rooms.metadata.exists(&body.room_id).await {
 		// Return 404 if the room doesn't exist
@@ -181,10 +173,9 @@ pub(crate) async fn set_room_visibility_route(
 						.await;
 				}
 
-				return Err(Error::BadRequest(
-					ErrorKind::forbidden(),
+				return Err!(Request(Forbidden(
 					"Publishing rooms to the room directory is not allowed",
-				));
+				)));
 			}
 
 			services.rooms.directory.set_public(&body.room_id);
@@ -202,10 +193,7 @@ pub(crate) async fn set_room_visibility_route(
 		},
 		| room::Visibility::Private => services.rooms.directory.set_not_public(&body.room_id),
 		| _ => {
-			return Err(Error::BadRequest(
-				ErrorKind::InvalidParam,
-				"Room visibility type is not supported.",
-			));
+			return Err!(Request(InvalidParam("Room visibility type is not supported.",)));
 		},
 	}
 
@@ -221,7 +209,7 @@ pub(crate) async fn get_room_visibility_route(
 ) -> Result<get_room_visibility::v3::Response> {
 	if !services.rooms.metadata.exists(&body.room_id).await {
 		// Return 404 if the room doesn't exist
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room not found"));
+		return Err!(Request(NotFound("Room not found")));
 	}
 
 	Ok(get_room_visibility::v3::Response {
@@ -269,8 +257,8 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 	}
 
 	// Use limit or else 10, with maximum 100
-	let limit = limit.map_or(10, u64::from);
-	let mut num_since: u64 = 0;
+	let limit: usize = limit.map_or(10_u64, u64::from).try_into()?;
+	let mut num_since: usize = 0;
 
 	if let Some(s) = &since {
 		let mut characters = s.chars();
@@ -278,14 +266,14 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 			| Some('n') => false,
 			| Some('p') => true,
 			| _ => {
-				return Err(Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token"));
+				return Err!(Request(InvalidParam("Invalid `since` token")));
 			},
 		};
 
 		num_since = characters
 			.collect::<String>()
 			.parse()
-			.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid `since` token."))?;
+			.map_err(|_| err!(Request(InvalidParam("Invalid `since` token."))))?;
 
 		if backwards {
 			num_since = num_since.saturating_sub(limit);
@@ -302,6 +290,7 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 			if !filter.room_types.is_empty() && !filter.room_types.contains(&RoomTypeFilter::from(chunk.room_type.clone())) {
 				return None;
 			}
+
 			if let Some(query) = filter.generic_search_term.as_ref().map(|q| q.to_lowercase()) {
 				if let Some(name) = &chunk.name {
 					if name.as_str().to_lowercase().contains(&query) {
@@ -333,40 +322,24 @@ pub(crate) async fn get_public_rooms_filtered_helper(
 
 	all_rooms.sort_by(|l, r| r.num_joined_members.cmp(&l.num_joined_members));
 
-	let total_room_count_estimate = UInt::try_from(all_rooms.len()).unwrap_or_else(|_| uint!(0));
+	let total_room_count_estimate = UInt::try_from(all_rooms.len())
+		.unwrap_or_else(|_| uint!(0))
+		.into();
 
-	let chunk: Vec<_> = all_rooms
-		.into_iter()
-		.skip(
-			num_since
-				.try_into()
-				.expect("num_since should not be this high"),
-		)
-		.take(limit.try_into().expect("limit should not be this high"))
-		.collect();
+	let chunk: Vec<_> = all_rooms.into_iter().skip(num_since).take(limit).collect();
 
-	let prev_batch = if num_since == 0 {
-		None
-	} else {
-		Some(format!("p{num_since}"))
-	};
+	let prev_batch = num_since.ne(&0).then_some(format!("p{num_since}"));
 
-	let next_batch = if chunk.len() < limit.try_into().unwrap() {
-		None
-	} else {
-		Some(format!(
-			"n{}",
-			num_since
-				.checked_add(limit)
-				.expect("num_since and limit should not be that large")
-		))
-	};
+	let next_batch = chunk
+		.len()
+		.ge(&limit)
+		.then_some(format!("n{}", num_since.expected_add(limit)));
 
 	Ok(get_public_rooms_filtered::v3::Response {
 		chunk,
 		prev_batch,
 		next_batch,
-		total_room_count_estimate: Some(total_room_count_estimate),
+		total_room_count_estimate,
 	})
 }
 
@@ -384,7 +357,7 @@ async fn user_can_publish_room(
 		.await
 	{
 		| Ok(event) => serde_json::from_str(event.content.get())
-			.map_err(|_| Error::bad_database("Invalid event content for m.room.power_levels"))
+			.map_err(|_| err!(Database("Invalid event content for m.room.power_levels")))
 			.map(|content: RoomPowerLevelsEventContent| {
 				RoomPowerLevels::from(content)
 					.user_can_send_state(user_id, StateEventType::RoomHistoryVisibility)
@@ -452,9 +425,10 @@ async fn public_rooms_chunk(services: &Services, room_id: OwnedRoomId) -> Public
 		join_rule: join_rule.unwrap_or_default(),
 		name,
 		num_joined_members: num_joined_members
-			.unwrap_or(0)
-			.try_into()
-			.expect("joined count overflows ruma UInt"),
+			.map(TryInto::try_into)
+			.map(Result::ok)
+			.flat_ok()
+			.unwrap_or_else(|| uint!(0)),
 		room_id,
 		room_type,
 		topic,
