@@ -17,15 +17,13 @@ pub fn from_str(str: &str) -> Result<usize> {
 	Ok(bytes)
 }
 
-/// Output a human-readable size string w/ si-unit suffix
+/// Output a human-readable size string w/ iec-unit suffix
 #[inline]
 #[must_use]
 pub fn pretty(bytes: usize) -> String {
-	const SI_UNITS: bool = true;
-
 	let bytes: u64 = bytes.try_into().expect("failed to convert usize to u64");
 
-	bytesize::to_string(bytes, SI_UNITS)
+	ByteSize::b(bytes).display().iec().to_string()
 }
 
 #[inline]
