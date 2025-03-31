@@ -1,6 +1,7 @@
 use std::{mem, ops::Deref};
 
-use axum::{async_trait, body::Body, extract::FromRequest};
+use async_trait::async_trait;
+use axum::{body::Body, extract::FromRequest};
 use bytes::{BufMut, Bytes, BytesMut};
 use conduwuit::{Error, Result, debug, debug_warn, err, trace, utils::string::EMPTY};
 use ruma::{

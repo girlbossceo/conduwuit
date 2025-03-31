@@ -35,6 +35,7 @@ brotli_compression = [
 ]
 
 [dependencies]
+async-trait.workspace = true
 axum-client-ip.workspace = true
 axum-extra.workspace = true
 axum.workspace = true
