@@ -81,6 +81,8 @@ pub enum Error {
 	#[error("Tracing reload error: {0}")]
 	TracingReload(#[from] tracing_subscriber::reload::Error),
 	#[error(transparent)]
+	TypedHeader(#[from] axum_extra::typed_header::TypedHeaderRejection),
+	#[error(transparent)]
 	Yaml(#[from] serde_yaml::Error),
 
 	// ruma/conduwuit

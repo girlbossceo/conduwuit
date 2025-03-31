@@ -59,6 +59,7 @@ conduwuit_mods = [
 argon2.workspace = true
 arrayvec.workspace = true
 axum.workspace = true
+axum-extra.workspace = true
 bytes.workspace = true
 bytesize.workspace = true
 cargo_toml.workspace = true
