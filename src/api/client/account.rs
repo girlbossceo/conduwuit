@@ -146,7 +146,7 @@ pub(crate) async fn register_route(
 	let is_guest = body.kind == RegistrationKind::Guest;
 	let emergency_mode_enabled = services.config.emergency_password.is_some();
 
-	if !services.globals.allow_registration() && body.appservice_info.is_none() {
+	if !services.config.allow_registration && body.appservice_info.is_none() {
 		match (body.username.as_ref(), body.initial_device_display_name.as_ref()) {
 			| (Some(username), Some(device_display_name)) => {
 				info!(%is_guest, user = %username, device_name = %device_display_name, "Rejecting registration attempt as registration is disabled");
@@ -166,8 +166,8 @@ pub(crate) async fn register_route(
 	}
 
 	if is_guest
-		&& (!services.globals.allow_guest_registration()
-			|| (services.globals.allow_registration()
+		&& (!services.config.allow_guest_registration
+			|| (services.config.allow_registration
 				&& services.globals.registration_token.is_some()))
 	{
 		info!(
@@ -441,7 +441,7 @@ pub(crate) async fn register_route(
 	}
 
 	// log in conduit admin channel if a guest registered
-	if body.appservice_info.is_none() && is_guest && services.globals.log_guest_registrations() {
+	if body.appservice_info.is_none() && is_guest && services.config.log_guest_registrations {
 		debug_info!("New guest user \"{user_id}\" registered on this server.");
 
 		if !device_display_name.is_empty() {
@@ -490,7 +490,7 @@ pub(crate) async fn register_route(
 
 	if body.appservice_info.is_none()
 		&& !services.server.config.auto_join_rooms.is_empty()
-		&& (services.globals.allow_guests_auto_join_rooms() || !is_guest)
+		&& (services.config.allow_guests_auto_join_rooms || !is_guest)
 	{
 		for room in &services.server.config.auto_join_rooms {
 			let Ok(room_id) = services.rooms.alias.resolve(room).await else {

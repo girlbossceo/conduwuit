@@ -372,7 +372,7 @@ pub(crate) async fn create_room_route(
 
 		// Silently skip encryption events if they are not allowed
 		if pdu_builder.event_type == TimelineEventType::RoomEncryption
-			&& !services.globals.allow_encryption()
+			&& !services.config.allow_encryption
 		{
 			continue;
 		}

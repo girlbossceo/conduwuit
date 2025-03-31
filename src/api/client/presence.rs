@@ -1,12 +1,10 @@
 use std::time::Duration;
 
 use axum::extract::State;
-use ruma::api::client::{
-	error::ErrorKind,
-	presence::{get_presence, set_presence},
-};
+use conduwuit::{Err, Result};
+use ruma::api::client::presence::{get_presence, set_presence};
 
-use crate::{Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/presence/{userId}/status`
 ///
@@ -15,24 +13,17 @@ pub(crate) async fn set_presence_route(
 	State(services): State<crate::State>,
 	body: Ruma<set_presence::v3::Request>,
 ) -> Result<set_presence::v3::Response> {
-	if !services.globals.allow_local_presence() {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Presence is disabled on this server",
-		));
+	if !services.config.allow_local_presence {
+		return Err!(Request(Forbidden("Presence is disabled on this server")));
 	}
 
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	if sender_user != &body.user_id && body.appservice_info.is_none() {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Not allowed to set presence of other users",
-		));
+	if body.sender_user() != body.user_id && body.appservice_info.is_none() {
+		return Err!(Request(InvalidParam("Not allowed to set presence of other users")));
 	}
 
 	services
 		.presence
-		.set_presence(sender_user, &body.presence, None, None, body.status_msg.clone())
+		.set_presence(body.sender_user(), &body.presence, None, None, body.status_msg.clone())
 		.await?;
 
 	Ok(set_presence::v3::Response {})
@@ -47,21 +38,15 @@ pub(crate) async fn get_presence_route(
 	State(services): State<crate::State>,
 	body: Ruma<get_presence::v3::Request>,
 ) -> Result<get_presence::v3::Response> {
-	if !services.globals.allow_local_presence() {
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Presence is disabled on this server",
-		));
+	if !services.config.allow_local_presence {
+		return Err!(Request(Forbidden("Presence is disabled on this server",)));
 	}
 
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-
 	let mut presence_event = None;
-
 	let has_shared_rooms = services
 		.rooms
 		.state_cache
-		.user_sees_user(sender_user, &body.user_id)
+		.user_sees_user(body.sender_user(), &body.user_id)
 		.await;
 
 	if has_shared_rooms {
@@ -99,9 +84,6 @@ pub(crate) async fn get_presence_route(
 				presence: presence.content.presence,
 			})
 		},
-		| _ => Err(Error::BadRequest(
-			ErrorKind::NotFound,
-			"Presence state for this user was not found",
-		)),
+		| _ => Err!(Request(NotFound("Presence state for this user was not found"))),
 	}
 }

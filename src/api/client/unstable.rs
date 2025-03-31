@@ -205,7 +205,7 @@ pub(crate) async fn delete_timezone_key_route(
 
 	services.users.set_timezone(&body.user_id, None);
 
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		// Presence update
 		services
 			.presence
@@ -233,7 +233,7 @@ pub(crate) async fn set_timezone_key_route(
 
 	services.users.set_timezone(&body.user_id, body.tz.clone());
 
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		// Presence update
 		services
 			.presence
@@ -326,7 +326,7 @@ pub(crate) async fn set_profile_key_route(
 		);
 	}
 
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		// Presence update
 		services
 			.presence
@@ -385,7 +385,7 @@ pub(crate) async fn delete_profile_key_route(
 			.set_profile_key(&body.user_id, &body.key_name, None);
 	}
 
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		// Presence update
 		services
 			.presence

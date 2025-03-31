@@ -118,7 +118,7 @@ pub(crate) async fn sync_events_route(
 	let (sender_user, sender_device) = body.sender();
 
 	// Presence update
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		services
 			.presence
 			.ping_presence(sender_user, &body.body.set_presence)
@@ -279,8 +279,8 @@ pub(crate) async fn build_sync_events(
 		});
 
 	let presence_updates: OptionFuture<_> = services
-		.globals
-		.allow_local_presence()
+		.config
+		.allow_local_presence
 		.then(|| process_presence_updates(services, since, sender_user))
 		.into();
 

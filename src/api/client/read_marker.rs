@@ -50,7 +50,7 @@ pub(crate) async fn set_read_marker_route(
 	}
 
 	// ping presence
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		services
 			.presence
 			.ping_presence(sender_user, &ruma::presence::PresenceState::Online)
@@ -126,7 +126,7 @@ pub(crate) async fn create_receipt_route(
 	}
 
 	// ping presence
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		services
 			.presence
 			.ping_presence(sender_user, &ruma::presence::PresenceState::Online)

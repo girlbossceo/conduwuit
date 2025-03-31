@@ -64,7 +64,7 @@ pub(crate) async fn create_typing_event_route(
 	}
 
 	// ping presence
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		services
 			.presence
 			.ping_presence(&body.user_id, &ruma::presence::PresenceState::Online)

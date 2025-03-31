@@ -52,7 +52,7 @@ pub(crate) async fn set_displayname_route(
 	update_displayname(&services, &body.user_id, body.displayname.clone(), &all_joined_rooms)
 		.await;
 
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		// Presence update
 		services
 			.presence
@@ -147,7 +147,7 @@ pub(crate) async fn set_avatar_url_route(
 	)
 	.await;
 
-	if services.globals.allow_local_presence() {
+	if services.config.allow_local_presence {
 		// Presence update
 		services
 			.presence

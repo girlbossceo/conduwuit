@@ -111,20 +111,6 @@ impl Service {
 	#[inline]
 	pub fn server_name(&self) -> &ServerName { self.server.name.as_ref() }
 
-	pub fn allow_registration(&self) -> bool { self.server.config.allow_registration }
-
-	pub fn allow_guest_registration(&self) -> bool { self.server.config.allow_guest_registration }
-
-	pub fn allow_guests_auto_join_rooms(&self) -> bool {
-		self.server.config.allow_guests_auto_join_rooms
-	}
-
-	pub fn log_guest_registrations(&self) -> bool { self.server.config.log_guest_registrations }
-
-	pub fn allow_encryption(&self) -> bool { self.server.config.allow_encryption }
-
-	pub fn allow_federation(&self) -> bool { self.server.config.allow_federation }
-
 	pub fn allow_public_room_directory_over_federation(&self) -> bool {
 		self.server
 			.config
@@ -182,22 +168,6 @@ impl Service {
 	pub fn forbidden_alias_names(&self) -> &RegexSet { &self.server.config.forbidden_alias_names }
 
 	pub fn forbidden_usernames(&self) -> &RegexSet { &self.server.config.forbidden_usernames }
-
-	pub fn allow_local_presence(&self) -> bool { self.server.config.allow_local_presence }
-
-	pub fn allow_incoming_presence(&self) -> bool { self.server.config.allow_incoming_presence }
-
-	pub fn allow_outgoing_presence(&self) -> bool { self.server.config.allow_outgoing_presence }
-
-	pub fn allow_incoming_read_receipts(&self) -> bool {
-		self.server.config.allow_incoming_read_receipts
-	}
-
-	pub fn allow_outgoing_read_receipts(&self) -> bool {
-		self.server.config.allow_outgoing_read_receipts
-	}
-
-	pub fn block_non_admin_invites(&self) -> bool { self.server.config.block_non_admin_invites }
 
 	/// checks if `user_id` is local to us via server_name comparison
 	#[inline]

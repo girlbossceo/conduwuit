@@ -491,7 +491,7 @@ pub(crate) async fn invite_user_route(
 ) -> Result<invite_user::v3::Response> {
 	let sender_user = body.sender_user();
 
-	if !services.users.is_admin(sender_user).await && services.globals.block_non_admin_invites() {
+	if !services.users.is_admin(sender_user).await && services.config.block_non_admin_invites {
 		info!(
 			"User {sender_user} is not an admin and attempted to send an invite to room {}",
 			&body.room_id
@@ -1628,7 +1628,7 @@ pub(crate) async fn invite_helper(
 	reason: Option<String>,
 	is_direct: bool,
 ) -> Result {
-	if !services.users.is_admin(sender_user).await && services.globals.block_non_admin_invites() {
+	if !services.users.is_admin(sender_user).await && services.config.block_non_admin_invites {
 		info!(
 			"User {sender_user} is not an admin and attempted to send an invite to room \
 			 {room_id}"

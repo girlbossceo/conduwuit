@@ -103,8 +103,7 @@ pub(crate) async fn create_invite_route(
 		return Err!(Request(Forbidden("This room is banned on this homeserver.")));
 	}
 
-	if services.globals.block_non_admin_invites() && !services.users.is_admin(&invited_user).await
-	{
+	if services.config.block_non_admin_invites && !services.users.is_admin(&invited_user).await {
 		return Err!(Request(Forbidden("This server does not allow room invites.")));
 	}
 
