@@ -18,7 +18,7 @@ use crate::rooms::{
 #[implement(super::Service)]
 pub(super) async fn upgrade_outlier_to_timeline_pdu(
 	&self,
-	incoming_pdu: Arc<PduEvent>,
+	incoming_pdu: PduEvent,
 	val: BTreeMap<String, CanonicalJsonValue>,
 	create_event: &PduEvent,
 	origin: &ServerName,

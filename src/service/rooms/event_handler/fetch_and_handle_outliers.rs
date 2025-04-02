@@ -1,6 +1,5 @@
 use std::{
 	collections::{BTreeMap, HashSet, VecDeque, hash_map},
-	sync::Arc,
 	time::Instant,
 };
 
@@ -8,7 +7,6 @@ use conduwuit::{
 	PduEvent, debug, debug_error, debug_warn, implement, pdu, trace,
 	utils::continue_exponential_backoff_secs, warn,
 };
-use futures::TryFutureExt;
 use ruma::{
 	CanonicalJsonValue, OwnedEventId, RoomId, ServerName, api::federation::event::get_event,
 };
@@ -31,7 +29,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 	events: &'a [OwnedEventId],
 	create_event: &'a PduEvent,
 	room_id: &'a RoomId,
-) -> Vec<(Arc<PduEvent>, Option<BTreeMap<String, CanonicalJsonValue>>)> {
+) -> Vec<(PduEvent, Option<BTreeMap<String, CanonicalJsonValue>>)> {
 	let back_off = |id| match self
 		.services
 		.globals
@@ -53,7 +51,7 @@ pub(super) async fn fetch_and_handle_outliers<'a>(
 		// a. Look in the main timeline (pduid_pdu tree)
 		// b. Look at outlier pdu tree
 		// (get_pdu_json checks both)
-		if let Ok(local_pdu) = self.services.timeline.get_pdu(id).map_ok(Arc::new).await {
+		if let Ok(local_pdu) = self.services.timeline.get_pdu(id).await {
 			trace!("Found {id} in db");
 			events_with_auth_events.push((id, Some(local_pdu), vec![]));
 			continue;

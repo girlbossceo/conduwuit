@@ -1,12 +1,9 @@
-use std::{
-	collections::{BTreeMap, HashMap, hash_map},
-	sync::Arc,
-};
+use std::collections::{BTreeMap, HashMap, hash_map};
 
 use conduwuit::{
 	Err, Error, PduEvent, Result, debug, debug_info, err, implement, state_res, trace, warn,
 };
-use futures::{TryFutureExt, future::ready};
+use futures::future::ready;
 use ruma::{
 	CanonicalJsonObject, CanonicalJsonValue, EventId, RoomId, ServerName,
 	api::client::error::ErrorKind, events::StateEventType,
@@ -24,7 +21,7 @@ pub(super) async fn handle_outlier_pdu<'a>(
 	room_id: &'a RoomId,
 	mut value: CanonicalJsonObject,
 	auth_events_known: bool,
-) -> Result<(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)> {
+) -> Result<(PduEvent, BTreeMap<String, CanonicalJsonValue>)> {
 	// 1. Remove unsigned field
 	value.remove("unsigned");
 
@@ -95,7 +92,7 @@ pub(super) async fn handle_outlier_pdu<'a>(
 	// Build map of auth events
 	let mut auth_events = HashMap::with_capacity(incoming_pdu.auth_events.len());
 	for id in &incoming_pdu.auth_events {
-		let Ok(auth_event) = self.services.timeline.get_pdu(id).map_ok(Arc::new).await else {
+		let Ok(auth_event) = self.services.timeline.get_pdu(id).await else {
 			warn!("Could not find auth event {id}");
 			continue;
 		};
@@ -123,15 +120,10 @@ pub(super) async fn handle_outlier_pdu<'a>(
 
 	// The original create event must be in the auth events
 	if !matches!(
-		auth_events
-			.get(&(StateEventType::RoomCreate, String::new().into()))
-			.map(AsRef::as_ref),
+		auth_events.get(&(StateEventType::RoomCreate, String::new().into())),
 		Some(_) | None
 	) {
-		return Err(Error::BadRequest(
-			ErrorKind::InvalidParam,
-			"Incoming event refers to wrong create event.",
-		));
+		return Err!(Request(InvalidParam("Incoming event refers to wrong create event.")));
 	}
 
 	let state_fetch = |ty: &StateEventType, sk: &str| {
@@ -161,5 +153,5 @@ pub(super) async fn handle_outlier_pdu<'a>(
 
 	trace!("Added pdu as outlier.");
 
-	Ok((Arc::new(incoming_pdu), val))
+	Ok((incoming_pdu, val))
 }

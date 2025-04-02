@@ -1,7 +1,4 @@
-use std::{
-	collections::{BTreeMap, HashMap, HashSet, VecDeque},
-	sync::Arc,
-};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use conduwuit::{
 	PduEvent, Result, debug_warn, err, implement,
@@ -31,7 +28,7 @@ pub(super) async fn fetch_prev(
 	initial_set: Vec<OwnedEventId>,
 ) -> Result<(
 	Vec<OwnedEventId>,
-	HashMap<OwnedEventId, (Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>)>,
+	HashMap<OwnedEventId, (PduEvent, BTreeMap<String, CanonicalJsonValue>)>,
 )> {
 	let mut graph: HashMap<OwnedEventId, _> = HashMap::with_capacity(initial_set.len());
 	let mut eventid_info = HashMap::new();

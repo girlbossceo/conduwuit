@@ -2,7 +2,6 @@ use std::{
 	borrow::Borrow,
 	collections::{HashMap, HashSet},
 	iter::Iterator,
-	sync::Arc,
 };
 
 use conduwuit::{
@@ -20,7 +19,7 @@ use crate::rooms::short::ShortStateHash;
 #[tracing::instrument(name = "state", level = "debug", skip_all)]
 pub(super) async fn state_at_incoming_degree_one(
 	&self,
-	incoming_pdu: &Arc<PduEvent>,
+	incoming_pdu: &PduEvent,
 ) -> Result<Option<HashMap<u64, OwnedEventId>>> {
 	let prev_event = &incoming_pdu.prev_events[0];
 	let Ok(prev_event_sstatehash) = self
@@ -67,7 +66,7 @@ pub(super) async fn state_at_incoming_degree_one(
 #[tracing::instrument(name = "state", level = "debug", skip_all)]
 pub(super) async fn state_at_incoming_resolved(
 	&self,
-	incoming_pdu: &Arc<PduEvent>,
+	incoming_pdu: &PduEvent,
 	room_id: &RoomId,
 	room_version_id: &RoomVersionId,
 ) -> Result<Option<HashMap<u64, OwnedEventId>>> {

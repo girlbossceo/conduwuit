@@ -1,6 +1,5 @@
 use std::{
 	collections::{BTreeMap, HashMap},
-	sync::Arc,
 	time::Instant,
 };
 
@@ -24,10 +23,7 @@ pub(super) async fn handle_prev_pdu<'a>(
 	origin: &'a ServerName,
 	event_id: &'a EventId,
 	room_id: &'a RoomId,
-	eventid_info: &mut HashMap<
-		OwnedEventId,
-		(Arc<PduEvent>, BTreeMap<String, CanonicalJsonValue>),
-	>,
+	eventid_info: &mut HashMap<OwnedEventId, (PduEvent, BTreeMap<String, CanonicalJsonValue>)>,
 	create_event: &PduEvent,
 	first_ts_in_room: UInt,
 	prev_id: &EventId,
