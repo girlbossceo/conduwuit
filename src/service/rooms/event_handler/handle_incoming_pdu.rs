@@ -3,9 +3,12 @@ use std::{
 	time::Instant,
 };
 
-use conduwuit::{Err, Result, debug, debug::INFO_SPAN_LEVEL, err, implement, warn};
+use conduwuit::{
+	Err, Result, debug, debug::INFO_SPAN_LEVEL, defer, err, implement, utils::stream::IterStream,
+	warn,
+};
 use futures::{
-	FutureExt,
+	FutureExt, TryFutureExt, TryStreamExt,
 	future::{OptionFuture, try_join5},
 };
 use ruma::{CanonicalJsonValue, EventId, RoomId, ServerName, UserId, events::StateEventType};
@@ -86,7 +89,7 @@ pub async fn handle_incoming_pdu<'a>(
 			.state_accessor
 			.room_state_get(room_id, &StateEventType::RoomCreate, "");
 
-	let (meta_exists, is_disabled, (), (), create_event) = try_join5(
+	let (meta_exists, is_disabled, (), (), ref create_event) = try_join5(
 		meta_exists,
 		is_disabled,
 		origin_acl_check,
@@ -104,7 +107,7 @@ pub async fn handle_incoming_pdu<'a>(
 	}
 
 	let (incoming_pdu, val) = self
-		.handle_outlier_pdu(origin, &create_event, event_id, room_id, value, false)
+		.handle_outlier_pdu(origin, create_event, event_id, room_id, value, false)
 		.await?;
 
 	// 8. if not timeline event: stop
@@ -129,66 +132,71 @@ pub async fn handle_incoming_pdu<'a>(
 	let (sorted_prev_events, mut eventid_info) = self
 		.fetch_prev(
 			origin,
-			&create_event,
+			create_event,
 			room_id,
 			first_ts_in_room,
 			incoming_pdu.prev_events.clone(),
 		)
 		.await?;
 
-	debug!(events = ?sorted_prev_events, "Got previous events");
-	for prev_id in sorted_prev_events {
-		self.services.server.check_running()?;
-		if let Err(e) = self
-			.handle_prev_pdu(
+	debug!(
+		events = ?sorted_prev_events,
+		"Handling previous events"
+	);
+
+	sorted_prev_events
+		.iter()
+		.try_stream()
+		.map_ok(AsRef::as_ref)
+		.try_for_each(|prev_id| {
+			self.handle_prev_pdu(
 				origin,
 				event_id,
 				room_id,
-				&mut eventid_info,
-				&create_event,
+				eventid_info.remove(prev_id),
+				create_event,
 				first_ts_in_room,
-				&prev_id,
+				prev_id,
 			)
-			.await
-		{
-			use hash_map::Entry;
-
-			let now = Instant::now();
-			warn!("Prev event {prev_id} failed: {e}");
-
-			match self
-				.services
-				.globals
-				.bad_event_ratelimiter
-				.write()
-				.expect("locked")
-				.entry(prev_id)
-			{
-				| Entry::Vacant(e) => {
-					e.insert((now, 1));
-				},
-				| Entry::Occupied(mut e) => {
-					*e.get_mut() = (now, e.get().1.saturating_add(1));
-				},
-			}
-		}
-	}
+			.inspect_err(move |e| {
+				warn!("Prev {prev_id} failed: {e}");
+				match self
+					.services
+					.globals
+					.bad_event_ratelimiter
+					.write()
+					.expect("locked")
+					.entry(prev_id.into())
+				{
+					| hash_map::Entry::Vacant(e) => {
+						e.insert((Instant::now(), 1));
+					},
+					| hash_map::Entry::Occupied(mut e) => {
+						let tries = e.get().1.saturating_add(1);
+						*e.get_mut() = (Instant::now(), tries);
+					},
+				}
+			})
+			.map(|_| self.services.server.check_running())
+		})
+		.boxed()
+		.await?;
 
 	// Done with prev events, now handling the incoming event
 	let start_time = Instant::now();
 	self.federation_handletime
 		.write()
 		.expect("locked")
-		.insert(room_id.to_owned(), (event_id.to_owned(), start_time));
+		.insert(room_id.into(), (event_id.to_owned(), start_time));
 
-	let r = self
-		.upgrade_outlier_to_timeline_pdu(incoming_pdu, val, &create_event, origin, room_id)
-		.await;
+	defer! {{
+		self.federation_handletime
+			.write()
+			.expect("locked")
+			.remove(room_id);
+	}};
 
-	self.federation_handletime
-		.write()
-		.expect("locked")
-		.remove(&room_id.to_owned());
-
-	r
+	self.upgrade_outlier_to_timeline_pdu(incoming_pdu, val, create_event, origin, room_id)
+		.boxed()
+		.await
 }

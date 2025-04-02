@@ -1,13 +1,10 @@
-use std::{
-	collections::{BTreeMap, HashMap},
-	time::Instant,
-};
+use std::{collections::BTreeMap, time::Instant};
 
 use conduwuit::{
-	Err, PduEvent, Result, debug, debug::INFO_SPAN_LEVEL, implement,
+	Err, PduEvent, Result, debug, debug::INFO_SPAN_LEVEL, defer, implement,
 	utils::continue_exponential_backoff_secs,
 };
-use ruma::{CanonicalJsonValue, EventId, OwnedEventId, RoomId, ServerName, UInt};
+use ruma::{CanonicalJsonValue, EventId, RoomId, ServerName, UInt};
 
 #[implement(super::Service)]
 #[allow(clippy::type_complexity)]
@@ -23,10 +20,10 @@ pub(super) async fn handle_prev_pdu<'a>(
 	origin: &'a ServerName,
 	event_id: &'a EventId,
 	room_id: &'a RoomId,
-	eventid_info: &mut HashMap<OwnedEventId, (PduEvent, BTreeMap<String, CanonicalJsonValue>)>,
-	create_event: &PduEvent,
+	eventid_info: Option<(PduEvent, BTreeMap<String, CanonicalJsonValue>)>,
+	create_event: &'a PduEvent,
 	first_ts_in_room: UInt,
-	prev_id: &EventId,
+	prev_id: &'a EventId,
 ) -> Result {
 	// Check for disabled again because it might have changed
 	if self.services.metadata.is_disabled(room_id).await {
@@ -57,31 +54,35 @@ pub(super) async fn handle_prev_pdu<'a>(
 		}
 	}
 
-	if let Some((pdu, json)) = eventid_info.remove(prev_id) {
-		// Skip old events
-		if pdu.origin_server_ts < first_ts_in_room {
-			return Ok(());
-		}
+	let Some((pdu, json)) = eventid_info else {
+		return Ok(());
+	};
 
-		let start_time = Instant::now();
-		self.federation_handletime
-			.write()
-			.expect("locked")
-			.insert(room_id.to_owned(), ((*prev_id).to_owned(), start_time));
-
-		self.upgrade_outlier_to_timeline_pdu(pdu, json, create_event, origin, room_id)
-			.await?;
-
-		self.federation_handletime
-			.write()
-			.expect("locked")
-			.remove(&room_id.to_owned());
-
-		debug!(
-			elapsed = ?start_time.elapsed(),
-			"Handled prev_event",
-		);
+	// Skip old events
+	if pdu.origin_server_ts < first_ts_in_room {
+		return Ok(());
 	}
+
+	let start_time = Instant::now();
+	self.federation_handletime
+		.write()
+		.expect("locked")
+		.insert(room_id.into(), ((*prev_id).to_owned(), start_time));
+
+	defer! {{
+		self.federation_handletime
+			.write()
+			.expect("locked")
+			.remove(room_id);
+	}};
+
+	self.upgrade_outlier_to_timeline_pdu(pdu, json, create_event, origin, room_id)
+		.await?;
+
+	debug!(
+		elapsed = ?start_time.elapsed(),
+		"Handled prev_event",
+	);
 
 	Ok(())
 }
