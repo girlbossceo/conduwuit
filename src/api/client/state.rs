@@ -229,6 +229,9 @@ async fn allowed_to_send_state_event(
 
 					if acl_content.deny.contains(&String::from("*"))
 						&& !acl_content.is_allowed(services.globals.server_name())
+						&& !acl_content
+							.allow
+							.contains(&services.globals.server_name().to_string())
 					{
 						return Err!(Request(BadJson(debug_warn!(
 							?room_id,
@@ -240,6 +243,9 @@ async fn allowed_to_send_state_event(
 
 					if !acl_content.allow.contains(&String::from("*"))
 						&& !acl_content.is_allowed(services.globals.server_name())
+						&& !acl_content
+							.allow
+							.contains(&services.globals.server_name().to_string())
 					{
 						return Err!(Request(BadJson(debug_warn!(
 							?room_id,
