@@ -77,6 +77,10 @@ pub(crate) async fn start(server: Arc<Server>) -> Result<Arc<Services>> {
 pub(crate) async fn stop(services: Arc<Services>) -> Result<()> {
 	debug!("Shutting down...");
 
+	#[cfg(all(feature = "systemd", target_os = "linux"))]
+	sd_notify::notify(true, &[sd_notify::NotifyState::Stopping])
+		.expect("failed to notify systemd of stopping state");
+
 	// Wait for all completions before dropping or we'll lose them to the module
 	// unload and explode.
 	services.stop().await;

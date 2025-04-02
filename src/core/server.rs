@@ -69,10 +69,6 @@ impl Server {
 			return Err!("Reloading not enabled");
 		}
 
-		#[cfg(all(feature = "systemd", target_os = "linux"))]
-		sd_notify::notify(true, &[sd_notify::NotifyState::Reloading])
-			.expect("failed to notify systemd of reloading state");
-
 		if self.reloading.swap(true, Ordering::AcqRel) {
 			return Err!("Reloading already in progress");
 		}
@@ -98,10 +94,6 @@ impl Server {
 	}
 
 	pub fn shutdown(&self) -> Result {
-		#[cfg(all(feature = "systemd", target_os = "linux"))]
-		sd_notify::notify(true, &[sd_notify::NotifyState::Stopping])
-			.expect("failed to notify systemd of stopping state");
-
 		if self.stopping.swap(true, Ordering::AcqRel) {
 			return Err!("Shutdown already in progress");
 		}
@@ -144,7 +136,16 @@ impl Server {
 	}
 
 	#[inline]
-	pub fn running(&self) -> bool { !self.stopping.load(Ordering::Acquire) }
+	pub fn running(&self) -> bool { !self.is_stopping() }
+
+	#[inline]
+	pub fn is_stopping(&self) -> bool { self.stopping.load(Ordering::Relaxed) }
+
+	#[inline]
+	pub fn is_reloading(&self) -> bool { self.reloading.load(Ordering::Relaxed) }
+
+	#[inline]
+	pub fn is_restarting(&self) -> bool { self.restarting.load(Ordering::Relaxed) }
 
 	#[inline]
 	pub fn is_ours(&self, name: &str) -> bool { name == self.config.server_name }
