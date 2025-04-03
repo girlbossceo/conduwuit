@@ -9,7 +9,8 @@ use ruma::{
 		client::{
 			error::ErrorKind,
 			keys::{
-				claim_keys, get_key_changes, get_keys, upload_keys, upload_signatures,
+				claim_keys, get_key_changes, get_keys, upload_keys,
+				upload_signatures::{self, v3::Failure},
 				upload_signing_keys,
 			},
 			uiaa::{AuthFlow, AuthType, UiaaInfo},
@@ -308,53 +309,81 @@ async fn check_for_new_keys(
 /// # `POST /_matrix/client/r0/keys/signatures/upload`
 ///
 /// Uploads end-to-end key signatures from the sender user.
+///
+/// TODO: clean this timo-code up more. tried to improve it a bit to stop
+/// exploding the entire request on bad sigs, but needs way more work.
 pub(crate) async fn upload_signatures_route(
 	State(services): State<crate::State>,
 	body: Ruma<upload_signatures::v3::Request>,
 ) -> Result<upload_signatures::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	use upload_signatures::v3::FailureErrorCode::*;
+
+	if body.signed_keys.is_empty() {
+		debug!("Empty signed_keys sent in key signature upload");
+		return Ok(upload_signatures::v3::Response::new());
+	}
+
+	let sender_user = body.sender_user();
+	let mut failures: BTreeMap<OwnedUserId, BTreeMap<String, Failure>> = BTreeMap::new();
+	let mut failure_reasons: BTreeMap<String, Failure> = BTreeMap::new();
+	let failure = Failure {
+		errcode: InvalidSignature,
+		error: String::new(),
+	};
 
 	for (user_id, keys) in &body.signed_keys {
 		for (key_id, key) in keys {
-			let key = serde_json::to_value(key)
-				.map_err(|_| Error::BadRequest(ErrorKind::InvalidParam, "Invalid key JSON"))?;
+			let Ok(key) = serde_json::to_value(key)
+				.inspect_err(|e| debug_warn!(?key_id, "Invalid \"key\" JSON: {e}"))
+			else {
+				let mut failure = failure.clone();
+				failure.error = String::from("Invalid \"key\" JSON");
+				failure_reasons.insert(key_id.to_owned(), failure);
+				continue;
+			};
 
-			for signature in key
-				.get("signatures")
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Missing signatures field."))?
-				.get(sender_user.to_string())
-				.ok_or(Error::BadRequest(
-					ErrorKind::InvalidParam,
-					"Invalid user in signatures field.",
-				))?
-				.as_object()
-				.ok_or(Error::BadRequest(ErrorKind::InvalidParam, "Invalid signature."))?
-				.clone()
-			{
-				// Signature validation?
-				let signature = (
-					signature.0,
-					signature
-						.1
-						.as_str()
-						.ok_or(Error::BadRequest(
-							ErrorKind::InvalidParam,
-							"Invalid signature value.",
-						))?
-						.to_owned(),
-				);
+			let Some(signatures) = key.get("signatures") else {
+				let mut failure = failure.clone();
+				failure.error = String::from("Missing \"signatures\" field");
+				failure_reasons.insert(key_id.to_owned(), failure);
+				continue;
+			};
 
-				services
+			let Some(sender_user_val) = signatures.get(sender_user.to_string()) else {
+				let mut failure = failure.clone();
+				failure.error = String::from("Invalid user in signatures field");
+				failure_reasons.insert(key_id.to_owned(), failure);
+				continue;
+			};
+
+			let Some(sender_user_object) = sender_user_val.as_object() else {
+				let mut failure = failure.clone();
+				failure.error = String::from("signatures field is not a JSON object");
+				failure_reasons.insert(key_id.to_owned(), failure);
+				continue;
+			};
+
+			for (signature, val) in sender_user_object.clone() {
+				let signature = (signature, val.to_string());
+
+				if let Err(e) = services
 					.users
 					.sign_key(user_id, key_id, signature, sender_user)
-					.await?;
+					.await
+					.inspect_err(|e| debug_warn!("{e}"))
+				{
+					let mut failure = failure.clone();
+					failure.error = format!("Error signing key: {e}");
+					failure_reasons.insert(key_id.to_owned(), failure);
+					continue;
+				}
 			}
 		}
+
+		failures.insert(user_id.to_owned(), failure_reasons.clone());
 	}
 
-	Ok(upload_signatures::v3::Response {
-		failures: BTreeMap::new(), // TODO: integrate
-	})
+	Ok(upload_signatures::v3::Response { failures })
 }
 
 /// # `POST /_matrix/client/r0/keys/changes`

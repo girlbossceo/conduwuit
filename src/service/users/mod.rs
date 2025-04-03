@@ -593,7 +593,7 @@ impl Service {
 		key_id: &str,
 		signature: (String, String),
 		sender_id: &UserId,
-	) -> Result<()> {
+	) -> Result {
 		let key = (target_id, key_id);
 
 		let mut cross_signing_key: serde_json::Value = self
@@ -601,21 +601,27 @@ impl Service {
 			.keyid_key
 			.qry(&key)
 			.await
-			.map_err(|_| err!(Request(InvalidParam("Tried to sign nonexistent key."))))?
+			.map_err(|_| err!(Request(InvalidParam("Tried to sign nonexistent key"))))?
 			.deserialized()
-			.map_err(|e| err!(Database("key in keyid_key is invalid. {e:?}")))?;
+			.map_err(|e| err!(Database(debug_warn!("key in keyid_key is invalid: {e:?}"))))?;
 
 		let signatures = cross_signing_key
 			.get_mut("signatures")
-			.ok_or_else(|| err!(Database("key in keyid_key has no signatures field.")))?
+			.ok_or_else(|| {
+				err!(Database(debug_warn!("key in keyid_key has no signatures field")))
+			})?
 			.as_object_mut()
-			.ok_or_else(|| err!(Database("key in keyid_key has invalid signatures field.")))?
+			.ok_or_else(|| {
+				err!(Database(debug_warn!("key in keyid_key has invalid signatures field.")))
+			})?
 			.entry(sender_id.to_string())
 			.or_insert_with(|| serde_json::Map::new().into());
 
 		signatures
 			.as_object_mut()
-			.ok_or_else(|| err!(Database("signatures in keyid_key for a user is invalid.")))?
+			.ok_or_else(|| {
+				err!(Database(debug_warn!("signatures in keyid_key for a user is invalid.")))
+			})?
 			.insert(signature.0, signature.1.into());
 
 		let key = (target_id, key_id);

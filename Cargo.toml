@@ -350,7 +350,7 @@ version = "0.1.2"
 [workspace.dependencies.ruma]
 git = "https://github.com/girlbossceo/ruwuma"
 #branch = "conduwuit-changes"
-rev = "0701341a2fd5a6ea74beada18d5974cc401a4fc1"
+rev = "edbdc79e560d01d9e4a76f7421e70ea4fd4c54ef"
 features = [
     "compat",
     "rand",
