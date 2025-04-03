@@ -22,7 +22,13 @@ pub(crate) async fn appservice_ping(
 		)));
 	}
 
-	if appservice_info.registration.url.is_none() {
+	if appservice_info.registration.url.is_none()
+		|| appservice_info
+			.registration
+			.url
+			.as_ref()
+			.is_some_and(|url| url.is_empty() || url == "null")
+	{
 		return Err!(Request(UrlNotSet(
 			"Appservice does not have a URL set, there is nothing to ping."
 		)));

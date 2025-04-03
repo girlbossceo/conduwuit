@@ -25,6 +25,10 @@ where
 		return Ok(None);
 	};
 
+	if dest == *"null" || dest.is_empty() {
+		return Ok(None);
+	}
+
 	trace!("Appservice URL \"{dest}\", Appservice ID: {}", registration.id);
 
 	let hs_token = registration.hs_token.as_str();
@@ -34,7 +38,11 @@ where
 			SendAccessToken::IfRequired(hs_token),
 			&VERSIONS,
 		)
-		.map_err(|e| err!(BadServerResponse(warn!("Failed to find destination {dest}: {e}"))))?
+		.map_err(|e| {
+			err!(BadServerResponse(
+				warn!(appservice = %registration.id, "Failed to find destination {dest}: {e:?}")
+			))
+		})?
 		.map(BytesMut::freeze);
 
 	let mut parts = http_request.uri().clone().into_parts();
@@ -51,7 +59,7 @@ where
 	let reqwest_request = reqwest::Request::try_from(http_request)?;
 
 	let mut response = client.execute(reqwest_request).await.map_err(|e| {
-		warn!("Could not send request to appservice \"{}\" at {dest}: {e}", registration.id);
+		warn!("Could not send request to appservice \"{}\" at {dest}: {e:?}", registration.id);
 		e
 	})?;
 
@@ -71,7 +79,7 @@ where
 
 	if !status.is_success() {
 		debug_error!("Appservice response bytes: {:?}", utils::string_from_bytes(&body));
-		return Err!(BadServerResponse(error!(
+		return Err!(BadServerResponse(warn!(
 			"Appservice \"{}\" returned unsuccessful HTTP response {status} at {dest}",
 			registration.id
 		)));
@@ -84,8 +92,8 @@ where
 	);
 
 	response.map(Some).map_err(|e| {
-		err!(BadServerResponse(error!(
-			"Appservice \"{}\" returned invalid response bytes {dest}: {e}",
+		err!(BadServerResponse(warn!(
+			"Appservice \"{}\" returned invalid/malformed response bytes {dest}: {e}",
 			registration.id
 		)))
 	})

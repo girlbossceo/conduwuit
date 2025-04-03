@@ -318,14 +318,14 @@ pub(crate) async fn register_route(
 				// Success!
 			},
 			| _ => match body.json_body {
-				| Some(json) => {
+				| Some(ref json) => {
 					uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 					services.uiaa.create(
 						&UserId::parse_with_server_name("", services.globals.server_name())
 							.unwrap(),
 						"".into(),
 						&uiaainfo,
-						&json,
+						json,
 					);
 					return Err(Error::Uiaa(uiaainfo));
 				},
@@ -373,8 +373,12 @@ pub(crate) async fn register_route(
 		)
 		.await?;
 
-	// Inhibit login does not work for guests
-	if !is_guest && body.inhibit_login {
+	if (!is_guest && body.inhibit_login)
+		|| body
+			.appservice_info
+			.as_ref()
+			.is_some_and(|appservice| appservice.registration.device_management)
+	{
 		return Ok(register::v3::Response {
 			access_token: None,
 			user_id,

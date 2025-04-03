@@ -350,7 +350,6 @@ impl Service {
 		token: &str,
 	) -> Result<()> {
 		let key = (user_id, device_id);
-		// should not be None, but we shouldn't assert either lol...
 		if self.db.userdeviceid_metadata.qry(&key).await.is_err() {
 			return Err!(Database(error!(
 				?user_id,

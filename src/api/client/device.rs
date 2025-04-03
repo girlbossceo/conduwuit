@@ -1,9 +1,9 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{Err, err};
+use conduwuit::{Err, debug, err};
 use futures::StreamExt;
 use ruma::{
-	MilliSecondsSinceUnixEpoch,
+	MilliSecondsSinceUnixEpoch, OwnedDeviceId,
 	api::client::{
 		device::{self, delete_device, delete_devices, get_device, get_devices, update_device},
 		error::ErrorKind,
@@ -12,7 +12,7 @@ use ruma::{
 };
 
 use super::SESSION_ID_LENGTH;
-use crate::{Error, Result, Ruma, utils};
+use crate::{Error, Result, Ruma, client::DEVICE_ID_LENGTH, utils};
 
 /// # `GET /_matrix/client/r0/devices`
 ///
@@ -59,26 +59,58 @@ pub(crate) async fn update_device_route(
 	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<update_device::v3::Request>,
 ) -> Result<update_device::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
+	let appservice = body.appservice_info.as_ref();
 
-	let mut device = services
+	match services
 		.users
 		.get_device_metadata(sender_user, &body.device_id)
 		.await
-		.map_err(|_| err!(Request(NotFound("Device not found."))))?;
+	{
+		| Ok(mut device) => {
+			device.display_name.clone_from(&body.display_name);
+			device.last_seen_ip.clone_from(&Some(client.to_string()));
+			device
+				.last_seen_ts
+				.clone_from(&Some(MilliSecondsSinceUnixEpoch::now()));
 
-	device.display_name.clone_from(&body.display_name);
-	device.last_seen_ip.clone_from(&Some(client.to_string()));
-	device
-		.last_seen_ts
-		.clone_from(&Some(MilliSecondsSinceUnixEpoch::now()));
+			services
+				.users
+				.update_device_metadata(sender_user, &body.device_id, &device)
+				.await?;
 
-	services
-		.users
-		.update_device_metadata(sender_user, &body.device_id, &device)
-		.await?;
+			Ok(update_device::v3::Response {})
+		},
+		| Err(_) => {
+			let Some(appservice) = appservice else {
+				return Err!(Request(NotFound("Device not found.")));
+			};
+			if !appservice.registration.device_management {
+				return Err!(Request(NotFound("Device not found.")));
+			}
 
-	Ok(update_device::v3::Response {})
+			debug!(
+				"Creating new device for {sender_user} from appservice {} as MSC4190 is enabled \
+				 and device ID does not exist",
+				appservice.registration.id
+			);
+
+			let device_id = OwnedDeviceId::from(utils::random_string(DEVICE_ID_LENGTH));
+
+			services
+				.users
+				.create_device(
+					sender_user,
+					&device_id,
+					&appservice.registration.as_token,
+					None,
+					Some(client.to_string()),
+				)
+				.await?;
+
+			return Ok(update_device::v3::Response {});
+		},
+	}
 }
 
 /// # `DELETE /_matrix/client/r0/devices/{deviceId}`
@@ -95,8 +127,21 @@ pub(crate) async fn delete_device_route(
 	State(services): State<crate::State>,
 	body: Ruma<delete_device::v3::Request>,
 ) -> Result<delete_device::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+	let (sender_user, sender_device) = body.sender();
+	let appservice = body.appservice_info.as_ref();
+
+	if appservice.is_some_and(|appservice| appservice.registration.device_management) {
+		debug!(
+			"Skipping UIAA for {sender_user} as this is from an appservice and MSC4190 is \
+			 enabled"
+		);
+		services
+			.users
+			.remove_device(sender_user, &body.device_id)
+			.await;
+
+		return Ok(delete_device::v3::Response {});
+	}
 
 	// UIAA
 	let mut uiaainfo = UiaaInfo {
@@ -120,11 +165,11 @@ pub(crate) async fn delete_device_route(
 			// Success!
 		},
 		| _ => match body.json_body {
-			| Some(json) => {
+			| Some(ref json) => {
 				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 				services
 					.uiaa
-					.create(sender_user, sender_device, &uiaainfo, &json);
+					.create(sender_user, sender_device, &uiaainfo, json);
 
 				return Err!(Uiaa(uiaainfo));
 			},
@@ -142,11 +187,12 @@ pub(crate) async fn delete_device_route(
 	Ok(delete_device::v3::Response {})
 }
 
-/// # `PUT /_matrix/client/r0/devices/{deviceId}`
+/// # `POST /_matrix/client/v3/delete_devices`
 ///
-/// Deletes the given device.
+/// Deletes the given list of devices.
 ///
-/// - Requires UIAA to verify user password
+/// - Requires UIAA to verify user password unless from an appservice with
+///   MSC4190 enabled.
 ///
 /// For each device:
 /// - Invalidates access token
@@ -158,8 +204,20 @@ pub(crate) async fn delete_devices_route(
 	State(services): State<crate::State>,
 	body: Ruma<delete_devices::v3::Request>,
 ) -> Result<delete_devices::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let sender_device = body.sender_device.as_ref().expect("user is authenticated");
+	let (sender_user, sender_device) = body.sender();
+	let appservice = body.appservice_info.as_ref();
+
+	if appservice.is_some_and(|appservice| appservice.registration.device_management) {
+		debug!(
+			"Skipping UIAA for {sender_user} as this is from an appservice and MSC4190 is \
+			 enabled"
+		);
+		for device_id in &body.devices {
+			services.users.remove_device(sender_user, device_id).await;
+		}
+
+		return Ok(delete_devices::v3::Response {});
+	}
 
 	// UIAA
 	let mut uiaainfo = UiaaInfo {
@@ -183,11 +241,11 @@ pub(crate) async fn delete_devices_route(
 			// Success!
 		},
 		| _ => match body.json_body {
-			| Some(json) => {
+			| Some(ref json) => {
 				uiaainfo.session = Some(utils::random_string(SESSION_ID_LENGTH));
 				services
 					.uiaa
-					.create(sender_user, sender_device, &uiaainfo, &json);
+					.create(sender_user, sender_device, &uiaainfo, json);
 
 				return Err(Error::Uiaa(uiaainfo));
 			},
