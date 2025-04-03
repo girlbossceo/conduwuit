@@ -3,21 +3,13 @@ mod server_can;
 mod state;
 mod user_can;
 
-use std::{
-	fmt::Write,
-	sync::{Arc, Mutex as StdMutex, Mutex},
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use conduwuit::{
-	Result, err, utils,
-	utils::math::{Expected, usize_from_f64},
-};
+use conduwuit::{Result, err};
 use database::Map;
-use lru_cache::LruCache;
 use ruma::{
-	EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, OwnedRoomId, OwnedServerName,
-	OwnedUserId, RoomId, UserId,
+	EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, OwnedRoomId, RoomId, UserId,
 	events::{
 		StateEventType,
 		room::{
@@ -37,11 +29,9 @@ use ruma::{
 	space::SpaceRoomJoinRule,
 };
 
-use crate::{Dep, rooms, rooms::short::ShortStateHash};
+use crate::{Dep, rooms};
 
 pub struct Service {
-	pub server_visibility_cache: Mutex<LruCache<(OwnedServerName, ShortStateHash), bool>>,
-	pub user_visibility_cache: Mutex<LruCache<(OwnedUserId, ShortStateHash), bool>>,
 	services: Services,
 	db: Data,
 }
@@ -61,19 +51,7 @@ struct Data {
 #[async_trait]
 impl crate::Service for Service {
 	fn build(args: crate::Args<'_>) -> Result<Arc<Self>> {
-		let config = &args.server.config;
-		let server_visibility_cache_capacity =
-			f64::from(config.server_visibility_cache_capacity) * config.cache_capacity_modifier;
-		let user_visibility_cache_capacity =
-			f64::from(config.user_visibility_cache_capacity) * config.cache_capacity_modifier;
-
 		Ok(Arc::new(Self {
-			server_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(
-				server_visibility_cache_capacity,
-			)?)),
-			user_visibility_cache: StdMutex::new(LruCache::new(usize_from_f64(
-				user_visibility_cache_capacity,
-			)?)),
 			services: Services {
 				state_cache: args.depend::<rooms::state_cache::Service>("rooms::state_cache"),
 				timeline: args.depend::<rooms::timeline::Service>("rooms::timeline"),
@@ -86,44 +64,6 @@ impl crate::Service for Service {
 				shorteventid_shortstatehash: args.db["shorteventid_shortstatehash"].clone(),
 			},
 		}))
-	}
-
-	async fn memory_usage(&self, out: &mut (dyn Write + Send)) -> Result {
-		use utils::bytes::pretty;
-
-		let (svc_count, svc_bytes) = self.server_visibility_cache.lock()?.iter().fold(
-			(0_usize, 0_usize),
-			|(count, bytes), (key, _)| {
-				(
-					count.expected_add(1),
-					bytes
-						.expected_add(key.0.capacity())
-						.expected_add(size_of_val(&key.1)),
-				)
-			},
-		);
-
-		let (uvc_count, uvc_bytes) = self.user_visibility_cache.lock()?.iter().fold(
-			(0_usize, 0_usize),
-			|(count, bytes), (key, _)| {
-				(
-					count.expected_add(1),
-					bytes
-						.expected_add(key.0.capacity())
-						.expected_add(size_of_val(&key.1)),
-				)
-			},
-		);
-
-		writeln!(out, "server_visibility_cache: {svc_count} ({})", pretty(svc_bytes))?;
-		writeln!(out, "user_visibility_cache: {uvc_count} ({})", pretty(uvc_bytes))?;
-
-		Ok(())
-	}
-
-	async fn clear_cache(&self) {
-		self.server_visibility_cache.lock().expect("locked").clear();
-		self.user_visibility_cache.lock().expect("locked").clear();
 	}
 
 	fn name(&self) -> &str { crate::service::make_name(std::module_path!()) }

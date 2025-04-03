@@ -197,14 +197,6 @@
 
 # This item is undocumented. Please contribute documentation for it.
 #
-#server_visibility_cache_capacity = varies by system
-
-# This item is undocumented. Please contribute documentation for it.
-#
-#user_visibility_cache_capacity = varies by system
-
-# This item is undocumented. Please contribute documentation for it.
-#
 #stateinfo_cache_capacity = varies by system
 
 # This item is undocumented. Please contribute documentation for it.

@@ -253,14 +253,6 @@ pub struct Config {
 	pub servernameevent_data_cache_capacity: u32,
 
 	/// default: varies by system
-	#[serde(default = "default_server_visibility_cache_capacity")]
-	pub server_visibility_cache_capacity: u32,
-
-	/// default: varies by system
-	#[serde(default = "default_user_visibility_cache_capacity")]
-	pub user_visibility_cache_capacity: u32,
-
-	/// default: varies by system
 	#[serde(default = "default_stateinfo_cache_capacity")]
 	pub stateinfo_cache_capacity: u32,
 
@@ -2034,10 +2026,6 @@ fn default_statekeyshort_cache_capacity() -> u32 {
 fn default_servernameevent_data_cache_capacity() -> u32 {
 	parallelism_scaled_u32(100_000).saturating_add(500_000)
 }
-
-fn default_server_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(500) }
-
-fn default_user_visibility_cache_capacity() -> u32 { parallelism_scaled_u32(1000) }
 
 fn default_stateinfo_cache_capacity() -> u32 { parallelism_scaled_u32(100) }
 

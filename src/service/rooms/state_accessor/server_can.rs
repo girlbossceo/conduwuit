@@ -1,4 +1,4 @@
-use conduwuit::{error, implement, utils::stream::ReadyExt};
+use conduwuit::{debug_info, implement, utils::stream::ReadyExt};
 use futures::StreamExt;
 use ruma::{
 	EventId, RoomId, ServerName,
@@ -22,15 +22,6 @@ pub async fn server_can_see_event(
 		return true;
 	};
 
-	if let Some(visibility) = self
-		.server_visibility_cache
-		.lock()
-		.expect("locked")
-		.get_mut(&(origin.to_owned(), shortstatehash))
-	{
-		return *visibility;
-	}
-
 	let history_visibility = self
 		.state_get_content(shortstatehash, &StateEventType::RoomHistoryVisibility, "")
 		.await
@@ -44,7 +35,7 @@ pub async fn server_can_see_event(
 		.room_members(room_id)
 		.ready_filter(|member| member.server_name() == origin);
 
-	let visibility = match history_visibility {
+	match history_visibility {
 		| HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
 		| HistoryVisibility::Invited => {
 			// Allow if any member on requesting server was AT LEAST invited, else deny
@@ -62,12 +53,5 @@ pub async fn server_can_see_event(
 			error!("Unknown history visibility {history_visibility}");
 			false
 		},
-	};
-
-	self.server_visibility_cache
-		.lock()
-		.expect("locked")
-		.insert((origin.to_owned(), shortstatehash), visibility);
-
-	visibility
+	}
 }

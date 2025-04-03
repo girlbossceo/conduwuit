@@ -1,4 +1,4 @@
-use conduwuit::{Err, Error, Result, error, implement, pdu::PduBuilder};
+use conduwuit::{Err, Error, Result, debug_info, implement, pdu::PduBuilder};
 use ruma::{
 	EventId, RoomId, UserId,
 	events::{
@@ -98,15 +98,6 @@ pub async fn user_can_see_event(
 		return true;
 	};
 
-	if let Some(visibility) = self
-		.user_visibility_cache
-		.lock()
-		.expect("locked")
-		.get_mut(&(user_id.to_owned(), shortstatehash))
-	{
-		return *visibility;
-	}
-
 	let currently_member = self.services.state_cache.is_joined(user_id, room_id).await;
 
 	let history_visibility = self
@@ -116,7 +107,7 @@ pub async fn user_can_see_event(
 			c.history_visibility
 		});
 
-	let visibility = match history_visibility {
+	match history_visibility {
 		| HistoryVisibility::WorldReadable => true,
 		| HistoryVisibility::Shared => currently_member,
 		| HistoryVisibility::Invited => {
@@ -131,14 +122,7 @@ pub async fn user_can_see_event(
 			error!("Unknown history visibility {history_visibility}");
 			false
 		},
-	};
-
-	self.user_visibility_cache
-		.lock()
-		.expect("locked")
-		.insert((user_id.to_owned(), shortstatehash), visibility);
-
-	visibility
+	}
 }
 
 /// Whether a user is allowed to see an event, based on
