@@ -6,10 +6,16 @@ use conduwuit::{
 	utils::{IterStream, ReadyExt, stream::TryTools},
 };
 use futures::{FutureExt, StreamExt, TryStreamExt};
-use ruma::{MilliSecondsSinceUnixEpoch, api::federation::backfill::get_backfill, uint};
+use ruma::{MilliSecondsSinceUnixEpoch, api::federation::backfill::get_backfill};
 
 use super::AccessCheck;
 use crate::Ruma;
+
+/// arbitrary number but synapse's is 100 and we can handle lots of these
+/// anyways
+const LIMIT_MAX: usize = 150;
+/// no spec defined number but we can handle a lot of these
+const LIMIT_DEFAULT: usize = 50;
 
 /// # `GET /_matrix/federation/v1/backfill/<room_id>`
 ///
@@ -30,9 +36,9 @@ pub(crate) async fn get_backfill_route(
 
 	let limit = body
 		.limit
-		.min(uint!(100))
 		.try_into()
-		.expect("UInt could not be converted to usize");
+		.unwrap_or(LIMIT_DEFAULT)
+		.min(LIMIT_MAX);
 
 	let from = body
 		.v
