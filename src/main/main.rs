@@ -16,15 +16,14 @@ use server::Server;
 
 rustc_flags_capture! {}
 
-fn main() -> Result<(), Error> {
+fn main() -> Result {
 	let args = clap::parse();
 	let runtime = runtime::new(&args)?;
 	let server = Server::new(&args, Some(runtime.handle()))?;
+
 	runtime.spawn(signal::signal(server.clone()));
 	runtime.block_on(async_main(&server))?;
-
-	// explicit drop here to trace thread and tls dtors
-	drop(runtime);
+	runtime::shutdown(&server, runtime);
 
 	#[cfg(unix)]
 	if server.server.restarting.load(Ordering::Acquire) {

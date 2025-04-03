@@ -1,7 +1,7 @@
 use std::{
 	iter::once,
 	sync::{
-		OnceLock,
+		Arc, OnceLock,
 		atomic::{AtomicUsize, Ordering},
 	},
 	thread,
@@ -11,17 +11,18 @@ use std::{
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 use conduwuit_core::result::LogDebugErr;
 use conduwuit_core::{
-	Result, is_true,
+	Result, debug, is_true,
 	utils::sys::compute::{nth_core_available, set_affinity},
 };
 use tokio::runtime::Builder;
 
-use crate::clap::Args;
+use crate::{clap::Args, server::Server};
 
 const WORKER_NAME: &str = "conduwuit:worker";
 const WORKER_MIN: usize = 2;
 const WORKER_KEEPALIVE: u64 = 36;
 const MAX_BLOCKING_THREADS: usize = 1024;
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(10000);
 #[cfg(all(not(target_env = "msvc"), feature = "jemalloc"))]
 const DISABLE_MUZZY_THRESHOLD: usize = 4;
 
@@ -81,6 +82,42 @@ fn enable_histogram(builder: &mut Builder, args: &Args) {
 	builder
 		.enable_metrics_poll_time_histogram()
 		.metrics_poll_time_histogram_configuration(linear);
+}
+
+#[cfg(tokio_unstable)]
+#[tracing::instrument(name = "stop", level = "info", skip_all)]
+pub(super) fn shutdown(server: &Arc<Server>, runtime: tokio::runtime::Runtime) {
+	use conduwuit_core::event;
+	use tracing::Level;
+
+	// The final metrics output is promoted to INFO when tokio_unstable is active in
+	// a release/bench mode and DEBUG is likely optimized out
+	const LEVEL: Level = if cfg!(debug_assertions) {
+		Level::DEBUG
+	} else {
+		Level::INFO
+	};
+
+	debug!(
+		timeout = ?SHUTDOWN_TIMEOUT,
+		"Waiting for runtime..."
+	);
+
+	runtime.shutdown_timeout(SHUTDOWN_TIMEOUT);
+	let runtime_metrics = server.server.metrics.runtime_interval().unwrap_or_default();
+
+	event!(LEVEL, ?runtime_metrics, "Final runtime metrics");
+}
+
+#[cfg(not(tokio_unstable))]
+#[tracing::instrument(name = "stop", level = "info", skip_all)]
+pub(super) fn shutdown(_server: &Arc<Server>, runtime: tokio::runtime::Runtime) {
+	debug!(
+		timeout = ?SHUTDOWN_TIMEOUT,
+		"Waiting for runtime..."
+	);
+
+	runtime.shutdown_timeout(SHUTDOWN_TIMEOUT);
 }
 
 #[tracing::instrument(
