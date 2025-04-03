@@ -50,8 +50,8 @@ pub async fn server_can_see_event(
 				.await
 		},
 		| _ => {
-			error!("Unknown history visibility {history_visibility}");
-			false
+			debug_info!(%room_id, "Unknown history visibility, defaulting to shared: {history_visibility:?}");
+			true
 		},
 	}
 }

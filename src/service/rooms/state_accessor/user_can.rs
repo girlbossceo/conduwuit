@@ -119,8 +119,8 @@ pub async fn user_can_see_event(
 			self.user_was_joined(shortstatehash, user_id).await
 		},
 		| _ => {
-			error!("Unknown history visibility {history_visibility}");
-			false
+			debug_info!(%room_id, "Unknown history visibility, defaulting to shared: {history_visibility:?}");
+			currently_member
 		},
 	}
 }
