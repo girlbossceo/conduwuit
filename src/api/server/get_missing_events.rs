@@ -1,9 +1,5 @@
 use axum::extract::State;
-use conduwuit::{
-	Result, debug, debug_info, debug_warn,
-	utils::{self},
-	warn,
-};
+use conduwuit::{Result, debug, debug_error, utils::to_canonical_object};
 use ruma::api::federation::event::get_missing_events;
 
 use super::AccessCheck;
@@ -43,19 +39,13 @@ pub(crate) async fn get_missing_events_route(
 	let mut i: usize = 0;
 	while i < queued_events.len() && events.len() < limit {
 		let Ok(pdu) = services.rooms.timeline.get_pdu(&queued_events[i]).await else {
-			debug_info!(?body.origin, "Event {} does not exist locally, skipping", &queued_events[i]);
-			i = i.saturating_add(1);
-			continue;
-		};
-
-		if pdu.room_id != body.room_id {
-			warn!(?body.origin,
-				"Got an event for the wrong room in database. Found {:?} in {:?}, server requested events in {:?}. Skipping.",
-				pdu.event_id, pdu.room_id, body.room_id
+			debug!(
+				?body.origin,
+				"Event {} does not exist locally, skipping", &queued_events[i]
 			);
 			i = i.saturating_add(1);
 			continue;
-		}
+		};
 
 		if body.earliest_events.contains(&queued_events[i]) {
 			i = i.saturating_add(1);
@@ -68,25 +58,32 @@ pub(crate) async fn get_missing_events_route(
 			.server_can_see_event(body.origin(), &body.room_id, &queued_events[i])
 			.await
 		{
-			debug!(?body.origin, "Server cannot see {:?} in {:?}, skipping", pdu.event_id, pdu.room_id);
+			debug!(
+				?body.origin,
+				"Server cannot see {:?} in {:?}, skipping", pdu.event_id, pdu.room_id
+			);
 			i = i.saturating_add(1);
 			continue;
 		}
 
-		let Ok(pdu_json) = utils::to_canonical_object(&pdu) else {
-			debug_warn!(?body.origin, "Failed to convert PDU in database to canonical JSON: {pdu:?}");
+		let Ok(event) = to_canonical_object(&pdu) else {
+			debug_error!(
+				?body.origin,
+				"Failed to convert PDU in database to canonical JSON: {pdu:?}"
+			);
 			i = i.saturating_add(1);
 			continue;
 		};
 
-		queued_events.extend(pdu.prev_events.iter().map(ToOwned::to_owned));
+		let prev_events = pdu.prev_events.iter().map(ToOwned::to_owned);
 
-		events.push(
-			services
-				.sending
-				.convert_to_outgoing_federation_event(pdu_json)
-				.await,
-		);
+		let event = services
+			.sending
+			.convert_to_outgoing_federation_event(event)
+			.await;
+
+		queued_events.extend(prev_events);
+		events.push(event);
 	}
 
 	Ok(get_missing_events::v1::Response { events })

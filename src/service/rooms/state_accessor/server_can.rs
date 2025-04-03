@@ -1,4 +1,4 @@
-use conduwuit::{debug_info, implement, utils::stream::ReadyExt};
+use conduwuit::{implement, utils::stream::ReadyExt};
 use futures::StreamExt;
 use ruma::{
 	EventId, RoomId, ServerName,
@@ -36,7 +36,6 @@ pub async fn server_can_see_event(
 		.ready_filter(|member| member.server_name() == origin);
 
 	match history_visibility {
-		| HistoryVisibility::WorldReadable | HistoryVisibility::Shared => true,
 		| HistoryVisibility::Invited => {
 			// Allow if any member on requesting server was AT LEAST invited, else deny
 			current_server_members
@@ -49,9 +48,6 @@ pub async fn server_can_see_event(
 				.any(|member| self.user_was_joined(shortstatehash, member))
 				.await
 		},
-		| _ => {
-			debug_info!(%room_id, "Unknown history visibility, defaulting to shared: {history_visibility:?}");
-			true
-		},
+		| HistoryVisibility::WorldReadable | HistoryVisibility::Shared | _ => true,
 	}
 }

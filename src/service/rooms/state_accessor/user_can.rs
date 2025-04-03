@@ -1,4 +1,4 @@
-use conduwuit::{Err, Error, Result, debug_info, implement, pdu::PduBuilder};
+use conduwuit::{Err, Result, implement, pdu::PduBuilder};
 use ruma::{
 	EventId, RoomId, UserId,
 	events::{
@@ -76,8 +76,8 @@ pub async fn user_can_redact(
 					|| redacting_event
 						.as_ref()
 						.is_ok_and(|redacting_event| redacting_event.sender == sender)),
-				| _ => Err(Error::bad_database(
-					"No m.room.power_levels or m.room.create events in database for room",
+				| _ => Err!(Database(
+					"No m.room.power_levels or m.room.create events in database for room"
 				)),
 			}
 		},
@@ -108,8 +108,6 @@ pub async fn user_can_see_event(
 		});
 
 	match history_visibility {
-		| HistoryVisibility::WorldReadable => true,
-		| HistoryVisibility::Shared => currently_member,
 		| HistoryVisibility::Invited => {
 			// Allow if any member on requesting server was AT LEAST invited, else deny
 			self.user_was_invited(shortstatehash, user_id).await
@@ -118,10 +116,8 @@ pub async fn user_can_see_event(
 			// Allow if any member on requested server was joined, else deny
 			self.user_was_joined(shortstatehash, user_id).await
 		},
-		| _ => {
-			debug_info!(%room_id, "Unknown history visibility, defaulting to shared: {history_visibility:?}");
-			currently_member
-		},
+		| HistoryVisibility::WorldReadable => true,
+		| HistoryVisibility::Shared | _ => currently_member,
 	}
 }
 
