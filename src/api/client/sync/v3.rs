@@ -15,6 +15,7 @@ use conduwuit::{
 		math::ruma_from_u64,
 		stream::{BroadbandExt, Tools, TryExpect, WidebandExt},
 	},
+	warn,
 };
 use conduwuit_service::{
 	Services,
@@ -428,9 +429,12 @@ async fn handle_left_room(
 		return Ok(None);
 	}
 
-	if !services.rooms.metadata.exists(room_id).await {
+	if !services.rooms.metadata.exists(room_id).await
+		|| services.rooms.metadata.is_disabled(room_id).await
+		|| services.rooms.metadata.is_banned(room_id).await
+	{
 		// This is just a rejected invite, not a room we know
-		// Insert a leave event anyways
+		// Insert a leave event anyways for the client
 		let event = PduEvent {
 			event_id: EventId::new(services.globals.server_name()),
 			sender: sender_user.to_owned(),
@@ -489,7 +493,7 @@ async fn handle_left_room(
 		.room_state_get_id(room_id, &StateEventType::RoomMember, sender_user.as_str())
 		.await
 	else {
-		error!("Left room but no left state event");
+		warn!("Left {room_id} but no left state event");
 		return Ok(None);
 	};
 
@@ -499,7 +503,7 @@ async fn handle_left_room(
 		.pdu_shortstatehash(&left_event_id)
 		.await
 	else {
-		error!(event_id = %left_event_id, "Leave event has no state");
+		warn!(event_id = %left_event_id, "Leave event has no state in {room_id}");
 		return Ok(None);
 	};
 

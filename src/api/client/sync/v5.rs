@@ -214,7 +214,10 @@ async fn fetch_subscriptions(
 ) {
 	let mut known_subscription_rooms = BTreeSet::new();
 	for (room_id, room) in &body.room_subscriptions {
-		if !services.rooms.metadata.exists(room_id).await {
+		if !services.rooms.metadata.exists(room_id).await
+			|| services.rooms.metadata.is_disabled(room_id).await
+			|| services.rooms.metadata.is_banned(room_id).await
+		{
 			continue;
 		}
 		let todo_room =

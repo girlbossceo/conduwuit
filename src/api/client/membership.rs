@@ -475,9 +475,9 @@ pub(crate) async fn leave_room_route(
 	State(services): State<crate::State>,
 	body: Ruma<leave_room::v3::Request>,
 ) -> Result<leave_room::v3::Response> {
-	leave_room(&services, body.sender_user(), &body.room_id, body.reason.clone()).await?;
-
-	Ok(leave_room::v3::Response::new())
+	leave_room(&services, body.sender_user(), &body.room_id, body.reason.clone())
+		.await
+		.map(|()| leave_room::v3::Response::new())
 }
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/invite`
@@ -1763,8 +1763,8 @@ pub(crate) async fn invite_helper(
 	Ok(())
 }
 
-// Make a user leave all their joined rooms, forgets all rooms, and ignores
-// errors
+// Make a user leave all their joined rooms, rescinds knocks, forgets all rooms,
+// and ignores errors
 pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
 	let rooms_joined = services
 		.rooms
@@ -1778,7 +1778,17 @@ pub async fn leave_all_rooms(services: &Services, user_id: &UserId) {
 		.rooms_invited(user_id)
 		.map(|(r, _)| r);
 
-	let all_rooms: Vec<_> = rooms_joined.chain(rooms_invited).collect().await;
+	let rooms_knocked = services
+		.rooms
+		.state_cache
+		.rooms_knocked(user_id)
+		.map(|(r, _)| r);
+
+	let all_rooms: Vec<_> = rooms_joined
+		.chain(rooms_invited)
+		.chain(rooms_knocked)
+		.collect()
+		.await;
 
 	for room_id in all_rooms {
 		// ignore errors
@@ -1795,7 +1805,40 @@ pub async fn leave_room(
 	user_id: &UserId,
 	room_id: &RoomId,
 	reason: Option<String>,
-) -> Result<()> {
+) -> Result {
+	let default_member_content = RoomMemberEventContent {
+		membership: MembershipState::Leave,
+		reason: reason.clone(),
+		join_authorized_via_users_server: None,
+		is_direct: None,
+		avatar_url: None,
+		displayname: None,
+		third_party_invite: None,
+		blurhash: None,
+	};
+
+	if services.rooms.metadata.is_banned(room_id).await
+		|| services.rooms.metadata.is_disabled(room_id).await
+	{
+		// the room is banned/disabled, the room must be rejected locally since we
+		// cant/dont want to federate with this server
+		services
+			.rooms
+			.state_cache
+			.update_membership(
+				room_id,
+				user_id,
+				default_member_content,
+				user_id,
+				None,
+				None,
+				true,
+			)
+			.await?;
+
+		return Ok(());
+	}
+
 	// Ask a remote server if we don't have this room and are not knocking on it
 	if !services
 		.rooms
@@ -1828,7 +1871,7 @@ pub async fn leave_room(
 			.update_membership(
 				room_id,
 				user_id,
-				RoomMemberEventContent::new(MembershipState::Leave),
+				default_member_content,
 				user_id,
 				last_state,
 				None,
@@ -1848,26 +1891,23 @@ pub async fn leave_room(
 			)
 			.await
 		else {
-			// Fix for broken rooms
-			warn!(
+			debug_warn!(
 				"Trying to leave a room you are not a member of, marking room as left locally."
 			);
 
-			services
+			return services
 				.rooms
 				.state_cache
 				.update_membership(
 					room_id,
 					user_id,
-					RoomMemberEventContent::new(MembershipState::Leave),
+					default_member_content,
 					user_id,
 					None,
 					None,
 					true,
 				)
-				.await?;
-
-			return Ok(());
+				.await;
 		};
 
 		services
@@ -1897,7 +1937,7 @@ async fn remote_leave_room(
 	room_id: &RoomId,
 ) -> Result<()> {
 	let mut make_leave_response_and_server =
-		Err!(BadServerResponse("No server available to assist in leaving."));
+		Err!(BadServerResponse("No remote server available to assist in leaving {room_id}."));
 
 	let mut servers: HashSet<OwnedServerName> = services
 		.rooms
@@ -1977,20 +2017,25 @@ async fn remote_leave_room(
 	let (make_leave_response, remote_server) = make_leave_response_and_server?;
 
 	let Some(room_version_id) = make_leave_response.room_version else {
-		return Err!(BadServerResponse("Remote room version is not supported by conduwuit"));
+		return Err!(BadServerResponse(warn!(
+			"No room version was returned by {remote_server} for {room_id}, room version is \
+			 likely not supported by conduwuit"
+		)));
 	};
 
 	if !services.server.supported_room_version(&room_version_id) {
-		return Err!(BadServerResponse(
-			"Remote room version {room_version_id} is not supported by conduwuit"
-		));
+		return Err!(BadServerResponse(warn!(
+			"Remote room version {room_version_id} for {room_id} is not supported by conduwuit",
+		)));
 	}
 
 	let mut leave_event_stub = serde_json::from_str::<CanonicalJsonObject>(
 		make_leave_response.event.get(),
 	)
 	.map_err(|e| {
-		err!(BadServerResponse("Invalid make_leave event json received from server: {e:?}"))
+		err!(BadServerResponse(warn!(
+			"Invalid make_leave event json received from {remote_server} for {room_id}: {e:?}"
+		)))
 	})?;
 
 	// TODO: Is origin needed?

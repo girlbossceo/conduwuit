@@ -40,6 +40,7 @@ struct Services {
 	account_data: Dep<account_data::Service>,
 	config: Dep<config::Service>,
 	globals: Dep<globals::Service>,
+	metadata: Dep<rooms::metadata::Service>,
 	state_accessor: Dep<rooms::state_accessor::Service>,
 	users: Dep<users::Service>,
 }
@@ -73,6 +74,7 @@ impl crate::Service for Service {
 				account_data: args.depend::<account_data::Service>("account_data"),
 				config: args.depend::<config::Service>("config"),
 				globals: args.depend::<globals::Service>("globals"),
+				metadata: args.depend::<rooms::metadata::Service>("rooms::metadata"),
 				state_accessor: args
 					.depend::<rooms::state_accessor::Service>("rooms::state_accessor"),
 				users: args.depend::<users::Service>("users"),
@@ -271,7 +273,9 @@ impl Service {
 				self.mark_as_left(user_id, room_id);
 
 				if self.services.globals.user_is_local(user_id)
-					&& self.services.config.forget_forced_upon_leave
+					&& (self.services.config.forget_forced_upon_leave
+						|| self.services.metadata.is_banned(room_id).await
+						|| self.services.metadata.is_disabled(room_id).await)
 				{
 					self.forget(room_id, user_id);
 				}
