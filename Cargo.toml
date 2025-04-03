@@ -570,9 +570,15 @@ rev = "fe4aebeeaae435af60087ddd56b573a2e0be671d"
 git = "https://github.com/girlbossceo/async-channel"
 rev = "92e5e74063bf2a3b10414bcc8a0d68b235644280"
 
+# adds affinity masks for selecting more than one core at a time
 [patch.crates-io.core_affinity]
 git = "https://github.com/girlbossceo/core_affinity_rs"
 rev = "9c8e51510c35077df888ee72a36b4b05637147da"
+
+# reverts hyperium#148 conflicting with our delicate federation resolver hooks
+[patch.crates-io.hyper-util]
+git = "https://github.com/girlbossceo/hyper-util"
+rev = "e4ae7628fe4fcdacef9788c4c8415317a4489941"
 
 #
 # Our crates
