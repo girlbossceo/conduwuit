@@ -56,7 +56,7 @@ impl crate::Service for Service {
 				.build()?,
 
 			well_known: base(config)?
-				.dns_resolver(resolver.resolver.hooked.clone())
+				.dns_resolver(resolver.resolver.clone())
 				.connect_timeout(Duration::from_secs(config.well_known_conn_timeout))
 				.read_timeout(Duration::from_secs(config.well_known_timeout))
 				.timeout(Duration::from_secs(config.well_known_timeout))
