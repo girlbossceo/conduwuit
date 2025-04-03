@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::Err;
+use conduwuit::{Err, Error, Result};
 use futures::StreamExt;
 use ruma::{
 	OwnedRoomId,
@@ -14,16 +14,14 @@ use ruma::{
 				delete_profile_key, delete_timezone_key, get_profile_key, get_timezone_key,
 				set_profile_key, set_timezone_key,
 			},
-			room::get_summary,
 		},
 		federation,
 	},
-	events::room::member::MembershipState,
 	presence::PresenceState,
 };
 
 use super::{update_avatar_url, update_displayname};
-use crate::{Error, Result, Ruma, RumaResponse};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/unstable/uk.half-shot.msc2666/user/mutual_rooms`
 ///
@@ -38,13 +36,10 @@ pub(crate) async fn get_mutual_rooms_route(
 	InsecureClientIp(client): InsecureClientIp,
 	body: Ruma<mutual_rooms::unstable::Request>,
 ) -> Result<mutual_rooms::unstable::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
+	let sender_user = body.sender_user();
 
-	if sender_user == &body.user_id {
-		return Err(Error::BadRequest(
-			ErrorKind::Unknown,
-			"You cannot request rooms in common with yourself.",
-		));
+	if sender_user == body.user_id {
+		return Err!(Request(Unknown("You cannot request rooms in common with yourself.")));
 	}
 
 	if !services.users.exists(&body.user_id).await {
@@ -62,129 +57,6 @@ pub(crate) async fn get_mutual_rooms_route(
 	Ok(mutual_rooms::unstable::Response {
 		joined: mutual_rooms,
 		next_batch_token: None,
-	})
-}
-
-/// # `GET /_matrix/client/unstable/im.nheko.summary/rooms/{roomIdOrAlias}/summary`
-///
-/// Returns a short description of the state of a room.
-///
-/// This is the "wrong" endpoint that some implementations/clients may use
-/// according to the MSC. Request and response bodies are the same as
-/// `get_room_summary`.
-///
-/// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
-pub(crate) async fn get_room_summary_legacy(
-	State(services): State<crate::State>,
-	InsecureClientIp(client): InsecureClientIp,
-	body: Ruma<get_summary::msc3266::Request>,
-) -> Result<RumaResponse<get_summary::msc3266::Response>> {
-	get_room_summary(State(services), InsecureClientIp(client), body)
-		.await
-		.map(RumaResponse)
-}
-
-/// # `GET /_matrix/client/unstable/im.nheko.summary/summary/{roomIdOrAlias}`
-///
-/// Returns a short description of the state of a room.
-///
-/// TODO: support fetching remote room info if we don't know the room
-///
-/// An implementation of [MSC3266](https://github.com/matrix-org/matrix-spec-proposals/pull/3266)
-#[tracing::instrument(skip_all, fields(%client), name = "room_summary")]
-pub(crate) async fn get_room_summary(
-	State(services): State<crate::State>,
-	InsecureClientIp(client): InsecureClientIp,
-	body: Ruma<get_summary::msc3266::Request>,
-) -> Result<get_summary::msc3266::Response> {
-	let sender_user = body.sender_user.as_ref();
-
-	let room_id = services.rooms.alias.resolve(&body.room_id_or_alias).await?;
-
-	if !services.rooms.metadata.exists(&room_id).await {
-		return Err(Error::BadRequest(ErrorKind::NotFound, "Room is unknown to this server"));
-	}
-
-	if sender_user.is_none()
-		&& !services
-			.rooms
-			.state_accessor
-			.is_world_readable(&room_id)
-			.await
-	{
-		return Err(Error::BadRequest(
-			ErrorKind::forbidden(),
-			"Room is not world readable, authentication is required",
-		));
-	}
-
-	Ok(get_summary::msc3266::Response {
-		room_id: room_id.clone(),
-		canonical_alias: services
-			.rooms
-			.state_accessor
-			.get_canonical_alias(&room_id)
-			.await
-			.ok(),
-		avatar_url: services
-			.rooms
-			.state_accessor
-			.get_avatar(&room_id)
-			.await
-			.into_option()
-			.unwrap_or_default()
-			.url,
-		guest_can_join: services.rooms.state_accessor.guest_can_join(&room_id).await,
-		name: services.rooms.state_accessor.get_name(&room_id).await.ok(),
-		num_joined_members: services
-			.rooms
-			.state_cache
-			.room_joined_count(&room_id)
-			.await
-			.unwrap_or(0)
-			.try_into()?,
-		topic: services
-			.rooms
-			.state_accessor
-			.get_room_topic(&room_id)
-			.await
-			.ok(),
-		world_readable: services
-			.rooms
-			.state_accessor
-			.is_world_readable(&room_id)
-			.await,
-		join_rule: services
-			.rooms
-			.state_accessor
-			.get_join_rule(&room_id)
-			.await
-			.unwrap_or_default()
-			.0,
-		room_type: services
-			.rooms
-			.state_accessor
-			.get_room_type(&room_id)
-			.await
-			.ok(),
-		room_version: services.rooms.state.get_room_version(&room_id).await.ok(),
-		membership: if let Some(sender_user) = sender_user {
-			services
-				.rooms
-				.state_accessor
-				.get_member(&room_id, sender_user)
-				.await
-				.map_or_else(|_| MembershipState::Leave, |content| content.membership)
-				.into()
-		} else {
-			None
-		},
-		encryption: services
-			.rooms
-			.state_accessor
-			.get_room_encryption(&room_id)
-			.await
-			.ok(),
 	})
 }
 

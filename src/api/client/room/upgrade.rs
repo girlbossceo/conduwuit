@@ -103,7 +103,7 @@ pub(crate) async fn upgrade_room_route(
 	// Use the m.room.tombstone event as the predecessor
 	let predecessor = Some(ruma::events::room::create::PreviousRoom::new(
 		body.room_id.clone(),
-		(*tombstone_event_id).to_owned(),
+		Some(tombstone_event_id),
 	));
 
 	// Send a m.room.create event containing a predecessor field and the applicable

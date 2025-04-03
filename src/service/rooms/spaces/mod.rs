@@ -27,7 +27,6 @@ use ruma::{
 	},
 	events::{
 		StateEventType,
-		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
 		space::child::{HierarchySpaceChildEvent, SpaceChildEventContent},
 	},
 	serde::Raw,
@@ -306,25 +305,18 @@ async fn get_room_summary(
 	children_state: Vec<Raw<HierarchySpaceChildEvent>>,
 	identifier: &Identifier<'_>,
 ) -> Result<SpaceHierarchyParentSummary, Error> {
-	let join_rule = self
+	let (join_rule, allowed_room_ids) = self
 		.services
 		.state_accessor
-		.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
-		.await
-		.map_or(JoinRule::Invite, |c: RoomJoinRulesEventContent| c.join_rule);
+		.get_space_join_rule(room_id)
+		.await;
 
-	let allowed_room_ids = self
-		.services
-		.state_accessor
-		.allowed_room_ids(join_rule.clone());
-
-	let join_rule = join_rule.clone().into();
 	let is_accessible_child = self
 		.is_accessible_child(room_id, &join_rule, identifier, &allowed_room_ids)
 		.await;
 
 	if !is_accessible_child {
-		return Err!(Request(Forbidden("User is not allowed to see the room",)));
+		return Err!(Request(Forbidden("User is not allowed to see the room")));
 	}
 
 	let name = self.services.state_accessor.get_name(room_id).ok();
@@ -355,6 +347,14 @@ async fn get_room_summary(
 		.get_avatar(room_id)
 		.map(|res| res.into_option().unwrap_or_default().url);
 
+	let room_version = self.services.state.get_room_version(room_id).ok();
+
+	let encryption = self
+		.services
+		.state_accessor
+		.get_room_encryption(room_id)
+		.ok();
+
 	let (
 		canonical_alias,
 		name,
@@ -364,6 +364,8 @@ async fn get_room_summary(
 		guest_can_join,
 		avatar_url,
 		room_type,
+		room_version,
+		encryption,
 	) = futures::join!(
 		canonical_alias,
 		name,
@@ -372,7 +374,9 @@ async fn get_room_summary(
 		world_readable,
 		guest_can_join,
 		avatar_url,
-		room_type
+		room_type,
+		room_version,
+		encryption,
 	);
 
 	Ok(SpaceHierarchyParentSummary {
@@ -387,9 +391,9 @@ async fn get_room_summary(
 		allowed_room_ids,
 		join_rule,
 		room_id: room_id.to_owned(),
-		num_joined_members: num_joined_members
-			.try_into()
-			.expect("user count should not be that big"),
+		num_joined_members: num_joined_members.try_into().unwrap_or_default(),
+		encryption,
+		room_version,
 	})
 }
 
@@ -487,6 +491,8 @@ async fn cache_insert(
 		join_rule,
 		room_type,
 		allowed_room_ids,
+		encryption,
+		room_version,
 	} = child;
 
 	let summary = SpaceHierarchyParentSummary {
@@ -506,6 +512,8 @@ async fn cache_insert(
 			.map(PduEvent::into_stripped_spacechild_state_event)
 			.collect()
 			.await,
+		encryption,
+		room_version,
 	};
 
 	cache.insert(current_room.to_owned(), Some(CachedSpaceHierarchySummary { summary }));
@@ -527,7 +535,9 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 			join_rule,
 			room_type,
 			children_state,
-			..
+			allowed_room_ids,
+			encryption,
+			room_version,
 		} = value.summary;
 
 		Self {
@@ -542,6 +552,9 @@ impl From<CachedSpaceHierarchySummary> for SpaceHierarchyRoomsChunk {
 			join_rule,
 			room_type,
 			children_state,
+			encryption,
+			room_version,
+			allowed_room_ids,
 		}
 	}
 }
@@ -562,7 +575,9 @@ pub fn summary_to_chunk(summary: SpaceHierarchyParentSummary) -> SpaceHierarchyR
 		join_rule,
 		room_type,
 		children_state,
-		..
+		allowed_room_ids,
+		encryption,
+		room_version,
 	} = summary;
 
 	SpaceHierarchyRoomsChunk {
@@ -577,5 +592,8 @@ pub fn summary_to_chunk(summary: SpaceHierarchyParentSummary) -> SpaceHierarchyR
 		join_rule,
 		room_type,
 		children_state,
+		encryption,
+		room_version,
+		allowed_room_ids,
 	}
 }
