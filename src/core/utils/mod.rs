@@ -49,10 +49,10 @@ pub fn exchange<T>(state: &mut T, source: T) -> T { std::mem::replace(state, sou
 
 #[macro_export]
 macro_rules! extract_variant {
-	($e:expr_2021, $variant:path) => {
+	( $e:expr_2021, $( $variant:path )|* ) => {
 		match $e {
-			| $variant(value) => Some(value),
-			| _ => None,
+			$( $variant(value) => Some(value), )*
+			_ => None,
 		}
 	};
 }
