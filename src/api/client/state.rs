@@ -211,7 +211,7 @@ async fn allowed_to_send_state_event(
 			// irreversible mistakes
 			match json.deserialize_as::<RoomServerAclEventContent>() {
 				| Ok(acl_content) => {
-					if acl_content.allow.is_empty() {
+					if acl_content.allow_is_empty() {
 						return Err!(Request(BadJson(debug_warn!(
 							?room_id,
 							"Sending an ACL event with an empty allow key will permanently \
@@ -220,9 +220,7 @@ async fn allowed_to_send_state_event(
 						))));
 					}
 
-					if acl_content.deny.contains(&String::from("*"))
-						&& acl_content.allow.contains(&String::from("*"))
-					{
+					if acl_content.deny_contains("*") && acl_content.allow_contains("*") {
 						return Err!(Request(BadJson(debug_warn!(
 							?room_id,
 							"Sending an ACL event with a deny and allow key value of \"*\" will \
@@ -231,11 +229,9 @@ async fn allowed_to_send_state_event(
 						))));
 					}
 
-					if acl_content.deny.contains(&String::from("*"))
+					if acl_content.deny_contains("*")
 						&& !acl_content.is_allowed(services.globals.server_name())
-						&& !acl_content
-							.allow
-							.contains(&services.globals.server_name().to_string())
+						&& !acl_content.allow_contains(services.globals.server_name().as_str())
 					{
 						return Err!(Request(BadJson(debug_warn!(
 							?room_id,
@@ -245,11 +241,9 @@ async fn allowed_to_send_state_event(
 						))));
 					}
 
-					if !acl_content.allow.contains(&String::from("*"))
+					if !acl_content.allow_contains("*")
 						&& !acl_content.is_allowed(services.globals.server_name())
-						&& !acl_content
-							.allow
-							.contains(&services.globals.server_name().to_string())
+						&& !acl_content.allow_contains(services.globals.server_name().as_str())
 					{
 						return Err!(Request(BadJson(debug_warn!(
 							?room_id,
