@@ -5,7 +5,7 @@ use std::{
 
 use conduwuit::{Err, Result, debug, debug_info, err, error, trace};
 use futures::{FutureExt, TryFutureExt};
-use hickory_resolver::error::ResolveError;
+use hickory_resolver::ResolveError;
 use ipaddress::IPAddress;
 use ruma::ServerName;
 
@@ -334,25 +334,28 @@ impl super::Service {
 	}
 
 	fn handle_resolve_error(e: &ResolveError, host: &'_ str) -> Result<()> {
-		use hickory_resolver::error::ResolveErrorKind;
+		use hickory_resolver::{ResolveErrorKind::Proto, proto::ProtoErrorKind};
 
-		match *e.kind() {
-			| ResolveErrorKind::NoRecordsFound { .. } => {
-				// Raise to debug_warn if we can find out the result wasn't from cache
-				debug!(%host, "No DNS records found: {e}");
-				Ok(())
-			},
-			| ResolveErrorKind::Timeout => {
-				Err!(warn!(%host, "DNS {e}"))
-			},
-			| ResolveErrorKind::NoConnections => {
-				error!(
-					"Your DNS server is overloaded and has ran out of connections. It is \
-					 strongly recommended you remediate this issue to ensure proper federation \
-					 connectivity."
-				);
+		match e.kind() {
+			| Proto(e) => match e.kind() {
+				| ProtoErrorKind::NoRecordsFound { .. } => {
+					// Raise to debug_warn if we can find out the result wasn't from cache
+					debug!(%host, "No DNS records found: {e}");
+					Ok(())
+				},
+				| ProtoErrorKind::Timeout => {
+					Err!(warn!(%host, "DNS {e}"))
+				},
+				| ProtoErrorKind::NoConnections => {
+					error!(
+						"Your DNS server is overloaded and has ran out of connections. It is \
+						 strongly recommended you remediate this issue to ensure proper \
+						 federation connectivity."
+					);
 
-				Err!(error!(%host, "DNS error: {e}"))
+					Err!(error!(%host, "DNS error: {e}"))
+				},
+				| _ => Err!(error!(%host, "DNS error: {e}")),
 			},
 			| _ => Err!(error!(%host, "DNS error: {e}")),
 		}

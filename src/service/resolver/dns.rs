@@ -2,19 +2,19 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use conduwuit::{Result, Server, err};
 use futures::FutureExt;
-use hickory_resolver::{TokioAsyncResolver, lookup_ip::LookupIp};
+use hickory_resolver::{TokioResolver, lookup_ip::LookupIp};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
 use super::cache::{Cache, CachedOverride};
 
 pub struct Resolver {
-	pub(crate) resolver: Arc<TokioAsyncResolver>,
+	pub(crate) resolver: Arc<TokioResolver>,
 	pub(crate) hooked: Arc<Hooked>,
 	server: Arc<Server>,
 }
 
 pub(crate) struct Hooked {
-	resolver: Arc<TokioAsyncResolver>,
+	resolver: Arc<TokioResolver>,
 	cache: Arc<Cache>,
 	server: Arc<Server>,
 }
@@ -42,7 +42,7 @@ impl Resolver {
 			let mut ns = sys_conf.clone();
 
 			if config.query_over_tcp_only {
-				ns.protocol = hickory_resolver::config::Protocol::Tcp;
+				ns.protocol = hickory_resolver::proto::xfer::Protocol::Tcp;
 			}
 
 			ns.trust_negative_responses = !config.query_all_nameservers;
@@ -51,6 +51,7 @@ impl Resolver {
 		}
 
 		opts.cache_size = config.dns_cache_entries as usize;
+		opts.preserve_intermediates = true;
 		opts.negative_min_ttl = Some(Duration::from_secs(config.dns_min_ttl_nxdomain));
 		opts.negative_max_ttl = Some(Duration::from_secs(60 * 60 * 24 * 30));
 		opts.positive_min_ttl = Some(Duration::from_secs(config.dns_min_ttl));
@@ -60,8 +61,7 @@ impl Resolver {
 		opts.try_tcp_on_error = config.dns_tcp_fallback;
 		opts.num_concurrent_reqs = 1;
 		opts.edns0 = true;
-		opts.shuffle_dns_servers = true;
-		opts.rotate = true;
+		opts.case_randomization = true;
 		opts.ip_strategy = match config.ip_lookup_strategy {
 			| 1 => hickory_resolver::config::LookupIpStrategy::Ipv4Only,
 			| 2 => hickory_resolver::config::LookupIpStrategy::Ipv6Only,
@@ -69,9 +69,13 @@ impl Resolver {
 			| 4 => hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4,
 			| _ => hickory_resolver::config::LookupIpStrategy::Ipv4thenIpv6,
 		};
-		opts.authentic_data = false;
 
-		let resolver = Arc::new(TokioAsyncResolver::tokio(conf, opts));
+		let rt_prov = hickory_resolver::proto::runtime::TokioRuntimeProvider::new();
+		let conn_prov = hickory_resolver::name_server::TokioConnectionProvider::new(rt_prov);
+		let mut builder = TokioResolver::builder_with_config(conf, conn_prov);
+		*builder.options_mut() = opts;
+		let resolver = Arc::new(builder.build());
+
 		Ok(Arc::new(Self {
 			resolver: resolver.clone(),
 			hooked: Arc::new(Hooked { resolver, cache, server: server.clone() }),
@@ -105,7 +109,7 @@ impl Resolve for Hooked {
 async fn hooked_resolve(
 	cache: Arc<Cache>,
 	server: Arc<Server>,
-	resolver: Arc<TokioAsyncResolver>,
+	resolver: Arc<TokioResolver>,
 	name: Name,
 ) -> Result<Addrs, Box<dyn std::error::Error + Send + Sync>> {
 	match cache.get_override(name.as_str()).await {
@@ -129,7 +133,7 @@ async fn hooked_resolve(
 
 async fn resolve_to_reqwest(
 	server: Arc<Server>,
-	resolver: Arc<TokioAsyncResolver>,
+	resolver: Arc<TokioResolver>,
 	name: Name,
 ) -> ResolvingResult {
 	use std::{io, io::ErrorKind::Interrupted};

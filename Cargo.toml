@@ -284,8 +284,7 @@ features = [
 ]
 
 [workspace.dependencies.hyper-util]
-# hyper-util >=0.1.9 seems to have DNS issues
-version = "=0.1.8"
+version = "0.1.11"
 default-features = false
 features = [
 	"server-auto",
@@ -306,8 +305,13 @@ default-features = false
 features = ["env", "toml"]
 
 [workspace.dependencies.hickory-resolver]
-version = "0.24.2"
+version = "0.25.1"
 default-features = false
+features = [
+	"serde",
+	"system-config",
+	"tokio",
+]
 
 # Used for conduwuit::Error type
 [workspace.dependencies.thiserror]
