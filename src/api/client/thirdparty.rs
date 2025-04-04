@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
+use conduwuit::Result;
 use ruma::api::client::thirdparty::get_protocols;
 
-use crate::{Result, Ruma, RumaResponse};
+use crate::{Ruma, RumaResponse};
 
 /// # `GET /_matrix/client/r0/thirdparty/protocols`
 ///

@@ -4,7 +4,6 @@ pub(crate) mod error;
 pub mod event_auth;
 mod power_levels;
 mod room_version;
-mod state_event;
 
 #[cfg(test)]
 mod test_utils;
@@ -36,9 +35,12 @@ use self::power_levels::PowerLevelsContentFields;
 pub use self::{
 	event_auth::{auth_check, auth_types_for_event},
 	room_version::RoomVersion,
-	state_event::Event,
 };
-use crate::{debug, pdu::StateKey, trace, warn};
+use crate::{
+	debug,
+	matrix::{event::Event, pdu::StateKey},
+	trace, warn,
+};
 
 /// A mapping of event type and state_key to some value `T`, usually an
 /// `EventId`.

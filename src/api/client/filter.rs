@@ -1,8 +1,8 @@
 use axum::extract::State;
-use conduwuit::err;
+use conduwuit::{Result, err};
 use ruma::api::client::filter::{create_filter, get_filter};
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/r0/user/{userId}/filter/{filterId}`
 ///

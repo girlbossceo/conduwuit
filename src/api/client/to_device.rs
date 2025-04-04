@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use conduwuit::{Error, Result};
+use conduwuit_service::sending::EduBuf;
 use futures::StreamExt;
 use ruma::{
 	api::{
@@ -10,7 +11,6 @@ use ruma::{
 	},
 	to_device::DeviceIdOrAllDevices,
 };
-use service::sending::EduBuf;
 
 use crate::Ruma;
 

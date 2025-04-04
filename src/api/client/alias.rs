@@ -1,12 +1,12 @@
 use axum::extract::State;
 use conduwuit::{Err, Result, debug};
+use conduwuit_service::Services;
 use futures::StreamExt;
 use rand::seq::SliceRandom;
 use ruma::{
 	OwnedServerName, RoomAliasId, RoomId,
 	api::client::alias::{create_alias, delete_alias, get_alias},
 };
-use service::Services;
 
 use crate::Ruma;
 

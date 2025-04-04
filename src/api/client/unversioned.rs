@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
 use axum::{Json, extract::State, response::IntoResponse};
+use conduwuit::Result;
 use futures::StreamExt;
 use ruma::api::client::discovery::get_supported_versions;
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/versions`
 ///

@@ -1,5 +1,6 @@
 use axum::extract::State;
-use conduwuit::{Err, err};
+use conduwuit::{Err, Result, err};
+use conduwuit_service::Services;
 use ruma::{
 	RoomId, UserId,
 	api::client::config::{
@@ -15,7 +16,7 @@ use ruma::{
 use serde::Deserialize;
 use serde_json::{json, value::RawValue as RawJsonValue};
 
-use crate::{Result, Ruma, service::Services};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/user/{userId}/account_data/{type}`
 ///

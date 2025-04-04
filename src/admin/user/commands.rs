@@ -2,7 +2,8 @@ use std::{collections::BTreeMap, fmt::Write as _};
 
 use api::client::{full_user_deactivate, join_room_by_id_helper, leave_room};
 use conduwuit::{
-	PduBuilder, Result, debug, debug_warn, error, info, is_equal_to,
+	Result, debug, debug_warn, error, info, is_equal_to,
+	matrix::pdu::PduBuilder,
 	utils::{self, ReadyExt},
 	warn,
 };

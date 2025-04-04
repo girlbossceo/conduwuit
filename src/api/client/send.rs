@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduwuit::{Err, err};
+use conduwuit::{Err, Result, err, matrix::pdu::PduBuilder, utils};
 use ruma::{api::client::message::send_message_event, events::MessageLikeEventType};
 use serde_json::from_str;
 
-use crate::{Result, Ruma, service::pdu::PduBuilder, utils};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}`
 ///

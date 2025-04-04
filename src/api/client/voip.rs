@@ -2,12 +2,12 @@ use std::time::{Duration, SystemTime};
 
 use axum::extract::State;
 use base64::{Engine as _, engine::general_purpose};
-use conduwuit::{Err, utils};
+use conduwuit::{Err, Result, utils};
 use hmac::{Hmac, Mac};
 use ruma::{SecondsSinceUnixEpoch, UserId, api::client::voip::get_turn_server_info};
 use sha1::Sha1;
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 const RANDOM_USER_ID_LENGTH: usize = 10;
 

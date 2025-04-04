@@ -1,7 +1,8 @@
 #![allow(deprecated)]
 
 use axum::extract::State;
-use conduwuit::{Err, Result, err};
+use conduwuit::{Err, Result, err, matrix::pdu::gen_event_id_canonical_json};
+use conduwuit_service::Services;
 use futures::FutureExt;
 use ruma::{
 	OwnedRoomId, OwnedUserId, RoomId, ServerName,
@@ -13,10 +14,7 @@ use ruma::{
 };
 use serde_json::value::RawValue as RawJsonValue;
 
-use crate::{
-	Ruma,
-	service::{Services, pdu::gen_event_id_canonical_json},
-};
+use crate::Ruma;
 
 /// # `PUT /_matrix/federation/v1/send_leave/{roomId}/{eventId}`
 ///

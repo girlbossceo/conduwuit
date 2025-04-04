@@ -6,9 +6,12 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	PduCount, PduEvent, Result, at, err, error, extract_variant, is_equal_to, pair_of,
-	pdu::{Event, EventHash},
-	ref_at,
+	Result, at, err, error, extract_variant, is_equal_to,
+	matrix::{
+		Event,
+		pdu::{EventHash, PduCount, PduEvent},
+	},
+	pair_of, ref_at,
 	result::FlatOk,
 	utils::{
 		self, BoolExt, IterStream, ReadyExt, TryFutureExtExt,

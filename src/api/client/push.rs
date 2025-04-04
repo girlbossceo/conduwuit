@@ -1,5 +1,6 @@
 use axum::extract::State;
-use conduwuit::{Err, err};
+use conduwuit::{Err, Error, Result, err};
+use conduwuit_service::Services;
 use ruma::{
 	CanonicalJsonObject, CanonicalJsonValue,
 	api::client::{
@@ -19,9 +20,8 @@ use ruma::{
 		RemovePushRuleError, Ruleset,
 	},
 };
-use service::Services;
 
-use crate::{Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/r0/pushrules/`
 ///

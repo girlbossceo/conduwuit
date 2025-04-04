@@ -31,7 +31,6 @@ pub mod users;
 extern crate conduwuit_core as conduwuit;
 extern crate conduwuit_database as database;
 
-pub use conduwuit::{PduBuilder, PduCount, PduEvent, pdu};
 pub(crate) use service::{Args, Dep, Service};
 
 pub use crate::services::Services;

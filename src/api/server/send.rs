@@ -9,10 +9,14 @@ use conduwuit::{
 	result::LogErr,
 	trace,
 	utils::{
-		IterStream, ReadyExt,
+		IterStream, ReadyExt, millis_since_unix_epoch,
 		stream::{BroadbandExt, TryBroadbandExt, automatic_width},
 	},
 	warn,
+};
+use conduwuit_service::{
+	Services,
+	sending::{EDU_LIMIT, PDU_LIMIT},
 };
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
@@ -33,16 +37,8 @@ use ruma::{
 	serde::Raw,
 	to_device::DeviceIdOrAllDevices,
 };
-use service::{
-	Services,
-	sending::{EDU_LIMIT, PDU_LIMIT},
-};
-use utils::millis_since_unix_epoch;
 
-use crate::{
-	Ruma,
-	utils::{self},
-};
+use crate::Ruma;
 
 type ResolvedMap = BTreeMap<OwnedEventId, Result>;
 type Pdu = (OwnedRoomId, OwnedEventId, CanonicalJsonObject);

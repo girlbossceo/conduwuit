@@ -2,7 +2,11 @@ use std::time::Duration;
 
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{Err, debug, err, info, utils::ReadyExt};
+use conduwuit::{
+	Err, Error, Result, debug, err, info, utils,
+	utils::{ReadyExt, hash},
+};
+use conduwuit_service::uiaa::SESSION_ID_LENGTH;
 use futures::StreamExt;
 use ruma::{
 	UserId,
@@ -22,10 +26,9 @@ use ruma::{
 		uiaa,
 	},
 };
-use service::uiaa::SESSION_ID_LENGTH;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
-use crate::{Error, Result, Ruma, utils, utils::hash};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/v3/login`
 ///

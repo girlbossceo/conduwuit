@@ -1,6 +1,6 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
-use conduwuit::{Err, debug, err};
+use conduwuit::{Err, Error, Result, debug, err, utils};
 use futures::StreamExt;
 use ruma::{
 	MilliSecondsSinceUnixEpoch, OwnedDeviceId,
@@ -12,7 +12,7 @@ use ruma::{
 };
 
 use super::SESSION_ID_LENGTH;
-use crate::{Error, Result, Ruma, client::DEVICE_ID_LENGTH, utils};
+use crate::{Ruma, client::DEVICE_ID_LENGTH};
 
 /// # `GET /_matrix/client/r0/devices`
 ///

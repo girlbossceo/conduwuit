@@ -1,4 +1,5 @@
 use axum::{Json, extract::State, response::IntoResponse};
+use conduwuit::{Error, Result};
 use ruma::api::client::{
 	discovery::{
 		discover_homeserver::{self, HomeserverInfo, SlidingSyncProxyInfo},
@@ -7,7 +8,7 @@ use ruma::api::client::{
 	error::ErrorKind,
 };
 
-use crate::{Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /.well-known/matrix/client`
 ///

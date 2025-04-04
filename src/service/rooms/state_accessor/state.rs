@@ -1,13 +1,15 @@
 use std::{borrow::Borrow, ops::Deref, sync::Arc};
 
 use conduwuit::{
-	PduEvent, Result, StateKey, at, err, implement, pair_of,
+	Result, at, err, implement,
+	matrix::{PduEvent, StateKey},
+	pair_of,
 	utils::{
 		result::FlatOk,
 		stream::{BroadbandExt, IterStream, ReadyExt, TryIgnore},
 	},
 };
-use database::Deserialized;
+use conduwuit_database::Deserialized;
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt, future::try_join, pin_mut};
 use ruma::{
 	EventId, OwnedEventId, UserId,

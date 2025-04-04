@@ -3,12 +3,14 @@ mod v4;
 mod v5;
 
 use conduwuit::{
-	PduCount,
+	Error, PduCount, Result,
+	matrix::pdu::PduEvent,
 	utils::{
 		IterStream,
 		stream::{BroadbandExt, ReadyExt, TryIgnore},
 	},
 };
+use conduwuit_service::Services;
 use futures::{StreamExt, pin_mut};
 use ruma::{
 	RoomId, UserId,
@@ -21,7 +23,6 @@ use ruma::{
 pub(crate) use self::{
 	v3::sync_events_route, v4::sync_events_v4_route, v5::sync_events_v5_route,
 };
-use crate::{Error, PduEvent, Result, service::Services};
 
 pub(crate) const DEFAULT_BUMP_TYPES: &[TimelineEventType; 6] =
 	&[CallInvite, PollStart, Beacon, RoomEncrypted, RoomMessage, Sticker];

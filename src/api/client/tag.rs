@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
+use conduwuit::Result;
 use ruma::{
 	api::client::tag::{create_tag, delete_tag, get_tags},
 	events::{
@@ -9,7 +10,7 @@ use ruma::{
 	},
 };
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/user/{userId}/rooms/{roomId}/tags/{tag}`
 ///

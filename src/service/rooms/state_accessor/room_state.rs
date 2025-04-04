@@ -1,6 +1,9 @@
 use std::borrow::Borrow;
 
-use conduwuit::{PduEvent, Result, StateKey, err, implement};
+use conduwuit::{
+	Result, err, implement,
+	matrix::{PduEvent, StateKey},
+};
 use futures::{Stream, StreamExt, TryFutureExt};
 use ruma::{EventId, RoomId, events::StateEventType};
 use serde::Deserialize;

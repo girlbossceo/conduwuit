@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::extract::State;
 use conduwuit::{Err, Error, Result, debug, debug_warn, err, info, result::NotFound, utils};
+use conduwuit_service::{Services, users::parse_master_key};
 use futures::{StreamExt, stream::FuturesUnordered};
 use ruma::{
 	OneTimeKeyAlgorithm, OwnedDeviceId, OwnedUserId, UserId,
@@ -23,10 +24,7 @@ use ruma::{
 use serde_json::json;
 
 use super::SESSION_ID_LENGTH;
-use crate::{
-	Ruma,
-	service::{Services, users::parse_master_key},
-};
+use crate::Ruma;
 
 /// # `POST /_matrix/client/r0/keys/upload`
 ///

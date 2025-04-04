@@ -1,8 +1,10 @@
 use axum::extract::State;
 use conduwuit::{
-	PduCount, Result, at,
+	Result, at,
+	matrix::pdu::PduCount,
 	utils::{IterStream, ReadyExt, result::FlatOk, stream::WidebandExt},
 };
+use conduwuit_service::{Services, rooms::timeline::PdusIterItem};
 use futures::StreamExt;
 use ruma::{
 	EventId, RoomId, UInt, UserId,
@@ -15,7 +17,6 @@ use ruma::{
 	},
 	events::{TimelineEventType, relation::RelationType},
 };
-use service::{Services, rooms::timeline::PdusIterItem};
 
 use crate::Ruma;
 

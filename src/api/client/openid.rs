@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use axum::extract::State;
-use conduwuit::utils;
+use conduwuit::{Error, Result, utils};
 use ruma::{
 	api::client::{account, error::ErrorKind},
 	authentication::TokenType,
 };
 
 use super::TOKEN_LENGTH;
-use crate::{Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `POST /_matrix/client/v3/user/{userId}/openid/request_token`
 ///

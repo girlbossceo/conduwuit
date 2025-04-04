@@ -10,16 +10,19 @@ use std::{
 };
 
 use async_trait::async_trait;
+pub use conduwuit::matrix::pdu::{PduId, RawPduId};
 use conduwuit::{
 	Err, Error, Result, Server, at, debug, debug_warn, err, error, implement, info,
-	pdu::{EventHash, PduBuilder, PduCount, PduEvent, gen_event_id},
-	state_res::{self, Event, RoomVersion},
+	matrix::{
+		Event,
+		pdu::{EventHash, PduBuilder, PduCount, PduEvent, gen_event_id},
+		state_res::{self, RoomVersion},
+	},
 	utils::{
 		self, IterStream, MutexMap, MutexMapGuard, ReadyExt, future::TryExtExt, stream::TryIgnore,
 	},
 	validated, warn,
 };
-pub use conduwuit::{PduId, RawPduId};
 use futures::{
 	Future, FutureExt, Stream, StreamExt, TryStreamExt, future, future::ready, pin_mut,
 };

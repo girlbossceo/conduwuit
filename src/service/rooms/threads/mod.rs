@@ -1,13 +1,14 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use conduwuit::{
-	PduCount, PduEvent, PduId, RawPduId, Result, err,
+	Result, err,
+	matrix::pdu::{PduCount, PduEvent, PduId, RawPduId},
 	utils::{
 		ReadyExt,
 		stream::{TryIgnore, WidebandExt},
 	},
 };
-use database::{Deserialized, Map};
+use conduwuit_database::{Deserialized, Map};
 use futures::{Stream, StreamExt};
 use ruma::{
 	CanonicalJsonValue, EventId, OwnedUserId, RoomId, UserId,

@@ -9,12 +9,24 @@ use std::{
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	Err, PduEvent, Result, StateKey, at, debug, debug_info, debug_warn, err, error, info,
-	pdu::{PduBuilder, gen_event_id_canonical_json},
+	Err, Result, at, debug, debug_info, debug_warn, err, error, info,
+	matrix::{
+		StateKey,
+		pdu::{PduBuilder, PduEvent, gen_event_id, gen_event_id_canonical_json},
+		state_res,
+	},
 	result::{FlatOk, NotFound},
-	state_res, trace,
+	trace,
 	utils::{self, IterStream, ReadyExt, shuffle},
 	warn,
+};
+use conduwuit_service::{
+	Services,
+	appservice::RegistrationInfo,
+	rooms::{
+		state::RoomMutexGuard,
+		state_compressor::{CompressedState, HashSetCompressStateEvent},
+	},
 };
 use futures::{FutureExt, StreamExt, TryFutureExt, future::join4, join};
 use ruma::{
@@ -42,15 +54,6 @@ use ruma::{
 			member::{MembershipState, RoomMemberEventContent},
 			message::RoomMessageEventContent,
 		},
-	},
-};
-use service::{
-	Services,
-	appservice::RegistrationInfo,
-	pdu::gen_event_id,
-	rooms::{
-		state::RoomMutexGuard,
-		state_compressor::{CompressedState, HashSetCompressStateEvent},
 	},
 };
 

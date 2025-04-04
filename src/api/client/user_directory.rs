@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduwuit::utils::TryFutureExtExt;
+use conduwuit::{Result, utils::TryFutureExtExt};
 use futures::{StreamExt, pin_mut};
 use ruma::{
 	api::client::user_directory::search_users,
@@ -9,7 +9,7 @@ use ruma::{
 	},
 };
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `POST /_matrix/client/r0/user_directory/search`
 ///

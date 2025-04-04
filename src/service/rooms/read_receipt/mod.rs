@@ -2,7 +2,11 @@ mod data;
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use conduwuit::{PduCount, PduId, RawPduId, Result, debug, err, warn};
+use conduwuit::{
+	Result, debug, err,
+	matrix::pdu::{PduCount, PduId, RawPduId},
+	warn,
+};
 use futures::{Stream, TryFutureExt, try_join};
 use ruma::{
 	OwnedEventId, OwnedUserId, RoomId, UserId,

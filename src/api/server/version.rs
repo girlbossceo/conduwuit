@@ -1,6 +1,7 @@
+use conduwuit::Result;
 use ruma::api::federation::discovery::get_server_version;
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/version`
 ///

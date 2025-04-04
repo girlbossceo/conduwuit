@@ -5,7 +5,9 @@ use std::{
 };
 
 use conduwuit::{
-	PduEvent, Result, StateMap, debug, err, implement, trace,
+	Result, debug, err, implement,
+	matrix::{PduEvent, StateMap},
+	trace,
 	utils::stream::{BroadbandExt, IterStream, ReadyExt, TryBroadbandExt, TryWidebandExt},
 };
 use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt, future::try_join};

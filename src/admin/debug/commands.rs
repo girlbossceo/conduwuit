@@ -6,7 +6,9 @@ use std::{
 };
 
 use conduwuit::{
-	Error, PduEvent, PduId, RawPduId, Result, debug_error, err, info, trace, utils,
+	Error, Result, debug_error, err, info,
+	matrix::pdu::{PduEvent, PduId, RawPduId},
+	trace, utils,
 	utils::{
 		stream::{IterStream, ReadyExt},
 		string::EMPTY,

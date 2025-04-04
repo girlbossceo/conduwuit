@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use axum::extract::State;
-use conduwuit::{Err, err};
+use conduwuit::{Err, Result, err};
 use ruma::{
 	UInt,
 	api::client::backup::{
@@ -13,7 +13,7 @@ use ruma::{
 	},
 };
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `POST /_matrix/client/r0/room_keys/version`
 ///

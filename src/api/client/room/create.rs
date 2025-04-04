@@ -2,8 +2,11 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use conduwuit::{
-	Err, Error, Result, StateKey, debug_info, debug_warn, err, error, info, pdu::PduBuilder, warn,
+	Err, Error, Result, debug_info, debug_warn, err, error, info,
+	matrix::{StateKey, pdu::PduBuilder},
+	warn,
 };
+use conduwuit_service::{Services, appservice::RegistrationInfo};
 use futures::FutureExt;
 use ruma::{
 	CanonicalJsonObject, Int, OwnedRoomAliasId, OwnedRoomId, OwnedUserId, RoomId, RoomVersionId,
@@ -29,7 +32,6 @@ use ruma::{
 	serde::{JsonObject, Raw},
 };
 use serde_json::{json, value::to_raw_value};
-use service::{Services, appservice::RegistrationInfo};
 
 use crate::{Ruma, client::invite_helper};
 

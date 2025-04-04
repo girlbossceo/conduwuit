@@ -1,7 +1,8 @@
 use std::{borrow::Borrow, collections::BTreeMap, iter::once, sync::Arc, time::Instant};
 
 use conduwuit::{
-	Err, EventTypeExt, PduEvent, Result, StateKey, debug, debug_info, err, implement, state_res,
+	Err, Result, debug, debug_info, err, implement,
+	matrix::{EventTypeExt, PduEvent, StateKey, state_res},
 	trace,
 	utils::stream::{BroadbandExt, ReadyExt},
 	warn,

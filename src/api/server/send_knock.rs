@@ -1,5 +1,9 @@
 use axum::extract::State;
-use conduwuit::{Err, PduEvent, Result, err, pdu::gen_event_id_canonical_json, warn};
+use conduwuit::{
+	Err, Result, err,
+	matrix::pdu::{PduEvent, gen_event_id_canonical_json},
+	warn,
+};
 use futures::FutureExt;
 use ruma::{
 	OwnedServerName, OwnedUserId,

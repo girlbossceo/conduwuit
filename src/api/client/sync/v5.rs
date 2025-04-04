@@ -6,13 +6,19 @@ use std::{
 
 use axum::extract::State;
 use conduwuit::{
-	Error, PduEvent, Result, TypeStateKey, debug, error, extract_variant, trace,
+	Error, Result, debug, error, extract_variant,
+	matrix::{
+		TypeStateKey,
+		pdu::{PduCount, PduEvent},
+	},
+	trace,
 	utils::{
 		BoolExt, IterStream, ReadyExt, TryFutureExtExt,
 		math::{ruma_from_usize, usize_from_ruma},
 	},
 	warn,
 };
+use conduwuit_service::rooms::read_receipt::pack_receipts;
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use ruma::{
 	DeviceId, OwnedEventId, OwnedRoomId, RoomId, UInt, UserId,
@@ -27,7 +33,6 @@ use ruma::{
 	serde::Raw,
 	uint,
 };
-use service::{PduCount, rooms::read_receipt::pack_receipts};
 
 use super::{filter_rooms, share_encrypted_room};
 use crate::{

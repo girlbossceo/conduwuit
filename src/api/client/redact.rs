@@ -1,9 +1,10 @@
 use axum::extract::State;
+use conduwuit::{Result, matrix::pdu::PduBuilder};
 use ruma::{
 	api::client::redact::redact_event, events::room::redaction::RoomRedactionEventContent,
 };
 
-use crate::{Result, Ruma, service::pdu::PduBuilder};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/redact/{eventId}/{txnId}`
 ///

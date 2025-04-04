@@ -3,10 +3,11 @@ use std::collections::BTreeMap;
 use axum::extract::State;
 use conduwuit::{
 	Err, Error, Result,
-	pdu::PduBuilder,
+	matrix::pdu::PduBuilder,
 	utils::{IterStream, stream::TryIgnore},
 	warn,
 };
+use conduwuit_service::Services;
 use futures::{StreamExt, TryStreamExt, future::join3};
 use ruma::{
 	OwnedMxcUri, OwnedRoomId, UserId,
@@ -22,7 +23,6 @@ use ruma::{
 	events::room::member::{MembershipState, RoomMemberEventContent},
 	presence::PresenceState,
 };
-use service::Services;
 
 use crate::Ruma;
 

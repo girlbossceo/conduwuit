@@ -1,9 +1,12 @@
 use axum::extract::State;
-use conduwuit::{PduCount, PduEvent, at};
+use conduwuit::{
+	Result, at,
+	matrix::pdu::{PduCount, PduEvent},
+};
 use futures::StreamExt;
 use ruma::{api::client::threads::get_threads, uint};
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /_matrix/client/r0/rooms/{roomId}/threads`
 pub(crate) async fn get_threads_route(

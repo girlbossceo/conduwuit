@@ -1,5 +1,5 @@
 use axum::extract::State;
-use conduwuit::{Err, Result};
+use conduwuit::{Err, Result, matrix::pdu::PduBuilder};
 use ruma::{
 	api::federation::membership::prepare_leave_event,
 	events::room::member::{MembershipState, RoomMemberEventContent},
@@ -7,7 +7,7 @@ use ruma::{
 use serde_json::value::to_raw_value;
 
 use super::make_join::maybe_strip_event_id;
-use crate::{Ruma, service::pdu::PduBuilder};
+use crate::Ruma;
 
 /// # `GET /_matrix/federation/v1/make_leave/{roomId}/{eventId}`
 ///

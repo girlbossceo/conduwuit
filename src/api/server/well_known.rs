@@ -1,7 +1,8 @@
 use axum::extract::State;
+use conduwuit::{Error, Result};
 use ruma::api::{client::error::ErrorKind, federation::discovery::discover_homeserver};
 
-use crate::{Error, Result, Ruma};
+use crate::Ruma;
 
 /// # `GET /.well-known/matrix/server`
 ///

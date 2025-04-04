@@ -1,8 +1,8 @@
 use axum::extract::State;
-use conduwuit::{Err, utils::math::Tried};
+use conduwuit::{Err, Result, utils, utils::math::Tried};
 use ruma::api::client::typing::create_typing_event;
 
-use crate::{Result, Ruma, utils};
+use crate::Ruma;
 
 /// # `PUT /_matrix/client/r0/rooms/{roomId}/typing/{userId}`
 ///

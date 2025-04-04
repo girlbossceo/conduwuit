@@ -9,6 +9,7 @@ use conduwuit::{
 	utils::stream::{IterStream, TryBroadbandExt},
 	warn,
 };
+use conduwuit_service::Services;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use ruma::{
 	CanonicalJsonValue, OwnedEventId, OwnedRoomId, OwnedServerName, OwnedUserId, RoomId,
@@ -20,7 +21,6 @@ use ruma::{
 	},
 };
 use serde_json::value::{RawValue as RawJsonValue, to_raw_value};
-use service::Services;
 
 use crate::Ruma;
 

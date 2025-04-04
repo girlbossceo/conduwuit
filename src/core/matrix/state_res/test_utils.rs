@@ -28,7 +28,10 @@ use serde_json::{
 
 pub(crate) use self::event::PduEvent;
 use super::auth_types_for_event;
-use crate::{Event, EventTypeExt, Result, StateMap, info};
+use crate::{
+	Result, info,
+	matrix::{Event, EventTypeExt, StateMap},
+};
 
 static SERVER_TIMESTAMP: AtomicU64 = AtomicU64::new(0);
 

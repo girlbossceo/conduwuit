@@ -1,7 +1,10 @@
 use std::cmp::max;
 
 use axum::extract::State;
-use conduwuit::{Error, Result, StateKey, err, info, pdu::PduBuilder};
+use conduwuit::{
+	Error, Result, err, info,
+	matrix::{StateKey, pdu::PduBuilder},
+};
 use futures::StreamExt;
 use ruma::{
 	CanonicalJsonObject, RoomId, RoomVersionId,

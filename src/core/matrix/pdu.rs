@@ -1,7 +1,6 @@
 mod builder;
 mod content;
 mod count;
-mod event;
 mod event_id;
 mod filter;
 mod id;
@@ -17,8 +16,8 @@ mod unsigned;
 use std::cmp::Ordering;
 
 use ruma::{
-	CanonicalJsonObject, CanonicalJsonValue, EventId, OwnedEventId, OwnedRoomId, OwnedServerName,
-	OwnedUserId, UInt, events::TimelineEventType,
+	CanonicalJsonObject, CanonicalJsonValue, EventId, MilliSecondsSinceUnixEpoch, OwnedEventId,
+	OwnedRoomId, OwnedServerName, OwnedUserId, RoomId, UInt, UserId, events::TimelineEventType,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue as RawJsonValue;
@@ -27,12 +26,12 @@ pub use self::{
 	Count as PduCount, Id as PduId, Pdu as PduEvent, RawId as RawPduId,
 	builder::{Builder, Builder as PduBuilder},
 	count::Count,
-	event::Event,
 	event_id::*,
 	id::*,
 	raw_id::*,
 	state_key::{ShortStateKey, StateKey},
 };
+use super::Event;
 use crate::Result;
 
 /// Persistent Data Unit (Event)
@@ -79,6 +78,36 @@ impl Pdu {
 	}
 }
 
+impl Event for Pdu {
+	type Id = OwnedEventId;
+
+	fn event_id(&self) -> &Self::Id { &self.event_id }
+
+	fn room_id(&self) -> &RoomId { &self.room_id }
+
+	fn sender(&self) -> &UserId { &self.sender }
+
+	fn event_type(&self) -> &TimelineEventType { &self.kind }
+
+	fn content(&self) -> &RawJsonValue { &self.content }
+
+	fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch {
+		MilliSecondsSinceUnixEpoch(self.origin_server_ts)
+	}
+
+	fn state_key(&self) -> Option<&str> { self.state_key.as_deref() }
+
+	fn prev_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ {
+		self.prev_events.iter()
+	}
+
+	fn auth_events(&self) -> impl DoubleEndedIterator<Item = &Self::Id> + Send + '_ {
+		self.auth_events.iter()
+	}
+
+	fn redacts(&self) -> Option<&Self::Id> { self.redacts.as_ref() }
+}
+
 /// Prevent derived equality which wouldn't limit itself to event_id
 impl Eq for Pdu {}
 
@@ -88,11 +117,11 @@ impl PartialEq for Pdu {
 }
 
 /// Ordering determined by the Pdu's ID, not the memory representations.
-impl PartialOrd for Pdu {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+impl Ord for Pdu {
+	fn cmp(&self, other: &Self) -> Ordering { self.event_id.cmp(&other.event_id) }
 }
 
 /// Ordering determined by the Pdu's ID, not the memory representations.
-impl Ord for Pdu {
-	fn cmp(&self, other: &Self) -> Ordering { self.event_id.cmp(&other.event_id) }
+impl PartialOrd for Pdu {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }

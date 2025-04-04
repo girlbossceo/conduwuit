@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use conduwuit::{
-	Err, PduEvent, Result, at, is_true,
+	Err, Result, at, is_true,
+	matrix::pdu::PduEvent,
 	result::FlatOk,
 	utils::{IterStream, stream::ReadyExt},
 };
+use conduwuit_service::{Services, rooms::search::RoomQuery};
 use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt, future::OptionFuture};
 use ruma::{
 	OwnedRoomId, RoomId, UInt, UserId,
@@ -17,7 +19,6 @@ use ruma::{
 	serde::Raw,
 };
 use search_events::v3::{Request, Response};
-use service::{Services, rooms::search::RoomQuery};
 
 use crate::Ruma;
 

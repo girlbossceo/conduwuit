@@ -1,5 +1,10 @@
 use axum::extract::State;
-use conduwuit::{Err, PduEvent, Result, err, pdu::PduBuilder, utils::BoolExt};
+use conduwuit::{
+	Err, Result, err,
+	matrix::pdu::{PduBuilder, PduEvent},
+	utils::BoolExt,
+};
+use conduwuit_service::Services;
 use futures::TryStreamExt;
 use ruma::{
 	OwnedEventId, RoomId, UserId,
@@ -16,7 +21,6 @@ use ruma::{
 	},
 	serde::Raw,
 };
-use service::Services;
 
 use crate::{Ruma, RumaResponse};
 

@@ -1,10 +1,22 @@
 use axum::extract::State;
 use conduwuit::{
-	Err, Event, PduCount, PduEvent, Result, at,
+	Err, Result, at,
+	matrix::{
+		Event,
+		pdu::{PduCount, PduEvent},
+	},
 	utils::{
 		IterStream, ReadyExt,
 		result::{FlatOk, LogErr},
 		stream::{BroadbandExt, TryIgnore, WidebandExt},
+	},
+};
+use conduwuit_service::{
+	Services,
+	rooms::{
+		lazy_loading,
+		lazy_loading::{Options, Witness},
+		timeline::PdusIterItem,
 	},
 };
 use futures::{FutureExt, StreamExt, TryFutureExt, future::OptionFuture, pin_mut};
@@ -16,14 +28,6 @@ use ruma::{
 	},
 	events::{AnyStateEvent, StateEventType, TimelineEventType, TimelineEventType::*},
 	serde::Raw,
-};
-use service::{
-	Services,
-	rooms::{
-		lazy_loading,
-		lazy_loading::{Options, Witness},
-		timeline::PdusIterItem,
-	},
 };
 
 use crate::Ruma;

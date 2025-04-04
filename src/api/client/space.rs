@@ -8,15 +8,15 @@ use conduwuit::{
 	Err, Result,
 	utils::{future::TryExtExt, stream::IterStream},
 };
-use futures::{StreamExt, TryFutureExt, future::OptionFuture};
-use ruma::{
-	OwnedRoomId, OwnedServerName, RoomId, UInt, UserId, api::client::space::get_hierarchy,
-};
-use service::{
+use conduwuit_service::{
 	Services,
 	rooms::spaces::{
 		PaginationToken, SummaryAccessibility, get_parent_children_via, summary_to_chunk,
 	},
+};
+use futures::{StreamExt, TryFutureExt, future::OptionFuture};
+use ruma::{
+	OwnedRoomId, OwnedServerName, RoomId, UInt, UserId, api::client::space::get_hierarchy,
 };
 
 use crate::Ruma;

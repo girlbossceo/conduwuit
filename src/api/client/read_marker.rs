@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::extract::State;
-use conduwuit::{Err, PduCount, err};
+use conduwuit::{Err, PduCount, Result, err};
 use ruma::{
 	MilliSecondsSinceUnixEpoch,
 	api::client::{read_marker::set_read_marker, receipt::create_receipt},
@@ -11,7 +11,7 @@ use ruma::{
 	},
 };
 
-use crate::{Result, Ruma};
+use crate::Ruma;
 
 /// # `POST /_matrix/client/r0/rooms/{roomId}/read_markers`
 ///

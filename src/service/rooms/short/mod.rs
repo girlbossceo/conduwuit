@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, fmt::Debug, mem::size_of_val, sync::Arc};
 
-pub use conduwuit::pdu::{ShortEventId, ShortId, ShortRoomId, ShortStateKey};
-use conduwuit::{Result, StateKey, err, implement, utils, utils::IterStream};
+pub use conduwuit::matrix::pdu::{ShortEventId, ShortId, ShortRoomId, ShortStateKey};
+use conduwuit::{Result, err, implement, matrix::StateKey, utils, utils::IterStream};
 use database::{Deserialized, Get, Map, Qry};
 use futures::{Stream, StreamExt};
 use ruma::{EventId, RoomId, events::StateEventType};

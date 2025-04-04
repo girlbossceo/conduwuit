@@ -11,9 +11,9 @@ use ruma::{
 };
 use serde::Deserialize;
 use serde_json::{Error, from_str as from_json_str};
-use tracing::error;
 
 use super::{Result, RoomVersion};
+use crate::error;
 
 #[derive(Deserialize)]
 struct IntRoomPowerLevelsEventContent {
