@@ -12,7 +12,7 @@ use std::{
 
 use async_channel::{QueueStrategy, Receiver, RecvError, Sender};
 use conduwuit::{
-	Error, Result, Server, debug, debug_warn, err, error, implement,
+	Error, Result, Server, debug, err, error, implement,
 	result::DebugInspect,
 	smallvec::SmallVec,
 	trace,
@@ -243,13 +243,6 @@ fn select_queue(&self) -> &Sender<Cmd> {
 async fn execute(&self, queue: &Sender<Cmd>, cmd: Cmd) -> Result {
 	if cfg!(debug_assertions) {
 		self.queued_max.fetch_max(queue.len(), Ordering::Relaxed);
-	}
-
-	if queue.is_full() {
-		debug_warn!(
-			capacity = ?queue.capacity(),
-			"pool queue is full"
-		);
 	}
 
 	queue
