@@ -15,6 +15,7 @@ use conduwuit::{
 	result::FlatOk,
 	utils::{
 		self, BoolExt, IterStream, ReadyExt, TryFutureExtExt,
+		future::OptionStream,
 		math::ruma_from_u64,
 		stream::{BroadbandExt, Tools, TryExpect, WidebandExt},
 	},
@@ -1036,7 +1037,7 @@ async fn calculate_state_incremental<'a>(
 		})
 		.into();
 
-	let state_diff: OptionFuture<_> = (!full_state && state_changed)
+	let state_diff_ids: OptionFuture<_> = (!full_state && state_changed)
 		.then(|| {
 			StreamExt::into_future(
 				services
@@ -1061,45 +1062,9 @@ async fn calculate_state_incremental<'a>(
 		})
 		.into();
 
-	let lazy_state_ids = lazy_state_ids
-		.map(|opt| {
-			opt.map(|(curr, next)| {
-				let opt = curr;
-				let iter = Option::into_iter(opt);
-				IterStream::stream(iter).chain(next)
-			})
-		})
-		.map(Option::into_iter)
-		.map(IterStream::stream)
-		.flatten_stream()
-		.flatten();
-
-	let state_diff_ids = state_diff
-		.map(|opt| {
-			opt.map(|(curr, next)| {
-				let opt = curr;
-				let iter = Option::into_iter(opt);
-				IterStream::stream(iter).chain(next)
-			})
-		})
-		.map(Option::into_iter)
-		.map(IterStream::stream)
-		.flatten_stream()
-		.flatten();
-
 	let state_events = current_state_ids
-		.map(|opt| {
-			opt.map(|(curr, next)| {
-				let opt = curr;
-				let iter = Option::into_iter(opt);
-				IterStream::stream(iter).chain(next)
-			})
-		})
-		.map(Option::into_iter)
-		.map(IterStream::stream)
-		.flatten_stream()
-		.flatten()
-		.chain(state_diff_ids)
+		.stream()
+		.chain(state_diff_ids.stream())
 		.broad_filter_map(|(shortstatekey, shorteventid)| async move {
 			if witness.is_none() || encrypted_room {
 				return Some(shorteventid);
@@ -1107,7 +1072,7 @@ async fn calculate_state_incremental<'a>(
 
 			lazy_filter(services, sender_user, shortstatekey, shorteventid).await
 		})
-		.chain(lazy_state_ids)
+		.chain(lazy_state_ids.stream())
 		.broad_filter_map(|shorteventid| {
 			services
 				.rooms
