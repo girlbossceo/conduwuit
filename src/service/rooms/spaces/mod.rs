@@ -121,21 +121,22 @@ pub async fn get_summary_and_children_local(
 		| None => (), // cache miss
 		| Some(None) => return Ok(None),
 		| Some(Some(cached)) => {
-			return Ok(Some(
-				if self
-					.is_accessible_child(
-						current_room,
-						&cached.summary.join_rule,
-						identifier,
-						&cached.summary.allowed_room_ids,
-					)
-					.await
-				{
-					SummaryAccessibility::Accessible(cached.summary.clone())
-				} else {
-					SummaryAccessibility::Inaccessible
-				},
-			));
+			let allowed_rooms = cached.summary.allowed_room_ids.iter().map(AsRef::as_ref);
+
+			let is_accessible_child = self.is_accessible_child(
+				current_room,
+				&cached.summary.join_rule,
+				identifier,
+				allowed_rooms,
+			);
+
+			let accessibility = if is_accessible_child.await {
+				SummaryAccessibility::Accessible(cached.summary.clone())
+			} else {
+				SummaryAccessibility::Inaccessible
+			};
+
+			return Ok(Some(accessibility));
 		},
 	}
 
@@ -145,12 +146,11 @@ pub async fn get_summary_and_children_local(
 		.collect()
 		.await;
 
-	let summary = self
+	let Ok(summary) = self
 		.get_room_summary(current_room, children_pdus, identifier)
 		.boxed()
-		.await;
-
-	let Ok(summary) = summary else {
+		.await
+	else {
 		return Ok(None);
 	};
 
@@ -217,20 +217,19 @@ async fn get_summary_and_children_federation(
 		.await;
 
 	let identifier = Identifier::UserId(user_id);
+	let allowed_room_ids = summary.allowed_room_ids.iter().map(AsRef::as_ref);
+
 	let is_accessible_child = self
-		.is_accessible_child(
-			current_room,
-			&summary.join_rule,
-			&identifier,
-			&summary.allowed_room_ids,
-		)
+		.is_accessible_child(current_room, &summary.join_rule, &identifier, allowed_room_ids)
 		.await;
 
-	if is_accessible_child {
-		return Ok(Some(SummaryAccessibility::Accessible(summary)));
-	}
+	let accessibility = if is_accessible_child {
+		SummaryAccessibility::Accessible(summary)
+	} else {
+		SummaryAccessibility::Inaccessible
+	};
 
-	Ok(Some(SummaryAccessibility::Inaccessible))
+	Ok(Some(accessibility))
 }
 
 /// Simply returns the stripped m.space.child events of a room
@@ -305,14 +304,15 @@ async fn get_room_summary(
 	children_state: Vec<Raw<HierarchySpaceChildEvent>>,
 	identifier: &Identifier<'_>,
 ) -> Result<SpaceHierarchyParentSummary, Error> {
-	let (join_rule, allowed_room_ids) = self
-		.services
-		.state_accessor
-		.get_space_join_rule(room_id)
-		.await;
+	let join_rule = self.services.state_accessor.get_join_rules(room_id).await;
 
 	let is_accessible_child = self
-		.is_accessible_child(room_id, &join_rule, identifier, &allowed_room_ids)
+		.is_accessible_child(
+			room_id,
+			&join_rule.clone().into(),
+			identifier,
+			join_rule.allowed_rooms(),
+		)
 		.await;
 
 	if !is_accessible_child {
@@ -379,7 +379,7 @@ async fn get_room_summary(
 		encryption,
 	);
 
-	Ok(SpaceHierarchyParentSummary {
+	let summary = SpaceHierarchyParentSummary {
 		canonical_alias,
 		name,
 		topic,
@@ -388,24 +388,29 @@ async fn get_room_summary(
 		avatar_url,
 		room_type,
 		children_state,
-		allowed_room_ids,
-		join_rule,
-		room_id: room_id.to_owned(),
-		num_joined_members: num_joined_members.try_into().unwrap_or_default(),
 		encryption,
 		room_version,
-	})
+		room_id: room_id.to_owned(),
+		num_joined_members: num_joined_members.try_into().unwrap_or_default(),
+		allowed_room_ids: join_rule.allowed_rooms().map(Into::into).collect(),
+		join_rule: join_rule.clone().into(),
+	};
+
+	Ok(summary)
 }
 
 /// With the given identifier, checks if a room is accessable
 #[implement(Service)]
-async fn is_accessible_child(
+async fn is_accessible_child<'a, I>(
 	&self,
 	current_room: &RoomId,
 	join_rule: &SpaceRoomJoinRule,
 	identifier: &Identifier<'_>,
-	allowed_room_ids: &[OwnedRoomId],
-) -> bool {
+	allowed_rooms: I,
+) -> bool
+where
+	I: Iterator<Item = &'a RoomId> + Send,
+{
 	if let Identifier::ServerName(server_name) = identifier {
 		// Checks if ACLs allow for the server to participate
 		if self
@@ -430,21 +435,18 @@ async fn is_accessible_child(
 		}
 	}
 
-	match join_rule {
+	match *join_rule {
 		| SpaceRoomJoinRule::Public
 		| SpaceRoomJoinRule::Knock
 		| SpaceRoomJoinRule::KnockRestricted => true,
 		| SpaceRoomJoinRule::Restricted =>
-			allowed_room_ids
-				.iter()
+			allowed_rooms
 				.stream()
-				.any(|room| async {
-					match identifier {
-						| Identifier::UserId(user) =>
-							self.services.state_cache.is_joined(user, room).await,
-						| Identifier::ServerName(server) =>
-							self.services.state_cache.server_in_room(server, room).await,
-					}
+				.any(async |room| match identifier {
+					| Identifier::UserId(user) =>
+						self.services.state_cache.is_joined(user, room).await,
+					| Identifier::ServerName(server) =>
+						self.services.state_cache.server_in_room(server, room).await,
 				})
 				.await,
 

@@ -4,9 +4,13 @@ use conduwuit::{
 	Err, Result, debug_warn,
 	utils::{IterStream, future::TryExtExt},
 };
-use futures::{FutureExt, StreamExt, future::join3, stream::FuturesUnordered};
+use futures::{
+	FutureExt, StreamExt,
+	future::{OptionFuture, join3},
+	stream::FuturesUnordered,
+};
 use ruma::{
-	OwnedRoomId, OwnedServerName, RoomId, UserId,
+	OwnedServerName, RoomId, UserId,
 	api::{
 		client::room::get_summary,
 		federation::space::{SpaceHierarchyParentSummary, get_hierarchy},
@@ -91,13 +95,9 @@ async fn room_summary_response(
 		join_rule: room.join_rule,
 		room_type: room.room_type,
 		room_version: room.room_version,
-		membership: if sender_user.is_none() {
-			None
-		} else {
-			Some(MembershipState::Leave)
-		},
 		encryption: room.encryption,
 		allowed_room_ids: room.allowed_room_ids,
+		membership: sender_user.is_some().then_some(MembershipState::Leave),
 	})
 }
 
@@ -106,20 +106,22 @@ async fn local_room_summary_response(
 	room_id: &RoomId,
 	sender_user: Option<&UserId>,
 ) -> Result<get_summary::msc3266::Response> {
-	let join_rule = services.rooms.state_accessor.get_space_join_rule(room_id);
+	let join_rule = services.rooms.state_accessor.get_join_rules(room_id);
+
 	let world_readable = services.rooms.state_accessor.is_world_readable(room_id);
+
 	let guest_can_join = services.rooms.state_accessor.guest_can_join(room_id);
 
-	let ((join_rule, allowed_room_ids), world_readable, guest_can_join) =
+	let (join_rule, world_readable, guest_can_join) =
 		join3(join_rule, world_readable, guest_can_join).await;
 
 	user_can_see_summary(
 		services,
 		room_id,
-		&join_rule,
+		&join_rule.clone().into(),
 		guest_can_join,
 		world_readable,
-		&allowed_room_ids,
+		join_rule.allowed_rooms(),
 		sender_user,
 	)
 	.await?;
@@ -129,25 +131,42 @@ async fn local_room_summary_response(
 		.state_accessor
 		.get_canonical_alias(room_id)
 		.ok();
+
 	let name = services.rooms.state_accessor.get_name(room_id).ok();
+
 	let topic = services.rooms.state_accessor.get_room_topic(room_id).ok();
+
 	let room_type = services.rooms.state_accessor.get_room_type(room_id).ok();
+
 	let avatar_url = services
 		.rooms
 		.state_accessor
 		.get_avatar(room_id)
 		.map(|res| res.into_option().unwrap_or_default().url);
+
 	let room_version = services.rooms.state.get_room_version(room_id).ok();
+
 	let encryption = services
 		.rooms
 		.state_accessor
 		.get_room_encryption(room_id)
 		.ok();
+
 	let num_joined_members = services
 		.rooms
 		.state_cache
 		.room_joined_count(room_id)
 		.unwrap_or(0);
+
+	let membership: OptionFuture<_> = sender_user
+		.map(|sender_user| {
+			services
+				.rooms
+				.state_accessor
+				.get_member(room_id, sender_user)
+				.map_ok_or(MembershipState::Leave, |content| content.membership)
+		})
+		.into();
 
 	let (
 		canonical_alias,
@@ -158,6 +177,7 @@ async fn local_room_summary_response(
 		room_type,
 		room_version,
 		encryption,
+		membership,
 	) = futures::join!(
 		canonical_alias,
 		name,
@@ -167,6 +187,7 @@ async fn local_room_summary_response(
 		room_type,
 		room_version,
 		encryption,
+		membership,
 	);
 
 	Ok(get_summary::msc3266::Response {
@@ -178,21 +199,12 @@ async fn local_room_summary_response(
 		num_joined_members: num_joined_members.try_into().unwrap_or_default(),
 		topic,
 		world_readable,
-		join_rule,
 		room_type,
 		room_version,
-		membership: if let Some(sender_user) = sender_user {
-			services
-				.rooms
-				.state_accessor
-				.get_member(room_id, sender_user)
-				.await
-				.map_or(Some(MembershipState::Leave), |content| Some(content.membership))
-		} else {
-			None
-		},
 		encryption,
-		allowed_room_ids,
+		membership,
+		allowed_room_ids: join_rule.allowed_rooms().map(Into::into).collect(),
+		join_rule: join_rule.into(),
 	})
 }
 
@@ -241,7 +253,7 @@ async fn remote_room_summary_hierarchy_response(
 			&room.join_rule,
 			room.guest_can_join,
 			room.world_readable,
-			&room.allowed_room_ids,
+			room.allowed_room_ids.iter().map(AsRef::as_ref),
 			sender_user,
 		)
 		.await
@@ -254,15 +266,18 @@ async fn remote_room_summary_hierarchy_response(
 	)))
 }
 
-async fn user_can_see_summary(
+async fn user_can_see_summary<'a, I>(
 	services: &Services,
 	room_id: &RoomId,
 	join_rule: &SpaceRoomJoinRule,
 	guest_can_join: bool,
 	world_readable: bool,
-	allowed_room_ids: &[OwnedRoomId],
+	allowed_room_ids: I,
 	sender_user: Option<&UserId>,
-) -> Result {
+) -> Result
+where
+	I: Iterator<Item = &'a RoomId> + Send,
+{
 	match sender_user {
 		| Some(sender_user) => {
 			let user_can_see_state_events = services
@@ -271,7 +286,6 @@ async fn user_can_see_summary(
 				.user_can_see_state_events(sender_user, room_id);
 			let is_guest = services.users.is_deactivated(sender_user).unwrap_or(false);
 			let user_in_allowed_restricted_room = allowed_room_ids
-				.iter()
 				.stream()
 				.any(|room| services.rooms.state_cache.is_joined(sender_user, room));
 

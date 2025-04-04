@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use conduwuit::{Result, err};
 use database::Map;
 use ruma::{
-	EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, OwnedRoomId, RoomId, UserId,
+	EventEncryptionAlgorithm, JsOption, OwnedRoomAliasId, RoomId, UserId,
 	events::{
 		StateEventType,
 		room::{
@@ -19,14 +19,13 @@ use ruma::{
 			encryption::RoomEncryptionEventContent,
 			guest_access::{GuestAccess, RoomGuestAccessEventContent},
 			history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
-			join_rules::{AllowRule, JoinRule, RoomJoinRulesEventContent, RoomMembership},
+			join_rules::{JoinRule, RoomJoinRulesEventContent},
 			member::RoomMemberEventContent,
 			name::RoomNameEventContent,
 			topic::RoomTopicEventContent,
 		},
 	},
 	room::RoomType,
-	space::SpaceRoomJoinRule,
 };
 
 use crate::{Dep, rooms};
@@ -129,42 +128,12 @@ impl Service {
 			.map(|c: RoomTopicEventContent| c.topic)
 	}
 
-	/// Returns the space join rule (`SpaceRoomJoinRule`) for a given room and
-	/// any allowed room IDs if available. Will default to Invite and empty vec
-	/// if doesnt exist or invalid,
-	pub async fn get_space_join_rule(
-		&self,
-		room_id: &RoomId,
-	) -> (SpaceRoomJoinRule, Vec<OwnedRoomId>) {
-		self.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
-			.await
-			.map_or_else(
-				|_| (SpaceRoomJoinRule::Invite, vec![]),
-				|c: RoomJoinRulesEventContent| {
-					(c.join_rule.clone().into(), self.allowed_room_ids(c.join_rule))
-				},
-			)
-	}
-
 	/// Returns the join rules for a given room (`JoinRule` type). Will default
 	/// to Invite if doesnt exist or invalid
 	pub async fn get_join_rules(&self, room_id: &RoomId) -> JoinRule {
 		self.room_state_get_content(room_id, &StateEventType::RoomJoinRules, "")
 			.await
-			.map_or_else(|_| JoinRule::Invite, |c: RoomJoinRulesEventContent| (c.join_rule))
-	}
-
-	/// Returns an empty vec if not a restricted room
-	pub fn allowed_room_ids(&self, join_rule: JoinRule) -> Vec<OwnedRoomId> {
-		let mut room_ids = Vec::with_capacity(1); // restricted rooms generally only have 1 allowed room ID
-		if let JoinRule::Restricted(r) | JoinRule::KnockRestricted(r) = join_rule {
-			for rule in r.allow {
-				if let AllowRule::RoomMembership(RoomMembership { room_id: membership }) = rule {
-					room_ids.push(membership.clone());
-				}
-			}
-		}
-		room_ids
+			.map_or(JoinRule::Invite, |c: RoomJoinRulesEventContent| c.join_rule)
 	}
 
 	pub async fn get_room_type(&self, room_id: &RoomId) -> Result<RoomType> {
