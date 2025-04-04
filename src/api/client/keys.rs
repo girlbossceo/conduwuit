@@ -380,7 +380,9 @@ pub(crate) async fn upload_signatures_route(
 			}
 		}
 
-		failures.insert(user_id.to_owned(), failure_reasons.clone());
+		if !failure_reasons.is_empty() {
+			failures.insert(user_id.to_owned(), failure_reasons.clone());
+		}
 	}
 
 	Ok(upload_signatures::v3::Response { failures })
