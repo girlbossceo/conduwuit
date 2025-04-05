@@ -26,7 +26,7 @@
         file = ./rust-toolchain.toml;
 
         # See also `rust-toolchain.toml`
-        sha256 = "sha256-AJ6LX/Q/Er9kS15bn9iflkUwcgYqRQxiOIL2ToVAXaU=";
+        sha256 = "sha256-X/4ZBHO3iW0fOenQ3foEvscgAPJYl2abspaBThDOukI=";
       };
 
       mkScope = pkgs: pkgs.lib.makeScope pkgs.newScope (self: {
