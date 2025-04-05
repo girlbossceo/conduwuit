@@ -527,9 +527,9 @@
 
 # Default room version conduwuit will create rooms with.
 #
-# Per spec, room version 10 is the default.
+# Per spec, room version 11 is the default.
 #
-#default_room_version = 10
+#default_room_version = 11
 
 # This item is undocumented. Please contribute documentation for it.
 #

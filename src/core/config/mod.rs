@@ -640,9 +640,9 @@ pub struct Config {
 
 	/// Default room version conduwuit will create rooms with.
 	///
-	/// Per spec, room version 10 is the default.
+	/// Per spec, room version 11 is the default.
 	///
-	/// default: 10
+	/// default: 11
 	#[serde(default = "default_default_room_version")]
 	pub default_room_version: RoomVersionId,
 
@@ -2170,7 +2170,7 @@ fn default_rocksdb_stats_level() -> u8 { 1 }
 // I know, it's a great name
 #[must_use]
 #[inline]
-pub fn default_default_room_version() -> RoomVersionId { RoomVersionId::V10 }
+pub fn default_default_room_version() -> RoomVersionId { RoomVersionId::V11 }
 
 fn default_ip_range_denylist() -> Vec<String> {
 	vec![
