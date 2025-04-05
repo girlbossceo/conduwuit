@@ -3625,8 +3625,7 @@ dependencies = [
 [[package]]
 name = "resolv-conf"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48375394603e3dd4b2d64371f7148fd8c7baa2680e28741f2cb8d23b59e3d4c4"
+source = "git+https://github.com/girlbossceo/resolv-conf?rev=200e958941d522a70c5877e3d846f55b5586c68d#200e958941d522a70c5877e3d846f55b5586c68d"
 dependencies = [
  "hostname",
 ]

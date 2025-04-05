@@ -20,7 +20,7 @@ license = "Apache-2.0"
 # See also `rust-toolchain.toml`
 readme = "README.md"
 repository = "https://github.com/girlbossceo/conduwuit"
-rust-version = "1.85.0"
+rust-version = "1.86.0"
 version = "0.5.0"
 
 [workspace.metadata.crane]
@@ -579,6 +579,13 @@ rev = "9c8e51510c35077df888ee72a36b4b05637147da"
 [patch.crates-io.hyper-util]
 git = "https://github.com/girlbossceo/hyper-util"
 rev = "e4ae7628fe4fcdacef9788c4c8415317a4489941"
+
+# allows no-aaaa option in resolv.conf
+# bumps rust edition and toolchain to 1.86.0 and 2024
+# use sat_add on line number errors
+[patch.crates-io.resolv-conf]
+git = "https://github.com/girlbossceo/resolv-conf"
+rev = "200e958941d522a70c5877e3d846f55b5586c68d"
 
 #
 # Our crates
