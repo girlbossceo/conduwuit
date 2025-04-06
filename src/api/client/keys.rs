@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axum::extract::State;
-use conduwuit::{Err, Error, Result, debug, debug_warn, err, info, result::NotFound, utils};
+use conduwuit::{Err, Error, Result, debug, debug_warn, err, result::NotFound, utils};
 use conduwuit_service::{Services, users::parse_master_key};
 use futures::{StreamExt, stream::FuturesUnordered};
 use ruma::{
@@ -177,7 +177,7 @@ pub(crate) async fn upload_signing_keys_route(
 		body.master_key.as_ref(),
 	)
 	.await
-	.inspect_err(|e| info!(?e))
+	.inspect_err(|e| debug!(?e))
 	{
 		| Ok(exists) => {
 			if let Some(result) = exists {
