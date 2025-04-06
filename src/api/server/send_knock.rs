@@ -26,10 +26,9 @@ pub(crate) async fn create_knock_event_v1_route(
 	body: Ruma<send_knock::v1::Request>,
 ) -> Result<send_knock::v1::Response> {
 	if services
-		.server
 		.config
 		.forbidden_remote_server_names
-		.contains(body.origin())
+		.is_match(body.origin().host())
 	{
 		warn!(
 			"Server {} tried knocking room ID {} who has a server name that is globally \
@@ -42,10 +41,9 @@ pub(crate) async fn create_knock_event_v1_route(
 
 	if let Some(server) = body.room_id.server_name() {
 		if services
-			.server
 			.config
 			.forbidden_remote_server_names
-			.contains(&server.to_owned())
+			.is_match(server.host())
 		{
 			warn!(
 				"Server {} tried knocking room ID {} which has a server name that is globally \

@@ -38,20 +38,18 @@ pub(crate) async fn create_invite_route(
 
 	if let Some(server) = body.room_id.server_name() {
 		if services
-			.server
 			.config
 			.forbidden_remote_server_names
-			.contains(&server.to_owned())
+			.is_match(server.host())
 		{
 			return Err!(Request(Forbidden("Server is banned on this homeserver.")));
 		}
 	}
 
 	if services
-		.server
 		.config
 		.forbidden_remote_server_names
-		.contains(body.origin())
+		.is_match(body.origin().host())
 	{
 		warn!(
 			"Received federated/remote invite from banned server {} for room ID {}. Rejecting.",

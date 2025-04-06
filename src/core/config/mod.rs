@@ -3,7 +3,7 @@ pub mod manager;
 pub mod proxy;
 
 use std::{
-	collections::{BTreeMap, BTreeSet, HashSet},
+	collections::{BTreeMap, BTreeSet},
 	net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 	path::{Path, PathBuf},
 };
@@ -715,7 +715,7 @@ pub struct Config {
 	/// Currently, conduwuit doesn't support inbound batched key requests, so
 	/// this list should only contain other Synapse servers.
 	///
-	/// example: ["matrix.org", "envs.net", "tchncs.de"]
+	/// example: ["matrix.org", "tchncs.de"]
 	///
 	/// default: ["matrix.org"]
 	#[serde(default = "default_trusted_servers")]
@@ -1361,15 +1361,18 @@ pub struct Config {
 	#[serde(default)]
 	pub prune_missing_media: bool,
 
-	/// Vector list of servers that conduwuit will refuse to download remote
-	/// media from.
+	/// Vector list of regex patterns of server names that conduwuit will refuse
+	/// to download remote media from.
+	///
+	/// example: ["badserver\.tld$", "badphrase", "19dollarfortnitecards"]
 	///
 	/// default: []
-	#[serde(default)]
-	pub prevent_media_downloads_from: HashSet<OwnedServerName>,
+	#[serde(default, with = "serde_regex")]
+	pub prevent_media_downloads_from: RegexSet,
 
-	/// List of forbidden server names that we will block incoming AND outgoing
-	/// federation with, and block client room joins / remote user invites.
+	/// List of forbidden server names via regex patterns that we will block
+	/// incoming AND outgoing federation with, and block client room joins /
+	/// remote user invites.
 	///
 	/// This check is applied on the room ID, room alias, sender server name,
 	/// sender user's server name, inbound federation X-Matrix origin, and
@@ -1377,17 +1380,21 @@ pub struct Config {
 	///
 	/// Basically "global" ACLs.
 	///
-	/// default: []
-	#[serde(default)]
-	pub forbidden_remote_server_names: HashSet<OwnedServerName>,
-
-	/// List of forbidden server names that we will block all outgoing federated
-	/// room directory requests for. Useful for preventing our users from
-	/// wandering into bad servers or spaces.
+	/// example: ["badserver\.tld$", "badphrase", "19dollarfortnitecards"]
 	///
 	/// default: []
-	#[serde(default = "HashSet::new")]
-	pub forbidden_remote_room_directory_server_names: HashSet<OwnedServerName>,
+	#[serde(default, with = "serde_regex")]
+	pub forbidden_remote_server_names: RegexSet,
+
+	/// List of forbidden server names via regex patterns that we will block all
+	/// outgoing federated room directory requests for. Useful for preventing
+	/// our users from wandering into bad servers or spaces.
+	///
+	/// example: ["badserver\.tld$", "badphrase", "19dollarfortnitecards"]
+	///
+	/// default: []
+	#[serde(default, with = "serde_regex")]
+	pub forbidden_remote_room_directory_server_names: RegexSet,
 
 	/// Vector list of IPv4 and IPv6 CIDR ranges / subnets *in quotes* that you
 	/// do not want conduwuit to send outbound requests to. Defaults to
@@ -1508,11 +1515,10 @@ pub struct Config {
 	/// used, and startup as warnings if any room aliases in your database have
 	/// a forbidden room alias/ID.
 	///
-	/// example: ["19dollarfortnitecards", "b[4a]droom"]
+	/// example: ["19dollarfortnitecards", "b[4a]droom", "badphrase"]
 	///
 	/// default: []
-	#[serde(default)]
-	#[serde(with = "serde_regex")]
+	#[serde(default, with = "serde_regex")]
 	pub forbidden_alias_names: RegexSet,
 
 	/// List of forbidden username patterns/strings.
@@ -1524,11 +1530,10 @@ pub struct Config {
 	/// startup as warnings if any local users in your database have a forbidden
 	/// username.
 	///
-	/// example: ["administrator", "b[a4]dusernam[3e]"]
+	/// example: ["administrator", "b[a4]dusernam[3e]", "badphrase"]
 	///
 	/// default: []
-	#[serde(default)]
-	#[serde(with = "serde_regex")]
+	#[serde(default, with = "serde_regex")]
 	pub forbidden_usernames: RegexSet,
 
 	/// Retry failed and incomplete messages to remote servers immediately upon
