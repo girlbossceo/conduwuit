@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum_client_ip::InsecureClientIp;
 use conduwuit::{
-	Err, Result, debug_warn,
+	Err, Result, debug_warn, trace,
 	utils::{IterStream, future::TryExtExt},
 };
 use futures::{
@@ -74,7 +74,12 @@ async fn room_summary_response(
 	servers: &[OwnedServerName],
 	sender_user: Option<&UserId>,
 ) -> Result<get_summary::msc3266::Response> {
-	if services.rooms.metadata.exists(room_id).await {
+	if services
+		.rooms
+		.state_cache
+		.server_in_room(services.globals.server_name(), room_id)
+		.await
+	{
 		return local_room_summary_response(services, room_id, sender_user)
 			.boxed()
 			.await;
@@ -106,14 +111,14 @@ async fn local_room_summary_response(
 	room_id: &RoomId,
 	sender_user: Option<&UserId>,
 ) -> Result<get_summary::msc3266::Response> {
+	trace!(?sender_user, "Sending local room summary response for {room_id:?}");
 	let join_rule = services.rooms.state_accessor.get_join_rules(room_id);
-
 	let world_readable = services.rooms.state_accessor.is_world_readable(room_id);
-
 	let guest_can_join = services.rooms.state_accessor.guest_can_join(room_id);
 
 	let (join_rule, world_readable, guest_can_join) =
 		join3(join_rule, world_readable, guest_can_join).await;
+	trace!("{join_rule:?}, {world_readable:?}, {guest_can_join:?}");
 
 	user_can_see_summary(
 		services,
@@ -215,6 +220,7 @@ async fn remote_room_summary_hierarchy_response(
 	servers: &[OwnedServerName],
 	sender_user: Option<&UserId>,
 ) -> Result<SpaceHierarchyParentSummary> {
+	trace!(?sender_user, ?servers, "Sending remote room summary response for {room_id:?}");
 	if !services.config.allow_federation {
 		return Err!(Request(Forbidden("Federation is disabled.")));
 	}
@@ -237,6 +243,7 @@ async fn remote_room_summary_hierarchy_response(
 		.collect();
 
 	while let Some(Ok(response)) = requests.next().await {
+		trace!("{response:?}");
 		let room = response.room.clone();
 		if room.room_id != room_id {
 			debug_warn!(
@@ -278,6 +285,7 @@ async fn user_can_see_summary<'a, I>(
 where
 	I: Iterator<Item = &'a RoomId> + Send,
 {
+	let is_public_room = matches!(join_rule, Public | Knock | KnockRestricted);
 	match sender_user {
 		| Some(sender_user) => {
 			let user_can_see_state_events = services
@@ -296,7 +304,7 @@ where
 
 			if user_can_see_state_events
 				|| (is_guest && guest_can_join)
-				|| matches!(&join_rule, &Public | &Knock | &KnockRestricted)
+				|| is_public_room
 				|| user_in_allowed_restricted_room
 			{
 				return Ok(());
@@ -309,7 +317,7 @@ where
 			)))
 		},
 		| None => {
-			if matches!(join_rule, Public | Knock | KnockRestricted) || world_readable {
+			if is_public_room || world_readable {
 				return Ok(());
 			}
 
