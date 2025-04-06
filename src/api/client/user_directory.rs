@@ -1,15 +1,19 @@
 use axum::extract::State;
-use conduwuit::{Result, utils::TryFutureExtExt};
-use futures::{StreamExt, pin_mut};
+use conduwuit::{
+	Result,
+	utils::{future::BoolExt, stream::BroadbandExt},
+};
+use futures::{FutureExt, StreamExt, pin_mut};
 use ruma::{
-	api::client::user_directory::search_users,
-	events::{
-		StateEventType,
-		room::join_rules::{JoinRule, RoomJoinRulesEventContent},
-	},
+	api::client::user_directory::search_users::{self},
+	events::room::join_rules::JoinRule,
 };
 
 use crate::Ruma;
+
+// conduwuit can handle a lot more results than synapse
+const LIMIT_MAX: usize = 500;
+const LIMIT_DEFAULT: usize = 10;
 
 /// # `POST /_matrix/client/r0/user_directory/search`
 ///
@@ -21,78 +25,63 @@ pub(crate) async fn search_users_route(
 	State(services): State<crate::State>,
 	body: Ruma<search_users::v3::Request>,
 ) -> Result<search_users::v3::Response> {
-	let sender_user = body.sender_user.as_ref().expect("user is authenticated");
-	let limit = usize::try_from(body.limit).map_or(10, usize::from).min(100); // default limit is 10
+	let sender_user = body.sender_user();
+	let limit = usize::try_from(body.limit)
+		.map_or(LIMIT_DEFAULT, usize::from)
+		.min(LIMIT_MAX);
 
-	let users = services.users.stream().filter_map(|user_id| async {
-		// Filter out buggy users (they should not exist, but you never know...)
-		let user = search_users::v3::User {
-			user_id: user_id.to_owned(),
-			display_name: services.users.displayname(user_id).await.ok(),
-			avatar_url: services.users.avatar_url(user_id).await.ok(),
-		};
+	let mut users = services
+		.users
+		.stream()
+		.map(ToOwned::to_owned)
+		.broad_filter_map(async |user_id| {
+			let user = search_users::v3::User {
+				user_id: user_id.clone(),
+				display_name: services.users.displayname(&user_id).await.ok(),
+				avatar_url: services.users.avatar_url(&user_id).await.ok(),
+			};
 
-		let user_id_matches = user
-			.user_id
-			.to_string()
-			.to_lowercase()
-			.contains(&body.search_term.to_lowercase());
+			let user_id_matches = user
+				.user_id
+				.as_str()
+				.to_lowercase()
+				.contains(&body.search_term.to_lowercase());
 
-		let user_displayname_matches = user
-			.display_name
-			.as_ref()
-			.filter(|name| {
+			let user_displayname_matches = user.display_name.as_ref().is_some_and(|name| {
 				name.to_lowercase()
 					.contains(&body.search_term.to_lowercase())
-			})
-			.is_some();
+			});
 
-		if !user_id_matches && !user_displayname_matches {
-			return None;
-		}
+			if !user_id_matches && !user_displayname_matches {
+				return None;
+			}
 
-		// It's a matching user, but is the sender allowed to see them?
-		let mut user_visible = false;
-
-		let user_is_in_public_rooms = services
-			.rooms
-			.state_cache
-			.rooms_joined(&user.user_id)
-			.any(|room| {
-				services
-					.rooms
-					.state_accessor
-					.room_state_get_content::<RoomJoinRulesEventContent>(
-						room,
-						&StateEventType::RoomJoinRules,
-						"",
-					)
-					.map_ok_or(false, |content| content.join_rule == JoinRule::Public)
-			})
-			.await;
-
-		if user_is_in_public_rooms {
-			user_visible = true;
-		} else {
-			let user_is_in_shared_rooms = services
+			let user_in_public_room = services
 				.rooms
 				.state_cache
-				.user_sees_user(sender_user, &user.user_id)
-				.await;
+				.rooms_joined(&user_id)
+				.map(ToOwned::to_owned)
+				.any(|room| async move {
+					services
+						.rooms
+						.state_accessor
+						.get_join_rules(&room)
+						.map(|rule| matches!(rule, JoinRule::Public))
+						.await
+				});
 
-			if user_is_in_shared_rooms {
-				user_visible = true;
-			}
-		}
+			let user_sees_user = services
+				.rooms
+				.state_cache
+				.user_sees_user(sender_user, &user_id);
 
-		user_visible.then_some(user)
-	});
+			pin_mut!(user_in_public_room, user_sees_user);
 
-	pin_mut!(users);
+			user_in_public_room.or(user_sees_user).await.then_some(user)
+		});
 
-	let limited = users.by_ref().next().await.is_some();
-
-	let results = users.take(limit).collect().await;
+	let results = users.by_ref().take(limit).collect().await;
+	let limited = users.next().await.is_some();
 
 	Ok(search_users::v3::Response { results, limited })
 }
