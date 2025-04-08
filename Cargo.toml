@@ -242,7 +242,7 @@ default-features = false
 features = ["std", "async-await"]
 
 [workspace.dependencies.tokio]
-version = "1.44.1"
+version = "1.44.2"
 default-features = false
 features = [
 	"fs",
