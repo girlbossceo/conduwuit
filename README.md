@@ -1,6 +1,8 @@
 # conduwuit
 
-**See [Tuwunel](https://tuwunel.chat) if you still use conduwuit or are looking for a newly maintained high performance Rust Matrix homeserver.**
+## [Tuwunel](https://tuwunel.chat) is the **ONLY** official successor to conduwuit, no other project or fork is. Tuwunel is a **fork of conduwuit**, not any other project. Anyone claiming otherwise is wrong and spreading disinformation.
+
+### **See [Tuwunel](https://tuwunel.chat) if you still use conduwuit or are looking for a newly well maintained, high performance Rust Matrix homeserver.**
 
 [![conduwuit main room](https://img.shields.io/matrix/conduwuit%3Apuppygock.gay?server_fqdn=matrix.transfem.dev&style=flat&logo=matrix&logoColor=%23f5b3ff&label=%23conduwuit%3Apuppygock.gay&color=%23f652ff)](https://matrix.to/#/#conduwuit:puppygock.gay) [![conduwuit space](https://img.shields.io/matrix/conduwuit-space%3Apuppygock.gay?server_fqdn=matrix.transfem.dev&style=flat&logo=matrix&logoColor=%23f5b3ff&label=%23conduwuit-space%3Apuppygock.gay&color=%23f652ff)](https://matrix.to/#/#conduwuit-space:puppygock.gay)
 
